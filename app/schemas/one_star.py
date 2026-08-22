@@ -761,7 +761,7 @@ OneStarOperation = (
 
 
 class OneStarTransaction(BaseModel):
-    """Required fixed-shape router field; absent work is ``false`` plus ``[]``."""
+    """Private typed mutation batch produced from compact router updates."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -771,17 +771,60 @@ class OneStarTransaction(BaseModel):
     @model_validator(mode="after")
     def _validate_presence(self) -> "OneStarTransaction":
         if self.present != bool(self.operations):
-            raise ValueError("one_star_transaction.present must exactly match operations")
+            raise ValueError("mutation-batch presence must exactly match operations")
         return self
+
+
+OneStarStateUpdateKind = Literal[
+    "catalogue_apply",
+    "summon",
+    "inventory_delta",
+    "hero_delta",
+    "mission_start",
+    "mission_update",
+    "mission_end",
+    "pending_open",
+    "pending_resolve",
+    "pending_cancel",
+    "tutorial_delivery",
+    "active_feed",
+]
+
+
+class OneStarStateUpdate(BaseModel):
+    """Compact router-authored semantic update.
+
+    The provider sees this one fixed record instead of the adapter's durable
+    mutation models. ``target_id`` identifies the primary account, Hero,
+    mission, pending operation, tutorial, or pool. ``value`` carries the
+    operation's primary scalar. Additional non-empty ``key=value`` entries
+    live in ``details``; repeated keys represent lists. The adapter parses and
+    validates those entries into its private typed transaction before commit.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: OneStarStateUpdateKind
+    target_id: str
+    value: str
+    details: list[str]
+
+
+class OneStarStateUpdateList(BaseModel):
+    """Narrow repair response for only the adapter update list."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    state_updates: list[OneStarStateUpdate]
 
 
 class OneStarEventRouterOutput(EventRouterOutput):
     """One-Star router response; imported by the ruleset router dispatcher."""
 
-    one_star_transaction: OneStarTransaction
+    state_updates: list[OneStarStateUpdate]
 
 
 class ClosedOneStarEventRouterOutput(ClosedEventRouterOutput):
-    """Closed continuation response carrying the same fixed transaction field."""
+    """Closed continuation response carrying the same compact update list."""
 
-    one_star_transaction: OneStarTransaction
+    state_updates: list[OneStarStateUpdate]

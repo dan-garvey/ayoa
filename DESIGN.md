@@ -1464,11 +1464,14 @@ Deferred D&D adapter cleanup:
 ### 15.7 One-Star Ascension Adapter
 
 One-Star uses the generic narrative router for fictional judgment and adds one
-typed transaction to that same output. It does not have a second resolver or a
-parallel combat loop. The router decides what happens in the fiction; the
-adapter validates exact references, arithmetic, clocks, and lifecycle
-preconditions, then applies the complete transaction atomically before the
-canonical event is broadcast.
+compact `state_updates` list to that same output. Every update is the same
+four-field record: kind, primary target, primary scalar value, and repeated
+`key=value` details. Durable operation and state models are not part of the
+provider schema. The adapter translates the compact list into private typed
+work, validates exact references, arithmetic, clocks, and lifecycle
+preconditions, then applies the complete mutation atomically before the
+canonical event is broadcast. There is no second resolver or parallel combat
+loop.
 
 Durable state stays on existing character records:
 
@@ -1484,25 +1487,27 @@ Durable state stays on existing character records:
   requirements. Engine code contains no One-Star entity names or economy
   constants.
 
-The cached router addon receives immutable configuration, including disclosed
-summon rates. Current balances, stamina, progression, mission, pending
-operation, relevant Hero sheets, and the exact next standard-pool draw slates
-are rendered only in the volatile user tail. Draw counters and deterministic
-draw inputs are never model context. One-Star routes use
-`OneStarEventRouterOutput`; continuation routes use the closed subtype. Default
-narrative and D&D routes retain their existing schemas and receive no One-Star
-prompt or state block.
+The cached router addon receives compact immutable configuration, including
+disclosed summon rates, catalogue costs/effects, progression gates, and
+physical operation requirements. The volatile user tail contains current
+balances, stamina, progression, active mission, pending operation, compact
+owned-Hero summaries, and full mechanics only for scene-relevant Heroes.
+Eligible dormant reserves, future draw results, draw counters, deterministic
+draw inputs, applied-event fingerprints, and private Hero potential are never
+model context. One-Star routes use `OneStarEventRouterOutput`; continuation
+routes use the closed subtype. Default narrative and D&D routes retain their
+existing schemas and receive no One-Star prompt or state block.
 
-For a standard summon, the adapter fixes each weighted birth grade and any
-eligible dormant reserve before routing, then accepts only an exact ordered
-prefix of that slate. The typed ledger operation pairs each result with the
-generic fresh spawn or exact dormant activation that creates the identity
-transition; a successful atomic commit advances the pool counter, while failed
-validation and replay cannot reroll or double-advance. Authored opening pools
-remain non-random and do not consume standard draws. Deployment, synthesis,
-and promotion are staged: selection opens a zero-side-effect pending operation,
-affected Heroes keep ordinary response ownership, and a later event may resolve
-only after the recorded bodies physically reach the configured gate or chamber.
+For a standard summon, the router emits only pool id and count. The adapter
+derives the exact weighted birth grades, eligible dormant reserves, fresh stable
+ids, and corresponding generic spawn/activation lifecycle without sending any
+result or future slate to the model. A successful atomic commit advances the
+pool counter, while failed validation and replay cannot reroll or double-
+advance. Authored opening pools remain non-random and do not consume standard
+draws. Deployment, synthesis, and promotion are staged: selection opens a
+zero-side-effect pending operation, affected Heroes keep ordinary response
+ownership, and a later event may resolve only after the recorded bodies
+physically reach the configured gate or chamber.
 Tower mission boundaries, pre-existing escape authority, resource underflow,
 Hero bounds, event-id fingerprints, and exactly-once rewards are hard validation
 constraints. Damage, death, resistance, reward-worthy action, growth, and

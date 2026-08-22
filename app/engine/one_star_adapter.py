@@ -1,10 +1,10 @@
 """Pure ledger preparation for the opt-in One-Star Ascension adapter.
 
-The router still arbitrates fiction.  This module only validates and applies
-the exact bookkeeping transaction it authored.  It also resolves configured
-weighted summons before the router authors their fictional identities.  It
-deliberately has no combat resolver, stat formula, XP curve, story id, or
-facility/economy constants.
+The router still arbitrates fiction. This module translates its one compact
+state-update list into private typed bookkeeping, validates it, and applies it
+atomically. Standard weighted summons are resolved here without exposing future
+draws to the router. The adapter deliberately has no combat resolver, stat
+formula, XP curve, story id, or facility/economy constants.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.event_router import SpawnRequest, WakeSignal
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_GACHA_WEIGHT_TOTAL,
@@ -29,6 +30,7 @@ from app.schemas.one_star import (
     OneStarCatalogueApplyOperation,
     OneStarCost,
     OneStarEquipmentEntry,
+    OneStarFormationEntry,
     OneStarHeroDeltaOperation,
     OneStarHeroState,
     OneStarInventoryDeltaOperation,
@@ -37,20 +39,25 @@ from app.schemas.one_star import (
     OneStarMissionStartOperation,
     OneStarMissionUpdateOperation,
     OneStarOperation,
+    OneStarPendingOperation,
     OneStarPendingCancelOperation,
     OneStarPendingOpenOperation,
     OneStarPendingResolveOperation,
     OneStarRulesConfig,
     OneStarSkillEntry,
+    OneStarSkillRankUpdate,
+    OneStarStateUpdate,
+    OneStarStatDelta,
     OneStarSummonPool,
     OneStarSummonOperation,
     OneStarTransaction,
     OneStarTutorialDeliveryOperation,
+    OneStarDurabilityUpdate,
 )
 
 
 class OneStarTransactionError(ValueError):
-    """A router-authored One-Star transaction cannot be committed safely."""
+    """A compact One-Star update cannot be committed safely."""
 
 
 def validate_one_star_pending_operation_shape(pending: object) -> None:
@@ -317,6 +324,639 @@ def one_star_summon_draw_preview(
         pool_id=pool_id,
         count=account.config.max_summon_batch if count is None else count,
     )
+
+
+def _state_update_details(update: OneStarStateUpdate) -> dict[str, list[str]]:
+    details: dict[str, list[str]] = {}
+    for raw_entry in update.details:
+        key, separator, value = raw_entry.partition("=")
+        key = key.strip()
+        if not separator or not key:
+            raise OneStarTransactionError(
+                "One-Star state-update details must use non-empty key=value entries"
+            )
+        details.setdefault(key, []).append(value.strip())
+    return details
+
+
+def _validate_state_update_detail_keys(
+    update: OneStarStateUpdate,
+    details: Mapping[str, list[str]],
+) -> None:
+    """Reject misspelled compact fields instead of silently dropping them."""
+
+    exact_by_kind: dict[str, frozenset[str]] = {
+        "catalogue_apply": frozenset(),
+        "summon": frozenset({"hero_id"}),
+        "inventory_delta": frozenset(),
+        "hero_delta": frozenset({
+            "hp_current",
+            "hp_max",
+            "level",
+            "experience_delta",
+            "equipment_remove",
+            "skill_remove",
+            "condition",
+            "persistent_injury",
+            "terminal_action",
+            "death_cause",
+        }),
+        "mission_start": frozenset({
+            "pending_operation_id",
+            "party",
+            "destination",
+            "completion",
+            "failure",
+            "duration_s",
+        }),
+        "mission_update": frozenset(),
+        "mission_end": frozenset({
+            "return_destination",
+            "escape_authority_id",
+        }),
+        "pending_open": frozenset({
+            "participant",
+            "target_id",
+            "destination",
+        }),
+        "pending_resolve": frozenset({"cull"}),
+        "pending_cancel": frozenset(),
+        "tutorial_delivery": frozenset({"recipient"}),
+        "active_feed": frozenset(),
+    }
+    prefix_by_kind: dict[str, tuple[str, ...]] = {
+        "hero_delta": (
+            "stat.",
+            "durability.",
+            "skill_rank.",
+            "equipment_add.",
+            "skill_add.",
+        ),
+        "mission_start": ("counter.", "formation."),
+        "mission_update": ("counter.",),
+    }
+    exact = exact_by_kind[update.kind]
+    prefixes = prefix_by_kind.get(update.kind, ())
+    unknown = sorted(
+        key
+        for key in details
+        if key not in exact and not any(key.startswith(prefix) for prefix in prefixes)
+    )
+    if unknown:
+        raise OneStarTransactionError(
+            f"One-Star {update.kind} state update has unsupported details: "
+            + ", ".join(unknown)
+        )
+
+    if update.kind == "hero_delta":
+        equipment_fields = {
+            "name",
+            "slot",
+            "quantity",
+            "durability_current",
+            "durability_max",
+            "tag",
+            "visible",
+        }
+        skill_fields = {"name", "rank", "capability", "tag", "visible"}
+        for key in details:
+            for prefix, fields in (
+                ("equipment_add.", equipment_fields),
+                ("skill_add.", skill_fields),
+            ):
+                if not key.startswith(prefix):
+                    continue
+                remainder = key.removeprefix(prefix)
+                identity, separator, field_name = remainder.rpartition(".")
+                if not separator or not identity or field_name not in fields:
+                    raise OneStarTransactionError(
+                        f"One-Star hero_delta state update has unsupported detail {key!r}"
+                    )
+                break
+            if key.startswith(("stat.", "durability.", "skill_rank.")):
+                if not key.partition(".")[2]:
+                    raise OneStarTransactionError(
+                        f"One-Star hero_delta state update has empty detail id {key!r}"
+                    )
+
+    for prefix in ("counter.", "formation."):
+        for key in details:
+            if key.startswith(prefix) and not key.removeprefix(prefix):
+                raise OneStarTransactionError(
+                    f"One-Star {update.kind} state update has empty detail id {key!r}"
+                )
+
+
+def _validate_state_update_scalar_shape(update: OneStarStateUpdate) -> None:
+    empty_value_kinds = {
+        "hero_delta",
+        "mission_update",
+        "pending_cancel",
+        "tutorial_delivery",
+        "active_feed",
+    }
+    if update.kind in empty_value_kinds and update.value:
+        raise OneStarTransactionError(
+            f"One-Star {update.kind} state update does not use value"
+        )
+
+
+def _single_detail(
+    details: Mapping[str, list[str]],
+    key: str,
+    *,
+    default: str | None = None,
+) -> str:
+    values = details.get(key, [])
+    if not values:
+        if default is not None:
+            return default
+        raise OneStarTransactionError(
+            f"One-Star state update requires detail {key!r}"
+        )
+    if len(values) != 1:
+        raise OneStarTransactionError(
+            f"One-Star state update detail {key!r} must appear exactly once"
+        )
+    return values[0]
+
+
+def _integer_update_value(value: str, *, label: str) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise OneStarTransactionError(
+            f"One-Star state update {label} must be an integer"
+        ) from exc
+
+
+def _boolean_update_value(value: str, *, label: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise OneStarTransactionError(
+        f"One-Star state update {label} must be true or false"
+    )
+
+
+def _counter_from_detail(key: str, value: str) -> OneStarMissionCounter:
+    current_text, separator, target_text = value.partition("/")
+    if not separator:
+        raise OneStarTransactionError(
+            "One-Star mission counter updates must use current/target"
+        )
+    return OneStarMissionCounter(
+        counter_id=key.removeprefix("counter."),
+        current=_integer_update_value(current_text, label="counter current"),
+        target=_integer_update_value(target_text, label="counter target"),
+    )
+
+
+def _fresh_summon_character_id(
+    *,
+    lobby_id: str,
+    pool_id: str,
+    draw_index: int,
+) -> str:
+    safe_pool = "".join(
+        character if character.isalnum() else "_" for character in pool_id.lower()
+    ).strip("_") or "summon"
+    return f"{lobby_id}_{safe_pool}_{draw_index + 1:04d}"
+
+
+def one_star_state_updates_to_transaction(
+    checkpoint: CheckpointFile,
+    state_updates: Iterable[OneStarStateUpdate],
+    *,
+    canonical_at_s: int,
+) -> OneStarTransaction:
+    """Translate the router's one compact update list into private typed work.
+
+    The durable operation models remain an adapter implementation detail.  In
+    particular, configured gacha results and canonical timestamps are filled
+    here rather than repeated by the model.
+    """
+
+    updates = list(state_updates)
+    if sum(update.kind == "summon" for update in updates) > 1:
+        raise OneStarTransactionError(
+            "a compact One-Star update list may contain only one summon"
+        )
+    account: OneStarAccountEnvelope | None = None
+    operations: list[OneStarOperation] = []
+    for update in updates:
+        details = _state_update_details(update)
+        _validate_state_update_detail_keys(update, details)
+        _validate_state_update_scalar_shape(update)
+        kind = update.kind
+        target_id = update.target_id.strip()
+
+        if kind == "catalogue_apply":
+            operations.append(OneStarCatalogueApplyOperation(
+                operation=kind,
+                catalogue_id=target_id,
+                quantity=_integer_update_value(update.value, label="quantity"),
+            ))
+            continue
+
+        if kind == "summon":
+            if account is None:
+                _owner, account = load_one_star_account(checkpoint)
+            count = _integer_update_value(update.value, label="summon count")
+            pool = account.config.summon_pools.get(target_id)
+            if pool is None:
+                raise OneStarTransactionError(
+                    "summon state update references an unknown configured pool"
+                )
+            supplied_ids = [value for value in details.get("hero_id", []) if value]
+            if pool.usage == "standard":
+                if details:
+                    raise OneStarTransactionError(
+                        "standard summon state updates must not name hidden draw results"
+                    )
+                draws = one_star_summon_draw_preview(
+                    checkpoint,
+                    target_id,
+                    count=count,
+                )
+                start_index = account.state.summon_draw_counters.get(target_id, 0)
+                hero_ids = [
+                    draw.existing_character_id
+                    or _fresh_summon_character_id(
+                        lobby_id=account.config.lobby_id,
+                        pool_id=target_id,
+                        draw_index=start_index + offset,
+                    )
+                    for offset, draw in enumerate(draws)
+                ]
+                if supplied_ids and supplied_ids != hero_ids:
+                    raise OneStarTransactionError(
+                        "standard summon ids are adapter-authored and must not be replaced"
+                    )
+                birth_stars = [draw.birth_stars for draw in draws]
+            else:
+                if len(supplied_ids) != count:
+                    raise OneStarTransactionError(
+                        "authored opening summon must name each exact Hero id"
+                    )
+                hero_ids = supplied_ids
+                birth_stars = []
+                for hero_id in hero_ids:
+                    character = next(
+                        (
+                            item for item in checkpoint.characters
+                            if item.character_id == hero_id
+                        ),
+                        None,
+                    )
+                    hero = load_one_star_hero(character) if character else None
+                    birth_stars.append(
+                        hero.birth_stars if hero is not None
+                        else pool.minimum_birth_stars
+                    )
+            operations.append(OneStarSummonOperation(
+                operation=kind,
+                pool_id=target_id,
+                hero_ids=hero_ids,
+                birth_stars=birth_stars,
+            ))
+            continue
+
+        if kind == "inventory_delta":
+            operations.append(OneStarInventoryDeltaOperation(
+                operation=kind,
+                item_id=target_id,
+                quantity_delta=_integer_update_value(
+                    update.value,
+                    label="inventory delta",
+                ),
+            ))
+            continue
+
+        if kind == "hero_delta":
+            stat_deltas = [
+                OneStarStatDelta(
+                    stat_id=key.removeprefix("stat."),
+                    delta=_integer_update_value(
+                        _single_detail(details, key),
+                        label=key,
+                    ),
+                )
+                for key, values in details.items()
+                if key.startswith("stat.")
+            ]
+            equipment_add: list[OneStarEquipmentEntry] = []
+            equipment_ids = {
+                key.split(".", 2)[1]
+                for key in details
+                if key.startswith("equipment_add.") and key.count(".") >= 2
+            }
+            for item_id in sorted(equipment_ids):
+                prefix = f"equipment_add.{item_id}."
+                equipment_add.append(OneStarEquipmentEntry(
+                    item_id=item_id,
+                    name=_single_detail(details, prefix + "name"),
+                    slot=_single_detail(details, prefix + "slot"),
+                    quantity=_integer_update_value(
+                        _single_detail(details, prefix + "quantity"),
+                        label=prefix + "quantity",
+                    ),
+                    durability_current=_integer_update_value(
+                        _single_detail(details, prefix + "durability_current"),
+                        label=prefix + "durability_current",
+                    ),
+                    durability_max=_integer_update_value(
+                        _single_detail(details, prefix + "durability_max"),
+                        label=prefix + "durability_max",
+                    ),
+                    tags=details.get(prefix + "tag", []),
+                    visible=_boolean_update_value(
+                        _single_detail(details, prefix + "visible"),
+                        label=prefix + "visible",
+                    ),
+                ))
+            skills_add: list[OneStarSkillEntry] = []
+            skill_ids = {
+                key.split(".", 2)[1]
+                for key in details
+                if key.startswith("skill_add.") and key.count(".") >= 2
+            }
+            for skill_id in sorted(skill_ids):
+                prefix = f"skill_add.{skill_id}."
+                skills_add.append(OneStarSkillEntry(
+                    skill_id=skill_id,
+                    name=_single_detail(details, prefix + "name"),
+                    rank=_integer_update_value(
+                        _single_detail(details, prefix + "rank"),
+                        label=prefix + "rank",
+                    ),
+                    capability=_single_detail(
+                        details,
+                        prefix + "capability",
+                        default="",
+                    ),
+                    tags=details.get(prefix + "tag", []),
+                    visible=_boolean_update_value(
+                        _single_detail(details, prefix + "visible"),
+                        label=prefix + "visible",
+                    ),
+                ))
+            operations.append(OneStarHeroDeltaOperation(
+                operation=kind,
+                hero_id=target_id,
+                hp_current=(
+                    _integer_update_value(
+                        _single_detail(details, "hp_current"),
+                        label="hp_current",
+                    )
+                    if "hp_current" in details else None
+                ),
+                hp_max=(
+                    _integer_update_value(
+                        _single_detail(details, "hp_max"),
+                        label="hp_max",
+                    )
+                    if "hp_max" in details else None
+                ),
+                level=(
+                    _integer_update_value(
+                        _single_detail(details, "level"),
+                        label="level",
+                    )
+                    if "level" in details else None
+                ),
+                experience_delta=_integer_update_value(
+                    _single_detail(details, "experience_delta", default="0"),
+                    label="experience_delta",
+                ),
+                stats_delta=stat_deltas,
+                equipment_add=equipment_add,
+                equipment_remove_ids=details.get("equipment_remove", []),
+                skills_add=skills_add,
+                skills_remove_ids=details.get("skill_remove", []),
+                equipment_durability=[
+                    OneStarDurabilityUpdate(
+                        item_id=key.removeprefix("durability."),
+                        durability_current=_integer_update_value(
+                            _single_detail(details, key),
+                            label=key,
+                        ),
+                    )
+                    for key, values in details.items()
+                    if key.startswith("durability.")
+                ],
+                skill_rank_updates=[
+                    OneStarSkillRankUpdate(
+                        skill_id=key.removeprefix("skill_rank."),
+                        rank=_integer_update_value(
+                            _single_detail(details, key),
+                            label=key,
+                        ),
+                    )
+                    for key, values in details.items()
+                    if key.startswith("skill_rank.")
+                ],
+                conditions=(
+                    [value for value in details["condition"] if value]
+                    if "condition" in details else None
+                ),
+                persistent_injuries=(
+                    [value for value in details["persistent_injury"] if value]
+                    if "persistent_injury" in details else None
+                ),
+                terminal_action=_single_detail(
+                    details,
+                    "terminal_action",
+                    default="none",
+                ),
+                death_cause=_single_detail(details, "death_cause", default=""),
+            ))
+            continue
+
+        if kind == "mission_start":
+            counters = [
+                _counter_from_detail(key, _single_detail(details, key))
+                for key, values in details.items()
+                if key.startswith("counter.")
+            ]
+            formations = [
+                OneStarFormationEntry(
+                    character_id=key.removeprefix("formation."),
+                    label=_single_detail(details, key),
+                )
+                for key, values in details.items()
+                if key.startswith("formation.")
+            ]
+            operations.append(OneStarMissionStartOperation(
+                operation=kind,
+                pending_operation_id=_single_detail(
+                    details,
+                    "pending_operation_id",
+                ),
+                mission={
+                    "mission_id": target_id,
+                    "floor": _integer_update_value(update.value, label="mission floor"),
+                    "party_ids": details.get("party", []),
+                    "formation_labels": formations,
+                    "destination": _single_detail(details, "destination"),
+                    "completion_declaration": _single_detail(details, "completion"),
+                    "failure_declaration": _single_detail(details, "failure"),
+                    "counters": counters,
+                    "started_at_s": canonical_at_s,
+                    "deadline_at_s": (
+                        canonical_at_s
+                        + _integer_update_value(
+                            _single_detail(details, "duration_s"),
+                            label="mission duration",
+                        )
+                        if "duration_s" in details
+                        else 0
+                    ),
+                },
+            ))
+            continue
+
+        if kind == "mission_update":
+            operations.append(OneStarMissionUpdateOperation(
+                operation=kind,
+                mission_id=target_id,
+                counters=[
+                    _counter_from_detail(key, _single_detail(details, key))
+                    for key, values in details.items()
+                    if key.startswith("counter.")
+                ],
+            ))
+            continue
+
+        if kind == "mission_end":
+            operations.append(OneStarMissionEndOperation(
+                operation=kind,
+                mission_id=target_id,
+                outcome=update.value,
+                return_destination=_single_detail(
+                    details,
+                    "return_destination",
+                    default="",
+                ),
+                escape_authority_id=_single_detail(
+                    details,
+                    "escape_authority_id",
+                    default="",
+                ),
+            ))
+            continue
+
+        if kind == "pending_open":
+            operations.append(OneStarPendingOpenOperation(
+                operation=kind,
+                pending=OneStarPendingOperation(
+                    operation_id=target_id,
+                    kind=update.value,
+                    participant_ids=details.get("participant", []),
+                    target_id=_single_detail(details, "target_id", default=""),
+                    destination=_single_detail(details, "destination", default=""),
+                    opened_at_s=canonical_at_s,
+                ),
+            ))
+            continue
+
+        if kind == "pending_resolve":
+            operations.append(OneStarPendingResolveOperation(
+                operation=kind,
+                operation_id=target_id,
+                cull_ids=details.get("cull", []),
+                promotion_target_stars=(
+                    _integer_update_value(update.value, label="promotion target stars")
+                    if update.value else None
+                ),
+            ))
+            continue
+
+        if kind == "pending_cancel":
+            operations.append(OneStarPendingCancelOperation(
+                operation=kind,
+                operation_id=target_id,
+            ))
+            continue
+
+        if kind == "tutorial_delivery":
+            operations.append(OneStarTutorialDeliveryOperation(
+                operation=kind,
+                tutorial_key=target_id,
+                delivered_to_ids=details.get("recipient", []),
+            ))
+            continue
+
+        if kind == "active_feed":
+            operations.append(OneStarActiveFeedOperation(
+                operation=kind,
+                hero_id=target_id,
+            ))
+            continue
+
+        raise OneStarTransactionError(
+            f"unsupported One-Star state update kind {kind!r}"
+        )
+
+    return OneStarTransaction(
+        present=bool(operations),
+        operations=operations,
+    )
+
+
+def one_star_standard_summon_lifecycle(
+    checkpoint: CheckpointFile,
+    state_updates: Iterable[OneStarStateUpdate],
+) -> tuple[tuple[SpawnRequest, ...], tuple[WakeSignal, ...]]:
+    """Materialize standard weighted draws without exposing them to the router."""
+
+    updates = [update for update in state_updates if update.kind == "summon"]
+    if not updates:
+        return (), ()
+    if len(updates) > 1:
+        raise OneStarTransactionError(
+            "a compact One-Star update list may contain only one summon"
+        )
+    _owner, account = load_one_star_account(checkpoint)
+    spawn_requests: list[SpawnRequest] = []
+    wake_signals: list[WakeSignal] = []
+    for update in updates:
+        pool_id = update.target_id.strip()
+        pool = account.config.summon_pools.get(pool_id)
+        if pool is None or pool.usage != "standard":
+            continue
+        if update.details:
+            raise OneStarTransactionError(
+                "standard summon state updates must not name hidden draw results"
+            )
+        count = _integer_update_value(update.value, label="summon count")
+        draws = one_star_summon_draw_preview(checkpoint, pool_id, count=count)
+        start_index = account.state.summon_draw_counters.get(pool_id, 0)
+        for offset, draw in enumerate(draws):
+            if draw.existing_character_id:
+                wake_signals.append(WakeSignal(
+                    character_id=draw.existing_character_id,
+                    location_label=account.config.lobby_location_label,
+                ))
+                continue
+            character_id = _fresh_summon_character_id(
+                lobby_id=account.config.lobby_id,
+                pool_id=pool_id,
+                draw_index=start_index + offset,
+            )
+            spawn_requests.append(SpawnRequest.model_validate({
+                "character_id": character_id,
+                "seed": {
+                    "role": "newly summoned Hero",
+                    "reason": f"configured {pool_id} summon result",
+                    "location": account.config.lobby_location_label,
+                    "objectives": [],
+                    "knowledge_tier": draw.birth_stars,
+                },
+            }))
+    return tuple(spawn_requests), tuple(wake_signals)
 
 
 def _require_character(
@@ -1673,7 +2313,7 @@ def prepare_one_star_transaction(
         hero = load_one_star_hero(character)
         if hero is not None and hero.owner_lobby_id == config.lobby_id:
             raise OneStarTransactionError(
-                "local One-Star Hero culls belong only in one_star_transaction"
+                "local One-Star Hero culls belong only in One-Star state updates"
             )
     pinned_ids = set(after.session.active_act_slots)
     for open_event in after.session.open_cat_ii_events:

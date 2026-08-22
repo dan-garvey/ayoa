@@ -28,7 +28,7 @@ from app.schemas.characters import CharacterRecord
 from app.schemas.event_router import SpawnRequest, SpawnSeed
 from app.schemas.one_star import (
     OneStarEventRouterOutput,
-    OneStarTransaction,
+    OneStarStateUpdateList,
 )
 from tests.support.factories import character_record, llm_response, router_output
 from tests.test_one_star_adapter import _checkpoint
@@ -86,19 +86,23 @@ def _failed_spawn_event() -> OneStarEventRouterOutput:
         observer_ids=["account_owner", "fresh_alpha", "fresh_beta"],
         spawn=spawns,
     ).model_dump()
-    # The typed transaction marks these as Hero summons but claims a birth
-    # grade that contradicts both the pool and their generated Hero sheets.
-    # The empty repair remains invalid because the staged records are Heroes,
-    # exercising rollback after materialization.
-    data["one_star_transaction"] = {
-        "present": True,
-        "operations": [{
-            "operation": "summon",
-            "pool_id": "basic",
-            "hero_ids": ["fresh_alpha", "fresh_beta"],
-            "birth_stars": [4, 4],
-        }],
-    }
+    # The standard draw adds its adapter-authored Hero lifecycle before an
+    # invalid catalogue command fails. An empty repair cannot detach that
+    # staged Hero from its summon, exercising complete roster rollback.
+    data["state_updates"] = [
+        {
+            "kind": "summon",
+            "target_id": "basic",
+            "value": "2",
+            "details": [],
+        },
+        {
+            "kind": "catalogue_apply",
+            "target_id": "not_a_real_catalogue_entry",
+            "value": "1",
+            "details": [],
+        },
+    ]
     return OneStarEventRouterOutput.model_validate(data)
 
 
@@ -132,7 +136,7 @@ async def test_failed_one_star_prepare_rolls_back_fresh_spawn_overlay_after_bad_
     )
     install_closed_event_runtime(checkpoint, runtime)
 
-    invalid_repair = OneStarTransaction(present=False, operations=[])
+    invalid_repair = OneStarStateUpdateList(state_updates=[])
     client = MagicMock(spec=LLMClient)
     client.complete = AsyncMock(
         return_value=llm_response(invalid_repair),
@@ -189,14 +193,12 @@ async def test_lifecycle_failure_restores_prepared_one_star_ledger(monkeypatch):
         observer_ids=["account_owner"],
         facts=[],
     ).model_dump(mode="json")
-    data["one_star_transaction"] = {
-        "present": True,
-        "operations": [{
-            "operation": "catalogue_apply",
-            "catalogue_id": "synthesis_chamber_1",
-            "quantity": 1,
-        }],
-    }
+    data["state_updates"] = [{
+        "kind": "catalogue_apply",
+        "target_id": "synthesis_chamber_1",
+        "value": "1",
+        "details": [],
+    }]
     event = OneStarEventRouterOutput.model_validate(data)
     dispatcher = LLMDispatcher(MagicMock(spec=LLMClient), PromptManager("app/prompts"))
 
@@ -225,7 +227,7 @@ async def test_dispatcher_rejects_rebroadcast_of_committed_one_star_event():
         observer_ids=["account_owner"],
         facts=[],
     ).model_dump(mode="json")
-    data["one_star_transaction"] = {"present": False, "operations": []}
+    data["state_updates"] = []
     event = OneStarEventRouterOutput.model_validate(data)
     dispatcher = LLMDispatcher(MagicMock(spec=LLMClient), PromptManager("app/prompts"))
 

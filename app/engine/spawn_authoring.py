@@ -99,7 +99,15 @@ class SpawnAuthoringCoordinator:
             spawned_ids = {
                 request.character_id for request in immutable_requests
             }
-            transaction = getattr(event, "one_star_transaction", None)
+            from app.engine.one_star_adapter import (
+                one_star_state_updates_to_transaction,
+            )
+
+            transaction = one_star_state_updates_to_transaction(
+                immutable_checkpoint,
+                getattr(event, "state_updates", ()),
+                canonical_at_s=event.effective_at_s + event.duration_s,
+            )
             one_star_hero_ids = {
                 hero_id
                 for operation in getattr(transaction, "operations", ())

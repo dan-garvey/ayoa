@@ -1,9 +1,9 @@
-"""Read-only One-Star router context projections.
+"""Minimal read-only One-Star router context projections.
 
-The router needs one immutable rules packet in its cached prefix and one full
-current ledger packet in its per-turn tail.  This is deliberately separate
-from player/character projections: the router is the adjudicator, not a
-fictional viewpoint.
+The cached packet contains reviewed configuration; the volatile packet contains
+current balances, operation state, compact roster mechanics, and full sheets
+only for scene-relevant Heroes. Adapter-private draw sources, fingerprints, and
+hidden potential never enter model context.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ from app.engine.one_star_adapter import (
     is_one_star_checkpoint,
     load_one_star_account,
     load_one_star_hero,
-    one_star_summon_draw_preview,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import OneStarCost, OneStarHeroState
@@ -32,6 +31,22 @@ def _render_resources(resources: OneStarCost) -> str:
         for material, amount in sorted(resources.materials.items())
     )
     return ", ".join(pieces)
+
+
+def _render_nonzero_resources(resources: OneStarCost) -> str:
+    pieces = []
+    if resources.gold:
+        pieces.append(f"gold={resources.gold}")
+    if resources.gems:
+        pieces.append(f"gems={resources.gems}")
+    if resources.building_resources:
+        pieces.append(f"building_resources={resources.building_resources}")
+    pieces.extend(
+        f"{material}={amount}"
+        for material, amount in sorted(resources.materials.items())
+        if amount
+    )
+    return ",".join(pieces) if pieces else "free"
 
 
 def _render_ids(values: Iterable[str]) -> str:
@@ -62,43 +77,44 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
     config = account.config
     lines = [
         "<one_star_rules_config>",
-        f"lobby: id={config.lobby_id}; location={config.lobby_location_label}; "
-        f"starting_floor={config.starting_lobby_floor}; "
-        f"starting_capacity={config.starting_capacity}",
-        f"starting_resources: {_render_resources(config.starting_resources)}",
-        f"summon_batch_max: {config.max_summon_batch}",
+        f"lobby={config.lobby_id}; location={config.lobby_location_label}",
+        f"summon_batch_max={config.max_summon_batch}",
         "summon_pools:",
     ]
     for pool_id, pool in sorted(config.summon_pools.items()):
         lines.append(
-            f"- id={pool_id}; cost[{_render_resources(pool.cost)}]; "
-            f"birth_stars={pool.minimum_birth_stars}-{pool.maximum_birth_stars}; "
-            f"birth_star_rates[{_render_star_weights(pool.star_weights)}]; "
-            f"usage={pool.usage}; "
-            f"eligible_existing_ids={_render_ids(pool.eligible_existing_ids)}; "
-            f"fresh_generation_allowed={str(pool.fresh_generation_allowed).lower()}"
+            f"- {pool_id}: cost[{_render_nonzero_resources(pool.cost)}]; "
+            f"stars={pool.minimum_birth_stars}-{pool.maximum_birth_stars}; "
+            f"rates[{_render_star_weights(pool.star_weights)}]; usage={pool.usage}"
         )
 
     lines.append("catalogue:")
     for catalogue_id, entry in sorted(config.catalogue.items()):
-        effects = [
-            f"kind={entry.kind}",
-            f"inventory_item_id={entry.inventory_item_id or 'none'}",
-            f"facility_id={entry.facility_id or 'none'}",
-            f"target_level={entry.target_level}",
-            f"resulting_lobby_floor={entry.resulting_lobby_floor}",
-            f"resulting_capacity={entry.resulting_capacity}",
-            f"research_key={entry.research_key or 'none'}",
-            f"research_level={entry.research_level}",
-        ]
-        prerequisites = [
-            f"cleared_tower_floor>={entry.required_cleared_floor}",
-            f"lobby_floor>={entry.required_lobby_floor}",
-        ]
+        effects = [f"kind={entry.kind}"]
+        for label, value in (
+            ("item", entry.inventory_item_id),
+            ("facility", entry.facility_id),
+            ("research", entry.research_key),
+        ):
+            if value:
+                effects.append(f"{label}={value}")
+        for label, value in (
+            ("level", entry.target_level),
+            ("lobby_floor", entry.resulting_lobby_floor),
+            ("capacity", entry.resulting_capacity),
+            ("research_level", entry.research_level),
+        ):
+            if value:
+                effects.append(f"{label}={value}")
+        prerequisites = []
+        if entry.required_cleared_floor:
+            prerequisites.append(f"cleared>={entry.required_cleared_floor}")
+        if entry.required_lobby_floor:
+            prerequisites.append(f"lobby>={entry.required_lobby_floor}")
         lines.append(
-            f"- id={catalogue_id}; cost[{_render_resources(entry.cost)}]; "
-            f"prerequisites[{'; '.join(prerequisites)}]; "
-            f"effects[{'; '.join(effects)}]"
+            f"- {catalogue_id}: cost[{_render_nonzero_resources(entry.cost)}]; "
+            + (f"requires[{','.join(prerequisites)}]; " if prerequisites else "")
+            + f"effect[{','.join(effects)}]"
         )
 
     lines.append(
@@ -108,12 +124,12 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
     )
     constraints = config.hero_constraints
     lines.append(
-        "hero_constraints: "
+        "hero_bounds: "
         f"hp_max={constraints.minimum_hp_max}-{constraints.maximum_hp_max}; "
-        f"experience_points<={constraints.maximum_xp}; "
-        f"abs(stat_value)<={constraints.maximum_stat_value}; "
-        f"equipment_entries<={constraints.maximum_equipment_entries}; "
-        f"skill_entries<={constraints.maximum_skill_entries}"
+        f"xp<={constraints.maximum_xp}; "
+        f"abs_stat<={constraints.maximum_stat_value}; "
+        f"equipment<={constraints.maximum_equipment_entries}; "
+        f"skills<={constraints.maximum_skill_entries}"
     )
     lines.append(
         f"deployment: stamina_cost={config.deployment_stamina_cost}; "
@@ -126,20 +142,15 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
             f"- kind={operation_kind}; facility_id={requirement.facility_id}; "
             f"required_location={requirement.required_location or 'none'}"
         )
-    lines.append("first_clear_floor_rewards:")
-    for floor, reward in sorted(config.floor_rewards.items()):
-        lines.append(f"- floor={floor}; reward[{_render_resources(reward)}]")
     lines.append(
         f"repeat_clear_gold: first_clear_gold*{config.repeat_gold_numerator}/"
         f"{config.repeat_gold_denominator}; minimum={config.repeat_gold_minimum}; "
         "no repeated non-Gold floor rewards"
     )
-    lines.append(f"promotion_cost: {_render_resources(config.promotion_cost)}")
-    lines.append(f"lobby_return_healing: {str(config.lobby_return_healing).lower()}")
     lines.append(
-        "hero_system_visibility_research_key: "
-        f"{config.hero_system_visibility_research_key or 'none'}"
+        f"promotion_cost: {_render_nonzero_resources(config.promotion_cost)}"
     )
+    lines.append(f"lobby_return_healing: {str(config.lobby_return_healing).lower()}")
     lines.append("</one_star_rules_config>")
     return "\n".join(lines)
 
@@ -168,15 +179,17 @@ def _render_hero(hero: OneStarHeroState) -> list[str]:
         ),
         f"conditions={_render_ids(hero.conditions)}; "
         f"persistent_injuries={_render_ids(hero.persistent_injuries)}; "
-        f"terminal_cause={hero.terminal_cause or 'none'}; "
-        f"hidden_capabilities={hero.hidden_capabilities}; "
-        f"private_potential={hero.private_potential or 'none'}",
+        f"terminal_cause={hero.terminal_cause or 'none'}",
     ]
     return lines
 
 
-def render_one_star_router_ledger(checkpoint: CheckpointFile) -> str:
-    """Render all current adapter state relevant to the next adjudication."""
+def render_one_star_router_ledger(
+    checkpoint: CheckpointFile,
+    *,
+    acting_character_id: str = "",
+) -> str:
+    """Render only current adapter state relevant to the next adjudication."""
     if not is_one_star_checkpoint(checkpoint):
         return ""
 
@@ -210,31 +223,17 @@ def render_one_star_router_ledger(checkpoint: CheckpointFile) -> str:
         f"recovery_anchor_s={effective_anchor}",
         f"active_master_feed_id={state.active_master_feed_id or 'none'}",
         "guide_character_ids: " + _render_ids(state.guide_character_ids),
-        "system_observer_ids: " + _render_ids(state.system_observer_ids),
         "tutorial_deliveries: " + "; ".join(
             f"{key}={_render_ids(character_ids)}"
             for key, character_ids in sorted(state.tutorial_deliveries.items())
         ),
     ]
-    lines.append("authoritative_summon_draw_slates:")
-    for pool_id, pool in sorted(config.summon_pools.items()):
-        if pool.usage != "standard":
-            continue
-        slots = one_star_summon_draw_preview(checkpoint, pool_id)
-        lines.append(f"- pool={pool_id}")
-        for draw in slots:
-            source = (
-                f"reserve:{draw.existing_character_id}"
-                if draw.existing_character_id
-                else "fresh"
-            )
-            lines.append(
-                f"  slot={draw.slot}; birth_stars={draw.birth_stars}; source={source}"
-            )
     if state.active_mission is None:
         lines.append("active_mission: none")
+        floor = state.highest_unlocked_floor
     else:
         mission = state.active_mission
+        floor = mission.floor
         lines.extend([
             f"active_mission: id={mission.mission_id}; floor={mission.floor}; "
             f"destination={mission.destination}; "
@@ -257,6 +256,12 @@ def render_one_star_router_ledger(checkpoint: CheckpointFile) -> str:
                 )
             ),
         ])
+    reward = config.floor_rewards.get(floor)
+    if reward is not None:
+        lines.append(
+            f"floor_{floor}_first_clear_reward: "
+            f"{_render_nonzero_resources(reward)}"
+        )
     if state.pending_operation is None:
         lines.append("pending_operation: none")
     else:
@@ -269,36 +274,55 @@ def render_one_star_router_ledger(checkpoint: CheckpointFile) -> str:
             f"opened_at_s={pending.opened_at_s}"
         )
 
-    lines.append("heroes:")
-    eligible_reserve_ids = {
-        character_id
-        for pool in config.summon_pools.values()
-        for character_id in pool.eligible_existing_ids
-    }
-    reserve_rows: list[str] = []
-    for character in checkpoint.characters:
-        if character.character_id not in eligible_reserve_ids:
-            continue
-        hero = load_one_star_hero(character)
-        if hero is None or hero.owner_lobby_id:
-            continue
-        reserve_rows.append(
-            f"id={character.character_id}; birth_stars={hero.birth_stars}; "
-            f"status={character.status.value}"
-        )
-    lines.append("eligible_unowned_reserves: " + _render_ids(reserve_rows))
-    found_hero = False
+    local_heroes: list[tuple[object, OneStarHeroState]] = []
     for character in checkpoint.characters:
         hero = load_one_star_hero(character)
         if hero is None or hero.owner_lobby_id != config.lobby_id:
             continue
-        found_hero = True
+        local_heroes.append((character, hero))
+    lines.append("hero_summaries:")
+    if not local_heroes:
+        lines.append("- none")
+    for character, hero in local_heroes:
         lines.append(
             f"- id={character.character_id}; name={character.name}; "
-            f"status={character.status.value}; location={character.location}"
+            f"status={character.status.value}; location={character.location}; "
+            f"stars={hero.current_stars}; level={hero.level}; "
+            f"xp={hero.experience_points}; hp={hero.hp_current}/{hero.hp_max}; "
+            f"conditions={_render_ids(hero.conditions)}; "
+            f"equipment={_render_ids(item.item_id for item in hero.equipment)}; "
+            f"skills={_render_ids(skill.skill_id for skill in hero.skills)}"
         )
+
+    relevant_ids = {acting_character_id, state.active_master_feed_id}
+    if state.active_mission is not None:
+        relevant_ids.update(state.active_mission.party_ids)
+    if state.pending_operation is not None:
+        relevant_ids.update(state.pending_operation.participant_ids)
+        relevant_ids.add(state.pending_operation.target_id)
+    acting_character = next(
+        (
+            character for character in checkpoint.characters
+            if character.character_id == acting_character_id
+        ),
+        None,
+    )
+    if acting_character is not None and acting_character_id != owner.character_id:
+        relevant_ids.update(
+            character.character_id
+            for character, _hero in local_heroes
+            if character.location == acting_character.location
+        )
+
+    detailed = [
+        (character, hero)
+        for character, hero in local_heroes
+        if character.character_id in relevant_ids
+    ]
+    if detailed:
+        lines.append("scene_relevant_hero_details:")
+    for character, hero in detailed:
+        lines.append(f"- id={character.character_id}")
         lines.extend(f"  {line}" for line in _render_hero(hero))
-    if not found_hero:
-        lines.append("- none")
     lines.append("</one_star_current_ledger>")
     return "\n".join(lines)

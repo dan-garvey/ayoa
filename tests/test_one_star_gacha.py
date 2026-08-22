@@ -10,6 +10,8 @@ from app.engine.one_star_adapter import (
     apply_one_star_prepared_mutation,
     load_one_star_account,
     one_star_birth_stars_for_ticket,
+    one_star_standard_summon_lifecycle,
+    one_star_state_updates_to_transaction,
     one_star_summon_draw_preview,
     prepare_one_star_transaction,
 )
@@ -20,6 +22,7 @@ from app.schemas.one_star import (
     ONE_STAR_HERO_KEY,
     OneStarCost,
     OneStarSummonPool,
+    OneStarStateUpdate,
     OneStarTransaction,
 )
 from app.schemas.state import SessionConfig, SessionSettings, SessionState
@@ -247,6 +250,36 @@ def test_preview_is_replay_stable_and_exhausts_reserves_without_duplication() ->
     assert set(reserve_ids) == {"reserve_a", "reserve_b"}
     assert preview[2].existing_character_id == ""
     assert [draw.birth_stars for draw in preview] == [1, 1, 1]
+
+
+def test_compact_standard_summon_update_derives_hidden_draw_and_lifecycle() -> None:
+    checkpoint = _checkpoint()
+    update = OneStarStateUpdate(
+        kind="summon",
+        target_id="basic",
+        value="3",
+        details=[],
+    )
+    preview = one_star_summon_draw_preview(checkpoint, "basic", count=3)
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        [update],
+        canonical_at_s=0,
+    )
+    operation = transaction.operations[0]
+    spawns, wakes = one_star_standard_summon_lifecycle(checkpoint, [update])
+
+    assert operation.birth_stars == [draw.birth_stars for draw in preview]
+    assert set(operation.hero_ids[:2]) == {"reserve_a", "reserve_b"}
+    assert operation.hero_ids[2] == "lobby_a_basic_0003"
+    assert {wake.character_id for wake in wakes} == {"reserve_a", "reserve_b"}
+    assert [spawn.character_id for spawn in spawns] == ["lobby_a_basic_0003"]
+    assert update.model_dump() == {
+        "kind": "summon",
+        "target_id": "basic",
+        "value": "3",
+        "details": [],
+    }
 
 
 def test_counter_advancement_exposes_the_unconsumed_weighted_suffix() -> None:

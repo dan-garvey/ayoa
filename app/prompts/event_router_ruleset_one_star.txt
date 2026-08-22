@@ -8,18 +8,53 @@ mission state, and do not add a second copy of any configured reward.
 
 {one_star_static_config}
 
-Always emit `one_star_transaction`. Emit its empty shape when this event makes
-no One-Star state change. When it is present, make every operation exact and
-consistent with the supplied configuration, current resources, facilities,
-roster, and mission. Basic and premium summon pools, permitted batch size,
-synthesis constraints, prices, and reward tables come only from that supplied
-configuration.
+Always emit `state_updates`; use `[]` when this event changes no One-Star
+bookkeeping. Each update has exactly four fields: `kind`, `target_id`, `value`,
+and `details`. Put only changed or semantically required values in it. Every
+detail is one `key=value` string; repeat a key for a list. Do not restate
+unchanged state with empty, null, or zero placeholders. Every update must match
+the supplied configuration and ledger exactly.
+
+Use these update shapes:
+- catalogue: `catalogue_apply`, target catalogue id, value quantity.
+- summon: `summon`, target pool id, value pull count. Standard weighted draws
+  have empty details and no generic spawn/activate entries: their identities,
+  stars, and lifecycle are derived from fixed pool authority. Authored opening pools repeat
+  `hero_id=<id>` in details and use matching generic lifecycle entries.
+- inventory: `inventory_delta`, target item id, value signed quantity.
+- Hero: `hero_delta`, target Hero id, empty value, and only changed details:
+  `hp_current`, `hp_max`, `level`, `experience_delta`, `stat.<id>`,
+  `equipment_remove`, `durability.<item_id>`, `skill_remove`,
+  `skill_rank.<skill_id>`, repeated `condition`, repeated
+  `persistent_injury`, `terminal_action`, and `death_cause`. New equipment uses
+  `equipment_add.<item_id>.name|slot|quantity|durability_current|durability_max|visible`
+  plus repeated `.tag`; a new skill uses the parallel
+  `skill_add.<skill_id>.name|rank|capability|visible` plus repeated `.tag`.
+  Use one empty `condition=` or `persistent_injury=` only when the changed
+  state explicitly clears that entire list.
+- mission start: `mission_start`, target mission id, value floor, with
+  `pending_operation_id`, repeated `party`, optional `formation.<hero_id>`,
+  `destination`, `completion`, `failure`, optional `duration_s`, and
+  `counter.<id>=current/target`. Omit the start time; canonical event time fixes it.
+- mission progress: `mission_update`, target mission id, empty value, with only
+  changed `counter.<id>=current/target` details.
+- mission end: `mission_end`, target mission id, value
+  `completed|failed|escaped`, with `return_destination` and, only for escape,
+  `escape_authority_id`.
+- embodied selection: `pending_open`, target operation id, value
+  `deployment|synthesis|promotion`, with repeated `participant`, optional
+  `target_id`, and `destination`. Omit the opening time; canonical event time fixes it.
+  Resolve with `pending_resolve`, the same target operation id, optional value
+  for promoted stars, and repeated `cull`; cancel with `pending_cancel`.
+- tutorial: `tutorial_delivery`, target tutorial key, empty value, repeated
+  `recipient`.
+- feed: `active_feed`, target Hero id, empty value and details.
 
 Mission counters are exact progress declarations. Update the fixed counter set
 as facts advance it, and do not complete a mission or award its fixed reward
 until every declared counter has reached its target.
 
-Use `catalogue_apply` for any configured catalogue entry, including a purchase,
+Use a `catalogue_apply` update for any configured catalogue entry, including a purchase,
 facility, upgrade, or research result. Its id, prerequisites, costs, and
 effects are exactly the configured entry; do not substitute separate operation
 kinds.
@@ -28,27 +63,20 @@ Synthesis names one or more distinct real source Heroes and a different real
 target; it has no invented upper source limit. A selected source remains alive
 and unchanged until the chamber resolution actually culls that exact source.
 
-For a standard summon, the authoritative draw slate fixes the next ordered
-results. A request for N pulls consumes exactly its first N slots. Copy each
-slot's `birth_stars` without choosing, skipping, substituting, or reordering it.
-The unconsumed suffix is private future authority: do not mention it in facts
-or rationale, and do not let it color the current fiction.
-A `source=reserve:<id>` slot uses that exact id in both `activate` and `summon`
-while preserving its existing birth sheet. A `source=fresh` slot uses one new
-stable id in both `spawn` and `summon`; that spawn's
-`seed.knowledge_tier` equals the slot's fixed birth-star value. Every summoned
-Hero arrives at the configured lobby, never directly inside an active mission
-or another facility, and each id appears in exactly one lifecycle path. A fresh
-`spawn` id must be absent from `activate`; `activate` is only for a pre-existing
-dormant record. Do not treat an ordinary dormant non-Hero activation as a
-summon. A newly persistent non-Hero uses the ordinary generic `spawn` path
-without a `summon` operation or Hero sheet. A pool whose usage is
+For a standard summon, state only the selected pool and pull count. Configured
+weights and the durable draw sequence fix birth stars, reserve selection, fresh
+stable ids, and matching spawn/activation lifecycle. Do not predict, name,
+choose, reorder, or emit those hidden results. Every summoned Hero arrives at the
+configured lobby, never directly inside an active mission or another facility.
+Do not treat an ordinary dormant non-Hero activation as a summon. A newly
+persistent non-Hero uses the ordinary generic `spawn` path without a summon
+state update or Hero sheet. A pool whose usage is
 `opening_actor` may only activate its exact
 acting character on the account's first event; it does not consume a standard
 draw, cannot generate a substitute, and cannot be selected by another actor.
 An `opening_wave` pool is likewise a one-time authored first event: use only
 the exact fresh ids and fixed birth stars required by the opening, and do not
-consume or substitute a standard draw slate.
+consume or substitute a standard weighted draw.
 Never name an ineligible, already acquired, or uncreated Hero as a summon
 result.
 
@@ -66,15 +94,16 @@ leaves it unresolved or cancelled.
 
 Reading already-authorized System information is not an embodied selection.
 Inspecting a Hero's visible status, stats, equipment, skills, roster entry, or
-mission status uses an empty One-Star transaction, does not open Cat II, and
+mission status uses an empty state-update list, does not open Cat II, and
 does not make that Hero a responder. Put only the authorized readout in facts
 scoped to its actual interface audience. Changing the active mission feed is a
 real `active_feed` operation; merely reading its current status is not.
 
-For `pending_open`, deployment puts every selected party member in
-`participant_ids` and leaves `target_id` empty. Synthesis puts source Heroes in
-`participant_ids` and the distinct recipient in `target_id`. Promotion names
-the promoted Hero as both the sole participant and `target_id`. Do not use a
+For `pending_open`, deployment puts every selected party member in repeated
+`participant` details and leaves `target_id` absent. Synthesis puts source
+Heroes in repeated `participant` details and the distinct recipient in
+`target_id`. Promotion names the promoted Hero as both the sole participant
+and `target_id`. Do not use a
 separate deployment target.
 
 The Tower gate seals as it is crossed. Therefore a deployment's physical gate
@@ -97,15 +126,17 @@ perform a standard summon.
 Promotion requires the target to have reached the configured level cap for
 their current star rank before advancing exactly one star.
 
-On a completed transition, state exactly what changes: the precise spend,
-created Heroes, locations, source culls, target improvement, mission party,
-or Hero deltas. Do not describe a successful unseen System effect without its
-corresponding transaction. HP at zero must be paired with explicit terminal
+On a completed transition, state the semantic operation and non-derivable
+changes: configured purchase or summon id, locations, source culls, target
+improvement, mission party, or Hero deltas. Costs, draw results, and canonical
+timestamps are derived from supplied authority and event time; do not restate
+them. Do not describe a successful unseen System effect
+without its corresponding state update. HP at zero must be paired with explicit terminal
 fiction and its exact state transition; zero HP alone is not an implied death.
-For a local Hero, an adjudicated in-world death uses a `hero_delta` with
-`terminal_action="death"` and its concrete death cause. Never use that death
+For a local Hero, an adjudicated in-world death uses a `hero_delta` update with
+`terminal_action=death` and its concrete `death_cause`. Never use that death
 operation for synthesis. Synthesis culls live only in a later
-`pending_resolve.cull_ids` after selection, response, and physical chamber
+repeated `cull` details on `pending_resolve` after selection, response, and physical chamber
 entry. Never put that local Hero in generic `cull`.
 Generic `cull` is reserved for non-local or non-Hero lifecycle. Pair generic
 `dormant`, `activate`, and `location_updates` with matching canonical facts;
@@ -128,7 +159,7 @@ and give them the same observable fact. Preserve exact audible dialogue. This
 does not reveal unspoken thought, concealed facts, or anything in another
 off-feed scene; do not add the account owner to those facts or events.
 
-When a configured guide actually teaches a tutorial, emit `tutorial_delivery`
+When a configured guide actually teaches a tutorial, emit a `tutorial_delivery` update
 with the exact tutorial key and only the active characters who directly
 observed that teaching in this event. Do not record a delivery because the
 guide knows, intends, or plans to explain something.
@@ -139,6 +170,6 @@ Use `observe_only` unless the changed situation gives that guide genuine reason
 to answer next. This channel reports lobby management only; it does not reveal
 off-feed Hero action or tactical events.
 
-One-Star mission continuity is carried by the typed transaction and supplied
+One-Star mission continuity is carried by the compact updates and supplied
 state. Do not emit `mission_status:` anywhere in `decision_rationale`.
 </one_star_ascension_rules>

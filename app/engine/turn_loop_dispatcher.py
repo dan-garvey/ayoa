@@ -64,6 +64,7 @@ from app.schemas.one_star import (
     ClosedOneStarEventRouterOutput,
     OneStarEventRouterOutput,
     ONE_STAR_RULESET_ID,
+    OneStarStateUpdateList,
     OneStarTransaction,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
@@ -103,12 +104,33 @@ _ONE_STAR_LOBBY_MANAGEMENT_OPERATIONS = frozenset({
 })
 
 
-def _validate_one_star_cat_ii_transaction(result: EventRouterOutput) -> None:
+def _one_star_transaction_for_result(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+) -> OneStarTransaction | None:
+    if not isinstance(
+        result,
+        (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+    ):
+        return None
+    from app.engine.one_star_adapter import one_star_state_updates_to_transaction
+
+    return one_star_state_updates_to_transaction(
+        ckpt,
+        result.state_updates,
+        canonical_at_s=result.effective_at_s + result.duration_s,
+    )
+
+
+def _validate_one_star_cat_ii_transaction(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+) -> None:
     """Keep a Cat II opening reversible until every intention is collected."""
 
     if not result.requires_responders:
         return
-    transaction = getattr(result, "one_star_transaction", None)
+    transaction = _one_star_transaction_for_result(ckpt, result)
     if transaction is None or not transaction.present:
         return
     operations = transaction.operations
@@ -124,11 +146,12 @@ def _validate_one_star_cat_ii_transaction(result: EventRouterOutput) -> None:
 
 
 def _validate_one_star_pending_operation_shapes(
+    ckpt: CheckpointFile,
     result: EventRouterOutput,
 ) -> None:
     """Reject kind-dependent pending fields before response routing begins."""
 
-    transaction = getattr(result, "one_star_transaction", None)
+    transaction = _one_star_transaction_for_result(ckpt, result)
     if transaction is None or not transaction.present:
         return
     from app.engine.one_star_adapter import (
@@ -156,7 +179,7 @@ def _validate_one_star_guide_routing(
     if not _one_star_router_enabled(ckpt):
         return
 
-    transaction = getattr(result, "one_star_transaction", None)
+    transaction = _one_star_transaction_for_result(ckpt, result)
     operations = (
         transaction.operations
         if transaction is not None and transaction.present
@@ -281,7 +304,7 @@ def _validate_one_star_pending_response_routing(
 
     if not _one_star_router_enabled(ckpt):
         return
-    transaction = getattr(result, "one_star_transaction", None)
+    transaction = _one_star_transaction_for_result(ckpt, result)
     if transaction is None or not transaction.present:
         return
 
@@ -335,10 +358,13 @@ def _validate_one_star_pending_response_routing(
             )
 
 
-def _validate_one_star_tutorial_routing(result: EventRouterOutput) -> None:
+def _validate_one_star_tutorial_routing(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+) -> None:
     """Record teaching only when every named recipient actually receives it."""
 
-    transaction = getattr(result, "one_star_transaction", None)
+    transaction = _one_star_transaction_for_result(ckpt, result)
     if transaction is None or not transaction.present:
         return
     observers = {
@@ -934,7 +960,7 @@ def _router_history_record(
             )
 
     lines = [header]
-    # One-Star's typed transaction owns mission continuity. Do not replay a
+    # One-Star's adapter ledger owns mission continuity. Do not replay a
     # diagnostic ``mission_status:`` line beside that durable ledger state.
     mission_status = (
         ""
@@ -1182,7 +1208,10 @@ def _build_router_context(
     if _one_star_router_enabled(ckpt):
         from app.engine.one_star_router_context import render_one_star_router_ledger
 
-        one_star_state_block = render_one_star_router_ledger(ckpt)
+        one_star_state_block = render_one_star_router_ledger(
+            ckpt,
+            acting_character_id=acting_id,
+        )
         if one_star_state_block:
             one_star_state_section = one_star_state_block
 
@@ -1279,12 +1308,12 @@ class LLMDispatcher:
         result: EventRouterOutput,
         actor_id: str,
     ) -> None:
-        """Validate and atomically apply an opt-in ruleset transaction.
+        """Validate and atomically apply compact opt-in ruleset updates.
 
         Generic narrative and D&D events have no work here.  One-Star first
         awaits every identity authored by this event, then validates the
-        complete ledger/lifecycle transition on a durable copy.  A single
-        bounded router repair may correct only the typed transaction; the
+        complete ledger/lifecycle transition on a durable copy. A single
+        bounded router repair may correct only the compact update list; the
         already-authored fiction and routing envelope must remain identical.
         """
 
@@ -1296,7 +1325,7 @@ class LLMDispatcher:
         ):
             raise RuntimeError(
                 "One-Star routing returned an output without its ruleset "
-                "transaction contract"
+                "state-update contract"
             )
 
         from app.engine.one_star_adapter import (
@@ -1304,8 +1333,28 @@ class LLMDispatcher:
             apply_one_star_prepared_mutation,
             one_star_event_already_applied,
             one_star_event_fingerprint,
+            one_star_standard_summon_lifecycle,
             prepare_one_star_transaction,
         )
+
+        adapter_spawns, adapter_wakes = one_star_standard_summon_lifecycle(
+            ckpt,
+            result.state_updates,
+        )
+        existing_spawn_ids = {request.character_id for request in result.spawn}
+        existing_wake_ids = {signal.character_id for signal in result.activate}
+        generated_overlap = (
+            existing_spawn_ids & {request.character_id for request in adapter_spawns}
+        ) | (
+            existing_wake_ids & {signal.character_id for signal in adapter_wakes}
+        )
+        if generated_overlap:
+            raise OneStarTransactionError(
+                "standard summon lifecycle is adapter-authored and was duplicated: "
+                + ", ".join(sorted(generated_overlap))
+            )
+        result.spawn.extend(adapter_spawns)
+        result.activate.extend(adapter_wakes)
 
         spawned_ids = {request.character_id for request in result.spawn}
         activated_ids = {signal.character_id for signal in result.activate}
@@ -1332,8 +1381,8 @@ class LLMDispatcher:
                 "broadcast a second time"
             )
 
-        _validate_one_star_cat_ii_transaction(result)
-        _validate_one_star_tutorial_routing(result)
+        _validate_one_star_cat_ii_transaction(ckpt, result)
+        _validate_one_star_tutorial_routing(ckpt, result)
         _validate_one_star_pending_response_routing(
             ckpt,
             actor_id=actor_id,
@@ -1384,10 +1433,15 @@ class LLMDispatcher:
             )
 
         def prepare():
+            transaction = _one_star_transaction_for_result(ckpt, result)
+            if transaction is None:
+                raise OneStarTransactionError(
+                    "One-Star event has no state-update contract"
+                )
             return prepare_one_star_transaction(
                 ckpt,
                 event_id=result.event_id,
-                transaction=result.one_star_transaction,
+                transaction=transaction,
                 spawned_character_ids=(
                     request.character_id for request in result.spawn
                 ),
@@ -1414,14 +1468,15 @@ class LLMDispatcher:
             try:
                 prepared = prepare()
             except OneStarTransactionError as first_error:
-                result.one_star_transaction = await self._repair_one_star_transaction(
+                repaired = await self._repair_one_star_transaction(
                     ckpt=ckpt,
                     result=result,
                     actor_id=actor_id,
                     validation_error=str(first_error),
                 )
-                _validate_one_star_cat_ii_transaction(result)
-                _validate_one_star_tutorial_routing(result)
+                result.state_updates = repaired.state_updates
+                _validate_one_star_cat_ii_transaction(ckpt, result)
+                _validate_one_star_tutorial_routing(ckpt, result)
                 _validate_one_star_pending_response_routing(
                     ckpt,
                     actor_id=actor_id,
@@ -1436,7 +1491,7 @@ class LLMDispatcher:
                     prepared = prepare()
                 except OneStarTransactionError as second_error:
                     raise OneStarTransactionError(
-                        "One-Star transaction remained invalid after one repair: "
+                        "One-Star state updates remained invalid after one repair: "
                         f"{second_error}"
                     ) from second_error
         except Exception:
@@ -1456,7 +1511,7 @@ class LLMDispatcher:
             apply_one_star_prepared_mutation(ckpt, prepared)
 
             # Generic lifecycle signals remain the identity/status authority.
-            # The transaction validates their One-Star meaning, then the
+            # The private mutation validates their One-Star meaning, then the
             # existing roster helper makes activated reserves dispatchable in
             # this same beat. Reapplying these signals post-beat is idempotent.
             CharacterManager().apply_roster_updates(ckpt, result)
@@ -1492,8 +1547,8 @@ class LLMDispatcher:
         result: OneStarEventRouterOutput | ClosedOneStarEventRouterOutput,
         actor_id: str,
         validation_error: str,
-    ) -> OneStarTransaction:
-        """Ask once for a transaction-only correction to a fixed event."""
+    ) -> OneStarStateUpdateList:
+        """Ask once for an update-list-only correction to a fixed event."""
 
         ctx = _build_router_context(
             ckpt,
@@ -1519,25 +1574,26 @@ class LLMDispatcher:
             },
         }
         repair_block = (
-            "<one_star_transaction_repair>\n"
+            "<one_star_state_update_repair>\n"
             "The following event fields are fixed and are not output here. "
-            "Return only a repaired one_star_transaction that agrees with the "
+            "Return only a repaired state_updates list that agrees with the "
             "supplied current One-Star state and this validation failure. "
             "The reported failure is mandatory: change the offending field "
             "instead of repeating the candidate.\n"
-            "Pending field invariants: deployment uses participant_ids for "
-            "the complete party and target_id=\"\"; synthesis uses source "
-            "Heroes as participant_ids and a distinct target_id; promotion "
-            "uses the same single Hero as its sole participant and target_id.\n"
+            "Pending field invariants: deployment repeats participant details "
+            "for the complete party and omits target_id; synthesis repeats "
+            "source Heroes as participant details and names a distinct "
+            "target_id; promotion uses the same single Hero as its sole "
+            "participant and target_id.\n"
             f"Submitting actor id: {actor_id}\n"
             f"Validation failure: {validation_error}\n"
             "Fixed canonical event:\n"
             f"{result.canonical_event.model_dump_json()}\n"
-            "Candidate transaction:\n"
-            f"{result.one_star_transaction.model_dump_json()}\n"
+            "Candidate state updates:\n"
+            f"{json.dumps([update.model_dump(mode='json') for update in result.state_updates], ensure_ascii=False, separators=(',', ':'))}\n"
             "Fixed generic lifecycle:\n"
             f"{json.dumps(lifecycle, ensure_ascii=False, separators=(',', ':'))}\n"
-            "</one_star_transaction_repair>"
+            "</one_star_state_update_repair>"
         )
         messages = self.prompt_mgr.render_conversation(
             "event_router",
@@ -1554,7 +1610,7 @@ class LLMDispatcher:
         response = await self.client.complete(
             role="event_router",
             messages=messages,
-            response_model=OneStarTransaction,
+            response_model=OneStarStateUpdateList,
             temperature=0.2,
             max_tokens=EVENT_ROUTER_MAX_TOKENS,
             cache=True,
@@ -1571,7 +1627,7 @@ class LLMDispatcher:
     ) -> OneStarEventRouterOutput:
         """Ask once for a complete replacement of an invalid routing envelope.
 
-        Transaction repair is intentionally narrower and runs only after the
+        State-update repair is intentionally narrower and runs only after the
         event's fiction and routing have been accepted.  Response ownership,
         observer delivery, and reversible Cat II selection are coupled to the
         whole event, so correcting one of those failures requires a fresh full
@@ -1593,11 +1649,11 @@ class LLMDispatcher:
                     f"{validation_error}\n"
                     "First reconsider whether the candidate operation belongs. "
                     "A read-only System or status inspection has an empty "
-                    "One-Star transaction and no responders; never turn such "
+                    "One-Star state updates and no responders; never turn such "
                     "an inspection into Cat II merely to satisfy this error. "
                     "Preserve any compatible fictional judgment, but make the "
                     "canonical event, Cat II classification, responder set, "
-                    "observers, lifecycle, and One-Star transaction mutually "
+                    "observers, lifecycle, and One-Star state updates mutually "
                     "consistent. Do not discuss the correction in the fiction "
                     "or rationale.\n"
                     "</router_output_correction>"
@@ -1764,9 +1820,9 @@ class LLMDispatcher:
             result: EventRouterOutput = response.parsed
 
             def validate_candidate() -> None:
-                _validate_one_star_cat_ii_transaction(result)
-                _validate_one_star_pending_operation_shapes(result)
-                _validate_one_star_tutorial_routing(result)
+                _validate_one_star_cat_ii_transaction(ckpt, result)
+                _validate_one_star_pending_operation_shapes(ckpt, result)
+                _validate_one_star_tutorial_routing(ckpt, result)
                 _validate_one_star_pending_response_routing(
                     ckpt,
                     actor_id=actor_id,
@@ -1993,8 +2049,8 @@ class LLMDispatcher:
             raise
 
         result: EventRouterOutput = response.parsed
-        _validate_one_star_cat_ii_transaction(result)
-        _validate_one_star_tutorial_routing(result)
+        _validate_one_star_cat_ii_transaction(ckpt, result)
+        _validate_one_star_tutorial_routing(ckpt, result)
         _validate_one_star_pending_response_routing(
             ckpt,
             actor_id=actor_id,

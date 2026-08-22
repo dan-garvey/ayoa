@@ -1040,7 +1040,7 @@ def test_dispatcher_passes_event_end_time_to_ruleset_adapter_for_delayed_resolut
         commitment_interrupts=[],
         location_updates=[],
         activate=[],
-        one_star_transaction=OneStarTransaction.model_validate({"present": False, "operations": []}),
+        state_updates=[],
     )
     captured: dict[str, int] = {}
 
