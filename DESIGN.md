@@ -572,8 +572,8 @@ Provider/model selection can be configured with model prefixes such as
 environment overrides like `LLM_PROVIDER_NARRATOR=openai` and
 `LLM_MODEL_NARRATOR=gpt-5.1`. Current defaults are OpenAI `gpt-5.1`
 for `event_router`, OpenAI `gpt-5.2` for `narrator`, Anthropic
-`claude-opus-4-6` for premium `agent` calls, Anthropic
-`claude-haiku-4-5` for `agent_standard`, Anthropic `claude-sonnet-4-6`
+`claude-opus-4-6` for premium `agent` calls, OpenAI
+`gpt-5.6-luna` for `agent_standard`, Anthropic `claude-sonnet-4-6`
 for `agent_convenience`, and Opus for `character_gen`.
 
 Active live model roles are `event_router`, `narrator`, `agent`,
@@ -1509,7 +1509,7 @@ ids, and corresponding generic spawn/activation lifecycle without sending any
 result or future slate to the model. A successful atomic commit advances the
 pool counter, while failed validation and replay cannot reroll or double-
 advance. Freshly generated summon identities carry a durable origin marker and
-stay on the Haiku-backed standard-agent role; activated seeded reserves retain
+stay on the Luna-backed standard-agent role; activated seeded reserves retain
 their authored agent tier. Authored opening pools remain non-random and do not
 consume standard draws. Deployment, synthesis, and promotion are staged:
 selection opens a zero-side-effect pending operation, affected Heroes keep

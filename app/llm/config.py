@@ -29,7 +29,7 @@ _IMAGE_DIRECTOR_MODEL = "gpt-5-mini"
 _COMBAT_MANAGER_MODEL = "gpt-5-mini"
 _CONTENT_MANAGER_MODEL = "gpt-5-mini"
 _AGENT_MODEL = "claude-opus-4-6"
-_STANDARD_AGENT_MODEL = "claude-haiku-4-5"
+_STANDARD_AGENT_MODEL = "gpt-5.6-luna"
 _CONVENIENCE_AGENT_MODEL = "claude-sonnet-4-6"
 _DEFAULT_MODEL = "gpt-5.1"
 _ROLE_ENV_ALIASES = {
@@ -250,6 +250,7 @@ class LLMConfig(BaseModel):
         "content_manager": "low",
         "image_director": "low",
         "agent": "medium",
+        "agent_standard": "medium",
         "character_gen": "medium",
     })
     # Raw OpenAI reasoning tokens are not exposed by the API. This optional

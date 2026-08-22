@@ -154,7 +154,7 @@ def test_runtime_defaults_match_current_policy(checkpoint: CheckpointFile) -> No
         "narrator": "openai:gpt-5.2",
         "dnd_combat_manager": "gpt-5-mini",
         "agent_default": "anthropic:claude-opus-4-6",
-        "agent_standard": "anthropic:claude-haiku-4-5",
+        "agent_standard": "openai:gpt-5.6-luna",
         "agent_convenience": "anthropic:claude-sonnet-4-6",
         "image_director": "gpt-5-mini",
     }

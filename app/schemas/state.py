@@ -17,7 +17,7 @@ class ModelConfig(BaseModel):
     image_director: str = "gpt-5-mini"
     dnd_combat_manager: str = "gpt-5-mini"
     agent_default: str = "claude-opus-4-6"
-    agent_standard: str = "claude-haiku-4-5"
+    agent_standard: str = "gpt-5.6-luna"
     agent_convenience: str = "claude-sonnet-4-6"
 
 

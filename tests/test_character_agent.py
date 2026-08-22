@@ -67,8 +67,8 @@ def _llm_response(text: str) -> LLMResponse:
     text_block.text = text
     text_block.model_dump = lambda: {"type": "text", "text": text}
     raw.content = [text_block]
-    raw.model = "claude-haiku-4-5"
-    return LLMResponse(parsed=None, raw_response=raw, content=text, model="claude-haiku-4-5")
+    raw.model = "gpt-5.6-luna"
+    return LLMResponse(parsed=None, raw_response=raw, content=text, model="gpt-5.6-luna")
 
 
 @pytest.fixture
@@ -844,7 +844,7 @@ class TestCharacterAgent:
         assert call_args.kwargs["compact"] is True
 
     @pytest.mark.asyncio
-    async def test_standard_agent_uses_haiku_role(
+    async def test_standard_agent_uses_luna_role(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -1289,10 +1289,10 @@ class TestPerceptionMode:
         text_block.text = text
         text_block.model_dump = lambda: {"type": "text", "text": text}
         raw.content = [text_block]
-        raw.model = "claude-haiku-4-5"
+        raw.model = "gpt-5.6-luna"
         return LLMResponse(
             parsed=None, raw_response=raw, content=text,
-            model="claude-haiku-4-5",
+            model="gpt-5.6-luna",
         )
 
     @pytest.mark.asyncio

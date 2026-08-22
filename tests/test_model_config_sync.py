@@ -36,7 +36,7 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
             "narrator": "openai:gpt-5.1",
             "dnd_combat_manager": "gpt-5-mini",
             "agent": "claude-sonnet-4-6",
-            "agent_standard": "claude-haiku-4-5",
+            "agent_standard": "gpt-5.6-luna",
             "agent_convenience": "claude-sonnet-4-6",
             "character_gen": "gpt-5.1",
             "image_director": "gpt-5-mini",
@@ -52,7 +52,7 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
     assert ckpt.session.config.models.event_router == "openai:gpt-5.1"
     assert ckpt.session.config.models.dnd_combat_manager == "openai:gpt-5-mini"
     assert ckpt.session.config.models.agent_default == "anthropic:claude-sonnet-4-6"
-    assert ckpt.session.config.models.agent_standard == "anthropic:claude-haiku-4-5"
+    assert ckpt.session.config.models.agent_standard == "openai:gpt-5.6-luna"
     assert ckpt.session.config.models.agent_convenience == "anthropic:claude-sonnet-4-6"
     assert ckpt.session.config.models.image_director == "openai:gpt-5-mini"
 
@@ -64,7 +64,7 @@ def test_runtime_model_config_defaults_label_mixed_provider_roles():
     assert models.narrator == "openai:gpt-5.2"
     assert models.dnd_combat_manager == "openai:gpt-5-mini"
     assert models.agent_default == "anthropic:claude-opus-4-6"
-    assert models.agent_standard == "anthropic:claude-haiku-4-5"
+    assert models.agent_standard == "openai:gpt-5.6-luna"
     assert models.agent_convenience == "anthropic:claude-sonnet-4-6"
     assert models.image_director == "openai:gpt-5-mini"
 

@@ -889,9 +889,9 @@ def _story_checkpoint() -> CheckpointFile:
     )
     ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
     ckpt.session.config.settings.player_roll_mode = "auto"
-    ckpt.session.config.models.agent_default = "claude-haiku-4-5"
-    ckpt.session.config.models.agent_standard = "claude-haiku-4-5"
-    ckpt.session.config.models.agent_convenience = "claude-haiku-4-5"
+    ckpt.session.config.models.agent_default = "gpt-5.6-luna"
+    ckpt.session.config.models.agent_standard = "gpt-5.6-luna"
+    ckpt.session.config.models.agent_convenience = "gpt-5.6-luna"
     apply_checkpoint_projection(ckpt, projection.checkpoint)
     apply_field_start_projection(ckpt, projection)
     _park_imported_support_npcs(ckpt)
@@ -1108,10 +1108,10 @@ def _next_command(
 
 async def _run_playtest(args: argparse.Namespace) -> dict[str, Any]:
     load_dotenv()
-    os.environ.setdefault("LLM_MODEL_AGENT", "claude-haiku-4-5")
-    os.environ.setdefault("LLM_MODEL_AGENT_STANDARD", "claude-haiku-4-5")
-    os.environ.setdefault("LLM_MODEL_AGENT_CONVENIENCE", "claude-haiku-4-5")
-    os.environ.setdefault("LLM_MODEL_CHARACTER_GEN", "claude-haiku-4-5")
+    os.environ.setdefault("LLM_MODEL_AGENT", "gpt-5.6-luna")
+    os.environ.setdefault("LLM_MODEL_AGENT_STANDARD", "gpt-5.6-luna")
+    os.environ.setdefault("LLM_MODEL_AGENT_CONVENIENCE", "gpt-5.6-luna")
+    os.environ.setdefault("LLM_MODEL_CHARACTER_GEN", "gpt-5.6-luna")
 
     config = LLMConfig.from_env()
     required = set(LIVE_PLAY_REQUIRED_ROLES) | {"content_manager"}
@@ -1312,11 +1312,11 @@ def _build_report(
         _check("content_manager_called", bool(content_calls), len(content_calls)),
         _check("event_router_called", bool(router_calls), len(router_calls)),
         _check(
-            "character_agents_used_haiku_role",
+            "character_agents_used_luna_role",
             bool(agent_calls)
             and all(call["role"] != "agent" for call in agent_calls)
             and all(
-                "haiku" in str(call.get("model", "")).lower()
+                "gpt-5.6-luna" in str(call.get("model", "")).lower()
                 for call in agent_calls
             ),
             agent_calls,

@@ -2315,7 +2315,7 @@ class LLMDispatcher:
         prompt as normal agent turns under the same ruleset (single
         unified `agent` template). Character identity lives in the
         per-call user message, so parallel fan-out compounds well with
-        this — a 3-character harvest bills three Haiku calls in roughly
+        this — a 3-character harvest bills three Luna calls in roughly
         one round-trip wall time, all hitting the cached system prefix.
         """
         if not character_ids:

@@ -25,7 +25,7 @@ class CharacterAgentTier(str, Enum):
     # secrets, or long-running adversarial pressure.
     premium = "premium"
     # Normal story characters with ongoing narrative threads. In the
-    # current runtime they use the Haiku-backed standard-agent role.
+    # current runtime they use the Luna-backed standard-agent role.
     standard = "standard"
     # Utility or supporting characters that need continuity but should not
     # consume the expensive plot-agent model. In the current runtime they

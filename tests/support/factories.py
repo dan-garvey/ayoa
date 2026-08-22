@@ -54,7 +54,7 @@ def llm_response(
 def text_llm_response(
     text: str,
     *,
-    model: str = "claude-haiku-4-5",
+    model: str = "gpt-5.6-luna",
 ) -> LLMResponse:
     return llm_response(
         parsed=None,
