@@ -31,12 +31,13 @@ _CONTENT_MANAGER_MODEL = "gpt-5-mini"
 _AGENT_MODEL = "claude-opus-4-6"
 _STANDARD_AGENT_MODEL = "gpt-5.6-luna"
 _CONVENIENCE_AGENT_MODEL = "claude-sonnet-4-6"
+_CHARACTER_MANAGER_MODEL = "claude-sonnet-5"
 _DEFAULT_MODEL = "gpt-5.1"
 _ROLE_ENV_ALIASES = {
     "agent": ("AGENT",),
     "agent_standard": ("AGENT_STANDARD", "STANDARD_AGENT"),
     "agent_convenience": ("AGENT_CONVENIENCE", "CONVENIENCE_AGENT"),
-    "character_gen": ("CHARACTER_GEN", "AGENT"),
+    "character_manager": ("CHARACTER_MANAGER",),
     "content_manager": ("CONTENT_MANAGER",),
     "dnd_combat_manager": ("COMBAT_MANAGER", "DND_COMBAT_MANAGER"),
     "event_router": ("ROUTER",),
@@ -47,13 +48,12 @@ _OPENAI_AGENT_CREDENTIAL_ROLES = frozenset((
     "agent",
     "agent_standard",
     "agent_convenience",
-    "character_gen",
 ))
 LIVE_PLAY_REQUIRED_ROLES = frozenset((
     "agent",
     "agent_convenience",
     "agent_standard",
-    "character_gen",
+    "character_manager",
     "dnd_combat_manager",
     "event_router",
     "narrator",
@@ -209,7 +209,7 @@ class LLMConfig(BaseModel):
         "agent": _AGENT_MODEL,
         "agent_standard": _STANDARD_AGENT_MODEL,
         "agent_convenience": _CONVENIENCE_AGENT_MODEL,
-        "character_gen": _AGENT_MODEL,
+        "character_manager": _CHARACTER_MANAGER_MODEL,
     })
 
     # v11-r9b: per-role extended-thinking budgets (Anthropic Messages
@@ -260,7 +260,6 @@ class LLMConfig(BaseModel):
         "image_director": "low",
         "agent": "medium",
         "agent_standard": "medium",
-        "character_gen": "medium",
     })
     # Raw OpenAI reasoning tokens are not exposed by the API. This optional
     # per-role setting requests provider-authored summaries instead.

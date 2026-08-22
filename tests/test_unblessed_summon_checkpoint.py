@@ -156,6 +156,7 @@ def test_runtime_defaults_match_current_policy(checkpoint: CheckpointFile) -> No
         "agent_default": "anthropic:claude-opus-4-6",
         "agent_standard": "openai:gpt-5.6-luna",
         "agent_convenience": "anthropic:claude-sonnet-4-6",
+        "character_manager": "anthropic:claude-sonnet-5",
         "image_director": "gpt-5-mini",
     }
     assert checkpoint.session.config.models.model_dump() == expected_models

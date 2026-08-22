@@ -680,9 +680,7 @@ class CharacterManager:
 
             response_model = AuthoredOneStarCharacter
         response = await self.client.complete(
-            # Fresh One-Star summon identities stay on the Luna-backed role
-            # both while authored and during their later character turns.
-            role="agent_standard" if one_star_hero else "agent_convenience",
+            role="character_manager",
             messages=messages,
             response_model=response_model,
             temperature=0.6,

@@ -20,6 +20,7 @@ def runtime_model_config(config: LLMConfig) -> ModelConfig:
         agent_default=_runtime_model_label(config, "agent"),
         agent_standard=_runtime_model_label(config, "agent_standard"),
         agent_convenience=_runtime_model_label(config, "agent_convenience"),
+        character_manager=_runtime_model_label(config, "character_manager"),
     )
 
 

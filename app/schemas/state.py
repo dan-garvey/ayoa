@@ -19,6 +19,7 @@ class ModelConfig(BaseModel):
     agent_default: str = "claude-opus-4-6"
     agent_standard: str = "gpt-5.6-luna"
     agent_convenience: str = "claude-sonnet-4-6"
+    character_manager: str = "claude-sonnet-5"
 
 
 class SlotEntry(BaseModel):

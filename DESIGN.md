@@ -14,9 +14,9 @@
 * The LLM client is multi-provider (Anthropic Messages API and OpenAI
   Responses API) with per-role provider/model dispatch. Default models
   are `gpt-5.1` for `event_router`, `gpt-5.2` for `narrator`,
-  `gpt-5-mini` for `dnd_combat_manager` and `content_manager`, and
-  Claude-family models for `agent`, `agent_standard`,
-  `agent_convenience`, and `character_gen`. Per-role
+  `gpt-5-mini` for `dnd_combat_manager` and `content_manager`, Luna for
+  `agent_standard`, and Claude-family models for `agent`,
+  `agent_convenience`, and `character_manager`. Per-role
   overrides go through `LLM_PROVIDER_<ROLE>` and `LLM_MODEL_<ROLE>`
   environment variables, or via the `LLM_ROLE_PROVIDERS` /
   `LLM_ROLE_MODELS` JSON env maps. A `provider:model` prefix on a
@@ -574,11 +574,12 @@ environment overrides like `LLM_PROVIDER_NARRATOR=openai` and
 for `event_router`, OpenAI `gpt-5.2` for `narrator`, Anthropic
 `claude-opus-4-6` for premium `agent` calls, OpenAI
 `gpt-5.6-luna` for `agent_standard`, Anthropic `claude-sonnet-4-6`
-for `agent_convenience`, and Opus for `character_gen`.
+for `agent_convenience`, and Anthropic `claude-sonnet-5` for
+`character_manager`.
 
 Active live model roles are `event_router`, `narrator`, `agent`,
 `agent_standard`, `agent_convenience`, `dnd_combat_manager`,
-`content_manager`, and `character_gen`.
+`content_manager`, and `character_manager`.
 
 ## 6. Turn Lifecycle
 
@@ -975,10 +976,9 @@ is authoring direction expressed through the resulting public appearance and
 loadout; it is not duplicated as a second character-visual schema or persisted
 as a private rank for the image director.
 
-Implementation detail: the spawn path renders `character_gen.txt`, but the
-LLM call currently uses `role="agent_convenience"` rather than the configured
-`character_gen` role. Treat `character_gen` as a prompt/template name, not an
-active model role, unless that code path is changed.
+The spawn path renders `character_gen.txt` through the dedicated
+`character_manager` model role. `character_gen` is the prompt/template name,
+not a second model role.
 
 ### 10.2 LLM-Free Custom Player Characters
 

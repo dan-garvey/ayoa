@@ -116,7 +116,7 @@ class TestLLMConfig:
         assert config.role_models["agent"] == "claude-opus-4-6"
         assert config.role_models["agent_standard"] == "gpt-5.6-luna"
         assert config.role_models["agent_convenience"] == "claude-sonnet-4-6"
-        assert config.role_models["character_gen"] == "claude-opus-4-6"
+        assert config.role_models["character_manager"] == "claude-sonnet-5"
         assert config.provider_for_role("event_router") == "openai"
         assert config.provider_for_role("narrator") == "openai"
         assert config.provider_for_role("dnd_combat_manager") == "openai"
@@ -125,6 +125,7 @@ class TestLLMConfig:
         assert config.provider_for_role("agent") == "anthropic"
         assert config.provider_for_role("agent_standard") == "openai"
         assert config.provider_for_role("agent_convenience") == "anthropic"
+        assert config.provider_for_role("character_manager") == "anthropic"
         assert config.thinking_budget_for_role("agent_standard") == 0
         assert config.thinking_budget_for_role("agent_convenience") == 0
         assert config.enable_anthropic_compaction is False
@@ -195,10 +196,6 @@ class TestLLMConfig:
                 == "agent-openai-key"
             )
             assert (
-                config.api_key_for_provider("openai", role="character_gen")
-                == "agent-openai-key"
-            )
-            assert (
                 config.api_key_for_provider("openai", role="event_router")
                 == "router-openai-key"
             )
@@ -229,7 +226,6 @@ class TestLLMConfig:
             "agent",
             "agent_standard",
             "agent_convenience",
-            "character_gen",
         ):
             assert config.openai_role_api_key_env_names(role) == (
                 "OPEN_AI_AGENT",
@@ -410,7 +406,7 @@ def mock_config():
             "narrator": "claude-haiku-4-5",
             "agent": "claude-sonnet-4-6",
             "agent_convenience": "claude-haiku-4-5",
-            "character_gen": "claude-sonnet-4-6",
+            "character_manager": "claude-sonnet-5",
         },
         max_retries=1,
         retry_base_delay=0.01,
@@ -547,6 +543,22 @@ class TestLLMClientComplete:
         call_kwargs = mock.call_args.kwargs
         assert "system" not in call_kwargs
         assert "cache_control" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_sonnet_5_omits_non_default_sampling_parameters(self, client):
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+
+        await client.complete(
+            role="character_manager",
+            messages=[{"role": "user", "content": "Author a character."}],
+            temperature=0.6,
+            max_tokens=100,
+        )
+
+        call_kwargs = mock.call_args.kwargs
+        assert call_kwargs["model"] == "claude-sonnet-5"
+        assert "temperature" not in call_kwargs
+        assert "thinking" not in call_kwargs
 
     @pytest.mark.asyncio
     async def test_cache_suppressed_when_disabled(self, client):
@@ -762,7 +774,7 @@ class TestLLMClientComplete:
         with patch("app.llm.client.openai.AsyncOpenAI") as openai_ctor:
             client._get_openai_client("narrator")
             client._get_openai_client("event_router")
-            client._get_openai_client("character_gen")
+            client._get_openai_client("character_manager")
 
         assert openai_ctor.call_args_list[0].kwargs["api_key"] == "narrator-openai-key"
         assert openai_ctor.call_args_list[1].kwargs["api_key"] == "router-openai-key"

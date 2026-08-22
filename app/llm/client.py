@@ -434,6 +434,10 @@ def _openai_model_supports_temperature(model: str) -> bool:
     return not model_lower.startswith(("gpt-5", "o1", "o3", "o4"))
 
 
+def _anthropic_model_supports_temperature(model: str) -> bool:
+    return not model.lower().startswith("claude-sonnet-5")
+
+
 class LLMClient:
     """Async LLM client with per-role provider dispatch."""
 
@@ -521,6 +525,8 @@ class LLMClient:
         temp = temperature
         max_tok = max_tokens
         thinking_budget = self.config.thinking_budget_for_role(role)
+        if model_name.lower().startswith("claude-sonnet-5"):
+            thinking_budget = 0
         # Extended thinking has two hard API constraints we backstop
         # here so call sites don't need to know about them:
         #   1. budget_tokens must be < max_tokens. We bump max_tokens
@@ -798,9 +804,10 @@ class LLMClient:
         kwargs: dict[str, Any] = {
             "model": model,
             "messages": messages,
-            "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if _anthropic_model_supports_temperature(model):
+            kwargs["temperature"] = temperature
         # Extended thinking. The temperature/max_tokens overrides
         # required by the API are applied upstream in `complete()` —
         # see the `thinking_budget > 0` block there. Here we just

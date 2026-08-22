@@ -38,7 +38,7 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
             "agent": "claude-sonnet-4-6",
             "agent_standard": "gpt-5.6-luna",
             "agent_convenience": "claude-sonnet-4-6",
-            "character_gen": "gpt-5.1",
+            "character_manager": "claude-sonnet-5",
             "image_director": "gpt-5-mini",
         },
     )
@@ -54,6 +54,7 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
     assert ckpt.session.config.models.agent_default == "anthropic:claude-sonnet-4-6"
     assert ckpt.session.config.models.agent_standard == "openai:gpt-5.6-luna"
     assert ckpt.session.config.models.agent_convenience == "anthropic:claude-sonnet-4-6"
+    assert ckpt.session.config.models.character_manager == "anthropic:claude-sonnet-5"
     assert ckpt.session.config.models.image_director == "openai:gpt-5-mini"
 
 
@@ -66,6 +67,7 @@ def test_runtime_model_config_defaults_label_mixed_provider_roles():
     assert models.agent_default == "anthropic:claude-opus-4-6"
     assert models.agent_standard == "openai:gpt-5.6-luna"
     assert models.agent_convenience == "anthropic:claude-sonnet-4-6"
+    assert models.character_manager == "anthropic:claude-sonnet-5"
     assert models.image_director == "openai:gpt-5-mini"
 
 

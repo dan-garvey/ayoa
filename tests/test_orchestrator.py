@@ -189,7 +189,7 @@ class TestCharacterSpawn:
         assert spawned[0].name == "Tom the Stablehand"
         assert spawned[0].agent_tier == CharacterAgentTier.utility
         kwargs = mock_client.complete.call_args.kwargs
-        assert kwargs["role"] == "agent_convenience"
+        assert kwargs["role"] == "character_manager"
         assert kwargs["response_model"] is AuthoredCharacter
         assert "dnd_statblock" not in _messages_text(kwargs["messages"])
         assert "## Authored Generation Budget" not in kwargs["messages"][1]["content"]
