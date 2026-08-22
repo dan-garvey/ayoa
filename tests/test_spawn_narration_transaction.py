@@ -350,7 +350,7 @@ async def test_heterogeneous_spawns_are_in_first_render_and_accept_once():
 
 
 @pytest.mark.asyncio
-async def test_immediate_spawn_responder_reuses_shared_authored_record():
+async def test_immediate_spawn_responder_speculates_from_authored_record_copy():
     ckpt = _checkpoint()
     manager = RecordingCharacterManager()
     coordinator, runtime = _install_runtime(
@@ -385,10 +385,15 @@ async def test_immediate_spawn_responder_reuses_shared_authored_record():
 
     assert manager.calls == 1
     assert dispatcher.agent_records == [by_id["summon_staff"]]
-    assert dispatcher.agent_records[0] is by_id["summon_staff"]
+    # The narrator may discard this branch, so the agent reads an isolated
+    # copy of the one authored record rather than mutating the live instance.
+    assert dispatcher.agent_records[0] is not by_id["summon_staff"]
     assert dispatcher.agent_records[0].name == "Petra Vale"
     assert "ash staff" in dispatcher.agent_records[0].visuals.default_loadout
     assert dispatcher.narrator_rosters[0]["summon_staff"] is by_id["summon_staff"]
+    assert [event.event_id for event in ckpt.canonical_events] == [
+        "evt_three_arrive"
+    ]
     for record in records:
         assert any(
             "step out of the summon light" in observation

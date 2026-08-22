@@ -153,6 +153,7 @@ def test_live_play_preflight_does_not_require_content_manager_key():
             "event_router": "router-key",
             "narrator": "narrator-key",
             "dnd_combat_manager": "combat-key",
+            "agent_standard": "agent-key",
         },
     )
 

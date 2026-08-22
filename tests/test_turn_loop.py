@@ -78,6 +78,54 @@ def _ckpt(bindings: dict[str, str] | None = None):
     return gatehouse_checkpoint(bindings=bindings)
 
 
+def _queue_narrator_continue(fake, count: int = 1) -> None:
+    for _ in range(count):
+        fake.queue_narrator(
+            handoff="continue",
+            reason="The current motion still needs to advance.",
+            text="DISCARDED CANDIDATE",
+        )
+
+
+class _SpeculativeBranchFake(FakeDispatcher):
+    """Expose branch-local mutations so commit/discard is observable."""
+
+    def __init__(self):
+        super().__init__()
+        self.branch_ready = asyncio.Event()
+
+    async def agent_intend(self, **kw) -> str:
+        output = await super().agent_intend(**kw)
+        speculative_ckpt = kw["ckpt"]
+        character_id = kw["character_id"]
+        speculative_ckpt.character_conversations.setdefault(
+            character_id, []
+        ).append(ConversationMessage(
+            role="assistant",
+            content="speculative agent memory",
+        ))
+        character = next(
+            c for c in speculative_ckpt.characters
+            if c.character_id == character_id
+        )
+        character.pending_observations.clear()
+        return output
+
+    async def route_intention(self, **kw) -> EventRouterOutput:
+        result = await super().route_intention(**kw)
+        if kw["actor_id"] == "pip":
+            kw["ckpt"].session_conversation.append(ConversationMessage(
+                role="assistant",
+                content="speculative router history",
+            ))
+            self.branch_ready.set()
+        return result
+
+    async def narrator_compose(self, **kw):
+        await asyncio.wait_for(self.branch_ready.wait(), timeout=1)
+        return await super().narrator_compose(**kw)
+
+
 def _hidden_front_dossier(
     private_dossier_text: str,
     hidden_plan: str,
@@ -591,6 +639,7 @@ class TestBeatCascade:
         fake.queue_route(prior)
         fake.queue_agent("Pip polishes the bell")
         fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -608,6 +657,105 @@ class TestBeatCascade:
         assert agent_submission["intention"] == "Pip polishes the bell"
         assert agent_submission["cat_ii_event"] is None
 
+    def test_narrator_render_discards_completed_speculative_agent_branch(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = _SpeculativeBranchFake()
+        fake.queue_route(_router_out(
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+            event_kind="beat_continues",
+            facts=[ObservableFact.all("Alice asks Pip to answer.")],
+        ))
+        fake.queue_agent("Pip begins an answer.")
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="Pip, answer me.",
+        ))
+
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert result.renders == {"alice": "RENDER"}
+        assert result.events_closed == 1
+        assert len(fake.agent_calls) == 1
+        assert len(fake.route_calls) == 2
+        assert fake.agent_calls[0]["ckpt"] is not ckpt
+        assert ckpt.character_conversations.get("pip", []) == []
+        assert "Alice asks Pip to answer." in pip.pending_observations
+        assert all(
+            message.content != "speculative router history"
+            for message in ckpt.session_conversation
+        )
+
+    def test_narrator_continue_commits_completed_speculative_agent_branch(self):
+        ckpt = _ckpt({"alice": "1"})
+        pip_before = next(c for c in ckpt.characters if c.character_id == "pip")
+        fake = _SpeculativeBranchFake()
+        fake.queue_route(_router_out(
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+            event_kind="beat_continues",
+            facts=[ObservableFact.all("Alice asks Pip to answer.")],
+        ))
+        fake.queue_agent("Pip gives his answer.")
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        _queue_narrator_continue(fake)
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="Pip, answer me.",
+        ))
+
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert pip is pip_before
+        assert result.events_closed == 2
+        assert len(fake.agent_calls) == 1
+        assert len(fake.route_calls) == 2
+        assert [
+            message.content
+            for message in ckpt.character_conversations["pip"]
+        ] == ["speculative agent memory"]
+        assert pip.pending_observations == []
+        assert any(
+            message.content == "speculative router history"
+            for message in ckpt.session_conversation
+        )
+
+    def test_retried_narrator_continue_resumes_saved_next_output_target(self):
+        ckpt = _ckpt({"alice": "1"})
+        prior = _router_out(
+            event_id="evt_waiting_for_pip",
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+            event_kind="beat_continues",
+            facts=[ObservableFact.all("Alice waits for Pip's answer.")],
+        )
+        broadcast_event(ckpt, prior, actor_id="alice")
+        fake = FakeDispatcher()
+        fake.queue_agent("Pip finally answers.")
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="Pip, answer me.",
+            resume_after_handoff=prior,
+            resume_events_closed=1,
+            resume_event_actor_ids=["alice"],
+        ))
+
+        assert result.events_closed == 2
+        assert fake.continuation_calls == []
+        assert fake.agent_calls[0]["character_id"] == "pip"
+        assert fake.route_calls[0]["actor_id"] == "pip"
+        assert len(ckpt.canonical_events) == 2
+        assert ckpt.canonical_events[0].event_id == "evt_waiting_for_pip"
+
     def test_parenthesized_agent_silence_is_routed_as_actor_submission(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
@@ -618,6 +766,7 @@ class TestBeatCascade:
         ))
         fake.queue_agent("(remains silent)")
         fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -673,6 +822,7 @@ class TestBeatCascade:
         fake.queue_route(prior)
         fake.queue_agent("Pip sends a runner to the archive")
         fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -726,6 +876,7 @@ class TestBeatCascade:
         )
         fake.queue_agent("Pip sends a public warning.")
         fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        _queue_narrator_continue(fake)
 
         with caplog.at_level("INFO", logger="app.engine.turn_loop"):
             result = asyncio.run(
@@ -774,6 +925,7 @@ class TestBeatCascade:
                 agent_ids=["pip"],
                 observer_ids=["alice", "pip"],
             ))
+        _queue_narrator_continue(fake, count=5)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -793,6 +945,7 @@ class TestBeatCascade:
         fake.queue_route(_router_out(agent_ids=["pip"], event_kind="beat_continues"))
         fake.queue_agent("Pip lowers his voice")
         fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        _queue_narrator_continue(fake)
 
         asyncio.run(run_beat(
             ckpt=ckpt,
@@ -812,6 +965,7 @@ class TestBeatCascade:
         fake.queue_route(_router_out(agent_ids=["pip"], event_kind="beat_continues"))
         fake.queue_agent("Pip polishes the bell")
         fake.queue_route(_router_out(agent_ids=["pip"], event_kind="beat_continues"))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -833,6 +987,7 @@ class TestBeatCascade:
         fake.queue_route(_router_out(agent_ids=["pip", "bob"], event_kind="beat_continues"))
         fake.queue_agent("Pip polishes the bell")
         fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -858,6 +1013,7 @@ class TestBeatCascade:
         fake.queue_route(_router_out(agent_ids=["bob"], event_kind="beat_continues"))
         fake.queue_agent("Bob studies the latch")
         fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        _queue_narrator_continue(fake, count=2)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -921,6 +1077,7 @@ class TestBeatCascade:
         ))
         fake.queue_agent("The scout delivers the warning.")
         fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -1031,6 +1188,7 @@ class TestCatIIBeat:
             observer_ids=["alice", "bob"],
             event_kind="cat_ii_open",
         ))
+        _queue_narrator_continue(autonomous)
         autonomous_result = asyncio.run(run_beat(
             ckpt=autonomous_ckpt,
             dispatcher=autonomous,
@@ -1074,6 +1232,7 @@ class TestCatIIBeat:
             observer_ids=["alice", "bob"],
             event_kind="cat_ii_open",
         ))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -1122,6 +1281,7 @@ class TestCatIIBeat:
             observer_ids=["alice"],
             event_kind="cascade_exhausted",
         ))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -1479,6 +1639,7 @@ class TestCatIIBeat:
             combatant_ids=["bob", "alice"],
             facts=[ObservableFact.all("Bob commits to an attack against Alice.")],
         ))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -1898,6 +2059,7 @@ class TestCatIIBeat:
         ))
         fake.queue_agent("Pip answers the warning.")
         fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -2995,7 +3157,7 @@ class TestHumanNextOutputYield:
         assert len(ckpt.canonical_events) == 1
         assert "bob" in result.renders  # Bob still perceives Alice's action.
 
-    def test_response_requested_dispatches_an_npc_before_rendering(self):
+    def test_response_requested_dispatches_npc_when_narrator_defers(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
         fake.queue_route(_router_out(
@@ -3008,6 +3170,7 @@ class TestHumanNextOutputYield:
             event_kind="cascade_exhausted",
             observer_ids=["alice", "pip"],
         ))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -3072,6 +3235,7 @@ class TestHumanNextOutputYield:
             event_kind="cascade_exhausted",
             observer_ids=["alice", "pip", "bob"],
         ))
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -3092,6 +3256,7 @@ class TestHumanNextOutputYield:
             observer_ids=["alice", "pip", "bob"],
         ))
         fake.queue_agent("")
+        _queue_narrator_continue(fake)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,

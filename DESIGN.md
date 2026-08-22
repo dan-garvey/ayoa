@@ -350,7 +350,11 @@ saves before the user's new action proceeds.
 `run_beat()` in `app/engine/turn_loop.py` is the v11 state machine. It
 supports actor submissions, Cat II responder actions, autonomous cascades,
 observation harvest, partial renders for contested attempts, max-event
-backstops, and per-human render fan-out.
+backstops, and per-human render fan-out. After each closed narrative event,
+the narrator judges whether to return control while the selected autonomous
+`next_output` is prepared concurrently against isolated checkpoint state. A
+render discards that branch; `continue` commits its agent memory and router
+result before the cascade resumes.
 
 Important state:
 
@@ -471,14 +475,12 @@ The narrator output schema is:
 to the router or treated as canonical event evidence; engine control uses the
 typed `handoff` decision.
 
-Narrator composition is lossless semantic compression over the complete
-ordered set of facts visible to that POV. It may fuse clauses, remove repeated
-grammatical scaffolding, and carry unchanged ambience through continuous prose,
-but every distinct fact must remain traceable in the rendered passage. Exact
-dialogue, signals, targets, contrasts, refusals, consent, state changes,
-tactical preparation, outcomes, and event order are never salience-filtered.
-The turn loop owns how many canonical events accumulate; the narrator does not
-solve an overlong beat by hiding events.
+Narrator composition is faithful semantic compression over the complete
+ordered set of facts visible to that POV. Dialogue has the highest preservation
+priority, followed by consequential actions, choices, signals, state changes,
+outcomes, and causal order. Repeated staging, unchanged ambience, incidental
+environmental texture, and inconsequential micro-movements may be fused or
+omitted when they add no new information.
 
 A render-buffer reference that cannot be resolved against canonical history is
 a loud contract failure, not a skippable stale entry. Likewise, a `render`
@@ -684,9 +686,10 @@ buffer or NPC inbox receives even broad `all_observers` facts.
 
 ### 6.5 Render
 
-When the beat ends, `_end_beat()` flushes each human's render buffer,
-calls `narrator_compose()`, stores per-POV narrator history, and returns
-`per_player_renders`.
+After each eligible closed event, `_end_beat()` offers the accumulated human
+render buffers to `narrator_compose()`. A `continue` judgment discards candidate
+prose and leaves the buffers open; a `render` judgment flushes them, stores
+per-POV narrator history, and returns `per_player_renders`.
 
 The legacy `output_text` mirrors the acting player's render for older
 callers.
@@ -708,20 +711,25 @@ The router owns the fictional decision about who should produce the next
 in-world output. On any semantic event kind, observers with
 `routing_role="next_output"` form an ordered target list. The turn loop resolves
 that list against live bindings: the first bound human yields a player turn,
-while the first dispatchable NPC runs as an agent. It strips private
-parentheticals, routes that single public result back through the router, and
-then lets the router decide whether another target is still needed.
+while an autonomous target is prepared in parallel with the narrator's pacing
+judgment. The speculative branch uses isolated checkpoint state. If the
+narrator renders, the branch and its agent/router memories are discarded and
+the next player input produces the next canonical action. If the narrator
+chooses `continue`, the engine commits the prepared agent turn, strips private
+parentheticals, routes the public result back through the router, and lets the
+router decide whether another target is still needed.
 Additional `next_output` observers are ordered backlog or fallback candidates,
 not a simultaneous response group.
 
 The same surface covers foreground responses, private branches, and background
 turns. Human-bound characters do not dispatch as agents. Visible facts
-accumulate in per-POV render buffers. When no valid next-output target remains,
-the narrator judges whether the complete visible batch is ready to render or
-whether established motion or a submitted wait condition still needs one more
-router continuation. Cat II, rules-adapter resolutions, queries, observation
-harvests, and safety caps force an immediate render. The router therefore does
-not need to know which character is controlled by a human.
+accumulate in per-POV render buffers, and the narrator receives a pacing
+decision after each eligible event rather than only after target exhaustion.
+When no valid next-output target remains, `continue` may request one grounded
+router continuation for established motion or a submitted wait condition.
+Cat II, rules-adapter resolutions, queries, observation harvests, and safety
+caps force an immediate render. The router therefore does not need to know
+which character is controlled by a human.
 
 The engine determines the agent frame from visibility, event kind, location
 updates, and player bindings, then enforces hard safety filters: no
@@ -815,9 +823,10 @@ enrichment target:
 * `observe_only` means the character receives visible facts and no immediate
   output is requested.
 * `next_output` means the router wants this character to produce the next live
-  output if the beat remains open. The runtime yields for a bound character,
-  dispatches an eligible autonomous character, and rejects inactive, pinned,
-  disabled, or combat-blocked targets.
+  output if the narrator keeps the beat open. The runtime yields for a bound
+  character, speculatively prepares an eligible autonomous character beside
+  the narrator pacing call, and rejects inactive, pinned, disabled, or
+  combat-blocked targets.
 * `perception_enrichment` means the character is a perception-harvest target
   for `observation_harvest` or `query_response`, not a response actor.
 

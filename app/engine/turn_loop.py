@@ -5,8 +5,8 @@ It replaces the one-shot `process_turn → single narrator render` shape
 with a beat-cascading loop: intentions flow in, are classified Cat I
 (self-closing) or Cat II (contested responder-collecting), canonical
 events are adjudicated, broadcast to observers in the shared perceptual
-frame, and the beat continues through agent reactions until the router
-emits a terminal `event_kind` or the backstop fires.
+frame, and the narrator controls whether the player regains control before a
+speculatively prepared autonomous reaction becomes canonical.
 
 ## State machine summary
 
@@ -27,12 +27,11 @@ emits a terminal `event_kind` or the backstop fires.
     Feed local agents, plus mediated agents explicitly named by visible
     facts, through their observation context.
 
-  beat_end?:
-    If true → render each human with a queued buffer, flush
-    buffers, release beat slots, park loop.
-    If false → route the next `routing_role=next_output` NPC,
-      call agent.intend(),
-      recurse.
+  presentation gate:
+    After each closed event, ask the narrator whether the player should regain
+    control while speculatively preparing any autonomous `next_output` in
+    parallel. A render discards that speculative branch. A continue judgment
+    commits it and resumes the cascade.
 
 ## Runtime wiring
 
@@ -55,6 +54,7 @@ import asyncio
 import logging
 import re
 import uuid
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -2754,6 +2754,77 @@ class BeatResult:
     continue_requested: bool = False
 
 
+@dataclass(slots=True)
+class _SpeculativeNextOutput:
+    """One isolated autonomous handoff prepared beside narrator pacing.
+
+    Agent memory and compact router history stay on ``checkpoint`` until the
+    narrator explicitly defers presentation. A discarded branch therefore
+    cannot teach a character that they said something which never became
+    canonical fiction.
+    """
+
+    outcome: str
+    checkpoint: CheckpointFile | None = None
+    result: EventRouterOutput | None = None
+    actor_id: str = ""
+    submission: str = ""
+    touched_actor_ids: list[str] = field(default_factory=list)
+
+
+def _durable_checkpoint_copy(ckpt: CheckpointFile) -> CheckpointFile:
+    """Clone model state without copying live tasks or runtime handles."""
+
+    return CheckpointFile.model_validate_json(ckpt.model_dump_json(
+        context={"include_private_runtime_metadata": True},
+    ))
+
+
+def _adopt_speculative_router_state(
+    ckpt: CheckpointFile,
+    speculative: CheckpointFile,
+    *,
+    actor_ids: list[str],
+) -> None:
+    """Commit only state an agent submission and router call may mutate."""
+
+    speculative_characters = {
+        character.character_id: character
+        for character in speculative.characters
+    }
+    for actor_id in dict.fromkeys(actor_ids):
+        speculative_actor = speculative_characters.get(actor_id)
+        if speculative_actor is not None:
+            for character in ckpt.characters:
+                if character.character_id == actor_id:
+                    for field_name in CharacterRecord.model_fields:
+                        setattr(
+                            character,
+                            field_name,
+                            deepcopy(getattr(speculative_actor, field_name)),
+                        )
+                    break
+
+        if actor_id in speculative.character_conversations:
+            ckpt.character_conversations[actor_id] = deepcopy(
+                speculative.character_conversations[actor_id]
+            )
+        else:
+            ckpt.character_conversations.pop(actor_id, None)
+
+    ckpt.session_conversation = deepcopy(speculative.session_conversation)
+    ckpt.session.pending_engine_state_updates = list(
+        speculative.session.pending_engine_state_updates
+    )
+    ckpt.session.content_state = deepcopy(speculative.session.content_state)
+    ckpt.session.content_manager_preflight_cycle = (
+        speculative.session.content_manager_preflight_cycle
+    )
+    ckpt.session.content_manager_last_run_cycle = (
+        speculative.session.content_manager_last_run_cycle
+    )
+
+
 async def run_beat(
     ckpt: CheckpointFile,
     dispatcher: Dispatcher,
@@ -2780,11 +2851,13 @@ async def run_beat(
        and the intention is routed as an out-of-turn response.
 
     Handoff:
-    - Ordered `next_output` targets resolve against live bindings and
-      dispatchable autonomous characters before any render decision.
-    - Targetless narrative events become narrator handoff candidates; the
-      narrator may request another router continuation while established
-      motion or a submitted wait condition remains unresolved.
+    - Every closed narrative event becomes a narrator handoff candidate.
+      Autonomous `next_output` work is prepared in parallel on isolated state;
+      narrator render discards it, while narrator continue commits it.
+    - Bound `next_output` targets and forced safety/rules boundaries render
+      without speculative autonomous work.
+    - Targetless events may request a router continuation when the narrator
+      keeps established motion or a submitted wait condition unresolved.
     - Rules, query, Cat II, harvest, and safety-cap event kinds force render
       fan-out and slot release.
     - Cat II event adjudicates; selected semantic `next_output` targets yield
@@ -2855,89 +2928,121 @@ async def run_beat(
             pending_result, actor_id, kind="continuation",
         )
 
-    async def _queue_router_agent_submission(
+    async def _prepare_speculative_next_output(
         prior_result: EventRouterOutput,
-        character_ids: list[str],
-    ) -> str:
-        nonlocal agent_cascade_attempts, background_thread_attempts
-        nonlocal pending_result, pending_result_is_continuation
-        nonlocal pending_result_actor_id, pending_result_submission
-        if not character_ids:
-            return "exhausted"
-        if agent_cascade_attempts >= max_agent_cascades:
-            return "cap"
+        ordered_targets: list[tuple[str, str]],
+    ) -> _SpeculativeNextOutput:
+        """Prepare one autonomous response without touching live state."""
 
+        nonlocal agent_cascade_attempts, background_thread_attempts
+        speculative_ckpt = _durable_checkpoint_copy(ckpt)
         from app.engine.context_builder import collect_player_ids
 
-        agent_targets = targets_from_router_output(
-            prior_result,
-            player_ids=collect_player_ids(ckpt),
-            agent_ids=character_ids,
-        )
-        if not agent_targets:
-            return "exhausted"
-
-        skipped_for_background_cap = False
-        for target in agent_targets:
+        touched_actor_ids: list[str] = []
+        for control_kind, character_id in ordered_targets:
+            if control_kind == "bound":
+                return _SpeculativeNextOutput(
+                    outcome="human",
+                    checkpoint=speculative_ckpt,
+                    touched_actor_ids=touched_actor_ids,
+                )
             if agent_cascade_attempts >= max_agent_cascades:
-                return "cap"
+                return _SpeculativeNextOutput(
+                    outcome="cap",
+                    checkpoint=speculative_ckpt,
+                    touched_actor_ids=touched_actor_ids,
+                )
+
+            agent_targets = targets_from_router_output(
+                prior_result,
+                player_ids=collect_player_ids(speculative_ckpt),
+                agent_ids=[character_id],
+            )
+            if not agent_targets:
+                continue
+
+            target = agent_targets[0]
             if target.frame == "background":
-                if background_thread_attempts >= MAX_BACKGROUND_THREADS_PER_BEAT:
-                    skipped_for_background_cap = True
-                    continue
+                if (
+                    background_thread_attempts
+                    >= MAX_BACKGROUND_THREADS_PER_BEAT
+                ):
+                    return _SpeculativeNextOutput(
+                        outcome="cap",
+                        checkpoint=speculative_ckpt,
+                        touched_actor_ids=touched_actor_ids,
+                    )
                 background_thread_attempts += 1
             agent_cascade_attempts += 1
+            touched_actor_ids.append(target.character_id)
+
             local_context = (
-                _router_target_local_context(ckpt, target.character_id)
+                _router_target_local_context(
+                    speculative_ckpt, target.character_id,
+                )
                 if _router_target_needs_local_context(prior_result, target)
                 else ""
             )
             agent_output = await _agent_intention_for_dispatch(
                 dispatcher,
-                ckpt,
+                speculative_ckpt,
                 target.character_id,
                 frame=target.frame,
                 local_context=local_context,
             )
             if agent_output is None:
                 continue
+
             routed = await dispatcher.route_intention(
-                ckpt=ckpt,
+                ckpt=speculative_ckpt,
                 actor_id=target.character_id,
                 intention=agent_output,
                 cat_ii_event=None,
             )
-            pending_result = routed
-            pending_result_is_continuation = False
-            pending_result_actor_id = target.character_id
-            pending_result_submission = agent_output
             _log_router_rationale(
-                pending_result,
+                routed,
                 target.character_id,
-                kind="route",
+                kind="speculative_route",
             )
-            return "queued"
-
-        if skipped_for_background_cap:
-            return "cap"
-        return "exhausted"
-
-    async def _queue_binding_aware_next_output(
-        prior_result: EventRouterOutput,
-    ) -> str:
-        """Resolve ordered semantic targets against live control bindings."""
-        for control_kind, character_id in _binding_aware_next_output_targets(
-            ckpt, prior_result,
-        ):
-            if control_kind == "bound":
-                return "human"
-            outcome = await _queue_router_agent_submission(
-                prior_result, [character_id],
+            return _SpeculativeNextOutput(
+                outcome="queued",
+                checkpoint=speculative_ckpt,
+                result=routed,
+                actor_id=target.character_id,
+                submission=agent_output,
+                touched_actor_ids=touched_actor_ids,
             )
-            if outcome == "exhausted":
-                continue
-            return outcome
-        return "exhausted"
+
+        return _SpeculativeNextOutput(
+            outcome="exhausted",
+            checkpoint=speculative_ckpt,
+            touched_actor_ids=touched_actor_ids,
+        )
+
+    def _adopt_speculative_next_output(
+        prepared: _SpeculativeNextOutput,
+    ) -> None:
+        nonlocal pending_result, pending_result_is_continuation
+        nonlocal pending_result_actor_id, pending_result_submission
+        if prepared.checkpoint is None:
+            raise RuntimeError(
+                "Speculative next_output has no prepared checkpoint."
+            )
+        _adopt_speculative_router_state(
+            ckpt,
+            prepared.checkpoint,
+            actor_ids=prepared.touched_actor_ids,
+        )
+        if prepared.outcome != "queued":
+            return
+        if prepared.result is None:
+            raise RuntimeError(
+                "Queued speculative next_output has no routed result."
+            )
+        pending_result = prepared.result
+        pending_result_is_continuation = False
+        pending_result_actor_id = prepared.actor_id
+        pending_result_submission = prepared.submission
 
     async def _pause_for_pending_rolls() -> BeatResult:
         return await _end_beat(
@@ -2970,9 +3075,14 @@ async def run_beat(
 
     async def _advance_or_render(
         result: EventRouterOutput,
+        *,
+        default_ended_reason: str = "",
     ) -> BeatResult | None:
-        """Apply forced modes, live bindings, then the narrator soft gate."""
-        if events_closed >= max_events:
+        """Race narrator pacing against isolated autonomous next-output work."""
+        if (
+            events_closed >= max_events
+            and default_ended_reason != "cat_ii_resolution"
+        ):
             return await _end_beat(
                 ckpt,
                 dispatcher,
@@ -2995,12 +3105,8 @@ async def run_beat(
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
 
-        next_output = await _queue_binding_aware_next_output(result)
-        if next_output == "queued":
-            return None
-        if next_output == "cap":
-            return await _end_for_cascade_cap()
-        if next_output == "human":
+        targets = _binding_aware_next_output_targets(ckpt, result)
+        if targets and targets[0][0] == "bound":
             return await _end_beat(
                 ckpt,
                 dispatcher,
@@ -3011,26 +3117,120 @@ async def run_beat(
                 acting_player_input=intention,
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
-        handoff = await _end_beat(
-            ckpt,
-            dispatcher,
-            ended_reason=_event_handoff_reason(result) or "cascade_exhausted",
-            events_closed=events_closed,
-            event_actor_ids=event_actor_ids,
-            acting_player_id=actor_id,
-            acting_player_input=intention,
-            suppress_reaction_prompts=suppress_reaction_prompts,
-            soft_handoff_candidate=True,
+
+        from app.engine.context_builder import collect_player_ids
+
+        player_ids = collect_player_ids(ckpt)
+        has_narrator_target = any(
+            character_id in player_ids and bool(buffer)
+            for character_id, buffer in ckpt.session.render_buffers.items()
         )
+        if targets and not has_narrator_target:
+            prepared = await _prepare_speculative_next_output(result, targets)
+            if prepared.checkpoint is not None:
+                _adopt_speculative_next_output(prepared)
+            if prepared.outcome == "queued":
+                return None
+            if prepared.outcome == "cap":
+                return await _end_for_cascade_cap()
+            if prepared.outcome == "human":
+                return await _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason="awaiting_player_turn",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=suppress_reaction_prompts,
+                )
+            return await _end_beat(
+                ckpt,
+                dispatcher,
+                ended_reason=(
+                    default_ended_reason
+                    or _event_handoff_reason(result)
+                    or "cascade_exhausted"
+                ),
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
+                suppress_reaction_prompts=suppress_reaction_prompts,
+            )
+
+        speculative_task: asyncio.Task[_SpeculativeNextOutput] | None = None
+        if targets:
+            if agent_cascade_attempts >= max_agent_cascades:
+                return await _end_for_cascade_cap()
+            speculative_task = asyncio.create_task(
+                _prepare_speculative_next_output(result, targets)
+            )
+
+        try:
+            handoff = await _end_beat(
+                ckpt, dispatcher,
+                ended_reason=(
+                    default_ended_reason
+                    or _event_handoff_reason(result)
+                    or "cascade_exhausted"
+                ),
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
+                suppress_reaction_prompts=suppress_reaction_prompts,
+                soft_handoff_candidate=True,
+            )
+        except BaseException:
+            if speculative_task is not None:
+                if not speculative_task.done():
+                    speculative_task.cancel()
+                await asyncio.gather(speculative_task, return_exceptions=True)
+            raise
+        if not handoff.continue_requested:
+            if speculative_task is not None:
+                if not speculative_task.done():
+                    speculative_task.cancel()
+                await asyncio.gather(speculative_task, return_exceptions=True)
+            return handoff
+
+        # A narrator defer discards its candidate prose and preserves the
+        # current beat. Restore any staged spawn records that the candidate
+        # render temporarily rolled back before adopting speculative work.
+        _restore_speculative_spawn_roster(ckpt)
+        if speculative_task is not None:
+            try:
+                prepared = await speculative_task
+            except BaseException:
+                _rollback_speculative_spawn_roster(ckpt)
+                raise
+            if prepared.checkpoint is not None:
+                _adopt_speculative_next_output(prepared)
+            if prepared.outcome == "queued":
+                return None
+            if prepared.outcome == "cap":
+                return await _end_for_cascade_cap()
+            if prepared.outcome == "human":
+                return await _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason="awaiting_player_turn",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=suppress_reaction_prompts,
+                )
+
         if handoff.continue_requested:
-            _restore_speculative_spawn_roster(ckpt)
             try:
                 await _queue_router_continuation(result)
             except Exception:
                 _rollback_speculative_spawn_roster(ckpt)
                 raise
             return None
-        return handoff
+        raise AssertionError("unreachable narrator handoff state")
 
     # --- Step 1: handle entry path ------------------------------------------
 
@@ -3097,40 +3297,12 @@ async def run_beat(
         events_closed = 1
         event_actor_ids.append(evt.initiator_id)
 
-        if resolved.next_output_character_ids:
-            followup = await _queue_binding_aware_next_output(resolved)
-            if followup == "cap":
-                return await _end_for_cascade_cap()
-            if followup == "human":
-                return await _end_beat(
-                    ckpt, dispatcher,
-                    ended_reason="awaiting_player_turn",
-                    events_closed=events_closed,
-                    event_actor_ids=event_actor_ids,
-                    acting_player_id=actor_id,
-                    acting_player_input=intention,
-                    suppress_reaction_prompts=suppress_reaction_prompts,
-                )
-            if followup == "exhausted":
-                return await _end_beat(
-                    ckpt, dispatcher,
-                    ended_reason="cat_ii_resolution",
-                    events_closed=events_closed,
-                    event_actor_ids=event_actor_ids,
-                    acting_player_id=actor_id,
-                    acting_player_input=intention,
-                    suppress_reaction_prompts=suppress_reaction_prompts,
-                )
-        else:
-            return await _end_beat(
-                ckpt, dispatcher,
-                ended_reason="cat_ii_resolution",
-                events_closed=events_closed,
-                event_actor_ids=event_actor_ids,
-                acting_player_id=actor_id,
-                acting_player_input=intention,
-                suppress_reaction_prompts=suppress_reaction_prompts,
-            )
+        completed = await _advance_or_render(
+            resolved,
+            default_ended_reason="cat_ii_resolution",
+        )
+        if completed is not None:
+            return completed
 
     if resume_after_handoff is None and combat_reaction_event_id is not None:
         release_character_slot(ckpt, actor_id)
@@ -3214,7 +3386,33 @@ async def run_beat(
             )
 
     if resume_after_handoff is not None:
-        await _queue_router_continuation(resume_after_handoff)
+        resume_targets = _binding_aware_next_output_targets(
+            ckpt, resume_after_handoff,
+        )
+        if resume_targets:
+            prepared = await _prepare_speculative_next_output(
+                resume_after_handoff,
+                resume_targets,
+            )
+            if prepared.checkpoint is not None:
+                _adopt_speculative_next_output(prepared)
+            if prepared.outcome == "cap":
+                return await _end_for_cascade_cap()
+            if prepared.outcome == "human":
+                return await _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason="awaiting_player_turn",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=suppress_reaction_prompts,
+                )
+            if prepared.outcome != "queued":
+                await _queue_router_continuation(resume_after_handoff)
+        else:
+            await _queue_router_continuation(resume_after_handoff)
 
     while True:
         if pending_result is None:
@@ -3486,31 +3684,13 @@ async def run_beat(
                     close_cat_ii(ckpt, evt.event_id)
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
-                if resolved.next_output_character_ids:
-                    followup = await _queue_binding_aware_next_output(resolved)
-                    if followup == "cap":
-                        return await _end_for_cascade_cap()
-                    if followup == "human":
-                        return await _end_beat(
-                            ckpt, dispatcher,
-                            ended_reason="awaiting_player_turn",
-                            events_closed=events_closed,
-                            event_actor_ids=event_actor_ids,
-                            acting_player_id=actor_id,
-                            acting_player_input=intention,
-                            suppress_reaction_prompts=suppress_reaction_prompts,
-                        )
-                    if followup == "queued":
-                        continue
-                return await _end_beat(
-                    ckpt, dispatcher,
-                    ended_reason="cat_ii_resolution",
-                    events_closed=events_closed,
-                    event_actor_ids=event_actor_ids,
-                    acting_player_id=actor_id,
-                    acting_player_input=intention,
-                    suppress_reaction_prompts=suppress_reaction_prompts,
+                completed = await _advance_or_render(
+                    resolved,
+                    default_ended_reason="cat_ii_resolution",
                 )
+                if completed is not None:
+                    return completed
+                continue
             # Bound responders are pinned — pause the beat here. Their /acts will
             # re-enter run_beat with their cat_ii_event_id.
             #
