@@ -15,8 +15,10 @@ from app.engine.one_star_adapter import OneStarTransactionError
 from app.engine.turn_loop_dispatcher import (
     LLMDispatcher,
     _build_router_context,
+    refresh_router_history_record,
     _router_history_record,
     _router_ruleset_template_vars,
+    _one_star_transaction_for_result,
     _validate_one_star_cat_ii_transaction,
     _validate_one_star_guide_routing,
     _validate_one_star_pending_response_routing,
@@ -31,6 +33,7 @@ from app.schemas.one_star import (
     OneStarStateUpdateList,
     OneStarTransaction,
 )
+from app.schemas.conversation import ConversationMessage
 from app.schemas.state import OpenCatIIEvent
 from app.engine.turn_loop_contracts import format_actor_submission
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
@@ -162,8 +165,12 @@ def _stub_one_star_router_context(monkeypatch):
     )
     monkeypatch.setattr(
         one_star_router_context,
-        "render_one_star_router_ledger",
-        lambda *_args, **_kwargs: "<one_star_current_ledger>\nGold: 34\n</one_star_current_ledger>",
+        "render_one_star_repair_evidence",
+        lambda *_args, **_kwargs: (
+            "<one_star_conflict_evidence>\n"
+            "current_resources: gold=34\n"
+            "</one_star_conflict_evidence>"
+        ),
     )
 
 
@@ -358,7 +365,10 @@ def test_invalid_deployment_target_is_corrected_before_cat_ii_history(
         event_id="corrected_deployment_target",
         requires_responders=True,
     )
-    dispatcher, client = _dispatcher(invalid, corrected)
+    repaired_updates = OneStarStateUpdateList(
+        state_updates=corrected.state_updates,
+    )
+    dispatcher, client = _dispatcher(invalid, repaired_updates)
 
     result = asyncio.run(dispatcher.route_intention(
         ckpt=ckpt,
@@ -366,15 +376,17 @@ def test_invalid_deployment_target_is_corrected_before_cat_ii_history(
         intention="Deploy Pip to Floor 1.",
     ))
 
-    assert result is corrected
+    assert result is invalid
+    assert result.state_updates == corrected.state_updates
     assert client.complete.await_count == 2
     correction = client.complete.await_args_list[1].kwargs["messages"][-1]
     assert "deployment has no separate target Hero" in correction["content"]
+    assert client.complete.await_args_list[1].kwargs["response_model"] is OneStarStateUpdateList
     stored_history = "\n".join(
         str(message.content) for message in ckpt.session_conversation
     )
-    assert "corrected_deployment_target" in stored_history
-    assert "invalid_deployment_target" not in stored_history
+    assert "invalid_deployment_target" in stored_history
+    assert "target_id=alice" not in stored_history
 
 
 def test_repeated_invalid_embodied_selection_restores_router_snapshot(
@@ -444,7 +456,67 @@ def test_one_star_repair_accepts_only_the_state_update_shape(monkeypatch):
     assert "deployment repeats participant details" in repair_packet
     assert "omits target_id" in repair_packet
     assert "change the offending field" in repair_packet
+    assert "<one_star_conflict_evidence>" in repair_packet
+    assert "current_resources: gold=34" in repair_packet
+    assert "one_star_current_ledger" not in repair_packet
     assert "canonical_event" not in repair_packet
+
+
+def test_invalid_compact_value_bounds_enter_the_one_star_repair_contract():
+    result = _one_star_output()
+    result.state_updates = [OneStarStateUpdate(
+        kind="hero_delta",
+        target_id="pip",
+        value="",
+        details=["hp_current=-3"],
+    )]
+
+    with pytest.raises(
+        OneStarTransactionError,
+        match="typed value bounds",
+    ):
+        _one_star_transaction_for_result(_one_star_checkpoint(), result)
+
+
+def test_invalid_hp_uses_narrow_conflict_repair_without_rewriting_fiction(
+    monkeypatch,
+):
+    _stub_one_star_router_context(monkeypatch)
+    from app.engine import one_star_router_context
+
+    monkeypatch.setattr(
+        one_star_router_context,
+        "render_one_star_repair_evidence",
+        lambda *_args, **_kwargs: (
+            "<one_star_conflict_evidence>\n"
+            "hero pip: hp=2/2\n"
+            "</one_star_conflict_evidence>"
+        ),
+    )
+    invalid = _one_star_output()
+    invalid.state_updates = [OneStarStateUpdate(
+        kind="hero_delta",
+        target_id="pip",
+        value="",
+        details=["hp_current=-3"],
+    )]
+    repaired = OneStarStateUpdateList(state_updates=[])
+    dispatcher, client = _dispatcher(invalid, repaired)
+
+    result = asyncio.run(dispatcher.route_intention(
+        ckpt=_one_star_checkpoint(),
+        actor_id="alice",
+        intention="Pip is hurt.",
+    ))
+
+    assert result is invalid
+    assert result.state_updates == []
+    assert client.complete.await_count == 2
+    assert client.complete.await_args_list[1].kwargs["response_model"] is OneStarStateUpdateList
+    repair_packet = client.complete.await_args_list[1].kwargs["messages"][-1]["content"]
+    assert "hp_current=-3" in repair_packet
+    assert "hero pip: hp=2/2" in repair_packet
+    assert "current_resources" not in repair_packet
 
 
 def test_one_star_spawn_activation_overlap_fails_before_materialization():
@@ -504,7 +576,7 @@ def test_default_and_dnd_ruleset_addons_stay_isolated(monkeypatch):
     assert "state_updates" in one_star["router_ruleset_addon"]
 
 
-def test_one_star_state_stays_in_the_volatile_router_message_tail():
+def test_one_star_normal_router_request_has_no_live_ledger_tail():
     prompt_mgr = PromptManager("app/prompts")
     messages = prompt_mgr.render_messages(
         "event_router",
@@ -520,11 +592,6 @@ def test_one_star_state_stays_in_the_volatile_router_message_tail():
             "event_router_ruleset_one_star",
             one_star_static_config="<one_star_rules_config>\nmax_batch=5\n</one_star_rules_config>",
         ),
-        one_star_state_section=(
-            "<one_star_state>\nGold: 34\nactive_master_feed_id=pip\n"
-            "Pending operation: none\n"
-            "</one_star_state>"
-        ),
         router_input_block="submitted action",
     )
 
@@ -534,26 +601,20 @@ def test_one_star_state_stays_in_the_volatile_router_message_tail():
     assert "Gold: 34" not in system["content"]
     assert "active_master_feed_id=pip" not in system["content"]
     assert "max_batch=5" not in user["content"]
-    assert "Gold: 34" in user["content"]
-    assert "active_master_feed_id=pip" in user["content"]
+    assert "Gold: 34" not in user["content"]
+    assert "active_master_feed_id=pip" not in user["content"]
+    assert "one_star_current_ledger" not in user["content"]
     assert "submitted action" in user["content"]
 
 
-def test_one_star_router_context_requests_the_scoped_ledger_tail(monkeypatch):
-    from app.engine import one_star_router_context
-
-    monkeypatch.setattr(
-        one_star_router_context,
-        "render_one_star_router_ledger",
-        lambda *_args, **_kwargs: "<one_star_current_ledger>\nGold: 34\n</one_star_current_ledger>",
-    )
+def test_one_star_router_context_has_no_live_ledger_surface():
     context = _build_router_context(
         _one_star_checkpoint(),
         "alice",
         include_engine_state_updates=False,
     )
 
-    assert "Gold: 34" in context["one_star_state_section"]
+    assert "one_star_state_section" not in context
 
 
 def test_account_owner_lobby_mutation_requires_scoped_guide_delivery(monkeypatch):
@@ -792,7 +853,7 @@ def test_tutorial_delivery_requires_direct_visible_observation():
         _validate_one_star_tutorial_routing(ckpt, result)
 
 
-def test_one_star_router_projections_split_static_rules_from_live_ledger(
+def test_one_star_router_projections_split_static_rules_from_narrow_repair_evidence(
     monkeypatch,
 ):
     from app.engine import one_star_router_context
@@ -941,28 +1002,45 @@ def test_one_star_router_projections_split_static_rules_from_live_ledger(
         lambda character: hero if character.character_id == "pip" else None,
     )
     static = one_star_router_context.render_one_star_router_static_config(ckpt)
-    dynamic = one_star_router_context.render_one_star_router_ledger(ckpt)
+    hp_evidence = one_star_router_context.render_one_star_repair_evidence(
+        ckpt,
+        state_updates=[OneStarStateUpdate(
+            kind="hero_delta",
+            target_id="pip",
+            value="",
+            details=["hp_current=-3"],
+        )],
+    )
+    purchase_evidence = one_star_router_context.render_one_star_repair_evidence(
+        ckpt,
+        state_updates=[OneStarStateUpdate(
+            kind="catalogue_apply",
+            target_id="synthesis_chamber_i",
+            value="1",
+            details=[],
+        )],
+    )
 
     assert "synthesis_chamber_i" in static
     assert "stars=2-5" in static
     assert "rates[2=75%,3=23%,4=1.75%,5=0.25%]" in static
     assert "repeat_clear_gold" in static
     assert "hero_constraints" not in static
-    assert "hero_bounds" in static
+    assert "hero_bounds" not in static
+    assert "lobby=niflheim" not in static
+    assert "Niflheim Lobby" not in static
     assert "gold=34" not in static
-    assert "gold=34" in dynamic
-    assert "research_levels" in dynamic
-    assert "mission_counters" in dynamic
-    assert "pending_operation" in dynamic
-    assert "hidden_capabilities" not in dynamic
-    assert "private_potential" not in dynamic
-    assert "eligible_unowned_reserves" not in dynamic
-    assert "source=reserve:veil" not in dynamic
-    assert "source=fresh" not in dynamic
-    assert "summon_draw_counters" not in dynamic
-    assert "one-star-gacha" not in dynamic
-    mission_header = dynamic.split("mission_completion=", 1)[0]
-    assert "status=" not in mission_header
+    assert "hero pip:" in hp_evidence
+    assert "hp=4/6" in hp_evidence
+    assert "gold=34" not in hp_evidence
+    assert "active_mission" not in hp_evidence
+    assert "pending_operation" not in hp_evidence
+    assert "hidden_capabilities" not in hp_evidence
+    assert "private_potential" not in hp_evidence
+    assert "current_resources: gold=34" in purchase_evidence
+    assert "catalogue synthesis_chamber_i" in purchase_evidence
+    assert "hero pip:" not in purchase_evidence
+    assert "active_mission" not in purchase_evidence
 
 
 def test_local_hero_cull_is_rejected_from_generic_lifecycle(monkeypatch):
@@ -978,6 +1056,7 @@ def test_local_hero_cull_is_rejected_from_generic_lifecycle(monkeypatch):
                 applied_event_fingerprints={},
                 active_mission=None,
                 pending_operation=None,
+                active_master_feed_id="",
             ),
     )
     monkeypatch.setattr(one_star_adapter, "is_one_star_checkpoint", lambda _: True)
@@ -1034,6 +1113,90 @@ def test_one_star_history_omits_legacy_mission_status_only_for_one_star():
     assert "mission_status" not in one_star_record
     assert "mission_status" not in closed_one_star_record
     assert "mission_status id=floor_one" in generic_record
+
+
+def test_one_star_history_preserves_router_updates_and_one_time_authority_state():
+    result = _one_star_output()
+    result.state_updates = [OneStarStateUpdate(
+        kind="hero_delta",
+        target_id="pip",
+        value="",
+        details=["hp_current=2", "condition=bleeding"],
+    )]
+    hero = character_record("new_hero", name="Edric")
+    hero.mechanics = {
+        "one_star_hero": {
+            "birth_stars": 1,
+            "current_stars": 1,
+            "level": 1,
+            "experience_points": 0,
+            "hp_current": 7,
+            "hp_max": 7,
+            "stats": {"strength": 3},
+            "equipment": [{
+                "item_id": "bent_knife",
+                "name": "Bent knife",
+                "slot": "hand",
+                "quantity": 1,
+                "durability_current": 2,
+                "durability_max": 3,
+                "tags": ["blade"],
+                "visible": True,
+            }],
+            "skills": [{
+                "skill_id": "knead_dough",
+                "name": "Knead Dough",
+                "rank": 1,
+                "capability": "works dough by hand",
+                "tags": ["craft"],
+                "visible": True,
+            }],
+            "owner_lobby_id": "niflheim",
+            "acquisition_event_id": result.event_id,
+            "hidden_capabilities": {"potential": "unknown"},
+            "private_potential": "late bloomer",
+        },
+    }
+
+    conversation = [ConversationMessage(
+        role="assistant",
+        content=_router_history_record(
+            acting_character_id="the_master",
+            result=result,
+        ),
+    )]
+    assert refresh_router_history_record(
+        conversation,
+        result=result,
+        one_star_engine_characters=[hero],
+        one_star_engine_updates=["stamina_recovered current=5 recovery_anchor_s=1800"],
+        force=True,
+    )
+
+    record = conversation[0].content
+    assert 'one_star_update {"kind":"hero_delta","target_id":"pip"' in record
+    assert '"hp_current=2"' in record
+    assert "one_star_authority_hero" in record
+    assert '"character_id":"new_hero"' in record
+    assert '"strength":3' in record
+    assert '"skill_id":"knead_dough"' in record
+    assert '"item_id":"bent_knife"' in record
+    assert "one_star_authority_update stamina_recovered current=5" in record
+    assert "owner_lobby_id" not in record
+    assert "acquisition_event_id" not in record
+    assert "hidden_capabilities" not in record
+    assert "private_potential" not in record
+    assert record.count("one_star_authority_hero") == 1
+
+    # Later fact/observer refreshes must not erase one-time authority records.
+    assert refresh_router_history_record(
+        conversation,
+        result=result,
+        force=True,
+    )
+    refreshed = conversation[0].content
+    assert refreshed.count("one_star_authority_hero") == 1
+    assert refreshed.count("one_star_authority_update") == 1
 
 
 def test_human_and_agent_submissions_share_the_same_router_envelope():

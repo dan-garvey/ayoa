@@ -134,6 +134,34 @@ def test_transaction_requires_exact_present_shape() -> None:
         OneStarTransaction.model_validate({"present": False, "operations": [{"operation": "active_feed", "hero_id": ""}]})
 
 
+def test_automatic_stamina_recovery_is_returned_as_one_time_history_state() -> None:
+    ckpt = _checkpoint()
+    _owner, account = load_one_star_account(ckpt)
+    account.state.stamina_current = 3
+    account.state.stamina_recovery_anchor_s = 0
+    ckpt.characters[0].mechanics["one_star_account"] = account.model_dump(mode="json")
+    ckpt.session.leading_at_s = 60
+
+    prepared = prepare_one_star_transaction(
+        ckpt,
+        event_id="evt_stamina_recovery",
+        transaction=OneStarTransaction(present=False, operations=[]),
+    )
+
+    assert prepared.engine_history_updates == (
+        "stamina_recovered current=5 recovery_anchor_s=60",
+    )
+
+    full = _checkpoint()
+    full.session.leading_at_s = 60
+    no_recovery = prepare_one_star_transaction(
+        full,
+        event_id="evt_no_stamina_recovery",
+        transaction=OneStarTransaction(present=False, operations=[]),
+    )
+    assert no_recovery.engine_history_updates == ()
+
+
 def test_existing_reserve_keeps_authored_mechanics_and_acquires_atomically() -> None:
     checkpoint = _checkpoint()
     transaction = OneStarTransaction.model_validate(

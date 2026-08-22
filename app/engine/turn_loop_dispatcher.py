@@ -25,6 +25,8 @@ import logging
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 
+from pydantic import ValidationError
+
 from app.engine import narrator as narrator_module
 from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager
@@ -113,13 +115,21 @@ def _one_star_transaction_for_result(
         (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
     ):
         return None
-    from app.engine.one_star_adapter import one_star_state_updates_to_transaction
-
-    return one_star_state_updates_to_transaction(
-        ckpt,
-        result.state_updates,
-        canonical_at_s=result.effective_at_s + result.duration_s,
+    from app.engine.one_star_adapter import (
+        OneStarTransactionError,
+        one_star_state_updates_to_transaction,
     )
+
+    try:
+        return one_star_state_updates_to_transaction(
+            ckpt,
+            result.state_updates,
+            canonical_at_s=result.effective_at_s + result.duration_s,
+        )
+    except ValidationError as exc:
+        raise OneStarTransactionError(
+            "a compact One-Star state update violates its typed value bounds"
+        ) from exc
 
 
 def _validate_one_star_cat_ii_transaction(
@@ -925,6 +935,39 @@ def _defer_history_user_prompt(intention: str) -> str:
     return ""
 
 
+def _one_star_engine_hero_history_line(character: CharacterRecord) -> str:
+    """Project a newly engine-authored Hero sheet once into router history."""
+
+    from app.engine.one_star_adapter import load_one_star_hero
+
+    hero = load_one_star_hero(character)
+    if hero is None:
+        return ""
+    payload = {
+        "character_id": character.character_id,
+        "name": character.name,
+        "status": character.status.value,
+        "location": character.location,
+        "birth_stars": hero.birth_stars,
+        "current_stars": hero.current_stars,
+        "level": hero.level,
+        "experience_points": hero.experience_points,
+        "hp_current": hero.hp_current,
+        "hp_max": hero.hp_max,
+        "stats": hero.stats,
+        "equipment": [item.model_dump(mode="json") for item in hero.equipment],
+        "skills": [skill.model_dump(mode="json") for skill in hero.skills],
+        "conditions": hero.conditions,
+        "persistent_injuries": hero.persistent_injuries,
+        "innate_system_sight": hero.innate_system_sight,
+    }
+    return "one_star_authority_hero " + json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
 def _router_history_record(
     *,
     acting_character_id: str,
@@ -932,6 +975,9 @@ def _router_history_record(
     mode: str = "intention",
     spawn_names: Mapping[str, str] | None = None,
     preserved_header: str = "",
+    one_star_engine_characters: Sequence[CharacterRecord] = (),
+    one_star_engine_updates: Sequence[str] = (),
+    preserved_auxiliary_lines: Sequence[str] = (),
 ) -> str:
     """Compact assistant-side memory of a prior router output.
 
@@ -960,8 +1006,8 @@ def _router_history_record(
             )
 
     lines = [header]
-    # One-Star's adapter ledger owns mission continuity. Do not replay a
-    # diagnostic ``mission_status:`` line beside that durable ledger state.
+    # One-Star's compact updates own mission continuity. Do not replay a
+    # parallel diagnostic ``mission_status:`` line.
     mission_status = (
         ""
         if isinstance(
@@ -997,6 +1043,12 @@ def _router_history_record(
             lines.append("obs " + " ".join(observer_bits))
 
     if result.spawn:
+        preserved_spawns = {
+            parts[1]: line
+            for line in preserved_auxiliary_lines
+            if line.startswith("spawn ")
+            and len(parts := line.split(" ", 2)) >= 2
+        }
         for spawn in result.spawn:
             objectives = "; ".join(
                 _compact_router_history_text(objective)
@@ -1015,7 +1067,10 @@ def _router_history_record(
                 seed_bits.insert(0, f"name={name}")
             if objectives:
                 seed_bits.append(f"objectives={objectives}")
-            lines.append(f"spawn {spawn.character_id} " + " ".join(seed_bits))
+            if not name and spawn.character_id in preserved_spawns:
+                lines.append(preserved_spawns[spawn.character_id])
+            else:
+                lines.append(f"spawn {spawn.character_id} " + " ".join(seed_bits))
     if result.dormant:
         lines.append(f"dormant {_compact_id_list(result.dormant)}")
     if result.cull:
@@ -1052,6 +1107,34 @@ def _router_history_record(
             "loc "
             f"{update.character_id}={_compact_router_history_text(update.location_label)}"
         )
+
+    if isinstance(
+        result,
+        (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+    ):
+        for update in result.state_updates:
+            lines.append(
+                "one_star_update "
+                + json.dumps(
+                    update.model_dump(mode="json"),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            )
+        for update in one_star_engine_updates:
+            compact = _compact_router_history_text(update)
+            if compact:
+                lines.append("one_star_authority_update " + compact)
+        for character in one_star_engine_characters:
+            line = _one_star_engine_hero_history_line(character)
+            if line:
+                lines.append(line)
+        for line in preserved_auxiliary_lines:
+            if line.startswith((
+                "one_star_authority_hero ",
+                "one_star_authority_update ",
+            )) and line not in lines:
+                lines.append(line)
 
     interaction_mode = getattr(result, "interaction_mode", "")
     if interaction_mode:
@@ -1096,6 +1179,9 @@ def refresh_router_history_record(
     acting_character_id: str | None = None,
     mode: str | None = None,
     spawned_characters: Sequence[CharacterRecord] = (),
+    one_star_engine_characters: Sequence[CharacterRecord] = (),
+    one_star_engine_updates: Sequence[str] = (),
+    force: bool = False,
 ) -> bool:
     """Replace the compact memory for a router event after mutation.
 
@@ -1111,7 +1197,12 @@ def refresh_router_history_record(
         if character.character_id and character.name
     }
     identity_only = acting_character_id is None and mode is None
-    if identity_only and (not spawn_names or not result.spawn):
+    if identity_only and not (
+        (spawn_names and result.spawn)
+        or one_star_engine_characters
+        or one_star_engine_updates
+        or force
+    ):
         return False
     prefix = f"prior_event {result.event_id} "
     for index in range(len(conversation) - 1, -1, -1):
@@ -1122,8 +1213,18 @@ def refresh_router_history_record(
             and message.content.startswith(prefix)
         ):
             preserved_header = ""
+            preserved_auxiliary_lines: list[str] = []
             if acting_character_id is None or mode is None:
                 preserved_header = message.content.split("\n", 1)[0]
+            preserved_auxiliary_lines = [
+                line
+                for line in message.content.splitlines()[1:]
+                if line.startswith((
+                    "spawn ",
+                    "one_star_authority_hero ",
+                    "one_star_authority_update ",
+                ))
+            ]
             conversation[index] = ConversationMessage(
                 role="assistant",
                 content=_router_history_record(
@@ -1132,6 +1233,9 @@ def refresh_router_history_record(
                     mode=mode or "intention",
                     spawn_names=spawn_names,
                     preserved_header=preserved_header,
+                    one_star_engine_characters=one_star_engine_characters,
+                    one_star_engine_updates=one_star_engine_updates,
+                    preserved_auxiliary_lines=preserved_auxiliary_lines,
                 ),
             )
             return True
@@ -1204,17 +1308,6 @@ def _build_router_context(
     else:
         acting_id = acting_character_id
 
-    one_star_state_section = ""
-    if _one_star_router_enabled(ckpt):
-        from app.engine.one_star_router_context import render_one_star_router_ledger
-
-        one_star_state_block = render_one_star_router_ledger(
-            ckpt,
-            acting_character_id=acting_id,
-        )
-        if one_star_state_block:
-            one_star_state_section = one_star_state_block
-
     return {
         "setting_summary": build_setting_summary(ckpt),
         "world_lore": _build_router_world_lore(ckpt),
@@ -1227,9 +1320,6 @@ def _build_router_context(
             _build_engine_state_updates_block(ckpt)
             if include_engine_state_updates else ""
         ),
-        # This is deliberately a current-turn tail rather than compact router
-        # history: the ledger is authoritative state, not fiction to replay.
-        "one_star_state_section": one_star_state_section,
     }
 
 
@@ -1525,6 +1615,19 @@ class LLMDispatcher:
                     transaction_id=runtime.transaction_id,
                 )
                 runtime.applied_character_ids.update(accepted)
+
+            acquired_characters = [
+                character
+                for character in ckpt.characters
+                if character.character_id in prepared.newly_acquired_hero_ids
+            ]
+            refresh_router_history_record(
+                ckpt.session_conversation,
+                result=result,
+                one_star_engine_characters=acquired_characters,
+                one_star_engine_updates=prepared.engine_history_updates,
+                force=True,
+            )
         except Exception:
             ckpt.characters = live_characters
             _rollback_one_star_materialized_spawns(ckpt, result)
@@ -1557,6 +1660,15 @@ class LLMDispatcher:
         )
         ctx.pop("initial_roster_block", "")
         ctx.pop("engine_state_updates_block", "")
+        from app.engine.one_star_router_context import (
+            render_one_star_repair_evidence,
+        )
+
+        conflict_evidence = render_one_star_repair_evidence(
+            ckpt,
+            state_updates=result.state_updates,
+            canonical_at_s=result.effective_at_s + result.duration_s,
+        )
         lifecycle = {
             "spawn": [
                 {
@@ -1587,6 +1699,8 @@ class LLMDispatcher:
             "participant and target_id.\n"
             f"Submitting actor id: {actor_id}\n"
             f"Validation failure: {validation_error}\n"
+            "Current conflicting state:\n"
+            f"{conflict_evidence}\n"
             "Fixed canonical event:\n"
             f"{result.canonical_event.model_dump_json()}\n"
             "Candidate state updates:\n"
@@ -1818,6 +1932,7 @@ class LLMDispatcher:
                 compact=True,
             )
             result: EventRouterOutput = response.parsed
+            from app.engine.one_star_adapter import OneStarTransactionError
 
             def validate_candidate() -> None:
                 _validate_one_star_cat_ii_transaction(ckpt, result)
@@ -1837,6 +1952,29 @@ class LLMDispatcher:
 
             try:
                 validate_candidate()
+            except OneStarTransactionError as first_error:
+                repaired = await self._repair_one_star_transaction(
+                    ckpt=ckpt,
+                    result=result,
+                    actor_id=actor_id,
+                    validation_error=str(first_error),
+                )
+                result.state_updates = repaired.state_updates
+                try:
+                    validate_candidate()
+                except ValueError as second_error:
+                    result = await self._retry_one_star_routing_contract(
+                        messages=messages,
+                        result=result,
+                        validation_error=str(second_error),
+                    )
+                    try:
+                        validate_candidate()
+                    except ValueError as final_error:
+                        raise ValueError(
+                            "One-Star router output remained invalid after state "
+                            f"repair and routing correction: {final_error}"
+                        ) from final_error
             except ValueError as first_error:
                 if not _one_star_router_enabled(ckpt):
                     raise

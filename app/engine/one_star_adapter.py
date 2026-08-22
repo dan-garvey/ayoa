@@ -106,6 +106,7 @@ class OneStarPreparedMutation:
     culled_character_ids: tuple[str, ...] = ()
     newly_acquired_hero_ids: tuple[str, ...] = ()
     touched_hero_ids: tuple[str, ...] = ()
+    engine_history_updates: tuple[str, ...] = ()
     already_applied: bool = False
 
 
@@ -2133,6 +2134,11 @@ def prepare_one_star_transaction(
     owner, account = load_one_star_account(after)
     state = account.state
     config = account.config
+    active_feed_before_event = state.active_master_feed_id
+    active_feed_authored = any(
+        isinstance(operation, OneStarActiveFeedOperation)
+        for operation in transaction.operations
+    )
     if any(
         isinstance(operation, OneStarSummonOperation)
         and len(operation.hero_ids) > config.max_summon_batch
@@ -2365,7 +2371,14 @@ def prepare_one_star_transaction(
         after.session.leading_at_s,
         state.stamina_recovery_anchor_s,
     )
+    stamina_before_recovery = state.stamina_current
     _recover_stamina(state, config, stamina_now_s)
+    engine_history_updates = [
+        (
+            f"stamina_recovered current={state.stamina_current} "
+            f"recovery_anchor_s={state.stamina_recovery_anchor_s}"
+        )
+    ] if state.stamina_current > stamina_before_recovery else []
     if not transaction.present:
         if expected_summon_ids:
             raise OneStarTransactionError(
@@ -2377,6 +2390,7 @@ def prepare_one_star_transaction(
             event_id=event_id,
             event_fingerprint=fingerprint,
             after_checkpoint=after,
+            engine_history_updates=tuple(engine_history_updates),
         )
 
     hero_initializations: dict[str, OneStarHeroState] = {}
@@ -2554,6 +2568,14 @@ def prepare_one_star_transaction(
             or feed_hero.owner_lobby_id != config.lobby_id
         ):
             state.active_master_feed_id = ""
+    if (
+        active_feed_before_event
+        and not state.active_master_feed_id
+        and not active_feed_authored
+    ):
+        engine_history_updates.append(
+            f"active_master_feed_id=none previous={active_feed_before_event}"
+        )
     state.applied_event_fingerprints[event_id] = fingerprint
     _store_account(owner, account)
     culled_character_ids = tuple(
@@ -2588,6 +2610,7 @@ def prepare_one_star_transaction(
         culled_character_ids=culled_character_ids,
         newly_acquired_hero_ids=tuple(hero_initializations),
         touched_hero_ids=touched_hero_ids,
+        engine_history_updates=tuple(engine_history_updates),
     )
 
 

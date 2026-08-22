@@ -274,6 +274,9 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
     returning_sheet["hp_current"] = 2
     returning_sheet["conditions"] = ["bleeding", "poisoned", "exhausted"]
     returning_sheet["persistent_injuries"] = ["missing fingertip"]
+    owner, account_before = load_one_star_account(checkpoint)
+    account_before.state.active_master_feed_id = "hero"
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account_before.model_dump(mode="json")
     with pytest.raises(OneStarTransactionError, match="active"):
         prepare_one_star_transaction(
             checkpoint,
@@ -331,6 +334,7 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
     assert account.state.active_mission is None
     assert account.state.highest_cleared_floor == 1
     assert account.state.highest_unlocked_floor == 1
+    assert "active_master_feed_id=none previous=hero" in completed.engine_history_updates
 
 
 def test_active_mission_rejects_undeployed_reinforcement_and_party_dormancy() -> None:
@@ -1052,6 +1056,8 @@ def test_dispatcher_passes_event_end_time_to_ruleset_adapter_for_delayed_resolut
         return SimpleNamespace(
             already_applied=False,
             culled_character_ids=(),
+            newly_acquired_hero_ids=(),
+            engine_history_updates=(),
         )
 
     monkeypatch.setattr(one_star_adapter, "prepare_one_star_transaction", fake_prepare)

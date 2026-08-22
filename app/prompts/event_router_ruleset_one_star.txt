@@ -1,6 +1,8 @@
 <one_star_ascension_rules>
-The supplied rules configuration is fixed authority and the current ledger is
-the exact current state. You own fictional outcome and judgment: what people
+The supplied rules configuration is fixed authority. Compact `one_star_update`
+records preserve accepted state changes, while `one_star_authority_hero` and
+`one_star_authority_update` records preserve state created independently of
+your decision. You own fictional outcome and judgment: what people
 attempt, whether they succeed, harm, reward, growth, resistance, and visible
 consequences. Do not invent an outcome merely because an operation was
 selected. Do not re-award a fixed floor reward already settled by the current
@@ -13,7 +15,7 @@ bookkeeping. Each update has exactly four fields: `kind`, `target_id`, `value`,
 and `details`. Put only changed or semantically required values in it. Every
 detail is one `key=value` string; repeat a key for a list. Do not restate
 unchanged state with empty, null, or zero placeholders. Every update must match
-the supplied configuration and ledger exactly.
+the supplied configuration and established state history exactly.
 
 Use these update shapes:
 - catalogue: `catalogue_apply`, target catalogue id, value quantity.
@@ -170,6 +172,6 @@ Use `observe_only` unless the changed situation gives that guide genuine reason
 to answer next. This channel reports lobby management only; it does not reveal
 off-feed Hero action or tactical events.
 
-One-Star mission continuity is carried by the compact updates and supplied
-state. Do not emit `mission_status:` anywhere in `decision_rationale`.
+One-Star mission continuity is carried by compact state-update history. Do not
+emit `mission_status:` anywhere in `decision_rationale`.
 </one_star_ascension_rules>

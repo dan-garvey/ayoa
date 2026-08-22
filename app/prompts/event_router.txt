@@ -427,7 +427,6 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 </output_schema>
 
 <<<USER>>>
-{one_star_state_section}
 <turn_context>
 ## Acting Character
 {acting_character_id}

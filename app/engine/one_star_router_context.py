@@ -1,14 +1,6 @@
-"""Minimal read-only One-Star router context projections.
-
-The cached packet contains reviewed configuration; the volatile packet contains
-current balances, operation state, compact roster mechanics, and full sheets
-only for scene-relevant Heroes. Adapter-private draw sources, fingerprints, and
-hidden potential never enter model context.
-"""
+"""Minimal One-Star router configuration and failure evidence projections."""
 
 from __future__ import annotations
-
-from collections.abc import Iterable
 
 from app.engine.one_star_adapter import (
     effective_one_star_stamina,
@@ -17,7 +9,7 @@ from app.engine.one_star_adapter import (
     load_one_star_hero,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.one_star import OneStarCost, OneStarHeroState
+from app.schemas.one_star import OneStarCost, OneStarStateUpdate
 
 
 def _render_resources(resources: OneStarCost) -> str:
@@ -49,11 +41,6 @@ def _render_nonzero_resources(resources: OneStarCost) -> str:
     return ",".join(pieces) if pieces else "free"
 
 
-def _render_ids(values: Iterable[str]) -> str:
-    rendered = [value for value in values if value]
-    return ",".join(rendered) if rendered else "none"
-
-
 def _render_weight_percent(weight: int) -> str:
     whole, fractional = divmod(weight, 100)
     if not fractional:
@@ -77,7 +64,6 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
     config = account.config
     lines = [
         "<one_star_rules_config>",
-        f"lobby={config.lobby_id}; location={config.lobby_location_label}",
         f"summon_batch_max={config.max_summon_batch}",
         "summon_pools:",
     ]
@@ -122,15 +108,6 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
             f"{stars}={cap}" for stars, cap in sorted(config.star_level_caps.items())
         )
     )
-    constraints = config.hero_constraints
-    lines.append(
-        "hero_bounds: "
-        f"hp_max={constraints.minimum_hp_max}-{constraints.maximum_hp_max}; "
-        f"xp<={constraints.maximum_xp}; "
-        f"abs_stat<={constraints.maximum_stat_value}; "
-        f"equipment<={constraints.maximum_equipment_entries}; "
-        f"skills<={constraints.maximum_skill_entries}"
-    )
     lines.append(
         f"deployment: stamina_cost={config.deployment_stamina_cost}; "
         f"stamina_max={config.maximum_stamina}; "
@@ -155,174 +132,199 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
     return "\n".join(lines)
 
 
-def _render_hero(hero: OneStarHeroState) -> list[str]:
-    lines = [
-        f"birth_stars={hero.birth_stars}; current_stars={hero.current_stars}; "
-        f"level={hero.level}; experience_points={hero.experience_points}; "
-        f"hp={hero.hp_current}/{hero.hp_max}; "
-        f"innate_system_sight={str(hero.innate_system_sight).lower()}",
-        "stats: " + ", ".join(
-            f"{key}={value}" for key, value in sorted(hero.stats.items())
-        ),
-        "equipment: " + "; ".join(
-            f"id={item.item_id},name={item.name},slot={item.slot},"
-            f"quantity={item.quantity},durability={item.durability_current}/"
-            f"{item.durability_max},tags={_render_ids(item.tags)},"
-            f"visible={str(item.visible).lower()}"
-            for item in hero.equipment
-        ),
-        "skills: " + "; ".join(
-            f"id={skill.skill_id},name={skill.name},rank={skill.rank},"
-            f"capability={skill.capability or 'none'},tags={_render_ids(skill.tags)},"
-            f"visible={str(skill.visible).lower()}"
-            for skill in hero.skills
-        ),
-        f"conditions={_render_ids(hero.conditions)}; "
-        f"persistent_injuries={_render_ids(hero.persistent_injuries)}; "
-        f"terminal_cause={hero.terminal_cause or 'none'}",
-    ]
-    return lines
-
-
-def render_one_star_router_ledger(
+def render_one_star_repair_evidence(
     checkpoint: CheckpointFile,
     *,
-    acting_character_id: str = "",
+    state_updates: list[OneStarStateUpdate],
+    canonical_at_s: int | None = None,
 ) -> str:
-    """Render only current adapter state relevant to the next adjudication."""
+    """Render only state rows implicated by a rejected compact update list."""
     if not is_one_star_checkpoint(checkpoint):
         return ""
 
-    owner, account = load_one_star_account(checkpoint)
+    _owner, account = load_one_star_account(checkpoint)
     state = account.state
     config = account.config
-    effective_stamina, effective_anchor = effective_one_star_stamina(
-        state,
-        config,
-        checkpoint.session.leading_at_s,
-    )
-    lines = [
-        "<one_star_current_ledger>",
-        f"account_owner_id={owner.character_id}",
-        f"canonical_clock_s={checkpoint.session.leading_at_s}",
-        f"resources: {_render_resources(state.resources)}",
-        "inventory: " + ", ".join(
-            f"{item_id}={quantity}" for item_id, quantity in sorted(state.inventory.items())
-        ),
-        "facilities: " + ", ".join(
-            f"{facility_id}=L{level}"
-            for facility_id, level in sorted(state.facilities.items())
-        ),
-        "research_levels: " + ", ".join(
-            f"{key}={level}" for key, level in sorted(state.research_levels.items())
-        ),
-        f"lobby_progression: floor={state.lobby_floor}; capacity={state.capacity}; "
-        f"highest_unlocked_tower_floor={state.highest_unlocked_floor}; "
-        f"highest_cleared_tower_floor={state.highest_cleared_floor}",
-        f"stamina: current={effective_stamina}; "
-        f"recovery_anchor_s={effective_anchor}",
-        f"active_master_feed_id={state.active_master_feed_id or 'none'}",
-        "guide_character_ids: " + _render_ids(state.guide_character_ids),
-        "tutorial_deliveries: " + "; ".join(
-            f"{key}={_render_ids(character_ids)}"
-            for key, character_ids in sorted(state.tutorial_deliveries.items())
-        ),
-    ]
-    if state.active_mission is None:
-        lines.append("active_mission: none")
-        floor = state.highest_unlocked_floor
-    else:
-        mission = state.active_mission
-        floor = mission.floor
-        lines.extend([
-            f"active_mission: id={mission.mission_id}; floor={mission.floor}; "
-            f"destination={mission.destination}; "
-            f"started_at_s={mission.started_at_s}; deadline_at_s={mission.deadline_at_s}",
-            f"mission_completion={mission.completion_declaration}; "
-            f"mission_failure={mission.failure_declaration}",
-            "mission_party: " + _render_ids(mission.party_ids),
-            "mission_formation: " + ", ".join(
-                f"{entry.character_id}={entry.label}"
-                for entry in sorted(
-                    mission.formation_labels,
-                    key=lambda formation: formation.character_id,
-                )
-            ),
-            "mission_counters: " + ", ".join(
-                f"{counter.counter_id}={counter.current}/{counter.target}"
-                for counter in sorted(
-                    mission.counters,
-                    key=lambda entry: entry.counter_id,
-                )
-            ),
-        ])
-    reward = config.floor_rewards.get(floor)
-    if reward is not None:
-        lines.append(
-            f"floor_{floor}_first_clear_reward: "
-            f"{_render_nonzero_resources(reward)}"
-        )
-    if state.pending_operation is None:
-        lines.append("pending_operation: none")
-    else:
-        pending = state.pending_operation
-        lines.append(
-            f"pending_operation: id={pending.operation_id}; kind={pending.kind}; "
-            f"participants={_render_ids(pending.participant_ids)}; "
-            f"target={pending.target_id or 'none'}; "
-            f"destination={pending.destination or 'none'}; "
-            f"opened_at_s={pending.opened_at_s}"
-        )
+    lines = ["<one_star_conflict_evidence>"]
+    seen: set[str] = set()
 
-    local_heroes: list[tuple[object, OneStarHeroState]] = []
-    for character in checkpoint.characters:
+    def add(line: str) -> None:
+        if line not in seen:
+            seen.add(line)
+            lines.append(line)
+
+    def add_resources() -> None:
+        add(f"current_resources: {_render_resources(state.resources)}")
+
+    def render_mapping(values: dict[str, int]) -> str:
+        return ",".join(
+            f"{key}={value}" for key, value in sorted(values.items())
+        ) or "none"
+
+    def render_values(values: list[str]) -> str:
+        return ",".join(value for value in values if value) or "none"
+
+    def add_hero(character_id: str, detail_keys: set[str]) -> None:
+        character = next(
+            (item for item in checkpoint.characters if item.character_id == character_id),
+            None,
+        )
+        if character is None:
+            add(f"hero {character_id}: nonexistent")
+            return
         hero = load_one_star_hero(character)
-        if hero is None or hero.owner_lobby_id != config.lobby_id:
-            continue
-        local_heroes.append((character, hero))
-    lines.append("hero_summaries:")
-    if not local_heroes:
-        lines.append("- none")
-    for character, hero in local_heroes:
-        lines.append(
-            f"- id={character.character_id}; name={character.name}; "
-            f"status={character.status.value}; location={character.location}; "
-            f"stars={hero.current_stars}; level={hero.level}; "
-            f"xp={hero.experience_points}; hp={hero.hp_current}/{hero.hp_max}; "
-            f"conditions={_render_ids(hero.conditions)}; "
-            f"equipment={_render_ids(item.item_id for item in hero.equipment)}; "
-            f"skills={_render_ids(skill.skill_id for skill in hero.skills)}"
+        if hero is None:
+            add(
+                f"hero {character_id}: status={character.status.value}; "
+                f"location={character.location}; no One-Star Hero state"
+            )
+            return
+        add(
+            f"hero {character_id}: status={character.status.value}; "
+            f"location={character.location}; birth_stars={hero.birth_stars}; "
+            f"current_stars={hero.current_stars}; level={hero.level}; "
+            f"xp={hero.experience_points}; hp={hero.hp_current}/{hero.hp_max}"
         )
+        if any(key.startswith(("stat.", "condition", "persistent_injury")) for key in detail_keys):
+            add(
+                f"hero {character_id} conditions: stats={render_mapping(hero.stats)}; "
+                f"conditions={render_values(hero.conditions)}; "
+                f"injuries={render_values(hero.persistent_injuries)}"
+            )
+        if any("equipment" in key or key.startswith("durability.") for key in detail_keys):
+            add(
+                f"hero {character_id} equipment: "
+                + "; ".join(
+                    f"{item.item_id} qty={item.quantity} durability="
+                    f"{item.durability_current}/{item.durability_max}"
+                    for item in hero.equipment
+                )
+            )
+        if any("skill" in key for key in detail_keys):
+            add(
+                f"hero {character_id} skills: "
+                + "; ".join(
+                    f"{skill.skill_id} rank={skill.rank}" for skill in hero.skills
+                )
+            )
 
-    relevant_ids = {acting_character_id, state.active_master_feed_id}
-    if state.active_mission is not None:
-        relevant_ids.update(state.active_mission.party_ids)
-    if state.pending_operation is not None:
-        relevant_ids.update(state.pending_operation.participant_ids)
-        relevant_ids.add(state.pending_operation.target_id)
-    acting_character = next(
-        (
-            character for character in checkpoint.characters
-            if character.character_id == acting_character_id
-        ),
-        None,
-    )
-    if acting_character is not None and acting_character_id != owner.character_id:
-        relevant_ids.update(
-            character.character_id
-            for character, _hero in local_heroes
-            if character.location == acting_character.location
-        )
+    for update in state_updates:
+        detail_keys = {
+            detail.partition("=")[0].strip()
+            for detail in update.details
+            if detail.partition("=")[0].strip()
+        }
+        if update.kind == "catalogue_apply":
+            add_resources()
+            entry = config.catalogue.get(update.target_id)
+            if entry is None:
+                add(f"catalogue {update.target_id}: nonexistent")
+            else:
+                add(
+                    f"catalogue {update.target_id}: cost="
+                    f"{_render_nonzero_resources(entry.cost)}; kind={entry.kind}; "
+                    f"current_lobby_floor={state.lobby_floor}; "
+                    f"highest_cleared_floor={state.highest_cleared_floor}; "
+                    f"facility_level={state.facilities.get(entry.facility_id, 0)}; "
+                    f"research_level={state.research_levels.get(entry.research_key, 0)}; "
+                    f"inventory={state.inventory.get(entry.inventory_item_id, 0)}"
+                )
+        elif update.kind == "summon":
+            add_resources()
+            pool = config.summon_pools.get(update.target_id)
+            if pool is None:
+                add(f"summon_pool {update.target_id}: nonexistent")
+            else:
+                owned_count = sum(
+                    1
+                    for character in checkpoint.characters
+                    if (hero := load_one_star_hero(character)) is not None
+                    and hero.owner_lobby_id == config.lobby_id
+                    and character.status.value != "culled"
+                )
+                add(
+                    f"summon_pool {update.target_id}: cost_per_pull="
+                    f"{_render_nonzero_resources(pool.cost)}; "
+                    f"maximum_batch={config.max_summon_batch}; "
+                    f"occupied={owned_count}/{state.capacity}"
+                )
+        elif update.kind == "inventory_delta":
+            add(f"inventory {update.target_id}: current={state.inventory.get(update.target_id, 0)}")
+        elif update.kind == "hero_delta":
+            add_hero(update.target_id, detail_keys)
+        elif update.kind.startswith("mission_"):
+            mission = state.active_mission
+            stamina_at_s = max(
+                checkpoint.session.leading_at_s,
+                state.stamina_recovery_anchor_s,
+                canonical_at_s or 0,
+            )
+            effective_stamina, _effective_anchor = effective_one_star_stamina(
+                state,
+                config,
+                stamina_at_s,
+            )
+            add(
+                "active_mission: none"
+                if mission is None
+                else (
+                    f"active_mission: id={mission.mission_id}; floor={mission.floor}; "
+                    f"party={','.join(mission.party_ids)}; destination={mission.destination}; "
+                    "counters=" + ",".join(
+                        f"{counter.counter_id}={counter.current}/{counter.target}"
+                        for counter in mission.counters
+                    )
+                )
+            )
+            add(
+                f"mission_account: stamina={effective_stamina}; "
+                f"highest_unlocked={state.highest_unlocked_floor}; "
+                f"highest_cleared={state.highest_cleared_floor}"
+            )
+        elif update.kind.startswith("pending_"):
+            pending = state.pending_operation
+            add(
+                "pending_operation: none"
+                if pending is None
+                else (
+                    f"pending_operation: id={pending.operation_id}; kind={pending.kind}; "
+                    f"participants={','.join(pending.participant_ids)}; "
+                    f"target={pending.target_id or 'none'}; "
+                    f"destination={pending.destination or 'none'}"
+                )
+            )
+            detail_values = _detail_values(update)
+            implicated_ids = [
+                *detail_values.get("participant", []),
+                *detail_values.get("target_id", []),
+            ]
+            if pending is not None and update.target_id == pending.operation_id:
+                implicated_ids.extend(pending.participant_ids)
+                if pending.target_id:
+                    implicated_ids.append(pending.target_id)
+            for character_id in implicated_ids:
+                add_hero(character_id, set())
+            if update.value == "promotion":
+                add_resources()
+                add(f"promotion_cost: {_render_nonzero_resources(config.promotion_cost)}")
+        elif update.kind == "tutorial_delivery":
+            add(
+                f"tutorial {update.target_id}: already_delivered_to="
+                f"{','.join(state.tutorial_deliveries.get(update.target_id, [])) or 'none'}"
+            )
+        elif update.kind == "active_feed":
+            add(f"active_master_feed_id={state.active_master_feed_id or 'none'}")
+            if update.target_id:
+                add_hero(update.target_id, set())
 
-    detailed = [
-        (character, hero)
-        for character, hero in local_heroes
-        if character.character_id in relevant_ids
-    ]
-    if detailed:
-        lines.append("scene_relevant_hero_details:")
-    for character, hero in detailed:
-        lines.append(f"- id={character.character_id}")
-        lines.extend(f"  {line}" for line in _render_hero(hero))
-    lines.append("</one_star_current_ledger>")
+    lines.append("</one_star_conflict_evidence>")
     return "\n".join(lines)
+
+
+def _detail_values(update: OneStarStateUpdate) -> dict[str, list[str]]:
+    values: dict[str, list[str]] = {}
+    for detail in update.details:
+        key, separator, value = detail.partition("=")
+        if separator and key.strip():
+            values.setdefault(key.strip(), []).append(value.strip())
+    return values

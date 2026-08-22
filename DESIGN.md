@@ -1489,14 +1489,19 @@ Durable state stays on existing character records:
 
 The cached router addon receives compact immutable configuration, including
 disclosed summon rates, catalogue costs/effects, progression gates, and
-physical operation requirements. The volatile user tail contains current
-balances, stamina, progression, active mission, pending operation, compact
-owned-Hero summaries, and full mechanics only for scene-relevant Heroes.
-Eligible dormant reserves, future draw results, draw counters, deterministic
-draw inputs, applied-event fingerprints, and private Hero potential are never
-model context. One-Star routes use `OneStarEventRouterOutput`; continuation
-routes use the closed subtype. Default narrative and D&D routes retain their
-existing schemas and receive no One-Star prompt or state block.
+physical operation requirements. Normal routes do not receive a second live
+ledger snapshot. Each accepted compact `state_updates` list is retained in the
+same prior-event history as its canonical fiction. State created independently
+of a router decision, such as a generated summon sheet or automatic stamina
+recovery, is projected into that history once. When an update is rejected, the
+single repair call receives only the current rows that prove the conflict—for
+example the target Hero's current HP or the relevant balance and configured
+cost—not the full account or roster. Eligible dormant reserves, future draw
+results, draw counters, deterministic draw inputs, applied-event fingerprints,
+and private Hero potential are never model context. One-Star routes use
+`OneStarEventRouterOutput`; continuation routes use the closed subtype. Default
+narrative and D&D routes retain their existing schemas and receive no One-Star
+prompt or state block.
 
 For a standard summon, the router emits only pool id and count. The adapter
 derives the exact weighted birth grades, eligible dormant reserves, fresh stable

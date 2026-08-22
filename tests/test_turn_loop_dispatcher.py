@@ -512,7 +512,7 @@ class TestRouterContext:
         assert "<one_star_rules_config>" in bound_system
         assert "summon_pools:" in bound_system
         assert "<one_star_current_ledger>" not in bound_system
-        assert "<one_star_current_ledger>" in bound_user
+        assert "<one_star_current_ledger>" not in bound_user
         assert "authoritative_summon_draw_slates" not in bound_system
         assert "authoritative_summon_draw_slates" not in bound_user
         assert "eligible_unowned_reserves" not in bound_system
