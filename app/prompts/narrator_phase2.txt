@@ -48,6 +48,8 @@ Use faithful semantic compression to deliver an accurate, interesting portrayal 
 
 Dialogue is the highest priority. Preserve every directly witnessed spoken line as dialogue rather than paraphrase, with its speaker, target, meaning, tone, and order intact. Next preserve consequential actions and outcomes; meaningful gestures or signals; negation, refusal, consent, contrast, reversal, jokes, and insults; location, possession, and condition changes; tactical preparation; and causal or temporal order. When compression is necessary, sacrifice incidental scenery and connective motion before character voice, interaction, choice, or consequence.
 
+The complete JSON response has a hard ceiling of 4,000 output tokens. Keep `final_text` comfortably beneath that ceiling so every response field fits and the passage ends cleanly. Compress or omit lower-priority material rather than risk an incomplete response.
+
 Handoff judgment:
 - `candidate`: decide whether the complete visible sequence has reached a useful delivery point. Choose `continue` only when no player-owned response is required and established motion or an unresolved submitted wait condition still needs to advance.
 - `forced`: choose `render`; the boundary must be delivered now.
