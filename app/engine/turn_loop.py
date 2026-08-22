@@ -1518,12 +1518,12 @@ async def _append_harvest_fragments(
     targets: list[str],
     log_label: str,
 ) -> int:
-    """Append perception fragments to a just-broadcast event.
+    """Append perception fragments before an event is broadcast.
 
     Used by normal observation harvest and by private query answers
-    that need an NPC's current visual self-presentation. Mutating the
-    event after broadcast is intentional: render buffers store event ids
-    and narrator composition resolves the live canonical event by id.
+    that need an NPC's current visual self-presentation. Finalize the
+    canonical fact list first so human render buffers, NPC inboxes, and
+    compact router history all project the same event.
     """
     if not targets:
         logger.warning(
@@ -1601,7 +1601,7 @@ def broadcast_event(
 ) -> list[str]:
     """Append a closed canonical event to the log and fan it out to
     every human observer's render buffer and every NPC observer's
-    `pending_observations` queue, except the event's own actor.
+    `pending_observations` queue.
 
     Perception is structural: the router declares event observers and
     fact-level visibility packets. Location is not a fallback and does
@@ -1609,14 +1609,13 @@ def broadcast_event(
 
     `actor_id` is the character whose intention produced this event
     (the player who /act'd, or the cascade NPC whose intention the
-    router just adjudicated). Excluded from the inbox push because
-    the actor's own action lives in their rolling history (the
-    assistant message they just produced); pushing it onto their
-    inbox would surface as "you observed yourself doing the thing
-    you just did" on their next on-stage turn. Default `""` is the
-    backward-compatible no-op (no character is ever excluded by
-    that id) but every production caller in `turn_loop.run_beat` /
-    orchestrator passes the real actor.
+    router just adjudicated). It does not make every fact in the resulting
+    event the actor's own action: adjudication can add another character's
+    response, an environmental change, or an attack outcome. The actor
+    therefore receives the same visible canonical facts as any other NPC
+    observer. Their rolling history already contains their submitted action,
+    but the canonical event is the only complete account of what actually
+    happened around and because of it.
 
     The event's stable `event_id` is what lands in human render buffers
     (not Python object identity) so checkpoints remain resolvable
@@ -1732,12 +1731,6 @@ def broadcast_event(
             visible_humans.append(o.character_id)
 
         if o.character_id in player_ids:
-            continue
-        if o.character_id == actor_id:
-            # Actor of the event — their own action is already in their
-            # rolling history (and for cascade NPCs, the next thing
-            # they'll see in user-message context is what someone ELSE
-            # said in response, not what they themselves just did).
             continue
         recipient = by_id.get(o.character_id)
         if recipient is None or recipient.status == "culled":
@@ -3538,13 +3531,6 @@ async def run_beat(
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
 
-        # Harvest events are appended now so routed agents can read them, but
-        # their presentation projection closes only after enrichment mutates
-        # the observable facts into final form.
-        defer_presentation_close = result.event_kind in {
-            "observation_harvest",
-            "query_response",
-        }
         if result.next_output_character_ids:
             await _materialize_next_output_spawns(
                 dispatcher,
@@ -3552,13 +3538,6 @@ async def run_beat(
                 result,
                 actor_id=result_actor_id,
             )
-        await _commit_event(
-            result,
-            event_actor_id=result_actor_id,
-            close_for_presentation=not defer_presentation_close,
-        )
-        event_actor_ids.append(result_actor_id)
-        events_closed += 1
 
         # v11-r8a: observation_harvest fork. The router signals
         # `event_kind="observation_harvest"` when the actor is
@@ -3566,16 +3545,10 @@ async def run_beat(
         # studying, scanning
         # without dialogue or contact). We bypass the cascade and
         # instead fire each pick's `perceive()` in parallel to harvest
-        # one self-presentation fragment per target. Fragments are
-        # appended to the just-broadcast event's `observable_facts`
-        # so the narrator's render reads them naturally as part of
-        # the event's perceptual surface.
-        #
-        # Mutating the canonical event after broadcast is safe:
-        # `broadcast_event` only takes references (event_id into render
-        # buffers) and the narrator reads the live
-        # `observable_facts` list at compose time. The harvest path uses
-        # the same human-only pick guard as the cascade path.
+        # one self-presentation fragment per target. Finalize those facts
+        # before broadcast so NPC inboxes receive the same enriched event
+        # that human render buffers and compact router history receive. The
+        # harvest path uses the same human-only pick guard as the cascade path.
         if result.event_kind == "observation_harvest":
             harvest_picks = _filter_routed_agents_for_dispatch(
                 ckpt, result.perception_enrichment_character_ids,
@@ -3614,17 +3587,12 @@ async def run_beat(
                         ),
                     )
 
-        if defer_presentation_close:
-            from app.engine.closed_event_runtime import closed_event_runtime_for
-
-            closed_event_runtime = closed_event_runtime_for(ckpt)
-            if closed_event_runtime is not None:
-                closed_event_runtime.close_event(
-                    checkpoint=ckpt,
-                    event=result,
-                    event_sequence=len(ckpt.canonical_events) - 1,
-                    actor_id=result_actor_id,
-                )
+        await _commit_event(
+            result,
+            event_actor_id=result_actor_id,
+        )
+        event_actor_ids.append(result_actor_id)
+        events_closed += 1
 
         completed = await _advance_or_render(result)
         if completed is not None:

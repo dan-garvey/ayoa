@@ -2049,6 +2049,12 @@ class TestObservationHarvest:
         assert any("[loadout" in str(f) and "Vex" in str(f) for f in facts)
         assert len(presented_facts) == 1
         assert any("[loadout" in fact for fact in presented_facts[0])
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        vex = next(c for c in ckpt.characters if c.character_id == "vex")
+        for observer in (pip, vex):
+            received = "\n".join(observer.pending_observations)
+            assert "[loadout — Pip] Pip in patched leathers." in received
+            assert "[loadout — Vex] Vex in midnight silk." in received
         assert fake.agent_calls == []
 
     def test_harvest_drops_human_targets(self):
@@ -2235,12 +2241,36 @@ class TestBroadcastEvent:
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         assert pip.pending_observations == ["Alice sets Bob's cup by Pip."]
 
-    def test_actor_excluded_from_own_inbox(self):
+    def test_npc_actor_receives_visible_canonical_outcome(self):
         ckpt = _ckpt()
         event = self._event(observer_ids=["pip"])
         broadcast_event(ckpt, event, actor_id="pip")
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
-        assert pip.pending_observations == []
+        assert pip.pending_observations == ["Alice sets down a glass."]
+
+    def test_npc_actor_receives_external_consequences_in_mixed_event(self):
+        ckpt = _ckpt()
+        event = self._event(
+            observer_ids=["pip"],
+            facts=[
+                ObservableFact.all("Pip holds position in silence."),
+                ObservableFact.all(
+                    "A goblin breaks cover and throws a spear past Pip."
+                ),
+                ObservableFact.all(
+                    "A second goblin closes and cuts Pip across the ribs."
+                ),
+            ],
+        )
+
+        broadcast_event(ckpt, event, actor_id="pip")
+
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert pip.pending_observations == [
+            "  - Pip holds position in silence.\n"
+            "  - A goblin breaks cover and throws a spear past Pip.\n"
+            "  - A second goblin closes and cuts Pip across the ribs."
+        ]
 
     def test_human_observer_gets_render_buffer_not_inbox(self):
         ckpt = _ckpt({"alice": "1"})

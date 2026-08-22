@@ -663,7 +663,10 @@ fans it out:
 * human observers with visible facts get render-buffer entries
 * NPC observers with visible facts get their visible facts appended to
   `pending_observations`
-* the event actor does not receive their own action as an inbox entry
+* an NPC event actor receives the same visible canonical facts as any other
+  NPC observer; their submitted action is already in rolling history, but the
+  canonical event may also contain another character's response, environmental
+  change, or adjudicated consequence that the actor must not miss
 
 Important current behavior: `broadcast_event()` does not know whether an
 observer is local, remote, mediated, or inferred. It passes
