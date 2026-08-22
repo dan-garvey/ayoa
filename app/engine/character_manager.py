@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 # Max spawns per turn to prevent latency blowups
 MAX_SPAWNS_PER_TURN = 3
 
+# Claude 5 counts adaptive-thinking tokens and visible structured output
+# against the same ceiling. Character authoring is a one-time call, and its
+# ruleset overlays are substantially larger than recurring character turns.
+CHARACTER_MANAGER_MAX_TOKENS = 8_000
+
 
 # Per-line cap for LLM-authored player-character summaries after newline
 # normalization. Chosen to fit a tight 1-2 sentence ledger line plus generous
@@ -684,7 +689,7 @@ class CharacterManager:
             messages=messages,
             response_model=response_model,
             temperature=0.6,
-            max_tokens=3000,
+            max_tokens=CHARACTER_MANAGER_MAX_TOKENS,
         )
         authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)

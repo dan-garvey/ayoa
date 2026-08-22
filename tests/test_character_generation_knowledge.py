@@ -401,6 +401,7 @@ async def test_one_star_summon_membership_selects_hero_generation_overlay() -> N
     assert ONE_STAR_HERO_KEY in spawned[0].mechanics
     assert client.complete.await_args.kwargs["response_model"] is AuthoredOneStarCharacter
     assert client.complete.await_args.kwargs["role"] == "character_manager"
+    assert client.complete.await_args.kwargs["max_tokens"] == 8_000
     assert spawned[0].agent_tier is CharacterAgentTier.standard
     assert model_role_for_character(spawned[0]) == "agent_standard"
     assert spawned[0].mechanics[ONE_STAR_HERO_KEY]["generated_for_summon"] is True
