@@ -433,7 +433,8 @@ def test_one_star_state_stays_in_the_volatile_router_message_tail():
             one_star_static_config="<one_star_rules_config>\nmax_batch=5\n</one_star_rules_config>",
         ),
         one_star_state_section=(
-            "<one_star_state>\nGold: 34\nPending operation: none\n"
+            "<one_star_state>\nGold: 34\nactive_master_feed_id=pip\n"
+            "Pending operation: none\n"
             "</one_star_state>"
         ),
         router_input_block="submitted action",
@@ -443,8 +444,10 @@ def test_one_star_state_stays_in_the_volatile_router_message_tail():
     assert "one_star_transaction" in system["content"]
     assert "max_batch=5" in system["content"]
     assert "Gold: 34" not in system["content"]
+    assert "active_master_feed_id=pip" not in system["content"]
     assert "max_batch=5" not in user["content"]
     assert "Gold: 34" in user["content"]
+    assert "active_master_feed_id=pip" in user["content"]
     assert "submitted action" in user["content"]
 
 

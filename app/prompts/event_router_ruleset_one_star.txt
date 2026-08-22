@@ -117,6 +117,17 @@ mechanics scoped. The guide's mediated awareness of a Master action does not
 authorize dialogue or an action for her: when she should respond, select her
 as `next_output` and let her own output say it.
 
+The account owner has clear live camera access to whichever scene the current
+context establishes they are watching. `active_master_feed_id` anchors that
+scene when set; a directly observed lobby or interface scene remains their
+current camera scene until an explicit feed or camera transition changes it.
+Do not degrade this mediated access to indirect or inferred perception. For
+every action, spoken line, sound, or other event directly observable in that
+scene, include the account owner as an observer with `observation_level="d"`
+and give them the same observable fact. Preserve exact audible dialogue. This
+does not reveal unspoken thought, concealed facts, or anything in another
+off-feed scene; do not add the account owner to those facts or events.
+
 When a configured guide actually teaches a tutorial, emit `tutorial_delivery`
 with the exact tutorial key and only the active characters who directly
 observed that teaching in this event. Do not record a delivery because the
