@@ -434,8 +434,13 @@ def _openai_model_supports_temperature(model: str) -> bool:
     return not model_lower.startswith(("gpt-5", "o1", "o3", "o4"))
 
 
+def _anthropic_model_uses_default_adaptive_thinking(model: str) -> bool:
+    model_lower = model.lower()
+    return model_lower.startswith(("claude-opus-5", "claude-sonnet-5"))
+
+
 def _anthropic_model_supports_temperature(model: str) -> bool:
-    return not model.lower().startswith("claude-sonnet-5")
+    return not _anthropic_model_uses_default_adaptive_thinking(model)
 
 
 class LLMClient:
@@ -525,7 +530,7 @@ class LLMClient:
         temp = temperature
         max_tok = max_tokens
         thinking_budget = self.config.thinking_budget_for_role(role)
-        if model_name.lower().startswith("claude-sonnet-5"):
+        if _anthropic_model_uses_default_adaptive_thinking(model_name):
             thinking_budget = 0
         # Extended thinking has two hard API constraints we backstop
         # here so call sites don't need to know about them:

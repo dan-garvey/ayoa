@@ -28,9 +28,9 @@ _NARRATOR_MODEL = "gpt-5.2"
 _IMAGE_DIRECTOR_MODEL = "gpt-5-mini"
 _COMBAT_MANAGER_MODEL = "gpt-5-mini"
 _CONTENT_MANAGER_MODEL = "gpt-5-mini"
-_AGENT_MODEL = "claude-opus-4-6"
+_AGENT_MODEL = "claude-opus-5"
 _STANDARD_AGENT_MODEL = "gpt-5.6-luna"
-_CONVENIENCE_AGENT_MODEL = "claude-sonnet-4-6"
+_CONVENIENCE_AGENT_MODEL = "claude-sonnet-5"
 _CHARACTER_MANAGER_MODEL = "claude-sonnet-5"
 _DEFAULT_MODEL = "gpt-5.1"
 _ROLE_ENV_ALIASES = {
@@ -212,23 +212,10 @@ class LLMConfig(BaseModel):
         "character_manager": _CHARACTER_MANAGER_MODEL,
     })
 
-    # v11-r9b: per-role extended-thinking budgets (Anthropic Messages
-    # API `thinking: {type: "enabled", budget_tokens: N}`). When > 0,
-    # the LLMClient enables extended thinking for that role's call;
-    # the model spends up to `N` tokens on internal reasoning before
-    # composing its visible response. Empty / missing role => no
-    # thinking, behave as before.
-    #
-    # Agent at 2048: the character cascade is where multi-step
-    # reasoning matters most — read the perception inbox, weigh
-    # attribution carefully, decide whether this beat is the moment
-    # to advance a goal, then write the prose. The t8 playtest
-    # caught the agent making attribution-inversion mistakes
-    # (Ashara claiming Garvey asked Lysara when Lysara made the
-    # statement) under the previous one-shot config; thinking
-    # tokens give the model room to chew on the inbox before
-    # speaking. 2048 is a ceiling, not a floor — typical
-    # pre-response planning lands in 500-1500 tokens.
+    # Legacy per-role extended-thinking budgets (Anthropic Messages API
+    # `thinking: {type: "enabled", budget_tokens: N}`). Claude 5 models use
+    # adaptive thinking by default and the client suppresses this legacy field
+    # for them. Empty / missing role => no manual thinking request.
     #
     # Event router at 2048: the router's adjudication call is the
     # other multi-step reasoning surface in the engine — categorize
@@ -244,7 +231,6 @@ class LLMConfig(BaseModel):
     # transformation (facts → POV prose) and the others are narrow
     # enough that a tight system prompt suffices.
     role_thinking_budgets: dict[str, int] = Field(default_factory=lambda: {
-        "agent": 2048,
         "event_router": 2048,
     })
     # OpenAI reasoning models use effort levels rather than token budgets.

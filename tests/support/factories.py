@@ -69,7 +69,7 @@ def narrator_llm_response(
     *,
     handoff: str = "render",
     handoff_reason: str = "The visible sequence is ready.",
-    model: str = "claude-sonnet-4-6",
+    model: str = "claude-sonnet-5",
     raw_text: str = "{}",
 ) -> LLMResponse:
     return llm_response(

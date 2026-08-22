@@ -153,9 +153,9 @@ def test_runtime_defaults_match_current_policy(checkpoint: CheckpointFile) -> No
         "event_router": "openai:gpt-5.2",
         "narrator": "openai:gpt-5.2",
         "dnd_combat_manager": "gpt-5-mini",
-        "agent_default": "anthropic:claude-opus-4-6",
+        "agent_default": "anthropic:claude-opus-5",
         "agent_standard": "openai:gpt-5.6-luna",
-        "agent_convenience": "anthropic:claude-sonnet-4-6",
+        "agent_convenience": "anthropic:claude-sonnet-5",
         "character_manager": "anthropic:claude-sonnet-5",
         "image_director": "gpt-5-mini",
     }

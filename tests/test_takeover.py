@@ -50,7 +50,7 @@ def _llm_response(parsed):
     (structured output disabled — see benchmark), so content must contain
     the pydantic model's JSON."""
     text = parsed.model_dump_json() if hasattr(parsed, "model_dump_json") else "{}"
-    return llm_response(parsed, model="claude-sonnet-4-6", raw_text=text)
+    return llm_response(parsed, model="claude-sonnet-5", raw_text=text)
 
 
 def _authored(**overrides):

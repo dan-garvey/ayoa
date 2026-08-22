@@ -20,7 +20,7 @@
   overrides go through `LLM_PROVIDER_<ROLE>` and `LLM_MODEL_<ROLE>`
   environment variables, or via the `LLM_ROLE_PROVIDERS` /
   `LLM_ROLE_MODELS` JSON env maps. A `provider:model` prefix on a
-  model string (for example `anthropic:claude-sonnet-4-6`) also works.
+  model string (for example `anthropic:claude-sonnet-5`) also works.
   Normal D&D playtests should keep `dnd_combat_manager` on the default
   OpenAI `gpt-5-mini` path; if its preflight fails, configure the
   missing OpenAI role key rather than downgrading the role.
@@ -568,12 +568,12 @@ It supports:
 * provider-specific retry handling for transient failures
 
 Provider/model selection can be configured with model prefixes such as
-`anthropic:claude-sonnet-4-6`, explicit `role_providers`, or
+`anthropic:claude-sonnet-5`, explicit `role_providers`, or
 environment overrides like `LLM_PROVIDER_NARRATOR=openai` and
 `LLM_MODEL_NARRATOR=gpt-5.1`. Current defaults are OpenAI `gpt-5.1`
 for `event_router`, OpenAI `gpt-5.2` for `narrator`, Anthropic
-`claude-opus-4-6` for premium `agent` calls, OpenAI
-`gpt-5.6-luna` for `agent_standard`, Anthropic `claude-sonnet-4-6`
+`claude-opus-5` for premium `agent` calls, OpenAI
+`gpt-5.6-luna` for `agent_standard`, Anthropic `claude-sonnet-5`
 for `agent_convenience`, and Anthropic `claude-sonnet-5` for
 `character_manager`.
 

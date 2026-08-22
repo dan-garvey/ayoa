@@ -1239,7 +1239,7 @@ class TestCheckpointFile:
             event_router="openai:gpt-5.2",
             narrator="openai:gpt-5.2",
             discriminator="openai:gpt-5.2",
-            agent_default="anthropic:claude-opus-4-6",
+            agent_default="anthropic:claude-opus-5",
         )
 
         assert not hasattr(legacy_models, "discriminator")

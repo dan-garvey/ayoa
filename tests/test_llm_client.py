@@ -113,9 +113,9 @@ class TestLLMConfig:
         assert config.role_models["dnd_combat_manager"] == "gpt-5-mini"
         assert config.role_models["content_manager"] == "gpt-5-mini"
         assert config.role_models["image_director"] == "gpt-5-mini"
-        assert config.role_models["agent"] == "claude-opus-4-6"
+        assert config.role_models["agent"] == "claude-opus-5"
         assert config.role_models["agent_standard"] == "gpt-5.6-luna"
-        assert config.role_models["agent_convenience"] == "claude-sonnet-4-6"
+        assert config.role_models["agent_convenience"] == "claude-sonnet-5"
         assert config.role_models["character_manager"] == "claude-sonnet-5"
         assert config.provider_for_role("event_router") == "openai"
         assert config.provider_for_role("narrator") == "openai"
@@ -126,6 +126,7 @@ class TestLLMConfig:
         assert config.provider_for_role("agent_standard") == "openai"
         assert config.provider_for_role("agent_convenience") == "anthropic"
         assert config.provider_for_role("character_manager") == "anthropic"
+        assert config.thinking_budget_for_role("agent") == 0
         assert config.thinking_budget_for_role("agent_standard") == 0
         assert config.thinking_budget_for_role("agent_convenience") == 0
         assert config.enable_anthropic_compaction is False
@@ -150,7 +151,7 @@ class TestLLMConfig:
         config = LLMConfig(
             role_models={
                 "narrator": "openai:gpt-5.4-mini",
-                "agent": "claude-sonnet-4-6",
+                "agent": "claude-sonnet-5",
             },
             role_providers={"event_router": "openai"},
         )
@@ -307,8 +308,8 @@ class TestLLMConfig:
             {
                 "ANTHROPIC_API_KEY": "anthropic-key",
                 "LLM_ROLE_MODELS": ",".join((
-                    "event_router=anthropic:claude-sonnet-4-6",
-                    "narrator=anthropic:claude-sonnet-4-6",
+                    "event_router=anthropic:claude-sonnet-5",
+                    "narrator=anthropic:claude-sonnet-5",
                 )),
             },
             clear=True,
@@ -402,9 +403,9 @@ def mock_config():
     return LLMConfig(
         api_key="fake-key",
         role_models={
-            "event_router": "claude-sonnet-4-6",
+            "event_router": "claude-sonnet-5",
             "narrator": "claude-haiku-4-5",
-            "agent": "claude-sonnet-4-6",
+            "agent": "claude-opus-5",
             "agent_convenience": "claude-haiku-4-5",
             "character_manager": "claude-sonnet-5",
         },
@@ -545,18 +546,30 @@ class TestLLMClientComplete:
         assert "cache_control" not in call_kwargs
 
     @pytest.mark.asyncio
-    async def test_sonnet_5_omits_non_default_sampling_parameters(self, client):
+    @pytest.mark.parametrize(
+        ("role", "expected_model"),
+        (
+            ("agent", "claude-opus-5"),
+            ("character_manager", "claude-sonnet-5"),
+        ),
+    )
+    async def test_claude_5_omits_legacy_thinking_and_sampling_parameters(
+        self,
+        client,
+        role,
+        expected_model,
+    ):
         mock = _install_stream_mock(client, _make_mock_response("ok"))
 
         await client.complete(
-            role="character_manager",
+            role=role,
             messages=[{"role": "user", "content": "Author a character."}],
             temperature=0.6,
             max_tokens=100,
         )
 
         call_kwargs = mock.call_args.kwargs
-        assert call_kwargs["model"] == "claude-sonnet-5"
+        assert call_kwargs["model"] == expected_model
         assert "temperature" not in call_kwargs
         assert "thinking" not in call_kwargs
 
@@ -664,7 +677,7 @@ class TestLLMClientComplete:
             client,
             _make_mock_response(
                 "ok",
-                model="claude-opus-4-6",
+                model="claude-opus-5",
                 cache_read=512,
                 cache_write=None,
                 cache_write_1h=4096,
@@ -686,7 +699,7 @@ class TestLLMClientComplete:
         assert result.usage["cache_creation_input_tokens"] == 4096
         assert result.usage["cache_creation_1h_input_tokens"] == 4096
         assert result.usage["full_input_tokens"] == 4618
-        assert "model=claude-opus-4-6" in caplog.text
+        assert "model=claude-opus-5" in caplog.text
         assert "cache_write=4096" in caplog.text
 
     @pytest.mark.asyncio

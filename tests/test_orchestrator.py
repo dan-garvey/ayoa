@@ -60,8 +60,8 @@ def _llm_response(parsed) -> LLMResponse:
     text_block.text = text
     text_block.model_dump = lambda: {"type": "text", "text": text}
     raw.content = [text_block]
-    raw.model = "claude-sonnet-4-6"
-    return LLMResponse(parsed=parsed, raw_response=raw, content=text, model="claude-sonnet-4-6")
+    raw.model = "claude-sonnet-5"
+    return LLMResponse(parsed=parsed, raw_response=raw, content=text, model="claude-sonnet-5")
 
 
 def _messages_text(messages: list[dict]) -> str:
