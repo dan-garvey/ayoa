@@ -187,6 +187,18 @@ class TestLLMConfig:
                 == "agent-openai-key"
             )
             assert (
+                config.api_key_for_provider("openai", role="agent_standard")
+                == "agent-openai-key"
+            )
+            assert (
+                config.api_key_for_provider("openai", role="agent_convenience")
+                == "agent-openai-key"
+            )
+            assert (
+                config.api_key_for_provider("openai", role="character_gen")
+                == "agent-openai-key"
+            )
+            assert (
                 config.api_key_for_provider("openai", role="event_router")
                 == "router-openai-key"
             )
@@ -209,6 +221,19 @@ class TestLLMConfig:
             assert config.openai_reasoning_summary_for_role("event_router") == "auto"
             assert config.openai_reasoning_effort_for_role("narrator") == "low"
             assert config.enable_anthropic_compaction is True
+
+    def test_agent_roles_share_one_openai_credential_name(self):
+        config = LLMConfig()
+
+        for role in (
+            "agent",
+            "agent_standard",
+            "agent_convenience",
+            "character_gen",
+        ):
+            assert config.openai_role_api_key_env_names(role) == (
+                "OPEN_AI_AGENT",
+            )
 
     def test_dnd_combat_manager_does_not_reuse_router_openai_key(self):
         with patch.dict(

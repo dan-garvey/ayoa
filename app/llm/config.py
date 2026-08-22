@@ -43,6 +43,12 @@ _ROLE_ENV_ALIASES = {
     "image_director": ("IMAGE_DIRECTOR",),
     "narrator": ("NARRATOR",),
 }
+_OPENAI_AGENT_CREDENTIAL_ROLES = frozenset((
+    "agent",
+    "agent_standard",
+    "agent_convenience",
+    "character_gen",
+))
 LIVE_PLAY_REQUIRED_ROLES = frozenset((
     "agent",
     "agent_convenience",
@@ -154,6 +160,9 @@ def _first_role_env_value(role: str, prefix: str) -> str:
 
 
 def _openai_role_api_key_env_names(role: str) -> tuple[str, ...]:
+    if role in _OPENAI_AGENT_CREDENTIAL_ROLES:
+        return ("OPEN_AI_AGENT",)
+
     names: list[str] = []
 
     # Local cost-tracking keys may use short role names:
