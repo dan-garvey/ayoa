@@ -30,8 +30,9 @@ speculatively prepared autonomous reaction becomes canonical.
   presentation gate:
     After each closed event, ask the narrator whether the player should regain
     control while speculatively preparing any autonomous `next_output` in
-    parallel. A render discards that speculative branch. A continue judgment
-    commits it and resumes the cascade.
+    parallel. A render discards that speculative state while the canonical
+    event retains the semantic handoff for a possible player `(defer)`. A
+    continue judgment commits the prepared branch and resumes the cascade.
 
 ## Runtime wiring
 
@@ -2861,7 +2862,9 @@ async def run_beat(
     Handoff:
     - Every closed narrative event becomes a narrator handoff candidate.
       Autonomous `next_output` work is prepared in parallel on isolated state;
-      narrator render discards it, while narrator continue commits it.
+      narrator render discards the prepared state but leaves the canonical
+      semantic handoff resumable by `(defer)`, while narrator continue commits
+      it immediately.
     - Bound `next_output` targets and forced safety/rules boundaries render
       without speculative autonomous work.
     - Targetless events may request a router continuation when the narrator

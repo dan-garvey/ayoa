@@ -95,6 +95,7 @@ from app.engine.turn_loop_dispatcher import (
 )
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.event_router import EventRouterOutput
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 from app.schemas.state import CommitmentRevisionPrompt, PendingNarratorRender
@@ -118,6 +119,40 @@ _COMBAT_NO_ADVANCE_REASONS = {
     "combat_started",
     "combat_reaction_pending",
 }
+
+
+def _deferred_autonomous_handoff(
+    ckpt: CheckpointFile,
+    *,
+    actor_id: str,
+    user_input: str,
+    cat_ii_event_id: str | None,
+    combat_reaction_event_id: str | None,
+) -> EventRouterOutput | None:
+    """Return the latest autonomous frontier when its player defers.
+
+    A narrator render deliberately rejects speculative agent/router state, but
+    the canonical event still owns the semantic ``next_output`` debt. A
+    subsequent ``(defer)`` means the player is declining the offered
+    interruption point, so resume that debt instead of asking the router to
+    canonicalize an empty player action. Other actions supersede the frontier
+    normally, and Cat II/combat passes retain their dedicated semantics.
+    """
+
+    if user_input.strip().casefold() != "(defer)":
+        return None
+    if cat_ii_event_id is not None or combat_reaction_event_id is not None:
+        return None
+    if actor_id in _active_combat_character_ids(ckpt):
+        return None
+    if not ckpt.canonical_events:
+        return None
+
+    prior_result = ckpt.canonical_events[-1]
+    targets = _binding_aware_next_output_targets(ckpt, prior_result)
+    if not targets or targets[0][0] != "autonomous":
+        return None
+    return prior_result
 
 
 def _combatant_human_controlled(
@@ -1380,10 +1415,18 @@ class Orchestrator:
                 release_character_slot(ckpt, acting_id)
 
             # 5. Run the beat.
+            deferred_handoff = _deferred_autonomous_handoff(
+                ckpt,
+                actor_id=acting_id,
+                user_input=request.user_input,
+                cat_ii_event_id=cat_ii_event_id,
+                combat_reaction_event_id=combat_reaction_event_id,
+            )
             self._ensure_closed_event_runtime(ckpt)
             roll_keys_before = completed_automatic_roll_keys(ckpt)
             revision_input_consumed = (
-                cat_ii_event_id is None
+                deferred_handoff is None
+                and cat_ii_event_id is None
                 and combat_reaction_event_id is None
                 and acting_id not in _active_combat_character_ids(ckpt)
             )
@@ -1407,6 +1450,7 @@ class Orchestrator:
                     intention=request.user_input,
                     cat_ii_event_id=cat_ii_event_id,
                     combat_reaction_event_id=combat_reaction_event_id,
+                    resume_after_handoff=deferred_handoff,
                 )
             except PlayerActionRejected as exc:
                 if pending_render_saved():

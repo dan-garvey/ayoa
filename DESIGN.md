@@ -363,8 +363,10 @@ observation harvest, partial renders for contested attempts, max-event
 backstops, and per-human render fan-out. After each closed narrative event,
 the narrator judges whether to return control while the selected autonomous
 `next_output` is prepared concurrently against isolated checkpoint state. A
-render discards that branch; `continue` commits its agent memory and router
-result before the cascade resumes.
+render discards that prepared state but leaves the canonical semantic handoff
+available: a later player action supersedes it, while `(defer)` resumes it.
+`continue` commits its agent memory and router result before the cascade
+resumes.
 
 Important state:
 
@@ -723,11 +725,15 @@ in-world output. On any semantic event kind, observers with
 that list against live bindings: the first bound human yields a player turn,
 while an autonomous target is prepared in parallel with the narrator's pacing
 judgment. The speculative branch uses isolated checkpoint state. If the
-narrator renders, the branch and its agent/router memories are discarded and
-the next player input produces the next canonical action. If the narrator
-chooses `continue`, the engine commits the prepared agent turn, strips private
-parentheticals, routes the public result back through the router, and lets the
-router decide whether another target is still needed.
+narrator renders, the prepared branch and its agent/router memories are
+discarded. A substantive next player action supersedes that semantic frontier;
+`(defer)` instead resumes the latest still-dispatchable autonomous
+`next_output` without routing the deferral as a new fictional action. The
+deferral remains the submitted player input for the next narrator judgment, so
+its pacing history records that the previous handoff was declined. If the
+narrator chooses `continue`, the engine commits the prepared agent turn, strips
+private parentheticals, routes the public result back through the router, and
+lets the router decide whether another target is still needed.
 Additional `next_output` observers are ordered backlog or fallback candidates,
 not a simultaneous response group.
 
@@ -761,7 +767,9 @@ The public commands for non-standard turns are router entries:
 
 * `/begin` runs `(begin)` once after players have joined the lobby.
 * Late `/join` runs `(arrive)` after the opening exists.
-* `/defer` runs `(defer)` through the same turn path as `/act`.
+* `/defer` resumes the latest still-dispatchable autonomous `next_output` when
+  a narrator render interrupted that semantic handoff. With no such frontier,
+  it runs `(defer)` through the same turn path as `/act`.
 * `/query` runs `(query: ...)` through the normal router/narrator path.
 
 For `(begin)`, the ordinary player-characters block is also the authoritative

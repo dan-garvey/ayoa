@@ -457,6 +457,81 @@ class TestHappyPath:
         assert not hasattr(saved, "transcript")
 
     @pytest.mark.asyncio
+    async def test_defer_resumes_latest_autonomous_handoff(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        prior = _router_out(
+            event_id="evt_waiting_on_pip",
+            event_kind="response_requested",
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+            facts=[ObservableFact.all("Alice waits for Pip's answer.")],
+        )
+        ckpt.canonical_events.append(prior)
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_agent("Pip gives Alice a direct answer.")
+        FakeDispatcher.queue_route(_router_out(
+            event_id="evt_pip_answers",
+            event_kind="cascade_exhausted",
+            observer_ids=["alice", "pip"],
+            facts=[ObservableFact.all("Pip answers Alice plainly.")],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="(defer)",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "cascade_exhausted"
+        assert [call["character_id"] for call in FakeDispatcher.agent_calls] == [
+            "pip"
+        ]
+        assert len(FakeDispatcher.route_calls) == 1
+        assert FakeDispatcher.route_calls[0]["actor_id"] == "pip"
+        assert FakeDispatcher.route_calls[0]["intention"] == (
+            "Pip gives Alice a direct answer."
+        )
+        assert [event.event_id for event in ckpt.canonical_events] == [
+            "evt_waiting_on_pip",
+            "evt_pip_answers",
+        ]
+        assert FakeDispatcher.narrator_calls[-1]["user_input"] == "(defer)"
+        assert "(defer)" in str(ckpt.narrator_conversations["alice"])
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_defer_does_not_resume_a_bound_handoff(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.canonical_events.append(_router_out(
+            event_id="evt_waiting_on_bob",
+            event_kind="response_requested",
+            agent_ids=["bob"],
+            observer_ids=["alice", "bob"],
+            facts=[ObservableFact.all("Alice waits for Bob's answer.")],
+        ))
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_router_out(
+            event_id="evt_alice_defers",
+            event_kind="cascade_exhausted",
+            observer_ids=["alice", "bob"],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="(defer)",
+            acting_character_id="alice",
+        ))
+
+        assert FakeDispatcher.agent_calls == []
+        assert len(FakeDispatcher.route_calls) == 1
+        assert FakeDispatcher.route_calls[0]["actor_id"] == "alice"
+        assert FakeDispatcher.route_calls[0]["intention"] == "(defer)"
+
+    @pytest.mark.asyncio
     async def test_narrator_failure_preserves_beat_for_render_retry(
         self, patched_orchestrator,
     ):
