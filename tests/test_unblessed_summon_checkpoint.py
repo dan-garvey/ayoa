@@ -151,7 +151,7 @@ def test_dnd_ruleset_enabled(checkpoint: CheckpointFile) -> None:
 def test_runtime_defaults_match_current_policy(checkpoint: CheckpointFile) -> None:
     expected_models = {
         "event_router": "openai:gpt-5.2",
-        "narrator": "openai:gpt-5.2",
+        "narrator": "openai:gpt-5.6-terra",
         "dnd_combat_manager": "gpt-5-mini",
         "agent_default": "anthropic:claude-opus-5",
         "agent_standard": "openai:gpt-5.6-luna",

@@ -14,7 +14,7 @@
     "config": {
       "models": {
         "event_router": "openai:gpt-5.2",
-        "narrator": "openai:gpt-5.2",
+        "narrator": "openai:gpt-5.6-terra",
         "dnd_combat_manager": "gpt-5.1",
         "agent_default": "anthropic:claude-opus-5",
         "agent_standard": "openai:gpt-5.6-luna",
