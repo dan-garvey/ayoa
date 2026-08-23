@@ -118,6 +118,14 @@ from app.schemas.state import (
 )
 
 logger = logging.getLogger(__name__)
+narrator_handoff_logger = logging.getLogger(
+    f"{__name__}.narrator_handoff"
+)
+# Handoff reasons are the narrator's durable pacing diagnostic. The CLI keeps
+# its ordinary module loggers at ERROR unless --verbose is enabled, so give
+# this narrow child logger an explicit level and let it propagate to the
+# configured persistent file handler.
+narrator_handoff_logger.setLevel(logging.INFO)
 
 MAX_BACKGROUND_THREADS_PER_BEAT = 4
 
@@ -4152,7 +4160,7 @@ async def _end_beat(
                     persist_pending(ckpt)
             raise errors[0]
         for h, envelope, _entry in results:
-            logger.info(
+            narrator_handoff_logger.info(
                 "Narrator handoff judgment: pov=%s decision=%s reason=%s "
                 "events=%d",
                 h,
