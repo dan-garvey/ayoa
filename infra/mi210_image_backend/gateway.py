@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import json
 import os
 import subprocess
 import threading
@@ -64,9 +63,7 @@ COMFY_WORKERS = tuple(
 MODE_SWITCH_TIMEOUT_SECONDS = float(
     os.getenv("AYOA_GATEWAY_MODE_SWITCH_TIMEOUT_SECONDS", "900")
 )
-QWEN_TIMEOUT_SECONDS = int(
-    os.getenv("AYOA_GATEWAY_QWEN_TIMEOUT_SECONDS", "1800")
-)
+QWEN_TIMEOUT_SECONDS = int(os.getenv("AYOA_GATEWAY_QWEN_TIMEOUT_SECONDS", "1800"))
 MAX_IMAGE_BASE64_LENGTH = int(
     os.getenv("AYOA_GATEWAY_MAX_IMAGE_BASE64_LENGTH", "30000000")
 )
@@ -111,6 +108,34 @@ class QwenEditRequest(BaseModel):
     unet_name: str = "qwen_image_edit_2511_fp8mixed.safetensors"
     clip_name: str = "qwen_2.5_vl_7b_fp8_scaled.safetensors"
     vae_name: str = "qwen_image_vae.safetensors"
+
+
+class QwenMaskedEditRequest(QwenEditRequest):
+    mask_base64: str = Field(
+        min_length=1,
+        max_length=MAX_IMAGE_BASE64_LENGTH,
+    )
+    denoise: float = Field(default=0.45, ge=0, le=1)
+
+
+class BackgroundMatteRequest(BaseModel):
+    image_base64: str = Field(
+        min_length=1,
+        max_length=MAX_IMAGE_BASE64_LENGTH,
+    )
+    worker: str = ""
+    filename_prefix: str = Field(
+        default="background_matte_gateway",
+        min_length=1,
+        max_length=100,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    model_name: str = Field(
+        default="birefnet.safetensors",
+        min_length=1,
+        max_length=200,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
 
 
 class QwenBatchRequest(BaseModel):
@@ -547,9 +572,7 @@ def _qwen_workflow(
             "class_type": "SaveImage",
             "inputs": {
                 "images": ["14", 0],
-                "filename_prefix": (
-                    f"gateway/{request.filename_prefix}_{request_id}"
-                ),
+                "filename_prefix": (f"gateway/{request.filename_prefix}_{request_id}"),
             },
         },
     }
@@ -564,6 +587,75 @@ def _qwen_workflow(
             "inputs": {"image": image3},
         }
     return workflow
+
+
+def _masked_qwen_workflow(
+    request: QwenMaskedEditRequest,
+    image1: str,
+    image2: str | None,
+    image3: str | None,
+    mask: str,
+    request_id: str,
+) -> dict[str, Any]:
+    workflow = _qwen_workflow(
+        request,
+        image1,
+        image2,
+        image3,
+        request_id,
+    )
+    workflow.update(
+        {
+            "18": {"class_type": "LoadImage", "inputs": {"image": mask}},
+            "19": {
+                "class_type": "FluxKontextImageScale",
+                "inputs": {"image": ["18", 0]},
+            },
+            "20": {
+                "class_type": "ImageToMask",
+                "inputs": {"image": ["19", 0], "channel": "red"},
+            },
+            "21": {
+                "class_type": "SetLatentNoiseMask",
+                "inputs": {"samples": ["6", 0], "mask": ["20", 0]},
+            },
+        }
+    )
+    workflow["13"]["inputs"]["latent_image"] = ["21", 0]
+    workflow["13"]["inputs"]["denoise"] = request.denoise
+    return workflow
+
+
+def _background_matte_workflow(
+    request: BackgroundMatteRequest,
+    image: str,
+    request_id: str,
+) -> dict[str, Any]:
+    return {
+        "1": {"class_type": "LoadImage", "inputs": {"image": image}},
+        "2": {
+            "class_type": "LoadBackgroundRemovalModel",
+            "inputs": {"bg_removal_name": request.model_name},
+        },
+        "3": {
+            "class_type": "RemoveBackground",
+            "inputs": {
+                "bg_removal_model": ["2", 0],
+                "image": ["1", 0],
+            },
+        },
+        "4": {
+            "class_type": "MaskToImage",
+            "inputs": {"mask": ["3", 0]},
+        },
+        "5": {
+            "class_type": "SaveImage",
+            "inputs": {
+                "images": ["4", 0],
+                "filename_prefix": (f"gateway/{request.filename_prefix}_{request_id}"),
+            },
+        },
+    }
 
 
 def _queue_and_fetch(
@@ -639,11 +731,15 @@ def _queue_and_fetch(
             "content-type",
             "application/octet-stream",
         ).split(";", 1)[0]
-        return response.content, media_type, {
-            "worker": base,
-            "prompt_id": prompt_id,
-            "image": image,
-        }
+        return (
+            response.content,
+            media_type,
+            {
+                "worker": base,
+                "prompt_id": prompt_id,
+                "image": image,
+            },
+        )
     raise HTTPException(status_code=504, detail="Qwen workflow timed out")
 
 
@@ -681,6 +777,70 @@ def _run_qwen(
                 image1,
                 image2,
                 image3,
+                request_id,
+            )
+            return _queue_and_fetch(worker, workflow)
+
+
+def _run_masked_qwen(
+    request: QwenMaskedEditRequest,
+) -> tuple[bytes, str, dict[str, Any]]:
+    request_id = uuid.uuid4().hex
+    with _coordinator.qwen_lease():
+        with _reserve_worker(request.worker) as worker:
+            image1 = _upload_image(
+                worker,
+                request.image_base64,
+                f"ayoa_{request_id}_image1",
+            )
+            image2 = (
+                _upload_image(
+                    worker,
+                    request.image2_base64,
+                    f"ayoa_{request_id}_image2",
+                )
+                if request.image2_base64
+                else None
+            )
+            image3 = (
+                _upload_image(
+                    worker,
+                    request.image3_base64,
+                    f"ayoa_{request_id}_image3",
+                )
+                if request.image3_base64
+                else None
+            )
+            mask = _upload_image(
+                worker,
+                request.mask_base64,
+                f"ayoa_{request_id}_mask",
+            )
+            workflow = _masked_qwen_workflow(
+                request,
+                image1,
+                image2,
+                image3,
+                mask,
+                request_id,
+            )
+            return _queue_and_fetch(worker, workflow)
+
+
+def _run_background_matte(
+    request: BackgroundMatteRequest,
+) -> tuple[bytes, str, dict[str, Any]]:
+    request_id = uuid.uuid4().hex
+    with _coordinator.qwen_lease():
+        with _reserve_worker(request.worker) as worker:
+            image = _upload_image(
+                worker,
+                request.image_base64,
+                f"ayoa_{request_id}_matte_source",
+            )
+            workflow = _background_matte_workflow(
+                request,
+                image,
                 request_id,
             )
             return _queue_and_fetch(worker, workflow)
@@ -810,6 +970,36 @@ def edit_qwen(request: QwenEditRequest) -> Response:
     )
 
 
+@app.post("/prototype/edit/qwen/masked")
+def prototype_edit_qwen_masked(request: QwenMaskedEditRequest) -> Response:
+    data, media_type, metadata = _run_masked_qwen(request)
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "X-Ayoa-Worker": metadata["worker"],
+            "X-Ayoa-Prompt-Id": metadata["prompt_id"],
+            "X-Ayoa-Seed": str(request.seed),
+            "X-Ayoa-Prototype": "masked-qwen",
+        },
+    )
+
+
+@app.post("/prototype/matte/birefnet")
+def prototype_matte_birefnet(request: BackgroundMatteRequest) -> Response:
+    data, media_type, metadata = _run_background_matte(request)
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "X-Ayoa-Worker": metadata["worker"],
+            "X-Ayoa-Prompt-Id": metadata["prompt_id"],
+            "X-Ayoa-Matte-Model": request.model_name,
+            "X-Ayoa-Prototype": "background-matte",
+        },
+    )
+
+
 @app.post("/edit/qwen/batch")
 def edit_qwen_batch(request: QwenBatchRequest) -> dict[str, Any]:
     jobs = [
@@ -833,8 +1023,7 @@ def edit_qwen_batch(request: QwenBatchRequest) -> dict[str, Any]:
         max_workers=min(len(jobs), max(1, len(COMFY_WORKERS)))
     ) as executor:
         futures = {
-            executor.submit(_run_qwen, job): index
-            for index, job in enumerate(jobs)
+            executor.submit(_run_qwen, job): index for index, job in enumerate(jobs)
         }
         for future in as_completed(futures):
             index = futures[future]

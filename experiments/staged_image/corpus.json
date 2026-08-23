@@ -1,0 +1,416 @@
+{
+  "version": 1,
+  "reference_session_id": "one-star-human-test-adapter",
+  "scenes": [
+    {
+      "scene_id": "t01_failed_arrival_hall",
+      "title": "Arrival hall: known four-character failure",
+      "split": "tuning",
+      "style_pack_id": "current-action-fantasy",
+      "canvas": {"width": 768, "height": 1024},
+      "camera": {
+        "description": "Eye-level 35mm camera from the near end of the hall, portrait composition, readable floor plane, the glowing arch centered deep in frame.",
+        "horizon_y": 0.4
+      },
+      "background_prompt": "A worn underground stone arrival hall beneath a severe carved idol, broad cracked flagstones receding toward a pale glowing arched gate, low warm side lamps against cool gate light, rubble and a broken waist-high wall at one side, broad empty foreground and middle-distance floor.",
+      "harmonize_prompt": "Make the four arrivals share the hall's cool gate light and weak warm side bounce. Add narrow foot shadows for the three grounded adults and a faint airborne occlusion beneath the tiny fairy without changing any figure.",
+      "diagnostic_prompt": "Render the assembled arrival group as one coherent story illustration: three wary ordinary adults on the floor and one genuinely palm-sized fairy hovering near them, all at the authored positions and scales.",
+      "subjects": [
+        {
+          "character_id": "niflheim_first_summon_02",
+          "display_name": "Maret",
+          "reference_ids": ["imgref_9037b7de878100967f105b9873f12b97"],
+          "identity_prompt": "Maret is a stout, round-shouldered woman in her late sixties or early seventies with a broad soft face, deep-set gray eyes, and loosened white hair. Preserve her flour-dusted rough gray dress, coarse apron, flat worn shoes, and small plain utility knife.",
+          "pose_prompt": "Full body close to the left wall, shoulders drawn in, knife held low, watching the others instead of posing; feet fully visible and planted.",
+          "target_box": {"x": 0.03, "y": 0.45, "width": 0.25, "height": 0.48},
+          "foot_anchor": {"x": 0.16, "y": 0.93},
+          "z_index": 2,
+          "grounded": true
+        },
+        {
+          "character_id": "niflheim_first_summon_01",
+          "display_name": "Edric",
+          "reference_ids": ["imgref_6157c230dc0213bb3740e03f133a58fa"],
+          "identity_prompt": "Edric is a broad-shouldered heavyset farmhand in his mid-forties with a weathered square face, short gray-brown hair, calloused hands, rough work shirt, patched canvas trousers, cracked boots, and a nicked woodcutter's axe.",
+          "pose_prompt": "Full body near center-left with weight slightly forward, axe low in both hands, head turned toward the gate; guarded rather than heroic, feet fully visible.",
+          "target_box": {"x": 0.2, "y": 0.29, "width": 0.34, "height": 0.64},
+          "foot_anchor": {"x": 0.37, "y": 0.94},
+          "z_index": 3,
+          "grounded": true
+        },
+        {
+          "character_id": "niflheim_first_summon_03",
+          "display_name": "Sev",
+          "reference_ids": ["imgref_4394f131fa0b075e8bad8b48d25a3a55"],
+          "identity_prompt": "Sev is a lean narrow-shouldered person around thirty with a sharp-boned face, close-cropped dark hair, restless eyes, rough gray shirt, plain trousers, cheap left forearm wrap, and one worn guardless short iron blade.",
+          "pose_prompt": "Full body at the right perimeter, sideways and ready to slip away, back angled toward the wall, short blade held low in the right hand, both feet visible.",
+          "target_box": {"x": 0.53, "y": 0.34, "width": 0.31, "height": 0.59},
+          "foot_anchor": {"x": 0.68, "y": 0.93},
+          "z_index": 3,
+          "grounded": true
+        },
+        {
+          "character_id": "iselle_the_guide",
+          "display_name": "Iselle",
+          "reference_ids": ["osa_iselle_the_guide_locked_active_profile_v1"],
+          "component_mode": "reference_cutout",
+          "identity_prompt": "Iselle is a single black-haired fairy manager with ruby eyes, cute mascot proportions, long side locks, floppy black cap with only an abstract pale squiggle, black uniform, rose tie, black boots, and exactly two pairs of translucent charcoal-lilac wings. This isolated asset contains Iselle alone, with no person beside her.",
+          "pose_prompt": "Entire tiny body hovering at an adult's shoulder height near the upper right, wings visible and separate, one hand making an impatient managerial gesture; no ground contact.",
+          "target_box": {"x": 0.76, "y": 0.39, "width": 0.065, "height": 0.085},
+          "foot_anchor": {"x": 0.7925, "y": 0.49},
+          "z_index": 5,
+          "grounded": false,
+          "mask_policy": {
+            "min_coverage": 0.012,
+            "max_coverage": 0.7,
+            "max_edge_fraction": 0.04,
+            "max_significant_components": 1
+          }
+        }
+      ],
+      "contact_regions": [
+        {"kind": "ellipse", "box": {"x": 0.07, "y": 0.9, "width": 0.18, "height": 0.045}},
+        {"kind": "ellipse", "box": {"x": 0.27, "y": 0.9, "width": 0.2, "height": 0.05}},
+        {"kind": "ellipse", "box": {"x": 0.59, "y": 0.9, "width": 0.19, "height": 0.05}}
+      ]
+    },
+    {
+      "scene_id": "t02_extreme_scale_gate",
+      "title": "Extreme scale: fairy, champion, and construct",
+      "split": "tuning",
+      "style_pack_id": "current-action-fantasy",
+      "canvas": {"width": 768, "height": 1024},
+      "camera": {
+        "description": "Low 28mm camera looking across a circular arena threshold; strong floor perspective and a high stone arch make depth and architectural scale readable.",
+        "horizon_y": 0.38
+      },
+      "background_prompt": "A colossal circular gate arena of ash-black iron and pale limestone, high ribbed arch, scorched floor rings, cold-blue joint lights, pale dust in side shafts, clear center lane and readable foreground floor.",
+      "harmonize_prompt": "Unify cold arena light, dust occlusion, and contact shadows while preserving the enormous construct, human champion, and tiny hovering fairy as three radically different scales.",
+      "diagnostic_prompt": "A coherent confrontation at an iron gate: a towering nonhuman gate-bell construct dominates the rear, one tall armored human champion stands forward, and a palm-sized fairy hovers near his head.",
+      "subjects": [
+        {
+          "character_id": "warden_of_the_eighth",
+          "display_name": "the Warden of the Eighth",
+          "reference_ids": ["osa_warden_of_the_eighth_locked_v1"],
+          "identity_prompt": "A colossal nonhuman gate-bell construct on three unequal armored limbs: ribbed ash-black iron torso, low smooth limestone oval, one immense eight-flanged pendulum arm, dead indigo plates and cold-blue joint light. Never humanize it.",
+          "pose_prompt": "Complete construct crouched across the rear gate, every limb and the full pendulum arm visible, weight loaded toward the approaching champion.",
+          "target_box": {"x": 0.08, "y": 0.12, "width": 0.84, "height": 0.65},
+          "foot_anchor": {"x": 0.52, "y": 0.77},
+          "z_index": 1,
+          "grounded": true,
+          "mask_policy": {
+            "min_coverage": 0.04,
+            "max_coverage": 0.88,
+            "max_edge_fraction": 0.05,
+            "max_significant_components": 1
+          }
+        },
+        {
+          "character_id": "halcyon_of_the_gilded_march",
+          "display_name": "Halcyon",
+          "reference_ids": ["osa_halcyon_of_the_gilded_march_locked_active_profile_v1"],
+          "identity_prompt": "Halcyon is a six-foot-two bronze-complexioned man in his mid-thirties with white-gold bound hair, topaz eyes, pearl-white articulated armor, cobalt silk, split ivory mantle, and a pale-gold banner-lance taller than he is.",
+          "pose_prompt": "Full body in the center foreground, braced with the complete banner-lance angled upward, looking small beside the construct but clearly adult human scale.",
+          "target_box": {"x": 0.27, "y": 0.34, "width": 0.36, "height": 0.62},
+          "foot_anchor": {"x": 0.45, "y": 0.96},
+          "z_index": 4,
+          "grounded": true
+        },
+        {
+          "character_id": "iselle_the_guide",
+          "display_name": "Iselle",
+          "reference_ids": ["osa_iselle_the_guide_locked_active_profile_v1"],
+          "component_mode": "reference_cutout",
+          "identity_prompt": "A single black-haired fairy with ruby eyes, mascot proportions, floppy black cap with abstract squiggle, black uniform, rose tie, and exactly four translucent charcoal-lilac wings. This isolated asset contains the fairy alone, with no person beside her.",
+          "pose_prompt": "Entire tiny body hovering just outside Halcyon's lance-side shoulder, pointing urgently at the construct, all four wings readable.",
+          "target_box": {"x": 0.64, "y": 0.42, "width": 0.06, "height": 0.08},
+          "foot_anchor": {"x": 0.67, "y": 0.5},
+          "z_index": 5,
+          "grounded": false,
+          "mask_policy": {"min_coverage": 0.01, "max_coverage": 0.7, "max_edge_fraction": 0.04, "max_significant_components": 1}
+        }
+      ],
+      "contact_regions": [
+        {"kind": "ellipse", "box": {"x": 0.31, "y": 0.92, "width": 0.27, "height": 0.055}}
+      ]
+    },
+    {
+      "scene_id": "t03_deep_occlusion_corridor",
+      "title": "Deep occlusion in a lantern corridor",
+      "split": "tuning",
+      "style_pack_id": "current-action-fantasy",
+      "canvas": {"width": 768, "height": 1024},
+      "camera": {
+        "description": "Compressed 70mm view down a narrow ruined corridor, shoulder-height camera, three clearly readable depth planes framed by the corridor edges.",
+        "horizon_y": 0.43
+      },
+      "background_prompt": "A narrow ancient stone corridor after rain, broken arches, wet dark floor, amber wall niches and a cold opening far behind, foreground pillar at right, empty central passage with distinct foreground, middle, and far depth planes.",
+      "harmonize_prompt": "Preserve the authored front-middle-rear ordering. Add only wet-floor contact, shared amber lantern bounce, cold back rim, and narrow occlusion shadows where silhouettes overlap.",
+      "diagnostic_prompt": "Three distinct adult scouts advance through one narrow corridor at different depths: Wren nearest with lantern and sword, Renna mid-distance with bow, Rowan furthest turning back. Keep every person separate and correctly scaled.",
+      "subjects": [
+        {
+          "character_id": "rowan_kest",
+          "display_name": "Rowan Kest",
+          "reference_ids": ["osa_rowan_kest_locked_active_profile_v1"],
+          "identity_prompt": "Rowan is a lean olive-complexioned man in his late twenties with tousled ash-blond hair, green eyes, cropped charcoal scout jacket, forest-green scarf, map case, and two visibly mismatched short knives.",
+          "pose_prompt": "Complete smaller full body in the far passage, walking away while turning his head and shoulders back, both mismatched knives kept low and visible.",
+          "target_box": {"x": 0.38, "y": 0.31, "width": 0.25, "height": 0.47},
+          "foot_anchor": {"x": 0.505, "y": 0.78},
+          "z_index": 1,
+          "grounded": true
+        },
+        {
+          "character_id": "renna_holt",
+          "display_name": "Renna Holt",
+          "reference_ids": ["osa_renna_holt_locked_active_profile_v1"],
+          "identity_prompt": "Renna is a slim athletic woman in her mid-twenties with sun-warm skin, copper-red shoulder-length hair, gray starter tunic, patched boots, cheap ash shortbow, low quiver, and one long brown bracer.",
+          "pose_prompt": "Complete full body in the middle depth, stepping around a puddle with bow raised diagonally but not drawn, eyes toward the cold opening.",
+          "target_box": {"x": 0.14, "y": 0.34, "width": 0.35, "height": 0.58},
+          "foot_anchor": {"x": 0.315, "y": 0.92},
+          "z_index": 3,
+          "grounded": true
+        },
+        {
+          "character_id": "wren_the_lantern",
+          "display_name": "Wren",
+          "reference_ids": ["osa_wren_thelantern_locked_active_profile_v1"],
+          "identity_prompt": "Wren is an athletic woman in her early thirties with warm fair skin, tousled ink-black hair, cropped olive-gray shearling jacket, black fitted layers and boots, a black-sheathed sword behind her right shoulder, and square bronze amber lantern in her left hand.",
+          "pose_prompt": "Large complete foreground body at right crossing in front of part of Renna, lantern extended left and sword still sheathed, both boots visible on wet stone.",
+          "target_box": {"x": 0.46, "y": 0.22, "width": 0.49, "height": 0.76},
+          "foot_anchor": {"x": 0.72, "y": 0.98},
+          "z_index": 5,
+          "grounded": true
+        }
+      ],
+      "contact_regions": [
+        {"kind": "ellipse", "box": {"x": 0.17, "y": 0.88, "width": 0.28, "height": 0.055}},
+        {"kind": "ellipse", "box": {"x": 0.56, "y": 0.94, "width": 0.31, "height": 0.05}}
+      ]
+    },
+    {
+      "scene_id": "t04_long_props_bridge",
+      "title": "Long props crossing on a wind bridge",
+      "split": "tuning",
+      "style_pack_id": "current-action-fantasy",
+      "canvas": {"width": 768, "height": 1024},
+      "camera": {
+        "description": "Three-quarter 40mm view along a high stone bridge, camera slightly below waist height, open sky above the walking plane.",
+        "horizon_y": 0.44
+      },
+      "background_prompt": "A narrow high fortress bridge in hard mountain wind, old pale stone, broken crenellations, immense misty ravine, storm blue sky split by one warm shaft, broad empty walking plane and uncluttered sky.",
+      "harmonize_prompt": "Preserve both complete long weapons. Add only bridge-plane shadows, shared storm rim light, cloth wind continuity, and a small crossing shadow where spear and banner-lance overlap.",
+      "diagnostic_prompt": "Two distinct elite adult warriors pass on a high bridge in crosswind, Halcyon's taller banner-lance and Mirelle's leaf-bladed spear both fully visible and never fused.",
+      "subjects": [
+        {
+          "character_id": "halcyon_of_the_gilded_march",
+          "display_name": "Halcyon",
+          "reference_ids": ["osa_halcyon_of_the_gilded_march_locked_active_profile_v1"],
+          "identity_prompt": "Tall bronze-complexioned male champion, white-gold bound hair, topaz eyes, pearl-white articulated armor, cobalt cloth, split ivory mantle, complete pale-gold banner-lance with cobalt pennon.",
+          "pose_prompt": "Complete full body striding from left to right, banner-lance held on a tall forward diagonal entirely within frame, mantle blown behind, feet visible.",
+          "target_box": {"x": 0.03, "y": 0.18, "width": 0.51, "height": 0.77},
+          "foot_anchor": {"x": 0.28, "y": 0.95},
+          "z_index": 2,
+          "grounded": true
+        },
+        {
+          "character_id": "mirelle_voss",
+          "display_name": "Mirelle Voss",
+          "reference_ids": ["osa_mirelle_voss_locked_active_profile_v1"],
+          "identity_prompt": "Mirelle is a tall athletic woman in her late twenties with sun-warm skin, copper-red high braided ponytail, ivory-and-crimson fighting coat, oxblood guards, bright steel shoulders, and complete leaf-bladed ash spear with restrained red tassel.",
+          "pose_prompt": "Complete full body advancing from right to left, spear held low on a long opposing diagonal entirely within frame, alert glance toward Halcyon, feet visible.",
+          "target_box": {"x": 0.46, "y": 0.24, "width": 0.5, "height": 0.71},
+          "foot_anchor": {"x": 0.72, "y": 0.95},
+          "z_index": 3,
+          "grounded": true
+        }
+      ],
+      "contact_regions": [
+        {"kind": "ellipse", "box": {"x": 0.14, "y": 0.91, "width": 0.28, "height": 0.05}},
+        {"kind": "ellipse", "box": {"x": 0.58, "y": 0.91, "width": 0.28, "height": 0.05}},
+        {"kind": "ellipse", "box": {"x": 0.41, "y": 0.42, "width": 0.18, "height": 0.1}}
+      ]
+    },
+    {
+      "scene_id": "t05_shoulders_contact",
+      "title": "Close shoulder contact under pursuit",
+      "split": "tuning",
+      "style_pack_id": "current-action-fantasy",
+      "canvas": {"width": 768, "height": 1024},
+      "camera": {
+        "description": "Dynamic eye-level 45mm view down a tight market lane, with continuous wet paving visible from foreground to misty distance.",
+        "horizon_y": 0.43
+      },
+      "background_prompt": "A rain-dark medieval market lane at night, shuttered wood stalls, torn awnings, amber lamps reflected on stones, mist closing the far end, one empty lane toward camera.",
+      "harmonize_prompt": "Integrate the single shoulder-and-forearm contact, shared rain rim light, wet foot shadows, and Rowan's guiding hand without merging faces, limbs, clothing, or weapons.",
+      "diagnostic_prompt": "Two distinct adult scouts run together down a wet lane: Rowan turns sideways to guide Renna past an obstacle with brief shoulder contact; all four legs, both faces, his knives, her bow and quiver remain correctly assigned.",
+      "subjects": [
+        {
+          "character_id": "rowan_kest",
+          "display_name": "Rowan Kest",
+          "reference_ids": ["osa_rowan_kest_locked_active_profile_v1"],
+          "identity_prompt": "Lean olive-complexioned male scout, late twenties, ash-blond hair, green eyes, charcoal scout jacket, long forest-green scarf, map case, and pair of mismatched short knives.",
+          "pose_prompt": "Complete full body running toward camera-left while twisting toward Renna, near arm reaching across to guide her shoulder, knives sheathed or held safely away, both feet visible.",
+          "target_box": {"x": 0.1, "y": 0.22, "width": 0.49, "height": 0.74},
+          "foot_anchor": {"x": 0.35, "y": 0.96},
+          "z_index": 3,
+          "grounded": true
+        },
+        {
+          "character_id": "renna_holt",
+          "display_name": "Renna Holt",
+          "reference_ids": ["osa_renna_holt_locked_active_profile_v1"],
+          "identity_prompt": "Slim athletic copper-haired woman in her mid-twenties, sun-warm skin, gray starter tunic, patched boots, ash shortbow, low quiver, and one long brown bracer.",
+          "pose_prompt": "Complete full body running close beside Rowan with one shoulder under his guiding hand, bow held across her front and quiver kept separate, looking past him, both feet visible.",
+          "target_box": {"x": 0.41, "y": 0.24, "width": 0.48, "height": 0.72},
+          "foot_anchor": {"x": 0.65, "y": 0.96},
+          "z_index": 4,
+          "grounded": true
+        }
+      ],
+      "contact_regions": [
+        {"kind": "ellipse", "box": {"x": 0.43, "y": 0.38, "width": 0.17, "height": 0.16}},
+        {"kind": "ellipse", "box": {"x": 0.2, "y": 0.91, "width": 0.25, "height": 0.055}},
+        {"kind": "ellipse", "box": {"x": 0.55, "y": 0.91, "width": 0.24, "height": 0.055}}
+      ]
+    },
+    {
+      "scene_id": "t06_interlocked_blades",
+      "title": "Interlocked melee silhouettes",
+      "split": "tuning",
+      "style_pack_id": "current-action-fantasy",
+      "canvas": {"width": 768, "height": 1024},
+      "camera": {
+        "description": "Lateral 50mm view across a ruined ballroom, with a low camera and bright arched window centered behind the open floor.",
+        "horizon_y": 0.45
+      },
+      "background_prompt": "An abandoned moonlit ballroom, cracked black-and-white floor, tall arched window blown open, torn wine-red curtains, scattered silver glass, clean bright open floor beneath the window.",
+      "harmonize_prompt": "Add one small blade-contact spark, mutual cast shadows, moon rim, and precise overlap occlusion only where rapier blades cross. Never merge hands, arms, blades, hair, coats, or faces.",
+      "diagnostic_prompt": "A clean full-body rapier bind between two distinct adult duelists: Castor in charcoal and wine red against Seris in midnight violet, each retaining exactly one separate rapier and anatomically clear hands.",
+      "subjects": [
+        {
+          "character_id": "castor_valebrand",
+          "display_name": "Castor Valebrand",
+          "reference_ids": ["osa_castor_valebrand_locked_active_profile_v1"],
+          "identity_prompt": "Castor is a lean olive-complexioned man in his late twenties with swept glossy black hair, amber-brown eyes, charcoal asymmetric split-tail dueling coat with wine-red lining, silver earring, and signature silver swept-guard rapier.",
+          "pose_prompt": "Complete full body in a deep right-facing lunge from the left, exactly one rapier extended to center, free hand visible behind, both legs and shoes fully visible.",
+          "target_box": {"x": 0.04, "y": 0.24, "width": 0.55, "height": 0.7},
+          "foot_anchor": {"x": 0.3, "y": 0.94},
+          "z_index": 3,
+          "grounded": true
+        },
+        {
+          "character_id": "seris_nightglass",
+          "display_name": "Seris Nightglass",
+          "reference_ids": ["osa_seris_nightglass_locked_active_profile_v1"],
+          "identity_prompt": "Seris is a tall graceful pale-gold woman around thirty with long raven hair, violet-gray eyes, asymmetric midnight-violet coat, wine-red lining, silver mirror at hip, and one translucent obsidian nightglass rapier with crescent guard.",
+          "pose_prompt": "Complete full body counter-lunging left from the right, exactly one black-glass rapier meeting Castor's at center, free hand and both legs clearly visible.",
+          "target_box": {"x": 0.4, "y": 0.2, "width": 0.56, "height": 0.74},
+          "foot_anchor": {"x": 0.7, "y": 0.94},
+          "z_index": 4,
+          "grounded": true
+        }
+      ],
+      "contact_regions": [
+        {"kind": "ellipse", "box": {"x": 0.44, "y": 0.42, "width": 0.13, "height": 0.1}},
+        {"kind": "ellipse", "box": {"x": 0.17, "y": 0.9, "width": 0.28, "height": 0.05}},
+        {"kind": "ellipse", "box": {"x": 0.56, "y": 0.9, "width": 0.28, "height": 0.05}}
+      ]
+    },
+    {
+      "scene_id": "h01_frost_courtyard",
+      "title": "Holdout: three-role frost courtyard",
+      "split": "holdout",
+      "style_pack_id": "current-action-fantasy",
+      "canvas": {"width": 768, "height": 1024},
+      "camera": {
+        "description": "Balanced 38mm courtyard composition from knee height, with a clear central path and two offset rear depth planes.",
+        "horizon_y": 0.4
+      },
+      "background_prompt": "A ruined winter palace courtyard at blue dawn, geometric frost on black flagstones, damaged white arcades, snow streaming through a breach, one clear path through the center and warm firelight far behind.",
+      "harmonize_prompt": "Ground all three distinct figures in the icy courtyard with role-specific shadows, blue dawn rim, distant warm bounce, and restrained frost reflection without altering identity or equipment.",
+      "diagnostic_prompt": "A coherent three-person expedition crossing a frozen courtyard: Aveline leads with clear star-glass staff, Liora follows with forked copper conductor, Mirelle guards the rear with complete spear; no duplicate roles or fused props.",
+      "subjects": [
+        {
+          "character_id": "aveline_morcant",
+          "display_name": "Aveline Morcant",
+          "reference_ids": ["osa_aveline_morcant_locked_active_profile_v1"],
+          "identity_prompt": "Tall graceful early-thirties woman with cool ivory skin, waist-length pale-silver hair with blue-black underlayer, sapphire eyes, midnight-blue command coat, frost-white layered skirts, silver shoulders, and uninterrupted clear star-glass staff.",
+          "pose_prompt": "Complete full body leading at center foreground, transparent staff planted lightly beside her, coat and skirts moving in snow, both boots visible.",
+          "target_box": {"x": 0.23, "y": 0.2, "width": 0.5, "height": 0.76},
+          "foot_anchor": {"x": 0.48, "y": 0.96},
+          "z_index": 4,
+          "grounded": true
+        },
+        {
+          "character_id": "liora_fen",
+          "display_name": "Liora Fen",
+          "reference_ids": ["osa_liora_fen_locked_active_profile_v1"],
+          "identity_prompt": "Slim quick woman in her mid-twenties with honey-blond chin-length hair, blue-gray eyes, mended ash-gray wool, slate-blue shoulder mantle, and one forked copper focus rod wrapped in faded blue cord.",
+          "pose_prompt": "Complete smaller full body in the rear left, stepping carefully and testing the air with the forked copper rod, feet and rod tip visible.",
+          "target_box": {"x": 0.03, "y": 0.36, "width": 0.34, "height": 0.56},
+          "foot_anchor": {"x": 0.2, "y": 0.92},
+          "z_index": 2,
+          "grounded": true
+        },
+        {
+          "character_id": "mirelle_voss",
+          "display_name": "Mirelle Voss",
+          "reference_ids": ["osa_mirelle_voss_locked_active_profile_v1"],
+          "identity_prompt": "Tall athletic copper-red-haired woman in ivory-and-crimson fighting coat, oxblood guards and steel shoulders, carrying one complete leaf-bladed ash spear with restrained red tassel.",
+          "pose_prompt": "Complete smaller full body at rear right looking back through the breach, spear held diagonally but entirely visible, both boots planted.",
+          "target_box": {"x": 0.62, "y": 0.34, "width": 0.35, "height": 0.58},
+          "foot_anchor": {"x": 0.79, "y": 0.92},
+          "z_index": 3,
+          "grounded": true
+        }
+      ],
+      "contact_regions": [
+        {"kind": "ellipse", "box": {"x": 0.35, "y": 0.92, "width": 0.27, "height": 0.055}},
+        {"kind": "ellipse", "box": {"x": 0.09, "y": 0.88, "width": 0.22, "height": 0.05}},
+        {"kind": "ellipse", "box": {"x": 0.69, "y": 0.88, "width": 0.21, "height": 0.05}}
+      ]
+    },
+    {
+      "scene_id": "h02_generic_rain_platform",
+      "title": "Holdout: generic rain platform",
+      "split": "holdout",
+      "style_pack_id": "current-action-fantasy",
+      "canvas": {"width": 768, "height": 1024},
+      "camera": {
+        "description": "Naturalistic 55mm view across an abandoned mountain rail platform, with the shelter and wet rails separated in depth toward an off-frame vanishing point.",
+        "horizon_y": 0.42
+      },
+      "background_prompt": "An abandoned narrow-gauge mountain railway platform in heavy evening rain, dark timber shelter, wet rails curving into pine mist, one broken amber station lamp, luggage cart, strictly mundane grounded station architecture and travel objects.",
+      "harmonize_prompt": "Keep the scene genre-neutral: integrate rain, lamp bounce, wet-platform shadows, and mist rim around the two adults without adding fantasy action, powers, monsters, text, or interface.",
+      "diagnostic_prompt": "A grounded cinematic rain scene with two distinct travelers waiting on an abandoned platform: a broad veteran with sheathed greatsword and a tall veiled woman under the shelter, separated naturally in depth.",
+      "subjects": [
+        {
+          "character_id": "soren_ironvow",
+          "display_name": "Soren Ironvow",
+          "reference_ids": ["osa_soren_ironvow_locked_identity_base_v1", "osa_soren_ironvow_locked_active_profile_v1"],
+          "identity_prompt": "Soren is a broad endurance-built man in his early forties with deep brown skin, close ash-black hair silvering at the temples, pale diagonal nose scar, gray-blue eyes, repaired gunmetal armor, faded indigo half-cloak, and one long two-handed ironvow sword.",
+          "pose_prompt": "Complete full body in the rain at left foreground, greatsword sheathed diagonally over one shoulder, one hand shading his eyes toward the rails, both boots visible.",
+          "target_box": {"x": 0.05, "y": 0.23, "width": 0.48, "height": 0.73},
+          "foot_anchor": {"x": 0.29, "y": 0.96},
+          "z_index": 4,
+          "grounded": true
+        },
+        {
+          "character_id": "veil_the_unnumbered",
+          "display_name": "Veil",
+          "reference_ids": ["osa_veil_the_unnumbered_locked_active_profile_v1"],
+          "identity_prompt": "Veil is a tall slim woman in her late twenties with cool porcelain skin, waist-length straight ink-black hair, sharp gray-violet eyes, translucent charcoal half-veil, high-collared travel coat, slim black boots, and restrained silver claspwork.",
+          "pose_prompt": "Complete full body farther right under the shelter, one hand lightly holding the falling veil-panel against wind, gaze fixed on the rails, both boots visible.",
+          "target_box": {"x": 0.56, "y": 0.31, "width": 0.38, "height": 0.62},
+          "foot_anchor": {"x": 0.75, "y": 0.93},
+          "z_index": 2,
+          "grounded": true
+        }
+      ],
+      "contact_regions": [
+        {"kind": "ellipse", "box": {"x": 0.16, "y": 0.92, "width": 0.26, "height": 0.05}},
+        {"kind": "ellipse", "box": {"x": 0.65, "y": 0.89, "width": 0.21, "height": 0.05}}
+      ]
+    }
+  ]
+}

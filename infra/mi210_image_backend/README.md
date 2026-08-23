@@ -88,6 +88,17 @@ Additional endpoints:
 - `POST /edit/qwen`
 - `POST /edit/qwen/batch`
 
+Experimental staged-composition endpoints (not advertised as runtime modes):
+
+- `POST /prototype/matte/birefnet`
+- `POST /prototype/edit/qwen/masked`
+
+The matte endpoint requires the official Comfy-Org `birefnet.safetensors`
+under `ComfyUI/models/background_removal/`. The masked endpoint sets a latent
+noise mask for Qwen; callers that require a hard preservation guarantee must
+still composite its output back through the same pixel-space mask, as the
+staged prototype does.
+
 `GET /health` advertises the model-neutral runtime modes under `pipelines`:
 `compose` maps to FLUX text/reference generation and accepts up to four
 references; `edit` maps to Qwen Image Edit and accepts one to three ordered

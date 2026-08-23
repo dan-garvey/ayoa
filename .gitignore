@@ -13,6 +13,7 @@ __pycache__/
 recovered_playthrough.txt
 app/storage/playtest_reports/
 app/storage/runtime/image_generation/
+app/storage/runtime/image_prototypes/
 app/storage/stories/*
 app/storage/sessions/*
 app/storage/stories/*/visual-references/

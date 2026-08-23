@@ -38,10 +38,7 @@ def test_worker_reservations_spread_simultaneous_jobs(monkeypatch):
     )
 
     with ExitStack() as stack:
-        selected = [
-            stack.enter_context(gateway._reserve_worker())
-            for _ in range(4)
-        ]
+        selected = [stack.enter_context(gateway._reserve_worker()) for _ in range(4)]
         assert set(selected) == set(workers)
 
 
@@ -60,12 +57,64 @@ def test_qwen_workflow_uses_unique_output_prefix():
         "request123",
     )
 
-    assert workflow["15"]["inputs"]["filename_prefix"] == (
-        "gateway/test_request123"
-    )
+    assert workflow["15"]["inputs"]["filename_prefix"] == ("gateway/test_request123")
     assert workflow["7"]["inputs"]["prompt"] == request.prompt
     assert "16" not in workflow
     assert "17" not in workflow
+
+
+def test_masked_qwen_workflow_limits_noise_to_uploaded_mask():
+    request = gateway.QwenMaskedEditRequest(
+        prompt="Repair only the contact shadows.",
+        image_base64="eA==",
+        mask_base64="eA==",
+        denoise=0.35,
+        filename_prefix="masked_test",
+    )
+
+    workflow = gateway._masked_qwen_workflow(
+        request,
+        "source.webp",
+        None,
+        None,
+        "mask.png",
+        "request123",
+    )
+
+    assert workflow["18"] == {
+        "class_type": "LoadImage",
+        "inputs": {"image": "mask.png"},
+    }
+    assert workflow["20"]["inputs"]["channel"] == "red"
+    assert workflow["21"]["inputs"] == {
+        "samples": ["6", 0],
+        "mask": ["20", 0],
+    }
+    assert workflow["13"]["inputs"]["latent_image"] == ["21", 0]
+    assert workflow["13"]["inputs"]["denoise"] == 0.35
+
+
+def test_background_matte_workflow_returns_model_mask_as_image():
+    request = gateway.BackgroundMatteRequest(
+        image_base64="eA==",
+        filename_prefix="matte_test",
+    )
+
+    workflow = gateway._background_matte_workflow(
+        request,
+        "source.webp",
+        "request123",
+    )
+
+    assert workflow["2"]["inputs"] == {"bg_removal_name": "birefnet.safetensors"}
+    assert workflow["3"]["inputs"] == {
+        "bg_removal_model": ["2", 0],
+        "image": ["1", 0],
+    }
+    assert workflow["4"]["inputs"] == {"mask": ["3", 0]}
+    assert workflow["5"]["inputs"]["filename_prefix"] == (
+        "gateway/matte_test_request123"
+    )
 
 
 def test_model_coordinator_switches_modes_in_dependency_order(monkeypatch):
@@ -114,9 +163,7 @@ def test_health_preserves_ayoa_remote_worker_contract(monkeypatch):
     monkeypatch.setattr(
         gateway,
         "_all_workers",
-        lambda: [
-            {"base": "http://worker", "ok": True, "running": 0, "pending": 0}
-        ],
+        lambda: [{"base": "http://worker", "ok": True, "running": 0, "pending": 0}],
     )
 
     payload = gateway.health()

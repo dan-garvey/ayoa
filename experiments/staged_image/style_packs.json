@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "packs": [
+    {
+      "style_pack_id": "current-action-fantasy",
+      "title": "Current action-fantasy house style",
+      "visual_language": "Full-color Korean action-fantasy illustration; varied ink weight; layered cel shadows; selective gradients; worn material texture; coherent cinematic illumination; full-bleed in-world staging.",
+      "component_direction": "Use mature proportions except where the identity reference establishes another body type. Match the reference character's rendering language without beautifying away age, build, scars, wear, or asymmetry. Keep silhouettes crisp enough for clean foreground extraction while preserving fine hair, cloth, translucent material, and held props.",
+      "harmonization_direction": "Integrate only the assembled edges and physical contacts: shared color temperature, narrow bounced light, cast shadows, ambient occlusion, and local overlap. Preserve the authored silhouette and identity of every component."
+    },
+    {
+      "style_pack_id": "painterly-key-art",
+      "title": "Painterly cinematic key art",
+      "visual_language": "Cinematic Korean fantasy key art; restrained ink; painterly materials; coherent volumetric light; strong silhouette hierarchy; full-bleed in-world staging.",
+      "component_direction": "Use mature proportions except where the identity reference establishes otherwise. Preserve exact reference identity and equipment while using broad painterly planes, controlled edge variation, and a readable full-body silhouette suitable for matting.",
+      "harmonization_direction": "Use subtle shared atmospheric perspective, contact shadow, bounced color, and edge softness only where subjects meet the environment or each other."
+    },
+    {
+      "style_pack_id": "cel-shaded-game",
+      "title": "High-detail cel-shaded game illustration",
+      "visual_language": "High-detail cel-shaded fantasy game illustration; controlled line weight; crisp two-tone shadows; selective painterly texture; clean silhouette hierarchy; full-bleed in-world staging.",
+      "component_direction": "Use mature proportions except where the identity reference establishes otherwise. Preserve reference identity, age, body type, clothing, and props with clean contour separation and stable two-tone lighting that remains easy to matte.",
+      "harmonization_direction": "Unify only cast shadows, edge light, contact occlusion, and local palette at assembly seams while retaining crisp subject interiors."
+    }
+  ]
+}
