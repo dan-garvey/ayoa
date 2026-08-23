@@ -217,7 +217,7 @@ class TestTurnHistory:
         first = TranscriptEntry(user="first", assistant="First render.")
         second = TranscriptEntry(user="", assistant="Automated render.")
 
-        def _message(entry: TranscriptEntry) -> ConversationMessage:
+        def _assistant(entry: TranscriptEntry) -> ConversationMessage:
             return ConversationMessage(
                 role="assistant",
                 content=json.dumps({"final_text": entry.assistant}),
@@ -227,26 +227,37 @@ class TestTurnHistory:
         bridge.checkpoint_mgr.save(ckpt0)
 
         ckpt1 = _make_ckpt(turn_index=1)
-        ckpt1.narrator_conversations = {"aldric": [_message(first)]}
+        ckpt1.narrator_conversations = {"aldric": [
+            ConversationMessage(role="user", content=first.user),
+            _assistant(first),
+        ]}
         bridge.checkpoint_mgr.save(ckpt1)
 
         ckpt2 = _make_ckpt(turn_index=2)
-        ckpt2.narrator_conversations = {"aldric": [_message(first)]}
+        ckpt2.narrator_conversations = {"aldric": [
+            ConversationMessage(role="user", content=first.user),
+            _assistant(first),
+        ]}
         bridge.checkpoint_mgr.save(ckpt2)
 
         ckpt3 = _make_ckpt(turn_index=3)
         ckpt3.narrator_conversations = {
-            "aldric": [_message(first), _message(second)]
+            "aldric": [
+                ConversationMessage(role="user", content=first.user),
+                _assistant(first),
+                _assistant(second),
+            ]
         }
         bridge.checkpoint_mgr.save(ckpt3)
 
         history = bridge.turn_history(SESSION_ID, "aldric")
 
         assert [
-            (item.turn_index, item.entry.assistant) for item in history
+            (item.turn_index, item.entry.user, item.entry.assistant)
+            for item in history
         ] == [
-            (1, "First render."),
-            (3, "Automated render."),
+            (1, "first", "First render."),
+            (3, "", "Automated render."),
         ]
 
     def test_history_requires_an_explicit_pov(self, bridge: EngineBridge):

@@ -165,11 +165,14 @@ class TestComposePovRender:
             pov_character_id="alice",
             buffered_events=buffered,
             result=result,
+            user_input=entry.user,
         )
-        # Per-POV history stores only accepted assistant output.
+        # Per-POV history preserves the exact accepted player/narrator turn.
         alice_hist = ckpt.narrator_conversations["alice"]
-        assert len(alice_hist) == 1
-        assert alice_hist[0].role == "assistant"
+        assert len(alice_hist) == 2
+        assert alice_hist[0].role == "user"
+        assert alice_hist[0].content == "I look around."
+        assert alice_hist[1].role == "assistant"
 
         # Visible details made it into the rendered prompt.
         call_kwargs = mock_client.complete.call_args.kwargs
@@ -189,6 +192,50 @@ class TestComposePovRender:
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], str)
         assert PARTIAL_MODE_MARKER not in user_msg["content"]
+
+    @pytest.mark.asyncio
+    async def test_accepted_player_submission_is_replayed_on_next_render(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        buffered = [
+            RenderBufferEntry(event_id="evt_alpha", observation_level="direct"),
+        ]
+        first_result, first_entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            partial_mode=False,
+            user_input="I wait until the bell rings, then open the gate.",
+        )
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=first_result,
+            user_input=first_entry.user,
+        )
+
+        await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            partial_mode=False,
+            user_input="I listen for it.",
+        )
+
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        assert [message["role"] for message in messages] == [
+            "system", "user", "assistant", "user",
+        ]
+        assert messages[1]["content"] == (
+            "I wait until the bell rings, then open the gate."
+        )
+        assert "I listen for it." in messages[-1]["content"]
 
     @pytest.mark.asyncio
     async def test_dnd_player_species_reaches_narrator_user_context(
@@ -304,6 +351,7 @@ class TestComposePovRender:
                 ),
             ],
             result=result,
+            user_input=entry.user,
         )
         assistant = ckpt.narrator_conversations["alice"][-1]
         assert assistant.role == "assistant"
@@ -453,6 +501,7 @@ class TestComposePovRender:
             pov_character_id="alice",
             buffered_events=buffered,
             result=result,
+            user_input="",
         )
 
         call_kwargs = mock_client.complete.call_args.kwargs
@@ -465,7 +514,7 @@ class TestComposePovRender:
         assert PARTIAL_MODE_MARKER in last["content"]
         assert PARTIAL_MODE_MARKER not in messages[0]["content"]
 
-        # The stored history does not replay redundant user packets.
+        # Engine-only partial-mode instructions are not persisted as dialogue.
         alice_hist = ckpt.narrator_conversations["alice"]
         assert len(alice_hist) == 1
         assert alice_hist[0].role == "assistant"
@@ -493,6 +542,7 @@ class TestComposePovRender:
             pov_character_id="alice",
             buffered_events=buffered,
             result=result,
+            user_input="",
         )
 
         call_kwargs = mock_client.complete.call_args.kwargs
@@ -500,7 +550,7 @@ class TestComposePovRender:
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], str)
         assert PARTIAL_MODE_MARKER not in user_msg["content"]
-        # And the POV's stored history records only assistant output.
+        # With no player submission, only the assistant output is stored.
         alice_hist = ckpt.narrator_conversations["alice"]
         assert len(alice_hist) == 1
         assert alice_hist[0].role == "assistant"
@@ -532,6 +582,7 @@ class TestComposePovRender:
             pov_character_id="alice",
             buffered_events=buffered,
             result=result,
+            user_input="",
         )
 
         messages = mock_client.complete.call_args.kwargs["messages"]
@@ -574,6 +625,7 @@ class TestComposePovRender:
             pov_character_id="alice",
             buffered_events=buffered,
             result=result,
+            user_input="",
         )
 
         user_content = mock_client.complete.call_args.kwargs["messages"][-1]["content"]

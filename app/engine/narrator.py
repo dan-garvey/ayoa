@@ -170,7 +170,7 @@ async def compose_pov_render(
 
     Renders the beat from `pov_character_id`'s point of view in
     second-person present tense, using their per-character rolling
-    assistant-side conversation history
+    player-and-assistant conversation history
     (`ckpt.narrator_conversations[pov_character_id]`).
 
     Events are resolved by `event_id` against `ckpt.canonical_events`;
@@ -235,15 +235,11 @@ async def compose_pov_render(
     )
 
     pov_history = ckpt.narrator_conversations.setdefault(pov_character_id, [])
-    assistant_history = [
-        message for message in pov_history
-        if message.role == "assistant"
-    ]
 
     render_t0 = time.monotonic()
     messages = prompt_mgr.render_conversation(
         "narrator_phase2",
-        history=assistant_history,
+        history=pov_history,
         setting_summary=setting_summary,
         narrative_rules=narrative_rules,
         visible_events=visible_events_block,
@@ -259,7 +255,7 @@ async def compose_pov_render(
     logger.info(
         "compose_pov_render: pov=%s events=%d partial=%s history=%d msgs "
         "(prompt_render_ms=%.1f)",
-        pov_character_id, len(resolved), partial_mode, len(assistant_history),
+        pov_character_id, len(resolved), partial_mode, len(pov_history),
         render_ms,
     )
 
@@ -296,8 +292,9 @@ def commit_pov_render(
     pov_character_id: str,
     buffered_events: list[RenderBufferEntry],
     result: NarratorFinalOutput,
+    user_input: str,
 ) -> None:
-    """Persist one accepted narrator composition and its visual introductions."""
+    """Persist one accepted POV conversation turn and visual introductions."""
     resolved = _resolve_buffered_events(ckpt, buffered_events)
     visual_intro_plan = plan_render_visual_introductions(
         ckpt,
@@ -311,6 +308,8 @@ def commit_pov_render(
             visual_intro_plan.mark_character_ids,
         )
     history = ckpt.narrator_conversations.setdefault(pov_character_id, [])
+    if user_input:
+        history.append(ConversationMessage(role="user", content=user_input))
     history.append(ConversationMessage(
         role="assistant",
         content=[{

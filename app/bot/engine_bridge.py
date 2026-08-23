@@ -691,7 +691,15 @@ class EngineBridge:
             )
             if len(messages) < previous_len:
                 previous_len = 0
+            pending_user = ""
             for message in messages[previous_len:]:
+                if message.role == "user":
+                    pending_user = (
+                        message.content
+                        if isinstance(message.content, str)
+                        else ""
+                    )
+                    continue
                 if message.role != "assistant":
                     continue
                 text = _narrator_history_message_text(message.content)
@@ -699,8 +707,12 @@ class EngineBridge:
                     continue
                 history.append(TurnHistoryEntry(
                     turn_index=turn,
-                    entry=TranscriptEntry(user="", assistant=text),
+                    entry=TranscriptEntry(
+                        user=pending_user,
+                        assistant=text,
+                    ),
                 ))
+                pending_user = ""
             previous_len = len(messages)
         return history
 
@@ -3676,7 +3688,7 @@ def _build_takeover_context(
         "",
     )
     recent_messages = (
-        ckpt.narrator_conversations.get(viewer_character_id, [])[-6:]
+        ckpt.narrator_conversations.get(viewer_character_id, [])
         if viewer_character_id
         else []
     )
@@ -3685,7 +3697,7 @@ def _build_takeover_context(
         for message in recent_messages
         if message.role == "assistant"
         if (text := _narrator_history_message_text(message.content))
-    ]
+    ][-6:]
     recent_session_summary = (
         "\n\n".join(recent_bits)
         if recent_bits

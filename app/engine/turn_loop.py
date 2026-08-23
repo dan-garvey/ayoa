@@ -4210,6 +4210,7 @@ async def _end_beat(
                 pov_character_id=h,
                 buffered_events=dict(targets)[h],
                 result=envelope,
+                user_input=entry.user,
             )
             renders[h] = envelope.final_text
             transcript_entries[h] = entry

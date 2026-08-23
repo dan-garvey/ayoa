@@ -3106,6 +3106,38 @@ class TestEndBeatFanout:
         assert len(fake.narrator_calls) == 2
         assert elapsed < 0.18
 
+    def test_only_acting_pov_retains_the_raw_player_submission(self):
+        from app.engine.turn_loop import _end_beat
+
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        event = _router_out(
+            event_kind="cascade_exhausted",
+            observer_ids=["alice", "bob"],
+        )
+        ckpt.canonical_events.append(event)
+        append_to_render_buffer(ckpt, "alice", event.event_id, "direct")
+        append_to_render_buffer(ckpt, "bob", event.event_id, "direct")
+
+        asyncio.run(_end_beat(
+            ckpt,
+            FakeDispatcher(),
+            ended_reason="cascade_exhausted",
+            events_closed=1,
+            event_actor_ids=["alice"],
+            acting_player_id="alice",
+            acting_player_input="I whisper the password.",
+        ))
+
+        assert [
+            (message.role, message.content)
+            for message in ckpt.narrator_conversations["alice"]
+            if message.role == "user"
+        ] == [("user", "I whisper the password.")]
+        assert all(
+            message.role == "assistant"
+            for message in ckpt.narrator_conversations["bob"]
+        )
+
 
 class TestRejectionFormatting:
     def test_mentions_holder_name_on_initiator_held(self):
