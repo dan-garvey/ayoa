@@ -3,8 +3,8 @@
 The router still arbitrates fiction. This module translates its one compact
 state-update list into private typed bookkeeping, validates it, and applies it
 atomically. Standard weighted summons are resolved here without exposing future
-draws to the router. The adapter deliberately has no combat resolver, stat
-formula, XP curve, story id, or facility/economy constants.
+draws to the router. The adapter deliberately has no combat resolver, story id,
+or facility/economy constants.
 """
 
 from __future__ import annotations
@@ -17,6 +17,14 @@ from collections.abc import Iterable, Mapping
 from pydantic import ValidationError
 
 from app.engine.action_rejection import PlayerActionRejected
+from app.engine.one_star_progression import (
+    apply_experience,
+    apply_promotion_banked_experience,
+    experience_to_reach_level,
+    preview_experience,
+    rebalance_hero,
+    scaled_by_grade,
+)
 from app.schemas.characters import (
     CharacterAgentTier,
     CharacterRecord,
@@ -45,6 +53,7 @@ from app.schemas.one_star import (
     OneStarMissionUpdateOperation,
     OneStarOperation,
     OneStarPendingOperation,
+    OneStarPendingOperationSelection,
     OneStarPendingCancelOperation,
     OneStarPendingOpenOperation,
     OneStarPendingResolveOperation,
@@ -53,12 +62,13 @@ from app.schemas.one_star import (
     OneStarSkillEntry,
     OneStarSkillRankUpdate,
     OneStarStateUpdate,
-    OneStarStatDelta,
     OneStarSummonPool,
+    OneStarSynthesisPreview,
     OneStarSummonOperation,
     OneStarTransaction,
     OneStarTutorialDeliveryOperation,
     OneStarDurabilityUpdate,
+    OneStarEquipmentMoveOperation,
 )
 
 
@@ -120,7 +130,16 @@ class OneStarPreparedMutation:
     newly_acquired_hero_ids: tuple[str, ...] = ()
     touched_hero_ids: tuple[str, ...] = ()
     engine_history_updates: tuple[str, ...] = ()
+    system_consequences: tuple["OneStarSystemConsequence", ...] = ()
     already_applied: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class OneStarSystemConsequence:
+    """A compact adapter-owned System fact for the just-committed event."""
+
+    text: str
+    recipient_character_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -365,9 +384,6 @@ def _validate_state_update_detail_keys(
         "inventory_delta": frozenset(),
         "hero_delta": frozenset({
             "hp_current",
-            "hp_max",
-            "level",
-            "experience_delta",
             "equipment_remove",
             "skill_remove",
             "condition",
@@ -393,14 +409,14 @@ def _validate_state_update_detail_keys(
             "target_id",
             "destination",
         }),
-        "pending_resolve": frozenset({"cull"}),
+        "pending_resolve": frozenset(),
+        "equipment_move": frozenset(),
         "pending_cancel": frozenset(),
         "tutorial_delivery": frozenset({"recipient"}),
         "active_feed": frozenset(),
     }
     prefix_by_kind: dict[str, tuple[str, ...]] = {
         "hero_delta": (
-            "stat.",
             "durability.",
             "skill_rank.",
             "equipment_add.",
@@ -447,7 +463,7 @@ def _validate_state_update_detail_keys(
                         f"One-Star hero_delta state update has unsupported detail {key!r}"
                     )
                 break
-            if key.startswith(("stat.", "durability.", "skill_rank.")):
+            if key.startswith(("durability.", "skill_rank.")):
                 if not key.partition(".")[2]:
                     raise OneStarTransactionError(
                         f"One-Star hero_delta state update has empty detail id {key!r}"
@@ -465,6 +481,7 @@ def _validate_state_update_scalar_shape(update: OneStarStateUpdate) -> None:
     empty_value_kinds = {
         "hero_delta",
         "mission_update",
+        "pending_resolve",
         "pending_cancel",
         "tutorial_delivery",
         "active_feed",
@@ -649,18 +666,15 @@ def one_star_state_updates_to_transaction(
             ))
             continue
 
+        if kind == "equipment_move":
+            operations.append(OneStarEquipmentMoveOperation(
+                operation=kind,
+                item_id=target_id,
+                destination=update.value,
+            ))
+            continue
+
         if kind == "hero_delta":
-            stat_deltas = [
-                OneStarStatDelta(
-                    stat_id=key.removeprefix("stat."),
-                    delta=_integer_update_value(
-                        _single_detail(details, key),
-                        label=key,
-                    ),
-                )
-                for key, values in details.items()
-                if key.startswith("stat.")
-            ]
             equipment_add: list[OneStarEquipmentEntry] = []
             equipment_ids = {
                 key.split(".", 2)[1]
@@ -727,25 +741,6 @@ def one_star_state_updates_to_transaction(
                     )
                     if "hp_current" in details else None
                 ),
-                hp_max=(
-                    _integer_update_value(
-                        _single_detail(details, "hp_max"),
-                        label="hp_max",
-                    )
-                    if "hp_max" in details else None
-                ),
-                level=(
-                    _integer_update_value(
-                        _single_detail(details, "level"),
-                        label="level",
-                    )
-                    if "level" in details else None
-                ),
-                experience_delta=_integer_update_value(
-                    _single_detail(details, "experience_delta", default="0"),
-                    label="experience_delta",
-                ),
-                stats_delta=stat_deltas,
                 equipment_add=equipment_add,
                 equipment_remove_ids=details.get("equipment_remove", []),
                 skills_add=skills_add,
@@ -865,7 +860,7 @@ def one_star_state_updates_to_transaction(
         if kind == "pending_open":
             operations.append(OneStarPendingOpenOperation(
                 operation=kind,
-                pending=OneStarPendingOperation(
+                pending=OneStarPendingOperationSelection(
                     operation_id=target_id,
                     kind=update.value,
                     participant_ids=details.get("participant", []),
@@ -880,11 +875,6 @@ def one_star_state_updates_to_transaction(
             operations.append(OneStarPendingResolveOperation(
                 operation=kind,
                 operation_id=target_id,
-                cull_ids=details.get("cull", []),
-                promotion_target_stars=(
-                    _integer_update_value(update.value, label="promotion target stars")
-                    if update.value else None
-                ),
             ))
             continue
 
@@ -1022,6 +1012,311 @@ def _store_account(owner: CharacterRecord, account: OneStarAccountEnvelope) -> N
     owner.mechanics[ONE_STAR_ACCOUNT_KEY] = validated.model_dump(mode="json")
 
 
+def one_star_synthesis_source_experience(
+    source: OneStarHeroState,
+    config: OneStarRulesConfig,
+) -> int:
+    """Return one selected source's exact, replay-stable synthesis XP offer."""
+
+    potential = scaled_by_grade(
+        config.progression.synthesis_source_base_xp,
+        source.birth_stars,
+        config,
+    )
+    return source.experience_points // 2 + potential
+
+
+def _synthesis_sources_and_target(
+    pending: OneStarPendingOperationSelection | OneStarPendingOperation,
+    checkpoint: CheckpointFile,
+    config: OneStarRulesConfig,
+) -> tuple[
+    CharacterRecord,
+    OneStarHeroState,
+    list[tuple[CharacterRecord, OneStarHeroState]],
+]:
+    target_character, target = _require_local_active_hero(
+        checkpoint,
+        pending.target_id,
+        config,
+    )
+    sources: list[tuple[CharacterRecord, OneStarHeroState]] = []
+    for source_id in pending.participant_ids:
+        if source_id == pending.target_id:
+            raise OneStarTransactionError("synthesis target cannot be a source")
+        sources.append(_require_local_active_hero(checkpoint, source_id, config))
+    return target_character, target, sources
+
+
+def _synthesis_input_state_fingerprint(
+    pending: OneStarPendingOperationSelection | OneStarPendingOperation,
+    checkpoint: CheckpointFile,
+    config: OneStarRulesConfig,
+) -> str:
+    """Fingerprint only inputs that can change the promised synthesis result.
+
+    HP, conditions, and injuries may legitimately change while selected Heroes
+    respond and physically reach the chamber. They do not alter the previewed
+    XP, returned gear, or skill-transfer pool, so they must not stale an
+    otherwise valid operation.
+    """
+
+    _target_character, target, sources = _synthesis_sources_and_target(
+        pending,
+        checkpoint,
+        config,
+    )
+    payload = [
+        "ayoa.one_star.synthesis.input-state.v1",
+        {
+            "role": "target",
+            "character_id": pending.target_id,
+            "birth_stars": target.birth_stars,
+            "current_stars": target.current_stars,
+            "level": target.level,
+            "experience_points": target.experience_points,
+            "hp_max": target.hp_max,
+            "stats": target.stats,
+            "progression_seed": target.progression_seed,
+            "strong_stat_id": target.strong_stat_id,
+            "weak_stat_id": target.weak_stat_id,
+            "potential_grade": target.potential_grade,
+            "skills": [skill.model_dump(mode="json") for skill in target.skills],
+        },
+        *[
+            {
+                "role": "source",
+                "character_id": source_character.character_id,
+                "birth_stars": source.birth_stars,
+                "experience_points": source.experience_points,
+                "skills": [
+                    skill.model_dump(mode="json") for skill in source.skills
+                ],
+            }
+            for source_character, source in sources
+        ],
+    ]
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _synthesis_preview(
+    pending: OneStarPendingOperationSelection | OneStarPendingOperation,
+    state: OneStarAccountState,
+    checkpoint: CheckpointFile,
+    config: OneStarRulesConfig,
+) -> OneStarSynthesisPreview:
+    _target_character, target, sources = _synthesis_sources_and_target(
+        pending,
+        checkpoint,
+        config,
+    )
+    offered_xp = sum(
+        one_star_synthesis_source_experience(source, config)
+        for _character, source in sources
+    )
+    try:
+        xp_preview = preview_experience(
+            hero=target,
+            experience_delta=offered_xp,
+            config=config,
+        )
+    except ValueError as exc:
+        raise OneStarTransactionError("synthesis target has invalid progression state") from exc
+    if xp_preview.applied_xp < 1:
+        raise OneStarTransactionError(
+            "synthesis target cannot accept any offered experience"
+        )
+    returned_equipment = [
+        item.model_copy(deep=True)
+        for _character, source in sources
+        for item in source.equipment
+    ]
+    known_item_ids = {item.item_id for item in state.stored_equipment}
+    for item in returned_equipment:
+        if item.item_id in known_item_ids:
+            raise OneStarTransactionError(
+                "synthesis source equipment conflicts with durable storage"
+            )
+        known_item_ids.add(item.item_id)
+    return OneStarSynthesisPreview(
+        offered_xp=xp_preview.offered_xp,
+        applied_xp=xp_preview.applied_xp,
+        wasted_xp=xp_preview.wasted_xp,
+        returned_equipment=returned_equipment,
+        skill_transfer_chance_basis_points=(
+            config.progression.synthesis_skill_chance_basis_points
+        ),
+        input_state_fingerprint=_synthesis_input_state_fingerprint(
+            pending,
+            checkpoint,
+            config,
+        ),
+    )
+
+
+def _system_recipients(*character_ids: str) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(character_id for character_id in character_ids if character_id))
+
+
+def _system_window_recipients(
+    checkpoint: CheckpointFile,
+    state: OneStarAccountState,
+    config: OneStarRulesConfig,
+    owner_character_id: str,
+    eligible_hero_ids: Iterable[str] = (),
+    *,
+    include_management_observers: bool = True,
+) -> tuple[str, ...]:
+    characters = {character.character_id: character for character in checkpoint.characters}
+    eligible_hero_id_set = set(eligible_hero_ids)
+    recipients = [owner_character_id]
+    if include_management_observers:
+        recipients.extend(state.guide_character_ids)
+        recipients.extend(state.system_observer_ids)
+    research_visible = bool(
+        config.hero_system_visibility_research_key
+        and state.research_levels.get(
+            config.hero_system_visibility_research_key,
+            0,
+        )
+    )
+    for character in checkpoint.characters:
+        hero = load_one_star_hero(character)
+        if (
+            character.character_id in eligible_hero_id_set
+            and character.status == CharacterStatus.active
+            and hero is not None
+            and hero.owner_lobby_id == config.lobby_id
+            and (hero.innate_system_sight or research_visible)
+        ):
+            recipients.append(character.character_id)
+    return tuple(
+        character_id
+        for character_id in _system_recipients(*recipients)
+        if (
+            character_id == owner_character_id
+            or (
+                character_id in characters
+                and characters[character_id].status == CharacterStatus.active
+            )
+        )
+    )
+
+
+def _format_basis_points(basis_points: int) -> str:
+    whole, fractional = divmod(basis_points, 100)
+    if not fractional:
+        return f"{whole}%"
+    return f"{whole}.{fractional:02d}".rstrip("0") + "%"
+
+
+def _progression_consequence(
+    *,
+    character: CharacterRecord,
+    checkpoint: CheckpointFile,
+    state: OneStarAccountState,
+    config: OneStarRulesConfig,
+    owner_character_id: str,
+    report: object,
+    label: str,
+    include_management_observers: bool = True,
+) -> tuple[OneStarSystemConsequence, ...]:
+    applied_xp = int(getattr(report, "applied_xp", 0))
+    levels_gained = int(getattr(report, "levels_gained", 0))
+    stat_gains = dict(getattr(report, "stat_gains", {}))
+    hp_max_gain = int(getattr(report, "hp_max_gain", 0))
+    details: list[str] = []
+    if applied_xp:
+        details.append(f"{applied_xp} XP applied")
+    if levels_gained:
+        details.append(
+            f"{levels_gained} level{'s' if levels_gained != 1 else ''} gained"
+        )
+    if stat_gains:
+        details.append(
+            "stats "
+            + ", ".join(
+                f"{stat_id} +{amount}"
+                for stat_id, amount in sorted(stat_gains.items())
+            )
+        )
+    if hp_max_gain:
+        details.append(f"max HP +{hp_max_gain}")
+    if not details:
+        return ()
+    recipients = _system_window_recipients(
+        checkpoint,
+        state,
+        config,
+        owner_character_id,
+        (character.character_id,),
+        include_management_observers=include_management_observers,
+    )
+    consequences = [OneStarSystemConsequence(
+        text=f"System: {character.name} {label}: " + "; ".join(details) + ".",
+        recipient_character_ids=recipients,
+    )]
+    if character.character_id not in recipients:
+        consequences.append(OneStarSystemConsequence(
+            text=(
+                f"A tangible surge of hard-won strength settles through "
+                f"{character.name}."
+            ),
+            recipient_character_ids=(character.character_id,),
+        ))
+    return tuple(consequences)
+
+
+def _synthesis_preview_consequence(
+    *,
+    pending: OneStarPendingOperation,
+    checkpoint: CheckpointFile,
+    state: OneStarAccountState,
+    config: OneStarRulesConfig,
+    owner_character_id: str,
+) -> OneStarSystemConsequence:
+    preview = pending.synthesis_preview
+    if preview is None:  # Defensive: durable schema requires it for synthesis.
+        raise OneStarTransactionError("synthesis pending operation has no preview")
+    target = _require_character(checkpoint, pending.target_id)
+    source_names = [
+        _require_character(checkpoint, source_id).name
+        for source_id in pending.participant_ids
+    ]
+    returned = (
+        ", ".join(
+            f"{item.name} [{item.item_id}]"
+            for item in preview.returned_equipment
+        )
+        or "none"
+    )
+    return OneStarSystemConsequence(
+        text=(
+            f"System: synthesis preview for {target.name}: "
+            f"{preview.offered_xp} XP offered; {preview.applied_xp} XP applies; "
+            f"{preview.wasted_xp} XP wasted at the current cap; return {returned}; "
+            f"each selected source ({', '.join(source_names)}) has an independent "
+            f"{_format_basis_points(preview.skill_transfer_chance_basis_points)} "
+            "skill-transfer chance."
+        ),
+        recipient_character_ids=_system_recipients(
+            *_system_window_recipients(
+                checkpoint,
+                state,
+                config,
+                owner_character_id,
+                (pending.target_id, *pending.participant_ids),
+            ),
+        ),
+    )
+
+
 def _add_resources(resources: OneStarCost, amount: OneStarCost) -> None:
     resources.gold += amount.gold
     resources.gems += amount.gems
@@ -1086,26 +1381,53 @@ def _recover_stamina(state: OneStarAccountState, config: OneStarRulesConfig, now
     state.stamina_recovery_anchor_s = anchor
 
 
-def _validate_hero_constraints(hero: OneStarHeroState, config: OneStarRulesConfig) -> None:
-    bounds = config.hero_constraints
+def _validate_hero_progression_state(
+    hero: OneStarHeroState,
+    config: OneStarRulesConfig,
+) -> None:
     if hero.current_stars not in config.star_level_caps:
         raise OneStarTransactionError("Hero current stars have no configured level cap")
     if hero.birth_stars not in config.star_level_caps:
         raise OneStarTransactionError("Hero birth stars have no configured level cap")
+    if hero.potential_grade not in config.star_level_caps:
+        raise OneStarTransactionError("Hero potential grade has no configured level cap")
     if hero.level > config.star_level_caps[hero.current_stars]:
         raise OneStarTransactionError("Hero level exceeds configured current-star cap")
-    if not bounds.minimum_hp_max <= hero.hp_max <= bounds.maximum_hp_max:
-        raise OneStarTransactionError("Hero HP maximum violates configured bounds")
+    if hero.experience_points < experience_to_reach_level(hero.level, config):
+        raise OneStarTransactionError("Hero XP falls below its reached level threshold")
+    if (
+        hero.level < config.star_level_caps[hero.current_stars]
+        and hero.experience_points >= experience_to_reach_level(hero.level + 1, config)
+    ):
+        raise OneStarTransactionError("Hero XP must immediately realize reachable levels")
+    if hero.level == config.star_level_caps[hero.current_stars] and (
+        hero.experience_points
+        > experience_to_reach_level(hero.level + config.progression.cap_bank_extra_levels, config)
+    ):
+        raise OneStarTransactionError("Hero XP exceeds its configured cap bank")
+    if set(hero.stats) != set(config.progression.stat_ids):
+        raise OneStarTransactionError("Hero stats must match configured progression stats")
+    if hero.strong_stat_id not in hero.stats or hero.weak_stat_id not in hero.stats:
+        raise OneStarTransactionError("Hero affinities must match configured progression stats")
+    if hero.strong_stat_id == hero.weak_stat_id:
+        raise OneStarTransactionError("Hero affinities must differ")
+    if any(value <= 0 for value in hero.stats.values()):
+        raise OneStarTransactionError("Hero progression stats must remain positive")
+    middle_stat_id = next(
+        stat_id
+        for stat_id in config.progression.stat_ids
+        if stat_id not in {hero.strong_stat_id, hero.weak_stat_id}
+    )
+    if not (
+        hero.stats[hero.strong_stat_id]
+        > hero.stats[middle_stat_id]
+        > hero.stats[hero.weak_stat_id]
+    ):
+        raise OneStarTransactionError(
+            "Hero progression stats must preserve strong, middle, weak order"
+        )
     if hero.hp_current < 0 or hero.hp_current > hero.hp_max:
         raise OneStarTransactionError("Hero current HP violates its maximum")
-    if hero.experience_points > bounds.maximum_xp:
-        raise OneStarTransactionError("Hero XP exceeds configured bound")
-    if any(abs(value) > bounds.maximum_stat_value for value in hero.stats.values()):
-        raise OneStarTransactionError("Hero stat value exceeds configured bound")
-    if len(hero.equipment) > bounds.maximum_equipment_entries:
-        raise OneStarTransactionError("Hero equipment exceeds configured bound")
-    if len(hero.skills) > bounds.maximum_skill_entries:
-        raise OneStarTransactionError("Hero skills exceed configured bound")
     if not all(item.item_id for item in hero.equipment) or len(
         {item.item_id for item in hero.equipment}
     ) != len(hero.equipment):
@@ -1118,6 +1440,27 @@ def _validate_hero_constraints(hero: OneStarHeroState, config: OneStarRulesConfi
         raise OneStarTransactionError(
             "Hero skill ids must be non-empty and unique"
         )
+    expected = hero.model_copy(deep=True)
+    try:
+        rebalance_hero(hero=expected, config=config)
+    except ValueError as exc:
+        raise OneStarTransactionError(
+            "Hero deterministic progression inputs are invalid"
+        ) from exc
+    if expected.stats != hero.stats or expected.hp_max != hero.hp_max:
+        raise OneStarTransactionError(
+            "Hero stats and maximum HP do not match deterministic progression authority"
+        )
+
+
+def _validate_all_hero_progression_states(
+    checkpoint: CheckpointFile,
+    config: OneStarRulesConfig,
+) -> None:
+    for character in checkpoint.characters:
+        hero = load_one_star_hero(character)
+        if hero is not None:
+            _validate_hero_progression_state(hero, config)
 
 
 def validate_one_star_hero_state(
@@ -1126,84 +1469,23 @@ def validate_one_star_hero_state(
 ) -> None:
     """Validate a generated or seeded Hero against story-authored bounds."""
 
-    _validate_hero_constraints(hero, config)
+    _validate_hero_progression_state(hero, config)
 
 
 def one_star_transaction_cull_ids(
-    transaction: OneStarTransaction,
+    checkpoint: CheckpointFile,
+    *,
+    event_id: str,
 ) -> tuple[str, ...]:
-    """Project terminal identities without inventing a generic cull signal."""
+    """Return Hero identities first terminally culled by this committed event."""
 
-    character_ids: list[str] = []
-    for operation in transaction.operations:
-        if (
-            isinstance(operation, OneStarHeroDeltaOperation)
-            and operation.terminal_action == "death"
-        ):
-            character_ids.append(operation.hero_id)
-        elif isinstance(operation, OneStarPendingResolveOperation):
-            character_ids.extend(operation.cull_ids)
-    return tuple(dict.fromkeys(cid for cid in character_ids if cid))
-
-
-def _has_synthesis_advancement(
-    before: OneStarHeroState,
-    after: OneStarHeroState,
-) -> bool:
-    """Recognize a concrete target gain without deciding its fictional cause."""
-
-    if after.level > before.level or after.experience_points > before.experience_points:
-        return True
-    if after.hp_max > before.hp_max:
-        return True
-    if any(
-        value > before.stats.get(stat_id, 0)
-        for stat_id, value in after.stats.items()
-    ):
-        return True
-    before_equipment = {item.item_id for item in before.equipment}
-    if any(item.item_id not in before_equipment for item in after.equipment):
-        return True
-    before_skills = {skill.skill_id: skill.rank for skill in before.skills}
-    if any(
-        skill.skill_id not in before_skills
-        or skill.rank > before_skills[skill.skill_id]
-        for skill in after.skills
-    ):
-        return True
-    if set(after.conditions) < set(before.conditions):
-        return True
-    return set(after.persistent_injuries) < set(before.persistent_injuries)
-
-
-def _has_synthesis_regression(
-    before: OneStarHeroState,
-    after: OneStarHeroState,
-) -> bool:
-    """Reject paying permanent sources for a target state that got worse."""
-
-    if after.hp_current < before.hp_current or after.hp_max < before.hp_max:
-        return True
-    if any(
-        after.stats.get(stat_id, 0) < before.stats.get(stat_id, 0)
-        for stat_id in set(before.stats) | set(after.stats)
-    ):
-        return True
-    after_equipment = {item.item_id: item for item in after.equipment}
-    for item in before.equipment:
-        updated = after_equipment.get(item.item_id)
-        if updated is None or updated.quantity < item.quantity:
-            return True
-        if updated.durability_current < item.durability_current:
-            return True
-    after_skills = {skill.skill_id: skill for skill in after.skills}
-    for skill in before.skills:
-        updated = after_skills.get(skill.skill_id)
-        if updated is None or updated.rank < skill.rank:
-            return True
-    if not set(after.conditions).issubset(before.conditions):
-        return True
-    return not set(after.persistent_injuries).issubset(before.persistent_injuries)
+    return tuple(
+        character.character_id
+        for character in checkpoint.characters
+        if character.status == CharacterStatus.culled
+        and (hero := load_one_star_hero(character)) is not None
+        and hero.terminal_event_id == event_id
+    )
 
 
 def _apply_inventory_delta(
@@ -1652,7 +1934,7 @@ def _apply_summon(
             )
         hero.owner_lobby_id = config.lobby_id
         hero.acquisition_event_id = event_id
-        _validate_hero_constraints(hero, config)
+        _validate_hero_progression_state(hero, config)
         hero_initializations[hero_id] = hero
         _store_hero(existing, hero)
     if weighted_draws:
@@ -1666,23 +1948,11 @@ def _apply_hero_delta(
     operation: OneStarHeroDeltaOperation,
     checkpoint: CheckpointFile,
     config: OneStarRulesConfig,
+    event_id: str,
 ) -> None:
     character, hero = _require_local_active_hero(checkpoint, operation.hero_id, config)
-    prior_level = hero.level
     if operation.hp_current is not None:
         hero.hp_current = operation.hp_current
-    if operation.hp_max is not None:
-        hero.hp_max = operation.hp_max
-    if operation.level is not None:
-        if operation.level < prior_level:
-            raise OneStarTransactionError("Hero level cannot regress")
-        hero.level = operation.level
-    hero.experience_points += operation.experience_delta
-    if hero.experience_points < 0:
-        raise OneStarTransactionError("Hero XP cannot become negative")
-    for stat_delta in operation.stats_delta:
-        key = stat_delta.stat_id
-        hero.stats[key] = hero.stats.get(key, 0) + stat_delta.delta
     remove_equipment = set(operation.equipment_remove_ids)
     if len(remove_equipment) != len(operation.equipment_remove_ids):
         raise OneStarTransactionError("Hero equipment removal ids must be unique")
@@ -1741,6 +2011,7 @@ def _apply_hero_delta(
         if not operation.death_cause.strip():
             raise OneStarTransactionError("death requires a cause")
         hero.terminal_cause = operation.death_cause.strip()
+        hero.terminal_event_id = event_id
         character.status = CharacterStatus.culled
     elif operation.death_cause.strip():
         raise OneStarTransactionError(
@@ -1754,8 +2025,109 @@ def _apply_hero_delta(
         raise OneStarTransactionError(
             "Hero delta produced an invalid durable Hero state"
         ) from exc
-    _validate_hero_constraints(validated_hero, config)
+    _validate_hero_progression_state(validated_hero, config)
     _store_hero(character, validated_hero)
+
+
+def _validate_global_equipment_ids(
+    checkpoint: CheckpointFile,
+    state: OneStarAccountState,
+) -> None:
+    """Require a stable item id to identify exactly one durable record."""
+
+    owners: dict[str, str] = {}
+    for item in state.stored_equipment:
+        if item.item_id in owners:
+            raise OneStarTransactionError(
+                f"equipment item id {item.item_id!r} is duplicated in account storage"
+            )
+        owners[item.item_id] = "account storage"
+    for character in checkpoint.characters:
+        hero = load_one_star_hero(character)
+        if hero is None:
+            continue
+        for item in hero.equipment:
+            previous = owners.get(item.item_id)
+            if previous is not None:
+                raise OneStarTransactionError(
+                    f"equipment item id {item.item_id!r} is shared by {previous} "
+                    f"and Hero {character.character_id!r}"
+                )
+            owners[item.item_id] = f"Hero {character.character_id!r}"
+
+
+def _apply_equipment_move(
+    operation: OneStarEquipmentMoveOperation,
+    state: OneStarAccountState,
+    checkpoint: CheckpointFile,
+    config: OneStarRulesConfig,
+) -> None:
+    """Move one exact record between local lobby Heroes and account storage."""
+
+    item_id = operation.item_id
+    matches: list[tuple[str, CharacterRecord | None, OneStarEquipmentEntry]] = []
+    for item in state.stored_equipment:
+        if item.item_id == item_id:
+            matches.append(("account", None, item))
+    for character in checkpoint.characters:
+        hero = load_one_star_hero(character)
+        if hero is None:
+            continue
+        for item in hero.equipment:
+            if item.item_id == item_id:
+                matches.append(("hero", character, item))
+    if len(matches) != 1:
+        raise OneStarTransactionError(
+            "equipment move must identify exactly one durable item record"
+        )
+    source_kind, source_character, item = matches[0]
+    destination = operation.destination
+    if destination == "account":
+        if source_kind == "account":
+            raise OneStarTransactionError("equipment move cannot leave an item in place")
+        if source_character is None:  # pragma: no cover - source_kind guards it.
+            raise OneStarTransactionError("equipment move has no Hero source")
+        source_character, source = _require_local_active_hero(
+            checkpoint,
+            source_character.character_id,
+            config,
+        )
+        if source_character.location != config.lobby_location_label:
+            raise OneStarTransactionError("equipment moves require a lobby source Hero")
+        source.equipment = [entry for entry in source.equipment if entry.item_id != item_id]
+        state.stored_equipment.append(item.model_copy(deep=True))
+        _store_hero(source_character, source)
+        return
+
+    destination_character, destination_hero = _require_local_active_hero(
+        checkpoint,
+        destination,
+        config,
+    )
+    if destination_character.location != config.lobby_location_label:
+        raise OneStarTransactionError("equipment moves require a lobby destination Hero")
+    if source_kind == "hero":
+        if source_character is None:  # pragma: no cover - source_kind guards it.
+            raise OneStarTransactionError("equipment move has no Hero source")
+        source_character, source = _require_local_active_hero(
+            checkpoint,
+            source_character.character_id,
+            config,
+        )
+        if source_character.location != config.lobby_location_label:
+            raise OneStarTransactionError("equipment moves require a lobby source Hero")
+        if source_character.character_id == destination_character.character_id:
+            raise OneStarTransactionError("equipment move cannot leave an item in place")
+        source.equipment = [entry for entry in source.equipment if entry.item_id != item_id]
+        _store_hero(source_character, source)
+    else:
+        state.stored_equipment = [
+            entry for entry in state.stored_equipment if entry.item_id != item_id
+        ]
+    if any(entry.item_id == item_id for entry in destination_hero.equipment):
+        raise OneStarTransactionError("equipment move duplicates a destination item id")
+    destination_hero.equipment.append(item.model_copy(deep=True))
+    _store_hero(destination_character, destination_hero)
 
 
 def _apply_mission_start(
@@ -1841,6 +2213,24 @@ def _apply_mission_update(
     mission.counters = list(operation.counters)
 
 
+def _mission_xp_award(
+    hero: OneStarHeroState,
+    *,
+    floor: int,
+    config: OneStarRulesConfig,
+) -> int:
+    overlevel = max(0, hero.level - floor)
+    percentage = config.progression.overlevel_xp_percentages[
+        min(overlevel, len(config.progression.overlevel_xp_percentages) - 1)
+    ]
+    return (
+        config.progression.floor_xp_per_floor
+        * floor
+        * percentage
+        // 100
+    )
+
+
 def _apply_mission_end(
     operation: OneStarMissionEndOperation,
     state: OneStarAccountState,
@@ -1848,7 +2238,8 @@ def _apply_mission_end(
     config: OneStarRulesConfig,
     now_s: int,
     pre_event_escape_authorities: Mapping[str, set[str]],
-) -> None:
+    owner_character_id: str,
+) -> tuple[OneStarSystemConsequence, ...]:
     mission = state.active_mission
     if mission is None or mission.mission_id != operation.mission_id:
         raise OneStarTransactionError("mission end does not target the active mission")
@@ -1916,6 +2307,36 @@ def _apply_mission_end(
             if reward.gold:
                 gold = max(config.repeat_gold_minimum, gold)
             _add_resources(state.resources, OneStarCost(gold=gold, gems=0, building_resources=0, materials={}))
+    system_consequences: list[OneStarSystemConsequence] = []
+    if operation.outcome == "completed":
+        for character, hero in survivors:
+            award = _mission_xp_award(
+                hero,
+                floor=mission.floor,
+                config=config,
+            )
+            try:
+                report = apply_experience(
+                    hero=hero,
+                    experience_delta=award,
+                    config=config,
+                )
+            except ValueError as exc:
+                raise OneStarTransactionError(
+                    "mission XP could not be applied to a surviving Hero"
+                ) from exc
+            _validate_hero_progression_state(hero, config)
+            consequence = _progression_consequence(
+                character=character,
+                checkpoint=checkpoint,
+                state=state,
+                config=config,
+                owner_character_id=owner_character_id,
+                report=report,
+                label="mission reward",
+                include_management_observers=False,
+            )
+            system_consequences.extend(consequence)
     destination = operation.return_destination.strip()
     returning = operation.outcome in {"completed", "escaped"}
     if returning and destination != config.lobby_location_label:
@@ -1931,9 +2352,10 @@ def _apply_mission_end(
         if config.lobby_return_healing and hero.hp_current > 0:
             hero.hp_current = hero.hp_max
             hero.conditions = []
-            _store_hero(character, hero)
+        _store_hero(character, hero)
     state.active_mission = None
     state.active_master_feed_id = ""
+    return tuple(system_consequences)
 
 
 def _apply_pending_open(
@@ -1942,22 +2364,22 @@ def _apply_pending_open(
     checkpoint: CheckpointFile,
     config: OneStarRulesConfig,
     now_s: int,
-) -> None:
+) -> OneStarPendingOperation:
     if state.active_mission is not None:
         raise OneStarTransactionError(
             "cannot open a lobby operation while a Tower mission is active"
         )
     if state.pending_operation is not None:
         raise OneStarTransactionError("only one embodied One-Star operation may be pending")
-    pending = operation.pending
-    validate_one_star_pending_operation_shape(pending)
-    if pending.opened_at_s != now_s:
+    selection = operation.pending
+    validate_one_star_pending_operation_shape(selection)
+    if selection.opened_at_s != now_s:
         raise OneStarTransactionError("pending operation must use canonical event time")
-    for hero_id in pending.participant_ids:
+    for hero_id in selection.participant_ids:
         _require_local_active_hero(checkpoint, hero_id, config)
-    if pending.kind in {"synthesis", "promotion"}:
-        _require_local_active_hero(checkpoint, pending.target_id, config)
-    if not pending.destination:
+    if selection.kind in {"synthesis", "promotion"}:
+        _require_local_active_hero(checkpoint, selection.target_id, config)
+    if not selection.destination:
         raise OneStarTransactionError(
             "embodied operations require a physical destination"
         )
@@ -1966,15 +2388,24 @@ def _apply_pending_open(
         for kind, requirement in config.operation_requirements.items()
         if kind != "deployment" and requirement.required_location
     }
-    if pending.kind == "deployment" and pending.destination in {
+    if selection.kind == "deployment" and selection.destination in {
         config.lobby_location_label,
         *lobby_operation_locations,
     }:
         raise OneStarTransactionError(
             "deployment destination must cross beyond the configured lobby"
         )
-    _require_operational_facility(pending, state, config)
+    _require_operational_facility(selection, state, config)
+    pending = OneStarPendingOperation(
+        **selection.model_dump(mode="python"),
+        synthesis_preview=(
+            _synthesis_preview(selection, state, checkpoint, config)
+            if selection.kind == "synthesis"
+            else None
+        ),
+    )
     state.pending_operation = pending
+    return pending
 
 
 def _require_operational_facility(
@@ -2041,22 +2472,81 @@ def _restore_promotion_knowledge(
         character.agent_tier = rung.agent_tier
 
 
+def _synthesis_skill_roll_succeeds(
+    *,
+    checkpoint: CheckpointFile,
+    operation_id: str,
+    source_id: str,
+    chance_basis_points: int,
+) -> bool:
+    """Use one namespaced cryptographic stream per selected source Hero."""
+
+    if chance_basis_points < 0 or chance_basis_points > 10_000:
+        raise OneStarTransactionError("synthesis skill chance is outside basis-point bounds")
+    payload = json.dumps(
+        [
+            "ayoa.one_star.synthesis.skill-transfer.v1",
+            checkpoint.session.session_id,
+            operation_id,
+            source_id,
+        ],
+        ensure_ascii=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    draw = int.from_bytes(hashlib.sha256(payload).digest(), "big")
+    return draw < ((1 << 256) * chance_basis_points // 10_000)
+
+
+def _synthesis_skill_consequences(
+    *,
+    skill: OneStarSkillEntry,
+    target: CharacterRecord,
+    checkpoint: CheckpointFile,
+    state: OneStarAccountState,
+    config: OneStarRulesConfig,
+    owner_character_id: str,
+) -> tuple[OneStarSystemConsequence, ...]:
+    recipients = _system_window_recipients(
+        checkpoint,
+        state,
+        config,
+        owner_character_id,
+        (target.character_id,),
+    )
+    if skill.visible:
+        system_text = (
+            f"System: {target.name} received transferred skill {skill.name} at rank 1."
+        )
+    else:
+        system_text = f"System: {target.name} received a latent transferred capability."
+    consequences = [OneStarSystemConsequence(
+        text=system_text,
+        recipient_character_ids=recipients,
+    )]
+    if target.character_id not in recipients:
+        consequences.append(OneStarSystemConsequence(
+            text=f"An unfamiliar pattern settles quietly within {target.name}.",
+            recipient_character_ids=(target.character_id,),
+        ))
+    return tuple(consequences)
+
+
 def _apply_pending_resolve(
     operation: OneStarPendingResolveOperation,
     state: OneStarAccountState,
     checkpoint: CheckpointFile,
     config: OneStarRulesConfig,
-) -> object:
+    *,
+    event_id: str,
+    owner_character_id: str,
+    engine_history_updates: list[str],
+) -> tuple[OneStarPendingOperation, tuple[OneStarSystemConsequence, ...]]:
     pending = state.pending_operation
     if pending is None or pending.operation_id != operation.operation_id:
         raise OneStarTransactionError("pending resolution does not match the open operation")
     _require_operational_facility(pending, state, config)
-    cull_ids = list(dict.fromkeys(cid.strip() for cid in operation.cull_ids if cid.strip()))
-    if len(cull_ids) != len(operation.cull_ids):
-        raise OneStarTransactionError("pending resolution cull ids must be unique and non-empty")
+    system_consequences: list[OneStarSystemConsequence] = []
     if pending.kind == "deployment":
-        if cull_ids or operation.promotion_target_stars is not None:
-            raise OneStarTransactionError("deployment resolution cannot cull or promote Heroes")
         for hero_id in pending.participant_ids:
             character, _hero = _require_local_active_hero(checkpoint, hero_id, config)
             if character.location != pending.destination:
@@ -2065,38 +2555,138 @@ def _apply_pending_resolve(
                 )
         state.active_master_feed_id = pending.participant_ids[0]
     elif pending.kind == "synthesis":
-        if set(cull_ids) != set(pending.participant_ids):
-            raise OneStarTransactionError("synthesis resolution must cull exactly all selected sources")
-        if operation.promotion_target_stars is not None:
-            raise OneStarTransactionError("synthesis resolution cannot promote Heroes")
-        target_character, target = _require_local_active_hero(checkpoint, pending.target_id, config)
+        target_character, target, sources = _synthesis_sources_and_target(
+            pending,
+            checkpoint,
+            config,
+        )
         if target_character.location != pending.destination:
             raise OneStarTransactionError(
                 "synthesis target has not physically entered the chamber"
             )
-        for source_id in cull_ids:
-            source_character, source = _require_local_active_hero(checkpoint, source_id, config)
-            if source_id == pending.target_id:
-                raise OneStarTransactionError("synthesis target cannot be culled")
+        for source_character, _source in sources:
             if source_character.location != pending.destination:
                 raise OneStarTransactionError(
                     "synthesis source has not physically entered the chamber"
                 )
+        expected_preview = _synthesis_preview(pending, state, checkpoint, config)
+        if pending.synthesis_preview != expected_preview:
+            raise OneStarTransactionError(
+                "synthesis sources, target capacity, or returned equipment changed since selection"
+            )
+        preview = pending.synthesis_preview
+        if preview is None:  # Defensive: durable schema requires it for synthesis.
+            raise OneStarTransactionError("synthesis pending operation has no preview")
+        known_item_ids = {item.item_id for item in state.stored_equipment}
+        for item in preview.returned_equipment:
+            if item.item_id in known_item_ids:
+                raise OneStarTransactionError(
+                    "synthesis returned equipment conflicts with durable storage"
+                )
+            known_item_ids.add(item.item_id)
+        # Move each exact record before culling its source.  The after-checkpoint
+        # is prepared as one unit, so any later validation failure rolls this back.
+        state.stored_equipment.extend(
+            item.model_copy(deep=True) for item in preview.returned_equipment
+        )
+        for source_character, source in sources:
+            source.equipment = []
+            _store_hero(source_character, source)
+        try:
+            report = apply_experience(
+                hero=target,
+                experience_delta=preview.offered_xp,
+                config=config,
+            )
+        except ValueError as exc:
+            raise OneStarTransactionError("synthesis XP could not be applied") from exc
+        if (
+            report.applied_xp != preview.applied_xp
+            or report.wasted_xp != preview.wasted_xp
+        ):
+            raise OneStarTransactionError("synthesis XP preview no longer matches resolution")
+        for source_character, source in sources:
+            if not _synthesis_skill_roll_succeeds(
+                checkpoint=checkpoint,
+                operation_id=pending.operation_id,
+                source_id=source_character.character_id,
+                chance_basis_points=preview.skill_transfer_chance_basis_points,
+            ):
+                continue
+            known_skill_ids = {skill.skill_id for skill in target.skills}
+            eligible = sorted(
+                (
+                    skill
+                    for skill in source.skills
+                    if skill.rank > 0 and skill.skill_id not in known_skill_ids
+                ),
+                key=lambda skill: skill.skill_id,
+            )
+            if not eligible:
+                continue
+            transferred = eligible[0].model_copy(
+                update={"rank": 1},
+                deep=True,
+            )
+            target.skills.append(transferred)
+            engine_history_updates.append(
+                "synthesis_skill_transfer "
+                + json.dumps(
+                    {
+                        "target_character_id": target_character.character_id,
+                        "source_character_id": source_character.character_id,
+                        "skill": transferred.model_dump(mode="json"),
+                    },
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            )
+            system_consequences.extend(_synthesis_skill_consequences(
+                skill=transferred,
+                target=target_character,
+                checkpoint=checkpoint,
+                state=state,
+                config=config,
+                owner_character_id=owner_character_id,
+            ))
+        progression_consequences = _progression_consequence(
+            character=target_character,
+            checkpoint=checkpoint,
+            state=state,
+            config=config,
+            owner_character_id=owner_character_id,
+            report=report,
+            label="synthesis result",
+        )
+        system_consequences.extend(progression_consequences)
+        for item in preview.returned_equipment:
+            system_consequences.append(OneStarSystemConsequence(
+                text=(
+                    f"System: {item.name} [{item.item_id}] returned to durable "
+                    "equipment storage."
+                ),
+                recipient_character_ids=_system_window_recipients(
+                    checkpoint,
+                    state,
+                    config,
+                    owner_character_id,
+                    tuple(character.character_id for character, _source in sources),
+                ),
+            ))
+        for source_character, source in sources:
             source.terminal_cause = "synthesized"
+            source.terminal_event_id = event_id
             source_character.status = CharacterStatus.culled
             _store_hero(source_character, source)
-        _validate_hero_constraints(target, config)
+        _validate_hero_progression_state(target, config)
+        _store_hero(target_character, target)
     else:  # promotion
-        if cull_ids:
-            raise OneStarTransactionError("promotion resolution cannot cull Heroes")
         target_character, target = _require_local_active_hero(checkpoint, pending.target_id, config)
         if target_character.location != pending.destination:
             raise OneStarTransactionError(
                 "promotion target has not physically entered the chamber"
             )
-        next_stars = operation.promotion_target_stars
-        if next_stars is None or next_stars != target.current_stars + 1:
-            raise OneStarTransactionError("promotion must advance exactly one star")
+        next_stars = target.current_stars + 1
         if next_stars not in config.star_level_caps:
             raise OneStarTransactionError("promotion target has no configured star cap")
         if target.level != config.star_level_caps[target.current_stars]:
@@ -2105,15 +2695,30 @@ def _apply_pending_resolve(
             )
         _spend_resources(state.resources, config.promotion_cost)
         target.current_stars = next_stars
+        try:
+            report = apply_promotion_banked_experience(hero=target, config=config)
+        except ValueError as exc:
+            raise OneStarTransactionError(
+                "promotion could not apply the Hero's banked experience"
+            ) from exc
         _restore_promotion_knowledge(
             checkpoint,
             target_character,
             next_stars,
         )
-        _validate_hero_constraints(target, config)
+        _validate_hero_progression_state(target, config)
         _store_hero(target_character, target)
+        system_consequences.extend(_progression_consequence(
+            character=target_character,
+            checkpoint=checkpoint,
+            state=state,
+            config=config,
+            owner_character_id=owner_character_id,
+            report=report,
+            label="promotion result",
+        ))
     state.pending_operation = None
-    return pending
+    return pending, tuple(system_consequences)
 
 
 def _apply_pending_cancel(operation: OneStarPendingCancelOperation, state: OneStarAccountState) -> None:
@@ -2334,6 +2939,8 @@ def prepare_one_star_transaction(
     owner, account = load_one_star_account(after)
     state = account.state
     config = account.config
+    _validate_global_equipment_ids(after, state)
+    _validate_all_hero_progression_states(after, config)
     active_feed_before_event = state.active_master_feed_id
     active_feed_authored = any(
         isinstance(operation, OneStarActiveFeedOperation)
@@ -2579,6 +3186,7 @@ def prepare_one_star_transaction(
             f"recovery_anchor_s={state.stamina_recovery_anchor_s}"
         )
     ] if state.stamina_current > stamina_before_recovery else []
+    system_consequences: list[OneStarSystemConsequence] = []
     if not transaction.present:
         if expected_summon_ids:
             raise OneStarTransactionError(
@@ -2602,8 +3210,6 @@ def prepare_one_star_transaction(
     summon_ids: set[str] = set()
     resolved_deployments: dict[str, object] = {}
     started_deployment_ids: set[str] = set()
-    synthesis_targets: set[str] = set()
-    promotion_targets: set[str] = set()
     actor_id = initiating_actor_id.strip()
 
     def require_account_owner(operation_name: str) -> None:
@@ -2651,7 +3257,7 @@ def prepare_one_star_transaction(
         elif isinstance(operation, OneStarInventoryDeltaOperation):
             _apply_inventory_delta(operation, state)
         elif isinstance(operation, OneStarHeroDeltaOperation):
-            _apply_hero_delta(operation, after, config)
+            _apply_hero_delta(operation, after, config, event_id)
         elif isinstance(operation, OneStarMissionStartOperation):
             _apply_mission_start(
                 operation,
@@ -2665,37 +3271,56 @@ def prepare_one_star_transaction(
         elif isinstance(operation, OneStarMissionUpdateOperation):
             _apply_mission_update(operation, state, now_s)
         elif isinstance(operation, OneStarMissionEndOperation):
-            _apply_mission_end(
+            system_consequences.extend(_apply_mission_end(
                 operation,
                 state,
                 after,
                 config,
                 now_s,
                 pre_event_escape_authorities,
-            )
+                owner.character_id,
+            ))
         elif isinstance(operation, OneStarPendingOpenOperation):
             require_account_owner("an embodied operation selection")
-            _apply_pending_open(operation, state, after, config, now_s)
+            pending = _apply_pending_open(operation, state, after, config, now_s)
+            if pending.kind == "synthesis":
+                system_consequences.append(_synthesis_preview_consequence(
+                    pending=pending,
+                    checkpoint=after,
+                    state=state,
+                    config=config,
+                    owner_character_id=owner.character_id,
+                ))
         elif isinstance(operation, OneStarPendingResolveOperation):
             if operation.operation_id != preexisting_pending_operation_id:
                 raise OneStarTransactionError(
                     "an embodied operation cannot resolve in the event that opened it"
                 )
-            resolved = _apply_pending_resolve(
-                operation, state, after, config
+            resolved, resolved_consequences = _apply_pending_resolve(
+                operation,
+                state,
+                after,
+                config,
+                event_id=event_id,
+                owner_character_id=owner.character_id,
+                engine_history_updates=engine_history_updates,
             )
+            system_consequences.extend(resolved_consequences)
             if getattr(resolved, "kind", "") == "deployment":
                 resolved_deployments[operation.operation_id] = resolved
-            elif getattr(resolved, "kind", "") == "synthesis":
-                synthesis_targets.add(getattr(resolved, "target_id", ""))
-            elif getattr(resolved, "kind", "") == "promotion":
-                promotion_targets.add(getattr(resolved, "target_id", ""))
         elif isinstance(operation, OneStarPendingCancelOperation):
             if operation.operation_id != preexisting_pending_operation_id:
                 raise OneStarTransactionError(
                     "an embodied operation cannot cancel in the event that opened it"
                 )
             _apply_pending_cancel(operation, state)
+        elif isinstance(operation, OneStarEquipmentMoveOperation):
+            require_account_owner("an equipment move")
+            if state.active_mission is not None:
+                raise OneStarTransactionError(
+                    "account equipment controls are unavailable during an active mission"
+                )
+            _apply_equipment_move(operation, state, after, config)
         elif isinstance(operation, OneStarTutorialDeliveryOperation):
             if actor_id not in state.guide_character_ids:
                 raise OneStarTransactionError(
@@ -2715,47 +3340,8 @@ def prepare_one_star_transaction(
         raise OneStarTransactionError(
             "every resolved deployment must start exactly one mission in the same event"
         )
-    for target_id in synthesis_targets:
-        before = before_character_state.get(target_id)
-        after_character = _require_character(after, target_id)
-        after_hero = load_one_star_hero(after_character)
-        try:
-            before_hero = (
-                OneStarHeroState.model_validate(before[3])
-                if before is not None and before[3] is not None
-                else None
-            )
-        except ValidationError as exc:
-            raise OneStarTransactionError(
-                "synthesis target had invalid pre-event Hero state"
-            ) from exc
-        if (
-            before_hero is None
-            or after_hero is None
-            or after_character.status != CharacterStatus.active
-            or not _has_synthesis_advancement(before_hero, after_hero)
-            or _has_synthesis_regression(before_hero, after_hero)
-        ):
-            raise OneStarTransactionError(
-                "synthesis must leave its active target with a concrete mechanical advancement"
-            )
-    for target_id in promotion_targets:
-        before = before_character_state.get(target_id)
-        after_hero = load_one_star_hero(_require_character(after, target_id))
-        before_hero = (
-            OneStarHeroState.model_validate(before[3])
-            if before is not None and before[3] is not None
-            else None
-        )
-        if (
-            before_hero is None
-            or after_hero is None
-            or after_hero.level != before_hero.level
-            or after_hero.experience_points != before_hero.experience_points
-        ):
-            raise OneStarTransactionError(
-                "promotion must retain the target's level and experience"
-            )
+    _validate_global_equipment_ids(after, state)
+    _validate_all_hero_progression_states(after, config)
 
     if state.active_master_feed_id in dormant_ids:
         state.active_master_feed_id = ""
@@ -2811,6 +3397,7 @@ def prepare_one_star_transaction(
         newly_acquired_hero_ids=tuple(hero_initializations),
         touched_hero_ids=touched_hero_ids,
         engine_history_updates=tuple(engine_history_updates),
+        system_consequences=tuple(system_consequences),
     )
 
 

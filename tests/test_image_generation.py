@@ -406,6 +406,12 @@ async def test_one_star_image_projection_uses_only_current_visible_equipment():
         "one_star_hero": {
             "birth_stars": 1,
             "current_stars": 1,
+            "stats": {"power": 3, "agility": 2, "resilience": 1},
+            "terminal_event_id": "",
+            "progression_seed": "alice_progression_seed",
+            "strong_stat_id": "power",
+            "weak_stat_id": "resilience",
+            "potential_grade": 1,
             "equipment": [
                 {
                     "item_id": "live_blade",
@@ -476,6 +482,12 @@ def test_non_one_star_image_projection_keeps_authored_loadout():
         "one_star_hero": {
             "birth_stars": 1,
             "current_stars": 1,
+            "stats": {"power": 3, "agility": 2, "resilience": 1},
+            "terminal_event_id": "",
+            "progression_seed": "alice_progression_seed",
+            "strong_stat_id": "power",
+            "weak_stat_id": "resilience",
+            "potential_grade": 1,
             "equipment": [{
                 "item_id": "live_blade",
                 "name": "Live Blade",
@@ -501,6 +513,12 @@ def test_one_star_manual_identity_reroll_uses_current_visible_equipment():
         "one_star_hero": {
             "birth_stars": 1,
             "current_stars": 1,
+            "stats": {"power": 3, "agility": 2, "resilience": 1},
+            "terminal_event_id": "",
+            "progression_seed": "alice_progression_seed",
+            "strong_stat_id": "power",
+            "weak_stat_id": "resilience",
+            "potential_grade": 1,
             "equipment": [
                 {
                     "item_id": "live_blade",

@@ -20,6 +20,7 @@ from app.engine.one_star_adapter import (
     load_one_star_hero,
     prepare_one_star_transaction,
 )
+from app.engine.one_star_progression import rebalance_hero
 from app.schemas.characters import CharacterAgentTier, CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.events import CanonicalEvent
@@ -30,8 +31,11 @@ from app.schemas.one_star import (
     OneStarMissionCounter,
     OneStarMissionState,
     OneStarPendingOperation,
+    OneStarPendingOperationSelection,
     OneStarTransaction,
     OneStarEventRouterOutput,
+    OneStarHeroState,
+    OneStarRulesConfig,
 )
 from app.schemas.state import KnowledgeTier, SessionConfig, SessionSettings, SessionState, WorldState
 
@@ -78,13 +82,20 @@ def _config() -> dict:
         "stamina_recovery_seconds": 30,
         "deployment_stamina_cost": 1,
         "max_summon_batch": 5,
-        "hero_constraints": {
-            "minimum_hp_max": 1,
-            "maximum_hp_max": 50,
-            "maximum_xp": 1000,
-            "maximum_stat_value": 20,
-            "maximum_equipment_entries": 5,
-            "maximum_skill_entries": 5,
+        "progression": {
+            "stat_ids": ["power", "agility", "spirit"],
+            "grade_multiplier_milli": 1250,
+            "birth_stat_total": 15,
+            "birth_hp_max": 7,
+            "variance_basis_points": 0,
+            "stat_growth_per_level_milli": 1000,
+            "hp_growth_per_level_milli": 500,
+            "xp_threshold_factor": 50,
+            "floor_xp_per_floor": 100,
+            "overlevel_xp_percentages": [100, 75, 50, 25, 10, 5, 0],
+            "cap_bank_extra_levels": 1,
+            "synthesis_source_base_xp": 100,
+            "synthesis_skill_chance_basis_points": 500,
         },
         "floor_rewards": {
             "1": {"gold": 4, "gems": 0, "building_resources": 1, "materials": {}},
@@ -104,7 +115,7 @@ def _config() -> dict:
 
 
 def _hero(*, status: CharacterStatus = CharacterStatus.active, location: str = "lobby", owner: str = "lobby_a", level: int = 1, xp: int = 0) -> CharacterRecord:
-    return CharacterRecord(
+    character = CharacterRecord(
         character_id="hero",
         name="Hero",
         status=status,
@@ -117,11 +128,24 @@ def _hero(*, status: CharacterStatus = CharacterStatus.active, location: str = "
                 "experience_points": xp,
                 "hp_current": 7,
                 "hp_max": 7,
+                "stats": {"power": 6, "agility": 5, "spirit": 4},
                 "owner_lobby_id": owner,
                 "acquisition_event_id": "seed" if owner else "",
+                "terminal_event_id": "",
+                "progression_seed": "atomicity_hero",
+                "strong_stat_id": "power",
+                "weak_stat_id": "spirit",
+                "potential_grade": 1,
             }
         },
     )
+    raw_config = _config()
+    raw_config["star_level_caps"]["1"] = max(10, level)
+    config = OneStarRulesConfig.model_validate(raw_config)
+    hero = OneStarHeroState.model_validate(character.mechanics[ONE_STAR_HERO_KEY])
+    rebalance_hero(hero=hero, config=config, restore_full_hp=True)
+    character.mechanics[ONE_STAR_HERO_KEY] = hero.model_dump(mode="json")
+    return character
 
 
 def _mission(*, destination: str = "tower_floor_1", party: list[str] | None = None) -> OneStarMissionState:
@@ -153,6 +177,7 @@ def _checkpoint(
 ) -> CheckpointFile:
     state = {
         "resources": deepcopy(_config()["starting_resources"]),
+        "stored_equipment": [],
         "lobby_floor": 1,
         "capacity": 10,
         "highest_unlocked_floor": 1,
@@ -189,10 +214,6 @@ def _hero_delta(hero_id: str = "hero", **overrides: object) -> dict:
         "operation": "hero_delta",
         "hero_id": hero_id,
         "hp_current": None,
-        "hp_max": None,
-        "level": None,
-        "experience_delta": 0,
-        "stats_delta": [],
         "equipment_add": [],
         "equipment_remove_ids": [],
         "skills_add": [],
@@ -237,8 +258,14 @@ def test_ordinary_non_hero_spawn_does_not_require_a_summon_transaction() -> None
     )
 
 
-def _pending(kind: str, *, target: str = "", participants: list[str] | None = None, destination: str) -> OneStarPendingOperation:
-    return OneStarPendingOperation(
+def _pending(
+    kind: str,
+    *,
+    target: str = "",
+    participants: list[str] | None = None,
+    destination: str,
+) -> OneStarPendingOperationSelection:
+    return OneStarPendingOperationSelection(
         operation_id=f"{kind}_1",
         kind=kind,
         participant_ids=participants or ([target] if target else ["hero"]),
@@ -615,77 +642,42 @@ def test_exact_event_replay_is_idempotent_but_payload_drift_is_rejected() -> Non
         )
 
 
-def test_synthesis_requires_advancement_but_culls_all_sources_when_valid() -> None:
+def test_synthesis_resolve_derives_selected_source_culls() -> None:
     source_a = _hero(location="synthesis_room", owner="lobby_a")
     source_a.character_id = "source_a"
     source_b = _hero(location="synthesis_room", owner="lobby_a")
     source_b.character_id = "source_b"
     target = _hero(location="synthesis_room", owner="lobby_a")
     target.character_id = "target"
-    pending = _pending(
-        "synthesis",
-        target="target",
-        participants=["source_a", "source_b"],
-        destination="synthesis_room",
-    )
-    checkpoint = _checkpoint(
-        heroes=[source_a, source_b, target],
-        pending_operation=pending,
-    )
-    resolve = {
-        "operation": "pending_resolve",
-        "operation_id": "synthesis_1",
-        "cull_ids": ["source_a", "source_b"],
-        "promotion_target_stars": None,
-    }
-    with pytest.raises(OneStarTransactionError, match="concrete mechanical advancement"):
-        prepare_one_star_transaction(
-            checkpoint,
-            event_id="synthesis_harm_only",
-            transaction=_transaction(resolve),
-        )
-
-    with pytest.raises(OneStarTransactionError, match="concrete mechanical advancement"):
-        prepare_one_star_transaction(
-            checkpoint,
-            event_id="synthesis_mixed_regression",
-            transaction=_transaction(
-                _hero_delta(
-                    "target",
-                    level=2,
-                    hp_current=1,
-                    persistent_injuries=["synthesis damage"],
-                ),
-                resolve,
-            ),
-        )
-
-    with pytest.raises(OneStarTransactionError, match="concrete mechanical advancement"):
-        prepare_one_star_transaction(
-            checkpoint,
-            event_id="synthesis_new_negative_stat",
-            transaction=_transaction(
-                _hero_delta(
-                    "target",
-                    level=2,
-                    stats_delta=[{"stat_id": "new_penalty", "delta": -10}],
-                ),
-                resolve,
-            ),
-        )
-
-    improved = prepare_one_star_transaction(
+    checkpoint = _checkpoint(heroes=[source_a, source_b, target])
+    opened = prepare_one_star_transaction(
         checkpoint,
-        event_id="synthesis_improved",
-        transaction=_transaction(
-            _hero_delta("target", level=2),
-            resolve,
-        ),
+        event_id="synthesis_open",
+        transaction=_transaction({
+            "operation": "pending_open",
+            "pending": {
+                "operation_id": "synthesis_1",
+                "kind": "synthesis",
+                "participant_ids": ["source_a", "source_b"],
+                "target_id": "target",
+                "destination": "synthesis_room",
+                "opened_at_s": 0,
+            },
+        }),
+        initiating_actor_id="account_owner",
+    )
+    improved = prepare_one_star_transaction(
+        opened.after_checkpoint,
+        event_id="synthesis_resolve",
+        transaction=_transaction({
+            "operation": "pending_resolve",
+            "operation_id": "synthesis_1",
+        }),
     )
     by_id = {item.character_id: item for item in improved.after_checkpoint.characters}
     assert by_id["source_a"].status is CharacterStatus.culled
     assert by_id["source_b"].status is CharacterStatus.culled
-    assert load_one_star_hero(by_id["target"]).level == 2
+    assert load_one_star_hero(by_id["target"]).experience_points > 0
 
 
 @pytest.mark.parametrize(
@@ -700,7 +692,7 @@ def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge(
     starting_tier: CharacterAgentTier,
     expected_tier: CharacterAgentTier,
 ) -> None:
-    target = _hero(location="promotion_room", level=10, xp=123)
+    target = _hero(location="promotion_room", level=10, xp=4_500)
     target.agent_tier = starting_tier
     target.mechanics[ONE_STAR_HERO_KEY]["generated_for_summon"] = (
         generated_for_summon
@@ -722,14 +714,12 @@ def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge(
         transaction=_transaction({
             "operation": "pending_resolve",
             "operation_id": "promotion_1",
-            "cull_ids": [],
-            "promotion_target_stars": 2,
         }),
     )
     promoted = next(item for item in prepared.after_checkpoint.characters if item.character_id == "hero")
     hero = load_one_star_hero(promoted)
     assert hero is not None
-    assert (hero.current_stars, hero.level, hero.experience_points) == (2, 10, 123)
+    assert (hero.current_stars, hero.level, hero.experience_points) == (2, 10, 4_500)
     assert promoted.knowledge_tier == 2
     assert promoted.agent_tier is expected_tier
     assert "a buried memory" in promoted.known_context
@@ -819,8 +809,6 @@ def test_deployment_gate_crossing_requires_atomic_resolution_and_mission_start()
             {
                 "operation": "pending_resolve",
                 "operation_id": pending.operation_id,
-                "cull_ids": [],
-                "promotion_target_stars": None,
             },
             {
                 "operation": "mission_start",
@@ -891,8 +879,6 @@ def test_unselected_local_hero_cannot_preposition_beyond_pending_gate() -> None:
                 {
                     "operation": "pending_resolve",
                     "operation_id": pending.operation_id,
-                    "cull_ids": [],
-                    "promotion_target_stars": None,
                 },
                 {
                     "operation": "mission_start",
@@ -965,8 +951,6 @@ def test_lobby_control_cannot_follow_mission_start_in_same_transaction() -> None
                 {
                     "operation": "pending_resolve",
                     "operation_id": pending.operation_id,
-                    "cull_ids": [],
-                    "promotion_target_stars": None,
                 },
                 {
                     "operation": "mission_start",
@@ -1079,6 +1063,7 @@ def test_dispatcher_passes_event_end_time_to_ruleset_adapter_for_delayed_resolut
             culled_character_ids=(),
             newly_acquired_hero_ids=(),
             engine_history_updates=(),
+            system_consequences=(),
         )
 
     monkeypatch.setattr(one_star_adapter, "prepare_one_star_transaction", fake_prepare)
@@ -1120,16 +1105,14 @@ def test_promotion_rejects_a_target_below_the_current_star_level_cap() -> None:
             checkpoint,
             event_id="premature_promotion",
             transaction=_transaction({
-                "operation": "pending_resolve",
-                "operation_id": "promotion_1",
-                "cull_ids": [],
-                "promotion_target_stars": 2,
-            }),
+            "operation": "pending_resolve",
+            "operation_id": "promotion_1",
+        }),
         )
 
 
 def test_six_to_seven_star_promotion_preserves_last_reviewed_knowledge_tier() -> None:
-    target = _hero(location="promotion_room", level=99)
+    target = _hero(location="promotion_room", level=99, xp=485_100)
     mechanics = target.mechanics[ONE_STAR_HERO_KEY]
     mechanics["current_stars"] = 6
     checkpoint = _checkpoint(
@@ -1153,8 +1136,6 @@ def test_six_to_seven_star_promotion_preserves_last_reviewed_knowledge_tier() ->
         transaction=_transaction({
             "operation": "pending_resolve",
             "operation_id": "promotion_1",
-            "cull_ids": [],
-            "promotion_target_stars": 7,
         }),
     )
     promoted = next(

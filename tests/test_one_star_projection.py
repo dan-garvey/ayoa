@@ -11,6 +11,7 @@ from app.engine.one_star_projection import (
     visible_equipped_item_description,
 )
 from app.engine.one_star_adapter import OneStarTransactionError
+from app.engine.one_star_progression import rebalance_hero
 from app.engine.prompt_manager import PromptManager
 from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
@@ -22,14 +23,15 @@ from app.schemas.one_star import (
     OneStarAccountState,
     OneStarCost,
     OneStarEquipmentEntry,
-    OneStarHeroConstraints,
     OneStarHeroState,
     OneStarMissionCounter,
     OneStarMissionState,
     OneStarPendingOperation,
     OneStarResources,
     OneStarRulesConfig,
+    OneStarProgressionConfig,
     OneStarSkillEntry,
+    OneStarSynthesisPreview,
     OneStarSummonPool,
 )
 from app.schemas.state import SessionConfig, SessionSettings, SessionState
@@ -37,14 +39,14 @@ from tests.support.factories import text_llm_response
 
 
 def _hero_state(*, innate_system_sight: bool = False) -> OneStarHeroState:
-    return OneStarHeroState(
+    hero = OneStarHeroState(
         birth_stars=1,
         current_stars=2,
         level=7,
-        experience_points=901,
-        hp_current=17,
-        hp_max=53,
-        stats={"power": 23, "agility": 19},
+        experience_points=2_100,
+        hp_current=1,
+        hp_max=1,
+        stats={"power": 1, "agility": 1, "resilience": 1},
         equipment=[
             OneStarEquipmentEntry(
                 item_id="knife",
@@ -90,8 +92,15 @@ def _hero_state(*, innate_system_sight: bool = False) -> OneStarHeroState:
         innate_system_sight=innate_system_sight,
         owner_lobby_id="cold_lobby",
         hidden_capabilities={"awakening": "world-ending spoiler"},
-        private_potential="secret six-star potential",
+        terminal_event_id="",
+        progression_seed="projection-test-hero",
+        strong_stat_id="power",
+        weak_stat_id="agility",
+        potential_grade=1,
     )
+    rebalance_hero(hero=hero, config=_rules_config(), restore_full_hp=True)
+    hero.hp_current = hero.hp_max // 2
+    return hero
 
 
 def _rules_config() -> OneStarRulesConfig:
@@ -130,13 +139,20 @@ def _rules_config() -> OneStarRulesConfig:
         stamina_recovery_seconds=300,
         deployment_stamina_cost=1,
         max_summon_batch=10,
-        hero_constraints=OneStarHeroConstraints(
-            minimum_hp_max=1,
-            maximum_hp_max=1000,
-            maximum_xp=10000,
-            maximum_stat_value=100,
-            maximum_equipment_entries=20,
-            maximum_skill_entries=20,
+        progression=OneStarProgressionConfig(
+            stat_ids=["power", "agility", "resilience"],
+            grade_multiplier_milli=1250,
+            birth_stat_total=15,
+            birth_hp_max=8,
+            variance_basis_points=500,
+            stat_growth_per_level_milli=1000,
+            hp_growth_per_level_milli=500,
+            xp_threshold_factor=50,
+            floor_xp_per_floor=100,
+            overlevel_xp_percentages=[100, 75, 50, 25, 10, 5, 0],
+            cap_bank_extra_levels=1,
+            synthesis_source_base_xp=100,
+            synthesis_skill_chance_basis_points=500,
         ),
         floor_rewards={},
         repeat_gold_numerator=1,
@@ -180,6 +196,18 @@ def _checkpoint(
                 materials={"slime_residue": 6},
             ),
             inventory={"iron_sword": 2},
+            stored_equipment=[
+                OneStarEquipmentEntry(
+                    item_id="stored_bronze_shield",
+                    name="Stored Bronze Shield",
+                    slot="offhand",
+                    quantity=1,
+                    durability_current=7,
+                    durability_max=9,
+                    tags=["storage"],
+                    visible=True,
+                ),
+            ],
             facilities={
                 "armory": 1,
                 "tower_gate": 1,
@@ -205,6 +233,25 @@ def _checkpoint(
                 target_id="hero",
                 destination="synthesis_room",
                 opened_at_s=42,
+                synthesis_preview=OneStarSynthesisPreview(
+                    offered_xp=100,
+                    applied_xp=100,
+                    wasted_xp=0,
+                    returned_equipment=[
+                        OneStarEquipmentEntry(
+                            item_id="donor_knife",
+                            name="Donor Knife",
+                            slot="hand",
+                            quantity=1,
+                            durability_current=3,
+                            durability_max=3,
+                            tags=[],
+                            visible=True,
+                        ),
+                    ],
+                    skill_transfer_chance_basis_points=500,
+                    input_state_fingerprint="private-preview-fingerprint",
+                ),
             ),
         ),
     )
@@ -257,17 +304,21 @@ def test_account_projection_is_exact_but_excludes_private_mechanics() -> None:
     assert "1-star 80%, 2-star 18%, 3-star 2%" in block
     assert "feed-7" in block
     assert "Tired Baker: 2-star" in block
-    assert "HP 17/53" in block
+    assert "HP 5/10" in block
+    assert "Stored Bronze Shield [stored_bronze_shield] (offhand)" in block
     assert "owner-secret" not in block
     assert "hero-secret" not in block
-    assert "secret six-star potential" not in block
+    assert "potential_grade" not in block
+    assert "progression_seed" not in block
+    assert "xp_threshold_factor" not in block
+    assert '"item_id"' not in block
     assert "world-ending spoiler" not in block
     assert "Hidden Token" not in block
     assert "Sealed Art" not in block
 
 
 def test_master_commands_split_account_roster_and_hero_sheet() -> None:
-    checkpoint, owner, _, _ = _checkpoint()
+    checkpoint, owner, hero_character, _ = _checkpoint()
 
     status = one_star_master_command_lines(
         checkpoint,
@@ -279,7 +330,7 @@ def test_master_commands_split_account_roster_and_hero_sheet() -> None:
         owner.character_id,
         "heroes",
     )
-    hero = one_star_master_command_lines(
+    hero_lines = one_star_master_command_lines(
         checkpoint,
         owner.character_id,
         "hero",
@@ -290,6 +341,8 @@ def test_master_commands_split_account_roster_and_hero_sheet() -> None:
     assert "Gold 37; Gems 4; Building Resources 2" in status_text
     assert "slime_residue x6" in status_text
     assert "iron_sword x2" in status_text
+    assert "Stored Bronze Shield [stored_bronze_shield] (offhand)" in status_text
+    assert "durability 7/9" in status_text
     assert "highest cleared floor 1" in status_text
     assert "highest unlocked floor 2" in status_text
     assert "Hero capacity: 12; stamina 3/5" in status_text
@@ -297,22 +350,39 @@ def test_master_commands_split_account_roster_and_hero_sheet() -> None:
     assert "armory 1" in status_text
     assert "feed-7" in status_text
     assert "Pending management operation: synthesis" in status_text
+    assert "potential_grade" not in status_text
+    assert "progression_seed" not in status_text
+    assert "xp_threshold_factor" not in status_text
+    assert '"item_id"' not in status_text
 
     roster_text = "\n".join(roster)
     assert "Tired Baker: 2-star" in roster_text
     assert "level 7" in roster_text
-    assert "HP 17/53" in roster_text
-    assert "Stats: agility 19, power 23" in roster_text
+    assert "XP 2100/2800 to level 8" in roster_text
+    assert "HP 5/10" in roster_text
+    assert "Stats: agility 5, power 9, resilience 7" in roster_text
 
-    hero_text = "\n".join(hero)
+    hero_text = "\n".join(hero_lines)
     assert "Tired Baker [hero]" in hero_text
-    assert "XP 901" in hero_text
+    assert "XP 2100/2800 to level 8" in hero_text
     assert "Dough-Hardened Grip (rank 3)" in hero_text
     assert "Notched Kitchen Knife (hand)" in hero_text
     assert "bleeding, bad knee" in hero_text
     assert "Hidden Token" not in hero_text
     assert "Sealed Art" not in hero_text
-    assert "six-star potential" not in hero_text
+    assert "potential_grade" not in hero_text
+    assert "progression_seed" not in hero_text
+
+    hero_state = _hero_state()
+    hero_state.level = 20
+    hero_state.experience_points = 21_000
+    hero_character.mechanics[ONE_STAR_HERO_KEY] = hero_state.model_dump(mode="json")
+    cap_roster = one_star_master_command_lines(
+        checkpoint,
+        owner.character_id,
+        "heroes",
+    )
+    assert "XP 21000; cap-bank 2000/2000" in "\n".join(cap_roster)
 
 
 def test_master_commands_reject_non_owner_and_other_rulesets() -> None:
@@ -374,7 +444,7 @@ def test_ordinary_hero_gets_embodied_state_without_system_numbers_or_lore() -> N
     assert "duty" not in block.lower()
     assert "Hidden Token" not in block
     assert "Sealed Art" not in block
-    assert "six-star" not in block
+    assert "potential" not in block
 
 
 @pytest.mark.parametrize(
@@ -395,12 +465,13 @@ def test_research_or_system_sight_reveals_exact_own_sheet(
     block = one_star_agent_state_block(checkpoint, hero)
 
     assert "level 7" in block
-    assert "XP 901" in block
-    assert "HP 17/53" in block
-    assert "power 23" in block
+    assert "XP 2100/2800 to level 8" in block
+    assert "HP 5/10" in block
+    assert "power 9" in block
     assert "rank 3" in block
     assert "durability 4/11" in block
-    assert "secret six-star potential" not in block
+    assert "potential_grade" not in block
+    assert "progression_seed" not in block
     assert "world-ending spoiler" not in block
 
 
@@ -415,8 +486,11 @@ def test_guide_gets_management_channel_without_tactical_or_hero_omniscience() ->
     assert "summoning" in block
     assert "Active mission:" not in block
     assert "feed-7" not in block
-    assert "HP 17/53" not in block
+    assert "HP 5/10" not in block
     assert "hero-secret" not in block
+    assert "Stored Bronze Shield" not in block
+    assert "potential_grade" not in block
+    assert "progression_seed" not in block
 
 
 def test_active_mission_is_visible_to_owner_but_not_guide() -> None:
@@ -521,7 +595,7 @@ async def test_dynamic_mechanics_stay_in_user_tail_and_out_of_cached_addon() -> 
     first_messages = client.complete.await_args.kwargs["messages"]
 
     hero_state = _hero_state()
-    hero_state.hp_current = 3
+    hero_state.hp_current = 2
     hero.mechanics[ONE_STAR_HERO_KEY] = hero_state.model_dump(mode="json")
     await agent.draft_turn(hero, checkpoint)
     second_messages = client.complete.await_args.kwargs["messages"]

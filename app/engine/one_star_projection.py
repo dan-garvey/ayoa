@@ -15,6 +15,10 @@ from app.engine.one_star_adapter import (
     load_one_star_account,
     load_one_star_hero,
 )
+from app.engine.one_star_progression import (
+    banked_experience_at_current_cap,
+    experience_to_reach_level,
+)
 from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import (
@@ -127,13 +131,43 @@ def _qualitative_condition(hero: OneStarHeroState) -> str:
     return condition
 
 
-def _exact_hero_lines(name: str, hero: OneStarHeroState) -> list[str]:
+def _experience_progress_line(
+    hero: OneStarHeroState,
+    envelope: OneStarAccountEnvelope,
+) -> str:
+    config = envelope.config
+    current_cap = config.star_level_caps[hero.current_stars]
+    if hero.level < current_cap:
+        next_threshold = experience_to_reach_level(hero.level + 1, config)
+        return (
+            f"XP {hero.experience_points}/{next_threshold} "
+            f"to level {hero.level + 1}"
+        )
+    cap_threshold = experience_to_reach_level(current_cap, config)
+    bank_limit = (
+        experience_to_reach_level(
+            current_cap + config.progression.cap_bank_extra_levels,
+            config,
+        )
+        - cap_threshold
+    )
+    return (
+        f"XP {hero.experience_points}; cap-bank "
+        f"{banked_experience_at_current_cap(hero, config)}/{bank_limit}"
+    )
+
+
+def _exact_hero_lines(
+    name: str,
+    hero: OneStarHeroState,
+    envelope: OneStarAccountEnvelope,
+) -> list[str]:
     stats = _join_values(
         (f"{key} {value}" for key, value in sorted(hero.stats.items()))
     )
     return [
         f"{name}: {hero.current_stars}-star (born {hero.birth_stars}-star), "
-        f"level {hero.level}, XP {hero.experience_points}, "
+        f"level {hero.level}, {_experience_progress_line(hero, envelope)}, "
         f"HP {hero.hp_current}/{hero.hp_max}",
         f"Stats: {stats}",
         f"Skills: {_skills_line(hero, exact=True)}",
@@ -145,11 +179,12 @@ def _exact_hero_lines(name: str, hero: OneStarHeroState) -> list[str]:
 def _own_hero_lines(
     character: CharacterRecord,
     hero: OneStarHeroState,
+    envelope: OneStarAccountEnvelope,
     *,
     exact: bool,
 ) -> list[str]:
     if exact:
-        return _exact_hero_lines(character.name, hero)
+        return _exact_hero_lines(character.name, hero, envelope)
     return [
         f"Your bodily condition: {_qualitative_condition(hero)}.",
         f"What you visibly carry or wear: {_equipment_line(hero, exact=False)}.",
@@ -204,6 +239,7 @@ def _management_lines(
     envelope: OneStarAccountEnvelope,
     *,
     include_active_feed: bool,
+    include_stored_equipment: bool = False,
     canonical_now_s: int,
 ) -> list[str]:
     state = envelope.state
@@ -257,6 +293,20 @@ def _management_lines(
         f"Research: {research}",
         f"Account inventory: {inventory}",
     ]
+    if include_stored_equipment:
+        stored_equipment = _join_values(
+            (
+                f"{item.name} [{item.item_id}] ({item.slot})"
+                + (f" x{item.quantity}" if item.quantity != 1 else "")
+                + (
+                    f" durability {item.durability_current}/{item.durability_max}"
+                    if item.durability_max
+                    else ""
+                )
+                for item in state.stored_equipment
+            )
+        )
+        lines.append(f"Stored equipment: {stored_equipment}")
     if include_active_feed:
         lines.append(f"Active feed: {state.active_master_feed_id or 'none'}")
     return lines
@@ -278,7 +328,7 @@ def _public_roster_lines(
             if hasattr(character.status, "value")
             else character.status
         )
-        hero_lines = _exact_hero_lines(character.name, hero)
+        hero_lines = _exact_hero_lines(character.name, hero, envelope)
         summary = hero_lines[0]
         terminal = (
             f"; terminal cause {hero.terminal_cause}"
@@ -319,6 +369,7 @@ def _master_status_lines(
     lines = _management_lines(
         envelope,
         include_active_feed=True,
+        include_stored_equipment=True,
         canonical_now_s=checkpoint.session.leading_at_s,
     )
     lines.append(f"Occupied Hero slots: {occupied}/{state.capacity}")
@@ -341,7 +392,7 @@ def _master_hero_roster_lines(
             if hasattr(character.status, "value")
             else character.status
         )
-        exact = _exact_hero_lines(character.name, hero)
+        exact = _exact_hero_lines(character.name, hero, envelope)
         lines.append(
             f"{index}. {exact[0]}; lifecycle {lifecycle}; "
             f"location {character.location or 'unknown'}"
@@ -399,7 +450,7 @@ def _master_hero_lines(
         else character.status
     )
     lines = [f"{character.name} [{character.character_id}]"]
-    lines.extend(_exact_hero_lines(character.name, hero))
+    lines.extend(_exact_hero_lines(character.name, hero, envelope))
     lines.append(
         f"Lifecycle: {lifecycle}; location "
         f"{character.location or 'unknown'}"
@@ -443,6 +494,7 @@ def one_star_agent_state_block(
         lines.extend(_management_lines(
             envelope,
             include_active_feed=True,
+            include_stored_equipment=True,
             canonical_now_s=checkpoint.session.leading_at_s,
         ))
         lines.extend(_mission_lines(state.active_mission))
@@ -476,7 +528,12 @@ def one_star_agent_state_block(
             else hero.innate_system_sight
         )
         lines = ["## Your Current Mechanics"]
-        lines.extend(_own_hero_lines(character, hero, exact=exact))
+        lines.extend(_own_hero_lines(
+            character,
+            hero,
+            envelope,
+            exact=exact,
+        ))
     return "\n".join(lines)
 
 

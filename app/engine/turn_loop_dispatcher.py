@@ -101,10 +101,129 @@ _ONE_STAR_LOBBY_MANAGEMENT_OPERATIONS = frozenset({
     "catalogue_apply",
     "summon",
     "inventory_delta",
+    "equipment_move",
     "pending_open",
     "pending_resolve",
     "pending_cancel",
 })
+
+
+def _append_one_star_system_consequences(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    consequences: Sequence[object],
+) -> None:
+    """Add adapter-authored facts before the event's ordinary fan-out.
+
+    These facts describe deterministic state changes the router could not have
+    authored, so they belong in the same canonical event rather than a second
+    ledger snapshot on the next turn.  Their recipients receive a clear
+    mediated observation without acquiring a response-routing role.
+    """
+
+    if not consequences:
+        return
+
+    from app.schemas.events import ObservableFact
+    from app.schemas.event_router import ObserverEntry
+
+    known_character_ids = {
+        character.character_id
+        for character in ckpt.characters
+        if character.character_id
+    }
+    original_observer_ids = [
+        observer.character_id
+        for observer in result.observers
+        if observer.character_id
+    ]
+    observer_ids = set(original_observer_ids)
+    at_offset_s = max(0, int(result.duration_s))
+
+    normalized: list[tuple[str, tuple[str, ...]]] = []
+    for consequence in consequences:
+        text = str(getattr(consequence, "text", "") or "").strip()
+        recipients = tuple(dict.fromkeys(
+            str(character_id).strip()
+            for character_id in getattr(
+                consequence,
+                "recipient_character_ids",
+                (),
+            )
+            if str(character_id).strip()
+        ))
+        if not text or not recipients:
+            raise ValueError(
+                "One-Star adapter consequence requires text and recipients"
+            )
+        unknown = set(recipients) - known_character_ids
+        if unknown:
+            raise ValueError(
+                "One-Star adapter consequence names unknown recipients: "
+                + ", ".join(sorted(unknown))
+            )
+        normalized.append((text, recipients))
+
+    missing_recipient_ids = {
+        character_id
+        for _text, recipients in normalized
+        for character_id in recipients
+        if character_id not in observer_ids
+    }
+    if missing_recipient_ids:
+        # ``all_observers`` means the router's original observer envelope, not
+        # every recipient of a later engine-origin private fact. Preserve that
+        # envelope explicitly before adding mediated System recipients, or a
+        # guide/status recipient would accidentally inherit unrelated scene
+        # facts from an event they did not witness.
+        if not original_observer_ids and any(
+            fact.audience == "all_observers"
+            for fact in result.canonical_event.observable_facts
+        ):
+            raise ValueError(
+                "cannot add scoped One-Star recipients to an observerless "
+                "public event"
+            )
+        for fact in result.canonical_event.observable_facts:
+            if fact.audience != "all_observers":
+                continue
+            fact.audience = "only"
+            fact.visible_to = list(original_observer_ids)
+        for character_id in sorted(missing_recipient_ids):
+            result.observers.append(ObserverEntry(
+                character_id=character_id,
+                observation_level="d",
+                routing_role="observe_only",
+            ))
+            observer_ids.add(character_id)
+
+    existing_facts = {
+        (
+            fact.text,
+            fact.audience,
+            tuple(fact.visible_to),
+            fact.at_offset_s,
+            fact.duration_s,
+        )
+        for fact in result.canonical_event.observable_facts
+    }
+    for text, recipients in normalized:
+        fact = ObservableFact.only(
+            text,
+            recipients,
+            at_offset_s=at_offset_s,
+        )
+        fact_key = (
+            fact.text,
+            fact.audience,
+            tuple(fact.visible_to),
+            fact.at_offset_s,
+            fact.duration_s,
+        )
+        if fact_key in existing_facts:
+            continue
+        result.canonical_event.observable_facts.append(fact)
+        existing_facts.add(fact_key)
 
 
 def _one_star_transaction_for_result(
@@ -1626,6 +1745,11 @@ class LLMDispatcher:
         runtime = closed_event_runtime_for(ckpt)
         live_characters = ckpt.characters
         try:
+            _append_one_star_system_consequences(
+                ckpt,
+                result,
+                prepared.system_consequences,
+            )
             apply_one_star_prepared_mutation(ckpt, prepared)
 
             # Generic lifecycle signals remain the identity/status authority.

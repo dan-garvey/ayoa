@@ -62,13 +62,20 @@ def _config() -> dict:
         "stamina_recovery_seconds": 30,
         "deployment_stamina_cost": 1,
         "max_summon_batch": 5,
-        "hero_constraints": {
-            "minimum_hp_max": 1,
-            "maximum_hp_max": 50,
-            "maximum_xp": 1000,
-            "maximum_stat_value": 20,
-            "maximum_equipment_entries": 5,
-            "maximum_skill_entries": 5,
+        "progression": {
+            "stat_ids": ["power", "agility", "resilience"],
+            "grade_multiplier_milli": 1250,
+            "birth_stat_total": 15,
+            "birth_hp_max": 7,
+            "variance_basis_points": 0,
+            "stat_growth_per_level_milli": 1000,
+            "hp_growth_per_level_milli": 500,
+            "xp_threshold_factor": 50,
+            "floor_xp_per_floor": 100,
+            "overlevel_xp_percentages": [100, 75, 50, 25, 10, 5, 0],
+            "cap_bank_extra_levels": 1,
+            "synthesis_source_base_xp": 100,
+            "synthesis_skill_chance_basis_points": 500,
         },
         "floor_rewards": {
             "1": {"gold": 4, "gems": 0, "building_resources": 1, "materials": {}}
@@ -106,6 +113,7 @@ def _checkpoint() -> CheckpointFile:
                     "capacity": 5,
                     "stamina_current": 5,
                     "facilities": {"tower_gate": 1},
+                    "stored_equipment": [],
                 },
             }
         },
@@ -123,6 +131,12 @@ def _checkpoint() -> CheckpointFile:
                 "experience_points": 0,
                 "hp_current": 7,
                 "hp_max": 7,
+                "stats": {"power": 6, "agility": 5, "resilience": 4},
+                "terminal_event_id": "",
+                "progression_seed": "reserve_progression_seed",
+                "strong_stat_id": "power",
+                "weak_stat_id": "resilience",
+                "potential_grade": 1,
             }
         },
     )

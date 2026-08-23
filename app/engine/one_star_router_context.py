@@ -104,11 +104,6 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
         )
 
     lines.append(
-        "star_level_caps: " + ", ".join(
-            f"{stars}={cap}" for stars, cap in sorted(config.star_level_caps.items())
-        )
-    )
-    lines.append(
         f"deployment: stamina_cost={config.deployment_stamina_cost}; "
         f"stamina_max={config.maximum_stamina}; "
         f"stamina_recovery_seconds={config.stamina_recovery_seconds}"
@@ -156,15 +151,15 @@ def render_one_star_repair_evidence(
     def add_resources() -> None:
         add(f"current_resources: {_render_resources(state.resources)}")
 
-    def render_mapping(values: dict[str, int]) -> str:
-        return ",".join(
-            f"{key}={value}" for key, value in sorted(values.items())
-        ) or "none"
-
     def render_values(values: list[str]) -> str:
         return ",".join(value for value in values if value) or "none"
 
-    def add_hero(character_id: str, detail_keys: set[str]) -> None:
+    def add_hero(
+        character_id: str,
+        detail_keys: set[str],
+        *,
+        include_progression: bool = False,
+    ) -> None:
         character = next(
             (item for item in checkpoint.characters if item.character_id == character_id),
             None,
@@ -181,14 +176,31 @@ def render_one_star_repair_evidence(
             return
         add(
             f"hero {character_id}: status={character.status.value}; "
-            f"location={character.location}; birth_stars={hero.birth_stars}; "
-            f"current_stars={hero.current_stars}; level={hero.level}; "
-            f"xp={hero.experience_points}; hp={hero.hp_current}/{hero.hp_max}"
+            f"location={character.location}; hp={hero.hp_current}/{hero.hp_max}"
         )
-        if any(key.startswith(("stat.", "condition", "persistent_injury")) for key in detail_keys):
+        if include_progression:
+            from app.engine.one_star_progression import (
+                banked_experience_at_current_cap,
+                experience_to_reach_level,
+            )
+
+            current_cap = config.star_level_caps[hero.current_stars]
+            if hero.level < current_cap:
+                next_threshold = experience_to_reach_level(hero.level + 1, config)
+                add(
+                    f"hero {character_id} progression: level={hero.level}/{current_cap}; "
+                    f"xp={hero.experience_points}/{next_threshold}"
+                )
+            else:
+                cap_threshold = experience_to_reach_level(current_cap, config)
+                banked = banked_experience_at_current_cap(hero, config)
+                add(
+                    f"hero {character_id} progression: level={hero.level}/{current_cap}; "
+                    f"cap_threshold={cap_threshold}; cap_banked_xp={banked}"
+                )
+        if any(key.startswith(("condition", "persistent_injury")) for key in detail_keys):
             add(
-                f"hero {character_id} conditions: stats={render_mapping(hero.stats)}; "
-                f"conditions={render_values(hero.conditions)}; "
+                f"hero {character_id} conditions: conditions={render_values(hero.conditions)}; "
                 f"injuries={render_values(hero.persistent_injuries)}"
             )
         if any("equipment" in key or key.startswith("durability.") for key in detail_keys):
@@ -207,6 +219,34 @@ def render_one_star_repair_evidence(
                     f"{skill.skill_id} rank={skill.rank}" for skill in hero.skills
                 )
             )
+
+    def add_equipment_holder(item_id: str) -> None:
+        matches: list[tuple[str, object]] = [
+            ("account", item)
+            for item in getattr(state, "stored_equipment", ())
+            if item.item_id == item_id
+        ]
+        for character in checkpoint.characters:
+            hero = load_one_star_hero(character)
+            if hero is None:
+                continue
+            matches.extend(
+                (character.character_id, item)
+                for item in hero.equipment
+                if item.item_id == item_id
+            )
+        if not matches:
+            add(f"equipment {item_id}: nonexistent")
+            return
+        if len(matches) != 1:
+            add(f"equipment {item_id}: holder is ambiguous")
+            return
+        holder, item = matches[0]
+        add(
+            f"equipment {item_id}: holder={holder}; name={item.name}; "
+            f"slot={item.slot}; quantity={item.quantity}; durability="
+            f"{item.durability_current}/{item.durability_max}"
+        )
 
     for update in state_updates:
         detail_keys = {
@@ -260,6 +300,8 @@ def render_one_star_repair_evidence(
                     f"inventory {update.target_id}: "
                     f"current={state.inventory.get(update.target_id, 0)}"
                 )
+        elif update.kind == "equipment_move":
+            add_equipment_holder(update.target_id)
         elif update.kind == "hero_delta":
             add_hero(update.target_id, detail_keys)
         elif update.kind.startswith("mission_"):
@@ -312,8 +354,28 @@ def render_one_star_repair_evidence(
                 implicated_ids.extend(pending.participant_ids)
                 if pending.target_id:
                     implicated_ids.append(pending.target_id)
+                preview = getattr(pending, "synthesis_preview", None)
+                if preview is not None:
+                    add(
+                        "synthesis_preview: "
+                        f"offered_xp={preview.offered_xp}; "
+                        f"applied_xp={preview.applied_xp}; "
+                        f"wasted_xp={preview.wasted_xp}; "
+                        "returned_equipment="
+                        f"{','.join(item.item_id for item in preview.returned_equipment) or 'none'}; "
+                        "skill_transfer_chance="
+                        f"{preview.skill_transfer_chance_basis_points / 100:g}%"
+                    )
             for character_id in implicated_ids:
-                add_hero(character_id, set())
+                add_hero(
+                    character_id,
+                    set(),
+                    include_progression=bool(
+                        pending is not None
+                        and pending.kind in {"synthesis", "promotion"}
+                        and character_id == pending.target_id
+                    ),
+                )
             if update.value == "promotion":
                 add_resources()
                 add(f"promotion_cost: {_render_nonzero_resources(config.promotion_cost)}")

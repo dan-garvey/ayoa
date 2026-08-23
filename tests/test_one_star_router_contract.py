@@ -214,7 +214,7 @@ def test_compact_update_translation_rejects_unknown_or_duplicate_details():
         kind="hero_delta",
         target_id="pip",
         value="",
-        details=["hp_current=4", "experience_delta=3", "stat.grit=2"],
+        details=["hp_current=4"],
     )
     transaction = one_star_state_updates_to_transaction(
         ckpt,
@@ -225,13 +225,12 @@ def test_compact_update_translation_rejects_unknown_or_duplicate_details():
 
     assert operation.hero_id == "pip"
     assert operation.hp_current == 4
-    assert operation.experience_delta == 3
-    assert operation.stats_delta[0].model_dump() == {"stat_id": "grit", "delta": 2}
 
     for details, error in (
         (["hp_currnt=4"], "unsupported details"),
         (["hp_current=4", "hp_current=3"], "exactly once"),
-        (["stat.grit=1", "stat.grit=2"], "exactly once"),
+        (["experience_delta=3"], "unsupported details"),
+        (["stat.grit=2"], "unsupported details"),
     ):
         with pytest.raises(OneStarTransactionError, match=error):
             one_star_state_updates_to_transaction(
@@ -900,13 +899,11 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
             ),
         },
         star_level_caps={1: 10, 2: 20},
-        hero_constraints=SimpleNamespace(
-            minimum_hp_max=1,
-            maximum_hp_max=100,
-            maximum_xp=1000,
-            maximum_stat_value=100,
-            maximum_equipment_entries=10,
-            maximum_skill_entries=10,
+        progression=SimpleNamespace(
+            grade_multiplier_milli=1250,
+            variance_basis_points=500,
+            xp_threshold_factor=50,
+            cap_bank_extra_levels=1,
         ),
         deployment_stamina_cost=1,
         maximum_stamina=5,
@@ -961,6 +958,16 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         system_observer_ids=["iselle"],
         tutorial_deliveries={"summoning": ["pip"]},
         active_mission=mission,
+        stored_equipment=[
+            SimpleNamespace(
+                item_id="stored_hidden_ledger_item",
+                name="Stored Ledger Item",
+                slot="hand",
+                quantity=1,
+                durability_current=1,
+                durability_max=1,
+            ),
+        ],
         pending_operation=SimpleNamespace(
             operation_id="op_1",
             kind="deployment",
@@ -985,8 +992,12 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         conditions=["bruised"],
         persistent_injuries=[],
         terminal_cause="",
+        terminal_event_id="",
         hidden_capabilities={"potential": "locked"},
-        private_potential="unseen",
+        progression_seed="private-stream",
+        strong_stat_id="strength",
+        weak_stat_id="agility",
+        potential_grade=1,
     )
     ckpt = _one_star_checkpoint()
     ckpt.session.leading_at_s = 60
@@ -1020,13 +1031,52 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
             details=[],
         )],
     )
+    equipment_evidence = one_star_router_context.render_one_star_repair_evidence(
+        ckpt,
+        state_updates=[OneStarStateUpdate(
+            kind="equipment_move",
+            target_id="stored_hidden_ledger_item",
+            value="pip",
+            details=[],
+        )],
+    )
+    state.pending_operation = SimpleNamespace(
+        operation_id="op_synthesis",
+        kind="synthesis",
+        participant_ids=["donor"],
+        target_id="pip",
+        destination="synthesis_chamber",
+        opened_at_s=30,
+        synthesis_preview=SimpleNamespace(
+            offered_xp=100,
+            applied_xp=95,
+            wasted_xp=5,
+            returned_equipment=[
+                SimpleNamespace(item_id="donor_blade"),
+            ],
+            skill_transfer_chance_basis_points=500,
+            input_state_fingerprint="private-stale-state-hash",
+        ),
+    )
+    pending_evidence = one_star_router_context.render_one_star_repair_evidence(
+        ckpt,
+        state_updates=[OneStarStateUpdate(
+            kind="pending_resolve",
+            target_id="op_synthesis",
+            value="",
+            details=[],
+        )],
+    )
 
     assert "synthesis_chamber_i" in static
     assert "stars=2-5" in static
     assert "rates[2=75%,3=23%,4=1.75%,5=0.25%]" in static
     assert "repeat_clear_gold" in static
-    assert "hero_constraints" not in static
     assert "hero_bounds" not in static
+    assert "grade_multiplier_milli" not in static
+    assert "variance_basis_points" not in static
+    assert "xp_threshold_factor" not in static
+    assert "stored_hidden_ledger_item" not in static
     assert "lobby=niflheim" not in static
     assert "Niflheim Lobby" not in static
     assert "gold=34" not in static
@@ -1036,11 +1086,28 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
     assert "active_mission" not in hp_evidence
     assert "pending_operation" not in hp_evidence
     assert "hidden_capabilities" not in hp_evidence
-    assert "private_potential" not in hp_evidence
+    assert "progression_seed" not in hp_evidence
+    assert "potential_grade" not in hp_evidence
+    assert "level=" not in hp_evidence
+    assert "xp=" not in hp_evidence
+    assert "Stored Ledger Item" not in hp_evidence
     assert "current_resources: gold=34" in purchase_evidence
     assert "catalogue synthesis_chamber_i" in purchase_evidence
     assert "hero pip:" not in purchase_evidence
     assert "active_mission" not in purchase_evidence
+    assert (
+        "equipment stored_hidden_ledger_item: holder=account; "
+        "name=Stored Ledger Item; slot=hand; quantity=1; durability=1/1"
+    ) in equipment_evidence
+    assert "stored_equipment" not in equipment_evidence
+    assert (
+        "synthesis_preview: offered_xp=100; applied_xp=95; wasted_xp=5; "
+        "returned_equipment=donor_blade; skill_transfer_chance=5%"
+    ) in pending_evidence
+    assert "hero pip progression: level=1/10; xp=2/100" in pending_evidence
+    assert "private-stale-state-hash" not in pending_evidence
+    assert "progression_seed" not in pending_evidence
+    assert "potential_grade" not in pending_evidence
 
 
 def test_local_hero_cull_is_rejected_from_generic_lifecycle(monkeypatch):
@@ -1057,6 +1124,7 @@ def test_local_hero_cull_is_rejected_from_generic_lifecycle(monkeypatch):
                 active_mission=None,
                 pending_operation=None,
                 active_master_feed_id="",
+                stored_equipment=[],
             ),
     )
     monkeypatch.setattr(one_star_adapter, "is_one_star_checkpoint", lambda _: True)
@@ -1069,9 +1137,14 @@ def test_local_hero_cull_is_rejected_from_generic_lifecycle(monkeypatch):
         one_star_adapter,
         "load_one_star_hero",
         lambda character: (
-            SimpleNamespace(owner_lobby_id="niflheim")
+            SimpleNamespace(owner_lobby_id="niflheim", equipment=[])
             if character.character_id == "pip" else None
         ),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "_validate_all_hero_progression_states",
+        lambda *_args: None,
     )
 
     with pytest.raises(
@@ -1154,7 +1227,11 @@ def test_one_star_history_preserves_router_updates_and_one_time_authority_state(
             "owner_lobby_id": "niflheim",
             "acquisition_event_id": result.event_id,
             "hidden_capabilities": {"potential": "unknown"},
-            "private_potential": "late bloomer",
+            "terminal_event_id": "",
+            "progression_seed": "private-stream",
+            "strong_stat_id": "strength",
+            "weak_stat_id": "agility",
+            "potential_grade": 1,
         },
     }
 
@@ -1185,7 +1262,8 @@ def test_one_star_history_preserves_router_updates_and_one_time_authority_state(
     assert "owner_lobby_id" not in record
     assert "acquisition_event_id" not in record
     assert "hidden_capabilities" not in record
-    assert "private_potential" not in record
+    assert "progression_seed" not in record
+    assert "potential_grade" not in record
     assert record.count("one_star_authority_hero") == 1
 
     # Later fact/observer refreshes must not erase one-time authority records.

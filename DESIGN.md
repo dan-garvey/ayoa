@@ -1496,26 +1496,32 @@ Durable state stays on existing character records:
   `CharacterRecord.mechanics["one_star_account"]`, including per-pool summon
   draw counters;
 * each Hero carries HP, XP, stars, stats, equipment, skills, injuries, and
-  ownership under `CharacterRecord.mechanics["one_star_hero"]`;
+  ownership under `CharacterRecord.mechanics["one_star_hero"]`; exact returned
+  gear remains in the account's stored-equipment ledger rather than being
+  flattened into an inventory count;
 * `CharacterRecord.status` and `CharacterRecord.location` remain the only
   lifecycle and location authority. The adapter does not duplicate the roster;
 * story-authored configuration owns costs, rewards, caps, facilities, summon
-  pool weights, progression prerequisites, and physical operation
-  requirements. Engine code contains no One-Star entity names or economy
-  constants.
+  pool weights, deterministic progression inputs, progression prerequisites,
+  and physical operation requirements. Engine code contains no One-Star entity
+  names or economy constants.
 
-The cached router addon receives compact immutable configuration, including
-disclosed summon rates, catalogue costs/effects, progression gates, and
-physical operation requirements. Normal routes do not receive a second live
-ledger snapshot. Each accepted compact `state_updates` list is retained in the
-same prior-event history as its canonical fiction. State created independently
-of a router decision, such as a generated summon sheet or automatic stamina
-recovery, is projected into that history once. When an update is rejected, the
-single repair call receives only the current rows that prove the conflict—for
-example the target Hero's current HP or the relevant balance and configured
-cost—not the full account or roster. Eligible dormant reserves, future draw
-results, draw counters, deterministic draw inputs, applied-event fingerprints,
-and private Hero potential are never model context. One-Star routes use
+The cached router addon receives compact immutable operation authority:
+catalogue costs/effects, physical-operation requirements, and each pool's
+disclosed cost, star range, rates, and usage. Normal routes do not receive a
+second live ledger snapshot. Each accepted compact `state_updates` list is
+retained in the same prior-event history as its canonical fiction. State
+created independently of a router decision, such as a generated summon sheet,
+automatic stamina recovery, or deterministic progression/synthesis result, is
+projected into that history once. When an update is rejected, the single repair
+call receives only the current rows that prove the conflict—for example the
+target Hero's current HP or the relevant balance and configured cost—not the
+full account or roster. Eligible dormant reserves, private RNG inputs, future
+draw results, draw counters, progression formulas, stored-equipment records,
+applied-event fingerprints, and private Hero potential are never model context.
+A compact pending synthesis preview is an exception: its exact offered, applied,
+and wasted XP, returned items, and configured disclosed per-source chance are
+current decision context, but never its unrolled outcome. One-Star routes use
 `OneStarEventRouterOutput`; continuation routes use the closed subtype. Default
 narrative and D&D routes retain their existing schemas and receive no One-Star
 prompt or state block.
@@ -1533,16 +1539,21 @@ selection opens a zero-side-effect pending operation, affected Heroes keep
 ordinary response ownership, and a later event may resolve only after the
 recorded bodies physically reach the configured gate or chamber.
 Tower mission boundaries, pre-existing escape authority, resource underflow,
-Hero bounds, event-id fingerprints, and exactly-once rewards are hard validation
-constraints. Damage, death, resistance, reward-worthy action, growth, and
-character choices remain router or character-agent judgment.
+event-id fingerprints, and exactly-once rewards are hard validation constraints.
+Progression is deliberately lightweight deterministic bookkeeping: seed
+configuration and recorded XP determine thresholds, levels, stats, and HP, and
+synthesis derives its exact ledger consequences from the accepted operation.
+Potential is private account data and never enters Master, router, narrator, or
+agent projections. The router remains responsible for fictional damage, death,
+resistance, reward-worthy action, and character choices; it does not assign
+levels, XP totals, stats, HP maxima, or synthesis arithmetic.
 
 Character-agent, status, and image projections are viewer-scoped. The account
-owner sees the local account roster; Heroes see their own body at the authored
-System-detail level; configured guides receive lobby-management and tutorial
-state but not off-feed tactical omniscience; image prompts receive only visible
-current equipment. Narrator input remains canonical observable facts rather
-than raw adapter state.
+owner sees the local account roster, public XP progress, and exact usable stored
+gear; Heroes see their own body at the authored System-detail level; configured
+guides receive lobby-management and tutorial state but not off-feed tactical
+omniscience; image prompts receive only visible current equipment. Narrator
+input remains canonical observable facts rather than raw adapter state.
 
 The read-only `/master status`, `/master heroes`, and `/master hero` commands
 use the same viewer-scoped projection through `EngineBridge` in both CLI and

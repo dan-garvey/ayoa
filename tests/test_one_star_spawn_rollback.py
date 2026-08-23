@@ -62,8 +62,14 @@ class _SpawnAuthor:
                 "current_stars": 1,
                 "level": 1,
                 "experience_points": 0,
-                "hp_current": 5,
-                "hp_max": 5,
+                "hp_current": 7,
+                "hp_max": 7,
+                "stats": {"power": 6, "agility": 5, "resilience": 4},
+                "terminal_event_id": "",
+                "progression_seed": f"{record.character_id}_progression_seed",
+                "strong_stat_id": "power",
+                "weak_stat_id": "resilience",
+                "potential_grade": 1,
             }
         return records
 

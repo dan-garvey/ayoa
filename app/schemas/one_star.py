@@ -161,22 +161,61 @@ class OneStarFloorReward(BaseModel):
         return self
 
 
-class OneStarHeroConstraints(BaseModel):
-    """Seed-authored hard bounds, not a stat formula or allocation budget."""
+class OneStarProgressionConfig(BaseModel):
+    """Seed-authored fixed-point rules for deterministic Hero progression.
+
+    The values are expressed as integers so checkpoint replay never depends on
+    binary floating point.  ``*_milli`` values use one thousandths and
+    ``variance_basis_points`` uses ten-thousandths.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    minimum_hp_max: int = Field(ge=1)
-    maximum_hp_max: int = Field(ge=1)
-    maximum_xp: int = Field(ge=0)
-    maximum_stat_value: int = Field(ge=0)
-    maximum_equipment_entries: int = Field(ge=0)
-    maximum_skill_entries: int = Field(ge=0)
+    stat_ids: list[str] = Field(min_length=3, max_length=3)
+    grade_multiplier_milli: int = Field(ge=1_000)
+    birth_stat_total: int = Field(ge=6)
+    birth_hp_max: int = Field(ge=1)
+    variance_basis_points: int = Field(ge=0, le=10_000)
+    stat_growth_per_level_milli: int = Field(ge=0)
+    hp_growth_per_level_milli: int = Field(ge=0)
+    xp_threshold_factor: int = Field(ge=1)
+    floor_xp_per_floor: int = Field(ge=0)
+    overlevel_xp_percentages: list[int] = Field(min_length=7, max_length=7)
+    cap_bank_extra_levels: int = Field(ge=1, le=1)
+    synthesis_source_base_xp: int = Field(ge=0)
+    synthesis_skill_chance_basis_points: int = Field(ge=0, le=10_000)
 
     @model_validator(mode="after")
-    def _validate_bounds(self) -> "OneStarHeroConstraints":
-        if self.maximum_hp_max < self.minimum_hp_max:
-            raise ValueError("maximum_hp_max must be at least minimum_hp_max")
+    def _clean(self) -> "OneStarProgressionConfig":
+        self.stat_ids = [stat_id.strip() for stat_id in self.stat_ids]
+        if any(not stat_id for stat_id in self.stat_ids):
+            raise ValueError("progression stat ids must be non-empty")
+        if len(set(self.stat_ids)) != len(self.stat_ids):
+            raise ValueError("progression stat ids must be unique")
+        if any(percent < 0 or percent > 100 for percent in self.overlevel_xp_percentages):
+            raise ValueError("overlevel XP percentages must be from zero through 100")
+        if any(
+            later > earlier
+            for earlier, later in zip(
+                self.overlevel_xp_percentages,
+                self.overlevel_xp_percentages[1:],
+            )
+        ):
+            raise ValueError("overlevel XP percentages must not increase by grade")
+        if self.variance_basis_points:
+            variation = max(
+                1,
+                (
+                    self.birth_stat_total * self.variance_basis_points * 2
+                    + 10_000
+                )
+                // 20_000,
+            )
+            if self.birth_stat_total - variation < len(self.stat_ids) + 3:
+                raise ValueError(
+                    "birth stat total and variance must always express strict "
+                    "strong, middle, and weak affinities"
+                )
         return self
 
 
@@ -217,7 +256,7 @@ class OneStarRulesConfig(BaseModel):
     stamina_recovery_seconds: int = Field(ge=1)
     deployment_stamina_cost: int = Field(ge=0)
     max_summon_batch: int = Field(ge=1, le=20)
-    hero_constraints: OneStarHeroConstraints
+    progression: OneStarProgressionConfig
     floor_rewards: dict[int, OneStarFloorReward]
     repeat_gold_numerator: int = Field(ge=0)
     repeat_gold_denominator: int = Field(ge=1)
@@ -253,6 +292,9 @@ class OneStarRulesConfig(BaseModel):
             stars < 1 or cap < 1 for stars, cap in self.star_level_caps.items()
         ):
             raise ValueError("star_level_caps must contain positive star and level values")
+        max_stars = max(self.star_level_caps)
+        if set(self.star_level_caps) != set(range(1, max_stars + 1)):
+            raise ValueError("star_level_caps must define every star grade in order")
         if any(floor < 1 for floor in self.floor_rewards):
             raise ValueError("floor reward keys must be positive")
         if self.repeat_gold_numerator > self.repeat_gold_denominator:
@@ -318,8 +360,8 @@ class OneStarSkillEntry(BaseModel):
 class OneStarHeroState(BaseModel):
     """Durable mechanics for an embodied Hero.
 
-    Private potential is deliberately a separate field so projections can
-    include ordinary mechanics without accidentally exposing spoilers.
+    Progression inputs are private durable data.  Projection code must opt in
+    to individual public mechanics; it must never serialize potential.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -330,7 +372,7 @@ class OneStarHeroState(BaseModel):
     experience_points: int = Field(default=0, ge=0)
     hp_current: int = Field(default=1, ge=0)
     hp_max: int = Field(default=1, ge=1)
-    stats: dict[str, int] = Field(default_factory=dict)
+    stats: dict[str, int] = Field(min_length=1)
     equipment: list[OneStarEquipmentEntry] = Field(default_factory=list)
     skills: list[OneStarSkillEntry] = Field(default_factory=list)
     conditions: list[str] = Field(default_factory=list)
@@ -342,13 +384,19 @@ class OneStarHeroState(BaseModel):
     acquisition_event_id: str = ""
     owner_lobby_id: str = ""
     terminal_cause: str = ""
+    terminal_event_id: str
     hidden_capabilities: dict[str, str] = Field(default_factory=dict)
-    private_potential: str = ""
+    progression_seed: str = Field(min_length=1)
+    strong_stat_id: str = Field(min_length=1)
+    weak_stat_id: str = Field(min_length=1)
+    potential_grade: int = Field(ge=1, frozen=True)
 
     @model_validator(mode="after")
     def _validate_hero(self) -> "OneStarHeroState":
         if self.current_stars < self.birth_stars:
             raise ValueError("current_stars cannot be below immutable birth_stars")
+        if self.potential_grade < self.birth_stars:
+            raise ValueError("potential_grade cannot be below immutable birth_stars")
         if self.hp_current > self.hp_max:
             raise ValueError("hp_current cannot exceed hp_max")
         if any(not key.strip() for key in self.stats):
@@ -361,7 +409,16 @@ class OneStarHeroState(BaseModel):
         self.acquisition_event_id = self.acquisition_event_id.strip()
         self.owner_lobby_id = self.owner_lobby_id.strip()
         self.terminal_cause = self.terminal_cause.strip()
-        self.private_potential = self.private_potential.strip()
+        self.terminal_event_id = self.terminal_event_id.strip()
+        self.progression_seed = self.progression_seed.strip()
+        self.strong_stat_id = self.strong_stat_id.strip()
+        self.weak_stat_id = self.weak_stat_id.strip()
+        if not self.progression_seed:
+            raise ValueError("Hero progression seed must be non-empty")
+        if not self.strong_stat_id or not self.weak_stat_id:
+            raise ValueError("Hero strong and weak stat ids must be non-empty")
+        if self.strong_stat_id == self.weak_stat_id:
+            raise ValueError("Hero strong and weak stat ids must differ")
         if len({entry.item_id for entry in self.equipment}) != len(self.equipment):
             raise ValueError("equipment item_ids must be unique")
         if len({entry.skill_id for entry in self.skills}) != len(self.skills):
@@ -437,21 +494,35 @@ class OneStarMissionState(BaseModel):
         return self
 
 
-class OneStarStatDelta(BaseModel):
+class OneStarSynthesisPreview(BaseModel):
+    """Deterministic, pre-resolution facts shown before a synthesis commit."""
+
     model_config = ConfigDict(extra="forbid")
 
-    stat_id: str
-    delta: int
+    offered_xp: int = Field(ge=1)
+    applied_xp: int = Field(ge=1)
+    wasted_xp: int = Field(ge=0)
+    returned_equipment: list[OneStarEquipmentEntry]
+    skill_transfer_chance_basis_points: int = Field(ge=0, le=10_000)
+    input_state_fingerprint: str = Field(min_length=1)
 
     @model_validator(mode="after")
-    def _clean(self) -> "OneStarStatDelta":
-        self.stat_id = self.stat_id.strip()
-        if not self.stat_id:
-            raise ValueError("Hero stat delta id cannot be empty")
+    def _clean(self) -> "OneStarSynthesisPreview":
+        self.input_state_fingerprint = self.input_state_fingerprint.strip()
+        if not self.input_state_fingerprint:
+            raise ValueError("synthesis input-state fingerprint must be non-empty")
+        if len({item.item_id for item in self.returned_equipment}) != len(
+            self.returned_equipment
+        ):
+            raise ValueError("returned equipment item ids must be unique")
+        if self.applied_xp + self.wasted_xp != self.offered_xp:
+            raise ValueError("synthesis preview XP must exactly balance")
         return self
 
 
-class OneStarPendingOperation(BaseModel):
+class OneStarPendingOperationSelection(BaseModel):
+    """Router-selected participants before the adapter builds a durable preview."""
+
     model_config = ConfigDict(extra="forbid")
 
     operation_id: str
@@ -462,15 +533,33 @@ class OneStarPendingOperation(BaseModel):
     opened_at_s: int = Field(ge=0)
 
     @model_validator(mode="after")
-    def _clean(self) -> "OneStarPendingOperation":
+    def _clean(self) -> "OneStarPendingOperationSelection":
         self.operation_id = self.operation_id.strip()
-        self.participant_ids = list(dict.fromkeys(
-            cid.strip() for cid in self.participant_ids if cid.strip()
-        ))
+        self.participant_ids = [cid.strip() for cid in self.participant_ids]
         self.target_id = self.target_id.strip()
         self.destination = self.destination.strip()
-        if not self.operation_id or not self.participant_ids:
+        if (
+            not self.operation_id
+            or not self.participant_ids
+            or any(not cid for cid in self.participant_ids)
+        ):
             raise ValueError("pending operation requires an id and participants")
+        if len(set(self.participant_ids)) != len(self.participant_ids):
+            raise ValueError("pending operation participant ids must be unique")
+        return self
+
+
+class OneStarPendingOperation(OneStarPendingOperationSelection):
+    """Adapter-owned durable operation, including its exact synthesis preview."""
+
+    synthesis_preview: OneStarSynthesisPreview | None = None
+
+    @model_validator(mode="after")
+    def _validate_preview(self) -> "OneStarPendingOperation":
+        if self.kind == "synthesis" and self.synthesis_preview is None:
+            raise ValueError("synthesis pending operations require a preview")
+        if self.kind != "synthesis" and self.synthesis_preview is not None:
+            raise ValueError("only synthesis pending operations may include a preview")
         return self
 
 
@@ -479,6 +568,7 @@ class OneStarAccountState(BaseModel):
 
     resources: OneStarResources
     inventory: dict[str, int] = Field(default_factory=dict)
+    stored_equipment: list[OneStarEquipmentEntry]
     facilities: dict[str, int] = Field(default_factory=dict)
     research_levels: dict[str, int] = Field(default_factory=dict)
     lobby_floor: int = Field(ge=1)
@@ -507,6 +597,10 @@ class OneStarAccountState(BaseModel):
         self.inventory = {key.strip(): value for key, value in self.inventory.items() if key.strip()}
         self.facilities = {key.strip(): value for key, value in self.facilities.items() if key.strip()}
         self.research_levels = {key.strip(): value for key, value in self.research_levels.items() if key.strip()}
+        if len({item.item_id for item in self.stored_equipment}) != len(
+            self.stored_equipment
+        ):
+            raise ValueError("stored equipment item ids must be unique")
         self.guide_character_ids = list(dict.fromkeys(cid.strip() for cid in self.guide_character_ids if cid.strip()))
         self.system_observer_ids = list(dict.fromkeys(cid.strip() for cid in self.system_observer_ids if cid.strip()))
         self.tutorial_deliveries = {
@@ -649,10 +743,6 @@ class OneStarHeroDeltaOperation(BaseModel):
     operation: Literal["hero_delta"]
     hero_id: str
     hp_current: int | None = Field(ge=0)
-    hp_max: int | None = Field(ge=1)
-    level: int | None = Field(ge=1)
-    experience_delta: int = Field(ge=0)
-    stats_delta: list[OneStarStatDelta]
     equipment_add: list[OneStarEquipmentEntry]
     equipment_remove_ids: list[str]
     skills_add: list[OneStarSkillEntry]
@@ -664,11 +754,22 @@ class OneStarHeroDeltaOperation(BaseModel):
     terminal_action: Literal["none", "death"]
     death_cause: str
 
+
+class OneStarEquipmentMoveOperation(BaseModel):
+    """Move exact durable equipment records without re-authoring their data."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    operation: Literal["equipment_move"]
+    item_id: str
+    destination: str
+
     @model_validator(mode="after")
-    def _validate_stat_deltas(self) -> "OneStarHeroDeltaOperation":
-        stat_ids = [entry.stat_id for entry in self.stats_delta]
-        if len(stat_ids) != len(set(stat_ids)):
-            raise ValueError("Hero stat delta ids must be unique")
+    def _clean(self) -> "OneStarEquipmentMoveOperation":
+        self.item_id = self.item_id.strip()
+        self.destination = self.destination.strip()
+        if not self.item_id or not self.destination:
+            raise ValueError("equipment move needs an item and destination")
         return self
 
 
@@ -717,15 +818,13 @@ class OneStarMissionEndOperation(BaseModel):
 class OneStarPendingOpenOperation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     operation: Literal["pending_open"]
-    pending: OneStarPendingOperation
+    pending: OneStarPendingOperationSelection
 
 
 class OneStarPendingResolveOperation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     operation: Literal["pending_resolve"]
     operation_id: str
-    cull_ids: list[str]
-    promotion_target_stars: int | None
 
 
 class OneStarPendingCancelOperation(BaseModel):
@@ -752,6 +851,7 @@ OneStarOperation = (
     | OneStarSummonOperation
     | OneStarInventoryDeltaOperation
     | OneStarHeroDeltaOperation
+    | OneStarEquipmentMoveOperation
     | OneStarMissionStartOperation
     | OneStarMissionUpdateOperation
     | OneStarMissionEndOperation
@@ -789,6 +889,7 @@ OneStarStateUpdateKind = Literal[
     "pending_open",
     "pending_resolve",
     "pending_cancel",
+    "equipment_move",
     "tutorial_delivery",
     "active_feed",
 ]

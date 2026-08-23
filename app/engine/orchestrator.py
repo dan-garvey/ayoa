@@ -1019,18 +1019,13 @@ class Orchestrator:
                 (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
             ):
                 from app.engine.one_star_adapter import (
-                    one_star_state_updates_to_transaction,
                     one_star_transaction_cull_ids,
                 )
 
-                transaction = one_star_state_updates_to_transaction(
-                    ckpt,
-                    evt.state_updates,
-                    canonical_at_s=evt.effective_at_s + evt.duration_s,
-                )
                 terminal_ids.extend(
                     one_star_transaction_cull_ids(
-                        transaction,
+                        ckpt,
+                        event_id=evt.event_id,
                     )
                 )
             terminal_ids = list(dict.fromkeys(terminal_ids))

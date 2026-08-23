@@ -13,6 +13,13 @@ import re
 from pathlib import Path
 
 from app.engine.character_manager import _assemble_knowledge_grant
+from app.engine.one_star_progression import (
+    birth_hp_mean,
+    birth_stat_total_mean,
+    derive_progression_seed,
+    experience_to_reach_level,
+    rebalance_hero,
+)
 from app.engine.reviewed_visual_references import validate_story_visual_references
 from app.schemas.characters import CharacterAgentTier, PlayerSlotKind
 from app.schemas.checkpoint import CheckpointFile
@@ -230,6 +237,33 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
         6: 99,
         7: 999999,
     }
+    assert config.progression.model_dump() == {
+        "stat_ids": ["power", "agility", "resilience"],
+        "grade_multiplier_milli": 1250,
+        "birth_stat_total": 15,
+        "birth_hp_max": 8,
+        "variance_basis_points": 500,
+        "stat_growth_per_level_milli": 1000,
+        "hp_growth_per_level_milli": 500,
+        "xp_threshold_factor": 50,
+        "floor_xp_per_floor": 100,
+        "overlevel_xp_percentages": [100, 75, 50, 25, 10, 5, 0],
+        "cap_bank_extra_levels": 1,
+        "synthesis_source_base_xp": 100,
+        "synthesis_skill_chance_basis_points": 500,
+    }
+    assert [
+        birth_stat_total_mean(stars, config) for stars in range(1, 8)
+    ] == [15, 19, 23, 29, 37, 46, 57]
+    assert [birth_hp_mean(stars, config) for stars in range(1, 8)] == [
+        8,
+        10,
+        13,
+        16,
+        20,
+        24,
+        31,
+    ]
     assert config.floor_rewards[5].model_dump() == {
         "gold": 8,
         "gems": 5,
@@ -298,6 +332,7 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert state.research_levels == {}
     assert state.tutorial_deliveries == {}
     assert state.applied_event_fingerprints == {}
+    assert state.stored_equipment == []
     assert state.guide_character_ids == ["iselle_the_guide"]
     assert state.system_observer_ids == ["iselle_the_guide"]
 
@@ -728,6 +763,10 @@ def test_grade_memory_status_and_reserve_authority_are_coherent() -> None:
 def test_hero_mechanics_follow_authored_tiers_without_public_hidden_potential() -> None:
     checkpoint = _load_checkpoint()
     by_id = {character.character_id: character for character in checkpoint.characters}
+    owner = by_id["the_master"]
+    config = OneStarAccountEnvelope.model_validate(
+        owner.mechanics[ONE_STAR_ACCOUNT_KEY]
+    ).config
     expected_birth_stars = {
         "one_star_newcomer": 1,
         "renna_holt": 1,
@@ -740,9 +779,23 @@ def test_hero_mechanics_follow_authored_tiers_without_public_hidden_potential() 
         "mirelle_voss": 3,
         "seris_nightglass": 4,
         "aveline_morcant": 5,
-        # Veil's authored grade is unreadable; the seed chooses a private,
-        # schema-valid five-star overlay without changing her public identity.
+        # Veil's authored grade is unreadable; the durable bookkeeping keeps
+        # her five-star mechanics private without changing her public identity.
         "veil_the_unnumbered": 5,
+    }
+    expected_affinities = {
+        "one_star_newcomer": ("agility", "power"),
+        "renna_holt": ("agility", "power"),
+        "halcyon_of_the_gilded_march": ("power", "agility"),
+        "soren_ironvow": ("resilience", "agility"),
+        "castor_valebrand": ("agility", "resilience"),
+        "wren_thelantern": ("resilience", "power"),
+        "rowan_kest": ("agility", "resilience"),
+        "liora_fen": ("agility", "resilience"),
+        "mirelle_voss": ("power", "resilience"),
+        "seris_nightglass": ("power", "resilience"),
+        "aveline_morcant": ("resilience", "agility"),
+        "veil_the_unnumbered": ("agility", "resilience"),
     }
     for character_id, birth_stars in expected_birth_stars.items():
         hero = OneStarHeroState.model_validate(
@@ -752,6 +805,24 @@ def test_hero_mechanics_follow_authored_tiers_without_public_hidden_potential() 
         assert hero.current_stars == birth_stars
         assert hero.hp_current == hero.hp_max
         assert hero.stats
+        assert hero.experience_points == experience_to_reach_level(hero.level, config)
+        assert hero.progression_seed == derive_progression_seed(
+            character_id=character_id,
+            birth_stars=birth_stars,
+        )
+        assert (hero.strong_stat_id, hero.weak_stat_id) == expected_affinities[
+            character_id
+        ]
+        assert max(hero.stats, key=hero.stats.get) == hero.strong_stat_id
+        assert min(hero.stats, key=hero.stats.get) == hero.weak_stat_id
+        assert hero.potential_grade == (
+            4 if character_id == "renna_holt" else birth_stars
+        )
+        expected = hero.model_copy(deep=True)
+        rebalance_hero(hero=expected, config=config, restore_full_hp=True)
+        assert hero.stats == expected.stats
+        assert hero.hp_max == expected.hp_max
+        assert hero.hp_current == expected.hp_current
         assert hero.equipment
         assert hero.skills
         assert all(
@@ -775,11 +846,17 @@ def test_hero_mechanics_follow_authored_tiers_without_public_hidden_potential() 
         by_id[BLANK_PLAYER_ID].mechanics[ONE_STAR_HERO_KEY]
     )
     assert newcomer.innate_system_sight is True
-    assert newcomer.private_potential == ""
+    assert newcomer.potential_grade == newcomer.birth_stars
+    halcyon = OneStarHeroState.model_validate(
+        by_id["halcyon_of_the_gilded_march"].mechanics[ONE_STAR_HERO_KEY]
+    )
+    assert halcyon.level == 99
+    assert halcyon.experience_points == experience_to_reach_level(99, config)
+    assert halcyon.hp_current == halcyon.hp_max
     veil = OneStarHeroState.model_validate(
         by_id["veil_the_unnumbered"].mechanics[ONE_STAR_HERO_KEY]
     )
-    assert veil.private_potential
+    assert veil.potential_grade == veil.birth_stars
     assert veil.hidden_capabilities
     public_identity = (
         by_id["veil_the_unnumbered"].public_sheet.role
@@ -1336,7 +1413,6 @@ def test_seeded_rare_characters_scale_depth_and_public_visual_identity() -> None
 def test_seed_has_depth_without_dnd_mechanics() -> None:
     checkpoint = _load_checkpoint()
     ws = checkpoint.world_state
-    opening = ws.opening
 
     assert len(checkpoint.player_primer) > 500
     assert ws.lore.strip()

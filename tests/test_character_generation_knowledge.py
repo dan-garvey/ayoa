@@ -364,18 +364,14 @@ async def test_one_star_summon_membership_selects_hero_generation_overlay() -> N
         known_context="Only cold light and an unfamiliar hall are apparent.",
     ).model_dump(mode="json")
     authored_data["one_star_hero"] = {
-        "level": 1,
-        "experience_points": 0,
-        "hp_current": 7,
-        "hp_max": 7,
-        "stats": {"vitality": 1},
+        "strong_stat_id": "power",
+        "weak_stat_id": "resilience",
         "equipment": [],
         "skills": [],
         "conditions": [],
         "persistent_injuries": [],
         "innate_system_sight": False,
-        "hidden_capabilities": {},
-        "private_potential": "",
+        "hidden_capabilities": [],
     }
     authored = AuthoredOneStarCharacter.model_validate(authored_data)
     client = _client(authored)
@@ -405,3 +401,6 @@ async def test_one_star_summon_membership_selects_hero_generation_overlay() -> N
     assert spawned[0].agent_tier is CharacterAgentTier.standard
     assert model_role_for_character(spawned[0]) == "agent_standard"
     assert spawned[0].mechanics[ONE_STAR_HERO_KEY]["generated_for_summon"] is True
+    assert spawned[0].mechanics[ONE_STAR_HERO_KEY]["stats"]
+    assert spawned[0].mechanics[ONE_STAR_HERO_KEY]["hp_max"] > 0
+    assert "potential_grade" in spawned[0].mechanics[ONE_STAR_HERO_KEY]

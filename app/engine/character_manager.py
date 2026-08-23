@@ -86,11 +86,8 @@ DND_OUTPUT_SCHEMA_SUFFIX = r""",
 
 ONE_STAR_OUTPUT_SCHEMA_SUFFIX = r""",
   "one_star_hero": {
-    "level": 1,
-    "experience_points": 0,
-    "hp_current": 1,
-    "hp_max": 1,
-    "stats": {"string_stat_id": 0},
+    "strong_stat_id": "one configured stat id",
+    "weak_stat_id": "a different configured stat id",
     "equipment": [{
       "item_id": "snake_case stable id",
       "name": "string",
@@ -112,8 +109,10 @@ ONE_STAR_OUTPUT_SCHEMA_SUFFIX = r""",
     "conditions": [],
     "persistent_injuries": [],
     "innate_system_sight": false,
-    "hidden_capabilities": {},
-    "private_potential": "string - private casting note; empty if none"
+    "hidden_capabilities": [{
+      "capability_id": "snake_case stable id",
+      "description": "short private qualitative capability"
+    }]
   }"""
 
 
@@ -651,11 +650,17 @@ class CharacterManager:
                 "character_gen_ruleset_one_star",
             ).strip()
             ruleset_output_schema_suffix = ONE_STAR_OUTPUT_SCHEMA_SUFFIX
+            from app.engine.one_star_adapter import load_one_star_account
+
+            _owner, account = load_one_star_account(checkpoint)
+            stat_ids = ", ".join(account.config.progression.stat_ids)
             ruleset_generation_context = (
-                "## One-Star Mechanics Authority\n"
-                f"Exact birth stars: {req.seed.knowledge_tier}. The structured "
-                "starting sheet must express this character at that birth "
-                "grade without teaching the character any premise facts."
+                "## One-Star Qualitative Affinities\n"
+                f"Exact birth stars: {req.seed.knowledge_tier}. This is "
+                "qualitative casting authority only. Choose one strong and one "
+                "different weak affinity from these configured stat ids: "
+                f"{stat_ids}. Do not emit numerical mechanics or reveal private "
+                "casting information."
             )
 
         messages = self.prompt_manager.render_messages(
@@ -739,19 +744,20 @@ class CharacterManager:
         *,
         birth_stars: int,
     ) -> None:
-        from app.engine.one_star_adapter import (
-            load_one_star_account,
-            validate_one_star_hero_state,
-        )
+        from app.engine.one_star_adapter import load_one_star_account
+        from app.engine.one_star_progression import build_generated_hero
         from app.schemas.one_star import ONE_STAR_HERO_KEY
 
         generated = getattr(authored, "one_star_hero", None)
         if generated is None:
             raise ValueError("One-Star character generation omitted Hero mechanics")
-        hero = generated.to_hero_state(birth_stars=birth_stars)
-        hero.generated_for_summon = True
         _owner, account = load_one_star_account(checkpoint)
-        validate_one_star_hero_state(hero, account.config)
+        hero = build_generated_hero(
+            character_id=char.character_id,
+            generated=generated,
+            birth_stars=birth_stars,
+            config=account.config,
+        )
         char.mechanics = dict(char.mechanics)
         char.mechanics[ONE_STAR_HERO_KEY] = hero.model_dump(mode="json")
 

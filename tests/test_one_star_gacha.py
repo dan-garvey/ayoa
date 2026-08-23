@@ -56,6 +56,14 @@ def _hero(
     status: CharacterStatus = CharacterStatus.dormant,
     owner: str = "",
 ) -> CharacterRecord:
+    stat_totals = {
+        1: {"power": 6, "agility": 5, "resilience": 4},
+        2: {"power": 8, "agility": 6, "resilience": 5},
+        3: {"power": 9, "agility": 8, "resilience": 6},
+        4: {"power": 11, "agility": 10, "resilience": 8},
+        5: {"power": 14, "agility": 12, "resilience": 11},
+    }
+    hp_by_grade = {1: 5, 2: 6, 3: 8, 4: 10, 5: 12}
     return CharacterRecord(
         character_id=character_id,
         name=character_id.replace("_", " ").title(),
@@ -65,10 +73,16 @@ def _hero(
             ONE_STAR_HERO_KEY: {
                 "birth_stars": birth_stars,
                 "current_stars": birth_stars,
-                "hp_current": 5,
-                "hp_max": 5,
+                "hp_current": hp_by_grade[birth_stars],
+                "hp_max": hp_by_grade[birth_stars],
+                "stats": stat_totals[birth_stars],
                 "owner_lobby_id": owner,
                 "acquisition_event_id": "seed" if owner else "",
+                "terminal_event_id": "",
+                "progression_seed": f"{character_id}_progression_seed",
+                "strong_stat_id": "power",
+                "weak_stat_id": "resilience",
+                "potential_grade": birth_stars,
             }
         },
     )
@@ -122,13 +136,20 @@ def _checkpoint() -> CheckpointFile:
         "stamina_recovery_seconds": 1800,
         "deployment_stamina_cost": 1,
         "max_summon_batch": 5,
-        "hero_constraints": {
-            "minimum_hp_max": 1,
-            "maximum_hp_max": 100,
-            "maximum_xp": 1_000_000,
-            "maximum_stat_value": 100,
-            "maximum_equipment_entries": 10,
-            "maximum_skill_entries": 10,
+        "progression": {
+            "stat_ids": ["power", "agility", "resilience"],
+            "grade_multiplier_milli": 1250,
+            "birth_stat_total": 15,
+            "birth_hp_max": 5,
+            "variance_basis_points": 0,
+            "stat_growth_per_level_milli": 1000,
+            "hp_growth_per_level_milli": 500,
+            "xp_threshold_factor": 50,
+            "floor_xp_per_floor": 100,
+            "overlevel_xp_percentages": [100, 75, 50, 25, 10, 5, 0],
+            "cap_bank_extra_levels": 1,
+            "synthesis_source_base_xp": 100,
+            "synthesis_skill_chance_basis_points": 500,
         },
         "floor_rewards": {},
         "repeat_gold_numerator": 0,
@@ -167,6 +188,7 @@ def _checkpoint() -> CheckpointFile:
         "highest_cleared_floor": 0,
         "stamina_current": 5,
         "summon_draw_counters": {},
+        "stored_equipment": [],
     }
     owner = CharacterRecord(
         character_id="account_owner",
