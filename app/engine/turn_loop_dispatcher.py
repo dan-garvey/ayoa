@@ -499,6 +499,48 @@ def _validate_one_star_pending_response_routing(
             )
 
 
+def _include_one_star_synthesis_guide_responders(
+    ckpt: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> None:
+    """Give active configured wardens their own synthesis intention.
+
+    The adapter chooses no coercive action here.  It only makes the guide a
+    participant in the already-contested selection so their character agent
+    can state what they do if a selected Hero refuses; the Cat II resolution
+    remains router-authored from all collected intentions.
+    """
+
+    if not _one_star_router_enabled(ckpt) or not result.requires_responders:
+        return
+    transaction = _one_star_transaction_for_result(ckpt, result)
+    if transaction is None or not transaction.present:
+        return
+    if not any(
+        getattr(operation, "operation", "") == "pending_open"
+        and getattr(operation.pending, "kind", "") == "synthesis"
+        for operation in transaction.operations
+    ):
+        return
+
+    from app.engine.one_star_adapter import load_one_star_account
+
+    owner, account = load_one_star_account(ckpt)
+    if actor_id != owner.character_id:
+        return
+    characters = {
+        character.character_id: character for character in ckpt.characters
+    }
+    for guide_id in account.state.guide_character_ids:
+        guide = characters.get(guide_id)
+        if guide is None or guide.status.value != "active":
+            continue
+        if guide_id != actor_id and guide_id not in result.required_responders:
+            result.required_responders.append(guide_id)
+
+
 def _validate_one_star_tutorial_routing(
     ckpt: CheckpointFile,
     result: EventRouterOutput,
@@ -1592,6 +1634,11 @@ class LLMDispatcher:
                 "character: " + ", ".join(sorted(lifecycle_overlap))
             )
 
+        _include_one_star_synthesis_guide_responders(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+        )
         event_fingerprint = one_star_event_fingerprint(
             {
                 "actor_id": actor_id,
@@ -1712,6 +1759,11 @@ class LLMDispatcher:
                         "Hero lifecycle has been fixed"
                     ) from first_error
                 result.state_updates = repaired.state_updates
+                _include_one_star_synthesis_guide_responders(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
                 _validate_one_star_cat_ii_transaction(ckpt, result)
                 _validate_one_star_tutorial_routing(ckpt, result)
                 _validate_one_star_pending_response_routing(
@@ -2087,6 +2139,11 @@ class LLMDispatcher:
             from app.engine.one_star_adapter import OneStarTransactionError
 
             def validate_candidate() -> None:
+                _include_one_star_synthesis_guide_responders(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
                 _validate_one_star_cat_ii_transaction(ckpt, result)
                 _validate_one_star_pending_operation_shapes(ckpt, result)
                 _validate_one_star_tutorial_routing(ckpt, result)

@@ -734,6 +734,7 @@ class TestXpAwardCommandPermissions:
 class TestOneStarMasterCommands:
     def test_discord_master_group_uses_bound_viewpoint_and_shared_projection(
         self,
+        monkeypatch,
     ):
         class FakeTree:
             def __init__(self):
@@ -766,6 +767,7 @@ class TestOneStarMasterCommands:
         master = tree.groups["master"]
         assert master.get_command("status") is not None
         assert master.get_command("heroes") is not None
+        assert master.get_command("synthesis") is not None
         hero_command = master.get_command("hero")
 
         inter = MagicMock()
@@ -789,6 +791,48 @@ class TestOneStarMasterCommands:
         assert "Tired Baker [hero]" in sent.kwargs["embed"].description
         assert "HP 17/53" in sent.kwargs["embed"].description
         inter.followup.send.assert_not_awaited()
+
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0002",
+            turn_index=2,
+            output_text="The selection opens.",
+            per_player_renders={"owner": "The selection opens."},
+            beat_ended_reason="cat_ii_pending",
+        )
+        engine.run_one_star_synthesis_command = AsyncMock(
+            return_value=response
+        )
+        deliver = AsyncMock()
+        monkeypatch.setattr(
+            bot_commands,
+            "_deliver_turn_response_to_povs",
+            deliver,
+        )
+        synthesis_command = master.get_command("synthesis")
+        synthesis_inter = MagicMock()
+        synthesis_inter.channel_id = 123
+        synthesis_inter.channel = object()
+        synthesis_inter.user = MagicMock(id=42, display_name="Master")
+        synthesis_inter.response.send_message = AsyncMock()
+        synthesis_inter.response.defer = AsyncMock()
+        synthesis_inter.followup.send = AsyncMock()
+
+        asyncio.run(synthesis_command.callback(
+            synthesis_inter,
+            "Tired Baker",
+            "Edric, Pip the Younger",
+        ))
+
+        engine.run_one_star_synthesis_command.assert_awaited_once_with(
+            "s",
+            "owner",
+            target_ref="Tired Baker",
+            source_refs=("Edric", "Pip the Younger"),
+        )
+        synthesis_inter.response.defer.assert_awaited_once_with(thinking=True)
+        deliver.assert_awaited_once()
+        assert deliver.await_args.kwargs["response"] is response
 
 
 class TestTurnResponseDelivery:

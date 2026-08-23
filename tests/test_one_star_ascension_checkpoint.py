@@ -282,7 +282,9 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert config.catalogue["common_weapon"].cost.gold == 1
     assert config.catalogue["common_armor"].cost.gold == 2
     assert config.catalogue["common_field_item"].cost.gold == 1
-    assert config.catalogue["synthesis_chamber_1"].cost.building_resources == 2
+    assert config.catalogue["armory_1"].cost.building_resources == 2
+    assert config.catalogue["armory_1"].facility_id == "armory"
+    assert "synthesis_chamber_1" not in config.catalogue
     assert config.catalogue["hero_reaction_research_1"].required_cleared_floor == 5
     assert config.catalogue["daily_dungeon_gate_1"].required_cleared_floor == 5
     assert config.catalogue["lobby_floor_2"].required_cleared_floor == 10
@@ -321,8 +323,8 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
         "tower_gate": 1,
         "accommodation": 1,
         "warehouse": 1,
-        "armory": 1,
         "training_camp": 1,
+        "synthesis_chamber": 1,
     }
     assert state.highest_unlocked_floor == 1
     assert state.highest_cleared_floor == 0
@@ -1110,8 +1112,8 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
     rules = checkpoint.session.config.narrative_rules.lower()
     hidden = (ws.hidden_lore + "\n" + "\n".join(ws.hidden_facts)).lower()
 
-    # Facilities exist with gacha purposes and are built/upgraded (the missing
-    # synthesis chamber is now present; the shrine is folded into summoning).
+    # Facilities exist with gacha purposes and are built/upgraded; the shrine
+    # is folded into summoning rather than kept as a purposeless building.
     facts_lore = facts + "\n" + lore
     for facility in (
         "summoning hall",
@@ -1138,6 +1140,12 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
     guide_ctx = iselle.known_context.lower()
     assert "lethal defense protocol" in guide_ctx
     assert "compel deployment" in guide_ctx
+    guide_objectives = "\n".join(
+        iselle.private_state.current_objectives
+    ).lower()
+    assert "synthesis" in guide_objectives
+    assert "drag" in guide_objectives
+    assert "consent" in guide_objectives
 
     # Old softening clauses must not silently reintroduce immunity.
     assert "treat it exactly like synthesis" not in hidden

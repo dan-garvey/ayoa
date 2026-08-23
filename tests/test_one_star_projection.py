@@ -8,6 +8,7 @@ from app.engine.character_agent import CharacterAgent
 from app.engine.one_star_projection import (
     one_star_agent_state_block,
     one_star_master_command_lines,
+    one_star_synthesis_command_intention,
     visible_equipped_item_description,
 )
 from app.engine.one_star_adapter import OneStarTransactionError
@@ -21,6 +22,7 @@ from app.schemas.one_star import (
     ONE_STAR_RULESET_ID,
     OneStarAccountEnvelope,
     OneStarAccountState,
+    OneStarCatalogueEntry,
     OneStarCost,
     OneStarEquipmentEntry,
     OneStarHeroState,
@@ -421,6 +423,88 @@ def test_master_hero_command_resolves_name_and_rejects_unknown() -> None:
             owner.character_id,
             "hero",
             hero_ref="stranger",
+        )
+
+
+def test_synthesis_command_resolves_exact_heroes_without_mutating_state() -> None:
+    checkpoint, owner, target, _guide = _checkpoint()
+    account = OneStarAccountEnvelope.model_validate(
+        owner.mechanics[ONE_STAR_ACCOUNT_KEY]
+    )
+    account.state.pending_operation = None
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
+    source = CharacterRecord(
+        character_id="donor",
+        name="Edric",
+        public_sheet=PublicSheet(role="guard"),
+        private_state=PrivateState(),
+        mechanics={ONE_STAR_HERO_KEY: _hero_state().model_dump(mode="json")},
+    )
+    checkpoint.characters.append(source)
+    before = checkpoint.model_dump(mode="json")
+
+    intention = one_star_synthesis_command_intention(
+        checkpoint,
+        owner.character_id,
+        target_ref=target.name,
+        source_refs=("Edric",),
+    )
+
+    assert "Tired Baker [hero]" in intention
+    assert "Edric [donor]" in intention
+    assert "Guide [guide]" in intention
+    assert "does not assert consent" in intention
+    assert "physical enforcement is the warden's action" in intention
+    assert checkpoint.model_dump(mode="json") == before
+
+
+def test_synthesis_command_rejects_duplicate_or_unavailable_selections() -> None:
+    checkpoint, owner, target, _guide = _checkpoint()
+    account = OneStarAccountEnvelope.model_validate(
+        owner.mechanics[ONE_STAR_ACCOUNT_KEY]
+    )
+    account.state.pending_operation = None
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
+    source = CharacterRecord(
+        character_id="donor",
+        name="Edric",
+        public_sheet=PublicSheet(role="guard"),
+        mechanics={ONE_STAR_HERO_KEY: _hero_state().model_dump(mode="json")},
+    )
+    checkpoint.characters.append(source)
+
+    with pytest.raises(ValueError, match="cannot also be a source"):
+        one_star_synthesis_command_intention(
+            checkpoint,
+            owner.character_id,
+            target_ref=target.name,
+            source_refs=(target.name,),
+        )
+    with pytest.raises(ValueError, match="only once"):
+        one_star_synthesis_command_intention(
+            checkpoint,
+            owner.character_id,
+            target_ref=target.name,
+            source_refs=("Edric", "donor"),
+        )
+
+    account = OneStarAccountEnvelope.model_validate(
+        owner.mechanics[ONE_STAR_ACCOUNT_KEY]
+    )
+    account.config.catalogue["synthesis_chamber_1"] = OneStarCatalogueEntry(
+        kind="facility_build",
+        cost=OneStarCost(gold=1, gems=0, building_resources=1),
+        facility_id="synthesis_chamber",
+        target_level=1,
+    )
+    account.state.facilities.pop("synthesis_chamber")
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
+    with pytest.raises(ValueError, match="not operational"):
+        one_star_synthesis_command_intention(
+            checkpoint,
+            owner.character_id,
+            target_ref=target.name,
+            source_refs=("Edric",),
         )
 
 

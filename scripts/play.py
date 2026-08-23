@@ -57,6 +57,8 @@ Commands inside the REPL:
     /master status              Show One-Star Master resources and progress
     /master heroes              List owned Heroes and core stats
     /master hero <name|id|#>    Show one owned Hero's full visible sheet
+    /master synthesis <target> from <source>[, <source>...]
+                                Select Heroes for synthesis
     /history [N]                Print all turns, or last N
     /quit                       Exit (Ctrl-D also works)
 
@@ -193,6 +195,8 @@ Commands:
   /master status                    One-Star Master resources and progress
   /master heroes                    Owned Heroes and core stats
   /master hero <name|id|#>          One owned Hero's full visible sheet
+  /master synthesis <target> from <source>[, <source>...]
+                                    Select Heroes for synthesis
   /history [N]                      Print all turns, or last N
   /quit                             Exit (Ctrl-D also works)
 
@@ -1354,6 +1358,25 @@ def _split_combat_ids(arg: str) -> list[str]:
     return [part.strip() for part in chunks if part.strip()]
 
 
+def _parse_master_synthesis_args(arg: str) -> tuple[str, tuple[str, ...]]:
+    match = re.fullmatch(r"\s*(.+?)\s+from\s+(.+?)\s*", arg, flags=re.IGNORECASE)
+    if match is None:
+        raise ValueError(
+            "usage: /master synthesis <target> from "
+            "<source>[, <source>...]"
+        )
+    target_ref = match.group(1).strip()
+    source_refs = tuple(
+        part.strip() for part in match.group(2).split(",") if part.strip()
+    )
+    if not target_ref or not source_refs:
+        raise ValueError(
+            "usage: /master synthesis <target> from "
+            "<source>[, <source>...]"
+        )
+    return target_ref, source_refs
+
+
 def _joinable_character_line(summary: CharacterSummary) -> str:
     bits = [
         bit for bit in (
@@ -1669,6 +1692,7 @@ class CLIState:
         print("  /status")
         print("  /master status       One-Star account owner only")
         print("  /master heroes       One-Star account owner only")
+        print("  /master synthesis    One-Star account owner only")
         print("  /history [N]")
         print("  /characters")
         print("  /as <#>              Select another claimed seat")
@@ -1966,16 +1990,45 @@ class CLIState:
             print(f"last visible update: {activity.last_visible_update}")
         self._print_open_reaction_slots()
 
-    def cmd_master(self, arg: str) -> None:
+    async def cmd_master(self, arg: str) -> None:
         if not self._require_story():
             return
         parts = arg.strip().split(maxsplit=1)
         command = parts[0].casefold() if parts else "status"
         hero_ref = parts[1].strip() if len(parts) == 2 else ""
-        if command not in {"status", "heroes", "hero"}:
+        if command not in {"status", "heroes", "hero", "synthesis"}:
             print(
                 "usage: /master status | /master heroes | "
-                "/master hero <name|id|#>"
+                "/master hero <name|id|#> | /master synthesis "
+                "<target> from <source>[, <source>...]"
+            )
+            return
+        if command == "synthesis":
+            try:
+                target_ref, source_refs = _parse_master_synthesis_args(
+                    hero_ref
+                )
+                async with _progress("resolving"):
+                    response = await self.engine.run_one_star_synthesis_command(
+                        self.session_id,
+                        self.current_actor or "",
+                        target_ref=target_ref,
+                        source_refs=source_refs,
+                    )
+            except (FileNotFoundError, ValueError) as exc:
+                print(f"error: {exc}")
+                return
+            except Exception as exc:
+                logger.exception("One-Star synthesis command failed")
+                print(f"error: {player_safe_error_message(exc)}")
+                return
+            await self._wait_for_render_images(
+                response,
+                actor_id=self.current_actor or "",
+            )
+            self._print_turn_response(
+                response,
+                actor_id=self.current_actor or "",
             )
             return
         if command == "hero" and not hero_ref:

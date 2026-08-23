@@ -22,6 +22,7 @@ from scripts.play import (
     _default_history_path,
     _format_missing_llm_credentials,
     _prepare_session_story,
+    _parse_master_synthesis_args,
     _print_dice_roll_displays,
     _session_command_lock,
     _split_combat_ids,
@@ -1364,6 +1365,34 @@ class TestOneStarMasterCommands:
 
         out = capsys.readouterr().out
         assert "error: Master commands" in out
+
+    def test_synthesis_parser_preserves_named_target_and_sources(self):
+        assert _parse_master_synthesis_args(
+            "Tired Baker from Edric, Pip the Younger"
+        ) == (
+            "Tired Baker",
+            ("Edric", "Pip the Younger"),
+        )
+
+    def test_synthesis_uses_mutating_bridge_turn(self, run):
+        engine = _mock_engine(bindings={"aldric": "1"})
+        engine.run_one_star_synthesis_command = AsyncMock(
+            return_value=_turn_response()
+        )
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.current_actor = "aldric"
+
+        run(state.handle_line(
+            "/master synthesis Tired Baker from Edric, Pip the Younger"
+        ))
+
+        engine.one_star_master_command.assert_not_called()
+        engine.run_one_star_synthesis_command.assert_awaited_once_with(
+            SESSION_ID,
+            "aldric",
+            target_ref="Tired Baker",
+            source_refs=("Edric", "Pip the Younger"),
+        )
 
 
 class TestCombatCommand:

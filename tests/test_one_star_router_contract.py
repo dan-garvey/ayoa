@@ -19,6 +19,7 @@ from app.engine.turn_loop_dispatcher import (
     _router_history_record,
     _router_ruleset_template_vars,
     _one_star_transaction_for_result,
+    _include_one_star_synthesis_guide_responders,
     _validate_one_star_cat_ii_transaction,
     _validate_one_star_guide_routing,
     _validate_one_star_pending_response_routing,
@@ -823,6 +824,52 @@ def test_embodied_selection_requires_cat_ii_from_every_affected_hero(
             actor_id="alice",
             result=result,
         )
+
+
+def test_synthesis_selection_collects_configured_guide_intention(monkeypatch):
+    from app.engine import one_star_adapter
+
+    ckpt = _one_star_checkpoint()
+    ckpt.characters.append(character_record("guide"))
+    data = router_output(
+        requires_responders=True,
+        required_responders=["pip"],
+        observer_ids=["alice", "pip", "guide"],
+    ).model_dump(mode="json")
+    data["state_updates"] = [{
+        "kind": "pending_open",
+        "target_id": "synthesis_1",
+        "value": "synthesis",
+        "details": [
+            "participant=pip",
+            "target_id=alice",
+            "destination=synthesis_room",
+        ],
+    }]
+    result = OneStarEventRouterOutput.model_validate(data)
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_account",
+        lambda _: (
+            ckpt.characters[0],
+            SimpleNamespace(
+                state=SimpleNamespace(guide_character_ids=["guide"]),
+            ),
+        ),
+    )
+
+    _include_one_star_synthesis_guide_responders(
+        ckpt,
+        actor_id="alice",
+        result=result,
+    )
+    _include_one_star_synthesis_guide_responders(
+        ckpt,
+        actor_id="alice",
+        result=result,
+    )
+
+    assert result.required_responders == ["pip", "guide"]
 
 
 def test_tutorial_delivery_requires_direct_visible_observation():

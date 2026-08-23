@@ -105,6 +105,15 @@ pending-operation selection metadata; it never spends, moves, culls, or changes
 rank. A later resolution either records the exact completed transition or
 leaves it unresolved or cancelled.
 
+For a synthesis selection, also include every active configured lobby guide in
+`required_responders`. The guide is the embodied warden who must choose and
+state their own enforcement intention after the selection becomes visible.
+Never turn a source's refusal into consent. If the guide overpowers or drags an
+unwilling source, preserve the source's actual words and resistance and write
+the concrete physical action as observable facts before chamber entry and
+resolution; do not skip from selection or refusal directly to a sanitized
+completion notice.
+
 Reading already-authorized System information is not an embodied selection.
 Inspecting a Hero's visible status, stats, equipment, skills, roster entry, or
 mission status uses an empty state-update list, does not open Cat II, and
@@ -158,8 +167,9 @@ never use them as a shadow local-Hero death or synthesis path.
 Write exact observable System facts only for characters who can perceive the
 relevant channel. Keep private account details, hidden potential, and unseen
 mechanics scoped. The guide's mediated awareness of a Master action does not
-authorize dialogue or an action for her: when she should respond, select her
-as `next_output` and let her own output say it.
+normally authorize dialogue or an action for her: outside the synthesis
+response rule, when she should respond, select her as `next_output` and let her
+own output say it.
 
 The account owner has clear live camera access to whichever scene the current
 context establishes they are watching. `active_master_feed_id` anchors that

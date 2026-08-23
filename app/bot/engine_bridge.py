@@ -90,7 +90,6 @@ from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,
     CharacterVisuals,
-    PlayerSlotKind,
     PublicSheet,
     is_player_authored_slot,
 )
@@ -1271,6 +1270,38 @@ class EngineBridge:
             command,
             hero_ref=hero_ref,
         )
+
+    async def run_one_star_synthesis_command(
+        self,
+        session_id: str,
+        viewpoint_character_id: str,
+        *,
+        target_ref: str,
+        source_refs: Iterable[str],
+    ) -> TurnResponse:
+        """Submit a Master synthesis selection through the normal turn path."""
+
+        clean_source_refs = tuple(
+            value.strip() for value in source_refs if value.strip()
+        )
+        lock = await self._lock_for(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            from app.engine.one_star_projection import (
+                one_star_synthesis_command_intention,
+            )
+
+            intention = one_star_synthesis_command_intention(
+                ckpt,
+                viewpoint_character_id,
+                target_ref=target_ref,
+                source_refs=clean_source_refs,
+            )
+            return await self._run_turn_locked(
+                session_id=session_id,
+                user_input=intention,
+                acting_character_id=viewpoint_character_id,
+            )
 
     def list_joinable_characters(self, session_id: str) -> list[CharacterSummary]:
         """Open pre-authored slots surfaced by `/join`.

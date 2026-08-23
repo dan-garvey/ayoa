@@ -7,7 +7,7 @@ fictional audience and never expose a raw mechanics mapping.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 from app.engine.one_star_adapter import (
     ONE_STAR_RULESET_ID,
@@ -599,6 +599,122 @@ def one_star_master_command_lines(
             hero_ref,
         )
     raise ValueError("Master command must be status, heroes, or hero.")
+
+
+def one_star_synthesis_command_intention(
+    checkpoint: CheckpointFile,
+    viewpoint_character_id: str,
+    *,
+    target_ref: str,
+    source_refs: Sequence[str],
+) -> str:
+    """Build one exact Master submission without mutating adapter state.
+
+    The returned text goes through the ordinary router, character-response,
+    and narrator path.  This helper resolves user-facing roster references and
+    rejects impossible command preconditions; it does not open or resolve the
+    durable synthesis operation itself.
+    """
+
+    loaded = _account(checkpoint)
+    if loaded is None:
+        raise ValueError(
+            "Synthesis commands are available only in a One-Star Ascension "
+            "session."
+        )
+    owner, envelope = loaded
+    if viewpoint_character_id != owner.character_id:
+        raise ValueError(
+            "Synthesis commands are available only to the character that "
+            "owns this System account."
+        )
+    if envelope.state.active_mission is not None:
+        raise ValueError(
+            "Synthesis cannot be selected while a Tower mission is active."
+        )
+    if envelope.state.pending_operation is not None:
+        raise ValueError(
+            "Finish or cancel the current pending management operation "
+            "before selecting synthesis."
+        )
+
+    requirement = envelope.config.operation_requirements.get("synthesis")
+    if (
+        requirement is None
+        or not requirement.facility_id
+        or not requirement.required_location
+        or envelope.state.facilities.get(requirement.facility_id, 0) < 1
+    ):
+        raise ValueError("The Synthesis Chamber is not operational.")
+
+    records = _owned_hero_records(checkpoint, envelope)
+    if not records:
+        raise ValueError("This System account does not own any Heroes.")
+    if not target_ref.strip():
+        raise ValueError("Choose the surviving target Hero.")
+    clean_source_refs = [value.strip() for value in source_refs if value.strip()]
+    if not clean_source_refs:
+        raise ValueError("Choose at least one source Hero to consume.")
+
+    target_character, _target = _resolve_owned_hero(records, target_ref)
+    resolved_sources = [
+        _resolve_owned_hero(records, source_ref)
+        for source_ref in clean_source_refs
+    ]
+    source_characters = [character for character, _hero in resolved_sources]
+    source_ids = [character.character_id for character in source_characters]
+    if len(source_ids) != len(set(source_ids)):
+        raise ValueError("Each synthesis source Hero may be selected only once.")
+    if target_character.character_id in source_ids:
+        raise ValueError("The surviving target Hero cannot also be a source.")
+
+    for character in [target_character, *source_characters]:
+        if character.status != CharacterStatus.active:
+            raise ValueError(
+                f"{character.name} is not an active Hero and cannot be "
+                "selected for synthesis."
+            )
+
+    characters = {
+        character.character_id: character for character in checkpoint.characters
+    }
+    guide_characters: list[CharacterRecord] = []
+    for guide_id in envelope.state.guide_character_ids:
+        guide = characters.get(guide_id)
+        if guide is None or guide.status != CharacterStatus.active:
+            raise ValueError(
+                "The configured lobby guide is unavailable to carry out "
+                "synthesis."
+            )
+        guide_characters.append(guide)
+
+    target_label = (
+        f"{target_character.name} [{target_character.character_id}]"
+    )
+    source_labels = ", ".join(
+        f"{character.name} [{character.character_id}]"
+        for character in source_characters
+    )
+    guide_labels = _join_values(
+        (
+            f"{character.name} [{character.character_id}]"
+            for character in guide_characters
+        ),
+        empty="the lobby warden",
+    )
+    return (
+        "Through the System interface, I select "
+        f"{source_labels} as synthesis source"
+        f"{'s' if len(source_characters) != 1 else ''} for the surviving "
+        f"target {target_label}, at {requirement.required_location}. "
+        "The System openly notifies every selected Hero and "
+        f"{guide_labels}. This opens the selection only: it does not assert "
+        "consent, movement into the chamber, or completed synthesis. Each "
+        "selected Hero gets to cooperate, refuse, bargain, flee, or resist. "
+        f"{guide_labels} must answer in their own voice as warden; any "
+        "physical enforcement is the warden's action, never consent invented "
+        "for a Hero."
+    )
 
 
 def visible_equipped_item_description(character: CharacterRecord) -> str:

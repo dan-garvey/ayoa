@@ -26,6 +26,7 @@ Commands:
     /query <question>                     — ask an out-of-character question
     /status                               — summarize current state
     /master status|heroes|hero            — inspect the One-Star Master ledger
+    /master synthesis                     — select Heroes for synthesis
 
 The bot calls the engine in-process (no HTTP). Each turn runs under a
 per-session lock so concurrent /act commands on the same channel serialize.
@@ -34,7 +35,7 @@ per-session lock so concurrent /act commands on the same channel serialize.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 import json
 import logging
@@ -86,7 +87,6 @@ from app.schemas.dnd_inventory import DndLootOffer
 from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError
 from app.schemas.characters import CharacterRecord
-from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_asset_text
 from app.schemas.content_pack import ContentImageAsset, SafeAssetRevealPayload
 from app.schemas.image_generation import ImageDeliveryKind
@@ -3676,7 +3676,7 @@ def register(
     )
     master_group = app_commands.Group(
         name="master",
-        description="Inspect the One-Star Master account and owned Heroes.",
+        description="Inspect or operate the One-Star Master account.",
     )
 
     @image_group.command(
@@ -5857,15 +5857,16 @@ def register(
             ephemeral=True,
         )
 
-    # ---- /act ---------------------------------------------------------------
+    # ---- shared mutating turn delivery -------------------------------------
 
-    @tree.command(
-        name="act",
-        description="Take a turn in the current story.",
-        guild=guild,
-    )
-    @app_commands.describe(action="What your character does or says.")
-    async def _act(inter: discord.Interaction, action: str):
+    async def _run_bound_turn(
+        inter: discord.Interaction,
+        *,
+        action_summary: str,
+        runner: Callable[[str, str], Awaitable[TurnResponse]],
+    ) -> None:
+        """Run one bound-character action through the standard POV fan-out."""
+
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
@@ -5885,24 +5886,23 @@ def register(
 
         await inter.response.defer(thinking=True)
         start = time.monotonic()
-
         try:
-            response = await engine.run_turn(
-                session_id=row.session_id,
-                user_input=action,
-                acting_character_id=binding,
-            )
-        except TransientLLMError as e:
+            response = await runner(row.session_id, binding)
+        except TransientLLMError as exc:
             logger.warning(
-                "run_turn hit transient LLM error after %d attempts: %s",
-                e.attempts, e.last_error,
+                "bound turn hit transient LLM error after %d attempts: %s",
+                exc.attempts,
+                exc.last_error,
             )
-            await inter.followup.send(embed=render_error(str(e)), ephemeral=True)
-            return
-        except Exception as e:
-            logger.exception("run_turn failed")
             await inter.followup.send(
-                embed=render_error(player_safe_error_message(e)),
+                embed=render_error(str(exc)),
+                ephemeral=True,
+            )
+            return
+        except Exception as exc:
+            logger.exception("bound turn failed")
+            await inter.followup.send(
+                embed=render_error(player_safe_error_message(exc)),
                 ephemeral=True,
             )
             return
@@ -5910,15 +5910,13 @@ def register(
         elapsed = time.monotonic() - start
         logger.info(
             "Turn %d completed for %s by %s in %.1fs (%d chars): %r",
-            response.turn_index, row.session_id, inter.user.display_name,
-            elapsed, len(response.output_text), action[:120],
+            response.turn_index,
+            row.session_id,
+            inter.user.display_name,
+            elapsed,
+            len(response.output_text),
+            action_summary[:120],
         )
-        # Per-phase latency / cache metrics now flow through the
-        # engine logger (see opening-turn note above). v11-r7j murdered
-        # `TurnResponse.debug`; this used to render its `latencies`
-        # list here and silently no-op'd because the orchestrator
-        # never populated it.
-
         await _deliver_turn_response_to_povs(
             inter=inter,
             smap=smap,
@@ -5928,6 +5926,28 @@ def register(
             actor_character_id=binding,
             actor_user=inter.user,
             response=response,
+        )
+
+    # ---- /act ---------------------------------------------------------------
+
+    @tree.command(
+        name="act",
+        description="Take a turn in the current story.",
+        guild=guild,
+    )
+    @app_commands.describe(action="What your character does or says.")
+    async def _act(inter: discord.Interaction, action: str):
+        async def _run(session_id: str, binding: str) -> TurnResponse:
+            return await engine.run_turn(
+                session_id=session_id,
+                user_input=action,
+                acting_character_id=binding,
+            )
+
+        await _run_bound_turn(
+            inter,
+            action_summary=action,
+            runner=_run,
         )
 
     # ---- /retry ------------------------------------------------------------
@@ -6836,6 +6856,47 @@ def register(
             command="hero",
             hero_ref=hero,
             title="Master Hero",
+        )
+
+    @master_group.command(
+        name="synthesis",
+        description="Select source Heroes to synthesize into a target Hero.",
+    )
+    @app_commands.describe(
+        target="Surviving target Hero name, id, or roster number.",
+        sources="Source Hero names, ids, or roster numbers, comma-separated.",
+    )
+    async def _master_synthesis(
+        inter: discord.Interaction,
+        target: str,
+        sources: str,
+    ):
+        source_refs = tuple(
+            part.strip() for part in sources.split(",") if part.strip()
+        )
+        if not target.strip() or not source_refs:
+            await inter.response.send_message(
+                "Choose one surviving target and at least one comma-separated "
+                "source Hero.",
+                ephemeral=True,
+            )
+            return
+
+        async def _run(session_id: str, binding: str) -> TurnResponse:
+            return await engine.run_one_star_synthesis_command(
+                session_id,
+                binding,
+                target_ref=target.strip(),
+                source_refs=source_refs,
+            )
+
+        await _run_bound_turn(
+            inter,
+            action_summary=(
+                f"master synthesis {target.strip()} from "
+                + ", ".join(source_refs)
+            ),
+            runner=_run,
         )
 
     # ---- /status ------------------------------------------------------------

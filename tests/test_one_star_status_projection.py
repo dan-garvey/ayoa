@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
 
 from app.bot.commands import _render_session_status_body_lines
 from app.bot.engine_bridge import EngineBridge
@@ -111,4 +112,42 @@ def test_engine_bridge_uses_shared_master_command_projection(monkeypatch) -> Non
         "owner",
         "hero",
         hero_ref="Tired Baker",
+    )
+
+
+def test_engine_bridge_synthesis_command_uses_normal_locked_turn(monkeypatch) -> None:
+    checkpoint = CheckpointFile(
+        session=SessionState(session_id="status", story_id="story")
+    )
+    bridge = object.__new__(EngineBridge)
+    bridge.checkpoint_mgr = MagicMock()
+    bridge.checkpoint_mgr.load_latest.return_value = checkpoint
+    bridge._session_locks = {}
+    bridge._locks_mutex = asyncio.Lock()
+    expected_response = object()
+    bridge._run_turn_locked = AsyncMock(return_value=expected_response)
+    projection = MagicMock(return_value="exact synthesis selection")
+    monkeypatch.setattr(
+        "app.engine.one_star_projection.one_star_synthesis_command_intention",
+        projection,
+    )
+
+    result = asyncio.run(bridge.run_one_star_synthesis_command(
+        "status",
+        "owner",
+        target_ref="Tired Baker",
+        source_refs=("Edric", "Pip"),
+    ))
+
+    assert result is expected_response
+    projection.assert_called_once_with(
+        checkpoint,
+        "owner",
+        target_ref="Tired Baker",
+        source_refs=("Edric", "Pip"),
+    )
+    bridge._run_turn_locked.assert_awaited_once_with(
+        session_id="status",
+        user_input="exact synthesis selection",
+        acting_character_id="owner",
     )

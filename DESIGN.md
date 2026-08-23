@@ -302,6 +302,8 @@ One-Star adapter commands (active when
   mission, feed, and pending-operation state.
 * `/master heroes` — owned-Hero roster with core mechanics.
 * `/master hero <name|id|#>` — one owned Hero's visible full sheet.
+* `/master synthesis <target> from <source>[, <source>...]` — submit a
+  synthesis selection through the ordinary canonical turn path.
 
 The bot calls the engine in process through `EngineBridge`; there is no
 FastAPI layer in the current runtime. `SessionMap` stores Discord channel
@@ -1536,8 +1538,9 @@ stay on the Luna-backed standard-agent role; activated seeded reserves retain
 their authored agent tier. Authored opening pools remain non-random and do not
 consume standard draws. Deployment, synthesis, and promotion are staged:
 selection opens a zero-side-effect pending operation, affected Heroes keep
-ordinary response ownership, and a later event may resolve only after the
-recorded bodies physically reach the configured gate or chamber.
+ordinary response ownership, and a synthesis selection also collects the
+configured lobby guide's own enforcement intention. A later event may resolve
+only after the recorded bodies physically reach the configured gate or chamber.
 Tower mission boundaries, pre-existing escape authority, resource underflow,
 event-id fingerprints, and exactly-once rewards are hard validation constraints.
 Progression is deliberately lightweight deterministic bookkeeping: seed
@@ -1560,6 +1563,14 @@ use the same viewer-scoped projection through `EngineBridge` in both CLI and
 Discord. They are available only when the invoking viewpoint is the account
 owner; they do not call an LLM, create canonical events, or expose raw mechanics
 maps.
+
+`/master synthesis` is deliberately different: it resolves user-facing Hero
+references and submits an exact Master interface choice through the same
+locked router, Cat II, character-agent, narrator, rollback, and POV-delivery
+path as `/act`. The command does not mutate the ledger or declare consent,
+movement, coercion, or completion. Selected Heroes decide their responses;
+the configured guide decides any enforcement; the router canonicalizes the
+resulting physical scene before the adapter may resolve it.
 
 ### 15.8 Modularity Contract
 
