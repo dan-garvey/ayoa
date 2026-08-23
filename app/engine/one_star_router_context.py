@@ -249,7 +249,17 @@ def render_one_star_repair_evidence(
                     f"occupied={owned_count}/{state.capacity}"
                 )
         elif update.kind == "inventory_delta":
-            add(f"inventory {update.target_id}: current={state.inventory.get(update.target_id, 0)}")
+            if update.target_id in {
+                "gold",
+                "gems",
+                "building_resources",
+            }:
+                add_resources()
+            else:
+                add(
+                    f"inventory {update.target_id}: "
+                    f"current={state.inventory.get(update.target_id, 0)}"
+                )
         elif update.kind == "hero_delta":
             add_hero(update.target_id, detail_keys)
         elif update.kind.startswith("mission_"):

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.engine import dice, dnd_experience, dnd_monsters
+from app.engine.action_rejection import PlayerActionRejected
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.dnd_combat import apply_damage, current_combatant
 from app.engine.imported_statblocks import ImportedStatBlockNotFoundError
@@ -396,6 +397,41 @@ def patched_orchestrator(monkeypatch):
 
 
 class TestHappyPath:
+    @pytest.mark.asyncio
+    async def test_player_action_rejection_returns_message_without_saving_or_narrating(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+        from app.engine.model_config_sync import sync_checkpoint_runtime_models
+
+        sync_checkpoint_runtime_models(ckpt, orch.client.config)
+        before = ckpt.model_dump_json()
+        rejected_run = AsyncMock(side_effect=PlayerActionRejected(
+            "Premium summon rejected: 5 pulls cost 25 Gems, but only 5 "
+            "Gems are available. Nothing was spent and no Heroes were "
+            "summoned.",
+            reason="one_star_summon_rejected",
+        ))
+        monkeypatch.setattr(
+            "app.engine.orchestrator.run_beat",
+            rejected_run,
+        )
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I perform five premium summons.",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "one_star_summon_rejected"
+        assert response.per_player_renders == {}
+        assert "5 pulls cost 25 Gems" in response.output_text
+        assert "Nothing was spent" in response.output_text
+        assert ckpt.model_dump_json() == before
+        assert FakeDispatcher.narrator_calls == []
+        mgr.save.assert_not_called()
+
     @pytest.mark.asyncio
     async def test_cat_i_close_populates_renders_and_saves(
         self, patched_orchestrator,

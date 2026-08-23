@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from app.engine.action_rejection import PlayerActionRejected
 from app.engine.one_star_adapter import (
     OneStarTransactionError,
     apply_one_star_prepared_mutation,
@@ -13,6 +14,7 @@ from app.engine.one_star_adapter import (
     one_star_standard_summon_lifecycle,
     one_star_state_updates_to_transaction,
     one_star_summon_draw_preview,
+    preflight_one_star_standard_summon,
     prepare_one_star_transaction,
 )
 from app.schemas.characters import CharacterRecord, CharacterStatus
@@ -280,6 +282,83 @@ def test_compact_standard_summon_update_derives_hidden_draw_and_lifecycle() -> N
         "value": "3",
         "details": [],
     }
+
+
+def test_unaffordable_summon_is_rejected_without_mutating_draw_state() -> None:
+    checkpoint = _checkpoint()
+    owner, account = load_one_star_account(checkpoint)
+    account.state.resources.gems = 5
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
+    before = checkpoint.model_dump_json()
+
+    with pytest.raises(
+        PlayerActionRejected,
+        match=(
+            r"Premium summon rejected: 5 pulls cost 25 Gems, but only "
+            r"5 Gems are available.*Nothing was spent"
+        ),
+    ):
+        preflight_one_star_standard_summon(
+            checkpoint,
+            [OneStarStateUpdate(
+                kind="summon",
+                target_id="premium",
+                value="5",
+                details=[],
+            )],
+            initiating_actor_id="account_owner",
+        )
+
+    assert checkpoint.model_dump_json() == before
+    assert load_one_star_account(checkpoint)[1].state.summon_draw_counters == {}
+
+
+def test_oversized_summon_is_rejected_before_drawing() -> None:
+    checkpoint = _checkpoint()
+    _owner, account = load_one_star_account(checkpoint)
+
+    with pytest.raises(
+        PlayerActionRejected,
+        match=(
+            rf"allow at most {account.config.max_summon_batch} pulls at once"
+        ),
+    ):
+        preflight_one_star_standard_summon(
+            checkpoint,
+            [OneStarStateUpdate(
+                kind="summon",
+                target_id="premium",
+                value=str(account.config.max_summon_batch + 1),
+                details=[],
+            )],
+            initiating_actor_id="account_owner",
+        )
+
+
+def test_same_event_currency_grant_is_available_to_summon_preflight() -> None:
+    checkpoint = _checkpoint()
+    owner, account = load_one_star_account(checkpoint)
+    account.state.resources.gems = 5
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
+
+    preflight_one_star_standard_summon(
+        checkpoint,
+        [
+            OneStarStateUpdate(
+                kind="inventory_delta",
+                target_id="gems",
+                value="20",
+                details=[],
+            ),
+            OneStarStateUpdate(
+                kind="summon",
+                target_id="premium",
+                value="5",
+                details=[],
+            ),
+        ],
+        initiating_actor_id="account_owner",
+    )
 
 
 def test_counter_advancement_exposes_the_unconsumed_weighted_suffix() -> None:

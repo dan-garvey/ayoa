@@ -16,6 +16,7 @@ from collections.abc import Iterable, Mapping
 
 from pydantic import ValidationError
 
+from app.engine.action_rejection import PlayerActionRejected
 from app.schemas.characters import (
     CharacterAgentTier,
     CharacterRecord,
@@ -47,6 +48,7 @@ from app.schemas.one_star import (
     OneStarPendingCancelOperation,
     OneStarPendingOpenOperation,
     OneStarPendingResolveOperation,
+    OneStarResources,
     OneStarRulesConfig,
     OneStarSkillEntry,
     OneStarSkillRankUpdate,
@@ -62,6 +64,13 @@ from app.schemas.one_star import (
 
 class OneStarTransactionError(ValueError):
     """A compact One-Star update cannot be committed safely."""
+
+
+_ACCOUNT_RESOURCE_FIELDS = frozenset({
+    "gold",
+    "gems",
+    "building_resources",
+})
 
 
 def validate_one_star_pending_operation_shape(pending: object) -> None:
@@ -1201,6 +1210,17 @@ def _apply_inventory_delta(
     operation: OneStarInventoryDeltaOperation,
     state: OneStarAccountState,
 ) -> None:
+    if operation.item_id in _ACCOUNT_RESOURCE_FIELDS:
+        current = int(getattr(state.resources, operation.item_id))
+        updated = current + operation.quantity_delta
+        if updated < 0:
+            raise OneStarTransactionError(
+                "resource delta would consume unavailable "
+                f"{operation.item_id}"
+            )
+        setattr(state.resources, operation.item_id, updated)
+        return
+
     current = state.inventory.get(operation.item_id, 0)
     updated = current + operation.quantity_delta
     if updated < 0:
@@ -1302,6 +1322,179 @@ def _apply_catalogue(
         )
     _spend_resources(state.resources, entry.cost)
     state.research_levels[entry.research_key] = entry.research_level
+
+
+def _resource_amount_text(cost: OneStarCost) -> str:
+    labels = {
+        "gold": "Gold",
+        "gems": "Gems",
+        "building_resources": "Building Resources",
+    }
+    pieces = [
+        f"{int(getattr(cost, field))} {label}"
+        for field, label in labels.items()
+        if int(getattr(cost, field))
+    ]
+    pieces.extend(
+        f"{quantity} {material_id.replace('_', ' ').title()}"
+        for material_id, quantity in sorted(cost.materials.items())
+        if quantity
+    )
+    if not pieces:
+        return "no resources"
+    if len(pieces) == 1:
+        return pieces[0]
+    return ", ".join(pieces[:-1]) + f" and {pieces[-1]}"
+
+
+def _available_amount_text(
+    resources: OneStarResources,
+    cost: OneStarCost,
+) -> str:
+    labels = {
+        "gold": "Gold",
+        "gems": "Gems",
+        "building_resources": "Building Resources",
+    }
+    pieces = [
+        f"{int(getattr(resources, field))} {label}"
+        for field, label in labels.items()
+        if int(getattr(cost, field))
+    ]
+    pieces.extend(
+        f"{resources.materials.get(material_id, 0)} "
+        f"{material_id.replace('_', ' ').title()}"
+        for material_id, quantity in sorted(cost.materials.items())
+        if quantity
+    )
+    if len(pieces) == 1:
+        return pieces[0]
+    return ", ".join(pieces[:-1]) + f" and {pieces[-1]}"
+
+
+def preflight_one_star_standard_summon(
+    checkpoint: CheckpointFile,
+    state_updates: Iterable[OneStarStateUpdate],
+    *,
+    initiating_actor_id: str,
+) -> None:
+    """Reject a known-impossible standard summon before Hero authoring.
+
+    This is deliberately narrow. It simulates only preceding catalogue and
+    inventory/resource updates whose bookkeeping is already deterministic. A
+    transaction with other preceding semantics falls through to normal atomic
+    preparation instead of risking a false rejection.
+    """
+
+    updates = list(state_updates)
+    if sum(update.kind == "summon" for update in updates) != 1:
+        return
+    try:
+        owner, account = load_one_star_account(checkpoint)
+    except (OneStarTransactionError, ValidationError, ValueError):
+        # Malformed model output still follows the ordinary validation/repair
+        # path. Only an established, deterministic player constraint belongs
+        # on the player-facing rejection surface.
+        return
+
+    state = account.state.model_copy(deep=True)
+    for update in updates:
+        if update.kind in {"inventory_delta", "catalogue_apply"}:
+            try:
+                operation = one_star_state_updates_to_transaction(
+                    checkpoint,
+                    [update],
+                    canonical_at_s=checkpoint.session.leading_at_s,
+                ).operations[0]
+                if isinstance(operation, OneStarInventoryDeltaOperation):
+                    _apply_inventory_delta(operation, state)
+                elif isinstance(operation, OneStarCatalogueApplyOperation):
+                    _apply_catalogue(operation, state, account.config)
+                else:  # Defensive: each update translates to one operation.
+                    return
+            except (
+                IndexError,
+                OneStarTransactionError,
+                ValidationError,
+                ValueError,
+            ):
+                return
+            continue
+        if update.kind != "summon":
+            return
+
+        pool_id = update.target_id.strip()
+        pool = account.config.summon_pools.get(pool_id)
+        if (
+            pool is None
+            or pool.usage != "standard"
+            or initiating_actor_id.strip() != owner.character_id
+            or update.details
+        ):
+            return
+
+        try:
+            count = _integer_update_value(update.value, label="summon count")
+        except OneStarTransactionError:
+            return
+        if count < 1:
+            return
+        pool_label = pool_id.replace("_", " ").strip().title()
+        if count > account.config.max_summon_batch:
+            raise PlayerActionRejected(
+                f"{pool_label} summons allow at most "
+                f"{account.config.max_summon_batch} pulls at once; "
+                f"{count} were requested. Nothing was spent and no Heroes "
+                "were summoned.",
+                reason="one_star_summon_rejected",
+            )
+        if state.active_mission is not None:
+            raise PlayerActionRejected(
+                "Summoning is unavailable while a Tower mission is active. "
+                "Nothing was spent and no Heroes were summoned.",
+                reason="one_star_summon_rejected",
+            )
+
+        total_cost = _multiply_cost(pool.cost, count)
+        insufficient = (
+            state.resources.gold < total_cost.gold
+            or state.resources.gems < total_cost.gems
+            or state.resources.building_resources
+            < total_cost.building_resources
+            or any(
+                state.resources.materials.get(material_id, 0) < quantity
+                for material_id, quantity in total_cost.materials.items()
+            )
+        )
+        if insufficient:
+            raise PlayerActionRejected(
+                f"{pool_label} summon rejected: {count} "
+                f"{'pull' if count == 1 else 'pulls'} cost "
+                f"{_resource_amount_text(total_cost)}, but only "
+                f"{_available_amount_text(state.resources, total_cost)} "
+                "are available. "
+                "Nothing was spent and no Heroes were summoned.",
+                reason="one_star_summon_rejected",
+            )
+
+        occupied = sum(
+            1
+            for character in checkpoint.characters
+            if character.status != CharacterStatus.culled
+            and (hero := load_one_star_hero(character)) is not None
+            and hero.owner_lobby_id == account.config.lobby_id
+        )
+        open_slots = max(0, state.capacity - occupied)
+        if count > open_slots:
+            raise PlayerActionRejected(
+                f"{pool_label} summon rejected: {count} "
+                f"{'Hero was' if count == 1 else 'Heroes were'} requested, "
+                f"but the lobby has {open_slots} open "
+                f"{'slot' if open_slots == 1 else 'slots'}. Nothing was "
+                "spent and no Heroes were summoned.",
+                reason="one_star_summon_rejected",
+            )
+        return
 
 
 def _apply_summon(

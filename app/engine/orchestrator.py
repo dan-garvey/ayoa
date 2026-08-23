@@ -28,15 +28,16 @@ import uuid
 from copy import deepcopy
 from typing import Any, Callable
 
+from app.engine import dnd_combat, dnd_inventory
+from app.engine.action_rejection import PlayerActionRejected
+from app.engine.character_manager import CharacterManager
+from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.closed_event_runtime import (
     ClosedEventRuntime,
     closed_event_runtime_for,
     install_closed_event_runtime,
 )
 from app.engine.context_builder import resolve_acting_character
-from app.engine.character_manager import CharacterManager
-from app.engine.checkpoint_manager import CheckpointManager
-from app.engine import dnd_combat, dnd_inventory
 from app.engine.dnd_cat_ii import (
     DndCatIIRollsPending,
     complete_pending_player_roll,
@@ -1412,6 +1413,28 @@ class Orchestrator:
                     cat_ii_event_id=cat_ii_event_id,
                     combat_reaction_event_id=combat_reaction_event_id,
                 )
+            except PlayerActionRejected as exc:
+                if pending_render_saved():
+                    # This exception is reserved for validation before any
+                    # canonical presentation boundary. Reaching it after a
+                    # pending render was saved would violate rollback safety.
+                    await self._commit_closed_event_runtime(ckpt, [])
+                    raise RuntimeError(
+                        "player action was rejected after canonical state was "
+                        "persisted"
+                    ) from exc
+                await self._cancel_closed_event_runtime(
+                    ckpt,
+                    reason=exc.reason,
+                )
+                return _with_pre_turn_resolutions(TurnResponse(
+                    session_id=request.session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text=str(exc),
+                    per_player_renders={},
+                    beat_ended_reason=exc.reason,
+                ), pre_turn_resolutions)
             except Exception:
                 if pending_render_saved():
                     await self._commit_closed_event_runtime(ckpt, [])

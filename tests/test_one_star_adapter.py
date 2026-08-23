@@ -7,6 +7,7 @@ from app.engine.one_star_adapter import (
     apply_one_star_prepared_mutation,
     load_one_star_account,
     load_one_star_hero,
+    one_star_state_updates_to_transaction,
     prepare_one_star_transaction,
 )
 from app.schemas.characters import (
@@ -15,7 +16,7 @@ from app.schemas.characters import (
     CharacterStatus,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.one_star import OneStarTransaction
+from app.schemas.one_star import OneStarStateUpdate, OneStarTransaction
 from app.schemas.state import OpenCatIIEvent, SessionConfig, SessionSettings, SessionState
 
 
@@ -201,6 +202,86 @@ def test_existing_reserve_keeps_authored_mechanics_and_acquires_atomically() -> 
     assert prepared.newly_acquired_hero_ids == ("reserve",)
     assert hero.generated_for_summon is False
     assert reserve.agent_tier is CharacterAgentTier.utility
+
+
+def test_inventory_delta_routes_account_currencies_to_resources() -> None:
+    checkpoint = _checkpoint()
+    updates = [
+        OneStarStateUpdate(
+            kind="inventory_delta",
+            target_id="gems",
+            value="100",
+            details=[],
+        ),
+        OneStarStateUpdate(
+            kind="inventory_delta",
+            target_id="gold",
+            value="-3",
+            details=[],
+        ),
+        OneStarStateUpdate(
+            kind="inventory_delta",
+            target_id="building_resources",
+            value="2",
+            details=[],
+        ),
+        OneStarStateUpdate(
+            kind="inventory_delta",
+            target_id="healing_draught",
+            value="4",
+            details=[],
+        ),
+    ]
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        updates,
+        canonical_at_s=0,
+    )
+
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="evt_resource_grant",
+        transaction=transaction,
+        initiating_actor_id="account_owner",
+    )
+    _owner, account = load_one_star_account(prepared.after_checkpoint)
+
+    assert account.state.resources.model_dump() == {
+        "gold": 7,
+        "gems": 100,
+        "building_resources": 2,
+        "materials": {},
+    }
+    assert account.state.inventory == {"healing_draught": 4}
+
+
+@pytest.mark.parametrize(
+    ("resource_id", "delta"),
+    [("gold", -11), ("gems", -1), ("building_resources", -1)],
+)
+def test_inventory_delta_rejects_account_currency_underflow(
+    resource_id: str,
+    delta: int,
+) -> None:
+    checkpoint = _checkpoint()
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        [OneStarStateUpdate(
+            kind="inventory_delta",
+            target_id=resource_id,
+            value=str(delta),
+            details=[],
+        )],
+        canonical_at_s=0,
+    )
+
+    with pytest.raises(OneStarTransactionError, match="resource delta"):
+        prepare_one_star_transaction(
+            checkpoint,
+            event_id=f"evt_underflow_{resource_id}",
+            transaction=transaction,
+            initiating_actor_id="account_owner",
+        )
 
 
 def test_preparation_uses_durable_copy_and_apply_preserves_transients() -> None:

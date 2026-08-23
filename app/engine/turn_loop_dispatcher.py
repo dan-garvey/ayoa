@@ -66,6 +66,7 @@ from app.schemas.one_star import (
     ClosedOneStarEventRouterOutput,
     OneStarEventRouterOutput,
     ONE_STAR_RULESET_ID,
+    OneStarStateUpdate,
     OneStarStateUpdateList,
     OneStarTransaction,
 )
@@ -130,6 +131,17 @@ def _one_star_transaction_for_result(
         raise OneStarTransactionError(
             "a compact One-Star state update violates its typed value bounds"
         ) from exc
+
+
+def _one_star_summon_update_signature(
+    updates: list[OneStarStateUpdate],
+) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    """Fields a state-only repair may not change after lifecycle is staged."""
+    return tuple(
+        (update.target_id, update.value, tuple(update.details))
+        for update in updates
+        if update.kind == "summon"
+    )
 
 
 def _validate_one_star_cat_ii_transaction(
@@ -1424,9 +1436,15 @@ class LLMDispatcher:
             one_star_event_already_applied,
             one_star_event_fingerprint,
             one_star_standard_summon_lifecycle,
+            preflight_one_star_standard_summon,
             prepare_one_star_transaction,
         )
 
+        preflight_one_star_standard_summon(
+            ckpt,
+            result.state_updates,
+            initiating_actor_id=actor_id,
+        )
         adapter_spawns, adapter_wakes = one_star_standard_summon_lifecycle(
             ckpt,
             result.state_updates,
@@ -1558,12 +1576,22 @@ class LLMDispatcher:
             try:
                 prepared = prepare()
             except OneStarTransactionError as first_error:
+                summon_signature = _one_star_summon_update_signature(
+                    result.state_updates,
+                )
                 repaired = await self._repair_one_star_transaction(
                     ckpt=ckpt,
                     result=result,
                     actor_id=actor_id,
                     validation_error=str(first_error),
                 )
+                if _one_star_summon_update_signature(
+                    repaired.state_updates,
+                ) != summon_signature:
+                    raise OneStarTransactionError(
+                        "state-update repair cannot change a summon after its "
+                        "Hero lifecycle has been fixed"
+                    ) from first_error
                 result.state_updates = repaired.state_updates
                 _validate_one_star_cat_ii_transaction(ckpt, result)
                 _validate_one_star_tutorial_routing(ckpt, result)

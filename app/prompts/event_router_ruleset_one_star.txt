@@ -23,7 +23,10 @@ Use these update shapes:
   have empty details and no generic spawn/activate entries: their identities,
   stars, and lifecycle are derived from fixed pool authority. Authored opening pools repeat
   `hero_id=<id>` in details and use matching generic lifecycle entries.
-- inventory: `inventory_delta`, target item id, value signed quantity.
+- inventory or direct account grant: `inventory_delta`, target item id or exact
+  account resource id (`gold`, `gems`, or `building_resources`), value signed
+  quantity. Account resource ids change their spendable balance; other ids
+  change ordinary inventory.
 - Hero: `hero_delta`, target Hero id, empty value, and only changed details:
   `hp_current`, `hp_max`, `level`, `experience_delta`, `stat.<id>`,
   `equipment_remove`, `durability.<item_id>`, `skill_remove`,

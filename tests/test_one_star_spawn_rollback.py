@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.engine.action_rejection import PlayerActionRejected
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.closed_event_runtime import (
     ClosedEventRuntime,
@@ -152,7 +153,7 @@ async def test_failed_one_star_prepare_rolls_back_fresh_spawn_overlay_after_bad_
 
     with pytest.raises(
         OneStarTransactionError,
-        match="remained invalid after one repair",
+        match="repair cannot change a summon",
     ):
         await dispatcher.prepare_ruleset_event(
             ckpt=checkpoint,
@@ -182,6 +183,47 @@ async def test_failed_one_star_prepare_rolls_back_fresh_spawn_overlay_after_bad_
         reason="turn_failed_before_commit",
     )
     assert not coordinator.pending_introductions(runtime.transaction_id)
+
+
+@pytest.mark.asyncio
+async def test_unaffordable_summon_rejects_before_spawn_authoring_or_repair():
+    checkpoint = _checkpoint()
+    checkpoint.characters[0].mechanics["one_star_account"]["state"][
+        "resources"
+    ]["gold"] = 2
+    before = checkpoint.model_dump_json()
+    data = router_output(
+        event_id="evt_unaffordable_summon",
+        observer_ids=["account_owner"],
+        facts=[],
+    ).model_dump(mode="json")
+    data["state_updates"] = [{
+        "kind": "summon",
+        "target_id": "basic",
+        "value": "2",
+        "details": [],
+    }]
+    event = OneStarEventRouterOutput.model_validate(data)
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock()
+    dispatcher = LLMDispatcher(client, PromptManager("app/prompts"))
+    dispatcher.materialize_spawns = AsyncMock()
+
+    with pytest.raises(
+        PlayerActionRejected,
+        match=r"2 pulls cost 4 Gold, but only 2 Gold are available",
+    ):
+        await dispatcher.prepare_ruleset_event(
+            ckpt=checkpoint,
+            result=event,
+            actor_id="account_owner",
+        )
+
+    dispatcher.materialize_spawns.assert_not_awaited()
+    client.complete.assert_not_awaited()
+    assert event.spawn == []
+    assert event.activate == []
+    assert checkpoint.model_dump_json() == before
 
 
 @pytest.mark.asyncio
