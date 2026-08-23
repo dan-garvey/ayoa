@@ -7,6 +7,7 @@ import pytest
 from app.engine.character_agent import CharacterAgent
 from app.engine.one_star_projection import (
     one_star_agent_state_block,
+    one_star_master_command_lines,
     visible_equipped_item_description,
 )
 from app.engine.one_star_adapter import OneStarTransactionError
@@ -187,6 +188,7 @@ def _checkpoint(
             },
             lobby_floor=2,
             capacity=12,
+            highest_cleared_floor=1,
             highest_unlocked_floor=2,
             stamina_current=3,
             active_master_feed_id="feed-7",
@@ -262,6 +264,94 @@ def test_account_projection_is_exact_but_excludes_private_mechanics() -> None:
     assert "world-ending spoiler" not in block
     assert "Hidden Token" not in block
     assert "Sealed Art" not in block
+
+
+def test_master_commands_split_account_roster_and_hero_sheet() -> None:
+    checkpoint, owner, _, _ = _checkpoint()
+
+    status = one_star_master_command_lines(
+        checkpoint,
+        owner.character_id,
+        "status",
+    )
+    roster = one_star_master_command_lines(
+        checkpoint,
+        owner.character_id,
+        "heroes",
+    )
+    hero = one_star_master_command_lines(
+        checkpoint,
+        owner.character_id,
+        "hero",
+        hero_ref="#1",
+    )
+
+    status_text = "\n".join(status)
+    assert "Gold 37; Gems 4; Building Resources 2" in status_text
+    assert "slime_residue x6" in status_text
+    assert "iron_sword x2" in status_text
+    assert "highest cleared floor 1" in status_text
+    assert "highest unlocked floor 2" in status_text
+    assert "Hero capacity: 12; stamina 3/5" in status_text
+    assert "Occupied Hero slots: 1/12" in status_text
+    assert "armory 1" in status_text
+    assert "feed-7" in status_text
+    assert "Pending management operation: synthesis" in status_text
+
+    roster_text = "\n".join(roster)
+    assert "Tired Baker: 2-star" in roster_text
+    assert "level 7" in roster_text
+    assert "HP 17/53" in roster_text
+    assert "Stats: agility 19, power 23" in roster_text
+
+    hero_text = "\n".join(hero)
+    assert "Tired Baker [hero]" in hero_text
+    assert "XP 901" in hero_text
+    assert "Dough-Hardened Grip (rank 3)" in hero_text
+    assert "Notched Kitchen Knife (hand)" in hero_text
+    assert "bleeding, bad knee" in hero_text
+    assert "Hidden Token" not in hero_text
+    assert "Sealed Art" not in hero_text
+    assert "six-star potential" not in hero_text
+
+
+def test_master_commands_reject_non_owner_and_other_rulesets() -> None:
+    checkpoint, owner, hero, _ = _checkpoint()
+
+    with pytest.raises(ValueError, match="only to the character that owns"):
+        one_star_master_command_lines(
+            checkpoint,
+            hero.character_id,
+            "status",
+        )
+
+    narrative, narrative_owner, _, _ = _checkpoint(ruleset_id="narrative")
+    with pytest.raises(ValueError, match="only in a One-Star Ascension"):
+        one_star_master_command_lines(
+            narrative,
+            narrative_owner.character_id,
+            "status",
+        )
+
+
+def test_master_hero_command_resolves_name_and_rejects_unknown() -> None:
+    checkpoint, owner, _, _ = _checkpoint()
+
+    by_name = one_star_master_command_lines(
+        checkpoint,
+        owner.character_id,
+        "hero",
+        hero_ref="tired baker",
+    )
+    assert "Tired Baker [hero]" in by_name
+
+    with pytest.raises(ValueError, match="No owned Hero matches"):
+        one_star_master_command_lines(
+            checkpoint,
+            owner.character_id,
+            "hero",
+            hero_ref="stranger",
+        )
 
 
 def test_ordinary_hero_gets_embodied_state_without_system_numbers_or_lore() -> None:

@@ -731,6 +731,66 @@ class TestXpAwardCommandPermissions:
         inter.followup.send.assert_not_awaited()
 
 
+class TestOneStarMasterCommands:
+    def test_discord_master_group_uses_bound_viewpoint_and_shared_projection(
+        self,
+    ):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+                self.groups = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, group, **_kwargs):
+                self.groups[group.name] = group
+
+        engine = MagicMock()
+        engine.get_user_binding.return_value = "owner"
+        engine.one_star_master_command.return_value = (
+            "Tired Baker [hero]",
+            "HP 17/53",
+        )
+        smap = MagicMock()
+        smap.get = AsyncMock(return_value=SimpleNamespace(
+            session_id="s",
+            story_id="one_star",
+        ))
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+        master = tree.groups["master"]
+        assert master.get_command("status") is not None
+        assert master.get_command("heroes") is not None
+        hero_command = master.get_command("hero")
+
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.channel = object()
+        inter.user = MagicMock(id=42)
+        inter.response.send_message = AsyncMock()
+        inter.followup.send = AsyncMock()
+
+        asyncio.run(hero_command.callback(inter, "Tired Baker"))
+
+        engine.get_user_binding.assert_called_once_with("s", 42)
+        engine.one_star_master_command.assert_called_once_with(
+            "s",
+            "owner",
+            "hero",
+            hero_ref="Tired Baker",
+        )
+        sent = inter.response.send_message.await_args
+        assert sent.kwargs["ephemeral"] is True
+        assert "Tired Baker [hero]" in sent.kwargs["embed"].description
+        assert "HP 17/53" in sent.kwargs["embed"].description
+        inter.followup.send.assert_not_awaited()
+
+
 class TestTurnResponseDelivery:
     def test_actor_render_goes_through_embed_thread_delivery(self, monkeypatch):
         response = TurnResponse(

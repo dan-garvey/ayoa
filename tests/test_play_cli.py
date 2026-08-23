@@ -1326,6 +1326,46 @@ class TestStatusCommand:
         assert "user id" not in out.lower()
 
 
+class TestOneStarMasterCommands:
+    def test_master_commands_use_selected_actor_and_shared_projection(
+        self, run, capsys,
+    ):
+        engine = _mock_engine(bindings={"aldric": "1"})
+        engine.one_star_master_command.return_value = (
+            "Tired Baker [hero]",
+            "HP 17/53",
+        )
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.current_actor = "aldric"
+
+        run(state.handle_line("/master hero Tired Baker"))
+
+        engine.one_star_master_command.assert_called_once_with(
+            SESSION_ID,
+            "aldric",
+            "hero",
+            hero_ref="Tired Baker",
+        )
+        out = capsys.readouterr().out
+        assert "Tired Baker [hero]" in out
+        assert "HP 17/53" in out
+
+    def test_master_command_displays_adapter_or_owner_rejection(
+        self, run, capsys,
+    ):
+        engine = _mock_engine(bindings={"aldric": "1"})
+        engine.one_star_master_command.side_effect = ValueError(
+            "Master commands are available only to the account owner."
+        )
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.current_actor = "aldric"
+
+        run(state.handle_line("/master status"))
+
+        out = capsys.readouterr().out
+        assert "error: Master commands" in out
+
+
 class TestCombatCommand:
     def test_combat_begin_parser_preserves_comma_or_quoted_names(self):
         assert _split_combat_ids("alice guard") == ["alice", "guard"]

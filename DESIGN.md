@@ -295,6 +295,14 @@ D&D adapter commands (active when `ruleset_id == "dnd5e_basic"`; see §15):
 * `/combat begin|status|next|end|damage|heal` — combat lifecycle and HP
   management.
 
+One-Star adapter commands (active when
+`ruleset_id == "one_star_ascension"`; see §15):
+
+* `/master status` — account resources, facilities, progression, stamina,
+  mission, feed, and pending-operation state.
+* `/master heroes` — owned-Hero roster with core mechanics.
+* `/master hero <name|id|#>` — one owned Hero's visible full sheet.
+
 The bot calls the engine in process through `EngineBridge`; there is no
 FastAPI layer in the current runtime. `SessionMap` stores Discord channel
 to session mappings, private POV thread mappings, and turn-message refs
@@ -1535,6 +1543,12 @@ System-detail level; configured guides receive lobby-management and tutorial
 state but not off-feed tactical omniscience; image prompts receive only visible
 current equipment. Narrator input remains canonical observable facts rather
 than raw adapter state.
+
+The read-only `/master status`, `/master heroes`, and `/master hero` commands
+use the same viewer-scoped projection through `EngineBridge` in both CLI and
+Discord. They are available only when the invoking viewpoint is the account
+owner; they do not call an LLM, create canonical events, or expose raw mechanics
+maps.
 
 ### 15.8 Modularity Contract
 

@@ -54,6 +54,9 @@ Commands inside the REPL:
     /rewind [<N>]               List or rewind to a turn checkpoint
     /settings                   Show / update experimental settings
     /status                     Session summary
+    /master status              Show One-Star Master resources and progress
+    /master heroes              List owned Heroes and core stats
+    /master hero <name|id|#>    Show one owned Hero's full visible sheet
     /history [N]                Print all turns, or last N
     /quit                       Exit (Ctrl-D also works)
 
@@ -187,6 +190,9 @@ Commands:
   /settings <key>                   Show one setting's current value
   /settings <key> <value>           Update a setting
   /status                           Session summary
+  /master status                    One-Star Master resources and progress
+  /master heroes                    Owned Heroes and core stats
+  /master hero <name|id|#>          One owned Hero's full visible sheet
   /history [N]                      Print all turns, or last N
   /quit                             Exit (Ctrl-D also works)
 
@@ -1661,6 +1667,8 @@ class CLIState:
         print("  /defer               Let the scene continue without acting")
         print("  /query <question>    Ask from this character's POV")
         print("  /status")
+        print("  /master status       One-Star account owner only")
+        print("  /master heroes       One-Star account owner only")
         print("  /history [N]")
         print("  /characters")
         print("  /as <#>              Select another claimed seat")
@@ -1957,6 +1965,37 @@ class CLIState:
         if activity.last_visible_update:
             print(f"last visible update: {activity.last_visible_update}")
         self._print_open_reaction_slots()
+
+    def cmd_master(self, arg: str) -> None:
+        if not self._require_story():
+            return
+        parts = arg.strip().split(maxsplit=1)
+        command = parts[0].casefold() if parts else "status"
+        hero_ref = parts[1].strip() if len(parts) == 2 else ""
+        if command not in {"status", "heroes", "hero"}:
+            print(
+                "usage: /master status | /master heroes | "
+                "/master hero <name|id|#>"
+            )
+            return
+        if command == "hero" and not hero_ref:
+            print("usage: /master hero <name|id|#>")
+            return
+        if command != "hero" and hero_ref:
+            print(f"usage: /master {command}")
+            return
+        try:
+            lines = self.engine.one_star_master_command(
+                self.session_id,
+                self.current_actor or "",
+                command,
+                hero_ref=hero_ref,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"error: {exc}")
+            return
+        for line in lines:
+            print(line)
 
     async def cmd_begin(self, arg: str) -> None:
         if not self._require_story():

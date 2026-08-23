@@ -25,6 +25,7 @@ Commands:
     /defer                                — submit no action and let the scene continue
     /query <question>                     — ask an out-of-character question
     /status                               — summarize current state
+    /master status|heroes|hero            — inspect the One-Star Master ledger
 
 The bot calls the engine in-process (no HTTP). Each turn runs under a
 per-session lock so concurrent /act commands on the same channel serialize.
@@ -3673,6 +3674,10 @@ def register(
         name="image",
         description="Manage provisional generated character identities.",
     )
+    master_group = app_commands.Group(
+        name="master",
+        description="Inspect the One-Star Master account and owned Heroes.",
+    )
 
     @image_group.command(
         name="lock",
@@ -6744,6 +6749,95 @@ def register(
             return
         await inter.followup.send(embed=_render_combat_status(view))
 
+    # ---- /master ------------------------------------------------------------
+
+    async def _send_master_command(
+        inter: discord.Interaction,
+        *,
+        command: str,
+        hero_ref: str = "",
+        title: str,
+    ) -> None:
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No story here.", ephemeral=True,
+            )
+            return
+        try:
+            binding = engine.get_user_binding(
+                row.session_id,
+                inter.user.id,
+            ) or ""
+            lines = engine.one_star_master_command(
+                row.session_id,
+                binding,
+                command,
+                hero_ref=hero_ref,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            await inter.response.send_message(
+                embed=render_error(str(exc)), ephemeral=True,
+            )
+            return
+        except Exception as exc:
+            logger.exception("One-Star Master command failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(exc).__name__}: {exc}`"),
+                ephemeral=True,
+            )
+            return
+
+        chunks = _chunks("\n".join(lines), MAX_DESCRIPTION - 96)
+        total = len(chunks)
+        for index, chunk in enumerate(chunks, start=1):
+            chunk_title = title if total == 1 else f"{title} ({index}/{total})"
+            kwargs = {
+                "embed": render_info(chunk_title, chunk),
+                "ephemeral": True,
+            }
+            if index == 1:
+                await inter.response.send_message(**kwargs)
+            else:
+                await inter.followup.send(**kwargs)
+
+    @master_group.command(
+        name="status",
+        description="Show the One-Star Master resources and progression.",
+    )
+    async def _master_status(inter: discord.Interaction):
+        await _send_master_command(
+            inter,
+            command="status",
+            title="Master status",
+        )
+
+    @master_group.command(
+        name="heroes",
+        description="List owned One-Star Heroes and their core stats.",
+    )
+    async def _master_heroes(inter: discord.Interaction):
+        await _send_master_command(
+            inter,
+            command="heroes",
+            title="Master Heroes",
+        )
+
+    @master_group.command(
+        name="hero",
+        description="Show one owned One-Star Hero's visible sheet.",
+    )
+    @app_commands.describe(
+        hero="Owned Hero name, character id, or roster number.",
+    )
+    async def _master_hero(inter: discord.Interaction, hero: str):
+        await _send_master_command(
+            inter,
+            command="hero",
+            hero_ref=hero,
+            title="Master Hero",
+        )
+
     # ---- /status ------------------------------------------------------------
 
     @tree.command(
@@ -7154,8 +7248,7 @@ def register(
                     "abort_beat: thread-visible notification failed",
                 )
 
-    # Attach the /story and /settings groups to the tree last, once
-    # their subcommands are defined.
+    # Attach command groups to the tree after all subcommands are defined.
     if guild is not None:
         tree.add_command(session_group, guild=guild)
         tree.add_command(story_group, guild=guild)
@@ -7163,6 +7256,7 @@ def register(
         tree.add_command(loot_group, guild=guild)
         tree.add_command(xp_group, guild=guild)
         tree.add_command(image_group, guild=guild)
+        tree.add_command(master_group, guild=guild)
         tree.add_command(settings_group, guild=guild)
     else:
         tree.add_command(session_group)
@@ -7171,4 +7265,5 @@ def register(
         tree.add_command(loot_group)
         tree.add_command(xp_group)
         tree.add_command(image_group)
+        tree.add_command(master_group)
         tree.add_command(settings_group)

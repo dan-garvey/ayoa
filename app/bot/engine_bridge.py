@@ -1250,6 +1250,28 @@ class EngineBridge:
             ruleset_lines=ruleset_lines,
         )
 
+    def one_star_master_command(
+        self,
+        session_id: str,
+        viewpoint_character_id: str,
+        command: str,
+        *,
+        hero_ref: str = "",
+    ) -> tuple[str, ...]:
+        """Return one adapter-gated, read-only Master ledger projection."""
+
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        from app.engine.one_star_projection import (
+            one_star_master_command_lines,
+        )
+
+        return one_star_master_command_lines(
+            ckpt,
+            viewpoint_character_id,
+            command,
+            hero_ref=hero_ref,
+        )
+
     def list_joinable_characters(self, session_id: str) -> list[CharacterSummary]:
         """Open pre-authored slots surfaced by `/join`.
 

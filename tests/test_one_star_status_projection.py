@@ -82,3 +82,33 @@ def test_engine_bridge_populates_shared_ruleset_lines(monkeypatch) -> None:
     activity = bridge.session_activity("status")
 
     assert activity.ruleset_lines == expected
+
+
+def test_engine_bridge_uses_shared_master_command_projection(monkeypatch) -> None:
+    checkpoint = CheckpointFile(
+        session=SessionState(session_id="status", story_id="story")
+    )
+    bridge = object.__new__(EngineBridge)
+    bridge.checkpoint_mgr = MagicMock()
+    bridge.checkpoint_mgr.load_latest.return_value = checkpoint
+    expected = ("Wallet: Gold 37", "highest cleared floor 4")
+    projection = MagicMock(return_value=expected)
+    monkeypatch.setattr(
+        "app.engine.one_star_projection.one_star_master_command_lines",
+        projection,
+    )
+
+    result = bridge.one_star_master_command(
+        "status",
+        "owner",
+        "hero",
+        hero_ref="Tired Baker",
+    )
+
+    assert result == expected
+    projection.assert_called_once_with(
+        checkpoint,
+        "owner",
+        "hero",
+        hero_ref="Tired Baker",
+    )

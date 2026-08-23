@@ -15,7 +15,7 @@ from app.engine.one_star_adapter import (
     load_one_star_account,
     load_one_star_hero,
 )
-from app.schemas.characters import CharacterRecord
+from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import (
     OneStarAccountEnvelope,
@@ -295,6 +295,120 @@ def _public_roster_lines(
     return lines
 
 
+def _owned_hero_records(
+    checkpoint: CheckpointFile,
+    envelope: OneStarAccountEnvelope,
+) -> list[tuple[CharacterRecord, OneStarHeroState]]:
+    records: list[tuple[CharacterRecord, OneStarHeroState]] = []
+    for character in checkpoint.characters:
+        hero = load_one_star_hero(character)
+        if hero is not None and _belongs_to_account(hero, envelope):
+            records.append((character, hero))
+    return records
+
+
+def _master_status_lines(
+    checkpoint: CheckpointFile,
+    envelope: OneStarAccountEnvelope,
+) -> tuple[str, ...]:
+    state = envelope.state
+    occupied = sum(
+        character.status != CharacterStatus.culled
+        for character, _hero in _owned_hero_records(checkpoint, envelope)
+    )
+    lines = _management_lines(
+        envelope,
+        include_active_feed=True,
+        canonical_now_s=checkpoint.session.leading_at_s,
+    )
+    lines.append(f"Occupied Hero slots: {occupied}/{state.capacity}")
+    lines.extend(_mission_lines(state.active_mission))
+    lines.extend(_pending_operation_lines(state.pending_operation))
+    return tuple(lines)
+
+
+def _master_hero_roster_lines(
+    checkpoint: CheckpointFile,
+    envelope: OneStarAccountEnvelope,
+) -> tuple[str, ...]:
+    records = _owned_hero_records(checkpoint, envelope)
+    if not records:
+        return ("Owned Heroes: none",)
+    lines = ["Owned Heroes:"]
+    for index, (character, hero) in enumerate(records, start=1):
+        lifecycle = str(
+            character.status.value
+            if hasattr(character.status, "value")
+            else character.status
+        )
+        exact = _exact_hero_lines(character.name, hero)
+        lines.append(
+            f"{index}. {exact[0]}; lifecycle {lifecycle}; "
+            f"location {character.location or 'unknown'}"
+        )
+        lines.append(f"   {exact[1]}")
+    lines.append("Use /master hero <name|id|#> for skills and equipment.")
+    return tuple(lines)
+
+
+def _resolve_owned_hero(
+    records: list[tuple[CharacterRecord, OneStarHeroState]],
+    hero_ref: str,
+) -> tuple[CharacterRecord, OneStarHeroState]:
+    token = hero_ref.strip()
+    numbered = token.removeprefix("#")
+    if numbered.isdigit():
+        index = int(numbered)
+        if 1 <= index <= len(records):
+            return records[index - 1]
+        raise ValueError(
+            f"Hero number must be between 1 and {len(records)}."
+        )
+    folded = token.casefold()
+    matches = [
+        record
+        for record in records
+        if folded in {
+            record[0].character_id.casefold(),
+            record[0].name.strip().casefold(),
+        }
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise ValueError(
+            f"More than one owned Hero is named {token!r}; use an id or #."
+        )
+    raise ValueError(f"No owned Hero matches {token!r}.")
+
+
+def _master_hero_lines(
+    checkpoint: CheckpointFile,
+    envelope: OneStarAccountEnvelope,
+    hero_ref: str,
+) -> tuple[str, ...]:
+    records = _owned_hero_records(checkpoint, envelope)
+    if not records:
+        raise ValueError("This System account does not own any Heroes.")
+    if not hero_ref.strip():
+        raise ValueError("Choose a Hero by name, id, or roster number.")
+    character, hero = _resolve_owned_hero(records, hero_ref)
+    lifecycle = str(
+        character.status.value
+        if hasattr(character.status, "value")
+        else character.status
+    )
+    lines = [f"{character.name} [{character.character_id}]"]
+    lines.extend(_exact_hero_lines(character.name, hero))
+    lines.append(
+        f"Lifecycle: {lifecycle}; location "
+        f"{character.location or 'unknown'}"
+    )
+    if hero.terminal_cause:
+        lines.append(f"Terminal cause: {hero.terminal_cause}")
+    return tuple(lines)
+
+
 def _has_exact_own_sheet(
     character_id: str,
     hero: OneStarHeroState,
@@ -393,6 +507,41 @@ def one_star_status_lines(
         line[3:] + ":" if line.startswith("## ") else line
         for line in block.splitlines()
     )
+
+
+def one_star_master_command_lines(
+    checkpoint: CheckpointFile,
+    viewpoint_character_id: str,
+    command: str,
+    *,
+    hero_ref: str = "",
+) -> tuple[str, ...]:
+    """Project one read-only Master command from the account owner's POV."""
+
+    loaded = _account(checkpoint)
+    if loaded is None:
+        raise ValueError(
+            "Master commands are available only in a One-Star Ascension "
+            "session."
+        )
+    owner, envelope = loaded
+    if viewpoint_character_id != owner.character_id:
+        raise ValueError(
+            "Master commands are available only to the character that owns "
+            "this System account."
+        )
+    normalized = command.strip().casefold()
+    if normalized == "status":
+        return _master_status_lines(checkpoint, envelope)
+    if normalized == "heroes":
+        return _master_hero_roster_lines(checkpoint, envelope)
+    if normalized == "hero":
+        return _master_hero_lines(
+            checkpoint,
+            envelope,
+            hero_ref,
+        )
+    raise ValueError("Master command must be status, heroes, or hero.")
 
 
 def visible_equipped_item_description(character: CharacterRecord) -> str:
