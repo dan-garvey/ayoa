@@ -21,6 +21,13 @@
       "visual_language": "High-detail cel-shaded fantasy game illustration; controlled line weight; crisp two-tone shadows; selective painterly texture; clean silhouette hierarchy; full-bleed in-world staging.",
       "component_direction": "Use mature proportions except where the identity reference establishes otherwise. Preserve reference identity, age, body type, clothing, and props with clean contour separation and stable two-tone lighting that remains easy to matte.",
       "harmonization_direction": "Unify only cast shadows, edge light, contact occlusion, and local palette at assembly seams while retaining crisp subject interiors."
+    },
+    {
+      "style_pack_id": "visual-novel-cel",
+      "title": "Stable visual-novel character staging",
+      "visual_language": "Full-color Korean fantasy visual-novel illustration; controlled line weight; stable cel shading; restrained material texture; soft atmospheric environment plates; readable faces and silhouettes; consistent neutral camera language.",
+      "component_direction": "Preserve exact reference identity, age, build, hair, clothing, equipment, and asymmetry. Use stable three-quarter-body conversational framing, restrained gesture, clean silhouette separation, and neutral studio illumination that remains consistent across expression variants.",
+      "harmonization_direction": "Visual-novel sprites remain deliberate foreground layers. Use only deterministic stage shadow and background separation; do not repaint the assembled scene."
     }
   ]
 }

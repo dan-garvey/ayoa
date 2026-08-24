@@ -29,15 +29,23 @@ from pydantic import BaseModel, Field, model_validator
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CORPUS_PATH = REPO_ROOT / "experiments/staged_image/corpus.json"
+LEGACY_CINEMATIC_CORPUS_PATH = REPO_ROOT / "experiments/staged_image/corpus.json"
+DEFAULT_VISUAL_NOVEL_CORPUS_PATH = (
+    REPO_ROOT / "experiments/staged_image/visual_novel_corpus.json"
+)
+DEFAULT_CORPUS_PATH = DEFAULT_VISUAL_NOVEL_CORPUS_PATH
 DEFAULT_STYLE_PATH = REPO_ROOT / "experiments/staged_image/style_packs.json"
 DEFAULT_RUNTIME_ROOT = REPO_ROOT / "app/storage/runtime/image_generation"
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "app/storage/runtime/image_prototypes"
 DEFAULT_GATEWAY_URL = "http://127.0.0.1:8199"
 DEFAULT_SEEDS = (26082301, 26082302, 26082303, 26082304)
 TRACKS = ("pixel", "masked", "global")
-DEFAULT_TRACKS = ("pixel", "masked")
-PROMPT_PROTOCOL_VERSION = "official-minimal-v2"
+DEFAULT_TRACKS = ("pixel",)
+PROMPT_PROTOCOL_VERSIONS = {
+    "cinematic": "official-minimal-v2",
+    "visual_novel": "visual-novel-anchors-v1",
+}
+BASE_VARIANT_ID = "base"
 REVIEW_REASONS = (
     "identity",
     "subject_count",
@@ -49,6 +57,8 @@ REVIEW_REASONS = (
     "lighting",
     "composition",
     "style",
+    "expression",
+    "continuity",
     "text_artifact",
     "other",
 )
@@ -103,6 +113,27 @@ class MaskPolicy(BaseModel):
     max_significant_components: int = Field(default=1, ge=1, le=8)
 
 
+class SpriteVariantSpec(BaseModel):
+    variant_id: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9_-]+$",
+    )
+    expression_prompt: str = Field(min_length=1, max_length=1000)
+    pose_adjustment_prompt: str = Field(min_length=1, max_length=1000)
+
+
+class VisualNovelFrameSpec(BaseModel):
+    frame_id: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9_-]+$",
+    )
+    title: str = Field(min_length=1, max_length=160)
+    active_character_id: str | None = Field(default=None, max_length=200)
+    subject_variants: dict[str, str] = Field(default_factory=dict, max_length=2)
+
+
 class SubjectSpec(BaseModel):
     character_id: str = Field(min_length=1, max_length=200)
     display_name: str = Field(min_length=1, max_length=100)
@@ -110,9 +141,12 @@ class SubjectSpec(BaseModel):
     component_mode: Literal["qwen_edit", "reference_cutout"] = "qwen_edit"
     identity_prompt: str = Field(min_length=1, max_length=2000)
     pose_prompt: str = Field(min_length=1, max_length=2000)
-    target_box: UnitBox
-    foot_anchor: UnitPoint
-    z_index: int = Field(ge=0, le=100)
+    target_box: UnitBox | None = None
+    foot_anchor: UnitPoint | None = None
+    z_index: int | None = Field(default=None, ge=0, le=100)
+    screen_side: Literal["left", "right"] | None = None
+    facing: Literal["left", "right"] | None = None
+    variants: list[SpriteVariantSpec] = Field(default_factory=list, max_length=6)
     grounded: bool = True
     mask_policy: MaskPolicy = Field(default_factory=MaskPolicy)
 
@@ -120,6 +154,11 @@ class SubjectSpec(BaseModel):
     def cutout_has_one_authoritative_source(self) -> "SubjectSpec":
         if self.component_mode == "reference_cutout" and len(self.reference_ids) != 1:
             raise ValueError("reference cutout requires exactly one reference")
+        variant_ids = [variant.variant_id for variant in self.variants]
+        if BASE_VARIANT_ID in variant_ids:
+            raise ValueError(f"{BASE_VARIANT_ID!r} is reserved for the anchor sprite")
+        if len(variant_ids) != len(set(variant_ids)):
+            raise ValueError("sprite variant ids must be unique per subject")
         return self
 
 
@@ -128,33 +167,137 @@ class SceneSpec(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     split: Literal["tuning", "holdout"]
     style_pack_id: str = Field(min_length=1, max_length=100)
+    presentation: Literal["cinematic", "visual_novel"] = "cinematic"
     canvas: CanvasSpec = Field(default_factory=CanvasSpec)
     camera: CameraSpec
     background_prompt: str = Field(min_length=1, max_length=4000)
-    harmonize_prompt: str = Field(min_length=1, max_length=4000)
-    diagnostic_prompt: str = Field(min_length=1, max_length=4000)
+    harmonize_prompt: str | None = Field(default=None, min_length=1, max_length=4000)
+    diagnostic_prompt: str | None = Field(default=None, min_length=1, max_length=4000)
     subjects: list[SubjectSpec] = Field(min_length=1, max_length=4)
     contact_regions: list[ContactRegion] = Field(default_factory=list, max_length=12)
+    frames: list[VisualNovelFrameSpec] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")
     def has_unique_subjects(self) -> "SceneSpec":
         ids = [subject.character_id for subject in self.subjects]
         if len(ids) != len(set(ids)):
             raise ValueError("scene character ids must be unique")
+        if self.presentation == "cinematic":
+            if self.harmonize_prompt is None or self.diagnostic_prompt is None:
+                raise ValueError(
+                    "cinematic scenes require harmonize and diagnostic prompts"
+                )
+            if self.frames:
+                raise ValueError("cinematic scenes cannot declare visual-novel frames")
+            for subject in self.subjects:
+                if (
+                    subject.target_box is None
+                    or subject.foot_anchor is None
+                    or subject.z_index is None
+                ):
+                    raise ValueError(
+                        "cinematic subjects require target_box, foot_anchor, and z_index"
+                    )
+                if subject.screen_side is not None or subject.facing is not None:
+                    raise ValueError(
+                        "cinematic subjects cannot declare visual-novel screen geometry"
+                    )
+                if subject.variants:
+                    raise ValueError(
+                        "cinematic subjects cannot declare visual-novel variants"
+                    )
+            return self
+
+        if self.harmonize_prompt is not None or self.diagnostic_prompt is not None:
+            raise ValueError("visual-novel scenes do not use whole-scene edit prompts")
+        if self.contact_regions:
+            raise ValueError("visual-novel scenes do not use contact repair regions")
+        if len(self.subjects) != 2:
+            raise ValueError("visual-novel scenes require exactly two subjects")
+        by_side = {subject.screen_side: subject for subject in self.subjects}
+        if set(by_side) != {"left", "right"}:
+            raise ValueError(
+                "visual-novel scenes require one left and one right subject"
+            )
+        if by_side["left"].facing != "right" or by_side["right"].facing != "left":
+            raise ValueError("visual-novel subjects must face inward")
+        for subject in self.subjects:
+            if (
+                subject.target_box is not None
+                or subject.foot_anchor is not None
+                or subject.z_index is not None
+            ):
+                raise ValueError(
+                    "visual-novel placement is derived from screen_side, not authored boxes"
+                )
+        if len(self.frames) < 2:
+            raise ValueError("visual-novel scenes require at least two frames")
+        frame_ids = [frame.frame_id for frame in self.frames]
+        if len(frame_ids) != len(set(frame_ids)):
+            raise ValueError("visual-novel frame ids must be unique")
+        valid_variants = {
+            subject.character_id: {
+                BASE_VARIANT_ID,
+                *(variant.variant_id for variant in subject.variants),
+            }
+            for subject in self.subjects
+        }
+        used_variants = {subject.character_id: set() for subject in self.subjects}
+        has_anchor_frame = False
+        for frame in self.frames:
+            if (
+                frame.active_character_id is not None
+                and frame.active_character_id not in ids
+            ):
+                raise ValueError(f"frame {frame.frame_id} has unknown active character")
+            unknown_subjects = set(frame.subject_variants).difference(ids)
+            if unknown_subjects:
+                raise ValueError(
+                    f"frame {frame.frame_id} has unknown subjects: "
+                    + ", ".join(sorted(unknown_subjects))
+                )
+            resolved = {
+                character_id: frame.subject_variants.get(
+                    character_id,
+                    BASE_VARIANT_ID,
+                )
+                for character_id in ids
+            }
+            has_anchor_frame = has_anchor_frame or all(
+                variant_id == BASE_VARIANT_ID for variant_id in resolved.values()
+            )
+            for character_id, variant_id in resolved.items():
+                if variant_id not in valid_variants[character_id]:
+                    raise ValueError(
+                        f"frame {frame.frame_id} uses unknown variant "
+                        f"{character_id}/{variant_id}"
+                    )
+                if variant_id != BASE_VARIANT_ID:
+                    used_variants[character_id].add(variant_id)
+        if not has_anchor_frame:
+            raise ValueError("visual-novel scenes require one all-anchor frame")
+        for subject in self.subjects:
+            declared = {variant.variant_id for variant in subject.variants}
+            unused = declared.difference(used_variants[subject.character_id])
+            if unused:
+                raise ValueError(
+                    f"unused variants for {subject.character_id}: "
+                    + ", ".join(sorted(unused))
+                )
         return self
 
 
 class CorpusSpec(BaseModel):
     version: int = Field(ge=1)
     reference_session_id: str = Field(min_length=1)
-    scenes: list[SceneSpec] = Field(min_length=8)
+    scenes: list[SceneSpec] = Field(min_length=3)
 
     @model_validator(mode="after")
     def has_required_split(self) -> "CorpusSpec":
         tuning = sum(scene.split == "tuning" for scene in self.scenes)
         holdout = sum(scene.split == "holdout" for scene in self.scenes)
-        if tuning < 6 or holdout < 2:
-            raise ValueError("corpus requires at least 6 tuning and 2 holdout scenes")
+        if tuning < 2 or holdout < 1:
+            raise ValueError("corpus requires at least 2 tuning and 1 holdout scene")
         ids = [scene.scene_id for scene in self.scenes]
         if len(ids) != len(set(ids)):
             raise ValueError("scene ids must be unique")
@@ -198,6 +341,8 @@ class ReviewRecord(BaseModel):
             "lighting",
             "composition",
             "style",
+            "expression",
+            "continuity",
             "text_artifact",
             "other",
         ]
@@ -543,6 +688,86 @@ def _odd_filter_size(radius: int) -> int:
     return max(3, radius * 2 + 1)
 
 
+def _subject_placement(
+    scene: SceneSpec,
+    subject: SubjectSpec,
+) -> tuple[UnitBox, UnitPoint, int, Literal["contain", "fixed_height"]]:
+    if scene.presentation == "visual_novel":
+        if subject.screen_side == "left":
+            return (
+                UnitBox(x=0.0, y=0.06, width=0.5, height=0.94),
+                UnitPoint(x=0.25, y=1.0),
+                2,
+                "fixed_height",
+            )
+        if subject.screen_side == "right":
+            return (
+                UnitBox(x=0.5, y=0.06, width=0.5, height=0.94),
+                UnitPoint(x=0.75, y=1.0),
+                2,
+                "fixed_height",
+            )
+        raise ValueError(
+            f"visual-novel subject has no screen side: {subject.character_id}"
+        )
+    if (
+        subject.target_box is None
+        or subject.foot_anchor is None
+        or subject.z_index is None
+    ):
+        raise ValueError(
+            f"cinematic subject has incomplete placement: {subject.character_id}"
+        )
+    return subject.target_box, subject.foot_anchor, subject.z_index, "contain"
+
+
+def _sprite_component_path(
+    case_directory: Path,
+    character_id: str,
+    variant_id: str = BASE_VARIANT_ID,
+) -> Path:
+    suffix = "" if variant_id == BASE_VARIANT_ID else f"--{slug(variant_id)}"
+    return case_directory / "components" / f"{slug(character_id)}{suffix}.png"
+
+
+def _sprite_matte_paths(
+    case_directory: Path,
+    character_id: str,
+    variant_id: str = BASE_VARIANT_ID,
+) -> tuple[Path, Path]:
+    suffix = "" if variant_id == BASE_VARIANT_ID else f"--{slug(variant_id)}"
+    stem = f"{slug(character_id)}{suffix}"
+    matte_directory = case_directory / "mattes"
+    return matte_directory / f"{stem}-mask.png", matte_directory / f"{stem}-rgba.png"
+
+
+def _case_sprite_assets(
+    case: CaseState,
+) -> list[tuple[SubjectSpec, str, Path]]:
+    assets: list[tuple[SubjectSpec, str, Path]] = []
+    for subject in case.scene.subjects:
+        assets.append(
+            (
+                subject,
+                BASE_VARIANT_ID,
+                _sprite_component_path(case.directory, subject.character_id),
+            )
+        )
+        for variant in subject.variants:
+            assets.append(
+                (
+                    subject,
+                    variant.variant_id,
+                    _sprite_component_path(
+                        case.directory,
+                        subject.character_id,
+                        variant.variant_id,
+                    ),
+                )
+            )
+    return assets
+
+
 def composite_subjects(
     scene: SceneSpec,
     background_path: Path,
@@ -558,10 +783,20 @@ def composite_subjects(
             canvas_size,
             method=Image.Resampling.LANCZOS,
         ).convert("RGBA")
+    if scene.presentation == "visual_novel":
+        background = background.filter(ImageFilter.GaussianBlur(1.25))
+        background = Image.alpha_composite(
+            background,
+            Image.new("RGBA", canvas_size, (10, 12, 20, 28)),
+        )
     combined_mask = Image.new("L", canvas_size, 0)
     placements: list[dict[str, Any]] = []
 
-    for subject in sorted(scene.subjects, key=lambda item: item.z_index):
+    for subject in sorted(
+        scene.subjects,
+        key=lambda item: _subject_placement(scene, item)[2],
+    ):
+        target_box, anchor, z_index, scale_mode = _subject_placement(scene, subject)
         with Image.open(rgba_paths[subject.character_id]) as component_image:
             component = component_image.convert("RGBA")
         alpha = component.getchannel("A")
@@ -570,23 +805,31 @@ def composite_subjects(
             raise ValueError(f"empty RGBA component for {subject.character_id}")
         component = component.crop(content_bbox)
         left, top, right, bottom = _pixel_box(
-            subject.target_box,
+            target_box,
             scene.canvas.width,
             scene.canvas.height,
         )
         available_width = max(1, right - left)
         available_height = max(1, bottom - top)
-        scale = min(
-            available_width / component.width,
-            available_height / component.height,
-        )
+        if scale_mode == "fixed_height":
+            scale = available_height / component.height
+            if round(component.width * scale) > available_width:
+                raise ValueError(
+                    f"visual-novel sprite is too wide for its fixed stage slot: "
+                    f"{subject.character_id}"
+                )
+        else:
+            scale = min(
+                available_width / component.width,
+                available_height / component.height,
+            )
         resized_size = (
             max(1, round(component.width * scale)),
             max(1, round(component.height * scale)),
         )
         component = component.resize(resized_size, Image.Resampling.LANCZOS)
-        anchor_x = round(subject.foot_anchor.x * scene.canvas.width)
-        anchor_y = round(subject.foot_anchor.y * scene.canvas.height)
+        anchor_x = round(anchor.x * scene.canvas.width)
+        anchor_y = round(anchor.y * scene.canvas.height)
         paste_x = max(
             0,
             min(scene.canvas.width - component.width, anchor_x - component.width // 2),
@@ -595,7 +838,30 @@ def composite_subjects(
             0, min(scene.canvas.height - component.height, anchor_y - component.height)
         )
 
-        if subject.grounded:
+        if scene.presentation == "visual_novel" and (
+            paste_x < left or paste_x + component.width > right
+        ):
+            raise ValueError(
+                f"visual-novel sprite escaped its fixed stage slot: "
+                f"{subject.character_id}"
+            )
+
+        placed_alpha = Image.new("L", canvas_size, 0)
+        placed_alpha.paste(component.getchannel("A"), (paste_x, paste_y))
+
+        if scene.presentation == "visual_novel":
+            shadow_alpha = Image.new("L", canvas_size, 0)
+            shadow_alpha.paste(
+                component.getchannel("A"),
+                (paste_x + 6, paste_y + 8),
+            )
+            shadow_alpha = shadow_alpha.filter(ImageFilter.MaxFilter(7))
+            shadow_alpha = shadow_alpha.filter(ImageFilter.GaussianBlur(7))
+            shadow_alpha = shadow_alpha.point(lambda value: round(value * 0.42))
+            shadow = Image.new("RGBA", canvas_size, (8, 9, 16, 0))
+            shadow.putalpha(shadow_alpha)
+            background = Image.alpha_composite(background, shadow)
+        elif subject.grounded:
             shadow = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(shadow)
             shadow_width = max(12, round(available_width * 0.55))
@@ -612,15 +878,16 @@ def composite_subjects(
             shadow = shadow.filter(ImageFilter.GaussianBlur(max(2, shadow_height // 2)))
             background = Image.alpha_composite(background, shadow)
 
-        placed_alpha = Image.new("L", canvas_size, 0)
-        placed_alpha.paste(component.getchannel("A"), (paste_x, paste_y))
-        wrap_radius = max(1, round(min(canvas_size) * 0.003))
-        outer = placed_alpha.filter(
-            ImageFilter.MaxFilter(_odd_filter_size(wrap_radius))
-        )
-        outer = ImageChops.subtract(outer, placed_alpha).point(lambda value: value // 3)
-        light_wrap = background.filter(ImageFilter.GaussianBlur(5))
-        background = Image.composite(light_wrap, background, outer)
+        if scene.presentation == "cinematic":
+            wrap_radius = max(1, round(min(canvas_size) * 0.003))
+            outer = placed_alpha.filter(
+                ImageFilter.MaxFilter(_odd_filter_size(wrap_radius))
+            )
+            outer = ImageChops.subtract(outer, placed_alpha).point(
+                lambda value: value // 3
+            )
+            light_wrap = background.filter(ImageFilter.GaussianBlur(5))
+            background = Image.composite(light_wrap, background, outer)
 
         layer = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
         layer.alpha_composite(component, (paste_x, paste_y))
@@ -638,7 +905,9 @@ def composite_subjects(
                     paste_y + component.height,
                 ],
                 "scale": round(scale, 6),
-                "z_index": subject.z_index,
+                "scale_mode": scale_mode,
+                "screen_side": subject.screen_side,
+                "z_index": z_index,
             }
         )
 
@@ -681,6 +950,47 @@ def composite_subjects(
     combined_mask.save(subject_mask_path, format="PNG", optimize=True)
     repair_mask.save(repair_mask_path, format="PNG", optimize=True)
     return placements
+
+
+def build_storyboard(
+    frames: Sequence[tuple[str, Path]],
+    output_path: Path,
+) -> None:
+    if not frames:
+        raise ValueError("storyboard requires at least one frame")
+    thumbnail_size = (512, 288)
+    label_height = 34
+    gutter = 12
+    columns = min(3, len(frames))
+    rows = (len(frames) + columns - 1) // columns
+    sheet = Image.new(
+        "RGB",
+        (
+            columns * thumbnail_size[0] + (columns + 1) * gutter,
+            rows * (thumbnail_size[1] + label_height) + (rows + 1) * gutter,
+        ),
+        (19, 19, 25),
+    )
+    draw = ImageDraw.Draw(sheet)
+    for index, (title, path) in enumerate(frames):
+        column = index % columns
+        row = index // columns
+        x = gutter + column * (thumbnail_size[0] + gutter)
+        y = gutter + row * (thumbnail_size[1] + label_height + gutter)
+        with Image.open(path) as frame_image:
+            thumbnail = ImageOps.fit(
+                frame_image.convert("RGB"),
+                thumbnail_size,
+                method=Image.Resampling.LANCZOS,
+            )
+        sheet.paste(thumbnail, (x, y))
+        draw.text(
+            (x + 8, y + thumbnail_size[1] + 8),
+            title,
+            fill=(232, 232, 238),
+        )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(output_path, format="PNG", optimize=True)
 
 
 def blend_masked_result(
@@ -833,6 +1143,12 @@ class StagedImageRunner:
         unknown_tracks = set(selected_tracks).difference(TRACKS)
         if unknown_tracks:
             raise ValueError(f"unknown tracks: {', '.join(sorted(unknown_tracks))}")
+        if any(scene.presentation == "visual_novel" for scene in scenes) and set(
+            selected_tracks
+        ) != {"pixel"}:
+            raise ValueError(
+                "visual-novel scenes support only deterministic pixel frames"
+            )
         if style_pack_id is not None and style_pack_id not in self.styles:
             raise KeyError(f"unknown style pack: {style_pack_id}")
         validation = self.validate_inputs(scenes)
@@ -863,8 +1179,17 @@ class StagedImageRunner:
             raise FileExistsError(f"run directory already exists: {run_root}")
         run_root.mkdir(parents=True)
         run_manifest_path = run_root / "run.json"
+        protocol_versions = {
+            scene.presentation: PROMPT_PROTOCOL_VERSIONS[scene.presentation]
+            for scene in scenes
+        }
+        run_protocol_version = (
+            next(iter(protocol_versions.values()))
+            if len(protocol_versions) == 1
+            else "mixed"
+        )
         run_manifest: dict[str, Any] = {
-            "schema_version": 1,
+            "schema_version": 2,
             "run_id": run_id,
             "status": "running",
             "started_at": utc_now(),
@@ -887,7 +1212,8 @@ class StagedImageRunner:
                 "winner_selection": False,
                 "fallback_generation": False,
             },
-            "prompt_protocol_version": PROMPT_PROTOCOL_VERSION,
+            "prompt_protocol_version": run_protocol_version,
+            "prompt_protocol_versions": protocol_versions,
             "gateway_health": gateway_health,
             "cases": [],
         }
@@ -908,6 +1234,7 @@ class StagedImageRunner:
         try:
             self._background_stage(cases, run_root)
             self._component_stage(cases, run_root)
+            self._variant_stage(cases, run_root)
             self._matte_stage(cases, run_root)
             self._pixel_stage(cases, run_root)
             self._final_stage(cases, run_root, selected_tracks)
@@ -967,7 +1294,7 @@ class StagedImageRunner:
                     ]
                 manifest_path = directory / "manifest.json"
                 manifest: dict[str, Any] = {
-                    "schema_version": 1,
+                    "schema_version": 2,
                     "status": "running",
                     "scene_id": scene.scene_id,
                     "scene_title": scene.title,
@@ -980,6 +1307,9 @@ class StagedImageRunner:
                     ),
                     "style_pack": style.model_dump(mode="json"),
                     "style_pack_sha256": sha256_text(style.model_dump_json()),
+                    "prompt_protocol_version": PROMPT_PROTOCOL_VERSIONS[
+                        scene.presentation
+                    ],
                     "references": reference_manifest,
                     "stages": {},
                     "started_at": utc_now(),
@@ -1040,14 +1370,23 @@ class StagedImageRunner:
 
     @staticmethod
     def _background_prompt(case: CaseState) -> str:
+        if case.scene.presentation == "visual_novel":
+            composition = (
+                "Composition: stable widescreen visual-novel stage, quiet lateral "
+                "balance, uncluttered lower frame, and a readable center gap."
+            )
+        else:
+            composition = (
+                "Composition: full-bleed setting with an open, unoccupied "
+                "foreground and middle distance."
+            )
         return "\n".join(
             (
                 "Empty environment plate.",
                 f"Scene: {case.scene.background_prompt}",
                 f"Camera: {case.scene.camera.description}",
                 f"Style: {case.style.visual_language}",
-                "Composition: full-bleed setting with an open, unoccupied "
-                "foreground and middle distance.",
+                composition,
             )
         )
 
@@ -1075,10 +1414,9 @@ class StagedImageRunner:
                     if subject.component_mode == "reference_cutout":
                         started = time.monotonic()
                         reference = case.references[subject.character_id][0]
-                        path = (
-                            case.directory
-                            / "components"
-                            / f"{slug(subject.character_id)}.png"
+                        path = _sprite_component_path(
+                            case.directory,
+                            subject.character_id,
                         )
                         save_response_image(reference.path.read_bytes(), path)
                         component_stages = case.manifest["stages"].setdefault(
@@ -1134,10 +1472,9 @@ class StagedImageRunner:
                 case, subject, prompt, stage_seed, started = futures[future]
                 try:
                     data, headers = future.result()
-                    path = (
-                        case.directory
-                        / "components"
-                        / f"{slug(subject.character_id)}.png"
+                    path = _sprite_component_path(
+                        case.directory,
+                        subject.character_id,
                     )
                     save_response_image(data, path)
                     component_stages = case.manifest["stages"].setdefault(
@@ -1178,6 +1515,27 @@ class StagedImageRunner:
                 f"Input image: Image 1 is the identity reference for "
                 f"{subject.display_name}."
             )
+        if case.scene.presentation == "visual_novel":
+            return "\n".join(
+                (
+                    mapping,
+                    f"Primary edit: Create the neutral reusable visual-novel sprite "
+                    f"anchor for {subject.display_name} on a plain neutral gray "
+                    "studio backdrop.",
+                    f"Orientation: Place the sprite for the {subject.screen_side} "
+                    f"side of the screen, with body and face turned slightly toward "
+                    f"screen {subject.facing}; keep the face readable to the viewer.",
+                    f"Neutral pose: {subject.pose_prompt}",
+                    f"Identity to preserve: {subject.identity_prompt}",
+                    f"Style: {case.style.visual_language} {case.style.component_direction}",
+                    f"Composition: Only {subject.display_name} appears. Use a stable "
+                    "three-quarter-body crop from head through upper thighs, with "
+                    "comfortable neutral margin around the complete "
+                    "visible silhouette and any equipment.",
+                    "Continuity: Neutral conversational expression and restrained "
+                    "gesture; avoid dramatic action, foreshortening, or camera tilt.",
+                )
+            )
         return "\n".join(
             (
                 mapping,
@@ -1192,22 +1550,144 @@ class StagedImageRunner:
             )
         )
 
+    def _variant_stage(self, cases: Sequence[CaseState], run_root: Path) -> None:
+        jobs = [
+            (case, subject, variant)
+            for case in cases
+            for subject in case.scene.subjects
+            for variant in subject.variants
+        ]
+        if not jobs:
+            return
+        print(
+            f"sprite variant stage: {len(jobs)} Qwen jobs on four workers",
+            file=sys.stderr,
+            flush=True,
+        )
+        futures: dict[
+            Future[Any],
+            tuple[CaseState, SubjectSpec, SpriteVariantSpec, str, int, float],
+        ] = {}
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for case, subject, variant in jobs:
+                prompt = self._variant_prompt(case, subject, variant)
+                stage_seed = derived_seed(
+                    case.seed,
+                    case.scene.scene_id,
+                    "variant",
+                    subject.character_id,
+                    variant.variant_id,
+                )
+                anchor_path = _sprite_component_path(
+                    case.directory,
+                    subject.character_id,
+                )
+                payload = {
+                    "prompt": prompt,
+                    "image_base64": encode_image(anchor_path),
+                    "seed": stage_seed,
+                    "steps": 28,
+                    "cfg": 4.0,
+                    "filename_prefix": slug(
+                        f"staged_{case.scene.scene_id}_{subject.character_id}_"
+                        f"{variant.variant_id}"
+                    ),
+                }
+                started = time.monotonic()
+                future = executor.submit(
+                    self.client.post_image,
+                    "/edit/qwen",
+                    payload,
+                )
+                futures[future] = (
+                    case,
+                    subject,
+                    variant,
+                    prompt,
+                    stage_seed,
+                    started,
+                )
+            failures: list[str] = []
+            for future in as_completed(futures):
+                case, subject, variant, prompt, stage_seed, started = futures[future]
+                try:
+                    data, headers = future.result()
+                    output_path = _sprite_component_path(
+                        case.directory,
+                        subject.character_id,
+                        variant.variant_id,
+                    )
+                    save_response_image(data, output_path)
+                    variant_stages = (
+                        case.manifest["stages"]
+                        .setdefault("variants", {})
+                        .setdefault(subject.character_id, {})
+                    )
+                    variant_stages[variant.variant_id] = {
+                        "component_mode": "anchor_edit",
+                        "anchor_variant_id": BASE_VARIANT_ID,
+                        "anchor_artifact_sha256": sha256_path(
+                            _sprite_component_path(
+                                case.directory,
+                                subject.character_id,
+                            )
+                        ),
+                        "prompt": prompt,
+                        "prompt_sha256": sha256_text(prompt),
+                        "seed": stage_seed,
+                        "input_count": 1,
+                        "duration_seconds": round(time.monotonic() - started, 3),
+                        "response_headers": headers,
+                        "artifact": artifact_metadata(output_path, run_root),
+                    }
+                    write_json(case.manifest_path, case.manifest)
+                except Exception as exc:
+                    failures.append(
+                        f"{case.scene.scene_id}/{case.seed}/"
+                        f"{subject.character_id}/{variant.variant_id}: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+        if failures:
+            raise RuntimeError("sprite variant stage failed:\n" + "\n".join(failures))
+
+    @staticmethod
+    def _variant_prompt(
+        case: CaseState,
+        subject: SubjectSpec,
+        variant: SpriteVariantSpec,
+    ) -> str:
+        if case.scene.presentation != "visual_novel":
+            raise ValueError("sprite variants are only valid for visual-novel scenes")
+        return "\n".join(
+            (
+                f"Input image: Image 1 is the approved neutral visual-novel sprite "
+                f"anchor for {subject.display_name} and is the only edit target.",
+                f"Primary edit: Change only the facial expression to "
+                f"{variant.expression_prompt}",
+                f"Small pose adjustment: {variant.pose_adjustment_prompt}",
+                "Continuity: Preserve identity, age, body type, facial structure, "
+                "hair, clothing, equipment, screen-facing direction, three-quarter "
+                "crop, camera, scale, linework, lighting, and neutral backdrop.",
+                "Scope: Keep the adjustment restrained and conversational. Do not "
+                "add or remove a character, prop, limb, costume element, or text.",
+            )
+        )
+
     def _matte_stage(self, cases: Sequence[CaseState], run_root: Path) -> None:
-        job_count = sum(len(case.scene.subjects) for case in cases)
+        job_count = sum(len(_case_sprite_assets(case)) for case in cases)
         print(f"matte stage: {job_count} BiRefNet jobs", file=sys.stderr, flush=True)
-        futures: dict[Future[Any], tuple[CaseState, SubjectSpec, Path, float]] = {}
+        futures: dict[
+            Future[Any],
+            tuple[CaseState, SubjectSpec, str, Path, float],
+        ] = {}
         with ThreadPoolExecutor(max_workers=4) as executor:
             for case in cases:
-                for subject in case.scene.subjects:
-                    component_path = (
-                        case.directory
-                        / "components"
-                        / f"{slug(subject.character_id)}.png"
-                    )
+                for subject, variant_id, component_path in _case_sprite_assets(case):
                     payload = {
                         "image_base64": encode_image(component_path),
                         "filename_prefix": slug(
-                            f"matte_{case.scene.scene_id}_{subject.character_id}"
+                            f"matte_{case.scene.scene_id}_{subject.character_id}_"
+                            f"{variant_id}"
                         ),
                         "model_name": "birefnet.safetensors",
                     }
@@ -1217,24 +1697,44 @@ class StagedImageRunner:
                         "/prototype/matte/birefnet",
                         payload,
                     )
-                    futures[future] = (case, subject, component_path, started)
+                    futures[future] = (
+                        case,
+                        subject,
+                        variant_id,
+                        component_path,
+                        started,
+                    )
             failures: list[str] = []
             for future in as_completed(futures):
-                case, subject, component_path, started = futures[future]
+                case, subject, variant_id, component_path, started = futures[future]
                 try:
                     data, headers = future.result()
                     matte_dir = case.directory / "mattes"
                     matte_dir.mkdir(parents=True, exist_ok=True)
-                    mask_path = matte_dir / f"{slug(subject.character_id)}-mask.png"
+                    mask_path, rgba_path = _sprite_matte_paths(
+                        case.directory,
+                        subject.character_id,
+                        variant_id,
+                    )
                     save_response_image(data, mask_path, mode="L")
                     with Image.open(mask_path) as mask_image:
                         metrics = validate_matte(mask_image, subject.mask_policy)
-                    rgba_path = matte_dir / f"{slug(subject.character_id)}-rgba.png"
                     create_rgba(component_path, mask_path, rgba_path)
-                    matte_stages = case.manifest["stages"].setdefault("mattes", {})
-                    matte_stages[subject.character_id] = {
+                    if variant_id == BASE_VARIANT_ID:
+                        matte_stages = case.manifest["stages"].setdefault("mattes", {})
+                        stage_container = matte_stages
+                        stage_key = subject.character_id
+                    else:
+                        stage_container = (
+                            case.manifest["stages"]
+                            .setdefault("variant_mattes", {})
+                            .setdefault(subject.character_id, {})
+                        )
+                        stage_key = variant_id
+                    stage_container[stage_key] = {
                         "model": "BiRefNet",
                         "model_file": "birefnet.safetensors",
+                        "variant_id": variant_id,
                         "duration_seconds": round(time.monotonic() - started, 3),
                         "response_headers": headers,
                         "validation": metrics,
@@ -1245,7 +1745,7 @@ class StagedImageRunner:
                 except Exception as exc:
                     failures.append(
                         f"{case.scene.scene_id}/{case.seed}/{subject.character_id}: "
-                        f"{type(exc).__name__}: {exc}"
+                        f"{variant_id}: {type(exc).__name__}: {exc}"
                     )
         if failures:
             raise RuntimeError("matte stage failed:\n" + "\n".join(failures))
@@ -1253,10 +1753,14 @@ class StagedImageRunner:
     def _pixel_stage(self, cases: Sequence[CaseState], run_root: Path) -> None:
         print(f"pixel composite stage: {len(cases)} cases", file=sys.stderr, flush=True)
         for case in cases:
+            if case.scene.presentation == "visual_novel":
+                self._visual_novel_pixel_case(case, run_root)
+                continue
             rgba_paths = {
-                subject.character_id: (
-                    case.directory / "mattes" / f"{slug(subject.character_id)}-rgba.png"
-                )
+                subject.character_id: _sprite_matte_paths(
+                    case.directory,
+                    subject.character_id,
+                )[1]
                 for subject in case.scene.subjects
             }
             output_path = case.directory / "final" / "pixel.png"
@@ -1281,6 +1785,66 @@ class StagedImageRunner:
             }
             write_json(case.manifest_path, case.manifest)
 
+    @staticmethod
+    def _visual_novel_pixel_case(case: CaseState, run_root: Path) -> None:
+        started = time.monotonic()
+        frame_records: list[dict[str, Any]] = []
+        storyboard_inputs: list[tuple[str, Path]] = []
+        background_path = case.directory / "background.png"
+        background_sha256 = sha256_path(background_path)
+        for frame in case.scene.frames:
+            rgba_paths = {}
+            resolved_variants: dict[str, str] = {}
+            for subject in case.scene.subjects:
+                variant_id = frame.subject_variants.get(
+                    subject.character_id,
+                    BASE_VARIANT_ID,
+                )
+                resolved_variants[subject.character_id] = variant_id
+                rgba_paths[subject.character_id] = _sprite_matte_paths(
+                    case.directory,
+                    subject.character_id,
+                    variant_id,
+                )[1]
+            frame_directory = case.directory / "final" / "frames"
+            output_path = frame_directory / f"{slug(frame.frame_id)}.png"
+            subject_mask_path = frame_directory / f"{slug(frame.frame_id)}-subjects.png"
+            repair_mask_path = frame_directory / f"{slug(frame.frame_id)}-seams.png"
+            placements = composite_subjects(
+                case.scene,
+                background_path,
+                rgba_paths,
+                output_path,
+                subject_mask_path,
+                repair_mask_path,
+            )
+            frame_records.append(
+                {
+                    "frame_id": frame.frame_id,
+                    "title": frame.title,
+                    "active_character_id": frame.active_character_id,
+                    "subject_variants": resolved_variants,
+                    "background_sha256": background_sha256,
+                    "placements": placements,
+                    "artifact": artifact_metadata(output_path, run_root),
+                    "subject_mask": artifact_metadata(subject_mask_path, run_root),
+                    "seam_mask": artifact_metadata(repair_mask_path, run_root),
+                }
+            )
+            storyboard_inputs.append((frame.title, output_path))
+        output_path = case.directory / "final" / "pixel.png"
+        build_storyboard(storyboard_inputs, output_path)
+        case.manifest["stages"]["pixel"] = {
+            "operation": "fixed visual-novel stage with anchor-derived sprites",
+            "duration_seconds": round(time.monotonic() - started, 3),
+            "background_sha256": background_sha256,
+            "background_reused_for_every_frame": True,
+            "whole_scene_model_edit": False,
+            "frames": frame_records,
+            "artifact": artifact_metadata(output_path, run_root),
+        }
+        write_json(case.manifest_path, case.manifest)
+
     def _final_stage(
         self,
         cases: Sequence[CaseState],
@@ -1290,6 +1854,8 @@ class StagedImageRunner:
         requested = [track for track in tracks if track != "pixel"]
         if not requested:
             return
+        if any(case.scene.presentation == "visual_novel" for case in cases):
+            raise ValueError("visual-novel scenes cannot use whole-scene edit tracks")
         print(
             f"final stage: {len(cases) * len(requested)} Qwen jobs on four workers",
             file=sys.stderr,
@@ -1509,6 +2075,7 @@ def build_report(run_root: Path) -> tuple[Path, Path]:
                     "track": track,
                     "verdict": verdict,
                     "artifact": stage["artifact"],
+                    "frames": stage.get("frames", []),
                     "review": review.model_dump(mode="json") if review else None,
                 }
             )
@@ -1547,6 +2114,13 @@ def build_report(run_root: Path) -> tuple[Path, Path]:
         verdict = record["verdict"]
         reasons = ", ".join(review["reasons"]) if review else ""
         note = review["note"] if review else ""
+        frame_links = "".join(
+            f"<a href='{html.escape(frame['artifact']['relative_path'])}'>"
+            f"{html.escape(frame['title'])}</a>"
+            for frame in record.get("frames", [])
+        )
+        if frame_links:
+            frame_links = f"<nav class='frames'>{frame_links}</nav>"
         cards.append(
             "<article class='card'>"
             f"<img loading='lazy' src='{html.escape(relative_image)}' alt='generated track'>"
@@ -1554,7 +2128,7 @@ def build_report(run_root: Path) -> tuple[Path, Path]:
             f"<p>{html.escape(record['split'])} · seed {record['seed']} · "
             f"{html.escape(record['track'])}</p>"
             f"<p class='verdict {html.escape(verdict)}'>{html.escape(verdict)}</p>"
-            f"<p>{html.escape(reasons)}</p><p>{html.escape(note)}</p>"
+            f"<p>{html.escape(reasons)}</p><p>{html.escape(note)}</p>{frame_links}"
             "</article>"
         )
     document = f"""<!doctype html>
@@ -1569,6 +2143,8 @@ body {{ margin: 1.5rem; color: #ddd; background: #17171b; font: 15px system-ui; 
 .card img {{ width: 100%; height: 360px; object-fit: contain; background: #0d0d10; }}
 .card h2 {{ margin: .6rem 0 .2rem; font-size: 1rem; }}
 .card p {{ margin: .25rem 0; }}
+.frames {{ display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .65rem; }}
+.frames a {{ color: #8dc7ff; }}
 .verdict {{ font-weight: 700; text-transform: uppercase; }}
 .pass {{ color: #66d58b; }} .loser {{ color: #ff7979; }}
 .unreviewed {{ color: #e6ca6d; }} .stale {{ color: #e6a66d; }}

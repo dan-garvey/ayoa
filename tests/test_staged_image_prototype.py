@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from experiments.staged_image.pipeline import (
     DEFAULT_CORPUS_PATH,
     DEFAULT_STYLE_PATH,
+    LEGACY_CINEMATIC_CORPUS_PATH,
     CaseState,
     CanvasSpec,
     CameraSpec,
@@ -20,11 +21,13 @@ from experiments.staged_image.pipeline import (
     ReferenceResolver,
     ResolvedReference,
     SceneSpec,
+    SpriteVariantSpec,
     StagedImageRunner,
     StylePack,
     SubjectSpec,
     UnitBox,
     UnitPoint,
+    VisualNovelFrameSpec,
     blend_masked_result,
     build_report,
     composite_subjects,
@@ -67,21 +70,95 @@ def _reference_database(runtime_root: Path) -> sqlite3.Connection:
     return connection
 
 
-def test_checked_in_corpus_has_six_tuning_scenes_and_two_untouched_holdouts():
+def _visual_novel_scene() -> SceneSpec:
+    left = SubjectSpec(
+        character_id="left",
+        display_name="Left",
+        reference_ids=["left-reference"],
+        identity_prompt="Stable left identity and clothing.",
+        pose_prompt="Neutral three-quarter conversational anchor.",
+        screen_side="left",
+        facing="right",
+        variants=[
+            SpriteVariantSpec(
+                variant_id="concerned",
+                expression_prompt="quiet concern",
+                pose_adjustment_prompt="raise the inner hand slightly",
+            )
+        ],
+    )
+    right = SubjectSpec(
+        character_id="right",
+        display_name="Right",
+        reference_ids=["right-reference"],
+        identity_prompt="Stable right identity and clothing.",
+        pose_prompt="Neutral three-quarter conversational anchor.",
+        screen_side="right",
+        facing="left",
+        variants=[
+            SpriteVariantSpec(
+                variant_id="reassuring",
+                expression_prompt="restrained reassurance",
+                pose_adjustment_prompt="open the inner hand slightly",
+            )
+        ],
+    )
+    return SceneSpec(
+        scene_id="visual_novel_scene",
+        title="Visual novel scene",
+        split="tuning",
+        style_pack_id="visual-novel-cel",
+        presentation="visual_novel",
+        canvas=CanvasSpec(width=1024, height=576),
+        camera=CameraSpec(description="Locked eye-level widescreen room view."),
+        background_prompt="An empty quiet room with a clear central gap.",
+        subjects=[left, right],
+        frames=[
+            VisualNovelFrameSpec(frame_id="neutral", title="Neutral anchors"),
+            VisualNovelFrameSpec(
+                frame_id="left-concerned",
+                title="Left is concerned",
+                active_character_id="left",
+                subject_variants={"left": "concerned"},
+            ),
+            VisualNovelFrameSpec(
+                frame_id="right-reassuring",
+                title="Right reassures",
+                active_character_id="right",
+                subject_variants={
+                    "left": "concerned",
+                    "right": "reassuring",
+                },
+            ),
+        ],
+    )
+
+
+def test_checked_in_default_is_small_visual_novel_corpus_and_legacy_is_preserved():
     corpus, styles = load_experiment(DEFAULT_CORPUS_PATH, DEFAULT_STYLE_PATH)
 
     assert isinstance(corpus, CorpusSpec)
-    assert sum(scene.split == "tuning" for scene in corpus.scenes) == 6
-    assert sum(scene.split == "holdout" for scene in corpus.scenes) == 2
-    assert len(styles) == 3
+    assert sum(scene.split == "tuning" for scene in corpus.scenes) == 2
+    assert sum(scene.split == "holdout" for scene in corpus.scenes) == 1
+    assert all(scene.presentation == "visual_novel" for scene in corpus.scenes)
+    assert all(len(scene.subjects) == 2 for scene in corpus.scenes)
+    assert all(len(scene.frames) == 3 for scene in corpus.scenes)
+    assert len(styles) == 4
     assert all(
         1 <= len(subject.reference_ids) <= 2
         for scene in corpus.scenes
         for subject in scene.subjects
     )
+
+    legacy, _ = load_experiment(
+        LEGACY_CINEMATIC_CORPUS_PATH,
+        DEFAULT_STYLE_PATH,
+    )
+    assert sum(scene.split == "tuning" for scene in legacy.scenes) == 6
+    assert sum(scene.split == "holdout" for scene in legacy.scenes) == 2
     arrival_iselle = next(
         subject
-        for scene in corpus.scenes
+        for scene in legacy.scenes
         if scene.scene_id == "t01_failed_arrival_hall"
         for subject in scene.subjects
         if subject.character_id == "iselle_the_guide"
@@ -92,16 +169,50 @@ def test_checked_in_corpus_has_six_tuning_scenes_and_two_untouched_holdouts():
 def test_holdouts_require_an_explicit_release_flag():
     runner = StagedImageRunner()
 
-    assert len(runner.select_scenes([])) == 6
+    assert len(runner.select_scenes([])) == 2
     with pytest.raises(ValueError, match="--include-holdout"):
-        runner.select_scenes(["h01_frost_courtyard"])
+        runner.select_scenes(["vh01_champion_anteroom"])
     assert (
         runner.select_scenes(
-            ["h01_frost_courtyard"],
+            ["vh01_champion_anteroom"],
             include_holdout=True,
         )[0].split
         == "holdout"
     )
+
+
+def test_visual_novel_schema_requires_inward_facing_derived_stage_geometry():
+    scene = _visual_novel_scene()
+
+    assert {subject.screen_side for subject in scene.subjects} == {"left", "right"}
+    assert all(subject.target_box is None for subject in scene.subjects)
+
+    invalid = scene.model_dump(mode="json")
+    invalid["subjects"][0]["facing"] = "left"
+    with pytest.raises(ValidationError, match="must face inward"):
+        SceneSpec.model_validate(invalid)
+
+    duplicate_layout = scene.model_dump(mode="json")
+    duplicate_layout["subjects"][0]["target_box"] = {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 0.5,
+        "height": 1.0,
+    }
+    with pytest.raises(ValidationError, match="derived from screen_side"):
+        SceneSpec.model_validate(duplicate_layout)
+
+
+def test_visual_novel_run_rejects_whole_scene_model_tracks_before_generation():
+    runner = StagedImageRunner()
+
+    with pytest.raises(ValueError, match="only deterministic pixel"):
+        runner.run(
+            scene_ids=["vn01_arrival_exchange"],
+            seeds=(1, 2, 3, 4),
+            tracks=("pixel", "masked"),
+            dry_run=True,
+        )
 
 
 def test_reference_resolver_verifies_reviewed_and_candidate_bytes(tmp_path):
@@ -252,6 +363,62 @@ def test_pixel_composite_respects_authored_depth_and_builds_repair_mask(tmp_path
         assert mask.getbbox() is not None
 
 
+def test_visual_novel_frames_reuse_one_plate_and_fixed_height_stage_slots(tmp_path):
+    scene = _visual_novel_scene()
+    style = StylePack(
+        style_pack_id="visual-novel-cel",
+        title="Visual novel",
+        visual_language="Stable cel-shaded visual-novel illustration.",
+        component_direction="Preserve identity and stable framing.",
+        harmonization_direction="Use deterministic sprite layering.",
+    )
+    case_root = tmp_path / "case"
+    case_root.mkdir()
+    Image.new("RGB", (1024, 576), (35, 45, 65)).save(case_root / "background.png")
+    matte_root = case_root / "mattes"
+    matte_root.mkdir()
+    sprite_specs = (
+        ("left-rgba.png", (180, 300), (220, 60, 60, 255)),
+        ("left--concerned-rgba.png", (150, 250), (190, 45, 45, 255)),
+        ("right-rgba.png", (160, 280), (60, 180, 220, 255)),
+        ("right--reassuring-rgba.png", (120, 210), (45, 150, 190, 255)),
+    )
+    for filename, size, color in sprite_specs:
+        Image.new("RGBA", size, color).save(matte_root / filename)
+    case = CaseState(
+        scene=scene,
+        style=style,
+        seed=9,
+        directory=case_root,
+        manifest_path=case_root / "manifest.json",
+        manifest={"stages": {}},
+        references={subject.character_id: [] for subject in scene.subjects},
+    )
+
+    StagedImageRunner._visual_novel_pixel_case(case, tmp_path)
+
+    stage = case.manifest["stages"]["pixel"]
+    assert stage["background_reused_for_every_frame"] is True
+    assert stage["whole_scene_model_edit"] is False
+    assert len(stage["frames"]) == 3
+    assert len({frame["background_sha256"] for frame in stage["frames"]}) == 1
+    left_heights = []
+    for frame in stage["frames"]:
+        placement = next(
+            item for item in frame["placements"] if item["character_id"] == "left"
+        )
+        assert placement["scale_mode"] == "fixed_height"
+        box = placement["paste_box_pixels"]
+        left_heights.append(box[3] - box[1])
+    assert len(set(left_heights)) == 1
+    assert (case_root / "final/pixel.png").is_file()
+    frame_paths = [
+        tmp_path / frame["artifact"]["relative_path"] for frame in stage["frames"]
+    ]
+    with Image.open(frame_paths[0]) as first, Image.open(frame_paths[-1]) as last:
+        assert first.getpixel((512, 5)) == last.getpixel((512, 5))
+
+
 def test_declared_reference_cutout_never_calls_a_generation_client(tmp_path):
     reference_path = tmp_path / "artifacts/reference.png"
     _write_png(reference_path, (40, 80, 120))
@@ -365,7 +532,10 @@ def test_rendered_background_prompt_contains_only_positive_environment_context()
 
 
 def test_checked_in_plate_descriptions_do_not_request_future_subjects():
-    corpus, _ = load_experiment(DEFAULT_CORPUS_PATH, DEFAULT_STYLE_PATH)
+    corpora = [
+        load_experiment(path, DEFAULT_STYLE_PATH)[0]
+        for path in (DEFAULT_CORPUS_PATH, LEGACY_CINEMATIC_CORPUS_PATH)
+    ]
     forbidden = (
         " figure",
         " scout",
@@ -378,17 +548,20 @@ def test_checked_in_plate_descriptions_do_not_request_future_subjects():
         " no ",
     )
 
-    for scene in corpus.scenes:
-        plate_text = f" {scene.camera.description} {scene.background_prompt} ".lower()
-        assert not any(term in plate_text for term in forbidden), scene.scene_id
-        assert all(
-            re.search(
-                rf"\b{re.escape(subject.display_name.lower())}\b",
-                plate_text,
+    for corpus in corpora:
+        for scene in corpus.scenes:
+            plate_text = (
+                f" {scene.camera.description} {scene.background_prompt} ".lower()
             )
-            is None
-            for subject in scene.subjects
-        )
+            assert not any(term in plate_text for term in forbidden), scene.scene_id
+            assert all(
+                re.search(
+                    rf"\b{re.escape(subject.display_name.lower())}\b",
+                    plate_text,
+                )
+                is None
+                for subject in scene.subjects
+            )
 
 
 def test_qwen_component_receives_identity_views_but_not_environment_plate(tmp_path):
@@ -477,6 +650,93 @@ def test_qwen_component_receives_identity_views_but_not_environment_plate(tmp_pa
         "reference-1",
         "reference-2",
     ]
+
+
+def test_visual_novel_variants_edit_only_the_neutral_sprite_anchor(tmp_path):
+    scene = _visual_novel_scene()
+    style = StylePack(
+        style_pack_id="visual-novel-cel",
+        title="Visual novel",
+        visual_language="Stable cel-shaded visual-novel illustration.",
+        component_direction="Preserve identity and stable framing.",
+        harmonization_direction="Use deterministic sprite layering.",
+    )
+    case_root = tmp_path / "case"
+    for subject, color in zip(
+        scene.subjects,
+        ((40, 80, 120), (120, 80, 40)),
+        strict=True,
+    ):
+        _write_png(case_root / "components" / f"{subject.character_id}.png", color)
+    case = CaseState(
+        scene=scene,
+        style=style,
+        seed=7,
+        directory=case_root,
+        manifest_path=case_root / "manifest.json",
+        manifest={"stages": {}},
+        references={subject.character_id: [] for subject in scene.subjects},
+    )
+
+    class RecordingClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, object]]] = []
+
+        def post_image(
+            self, endpoint: str, payload: dict[str, object]
+        ) -> tuple[bytes, dict[str, str]]:
+            self.calls.append((endpoint, payload))
+            return (case_root / "components/left.png").read_bytes(), {}
+
+    client = RecordingClient()
+    runner = object.__new__(StagedImageRunner)
+    runner.client = client
+
+    runner._variant_stage([case], tmp_path)
+
+    assert len(client.calls) == 2
+    assert all(endpoint == "/edit/qwen" for endpoint, _ in client.calls)
+    assert all("image_base64" in payload for _, payload in client.calls)
+    assert all("image2_base64" not in payload for _, payload in client.calls)
+    assert all("image3_base64" not in payload for _, payload in client.calls)
+    assert (case_root / "components/left--concerned.png").is_file()
+    assert (case_root / "components/right--reassuring.png").is_file()
+    left_stage = case.manifest["stages"]["variants"]["left"]["concerned"]
+    assert left_stage["anchor_variant_id"] == "base"
+    assert left_stage["input_count"] == 1
+    prompt = left_stage["prompt"]
+    assert "only edit target" in prompt
+    assert "Preserve identity" in prompt
+    assert "environment" not in prompt.lower()
+
+
+def test_visual_novel_anchor_prompt_is_single_subject_and_inward_facing():
+    scene = _visual_novel_scene()
+    style = StylePack(
+        style_pack_id="visual-novel-cel",
+        title="Visual novel",
+        visual_language="Stable cel-shaded visual-novel illustration.",
+        component_direction="Preserve identity and stable framing.",
+        harmonization_direction="Use deterministic sprite layering.",
+    )
+    case = CaseState(
+        scene=scene,
+        style=style,
+        seed=7,
+        directory=Path("unused"),
+        manifest_path=Path("unused/manifest.json"),
+        manifest={"stages": {}},
+        references={"left": [object()], "right": [object()]},
+    )
+
+    prompt = StagedImageRunner._component_prompt(case, scene.subjects[0])
+
+    assert "neutral reusable visual-novel sprite anchor" in prompt
+    assert "left side of the screen" in prompt
+    assert "toward screen right" in prompt
+    assert "three-quarter-body crop" in prompt
+    assert scene.subjects[1].display_name not in prompt
+    assert scene.background_prompt not in prompt
 
 
 def test_qwen_final_edits_receive_only_the_assembled_scene(tmp_path):
@@ -579,13 +839,33 @@ def test_review_requires_loser_reason_and_report_keeps_all_tracks(tmp_path):
         "height": 96,
         "mode": "RGB",
     }
+    frame_path = case_root / "final/frames/neutral.png"
+    _write_png(frame_path, (30, 20, 10))
+    frame_artifact = {
+        "relative_path": frame_path.relative_to(run_root).as_posix(),
+        "sha256": hashlib.sha256(frame_path.read_bytes()).hexdigest(),
+        "byte_count": frame_path.stat().st_size,
+        "width": 64,
+        "height": 96,
+        "mode": "RGB",
+    }
     case_manifest = {
         "scene_id": "scene",
         "scene_title": "Scene",
         "split": "tuning",
         "seed": 1,
         "tracks": ["pixel"],
-        "stages": {"pixel": {"artifact": artifact}},
+        "stages": {
+            "pixel": {
+                "artifact": artifact,
+                "frames": [
+                    {
+                        "title": "Neutral anchors",
+                        "artifact": frame_artifact,
+                    }
+                ],
+            }
+        },
     }
     (case_root / "manifest.json").parent.mkdir(parents=True, exist_ok=True)
     (case_root / "manifest.json").write_text(json.dumps(case_manifest))
@@ -633,6 +913,8 @@ def test_review_requires_loser_reason_and_report_keeps_all_tracks(tmp_path):
     }
     assert report["quality_gate_passed"] is False
     assert report["loser_reasons"]["identity"] == 1
+    assert report["records"][0]["frames"][0]["title"] == "Neutral anchors"
+    assert "Neutral anchors" in html_path.read_text(encoding="utf-8")
 
 
 def test_seed_parser_forbids_cherry_pick_batches():

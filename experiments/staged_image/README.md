@@ -1,32 +1,58 @@
-# Staged image composition prototype
+# Layered image staging prototype
 
-This experiment builds a multi-character illustration as auditable parts:
+The default experiment now targets a deliberately modest visual-novel result:
 
-1. FLUX generates a clean environment plate with no subjects.
-2. Qwen Image Edit generates one full-body component per character from one or
-   two frozen identity references. The environment plate is deliberately not a
-   component input: Qwen's multi-image mode is designed to fuse image content,
-   while this stage must contain one character only. All independent components
-   fan out across four workers. A scene may explicitly declare
-   `reference_cutout` when its approved source is already a complete isolated
-   full-body asset; this is fixed in the corpus and is never selected after a
-   Qwen failure.
-3. Native ComfyUI BiRefNet produces a foreground mask for every component.
-   Coverage, edge contact, and disconnected-component checks reject bad mattes.
-4. Pillow places verified RGBA components at normalized boxes and foot anchors,
-   in an explicit depth order, then derives a narrow seam/contact repair mask.
-5. The default outputs are the deterministic pixel composite and mask-limited
-   Qwen harmonization. The mask-limited output is blended locally after
-   inference, proving that pixels outside the saved repair mask are unchanged.
-   A whole-image Qwen track remains available only as an opt-in diagnostic; it
-   is not an eligible fallback or production candidate.
+1. FLUX generates one clean widescreen environment plate per seed.
+2. Qwen Image Edit generates exactly two reusable three-quarter-body sprite
+   anchors from frozen identity references. Their left/right slots and inward
+   facing directions are schema invariants, not prompt-only wishes.
+3. Each small expression/pose variant edits only its own neutral sprite anchor.
+   It never receives the environment, the other character, or a second identity
+   image.
+4. Native ComfyUI BiRefNet produces a checked RGBA asset for every anchor and
+   variant.
+5. Pillow reuses the exact same plate, fixed-height stage slots, and deterministic
+   sprite shadow for every authored frame. The report artifact is a storyboard;
+   it also links every full-resolution frame.
+
+There is no whole-scene model pass in visual-novel mode. Lighting separation is
+intentional presentation language rather than a defect to hide with generative
+harmonization. The earlier six-tuning/two-holdout cinematic corpus remains at
+`corpus.json` for explicit legacy comparisons, but it is no longer the default.
 
 It is not connected to the runtime image director, queue, delivery, reference
 promotion, or session state. It only reads already-frozen reference bytes from
 the runtime artifact store, validates their hashes and dimensions, and writes
 ignored experiment output under `app/storage/runtime/image_prototypes/`.
 
-## Why this pipeline
+## Why the visual-novel pivot
+
+The v4 staged control proved that independent components can preserve identity
+and subject count, but it accepted 0/8 final cinematic composites. The remaining
+failures were the expensive part of the problem: physical collision, variable
+scale, prop fidelity, and shared illumination. A visual novel does not require
+the model to solve those as one coherent photographed moment.
+
+This is also an established presentation contract rather than a local invention.
+Ren'Py keeps a background on its scene layer, places sprites at stable transforms,
+and replaces an already displayed character by image tag/attributes when the
+expression changes. Its layered-image groups treat expression attributes as
+mutually exclusive variants of a stable character asset. See the official
+[displaying-images](https://www.renpy.org/doc/html/displaying_images.html) and
+[layered-image](https://www.renpy.org/doc/html/layeredimage.html) documentation.
+
+The deployed editor is Qwen-Image-Edit-2511. Qwen's official release describes
+2511 as improving character consistency for edits of an input portrait. That is
+a better match for narrow anchor-to-expression edits than for repainting the
+assembled scene. See the official
+[Qwen-Image repository](https://github.com/QwenLM/Qwen-Image#qwen-image-edit-2511-for-image-editing-multiple-image-support-and-improved-consistency).
+
+Latent fusion is therefore out of scope for this target. The simplest useful
+unit is `plate + left sprite attribute + right sprite attribute`; if that cannot
+pass review, a more complicated attention-coupled model is unlikely to rescue
+the asset workflow economically.
+
+## Legacy cinematic baseline
 
 The known bad group image was not just a weak prompt: explicit references for
 one character short-circuited the runtime reference resolver, so three newly
@@ -123,9 +149,21 @@ root and fully reviewed:
 v4 eliminated reviewed `identity` and `subject_count` failures. It did not pass
 the quality gate: the remaining losers are caused by authored/algorithmic
 composition, prop collision, variable box fitting, and foreground illumination.
-The next controlled changes should therefore be layout-only sizing/collision
-work and a dedicated masked harmonization baseline. Prompt prose is frozen until
-those non-prompt causes have been isolated.
+If the legacy cinematic path is resumed, its next controlled changes are
+layout-only sizing/collision work and a dedicated masked harmonization baseline.
+Those are no longer default experiment goals.
+
+The visual-novel pivot was then run as
+`visual-novel-arrival-20260824-v1`. In 15m 14s it produced 4/4 plates, 8/8
+neutral anchors, 8/8 anchor-derived variants, 16/16 valid mattes, and 12/12
+frames. Manual storyboard review passed three of four seeds. The remaining seed
+failed only `continuity`/`pose`: Maret's neutral anchor faced outward and Edric's
+reassuring variant turned his gaze away. There were no reviewed identity,
+subject-count, scale, anatomy, prop, matte, lighting, composition, style, or
+expression failures. This is a successful direction change, not a perfect
+automatic generator: production still needs a reviewed anchor choice, and any
+future attempt to improve facing continuity should compare a bounded sprite edit
+against these frozen artifacts rather than add broader prompt prose.
 
 ## Gateway prerequisites
 
@@ -150,11 +188,12 @@ loudly; there is no alternate background remover or direct-generation fallback.
 
 ## Corpus and batch contract
 
-`corpus.json` contains six tuning scenes and two holdouts. It exercises the
-known four-character failure, extreme scale, depth occlusion, long props,
-physical contact, interlocked melee, a three-role holdout, and a genre-neutral
-holdout. `style_packs.json` defines the current rendering language plus two
-predeclared later comparison packs.
+`visual_novel_corpus.json` is the default. It contains two tuning scenes and one
+untouched holdout. Every scene has exactly two subjects, one left-facing-inward
+and one right-facing-inward, an all-anchor frame, and named expression/pose
+variants used by later frames. `corpus.json` preserves the old six-tuning and
+two-holdout cinematic stress suite. `style_packs.json` contains both rendering
+languages.
 
 Every run requires exactly four distinct seeds. The tool generates and retains
 all requested tracks for all four; it has no winner-selection option. Holdouts
@@ -164,7 +203,7 @@ Validate frozen inputs without calling either model:
 
 ```bash
 .venv/bin/python scripts/staged_image_prototype.py run \
-  --scene t01_failed_arrival_hall \
+  --scene vn01_arrival_exchange \
   --dry-run
 ```
 
@@ -172,19 +211,16 @@ Run the known failure scene:
 
 ```bash
 .venv/bin/python scripts/staged_image_prototype.py run \
-  --scene t01_failed_arrival_hall \
-  --run-id staged-arrival-v1
+  --scene vn01_arrival_exchange \
+  --run-id visual-novel-arrival-v1
 ```
 
-The default tracks are `pixel,masked`. Use `--tracks pixel` for a
-component-and-compositor diagnostic that skips Qwen final editing while
-retaining the same four-seed requirement. Use `--tracks pixel,masked,global`
-only when explicitly measuring the unsafe whole-image diagnostic. Use repeated
-`--scene` arguments for a subset; omitting them runs the six tuning scenes.
-Holdouts are refused unless `--include-holdout` is explicit. After tuning is
-frozen, run either holdout by naming it together with that flag. `--style-pack`
-can override the scene's current style with any of the three predefined packs
-without editing the corpus.
+The default and only eligible visual-novel track is `pixel`. `masked` and
+`global` are rejected because they repaint the assembled scene. To reproduce an
+old cinematic comparison, explicitly pass
+`--corpus experiments/staged_image/corpus.json` and opt into its desired tracks.
+Use repeated `--scene` arguments for a subset; omitting them runs the two default
+tuning scenes. Holdouts are refused unless `--include-holdout` is explicit.
 
 ## Human QA
 
@@ -192,30 +228,30 @@ There is intentionally no runtime vision model and no automatic aesthetic
 winner. Append a human verdict for each track:
 
 ```bash
-.venv/bin/python scripts/staged_image_prototype.py review staged-arrival-v1 \
-  --scene t01_failed_arrival_hall \
+.venv/bin/python scripts/staged_image_prototype.py review visual-novel-arrival-v1 \
+  --scene vn01_arrival_exchange \
   --seed 26082301 \
-  --track masked \
+  --track pixel \
   --verdict loser \
-  --reason identity \
-  --reason anatomy \
-  --note "Maret's face drifted and Sev's knife hand is malformed."
+  --reason continuity \
+  --reason expression \
+  --note "The expression changed, but the outfit and face also drifted."
 ```
 
-Valid loser reasons are `identity`, `subject_count`, `scale`, `pose`,
-`anatomy`, `prop`, `matte`, `lighting`, `composition`, `style`,
-`text_artifact`, and `other`. A loser requires at least one reason. Reviews are
-append-only JSONL; the latest verdict for a scene, seed, and track is the report
-verdict.
+Valid loser reasons include `identity`, `scale`, `pose`, `anatomy`, `prop`,
+`matte`, `lighting`, `composition`, `style`, `expression`, and `continuity`.
+A loser requires at least one reason. Reviews are append-only JSONL; the latest
+verdict for a scene, seed, and track is the report verdict.
 
 Build the image grid and aggregate JSON:
 
 ```bash
-.venv/bin/python scripts/staged_image_prototype.py report staged-arrival-v1
+.venv/bin/python scripts/staged_image_prototype.py report visual-novel-arrival-v1
 ```
 
 Each case manifest records the exact scene/style snapshot, source hashes,
-ordered references, rendered prompts and prompt hashes, derived stage seeds,
-gateway model revisions, worker/prompt IDs, durations, mask checks, placements,
-and output hashes. These fields are the prototype for eventual stage/attempt/
-verdict logging if this design is promoted into the runtime.
+ordered references, anchor and variant prompts, derived stage seeds, gateway
+model revisions, durations, mask checks, fixed-height placements, exact reused
+background hash, frame-to-variant mapping, and output hashes. These fields are
+the prototype for eventual stage/attempt/verdict logging if this design is
+promoted into the runtime.

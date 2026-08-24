@@ -1,0 +1,256 @@
+{
+  "version": 2,
+  "reference_session_id": "one-star-human-test-adapter",
+  "scenes": [
+    {
+      "scene_id": "vn01_arrival_exchange",
+      "title": "Arrival hall: cautious first exchange",
+      "split": "tuning",
+      "style_pack_id": "visual-novel-cel",
+      "presentation": "visual_novel",
+      "canvas": {"width": 1024, "height": 576},
+      "camera": {
+        "description": "Locked eye-level 50mm view across the arrival hall, widescreen composition, symmetrical architectural depth, and a quiet central gap.",
+        "horizon_y": 0.43
+      },
+      "background_prompt": "An empty worn underground stone arrival hall beneath a severe carved idol, broad cracked flagstones, a pale glowing arched gate centered deep in frame, low warm side lamps against cool gate light, restrained rubble near the outer walls, and calm uncluttered space across the lower frame.",
+      "subjects": [
+        {
+          "character_id": "niflheim_first_summon_02",
+          "display_name": "Maret",
+          "reference_ids": ["imgref_9037b7de878100967f105b9873f12b97"],
+          "identity_prompt": "Maret is a stout, round-shouldered woman in her late sixties or early seventies with a broad soft face, deep-set gray eyes, loosened white hair, a flour-dusted rough gray dress, coarse apron, flat worn shoes, and a small plain utility knife secured at her waist.",
+          "pose_prompt": "Three-quarter body at rest, shoulders slightly drawn in, hands relaxed near the apron, utility knife secured and untouched, neutral attentive expression.",
+          "screen_side": "right",
+          "facing": "left",
+          "variants": [
+            {
+              "variant_id": "concerned",
+              "expression_prompt": "quiet concern: brows drawn slightly together, lips pressed with uncertainty, eyes fixed on Edric",
+              "pose_adjustment_prompt": "tighten the shoulders a little and draw one hand protectively toward the apron; keep the other hand and the secured knife unchanged"
+            }
+          ],
+          "mask_policy": {
+            "min_coverage": 0.025,
+            "max_coverage": 0.82,
+            "max_edge_fraction": 0.1,
+            "max_significant_components": 1
+          }
+        },
+        {
+          "character_id": "niflheim_first_summon_01",
+          "display_name": "Edric",
+          "reference_ids": ["imgref_6157c230dc0213bb3740e03f133a58fa"],
+          "identity_prompt": "Edric is a broad-shouldered heavyset farmhand in his mid-forties with a weathered square face, short gray-brown hair, calloused hands, rough work shirt, patched canvas trousers, cracked boots, and a nicked woodcutter's axe resting head-down beside him.",
+          "pose_prompt": "Three-quarter body in a guarded but conversational stance, axe resting head-down close beside the outer leg, both hands calm, neutral watchful expression.",
+          "screen_side": "left",
+          "facing": "right",
+          "variants": [
+            {
+              "variant_id": "reassuring",
+              "expression_prompt": "a restrained reassuring look: brow eased, mouth softened without a broad smile, attention on Maret",
+              "pose_adjustment_prompt": "lift only the inner hand into a small open-palm reassuring gesture while the outer hand keeps the axe planted and unchanged"
+            }
+          ],
+          "mask_policy": {
+            "min_coverage": 0.025,
+            "max_coverage": 0.82,
+            "max_edge_fraction": 0.1,
+            "max_significant_components": 1
+          }
+        }
+      ],
+      "frames": [
+        {
+          "frame_id": "neutral",
+          "title": "Neutral anchors",
+          "active_character_id": null,
+          "subject_variants": {}
+        },
+        {
+          "frame_id": "maret-concerned",
+          "title": "Maret grows concerned",
+          "active_character_id": "niflheim_first_summon_02",
+          "subject_variants": {
+            "niflheim_first_summon_02": "concerned"
+          }
+        },
+        {
+          "frame_id": "edric-reassures",
+          "title": "Edric answers gently",
+          "active_character_id": "niflheim_first_summon_01",
+          "subject_variants": {
+            "niflheim_first_summon_02": "concerned",
+            "niflheim_first_summon_01": "reassuring"
+          }
+        }
+      ]
+    },
+    {
+      "scene_id": "vn02_scout_briefing",
+      "title": "Scout briefing: disagreement at the map table",
+      "split": "tuning",
+      "style_pack_id": "visual-novel-cel",
+      "presentation": "visual_novel",
+      "canvas": {"width": 1024, "height": 576},
+      "camera": {
+        "description": "Locked eye-level 55mm view across a compact stone planning room, widescreen composition, shallow architectural depth, and a clear central opening.",
+        "horizon_y": 0.44
+      },
+      "background_prompt": "An empty compact stone planning room with a broad scarred map table set low in the rear middle distance, amber lantern niches, a narrow rain-dark window, pinned parchment shapes without legible writing, muted green cloth accents, and uncluttered floor across the foreground.",
+      "subjects": [
+        {
+          "character_id": "rowan_kest",
+          "display_name": "Rowan Kest",
+          "reference_ids": ["osa_rowan_kest_locked_active_profile_v1"],
+          "identity_prompt": "Rowan is a lean olive-complexioned man in his late twenties with tousled ash-blond hair, green eyes, a cropped charcoal scout jacket, forest-green scarf, map case, and two visibly mismatched short knives kept sheathed.",
+          "pose_prompt": "Three-quarter body in a relaxed briefing stance, hands clear of the sheathed knives, head slightly inclined toward Renna, neutral analytical expression.",
+          "screen_side": "left",
+          "facing": "right",
+          "variants": [
+            {
+              "variant_id": "skeptical",
+              "expression_prompt": "measured skepticism: one brow slightly raised, eyes narrowed in thought, mouth held in a thin doubtful line",
+              "pose_adjustment_prompt": "tilt the head a few degrees and fold only the inner forearm loosely across the torso; keep the scarf, map case, and sheathed knives fixed"
+            }
+          ],
+          "mask_policy": {
+            "min_coverage": 0.025,
+            "max_coverage": 0.82,
+            "max_edge_fraction": 0.1,
+            "max_significant_components": 1
+          }
+        },
+        {
+          "character_id": "renna_holt",
+          "display_name": "Renna Holt",
+          "reference_ids": ["osa_renna_holt_locked_active_profile_v1"],
+          "identity_prompt": "Renna is a slim athletic woman in her mid-twenties with sun-warm skin, copper-red shoulder-length hair, gray starter tunic, patched boots, a cheap ash shortbow, low quiver, and one long brown bracer; the bow remains lowered at her outer side.",
+          "pose_prompt": "Three-quarter body standing squarely but at ease, lowered bow at the outer side, inner hand relaxed, head turned slightly toward Rowan, neutral focused expression.",
+          "screen_side": "right",
+          "facing": "left",
+          "variants": [
+            {
+              "variant_id": "determined",
+              "expression_prompt": "quiet determination: chin set, eyes steady, brows level and focused without anger",
+              "pose_adjustment_prompt": "straighten the posture slightly and close the inner hand into a loose restrained fist; keep the lowered bow and quiver unchanged"
+            }
+          ],
+          "mask_policy": {
+            "min_coverage": 0.025,
+            "max_coverage": 0.82,
+            "max_edge_fraction": 0.1,
+            "max_significant_components": 1
+          }
+        }
+      ],
+      "frames": [
+        {
+          "frame_id": "neutral",
+          "title": "Neutral anchors",
+          "active_character_id": null,
+          "subject_variants": {}
+        },
+        {
+          "frame_id": "rowan-skeptical",
+          "title": "Rowan questions the route",
+          "active_character_id": "rowan_kest",
+          "subject_variants": {"rowan_kest": "skeptical"}
+        },
+        {
+          "frame_id": "renna-determined",
+          "title": "Renna holds her ground",
+          "active_character_id": "renna_holt",
+          "subject_variants": {
+            "rowan_kest": "skeptical",
+            "renna_holt": "determined"
+          }
+        }
+      ]
+    },
+    {
+      "scene_id": "vh01_champion_anteroom",
+      "title": "Holdout: champions before the gate",
+      "split": "holdout",
+      "style_pack_id": "visual-novel-cel",
+      "presentation": "visual_novel",
+      "canvas": {"width": 1024, "height": 576},
+      "camera": {
+        "description": "Locked eye-level 60mm view across a formal gate anteroom, widescreen composition, shallow depth, restrained symmetry, and a clear central opening.",
+        "horizon_y": 0.42
+      },
+      "background_prompt": "An empty formal gate anteroom of pale limestone and ash-black iron, tall ribbed door in the rear, narrow cobalt banners, cool joint lights, one warm ceiling shaft, subdued floor reflections, and uncluttered lower corners.",
+      "subjects": [
+        {
+          "character_id": "halcyon_of_the_gilded_march",
+          "display_name": "Halcyon",
+          "reference_ids": ["osa_halcyon_of_the_gilded_march_locked_active_profile_v1"],
+          "identity_prompt": "Halcyon is a tall bronze-complexioned man in his mid-thirties with white-gold bound hair, topaz eyes, pearl-white articulated armor, cobalt silk, split ivory mantle, and a pale-gold banner-lance held upright at his outer side.",
+          "pose_prompt": "Three-quarter body in a composed formal stance, banner-lance vertical at the outer side, inner hand relaxed, head turned slightly toward Mirelle, neutral disciplined expression.",
+          "screen_side": "left",
+          "facing": "right",
+          "variants": [
+            {
+              "variant_id": "amused",
+              "expression_prompt": "restrained private amusement: a slight one-corner smile and warmer eyes without losing composure",
+              "pose_adjustment_prompt": "relax the inner shoulder and open the inner hand slightly; keep armor, mantle, and upright banner-lance fixed"
+            }
+          ],
+          "mask_policy": {
+            "min_coverage": 0.025,
+            "max_coverage": 0.82,
+            "max_edge_fraction": 0.1,
+            "max_significant_components": 1
+          }
+        },
+        {
+          "character_id": "mirelle_voss",
+          "display_name": "Mirelle Voss",
+          "reference_ids": ["osa_mirelle_voss_locked_active_profile_v1"],
+          "identity_prompt": "Mirelle is a tall athletic woman in her late twenties with sun-warm skin, copper-red high braided ponytail, an ivory-and-crimson fighting coat, oxblood guards, bright steel shoulders, and a complete leaf-bladed ash spear held upright at her outer side.",
+          "pose_prompt": "Three-quarter body in an alert formal stance, spear vertical at the outer side, inner hand at rest, head turned slightly toward Halcyon, neutral assessing expression.",
+          "screen_side": "right",
+          "facing": "left",
+          "variants": [
+            {
+              "variant_id": "dry",
+              "expression_prompt": "dry unimpressed patience: one brow faintly raised and lips held almost flat",
+              "pose_adjustment_prompt": "shift the weight subtly to the outer hip and rest the inner hand lightly at the waist; keep the spear and all armor fixed"
+            }
+          ],
+          "mask_policy": {
+            "min_coverage": 0.025,
+            "max_coverage": 0.82,
+            "max_edge_fraction": 0.1,
+            "max_significant_components": 1
+          }
+        }
+      ],
+      "frames": [
+        {
+          "frame_id": "neutral",
+          "title": "Neutral anchors",
+          "active_character_id": null,
+          "subject_variants": {}
+        },
+        {
+          "frame_id": "halcyon-amused",
+          "title": "Halcyon is quietly amused",
+          "active_character_id": "halcyon_of_the_gilded_march",
+          "subject_variants": {
+            "halcyon_of_the_gilded_march": "amused"
+          }
+        },
+        {
+          "frame_id": "mirelle-dry",
+          "title": "Mirelle remains unimpressed",
+          "active_character_id": "mirelle_voss",
+          "subject_variants": {
+            "halcyon_of_the_gilded_march": "amused",
+            "mirelle_voss": "dry"
+          }
+        }
+      ]
+    }
+  ]
+}
