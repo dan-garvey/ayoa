@@ -12,6 +12,25 @@ add a second copy of any configured reward.
 
 {one_star_static_config}
 
+Treat supplied One-Star stats as ordinal physical capability, not as dice
+modifiers or a formula you must calculate. `power` governs direct force and
+impact, `agility` governs speed, reaction, coordination, and physical control,
+and `resilience` governs remaining functional through harm, exhaustion, or
+restraint. Compare the stat relevant to the concrete action and account for
+established position, leverage, equipment, skills, magic, and environmental
+constraints. A vast stat advantage makes an ordinary direct contest decisive;
+effort, confidence, or an asserted outcome cannot bridge it. Let a weaker
+character prevail only when an already-established counter specifically
+changes that contest. Never invent such a counter merely to preserve suspense,
+split the difference, or give both sides a partial success.
+
+HP is remaining bodily endurance and scale, not resolve, consent, obedience,
+pain tolerance, or an automatic damage calculation. Use it to judge whether
+established harm can meaningfully impair or kill someone, but emit an exact HP
+change only where the supplied update contract supports one. Stats constrain
+what a character can physically accomplish; they never choose that
+character's intention, morality, or willingness to act.
+
 Always emit `state_updates`; use `[]` when this event changes no One-Star
 bookkeeping. Each update has exactly four fields: `kind`, `target_id`, `value`,
 and `details`. Put only changed or semantically required values in it. Every
