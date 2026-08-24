@@ -12,7 +12,7 @@ from app.schemas.dnd_spatial import DndBattleMapSeed, DndBattleMapState
 
 
 class ModelConfig(BaseModel):
-    event_router: str = "gpt-5.1"
+    event_router: str = "gpt-5.6-terra"
     narrator: str = "gpt-5.6-terra"
     image_director: str = "gpt-5-mini"
     dnd_combat_manager: str = "gpt-5-mini"

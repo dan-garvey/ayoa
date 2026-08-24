@@ -2565,22 +2565,6 @@ class LLMDispatcher:
                     "authoritative result omitted the requesting viewpoint's "
                     "direct visible event"
                 )
-            canonical_fact_text = "\n".join(
-                fact.text
-                for fact in result.canonical_event.observable_facts
-            )
-            missing_contributions = [
-                character_id
-                for character_id, contribution in character_contributions
-                if contribution.strip()
-                and contribution.strip() not in canonical_fact_text
-            ]
-            if missing_contributions:
-                raise ValueError(
-                    "authoritative result omitted supplied character "
-                    "contributions: "
-                    + ", ".join(missing_contributions)
-                )
             observers_by_id = {
                 observer.character_id: observer
                 for observer in result.observers

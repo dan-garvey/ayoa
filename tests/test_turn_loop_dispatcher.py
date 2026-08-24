@@ -767,7 +767,7 @@ class TestRouterContext:
         assert "New-character spawn requests" not in arrival
 
 class TestRouteIntention:
-    def test_authoritative_result_uses_closed_schema_and_code_owned_updates(
+    def test_authoritative_result_accepts_observer_scoped_canonicalization(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _one_star_checkpoint(bindings={"the_master": "discord_1"})
@@ -806,7 +806,10 @@ class TestRouteIntention:
                 ckpt=ckpt,
                 plan=plan,
                 character_contributions=(
-                    ("iselle_the_guide", "LAST_WORDS_SENTINEL"),
+                    (
+                        "iselle_the_guide",
+                        "LAST_WORDS_SENTINEL plus quiet unobserved staging",
+                    ),
                 ),
             )
         )
@@ -817,6 +820,7 @@ class TestRouteIntention:
         assert AUTHORITATIVE_RESULT_HEADER in user_content
         assert "## Actor Submission" not in user_content
         assert "LAST_WORDS_SENTINEL" in user_content
+        assert "quiet unobserved staging" in user_content
         assert "SYSTEM_RESULT_SENTINEL" in user_content
         assert user_content.index("LAST_WORDS_SENTINEL") < user_content.index(
             "SYSTEM_RESULT_SENTINEL"

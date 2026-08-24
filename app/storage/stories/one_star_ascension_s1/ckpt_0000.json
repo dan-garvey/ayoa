@@ -13,7 +13,7 @@
     "created_at": "2026-08-09T00:00:00Z",
     "config": {
       "models": {
-        "event_router": "gpt-5.1",
+        "event_router": "gpt-5.6-terra",
         "narrator": "gpt-5.6-terra",
         "dnd_combat_manager": "gpt-5-mini",
         "agent_default": "claude-opus-5",
