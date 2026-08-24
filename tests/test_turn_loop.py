@@ -1311,6 +1311,54 @@ class TestCatIIBeat:
             "cascade_exhausted",
         ]
 
+    @pytest.mark.parametrize("ruleset_id", ["", "dnd5e_basic"])
+    def test_all_agent_cat_ii_resolution_lets_human_observer_continue(
+        self, ruleset_id,
+    ):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.ruleset_id = ruleset_id
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_id="evt_agent_contest_open",
+            requires_responders=True,
+            required_responders=["pip"],
+            observer_ids=["alice", "bob", "pip"],
+            event_kind="cat_ii_open",
+        ))
+        fake.queue_agent("Pip braces against Bob's shove.")
+        fake.queue_route(_router_out(
+            event_id="evt_agent_contest_resolution",
+            observer_ids=["alice", "bob", "pip"],
+            event_kind="cat_ii_resolution",
+        ))
+        fake.queue_route(_router_out(
+            event_id="evt_after_agent_contest",
+            observer_ids=["alice", "bob", "pip"],
+            event_kind="cascade_exhausted",
+        ))
+        _queue_narrator_continue(fake)
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="bob",
+            intention="Bob shoves Pip away from the door.",
+        ))
+
+        assert result.ended_reason == "cascade_exhausted"
+        assert result.events_closed == 3
+        assert len(fake.continuation_calls) == 1
+        assert (
+            fake.continuation_calls[0]["prior_result"].event_kind
+            == "cat_ii_resolution"
+        )
+        assert [
+            call["handoff_policy"] for call in fake.narrator_calls
+        ] == ["candidate", "candidate"]
+        assert [
+            len(call["buffered_events"]) for call in fake.narrator_calls
+        ] == [2, 3]
+
     def test_cat_ii_with_agent_responder_resolves_inline(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
@@ -1323,7 +1371,7 @@ class TestCatIIBeat:
         ))
         fake.queue_agent("Pip dodges")
         fake.queue_route(_router_out(
-            event_kind="cascade_exhausted",
+            event_kind="cat_ii_resolution",
             effective_at_s=500,
             duration_s=5,
         ))
@@ -1342,6 +1390,42 @@ class TestCatIIBeat:
         assert ckpt.canonical_events[0].duration_s == 0
         assert ckpt.canonical_events[1].effective_at_s == 100
         assert ckpt.session.open_cat_ii_events == []
+        assert fake.narrator_calls[0]["handoff_policy"] == "forced"
+        assert fake.continuation_calls == []
+
+    def test_all_agent_cat_ii_resolution_still_yields_to_bound_next_output(
+        self,
+    ):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["pip"],
+            observer_ids=["alice", "bob", "pip"],
+            event_kind="cat_ii_open",
+        ))
+        fake.queue_agent("Pip steps back from Bob.")
+        fake.queue_route(_router_out(
+            agent_ids=["alice"],
+            observer_ids=["alice", "bob", "pip"],
+            event_kind="cat_ii_resolution",
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="bob",
+            intention="Bob orders Pip away, then looks to Alice.",
+        ))
+
+        assert result.ended_reason == "awaiting_player_turn"
+        assert ckpt.session.open_cat_ii_events == []
+        assert ckpt.canonical_events[-1].next_output_character_ids == [
+            "alice"
+        ]
+        assert [call["character_id"] for call in fake.agent_calls] == ["pip"]
+        assert fake.narrator_calls[0]["handoff_policy"] == "forced"
+        assert fake.continuation_calls == []
 
     def test_inline_cat_ii_resolution_yields_to_bound_semantic_next_output(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})

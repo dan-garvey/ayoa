@@ -843,6 +843,8 @@ def flush_render_buffer(
 def _log_router_rationale(
     result: EventRouterOutput, actor_id: str,
     *, kind: str = "route",
+    ckpt: CheckpointFile | None = None,
+    resolved_cat_ii: OpenCatIIEvent | None = None,
 ) -> None:
     """Surface the router's terse rationale at INFO.
 
@@ -857,7 +859,11 @@ def _log_router_rationale(
     rationale = (result.decision_rationale or "").strip()
     if not rationale:
         rationale = "(no rationale emitted)"
-    forced = result.event_kind in FORCED_HANDOFF_EVENT_KINDS
+    forced = _event_requires_forced_handoff(
+        result,
+        ckpt=ckpt,
+        resolved_cat_ii=resolved_cat_ii,
+    )
     logger.info(
         "router[%s] actor=%s cat=%s forced_handoff=%s kind=%r next=%s "
         "enrich=%s :: %s",
@@ -870,8 +876,36 @@ def _log_router_rationale(
     )
 
 
-def _event_requires_forced_handoff(result: EventRouterOutput) -> bool:
-    return result.event_kind in FORCED_HANDOFF_EVENT_KINDS
+def _event_requires_forced_handoff(
+    result: EventRouterOutput,
+    *,
+    ckpt: CheckpointFile | None = None,
+    resolved_cat_ii: OpenCatIIEvent | None = None,
+) -> bool:
+    """Whether this closed event is an unconditional presentation boundary.
+
+    A Cat II involving a bound participant remains mandatory. When every
+    participant in the resolved contest is autonomous, a bound observer is
+    only watching the exchange and gets the ordinary narrator pacing gate.
+    Callers without the resolved contest retain the conservative forced
+    behavior.
+    """
+    if result.event_kind not in FORCED_HANDOFF_EVENT_KINDS:
+        return False
+    if (
+        result.event_kind != "cat_ii_resolution"
+        or ckpt is None
+        or resolved_cat_ii is None
+    ):
+        return True
+
+    from app.engine.context_builder import collect_player_ids
+
+    participant_ids = {
+        resolved_cat_ii.initiator_id,
+        *resolved_cat_ii.required_responders,
+    }
+    return not participant_ids.isdisjoint(collect_player_ids(ckpt))
 
 
 def _event_handoff_reason(result: EventRouterOutput) -> str:
@@ -2869,8 +2903,8 @@ async def run_beat(
       without speculative autonomous work.
     - Targetless events may request a router continuation when the narrator
       keeps established motion or a submitted wait condition unresolved.
-    - Rules, query, Cat II, harvest, and safety-cap event kinds force render
-      fan-out and slot release.
+    - Rules, query, Cat II opening and bound-participant resolution, harvest,
+      and safety-cap event kinds force render fan-out and slot release.
     - Cat II event adjudicates; selected semantic `next_output` targets yield
       for bound characters or dispatch eligible autonomous characters. If no
       selected character can act, render fan-out and slot release.
@@ -3088,6 +3122,7 @@ async def run_beat(
         result: EventRouterOutput,
         *,
         default_ended_reason: str = "",
+        resolved_cat_ii: OpenCatIIEvent | None = None,
     ) -> BeatResult | None:
         """Race narrator pacing against isolated autonomous next-output work."""
         if (
@@ -3104,7 +3139,11 @@ async def run_beat(
                 acting_player_input=intention,
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
-        if _event_requires_forced_handoff(result):
+        if _event_requires_forced_handoff(
+            result,
+            ckpt=ckpt,
+            resolved_cat_ii=resolved_cat_ii,
+        ):
             return await _end_beat(
                 ckpt,
                 dispatcher,
@@ -3279,7 +3318,11 @@ async def run_beat(
         except DndCatIIRollsPending:
             return await _pause_for_pending_rolls()
         _log_router_rationale(
-            resolved, evt.initiator_id, kind="cat_ii_resolve",
+            resolved,
+            evt.initiator_id,
+            kind="cat_ii_resolve",
+            ckpt=ckpt,
+            resolved_cat_ii=evt,
         )
         _validate_non_social_hazard_routing(ckpt, resolved)
         one_star_resolution = _one_star_ruleset_enabled(ckpt)
@@ -3311,6 +3354,7 @@ async def run_beat(
         completed = await _advance_or_render(
             resolved,
             default_ended_reason="cat_ii_resolution",
+            resolved_cat_ii=evt,
         )
         if completed is not None:
             return completed
@@ -3671,8 +3715,11 @@ async def run_beat(
                 except DndCatIIRollsPending:
                     return await _pause_for_pending_rolls()
                 _log_router_rationale(
-                    resolved, evt.initiator_id,
+                    resolved,
+                    evt.initiator_id,
                     kind="cat_ii_resolve_inline",
+                    ckpt=ckpt,
+                    resolved_cat_ii=evt,
                 )
                 _validate_non_social_hazard_routing(ckpt, resolved)
                 one_star_resolution = _one_star_ruleset_enabled(ckpt)
@@ -3698,6 +3745,7 @@ async def run_beat(
                 completed = await _advance_or_render(
                     resolved,
                     default_ended_reason="cat_ii_resolution",
+                    resolved_cat_ii=evt,
                 )
                 if completed is not None:
                     return completed
