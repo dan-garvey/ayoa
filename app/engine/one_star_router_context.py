@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from app.engine.one_star_adapter import (
+    effective_one_star_discretionary_funds,
     effective_one_star_stamina,
+    format_one_star_discretionary_funds,
     is_one_star_checkpoint,
     load_one_star_account,
     load_one_star_combatant,
@@ -123,6 +125,17 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
     lines.append(
         f"promotion_cost: {_render_nonzero_resources(config.promotion_cost)}"
     )
+    if config.gem_purchase is not None:
+        authority = config.gem_purchase
+        lines.append(
+            "gem_purchase: target=gems; value=requested_gem_quantity; "
+            f"starting_funds={format_one_star_discretionary_funds(authority, authority.starting_funds)}; "
+            "periodic_income="
+            f"{format_one_star_discretionary_funds(authority, authority.periodic_income)}"
+            f"/{authority.income_interval_seconds}s; pack="
+            f"{authority.gems_granted}gems/"
+            f"{format_one_star_discretionary_funds(authority, authority.funds_cost)}"
+        )
     lines.append(f"lobby_return_healing: {str(config.lobby_return_healing).lower()}")
     combatants: list[str] = []
     for character in sorted(
@@ -319,6 +332,30 @@ def render_one_star_repair_evidence(
                 add(
                     f"inventory {update.target_id}: "
                     f"current={state.inventory.get(update.target_id, 0)}"
+                )
+        elif update.kind == "gem_purchase":
+            authority = config.gem_purchase
+            if authority is None:
+                add("gem_purchase: unavailable")
+            else:
+                funds_at_s = max(
+                    checkpoint.session.leading_at_s,
+                    state.funds_accrual_anchor_s,
+                    canonical_at_s or 0,
+                )
+                current_funds, current_anchor = (
+                    effective_one_star_discretionary_funds(
+                        state,
+                        config,
+                        funds_at_s,
+                    )
+                )
+                add(
+                    "gem_purchase: current_funds="
+                    f"{format_one_star_discretionary_funds(authority, current_funds)}; "
+                    f"accrual_anchor_s={current_anchor}; pack="
+                    f"{authority.gems_granted}gems/"
+                    f"{format_one_star_discretionary_funds(authority, authority.funds_cost)}"
                 )
         elif update.kind == "equipment_move":
             add_equipment_holder(update.target_id)

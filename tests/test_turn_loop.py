@@ -11,6 +11,7 @@ import asyncio
 
 import pytest
 
+from app.engine.action_rejection import PlayerActionRejected
 from app.engine.closed_event_runtime import (
     ClosedEventRuntime,
     install_closed_event_runtime,
@@ -240,6 +241,69 @@ class TestCheckActSlot:
 
 
 class TestBeatCascade:
+    def test_bound_side_effect_free_infeasible_submission_is_rejected(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        rejected = _router_out(observer_ids=[], facts=[])
+        rejected.canonical_event.world_adjudication.feasible = False
+        fake.queue_route(rejected)
+
+        with pytest.raises(
+            PlayerActionRejected,
+            match="Nothing changed",
+        ):
+            asyncio.run(run_beat(
+                ckpt=ckpt,
+                dispatcher=fake,
+                actor_id="alice",
+                intention="I buy an unavailable quantity of Gems.",
+            ))
+
+        assert ckpt.canonical_events == []
+        assert fake.narrator_calls == []
+
+    def test_factful_failed_attempt_remains_canonical(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        failed_attempt = _router_out(
+            observer_ids=["alice"],
+            facts=[ObservableFact.all(
+                "Alice pulls the locked handle, but it does not move."
+            )],
+        )
+        failed_attempt.canonical_event.world_adjudication.feasible = False
+        fake.queue_route(failed_attempt)
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I wrench the sealed door open.",
+        ))
+
+        assert result.events_closed == 1
+        assert len(ckpt.canonical_events) == 1
+        assert fake.narrator_calls
+
+    def test_autonomous_side_effect_free_infeasible_result_is_not_ui_rejected(
+        self,
+    ):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        rejected = _router_out(observer_ids=[], facts=[])
+        rejected.canonical_event.world_adjudication.feasible = False
+        fake.queue_route(rejected)
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="pip",
+            intention="I attempt something impossible.",
+        ))
+
+        assert result.events_closed == 1
+        assert len(ckpt.canonical_events) == 1
+
     def test_single_cat_i_closes_and_renders(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()

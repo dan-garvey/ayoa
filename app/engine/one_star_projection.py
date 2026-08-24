@@ -16,7 +16,9 @@ from app.engine.turn_loop_contracts import (
 )
 from app.engine.one_star_adapter import (
     ONE_STAR_RULESET_ID,
+    effective_one_star_discretionary_funds,
     effective_one_star_stamina,
+    format_one_star_discretionary_funds,
     load_one_star_account,
     load_one_star_combatant,
     load_one_star_hero,
@@ -299,6 +301,24 @@ def _management_lines(
         f"Research: {research}",
         f"Account inventory: {inventory}",
     ]
+    if envelope.config.gem_purchase is not None:
+        authority = envelope.config.gem_purchase
+        current_funds, funds_anchor = effective_one_star_discretionary_funds(
+            state,
+            envelope.config,
+            canonical_now_s,
+        )
+        lines.insert(
+            1,
+            "Discretionary funds: "
+            f"{format_one_star_discretionary_funds(authority, current_funds)}; "
+            "income "
+            f"{format_one_star_discretionary_funds(authority, authority.periodic_income)} "
+            f"every {authority.income_interval_seconds}s; next accrual anchor "
+            f"{funds_anchor + authority.income_interval_seconds}s; Gem pack "
+            f"{authority.gems_granted} for "
+            f"{format_one_star_discretionary_funds(authority, authority.funds_cost)}",
+        )
     if include_stored_equipment:
         stored_equipment = _join_values(
             (

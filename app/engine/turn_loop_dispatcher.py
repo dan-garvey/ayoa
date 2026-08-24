@@ -1602,15 +1602,20 @@ class LLMDispatcher:
             one_star_event_already_applied,
             one_star_event_fingerprint,
             one_star_standard_summon_lifecycle,
-            preflight_one_star_standard_summon,
+            preflight_one_star_account_updates,
             prepare_one_star_transaction,
         )
 
-        preflight_one_star_standard_summon(
-            ckpt,
-            result.state_updates,
-            initiating_actor_id=actor_id,
-        )
+        player_submission = actor_id in collect_player_ids(ckpt)
+        if player_submission:
+            preflight_one_star_account_updates(
+                ckpt,
+                result.state_updates,
+                initiating_actor_id=actor_id,
+                canonical_at_s=(
+                    result.effective_at_s + result.duration_s
+                ),
+            )
         adapter_spawns, adapter_wakes = one_star_standard_summon_lifecycle(
             ckpt,
             result.state_updates,
@@ -1770,6 +1775,15 @@ class LLMDispatcher:
                         "Hero lifecycle has been fixed"
                     ) from first_error
                 result.state_updates = repaired.state_updates
+                if player_submission:
+                    preflight_one_star_account_updates(
+                        ckpt,
+                        result.state_updates,
+                        initiating_actor_id=actor_id,
+                        canonical_at_s=(
+                            result.effective_at_s + result.duration_s
+                        ),
+                    )
                 _include_one_star_synthesis_guide_responders(
                     ckpt,
                     actor_id=actor_id,

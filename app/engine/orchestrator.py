@@ -431,6 +431,25 @@ def _drain_experience_awards(ckpt: CheckpointFile):
     return dnd_combat.drain_pending_experience_awards(ckpt.session)
 
 
+def _durable_player_action_snapshot(ckpt: CheckpointFile) -> dict[str, Any]:
+    """Capture the exact durable state restored after an expected rejection."""
+
+    return {
+        field_name: deepcopy(getattr(ckpt, field_name))
+        for field_name in CheckpointFile.model_fields
+    }
+
+
+def _restore_rejected_player_action(
+    ckpt: CheckpointFile,
+    snapshot: dict[str, Any],
+) -> None:
+    """Restore every declared checkpoint field without replacing its identity."""
+
+    for field_name in CheckpointFile.model_fields:
+        setattr(ckpt, field_name, snapshot[field_name])
+
+
 def _automated_turn_snapshot(ckpt: CheckpointFile) -> dict[str, Any]:
     return {
         "canonical_events": len(ckpt.canonical_events),
@@ -1423,6 +1442,7 @@ class Orchestrator:
                 cat_ii_event_id=cat_ii_event_id,
                 combat_reaction_event_id=combat_reaction_event_id,
             )
+            rejected_action_snapshot = _durable_player_action_snapshot(ckpt)
             self._ensure_closed_event_runtime(ckpt)
             roll_keys_before = completed_automatic_roll_keys(ckpt)
             revision_input_consumed = (
@@ -1466,6 +1486,10 @@ class Orchestrator:
                 await self._cancel_closed_event_runtime(
                     ckpt,
                     reason=exc.reason,
+                )
+                _restore_rejected_player_action(
+                    ckpt,
+                    rejected_action_snapshot,
                 )
                 return _with_pre_turn_resolutions(TurnResponse(
                     session_id=request.session_id,

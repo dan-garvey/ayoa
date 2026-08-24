@@ -69,6 +69,7 @@ from app.engine import (
     imported_statblocks,
 )
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
+from app.engine.action_rejection import PlayerActionRejected
 from app.engine.narrator import commit_pov_render
 from app.engine.dnd_combat_access import (
     checkpoint_active_combat,
@@ -910,6 +911,61 @@ def _event_requires_forced_handoff(
 
 def _event_handoff_reason(result: EventRouterOutput) -> str:
     return result.event_kind if result.event_kind != "beat_continues" else ""
+
+
+def _is_side_effect_free_infeasible_result(
+    result: EventRouterOutput,
+) -> bool:
+    """Whether a router rejection has nothing canonical to preserve.
+
+    A failed fictional attempt may still leave visible motion, dialogue,
+    routing debt, or adapter state.  Those events remain ordinary canonical
+    history.  This narrow shape identifies only a submission the router says
+    could not begin and for which it authored no observable or durable result.
+    """
+
+    if result.canonical_event.world_adjudication.feasible:
+        return False
+    if result.canonical_event.observable_facts:
+        return False
+    if result.requires_responders or result.required_responders:
+        return False
+    if result.observers:
+        return False
+    if (
+        result.spawn
+        or result.dormant
+        or result.cull
+        or result.commitment_open.present
+        or result.commitment_resolutions
+        or result.commitment_interrupts
+        or result.location_updates
+        or result.activate
+    ):
+        return False
+
+    # Adapter outputs use the same generic boundary when they are empty, but
+    # any adapter-authored effect must reach its own validator instead of being
+    # mistaken for a side-effect-free player rejection.
+    if getattr(result, "state_updates", ()):
+        return False
+    interaction_mode = getattr(result, "interaction_mode", "narrative")
+    if interaction_mode != "narrative":
+        return False
+    if (
+        getattr(result, "combatant_ids", ())
+        or getattr(result, "combatant_spawns", ())
+    ):
+        return False
+    loot_offer = getattr(result, "loot_offer", None)
+    if loot_offer is not None and bool(getattr(loot_offer, "present", False)):
+        return False
+    battle_map_seed = getattr(result, "battle_map_seed", None)
+    if battle_map_seed is not None and bool(
+        getattr(battle_map_seed, "present", False)
+    ):
+        return False
+    return True
 
 
 def _filter_routed_agents_for_dispatch(
@@ -3505,6 +3561,19 @@ async def run_beat(
             if not result_is_continuation:
                 current_actor = result_actor_id
                 current_intention = result_submission
+
+        if not result_is_continuation and _is_side_effect_free_infeasible_result(
+            result
+        ):
+            from app.engine.context_builder import collect_player_ids
+
+            if result_actor_id in collect_player_ids(ckpt):
+                raise PlayerActionRejected(
+                    "That action cannot begin under the established world "
+                    "state or available interface. Nothing changed; submit "
+                    "a different action.",
+                    reason="player_action_infeasible",
+                )
 
         if (
             result.event_kind == "beat_continues"

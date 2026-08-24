@@ -194,6 +194,9 @@ async def test_failed_one_star_prepare_rolls_back_fresh_spawn_overlay_after_bad_
 @pytest.mark.asyncio
 async def test_unaffordable_summon_rejects_before_spawn_authoring_or_repair():
     checkpoint = _checkpoint()
+    checkpoint.session.character_bindings = {
+        "account_owner": "test-user",
+    }
     checkpoint.characters[0].mechanics["one_star_account"]["state"][
         "resources"
     ]["gold"] = 2

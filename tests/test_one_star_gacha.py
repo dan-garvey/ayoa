@@ -14,7 +14,7 @@ from app.engine.one_star_adapter import (
     one_star_standard_summon_lifecycle,
     one_star_state_updates_to_transaction,
     one_star_summon_draw_preview,
-    preflight_one_star_standard_summon,
+    preflight_one_star_account_updates,
     prepare_one_star_transaction,
 )
 from app.schemas.characters import CharacterRecord, CharacterStatus
@@ -172,6 +172,14 @@ def _checkpoint() -> CheckpointFile:
                 "required_location": "promotion_room",
             },
         },
+        "gem_purchase": {
+            "funds_label": "$",
+            "starting_funds": 200,
+            "periodic_income": 100,
+            "income_interval_seconds": 604_800,
+            "funds_cost": 100,
+            "gems_granted": 20,
+        },
         "lobby_return_healing": True,
         "hero_system_visibility_research_key": "",
     }
@@ -187,6 +195,8 @@ def _checkpoint() -> CheckpointFile:
         "highest_unlocked_floor": 1,
         "highest_cleared_floor": 0,
         "stamina_current": 5,
+        "discretionary_funds": 200,
+        "funds_accrual_anchor_s": 0,
         "summon_draw_counters": {},
         "stored_equipment": [],
     }
@@ -320,7 +330,7 @@ def test_unaffordable_summon_is_rejected_without_mutating_draw_state() -> None:
             r"5 Gems are available.*Nothing was spent"
         ),
     ):
-        preflight_one_star_standard_summon(
+        preflight_one_star_account_updates(
             checkpoint,
             [OneStarStateUpdate(
                 kind="summon",
@@ -345,7 +355,7 @@ def test_oversized_summon_is_rejected_before_drawing() -> None:
             rf"allow at most {account.config.max_summon_batch} pulls at once"
         ),
     ):
-        preflight_one_star_standard_summon(
+        preflight_one_star_account_updates(
             checkpoint,
             [OneStarStateUpdate(
                 kind="summon",
@@ -357,17 +367,17 @@ def test_oversized_summon_is_rejected_before_drawing() -> None:
         )
 
 
-def test_same_event_currency_grant_is_available_to_summon_preflight() -> None:
+def test_same_event_gem_purchase_is_available_to_summon_preflight() -> None:
     checkpoint = _checkpoint()
     owner, account = load_one_star_account(checkpoint)
     account.state.resources.gems = 5
     owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
 
-    preflight_one_star_standard_summon(
+    preflight_one_star_account_updates(
         checkpoint,
         [
             OneStarStateUpdate(
-                kind="inventory_delta",
+                kind="gem_purchase",
                 target_id="gems",
                 value="20",
                 details=[],
@@ -381,6 +391,55 @@ def test_same_event_currency_grant_is_available_to_summon_preflight() -> None:
         ],
         initiating_actor_id="account_owner",
     )
+
+
+@pytest.mark.parametrize(
+    ("updates", "message"),
+    [
+        (
+            [OneStarStateUpdate(
+                kind="inventory_delta",
+                target_id="gems",
+                value="100",
+                details=[],
+            )],
+            "sold only in packs of 20",
+        ),
+        (
+            [OneStarStateUpdate(
+                kind="gem_purchase",
+                target_id="gems",
+                value="25",
+                details=[],
+            )],
+            "25 Gems cannot be purchased",
+        ),
+        (
+            [OneStarStateUpdate(
+                kind="gem_purchase",
+                target_id="gems",
+                value="60",
+                details=[],
+            )],
+            "60 Gems cost",
+        ),
+    ],
+)
+def test_invalid_gem_acquisition_is_player_rejected_without_mutation(
+    updates: list[OneStarStateUpdate],
+    message: str,
+) -> None:
+    checkpoint = _checkpoint()
+    before = checkpoint.model_dump_json()
+
+    with pytest.raises(PlayerActionRejected, match=message):
+        preflight_one_star_account_updates(
+            checkpoint,
+            updates,
+            initiating_actor_id="account_owner",
+        )
+
+    assert checkpoint.model_dump_json() == before
 
 
 def test_counter_advancement_exposes_the_unconsumed_weighted_suffix() -> None:

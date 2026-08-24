@@ -95,6 +95,14 @@ def _config() -> dict:
                 "required_location": "promotion_room",
             },
         },
+        "gem_purchase": {
+            "funds_label": "$",
+            "starting_funds": 200,
+            "periodic_income": 100,
+            "income_interval_seconds": 604_800,
+            "funds_cost": 100,
+            "gems_granted": 20,
+        },
         "lobby_return_healing": True,
         "hero_system_visibility_research_key": "hero_system",
     }
@@ -112,6 +120,8 @@ def _checkpoint() -> CheckpointFile:
                     "lobby_floor": 1,
                     "capacity": 5,
                     "stamina_current": 5,
+                    "discretionary_funds": 200,
+                    "funds_accrual_anchor_s": 0,
                     "facilities": {"tower_gate": 1},
                     "stored_equipment": [],
                 },
@@ -223,12 +233,6 @@ def test_inventory_delta_routes_account_currencies_to_resources() -> None:
     updates = [
         OneStarStateUpdate(
             kind="inventory_delta",
-            target_id="gems",
-            value="100",
-            details=[],
-        ),
-        OneStarStateUpdate(
-            kind="inventory_delta",
             target_id="gold",
             value="-3",
             details=[],
@@ -262,11 +266,85 @@ def test_inventory_delta_routes_account_currencies_to_resources() -> None:
 
     assert account.state.resources.model_dump() == {
         "gold": 7,
-        "gems": 100,
+        "gems": 0,
         "building_resources": 2,
         "materials": {},
     }
     assert account.state.inventory == {"healing_draught": 4}
+
+
+def test_positive_gem_inventory_delta_is_not_an_acquisition_path() -> None:
+    checkpoint = _checkpoint()
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        [OneStarStateUpdate(
+            kind="inventory_delta",
+            target_id="gems",
+            value="100",
+            details=[],
+        )],
+        canonical_at_s=0,
+    )
+
+    with pytest.raises(OneStarTransactionError, match="positive Gem changes"):
+        prepare_one_star_transaction(
+            checkpoint,
+            event_id="evt_unbacked_gems",
+            transaction=transaction,
+            initiating_actor_id="account_owner",
+        )
+
+
+def test_gem_purchase_and_weekly_funds_accrual_are_exact_and_idempotent() -> None:
+    checkpoint = _checkpoint()
+    purchase = one_star_state_updates_to_transaction(
+        checkpoint,
+        [OneStarStateUpdate(
+            kind="gem_purchase",
+            target_id="gems",
+            value="20",
+            details=[],
+        )],
+        canonical_at_s=0,
+    )
+    prepared_purchase = prepare_one_star_transaction(
+        checkpoint,
+        event_id="evt_gem_purchase",
+        transaction=purchase,
+        canonical_at_s=0,
+        initiating_actor_id="account_owner",
+    )
+    _owner, purchased = load_one_star_account(
+        prepared_purchase.after_checkpoint
+    )
+    assert purchased.state.discretionary_funds == 100
+    assert purchased.state.resources.gems == 20
+    assert apply_one_star_prepared_mutation(checkpoint, prepared_purchase)
+
+    weekly_accrual = prepare_one_star_transaction(
+        checkpoint,
+        event_id="evt_weekly_accrual",
+        transaction=OneStarTransaction(present=False, operations=[]),
+        canonical_at_s=604_800,
+    )
+    _owner, accrued = load_one_star_account(weekly_accrual.after_checkpoint)
+    assert accrued.state.discretionary_funds == 200
+    assert accrued.state.funds_accrual_anchor_s == 604_800
+    assert weekly_accrual.engine_history_updates == (
+        "discretionary_funds_accrued current=200 "
+        "accrual_anchor_s=604800",
+    )
+    assert apply_one_star_prepared_mutation(checkpoint, weekly_accrual)
+
+    no_duplicate = prepare_one_star_transaction(
+        checkpoint,
+        event_id="evt_same_week",
+        transaction=OneStarTransaction(present=False, operations=[]),
+        canonical_at_s=604_800,
+    )
+    assert no_duplicate.engine_history_updates == ()
+    _owner, unchanged = load_one_star_account(no_duplicate.after_checkpoint)
+    assert unchanged.state.discretionary_funds == 200
 
 
 @pytest.mark.parametrize(

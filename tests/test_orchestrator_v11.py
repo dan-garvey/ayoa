@@ -21,6 +21,7 @@ from app.engine.orchestrator import (
 from app.engine.turn_loop import BeatResult, broadcast_event
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.characters import CharacterStatus
+from app.schemas.conversation import ConversationMessage
 from app.schemas.content import ContentPackState
 from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.event_router import (
@@ -35,6 +36,7 @@ from app.schemas.events import (
     WorldAdjudication,
 )
 from app.schemas.requests import TurnRequest
+from app.schemas.one_star import OneStarEventRouterOutput
 from app.schemas.state import (
     CatIIRollRecord,
     CatIIRollTransaction,
@@ -397,6 +399,53 @@ def patched_orchestrator(monkeypatch):
 
 
 class TestHappyPath:
+    @pytest.mark.asyncio
+    async def test_real_infeasible_router_result_uses_rejection_rollback(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+        from app.engine.model_config_sync import sync_checkpoint_runtime_models
+
+        sync_checkpoint_runtime_models(ckpt, orch.client.config)
+        before = ckpt.model_dump_json()
+        rejected_data = _router_out(observer_ids=[], facts=[]).model_dump()
+        rejected_data["state_updates"] = []
+        rejected = OneStarEventRouterOutput.model_validate(rejected_data)
+        rejected.canonical_event.world_adjudication.feasible = False
+        FakeDispatcher.queue_route(rejected)
+        original_route = FakeDispatcher.route_intention
+
+        async def route_with_compact_history(self, **kwargs):
+            kwargs["ckpt"].session_conversation.append(ConversationMessage(
+                role="assistant",
+                content="prior_event rejected-but-not-canonical",
+            ))
+            return await original_route(self, **kwargs)
+
+        monkeypatch.setattr(
+            FakeDispatcher,
+            "route_intention",
+            route_with_compact_history,
+        )
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I buy an unavailable quantity of Gems.",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "player_action_infeasible"
+        assert "Nothing changed" in response.output_text
+        assert response.per_player_renders == {}
+        assert ckpt.model_dump_json() == before
+        assert ckpt.canonical_events == []
+        assert ckpt.session_conversation == []
+        assert FakeDispatcher.narrator_calls == []
+        mgr.save.assert_not_called()
+
     @pytest.mark.asyncio
     async def test_player_action_rejection_returns_message_without_saving_or_narrating(
         self, patched_orchestrator, monkeypatch,

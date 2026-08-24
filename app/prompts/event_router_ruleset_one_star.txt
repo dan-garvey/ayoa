@@ -56,7 +56,12 @@ Use these update shapes:
 - inventory or direct account grant: `inventory_delta`, target item id or exact
   account resource id (`gold`, `gems`, or `building_resources`), value signed
   quantity. Account resource ids change their spendable balance; other ids
-  change ordinary inventory.
+  change ordinary inventory. Never use a positive Gem inventory delta:
+  configured rewards and Gem purchases have their own authority.
+- Gem purchase: `gem_purchase`, target `gems`, value the exact requested Gem
+  quantity, and empty details. The quantity must be a whole number of the
+  configured fixed packs. Do not restate the derived funds cost as another
+  update.
 - equipment move: `equipment_move`, target exact item id, value `account` or
   a local Hero id, and empty details. The supplied item must already have one
   valid current holder; its complete stored record moves with it.
@@ -172,7 +177,7 @@ mission with survivors does not return them, and a Hero outside the recorded
 party cannot join an active mission through a plain location update.
 While a mission is active, the account owner may observe, inspect System
 status, or change the active feed, but cannot use lobby catalogue controls or
-perform a standard summon.
+perform a standard summon or Gem purchase.
 Promotion requires the target to have reached the configured level cap for
 their current star rank before advancing exactly one star.
 

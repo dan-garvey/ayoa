@@ -975,6 +975,14 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
                 required_location="promotion_chamber",
             ),
         },
+        gem_purchase=SimpleNamespace(
+            funds_label="$",
+            starting_funds=200,
+            periodic_income=100,
+            income_interval_seconds=604_800,
+            funds_cost=100,
+            gems_granted=20,
+        ),
         lobby_return_healing=True,
         hero_system_visibility_research_key="hero_reaction_research",
     )
@@ -1001,6 +1009,8 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         highest_cleared_floor=1,
         stamina_current=4,
         stamina_recovery_anchor_s=20,
+        discretionary_funds=200,
+        funds_accrual_anchor_s=0,
         active_master_feed_id="pip",
         guide_character_ids=["iselle"],
         system_observer_ids=["iselle"],
@@ -1079,6 +1089,17 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
             details=[],
         )],
     )
+    gem_purchase_evidence = (
+        one_star_router_context.render_one_star_repair_evidence(
+            ckpt,
+            state_updates=[OneStarStateUpdate(
+                kind="gem_purchase",
+                target_id="gems",
+                value="60",
+                details=[],
+            )],
+        )
+    )
     equipment_evidence = one_star_router_context.render_one_star_repair_evidence(
         ckpt,
         state_updates=[OneStarStateUpdate(
@@ -1120,6 +1141,10 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
     assert "stars=2-5" in static
     assert "rates[2=75%,3=23%,4=1.75%,5=0.25%]" in static
     assert "repeat_clear_gold" in static
+    assert "starting_funds=$200" in static
+    assert "periodic_income=$100/604800s" in static
+    assert "pack=20gems/$100" in static
+    assert "current_funds" not in static
     assert "hero_bounds" not in static
     assert "grade_multiplier_milli" not in static
     assert "variance_basis_points" not in static
@@ -1141,6 +1166,8 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
     assert "Stored Ledger Item" not in hp_evidence
     assert "current_resources: gold=34" in purchase_evidence
     assert "catalogue synthesis_chamber_i" in purchase_evidence
+    assert "gem_purchase: current_funds=$200" in gem_purchase_evidence
+    assert "pack=20gems/$100" in gem_purchase_evidence
     assert "hero pip:" not in purchase_evidence
     assert "active_mission" not in purchase_evidence
     assert (

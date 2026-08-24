@@ -46,6 +46,8 @@ from app.schemas.one_star import (
     OneStarCost,
     OneStarEquipmentEntry,
     OneStarFormationEntry,
+    OneStarGemPurchaseConfig,
+    OneStarGemPurchaseOperation,
     OneStarHeroDeltaOperation,
     OneStarHeroState,
     OneStarInventoryDeltaOperation,
@@ -408,6 +410,7 @@ def _validate_state_update_detail_keys(
         "catalogue_apply": frozenset(),
         "summon": frozenset({"hero_id"}),
         "inventory_delta": frozenset(),
+        "gem_purchase": frozenset(),
         "hero_delta": frozenset({
             "hp_current",
             "equipment_remove",
@@ -688,6 +691,20 @@ def one_star_state_updates_to_transaction(
                 quantity_delta=_integer_update_value(
                     update.value,
                     label="inventory delta",
+                ),
+            ))
+            continue
+
+        if kind == "gem_purchase":
+            if target_id != "gems":
+                raise OneStarTransactionError(
+                    "Gem-purchase state updates must target the Gems balance"
+                )
+            operations.append(OneStarGemPurchaseOperation(
+                operation=kind,
+                gem_quantity=_integer_update_value(
+                    update.value,
+                    label="Gem-purchase quantity",
                 ),
             ))
             continue
@@ -1407,6 +1424,57 @@ def _recover_stamina(state: OneStarAccountState, config: OneStarRulesConfig, now
     state.stamina_recovery_anchor_s = anchor
 
 
+def effective_one_star_discretionary_funds(
+    state: OneStarAccountState,
+    config: OneStarRulesConfig,
+    now_s: int,
+) -> tuple[int, int]:
+    """Project configured periodic external funds without mutating state."""
+
+    authority = config.gem_purchase
+    if authority is None:
+        return state.discretionary_funds, state.funds_accrual_anchor_s
+    if now_s < state.funds_accrual_anchor_s:
+        raise OneStarTransactionError(
+            "canonical time cannot precede discretionary-funds accrual anchor"
+        )
+    periods = (
+        now_s - state.funds_accrual_anchor_s
+    ) // authority.income_interval_seconds
+    if periods <= 0:
+        return state.discretionary_funds, state.funds_accrual_anchor_s
+    return (
+        state.discretionary_funds + periods * authority.periodic_income,
+        state.funds_accrual_anchor_s
+        + periods * authority.income_interval_seconds,
+    )
+
+
+def _recover_discretionary_funds(
+    state: OneStarAccountState,
+    config: OneStarRulesConfig,
+    now_s: int,
+) -> None:
+    current, anchor = effective_one_star_discretionary_funds(
+        state,
+        config,
+        now_s,
+    )
+    state.discretionary_funds = current
+    state.funds_accrual_anchor_s = anchor
+
+
+def format_one_star_discretionary_funds(
+    authority: OneStarGemPurchaseConfig,
+    amount: int,
+) -> str:
+    """Render one configured external-funds amount for player-facing text."""
+
+    if authority.funds_label in {"$", "£", "€", "¥"}:
+        return f"{authority.funds_label}{amount}"
+    return f"{amount} {authority.funds_label}"
+
+
 def _validate_hero_progression_state(
     hero: OneStarHeroState,
     config: OneStarRulesConfig,
@@ -1519,6 +1587,11 @@ def _apply_inventory_delta(
     state: OneStarAccountState,
 ) -> None:
     if operation.item_id in _ACCOUNT_RESOURCE_FIELDS:
+        if operation.item_id == "gems" and operation.quantity_delta > 0:
+            raise OneStarTransactionError(
+                "positive Gem changes require a gem_purchase or a configured "
+                "adapter reward operation"
+            )
         current = int(getattr(state.resources, operation.item_id))
         updated = current + operation.quantity_delta
         if updated < 0:
@@ -1539,6 +1612,30 @@ def _apply_inventory_delta(
         state.inventory[operation.item_id] = updated
     else:
         state.inventory.pop(operation.item_id, None)
+
+
+def _apply_gem_purchase(
+    operation: OneStarGemPurchaseOperation,
+    state: OneStarAccountState,
+    config: OneStarRulesConfig,
+) -> None:
+    authority = config.gem_purchase
+    if authority is None:
+        raise OneStarTransactionError(
+            "Gem purchases are not configured for this One-Star account"
+        )
+    packs, remainder = divmod(operation.gem_quantity, authority.gems_granted)
+    if remainder:
+        raise OneStarTransactionError(
+            "Gem purchase quantity must be an exact configured pack multiple"
+        )
+    funds_cost = packs * authority.funds_cost
+    if state.discretionary_funds < funds_cost:
+        raise OneStarTransactionError(
+            "Gem purchase exceeds available discretionary funds"
+        )
+    state.discretionary_funds -= funds_cost
+    state.resources.gems += operation.gem_quantity
 
 
 def _apply_catalogue_effects(entry: object, state: OneStarAccountState) -> None:
@@ -1680,22 +1777,30 @@ def _available_amount_text(
     return ", ".join(pieces[:-1]) + f" and {pieces[-1]}"
 
 
-def preflight_one_star_standard_summon(
+def preflight_one_star_account_updates(
     checkpoint: CheckpointFile,
     state_updates: Iterable[OneStarStateUpdate],
     *,
     initiating_actor_id: str,
+    canonical_at_s: int | None = None,
 ) -> None:
-    """Reject a known-impossible standard summon before Hero authoring.
+    """Reject known-impossible player account controls before side effects.
 
-    This is deliberately narrow. It simulates only preceding catalogue and
-    inventory/resource updates whose bookkeeping is already deterministic. A
-    transaction with other preceding semantics falls through to normal atomic
-    preparation instead of risking a false rejection.
+    This simulates only deterministic Gem purchases, catalogue/inventory
+    changes, and a following standard summon. Other semantics fall through to
+    normal atomic validation rather than risking a false player rejection.
     """
 
     updates = list(state_updates)
-    if sum(update.kind == "summon" for update in updates) != 1:
+    summon_count = sum(update.kind == "summon" for update in updates)
+    if summon_count > 1 or not any(
+        update.kind in {"gem_purchase", "summon"}
+        or (
+            update.kind == "inventory_delta"
+            and update.target_id.strip() == "gems"
+        )
+        for update in updates
+    ):
         return
     try:
         owner, account = load_one_star_account(checkpoint)
@@ -1705,9 +1810,48 @@ def preflight_one_star_standard_summon(
         # on the player-facing rejection surface.
         return
 
+    if initiating_actor_id.strip() != owner.character_id:
+        return
+
     state = account.state.model_copy(deep=True)
+    ledger_now_s = max(
+        checkpoint.session.leading_at_s,
+        canonical_at_s or 0,
+        state.funds_accrual_anchor_s,
+    )
+    _recover_discretionary_funds(state, account.config, ledger_now_s)
     for update in updates:
         if update.kind in {"inventory_delta", "catalogue_apply"}:
+            if (
+                update.kind == "inventory_delta"
+                and update.target_id.strip() == "gems"
+            ):
+                try:
+                    gem_delta = _integer_update_value(
+                        update.value,
+                        label="Gem delta",
+                    )
+                except OneStarTransactionError:
+                    return
+                if gem_delta > 0:
+                    authority = account.config.gem_purchase
+                    if authority is None:
+                        message = (
+                            "A direct Gem grant is not an available account "
+                            "action. Nothing was charged and no Gems were "
+                            "added."
+                        )
+                    else:
+                        message = (
+                            "Gems are sold only in packs of "
+                            f"{authority.gems_granted} for "
+                            f"{format_one_star_discretionary_funds(authority, authority.funds_cost)}. "
+                            "Nothing was charged and no Gems were added."
+                        )
+                    raise PlayerActionRejected(
+                        message,
+                        reason="one_star_gem_purchase_rejected",
+                    )
             try:
                 operation = one_star_state_updates_to_transaction(
                     checkpoint,
@@ -1728,6 +1872,58 @@ def preflight_one_star_standard_summon(
             ):
                 return
             continue
+        if update.kind == "gem_purchase":
+            authority = account.config.gem_purchase
+            if update.target_id.strip() != "gems" or update.details:
+                return
+            try:
+                gem_quantity = _integer_update_value(
+                    update.value,
+                    label="Gem-purchase quantity",
+                )
+            except OneStarTransactionError:
+                return
+            if authority is None:
+                raise PlayerActionRejected(
+                    "Gem purchases are not available for this System account. "
+                    "Nothing was charged and no Gems were added.",
+                    reason="one_star_gem_purchase_rejected",
+                )
+            if gem_quantity < 1 or gem_quantity % authority.gems_granted:
+                raise PlayerActionRejected(
+                    "Gems are sold in packs of "
+                    f"{authority.gems_granted} for "
+                    f"{format_one_star_discretionary_funds(authority, authority.funds_cost)}; "
+                    f"{gem_quantity} Gems cannot be purchased. Nothing was "
+                    "charged and no Gems were added.",
+                    reason="one_star_gem_purchase_rejected",
+                )
+            if state.active_mission is not None:
+                raise PlayerActionRejected(
+                    "Gem purchases are unavailable while a Tower mission is "
+                    "active. Nothing was charged and no Gems were added.",
+                    reason="one_star_gem_purchase_rejected",
+                )
+            packs = gem_quantity // authority.gems_granted
+            funds_cost = packs * authority.funds_cost
+            if state.discretionary_funds < funds_cost:
+                raise PlayerActionRejected(
+                    f"{gem_quantity} Gems cost "
+                    f"{format_one_star_discretionary_funds(authority, funds_cost)}, "
+                    "but only "
+                    f"{format_one_star_discretionary_funds(authority, state.discretionary_funds)} "
+                    "is available. Nothing was charged and no Gems were added.",
+                    reason="one_star_gem_purchase_rejected",
+                )
+            _apply_gem_purchase(
+                OneStarGemPurchaseOperation(
+                    operation="gem_purchase",
+                    gem_quantity=gem_quantity,
+                ),
+                state,
+                account.config,
+            )
+            continue
         if update.kind != "summon":
             return
 
@@ -1736,7 +1932,6 @@ def preflight_one_star_standard_summon(
         if (
             pool is None
             or pool.usage != "standard"
-            or initiating_actor_id.strip() != owner.character_id
             or update.details
         ):
             return
@@ -3251,6 +3446,19 @@ def prepare_one_star_transaction(
             f"recovery_anchor_s={state.stamina_recovery_anchor_s}"
         )
     ] if state.stamina_current > stamina_before_recovery else []
+    funds_now_s = max(
+        now_s,
+        after.session.leading_at_s,
+        state.funds_accrual_anchor_s,
+    )
+    funds_before_accrual = state.discretionary_funds
+    _recover_discretionary_funds(state, config, funds_now_s)
+    if state.discretionary_funds > funds_before_accrual:
+        engine_history_updates.append(
+            "discretionary_funds_accrued "
+            f"current={state.discretionary_funds} "
+            f"accrual_anchor_s={state.funds_accrual_anchor_s}"
+        )
     system_consequences: list[OneStarSystemConsequence] = []
     if not transaction.present:
         if expected_summon_ids:
@@ -3321,6 +3529,13 @@ def prepare_one_star_transaction(
             )
         elif isinstance(operation, OneStarInventoryDeltaOperation):
             _apply_inventory_delta(operation, state)
+        elif isinstance(operation, OneStarGemPurchaseOperation):
+            require_account_owner("a Gem purchase")
+            if state.active_mission is not None:
+                raise OneStarTransactionError(
+                    "Gem purchases are unavailable during an active mission"
+                )
+            _apply_gem_purchase(operation, state, config)
         elif isinstance(operation, OneStarHeroDeltaOperation):
             _apply_hero_delta(operation, after, config, event_id)
         elif isinstance(operation, OneStarMissionStartOperation):

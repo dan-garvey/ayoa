@@ -27,6 +27,7 @@ from app.schemas.one_star import (
     OneStarCombatantState,
     OneStarCost,
     OneStarEquipmentEntry,
+    OneStarGemPurchaseConfig,
     OneStarHeroState,
     OneStarMissionCounter,
     OneStarMissionState,
@@ -177,6 +178,14 @@ def _rules_config() -> OneStarRulesConfig:
                 "required_location": "promotion_room",
             },
         },
+        gem_purchase=OneStarGemPurchaseConfig(
+            funds_label="$",
+            starting_funds=200,
+            periodic_income=100,
+            income_interval_seconds=604_800,
+            funds_cost=100,
+            gems_granted=20,
+        ),
         lobby_return_healing=True,
         hero_system_visibility_research_key="hero_reaction",
     )
@@ -223,6 +232,8 @@ def _checkpoint(
             highest_cleared_floor=1,
             highest_unlocked_floor=2,
             stamina_current=3,
+            discretionary_funds=200,
+            funds_accrual_anchor_s=0,
             active_master_feed_id="feed-7",
             guide_character_ids=["guide"],
             system_observer_ids=["hero"] if system_observer else [],
@@ -308,6 +319,7 @@ def test_account_projection_is_exact_but_excludes_private_mechanics() -> None:
 
     assert "Gold 37" in block
     assert "Gems 4" in block
+    assert "Discretionary funds: $200" in block
     assert "Building Resources 2" in block
     assert "armory 1" in block
     assert "Hero capacity: 12" in block
@@ -405,6 +417,25 @@ def test_master_commands_split_account_roster_and_hero_sheet() -> None:
         "heroes",
     )
     assert "XP 21000; cap-bank 2000/2000" in "\n".join(cap_roster)
+
+
+def test_master_status_projects_weekly_funds_without_mutating_the_ledger() -> None:
+    checkpoint, owner, _, _ = _checkpoint()
+    checkpoint.session.leading_at_s = 604_800
+
+    status_text = "\n".join(one_star_master_command_lines(
+        checkpoint,
+        owner.character_id,
+        "status",
+    ))
+
+    assert "Discretionary funds: $300" in status_text
+    assert "income $100 every 604800s" in status_text
+    account = OneStarAccountEnvelope.model_validate(
+        owner.mechanics[ONE_STAR_ACCOUNT_KEY]
+    )
+    assert account.state.discretionary_funds == 200
+    assert account.state.funds_accrual_anchor_s == 0
 
 
 def test_master_commands_reject_non_owner_and_other_rulesets() -> None:

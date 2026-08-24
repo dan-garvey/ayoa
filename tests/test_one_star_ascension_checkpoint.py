@@ -157,6 +157,17 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert config.maximum_stamina == 5
     assert config.stamina_recovery_seconds == 1800
     assert config.deployment_stamina_cost == 1
+    assert config.gem_purchase is not None
+    assert config.gem_purchase.model_dump() == {
+        "funds_label": "$",
+        "starting_funds": 200,
+        "periodic_income": 100,
+        "income_interval_seconds": 604_800,
+        "funds_cost": 100,
+        "gems_granted": 20,
+    }
+    assert state.discretionary_funds == 200
+    assert state.funds_accrual_anchor_s == 0
     assert config.summon_pools["basic"].minimum_birth_stars == 1
     assert config.summon_pools["basic"].maximum_birth_stars == 3
     assert config.summon_pools["premium"].minimum_birth_stars == 2

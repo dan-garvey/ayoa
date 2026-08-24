@@ -240,6 +240,26 @@ class OneStarOperationRequirement(BaseModel):
         return self
 
 
+class OneStarGemPurchaseConfig(BaseModel):
+    """Seed-authored external-funds schedule and fixed Gem exchange."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    funds_label: str
+    starting_funds: int = Field(ge=0)
+    periodic_income: int = Field(ge=0)
+    income_interval_seconds: int = Field(ge=1)
+    funds_cost: int = Field(ge=1)
+    gems_granted: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _clean(self) -> "OneStarGemPurchaseConfig":
+        self.funds_label = self.funds_label.strip()
+        if not self.funds_label:
+            raise ValueError("Gem-purchase funds label cannot be empty")
+        return self
+
+
 class OneStarRulesConfig(BaseModel):
     """The complete seed-authored fixed ledger configuration for one story."""
 
@@ -266,6 +286,7 @@ class OneStarRulesConfig(BaseModel):
     operation_requirements: dict[
         OneStarEmbodiedOperationKind, OneStarOperationRequirement
     ]
+    gem_purchase: OneStarGemPurchaseConfig | None = None
     lobby_return_healing: bool
     hero_system_visibility_research_key: str = ""
 
@@ -611,6 +632,8 @@ class OneStarAccountState(BaseModel):
     highest_cleared_floor: int = Field(default=0, ge=0)
     stamina_current: int = Field(ge=0)
     stamina_recovery_anchor_s: int = Field(default=0, ge=0)
+    discretionary_funds: int = Field(default=0, ge=0)
+    funds_accrual_anchor_s: int = Field(default=0, ge=0)
     active_mission: OneStarMissionState | None = None
     pending_operation: OneStarPendingOperation | None = None
     guide_character_ids: list[str] = Field(default_factory=list)
@@ -692,6 +715,13 @@ class OneStarAccountEnvelope(BaseModel):
             raise ValueError("stamina exceeds its configured maximum")
         if self.state.highest_cleared_floor > self.state.highest_unlocked_floor:
             raise ValueError("cleared Tower floor cannot exceed unlocked floor")
+        if self.config.gem_purchase is None and (
+            self.state.discretionary_funds
+            or self.state.funds_accrual_anchor_s
+        ):
+            raise ValueError(
+                "discretionary funds require configured Gem-purchase authority"
+            )
         if (
             self.state.active_mission is not None
             and self.state.pending_operation is not None
@@ -771,6 +801,12 @@ class OneStarInventoryDeltaOperation(BaseModel):
                 "inventory delta requires a non-empty item id and non-zero delta"
             )
         return self
+
+
+class OneStarGemPurchaseOperation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    operation: Literal["gem_purchase"]
+    gem_quantity: int = Field(ge=1)
 
 
 class OneStarHeroDeltaOperation(BaseModel):
@@ -885,6 +921,7 @@ OneStarOperation = (
     OneStarCatalogueApplyOperation
     | OneStarSummonOperation
     | OneStarInventoryDeltaOperation
+    | OneStarGemPurchaseOperation
     | OneStarHeroDeltaOperation
     | OneStarEquipmentMoveOperation
     | OneStarMissionStartOperation
@@ -917,6 +954,7 @@ OneStarStateUpdateKind = Literal[
     "catalogue_apply",
     "summon",
     "inventory_delta",
+    "gem_purchase",
     "hero_delta",
     "mission_start",
     "mission_update",

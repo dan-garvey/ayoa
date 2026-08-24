@@ -303,8 +303,8 @@ D&D adapter commands (active when `ruleset_id == "dnd5e_basic"`; see §15):
 One-Star adapter commands (active when
 `ruleset_id == "one_star_ascension"`; see §15):
 
-* `/master status` — account resources, facilities, progression, stamina,
-  mission, feed, and pending-operation state.
+* `/master status` — account resources, configured discretionary funds,
+  facilities, progression, stamina, mission, feed, and pending-operation state.
 * `/master heroes` — owned-Hero roster with core mechanics.
 * `/master hero <name|id|#>` — one owned Hero's visible full sheet.
 * `/master synthesis <target> from <source>[, <source>...]` — submit a
@@ -1509,7 +1509,7 @@ Durable state stays on existing character records:
 
 * the unique account owner carries configuration and account state under
   `CharacterRecord.mechanics["one_star_account"]`, including per-pool summon
-  draw counters;
+  draw counters and any story-authored external-funds balance;
 * each Hero carries HP, XP, stars, stats, equipment, skills, injuries, and
   ownership under `CharacterRecord.mechanics["one_star_hero"]`; exact returned
   gear remains in the account's stored-equipment ledger rather than being
@@ -1522,20 +1522,23 @@ Durable state stays on existing character records:
   lifecycle and location authority. The adapter does not duplicate the roster;
 * story-authored configuration owns costs, rewards, caps, facilities, summon
   pool weights, deterministic progression inputs, progression prerequisites,
-  and physical operation requirements. Engine code contains no One-Star entity
-  names or economy constants.
+  physical operation requirements, and any fixed cash-to-Gem schedule. Engine
+  code contains no One-Star entity names or economy constants.
 
 The cached router addon receives compact immutable operation authority:
 catalogue costs/effects, physical-operation requirements, and each pool's
-disclosed cost, star range, rates, and usage. Normal routes do not receive a
-second live ledger snapshot. Each accepted compact `state_updates` list is
-retained in the same prior-event history as its canonical fiction. State
+disclosed cost, star range, rates, and usage. A configured Gem shop contributes
+only its immutable starting balance, periodic income schedule, and fixed pack
+exchange to that cached authority. Normal routes do not receive a second live
+ledger snapshot. Each accepted compact `state_updates` list is retained in the
+same prior-event history as its canonical fiction. State
 created independently of a router decision, such as a generated summon sheet,
-automatic stamina recovery, or deterministic progression/synthesis result, is
-projected into that history once. When an update is rejected, the single repair
-call receives only the current rows that prove the conflict—for example the
-target Hero's current HP or the relevant balance and configured cost—not the
-full account or roster. Eligible dormant reserves, private RNG inputs, future
+automatic stamina or external-funds accrual, or deterministic
+progression/synthesis result, is projected into that history once. When an
+update is rejected, the single repair call receives only the current rows that
+prove the conflict—for example the target Hero's current HP or the relevant
+balance and configured cost—not the full account or roster. Eligible dormant
+reserves, private RNG inputs, future
 draw results, draw counters, progression formulas, stored-equipment records,
 applied-event fingerprints, and private Hero potential are never model context.
 A compact pending synthesis preview is an exception: its exact offered, applied,
