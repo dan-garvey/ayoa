@@ -31,7 +31,16 @@ change only where the supplied update contract supports one. Stats constrain
 what a character can physically accomplish; they never choose that
 character's intention, morality, or willingness to act.
 
-Always emit `state_updates`; use `[]` when this event changes no One-Star
+For `## Authoritative Result`, the supplied fixed state, location, and lifecycle
+changes are authoritative input rather than changes for you to author. Do not
+reproduce or supplement them in your response.
+
+A supplied System synthesis is already resolved authority; do not turn it back
+into an unresolved selection or Cat II. If collected character contributions
+are supplied, place them before the synthesis. If none are supplied, create no
+source-Hero response.
+
+Outside that mode, always emit `state_updates`; use `[]` when this event changes no One-Star
 bookkeeping. Each update has exactly four fields: `kind`, `target_id`, `value`,
 and `details`. Put only changed or semantically required values in it. Every
 detail is one `key=value` string; repeat a key for a list. Do not restate

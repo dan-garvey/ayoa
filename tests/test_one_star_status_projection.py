@@ -115,20 +115,24 @@ def test_engine_bridge_uses_shared_master_command_projection(monkeypatch) -> Non
     )
 
 
-def test_engine_bridge_synthesis_command_uses_normal_locked_turn(monkeypatch) -> None:
+def test_engine_bridge_synthesis_command_uses_authoritative_result(monkeypatch) -> None:
     checkpoint = CheckpointFile(
         session=SessionState(session_id="status", story_id="story")
     )
     bridge = object.__new__(EngineBridge)
-    bridge.checkpoint_mgr = MagicMock()
-    bridge.checkpoint_mgr.load_latest.return_value = checkpoint
     bridge._session_locks = {}
     bridge._locks_mutex = asyncio.Lock()
-    expected_response = object()
-    bridge._run_turn_locked = AsyncMock(return_value=expected_response)
-    projection = MagicMock(return_value="exact synthesis selection")
+    bridge.orchestrator = MagicMock()
+    expected_response = MagicMock()
+    expected_response.pre_turn_resolutions = []
+    bridge.orchestrator.process_authoritative_result = AsyncMock(
+        return_value=expected_response,
+    )
+    bridge._resolve_swept_events_locked = AsyncMock(return_value=[])
+    plan = object()
+    projection = MagicMock(return_value=plan)
     monkeypatch.setattr(
-        "app.engine.one_star_projection.one_star_synthesis_command_intention",
+        "app.engine.one_star_projection.one_star_synthesis_authoritative_plan",
         projection,
     )
 
@@ -140,14 +144,14 @@ def test_engine_bridge_synthesis_command_uses_normal_locked_turn(monkeypatch) ->
     ))
 
     assert result is expected_response
+    bridge._resolve_swept_events_locked.assert_awaited_once_with("status")
+    call = bridge.orchestrator.process_authoritative_result.await_args
+    assert call.kwargs["session_id"] == "status"
+    assert call.kwargs["viewpoint_character_id"] == "owner"
+    assert call.kwargs["plan_builder"](checkpoint) is plan
     projection.assert_called_once_with(
         checkpoint,
         "owner",
         target_ref="Tired Baker",
         source_refs=("Edric", "Pip"),
-    )
-    bridge._run_turn_locked.assert_awaited_once_with(
-        session_id="status",
-        user_input="exact synthesis selection",
-        acting_character_id="owner",
     )

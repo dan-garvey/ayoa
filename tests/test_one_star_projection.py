@@ -8,7 +8,7 @@ from app.engine.character_agent import CharacterAgent
 from app.engine.one_star_projection import (
     one_star_agent_state_block,
     one_star_master_command_lines,
-    one_star_synthesis_command_intention,
+    one_star_synthesis_authoritative_plan,
     visible_equipped_item_description,
 )
 from app.engine.one_star_adapter import OneStarTransactionError
@@ -463,18 +463,32 @@ def test_synthesis_command_resolves_exact_heroes_without_mutating_state() -> Non
     checkpoint.characters.append(source)
     before = checkpoint.model_dump(mode="json")
 
-    intention = one_star_synthesis_command_intention(
+    plan = one_star_synthesis_authoritative_plan(
         checkpoint,
         owner.character_id,
         target_ref=target.name,
         source_refs=("Edric",),
     )
 
-    assert "Tired Baker [hero]" in intention
-    assert "Edric [donor]" in intention
-    assert "Guide [guide]" in intention
-    assert "does not assert consent" in intention
-    assert "physical enforcement is the warden's action" in intention
+    assert plan.viewpoint_character_id == owner.character_id
+    assert plan.ruleset_actor_id == owner.character_id
+    assert plan.location_updates == (
+        ("donor", "synthesis_room"),
+        ("hero", "synthesis_room"),
+        ("guide", "synthesis_room"),
+    )
+    assert [update["kind"] for update in plan.state_updates] == [
+        "pending_open",
+        "pending_resolve",
+    ]
+    assert plan.state_updates[0]["details"] == [
+        "participant=donor",
+        "target_id=hero",
+        "destination=synthesis_room",
+    ]
+    assert [request.character_id for request in plan.contribution_requests] == [
+        "donor",
+    ]
     assert checkpoint.model_dump(mode="json") == before
 
 
@@ -494,14 +508,14 @@ def test_synthesis_command_rejects_duplicate_or_unavailable_selections() -> None
     checkpoint.characters.append(source)
 
     with pytest.raises(ValueError, match="cannot also be a source"):
-        one_star_synthesis_command_intention(
+        one_star_synthesis_authoritative_plan(
             checkpoint,
             owner.character_id,
             target_ref=target.name,
             source_refs=(target.name,),
         )
     with pytest.raises(ValueError, match="only once"):
-        one_star_synthesis_command_intention(
+        one_star_synthesis_authoritative_plan(
             checkpoint,
             owner.character_id,
             target_ref=target.name,
@@ -520,12 +534,38 @@ def test_synthesis_command_rejects_duplicate_or_unavailable_selections() -> None
     account.state.facilities.pop("synthesis_chamber")
     owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
     with pytest.raises(ValueError, match="not operational"):
-        one_star_synthesis_command_intention(
+        one_star_synthesis_authoritative_plan(
             checkpoint,
             owner.character_id,
             target_ref=target.name,
             source_refs=("Edric",),
         )
+
+
+def test_synthesis_after_first_resolution_omits_character_contributions() -> None:
+    checkpoint, owner, target, _guide = _checkpoint()
+    account = OneStarAccountEnvelope.model_validate(
+        owner.mechanics[ONE_STAR_ACCOUNT_KEY]
+    )
+    account.state.pending_operation = None
+    account.state.synthesis_resolution_count = 1
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
+    checkpoint.characters.append(CharacterRecord(
+        character_id="donor",
+        name="Edric",
+        public_sheet=PublicSheet(role="guard"),
+        private_state=PrivateState(),
+        mechanics={ONE_STAR_HERO_KEY: _hero_state().model_dump(mode="json")},
+    ))
+
+    plan = one_star_synthesis_authoritative_plan(
+        checkpoint,
+        owner.character_id,
+        target_ref=target.name,
+        source_refs=("Edric",),
+    )
+
+    assert plan.contribution_requests == ()
 
 
 def test_ordinary_hero_gets_embodied_state_without_system_numbers_or_lore() -> None:

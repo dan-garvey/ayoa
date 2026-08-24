@@ -19,8 +19,11 @@ from app.engine.content_lookup import EventRouterContentLookupOutput
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import pin_cat_ii_responder
 from app.engine.turn_loop_contracts import (
+    AUTHORITATIVE_RESULT_HEADER,
+    AuthoritativeResultPlan,
     ROUTER_CONTINUATION_HEADER,
     format_actor_submission,
+    format_authoritative_result_block,
 )
 from app.engine.turn_loop_dispatcher import (
     EVENT_ROUTER_MAX_TOKENS,
@@ -56,6 +59,7 @@ from app.schemas.event_router import (
 )
 from app.schemas.events import ObservableFact
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.one_star import ClosedOneStarEventRouterOutput
 from app.schemas.dnd_cat_ii import DndCombatTurnPlan, RollPlan, RulesAdjudication
 from app.schemas.state import (
     CatIIRollTransaction,
@@ -763,6 +767,90 @@ class TestRouterContext:
         assert "New-character spawn requests" not in arrival
 
 class TestRouteIntention:
+    def test_authoritative_result_uses_closed_schema_and_code_owned_updates(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _one_star_checkpoint(bindings={"the_master": "discord_1"})
+        routed = ClosedEventRouterOutput.model_validate(
+            router_output(
+                event_kind="state_change",
+                observer_ids=["the_master", "iselle_the_guide"],
+                agent_ids=["iselle_the_guide"],
+                facts=[ObservableFact.all(
+                    "LAST_WORDS_SENTINEL before SYSTEM_RESULT_SENTINEL"
+                )],
+            ).model_dump(mode="python")
+        )
+        mock_client.complete.return_value = _llm_response(routed)
+        plan = AuthoritativeResultPlan(
+            authority_label="System",
+            result_text="SYSTEM_RESULT_SENTINEL",
+            ruleset_actor_id="the_master",
+            viewpoint_character_id="the_master",
+            submitted_command="/master synthesis target from source",
+            location_updates=(
+                ("iselle_the_guide", "niflheim_synthesis_chamber"),
+            ),
+            state_updates=(
+                {
+                    "kind": "pending_resolve",
+                    "target_id": "synth_sentinel",
+                    "value": "",
+                    "details": [],
+                },
+            ),
+        )
+
+        result = asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_authoritative_result(
+                ckpt=ckpt,
+                plan=plan,
+                character_contributions=(
+                    ("iselle_the_guide", "LAST_WORDS_SENTINEL"),
+                ),
+            )
+        )
+
+        call = mock_client.complete.await_args.kwargs
+        assert call["response_model"] is ClosedEventRouterOutput
+        user_content = _last_user_content(call["messages"])
+        assert AUTHORITATIVE_RESULT_HEADER in user_content
+        assert "## Actor Submission" not in user_content
+        assert "LAST_WORDS_SENTINEL" in user_content
+        assert "SYSTEM_RESULT_SENTINEL" in user_content
+        assert user_content.index("LAST_WORDS_SENTINEL") < user_content.index(
+            "SYSTEM_RESULT_SENTINEL"
+        )
+        system_content = "\n".join(
+            str(message.get("content", ""))
+            for message in call["messages"]
+            if message.get("role") == "system"
+        )
+        assert "LAST_WORDS_SENTINEL" not in system_content
+        assert "SYSTEM_RESULT_SENTINEL" not in system_content
+        assert isinstance(result, ClosedOneStarEventRouterOutput)
+        assert result.event_kind == "ruleset_resolution"
+        assert result.requires_responders is False
+        assert result.required_responders == []
+        assert all(
+            observer.routing_role == "observe_only"
+            for observer in result.observers
+        )
+        assert result.location_updates[0].character_id == "iselle_the_guide"
+        assert result.state_updates[0].target_id == "synth_sentinel"
+        assert "mode=authoritative_result" in ckpt.session_conversation[-1].content
+
+    def test_authoritative_result_omits_empty_contribution_section(self):
+        block = format_authoritative_result_block(AuthoritativeResultPlan(
+            authority_label="System",
+            result_text="The fixed result occurs.",
+            ruleset_actor_id="owner",
+            viewpoint_character_id="owner",
+            submitted_command="/fixed",
+        ))
+
+        assert "character_contributions" not in block
+
     def test_direct_actor_submission_uses_origin_neutral_envelope(
         self, prompt_mgr, mock_client,
     ):

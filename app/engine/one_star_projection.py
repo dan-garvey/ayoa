@@ -7,8 +7,13 @@ fictional audience and never expose a raw mechanics mapping.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterable, Sequence
 
+from app.engine.turn_loop_contracts import (
+    AuthoritativeContributionRequest,
+    AuthoritativeResultPlan,
+)
 from app.engine.one_star_adapter import (
     ONE_STAR_RULESET_ID,
     effective_one_star_stamina,
@@ -621,20 +626,14 @@ def one_star_master_command_lines(
     raise ValueError("Master command must be status, heroes, or hero.")
 
 
-def one_star_synthesis_command_intention(
+def one_star_synthesis_authoritative_plan(
     checkpoint: CheckpointFile,
     viewpoint_character_id: str,
     *,
     target_ref: str,
     source_refs: Sequence[str],
-) -> str:
-    """Build one exact Master submission without mutating adapter state.
-
-    The returned text goes through the ordinary router, character-response,
-    and narrator path.  This helper resolves user-facing roster references and
-    rejects impossible command preconditions; it does not open or resolve the
-    durable synthesis operation itself.
-    """
+) -> AuthoritativeResultPlan:
+    """Build one fixed System synthesis without mutating adapter state."""
 
     loaded = _account(checkpoint)
     if loaded is None:
@@ -707,33 +706,86 @@ def one_star_synthesis_command_intention(
                 "synthesis."
             )
         guide_characters.append(guide)
+    if not guide_characters:
+        raise ValueError(
+            "The configured lobby guide is unavailable to carry out synthesis."
+        )
 
-    target_label = (
-        f"{target_character.name} [{target_character.character_id}]"
+    operation_id = (
+        f"synthesis_{envelope.state.synthesis_resolution_count + 1:04d}_"
+        f"{uuid.uuid4().hex[:8]}"
     )
-    source_labels = ", ".join(
-        f"{character.name} [{character.character_id}]"
-        for character in source_characters
+    destination = requirement.required_location
+    guide_ids = [character.character_id for character in guide_characters]
+    location_ids = list(dict.fromkeys([
+        *source_ids,
+        target_character.character_id,
+        *guide_ids,
+    ]))
+    state_updates = (
+        {
+            "kind": "pending_open",
+            "target_id": operation_id,
+            "value": "synthesis",
+            "details": [
+                *(f"participant={source_id}" for source_id in source_ids),
+                f"target_id={target_character.character_id}",
+                f"destination={destination}",
+            ],
+        },
+        {
+            "kind": "pending_resolve",
+            "target_id": operation_id,
+            "value": "",
+            "details": [],
+        },
     )
-    guide_labels = _join_values(
-        (
-            f"{character.name} [{character.character_id}]"
-            for character in guide_characters
+    contribution_requests: tuple[AuthoritativeContributionRequest, ...] = ()
+    if envelope.state.synthesis_resolution_count == 0:
+        guide_text = ", ".join(guide_ids)
+        contribution_requests = tuple(
+            AuthoritativeContributionRequest(
+                character_id=source_id,
+                local_context=(
+                    "Fixed immediate circumstance: the System has teleported "
+                    f"you to {destination}, where {guide_text} has sealed you "
+                    "inside a transparent synthesis barrier. The barrier "
+                    "cannot be escaped or broken before the synthesis takes "
+                    f"effect, consuming you into {target_character.character_id}. "
+                    "Return only the exact words or involuntary sounds you make "
+                    "aloud in this final instant, without quotation marks or "
+                    "narrating physical action. Silence is valid. Keep the "
+                    "normal trailing private parenthetical, but do not narrate "
+                    "another character or the completed synthesis."
+                ),
+            )
+            for source_id in source_ids
+        )
+
+    source_text = ", ".join(source_ids)
+    guide_text = ", ".join(guide_ids)
+    return AuthoritativeResultPlan(
+        authority_label="System",
+        result_text=(
+            f"{guide_text} teleports synthesis sources {source_text} and "
+            f"target {target_character.character_id} to {destination}. "
+            "Transparent barriers contain the selected Heroes. After any "
+            "supplied character contributions, the System irreversibly "
+            f"synthesizes {source_text} into {target_character.character_id}. "
+            f"{owner.character_id} directly observes the entire chamber scene "
+            "through the live System camera."
         ),
-        empty="the lobby warden",
-    )
-    return (
-        "Through the System interface, I select "
-        f"{source_labels} as synthesis source"
-        f"{'s' if len(source_characters) != 1 else ''} for the surviving "
-        f"target {target_label}, at {requirement.required_location}. "
-        "The System openly notifies every selected Hero and "
-        f"{guide_labels}. This opens the selection only: it does not assert "
-        "consent, movement into the chamber, or completed synthesis. Each "
-        "selected Hero gets to cooperate, refuse, bargain, flee, or resist. "
-        f"{guide_labels} must answer in their own voice as warden; any "
-        "physical enforcement is the warden's action, never consent invented "
-        "for a Hero."
+        ruleset_actor_id=owner.character_id,
+        viewpoint_character_id=viewpoint_character_id,
+        submitted_command=(
+            f"/master synthesis {target_character.character_id} from "
+            + ", ".join(source_ids)
+        ),
+        contribution_requests=contribution_requests,
+        location_updates=tuple(
+            (character_id, destination) for character_id in location_ids
+        ),
+        state_updates=state_updates,
     )
 
 

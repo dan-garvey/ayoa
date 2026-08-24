@@ -617,6 +617,7 @@ class OneStarAccountState(BaseModel):
     system_observer_ids: list[str] = Field(default_factory=list)
     tutorial_deliveries: dict[str, list[str]] = Field(default_factory=dict)
     summon_draw_counters: dict[str, int] = Field(default_factory=dict)
+    synthesis_resolution_count: int = Field(default=0, ge=0)
     applied_event_fingerprints: dict[str, str] = Field(default_factory=dict)
     active_master_feed_id: str = ""
 

@@ -178,6 +178,11 @@ supplied and character-agent-authored prose share one proposed actor-submission
 framing over the same `EventRouterOutput` schema; neither source pre-commits
 fiction.
 
+An `Authoritative Result` is the narrow exception for an outcome already fixed
+by a fictional or reviewed rules authority. The router canonicalizes its
+surface facts and perception but does not adjudicate it again; runtime attaches
+the prevalidated side effects and closes the event without a response frontier.
+
 ### 4.5 Agents Author Intentions, Not State
 
 Character agents produce free-form public prose plus one trailing

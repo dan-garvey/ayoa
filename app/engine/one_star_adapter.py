@@ -2706,6 +2706,7 @@ def _apply_pending_resolve(
             _store_hero(source_character, source)
         _validate_hero_progression_state(target, config)
         _store_hero(target_character, target)
+        state.synthesis_resolution_count += 1
     else:  # promotion
         target_character, target = _require_local_active_hero(checkpoint, pending.target_id, config)
         if target_character.location != pending.destination:
@@ -2858,6 +2859,7 @@ def prepare_one_star_transaction(
     canonical_at_s: int | None = None,
     event_fingerprint: str = "",
     initiating_actor_id: str = "",
+    authoritative_system_result: bool = False,
 ) -> OneStarPreparedMutation:
     """Validate a One-Star transaction against a deep copy and prepare apply.
 
@@ -2916,8 +2918,29 @@ def prepare_one_star_transaction(
         for operation in transaction.operations
         if isinstance(operation, OneStarPendingOpenOperation)
     ]
+    authoritative_synthesis_pair = False
+    if authoritative_system_result:
+        authoritative_synthesis_pair = (
+            len(transaction.operations) == 2
+            and isinstance(
+                transaction.operations[0],
+                OneStarPendingOpenOperation,
+            )
+            and transaction.operations[0].pending.kind == "synthesis"
+            and isinstance(
+                transaction.operations[1],
+                OneStarPendingResolveOperation,
+            )
+            and transaction.operations[1].operation_id
+            == transaction.operations[0].pending.operation_id
+        )
+        if not authoritative_synthesis_pair:
+            raise OneStarTransactionError(
+                "authoritative System results currently require one exact "
+                "synthesis pending_open followed by its pending_resolve"
+            )
     if pending_open_operations:
-        if len(transaction.operations) != 1:
+        if len(transaction.operations) != 1 and not authoritative_synthesis_pair:
             raise OneStarTransactionError(
                 "pending_open must be the only One-Star operation in its event"
             )
@@ -2931,7 +2954,11 @@ def prepare_one_star_transaction(
             | activated_ids
             | dormant_ids
             | generic_cull_ids
-            | set(normalized_locations)
+            | (
+                set()
+                if authoritative_synthesis_pair
+                else set(normalized_locations)
+            )
         )
         if changed_while_opening:
             raise OneStarTransactionError(
@@ -2939,6 +2966,18 @@ def prepare_one_star_transaction(
                 "lifecycle of affected Heroes: "
                 + ", ".join(sorted(changed_while_opening))
             )
+        if authoritative_synthesis_pair:
+            wrong_locations = {
+                character_id
+                for character_id in affected_ids
+                if normalized_locations.get(character_id) != pending.destination
+            }
+            if wrong_locations:
+                raise OneStarTransactionError(
+                    "authoritative synthesis must move every source and target "
+                    "to the configured chamber: "
+                    + ", ".join(sorted(wrong_locations))
+                )
     fingerprint = event_fingerprint.strip() or _transaction_lifecycle_fingerprint(
         transaction=transaction,
         spawned_character_ids=spawned_ids,
@@ -3309,7 +3348,7 @@ def prepare_one_star_transaction(
         elif isinstance(operation, OneStarPendingOpenOperation):
             require_account_owner("an embodied operation selection")
             pending = _apply_pending_open(operation, state, after, config, now_s)
-            if pending.kind == "synthesis":
+            if pending.kind == "synthesis" and not authoritative_synthesis_pair:
                 system_consequences.append(_synthesis_preview_consequence(
                     pending=pending,
                     checkpoint=after,
@@ -3318,7 +3357,15 @@ def prepare_one_star_transaction(
                     owner_character_id=owner.character_id,
                 ))
         elif isinstance(operation, OneStarPendingResolveOperation):
-            if operation.operation_id != preexisting_pending_operation_id:
+            if (
+                operation.operation_id != preexisting_pending_operation_id
+                and not (
+                    authoritative_synthesis_pair
+                    and state.pending_operation is not None
+                    and state.pending_operation.operation_id
+                    == operation.operation_id
+                )
+            ):
                 raise OneStarTransactionError(
                     "an embodied operation cannot resolve in the event that opened it"
                 )

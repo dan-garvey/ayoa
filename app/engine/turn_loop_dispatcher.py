@@ -28,7 +28,7 @@ from copy import deepcopy
 from pydantic import ValidationError
 
 from app.engine import narrator as narrator_module
-from app.engine.character_agent import CharacterAgent
+from app.engine.character_agent import CharacterAgent, CharacterAgentTurnDraft
 from app.engine.character_manager import CharacterManager
 from app.engine.context_builder import (
     build_dnd_character_equipment_sentence,
@@ -49,7 +49,10 @@ from app.engine.dnd_cat_ii import (
 )
 from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.engine.turn_loop_contracts import (
+    AuthoritativeContributionRequest,
+    AuthoritativeResultPlan,
     format_actor_submission,
+    format_authoritative_result_block,
     format_cat_ii_resolution_block,
     format_router_continuation_block,
 )
@@ -61,6 +64,7 @@ from app.schemas.event_router import (
     ClosedEventRouterOutput,
     DndEventRouterOutput,
     EventRouterOutput,
+    LocationUpdateSignal,
 )
 from app.schemas.one_star import (
     ClosedOneStarEventRouterOutput,
@@ -1570,6 +1574,7 @@ class LLMDispatcher:
         ckpt: CheckpointFile,
         result: EventRouterOutput,
         actor_id: str,
+        authoritative_system_result: bool = False,
     ) -> None:
         """Validate and atomically apply compact opt-in ruleset updates.
 
@@ -1634,11 +1639,12 @@ class LLMDispatcher:
                 "character: " + ", ".join(sorted(lifecycle_overlap))
             )
 
-        _include_one_star_synthesis_guide_responders(
-            ckpt,
-            actor_id=actor_id,
-            result=result,
-        )
+        if not authoritative_system_result:
+            _include_one_star_synthesis_guide_responders(
+                ckpt,
+                actor_id=actor_id,
+                result=result,
+            )
         event_fingerprint = one_star_event_fingerprint(
             {
                 "actor_id": actor_id,
@@ -1655,18 +1661,20 @@ class LLMDispatcher:
                 "broadcast a second time"
             )
 
-        _validate_one_star_cat_ii_transaction(ckpt, result)
-        _validate_one_star_tutorial_routing(ckpt, result)
-        _validate_one_star_pending_response_routing(
-            ckpt,
-            actor_id=actor_id,
-            result=result,
-        )
-        _validate_one_star_guide_routing(
-            ckpt,
-            actor_id=actor_id,
-            result=result,
-        )
+        if not authoritative_system_result:
+            _validate_one_star_cat_ii_transaction(ckpt, result)
+            _validate_one_star_tutorial_routing(ckpt, result)
+            _validate_one_star_pending_response_routing(
+                ckpt,
+                actor_id=actor_id,
+                result=result,
+            )
+        if not authoritative_system_result:
+            _validate_one_star_guide_routing(
+                ckpt,
+                actor_id=actor_id,
+                result=result,
+            )
 
         if result.spawn:
             try:
@@ -1736,12 +1744,15 @@ class LLMDispatcher:
                     }
                 ),
                 initiating_actor_id=actor_id,
+                authoritative_system_result=authoritative_system_result,
             )
 
         try:
             try:
                 prepared = prepare()
             except OneStarTransactionError as first_error:
+                if authoritative_system_result:
+                    raise
                 summon_signature = _one_star_summon_update_signature(
                     result.state_updates,
                 )
@@ -2420,6 +2431,252 @@ class LLMDispatcher:
             mode="continuation",
         )
         return result
+
+    # ------------------------------------------------------------------
+    # route_authoritative_result
+    # ------------------------------------------------------------------
+
+    async def route_authoritative_result(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        plan: AuthoritativeResultPlan,
+        character_contributions: Sequence[tuple[str, str]] = (),
+    ) -> EventRouterOutput:
+        """Canonicalize fixed fictional authority without re-adjudicating it."""
+
+        router_snapshot = _router_call_snapshot(ckpt)
+        try:
+            ctx = _build_router_context(
+                ckpt,
+                "-",
+                resolve_actor_fallback=False,
+                include_engine_state_updates=False,
+            )
+            initial_roster_record = ctx.pop("initial_roster_block", "")
+            if initial_roster_record:
+                ckpt.session_conversation.append(ConversationMessage(
+                    role="assistant",
+                    content=initial_roster_record,
+                ))
+            ctx.pop("engine_state_updates_block", "")
+            authoritative_block = format_authoritative_result_block(
+                plan,
+                character_contributions=character_contributions,
+            )
+            messages = self.prompt_mgr.render_conversation(
+                "event_router",
+                history=ckpt.session_conversation,
+                **ctx,
+                **_router_ruleset_template_vars(
+                    self.prompt_mgr,
+                    ruleset_id=_session_ruleset_id(ckpt),
+                    dnd_fresh=False,
+                    ckpt=ckpt,
+                ),
+                router_input_block=authoritative_block,
+            )
+            logger.info(
+                "LLMDispatcher.route_authoritative_result: authority=%s",
+                plan.authority_label,
+            )
+            response = await self.client.complete(
+                role="event_router",
+                messages=messages,
+                response_model=ClosedEventRouterOutput,
+                temperature=0.2,
+                max_tokens=EVENT_ROUTER_MAX_TOKENS,
+                cache=True,
+                compact=True,
+            )
+            routed: ClosedEventRouterOutput = response.parsed
+            if not routed.canonical_event.world_adjudication.feasible:
+                raise ValueError(
+                    "authoritative result was incorrectly rejected as infeasible"
+                )
+            if (
+                routed.spawn
+                or routed.dormant
+                or routed.cull
+                or routed.activate
+                or routed.location_updates
+                or routed.commitment_open.present
+                or routed.commitment_resolutions
+                or routed.commitment_interrupts
+            ):
+                raise ValueError(
+                    "authoritative result router output attempted to author "
+                    "fixed side effects"
+                )
+
+            location_updates = [
+                LocationUpdateSignal(
+                    character_id=character_id,
+                    location_label=location,
+                )
+                for character_id, location in plan.location_updates
+            ]
+            if len({item.character_id for item in location_updates}) != len(
+                location_updates
+            ):
+                raise ValueError(
+                    "authoritative result contains duplicate location updates"
+                )
+            payload = routed.model_dump(mode="python")
+            payload.update({
+                "event_kind": "ruleset_resolution",
+                "requires_responders": False,
+                "required_responders": [],
+                "location_updates": location_updates,
+            })
+            if plan.state_updates:
+                if not _one_star_router_enabled(ckpt):
+                    raise ValueError(
+                        "authoritative state updates require the One-Star ruleset"
+                    )
+                payload["state_updates"] = [
+                    OneStarStateUpdate.model_validate(dict(update))
+                    for update in plan.state_updates
+                ]
+                result: EventRouterOutput = (
+                    ClosedOneStarEventRouterOutput.model_validate(payload)
+                )
+            else:
+                result = ClosedEventRouterOutput.model_validate(payload)
+            result.clear_routing_roles()
+
+            viewpoint_observer = next(
+                (
+                    observer
+                    for observer in result.observers
+                    if observer.character_id == plan.viewpoint_character_id
+                ),
+                None,
+            )
+            if (
+                viewpoint_observer is None
+                or viewpoint_observer.observation_level != "d"
+                or not any(
+                    fact.is_visible_to(plan.viewpoint_character_id)
+                    for fact in result.canonical_event.observable_facts
+                )
+            ):
+                raise ValueError(
+                    "authoritative result omitted the requesting viewpoint's "
+                    "direct visible event"
+                )
+            canonical_fact_text = "\n".join(
+                fact.text
+                for fact in result.canonical_event.observable_facts
+            )
+            missing_contributions = [
+                character_id
+                for character_id, contribution in character_contributions
+                if contribution.strip()
+                and contribution.strip() not in canonical_fact_text
+            ]
+            if missing_contributions:
+                raise ValueError(
+                    "authoritative result omitted supplied character "
+                    "contributions: "
+                    + ", ".join(missing_contributions)
+                )
+            observers_by_id = {
+                observer.character_id: observer
+                for observer in result.observers
+            }
+            for character_id, _location in plan.location_updates:
+                observer = observers_by_id.get(character_id)
+                if (
+                    observer is None
+                    or observer.observation_level != "d"
+                    or not any(
+                        fact.is_visible_to(character_id)
+                        for fact in result.canonical_event.observable_facts
+                    )
+                ):
+                    raise ValueError(
+                        "authoritative result omitted a directly affected "
+                        f"character: {character_id!r}"
+                    )
+        except Exception:
+            _restore_router_call_snapshot(ckpt, router_snapshot)
+            raise
+
+        _normalize_router_result_for_history(ckpt, result=result)
+        _append_router_history_record(
+            ckpt.session_conversation,
+            acting_character_id="-",
+            result=result,
+            mode="authoritative_result",
+        )
+        return result
+
+    async def draft_authoritative_contributions(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        requests: Sequence[AuthoritativeContributionRequest],
+        location_updates: Sequence[tuple[str, str]] = (),
+    ) -> list[tuple[str, CharacterAgentTurnDraft]]:
+        """Draft independent character contributions without mutating state."""
+
+        request_ids = [request.character_id for request in requests]
+        if len(request_ids) != len(set(request_ids)):
+            raise ValueError("authoritative contribution requests must be unique")
+        shadow = CheckpointFile.model_validate(ckpt.model_dump(mode="python"))
+        shadow_by_id = {
+            character.character_id: character
+            for character in shadow.characters
+        }
+        for character_id, location in location_updates:
+            character = shadow_by_id.get(character_id)
+            if character is None:
+                raise ValueError(
+                    "authoritative location update references unknown character "
+                    f"{character_id!r}"
+                )
+            character.location = location
+
+        async def _draft(
+            request: AuthoritativeContributionRequest,
+        ) -> tuple[str, CharacterAgentTurnDraft]:
+            character = shadow_by_id.get(request.character_id)
+            if character is None:
+                raise ValueError(
+                    "authoritative contribution references unknown character "
+                    f"{request.character_id!r}"
+                )
+            draft = await self._agent.draft_turn(
+                character=character,
+                checkpoint=shadow,
+                frame="foreground",
+                local_context=request.local_context,
+            )
+            return request.character_id, draft
+
+        return list(await asyncio.gather(*(_draft(request) for request in requests)))
+
+    def commit_authoritative_contributions(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        drafts: Sequence[tuple[str, CharacterAgentTurnDraft]],
+    ) -> None:
+        """Commit drafts only after the fixed event passes router/rules checks."""
+
+        characters = {
+            character.character_id: character
+            for character in ckpt.characters
+        }
+        for character_id, draft in drafts:
+            character = characters.get(character_id)
+            if character is None:
+                raise ValueError(
+                    "authoritative contribution character disappeared before "
+                    f"commit: {character_id!r}"
+                )
+            self._agent.commit_draft(character, ckpt, draft)
 
     # ------------------------------------------------------------------
     # agent_intend

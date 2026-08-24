@@ -541,6 +541,16 @@ class CharacterAgent:
         )
         conv.extend([draft.user_message, draft.assistant_message])
 
+    def commit_draft(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+        draft: CharacterAgentTurnDraft,
+    ) -> None:
+        """Commit a previously completed draft after its event is accepted."""
+
+        self._commit_draft(character, checkpoint, draft)
+
     async def _draft_beat(
         self,
         *,

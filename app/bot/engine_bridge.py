@@ -1279,29 +1279,35 @@ class EngineBridge:
         target_ref: str,
         source_refs: Iterable[str],
     ) -> TurnResponse:
-        """Submit a Master synthesis selection through the normal turn path."""
+        """Resolve one Master synthesis through the fixed System-result path."""
 
         clean_source_refs = tuple(
             value.strip() for value in source_refs if value.strip()
         )
         lock = await self._lock_for(session_id)
         async with lock:
-            ckpt = self.checkpoint_mgr.load_latest(session_id)
             from app.engine.one_star_projection import (
-                one_star_synthesis_command_intention,
+                one_star_synthesis_authoritative_plan,
             )
 
-            intention = one_star_synthesis_command_intention(
-                ckpt,
-                viewpoint_character_id,
-                target_ref=target_ref,
-                source_refs=clean_source_refs,
-            )
-            return await self._run_turn_locked(
+            pre_turn = await self._resolve_swept_events_locked(session_id)
+            response = await self.orchestrator.process_authoritative_result(
                 session_id=session_id,
-                user_input=intention,
-                acting_character_id=viewpoint_character_id,
+                viewpoint_character_id=viewpoint_character_id,
+                plan_builder=lambda checkpoint: (
+                    one_star_synthesis_authoritative_plan(
+                        checkpoint,
+                        viewpoint_character_id,
+                        target_ref=target_ref,
+                        source_refs=clean_source_refs,
+                    )
+                ),
             )
+            response.pre_turn_resolutions = [
+                *pre_turn,
+                *(response.pre_turn_resolutions or []),
+            ]
+            return response
 
     def list_joinable_characters(self, session_id: str) -> list[CharacterSummary]:
         """Open pre-authored slots surfaced by `/join`.
@@ -3537,16 +3543,12 @@ class EngineBridge:
                 acting_character_id=actor_id,
             )
 
-    async def _run_turn_locked(
+    async def _resolve_swept_events_locked(
         self,
-        *,
         session_id: str,
-        user_input: str,
-        acting_character_id: str,
-    ) -> TurnResponse:
-        """Body of `run_turn` — caller MUST already hold the per-session
-        lock. Extracted so `run_arrival_turn` can interleave its
-        directive choice with the same sweep+orchestrate flow."""
+    ) -> list[TurnResponse]:
+        """Close sweep-populated events before accepting a new command."""
+
         try:
             event_ids = self.sweep_stale_pins(session_id)
         except Exception:
@@ -3579,6 +3581,18 @@ class EngineBridge:
                     "resolve_cat_ii failed for session=%s event=%s",
                     session_id, event_id,
                 )
+        return pre_turn
+
+    async def _run_turn_locked(
+        self,
+        *,
+        session_id: str,
+        user_input: str,
+        acting_character_id: str,
+    ) -> TurnResponse:
+        """Body of `run_turn` — caller MUST hold the per-session lock."""
+
+        pre_turn = await self._resolve_swept_events_locked(session_id)
 
         response = await self.orchestrator.process_turn(TurnRequest(
             session_id=session_id,

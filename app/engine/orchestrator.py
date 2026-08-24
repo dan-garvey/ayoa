@@ -37,7 +37,7 @@ from app.engine.closed_event_runtime import (
     closed_event_runtime_for,
     install_closed_event_runtime,
 )
-from app.engine.context_builder import resolve_acting_character
+from app.engine.context_builder import collect_player_ids, resolve_acting_character
 from app.engine.dnd_cat_ii import (
     DndCatIIRollsPending,
     complete_pending_player_roll,
@@ -93,6 +93,7 @@ from app.engine.turn_loop_dispatcher import (
     LLMDispatcher,
     refresh_router_history_record,
 )
+from app.engine.turn_loop_contracts import AuthoritativeResultPlan
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
@@ -1537,6 +1538,142 @@ class Orchestrator:
         )
         assert response is not None
         response = _with_pre_turn_resolutions(response, pre_turn_resolutions)
+        self._save_if_response_drained_runtime_state(ckpt, response)
+        return response
+
+    async def process_authoritative_result(
+        self,
+        *,
+        session_id: str,
+        viewpoint_character_id: str,
+        plan_builder: Callable[[CheckpointFile], AuthoritativeResultPlan],
+    ) -> TurnResponse:
+        """Commit one fixed rules result through router visibility + narration.
+
+        Character contributions are speculative until the closed router event
+        and exact adapter transaction both validate. A failed pre-presentation
+        call therefore leaves the loaded checkpoint unsaved; a narrator
+        failure uses the ordinary durable render-retry boundary.
+        """
+
+        lock = await self.session_locks.get(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            sync_checkpoint_runtime_models(ckpt, self.client.config)
+            dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+            resumed = await self._resume_pending_narrator_render_locked(
+                session_id=session_id,
+                ckpt=ckpt,
+                dispatcher=dispatcher,
+            )
+            if resumed is not None:
+                return resumed
+
+            slot = check_act_slot(ckpt, viewpoint_character_id)
+            if slot.conflict != SlotConflict.FREE:
+                return TurnResponse(
+                    session_id=session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text=(
+                        "Finish the current pending character response before "
+                        "using this Master command."
+                    ),
+                    per_player_renders={},
+                    beat_ended_reason="slot_rejected",
+                )
+
+            plan = plan_builder(ckpt)
+            if plan.viewpoint_character_id != viewpoint_character_id:
+                raise ValueError(
+                    "authoritative result plan changed its requesting viewpoint"
+                )
+
+            self._ensure_closed_event_runtime(ckpt)
+            roll_keys_before = completed_automatic_roll_keys(ckpt)
+            pending_render_saved = self._install_pending_narrator_render_saver(
+                dispatcher,
+                acting_id=viewpoint_character_id,
+                roll_keys_before=roll_keys_before,
+                revision_before=None,
+            )
+            try:
+                bound_ids = collect_player_ids(ckpt)
+                autonomous_requests = tuple(
+                    request
+                    for request in plan.contribution_requests
+                    if request.character_id not in bound_ids
+                )
+                drafts = await dispatcher.draft_authoritative_contributions(
+                    ckpt=ckpt,
+                    requests=autonomous_requests,
+                    location_updates=plan.location_updates,
+                )
+                contributions = [
+                    (character_id, draft.output.public_text.strip())
+                    for character_id, draft in drafts
+                    if draft.output.public_text.strip()
+                ]
+                event = await dispatcher.route_authoritative_result(
+                    ckpt=ckpt,
+                    plan=plan,
+                    character_contributions=contributions,
+                )
+                await prepare_event_for_broadcast(
+                    dispatcher,
+                    ckpt,
+                    event,
+                    actor_id=plan.ruleset_actor_id,
+                    authoritative=True,
+                )
+                dispatcher.commit_authoritative_contributions(
+                    ckpt=ckpt,
+                    drafts=drafts,
+                )
+                broadcast_event(
+                    ckpt,
+                    event,
+                    actor_id="",
+                    preflighted=True,
+                )
+                beat_result = await _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason="ruleset_resolution",
+                    events_closed=1,
+                    event_actor_ids=[""],
+                    acting_player_id=viewpoint_character_id,
+                    acting_player_input=plan.submitted_command,
+                    suppress_reaction_prompts=True,
+                )
+            except Exception:
+                if pending_render_saved():
+                    await self._commit_closed_event_runtime(ckpt, [])
+                else:
+                    await self._cancel_closed_event_runtime(
+                        ckpt,
+                        reason="authoritative_result_failed_before_commit",
+                    )
+                raise
+
+            await self._apply_beat_roster_side_effects(
+                ckpt,
+                beat_result,
+                log_label="Authoritative result",
+            )
+            if not pending_render_saved():
+                ckpt.session.turn_index += 1
+            self.checkpoint_mgr.save(ckpt)
+            await self._commit_closed_event_runtime(ckpt, [beat_result])
+
+        response = _turn_response_from_beat_results(
+            session_id=session_id,
+            ckpt=ckpt,
+            acting_id=viewpoint_character_id,
+            beat_results=[beat_result],
+            roll_keys_before=roll_keys_before,
+        )
+        assert response is not None
         self._save_if_response_drained_runtime_state(ckpt, response)
         return response
 

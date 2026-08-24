@@ -6,6 +6,12 @@ instruction is plain language because it is visible to a prose model and
 does not need an implementation label.
 """
 
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+
 PARTIAL_MODE_MARKER = (
     "Stop before the attempted action resolves; the player supplies the response."
 )
@@ -13,6 +19,35 @@ CAT_II_RESOLUTION_HEADER = "## Cat II Resolution"
 UNANSWERED_RESPONDERS_SUBHEADER = "## Responders Without Submitted Intentions"
 ROUTER_CONTINUATION_HEADER = "## Continuation Required"
 ACTOR_SUBMISSION_HEADER = "## Actor Submission"
+AUTHORITATIVE_RESULT_HEADER = "## Authoritative Result"
+
+
+@dataclass(frozen=True)
+class AuthoritativeContributionRequest:
+    """One character-local reaction requested before a fixed result closes."""
+
+    character_id: str
+    local_context: str
+
+
+@dataclass(frozen=True)
+class AuthoritativeResultPlan:
+    """Engine-owned result material for one closed router canonicalization.
+
+    The router sees only fictional authority, collected contributions, and
+    the fixed changes it must portray. ``ruleset_actor_id`` and
+    ``viewpoint_character_id`` are runtime routing inputs and are never
+    serialized as controller metadata.
+    """
+
+    authority_label: str
+    result_text: str
+    ruleset_actor_id: str
+    viewpoint_character_id: str
+    submitted_command: str
+    contribution_requests: tuple[AuthoritativeContributionRequest, ...] = ()
+    location_updates: tuple[tuple[str, str], ...] = ()
+    state_updates: tuple[Mapping[str, object], ...] = ()
 
 # v11 unified-agent turn marker. The agent template (`agent.txt`) is a
 # single system prompt for foreground, private/background, and perception
@@ -49,6 +84,75 @@ def format_actor_submission(character_id: str, submission_text: str) -> str:
         "submission_text:",
         text,
     ])
+
+
+def format_authoritative_result_block(
+    plan: AuthoritativeResultPlan,
+    *,
+    character_contributions: Sequence[tuple[str, str]] = (),
+) -> str:
+    """Serialize one already-established result without an actor submission.
+
+    Empty character contributions have no placeholder section. This keeps a
+    later deterministic result from implying that anyone spoke or acted when
+    the engine supplied no such contribution.
+    """
+
+    lines = [
+        AUTHORITATIVE_RESULT_HEADER,
+        "",
+        f"authority: {plan.authority_label.strip() or 'System'}",
+    ]
+    contributions = [
+        {
+            "character_id": character_id.strip(),
+            "contribution": text.strip(),
+        }
+        for character_id, text in character_contributions
+        if character_id.strip() and text.strip()
+    ]
+    if contributions:
+        lines.extend([
+            "",
+            "character_contributions:",
+            json.dumps(
+                contributions,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        ])
+    lines.extend([
+        "",
+        "result:",
+        plan.result_text.strip(),
+    ])
+    if plan.location_updates:
+        lines.extend([
+            "",
+            "fixed_location_updates:",
+            json.dumps(
+                [
+                    {
+                        "character_id": character_id,
+                        "location_label": location,
+                    }
+                    for character_id, location in plan.location_updates
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        ])
+    if plan.state_updates:
+        lines.extend([
+            "",
+            "fixed_state_updates:",
+            json.dumps(
+                list(plan.state_updates),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        ])
+    return "\n".join(lines)
 
 
 def format_cat_ii_resolution_block(

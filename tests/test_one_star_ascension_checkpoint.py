@@ -348,6 +348,7 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert state.active_master_feed_id == ""
     assert state.research_levels == {}
     assert state.tutorial_deliveries == {}
+    assert state.synthesis_resolution_count == 0
     assert state.applied_event_fingerprints == {}
     assert state.stored_equipment == []
     assert state.guide_character_ids == ["iselle_the_guide"]

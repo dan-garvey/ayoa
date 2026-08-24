@@ -1842,6 +1842,7 @@ async def prepare_event_for_broadcast(
     event: EventRouterOutput,
     *,
     actor_id: str = "",
+    authoritative: bool = False,
 ) -> None:
     """Apply an optional ruleset transaction after generic preflight.
 
@@ -1853,11 +1854,19 @@ async def prepare_event_for_broadcast(
     _preflight_broadcast_event(ckpt, event, actor_id=actor_id)
     preparer = getattr(dispatcher, "prepare_ruleset_event", None)
     if callable(preparer):
-        await preparer(
-            ckpt=ckpt,
-            result=event,
-            actor_id=actor_id,
-        )
+        if authoritative:
+            await preparer(
+                ckpt=ckpt,
+                result=event,
+                actor_id=actor_id,
+                authoritative_system_result=True,
+            )
+        else:
+            await preparer(
+                ckpt=ckpt,
+                result=event,
+                actor_id=actor_id,
+            )
 
 
 def _reject_unbound_player_authored_references(

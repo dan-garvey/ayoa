@@ -228,6 +228,75 @@ def test_synthesis_moves_exact_gear_culls_sources_and_transfers_multiple_skills(
     assert replay.already_applied is True
 
 
+def test_authoritative_synthesis_atomically_opens_moves_and_resolves_once() -> None:
+    checkpoint = _synthesis_checkpoint(chance_basis_points=0)
+    for character in checkpoint.characters:
+        if character.character_id in {"source_a", "source_b", "target"}:
+            character.location = "lobby"
+    transaction = _transaction(
+        {
+            "operation": "pending_open",
+            "pending": {
+                "operation_id": "system_synth",
+                "kind": "synthesis",
+                "participant_ids": ["source_a", "source_b"],
+                "target_id": "target",
+                "destination": "synthesis_room",
+                "opened_at_s": 0,
+            },
+        },
+        {
+            "operation": "pending_resolve",
+            "operation_id": "system_synth",
+        },
+    )
+    locations = {
+        "source_a": "synthesis_room",
+        "source_b": "synthesis_room",
+        "target": "synthesis_room",
+    }
+
+    with pytest.raises(OneStarTransactionError, match="only One-Star operation"):
+        prepare_one_star_transaction(
+            checkpoint,
+            event_id="system_synthesis",
+            transaction=transaction,
+            location_updates=locations,
+            initiating_actor_id="account_owner",
+        )
+
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="system_synthesis",
+        transaction=transaction,
+        location_updates=locations,
+        initiating_actor_id="account_owner",
+        authoritative_system_result=True,
+    )
+    account = load_one_star_account(prepared.after_checkpoint)[1]
+    by_id = {
+        character.character_id: character
+        for character in prepared.after_checkpoint.characters
+    }
+    assert account.state.pending_operation is None
+    assert account.state.synthesis_resolution_count == 1
+    assert by_id["source_a"].status is CharacterStatus.culled
+    assert by_id["source_b"].status is CharacterStatus.culled
+    assert by_id["target"].status is CharacterStatus.active
+
+    assert apply_one_star_prepared_mutation(checkpoint, prepared) is True
+    replay = prepare_one_star_transaction(
+        checkpoint,
+        event_id="system_synthesis",
+        transaction=transaction,
+        location_updates=locations,
+        initiating_actor_id="account_owner",
+        authoritative_system_result=True,
+    )
+    assert replay.already_applied is True
+    assert load_one_star_account(checkpoint)[1].state.synthesis_resolution_count == 1
+
+
 @pytest.mark.parametrize(
     "drift",
     ["equipment", "source_skill", "target_skill", "target_xp"],
