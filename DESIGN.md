@@ -1509,6 +1509,10 @@ Durable state stays on existing character records:
   ownership under `CharacterRecord.mechanics["one_star_hero"]`; exact returned
   gear remains in the account's stored-equipment ledger rather than being
   flattened into an inventory count;
+* a story-authored non-Hero may carry only HP and stats under
+  `CharacterRecord.mechanics["one_star_combatant"]`; this supplies stable
+  conflict authority without granting Hero ownership, progression, summoning,
+  promotion, or synthesis semantics;
 * `CharacterRecord.status` and `CharacterRecord.location` remain the only
   lifecycle and location authority. The adapter does not duplicate the roster;
 * story-authored configuration owns costs, rewards, caps, facilities, summon

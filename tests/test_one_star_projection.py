@@ -18,11 +18,13 @@ from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
+    ONE_STAR_COMBATANT_KEY,
     ONE_STAR_HERO_KEY,
     ONE_STAR_RULESET_ID,
     OneStarAccountEnvelope,
     OneStarAccountState,
     OneStarCatalogueEntry,
+    OneStarCombatantState,
     OneStarCost,
     OneStarEquipmentEntry,
     OneStarHeroState,
@@ -279,6 +281,13 @@ def _checkpoint(
         character_id="guide",
         name="Guide",
         public_sheet=PublicSheet(role="guide"),
+        mechanics={
+            ONE_STAR_COMBATANT_KEY: OneStarCombatantState(
+                hp_current=2_000,
+                hp_max=2_000,
+                stats={"power": 200, "agility": 200, "resilience": 200},
+            ).model_dump(mode="json")
+        },
     )
     ckpt = CheckpointFile(
         session=SessionState(
@@ -317,6 +326,17 @@ def test_account_projection_is_exact_but_excludes_private_mechanics() -> None:
     assert "world-ending spoiler" not in block
     assert "Hidden Token" not in block
     assert "Sealed Art" not in block
+
+
+def test_guide_receives_exact_non_hero_combat_authority() -> None:
+    checkpoint, _, _, guide = _checkpoint()
+
+    block = one_star_agent_state_block(checkpoint, guide)
+
+    assert "exact non-Hero combat authority" in block
+    assert "HP 2000/2000" in block
+    assert "agility 200, power 200, resilience 200" in block
+    assert ONE_STAR_HERO_KEY not in guide.mechanics
 
 
 def test_master_commands_split_account_roster_and_hero_sheet() -> None:

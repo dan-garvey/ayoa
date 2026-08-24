@@ -6,6 +6,7 @@ from app.engine.one_star_adapter import (
     effective_one_star_stamina,
     is_one_star_checkpoint,
     load_one_star_account,
+    load_one_star_combatant,
     load_one_star_hero,
 )
 from app.schemas.checkpoint import CheckpointFile
@@ -123,6 +124,25 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
         f"promotion_cost: {_render_nonzero_resources(config.promotion_cost)}"
     )
     lines.append(f"lobby_return_healing: {str(config.lobby_return_healing).lower()}")
+    combatants: list[str] = []
+    for character in sorted(
+        checkpoint.characters,
+        key=lambda item: item.character_id,
+    ):
+        combatant = load_one_star_combatant(character)
+        if combatant is None:
+            continue
+        stats = ",".join(
+            f"{stat_id}={value}"
+            for stat_id, value in sorted(combatant.stats.items())
+        )
+        combatants.append(
+            f"- {character.character_id}: hp={combatant.hp_current}/"
+            f"{combatant.hp_max}; stats[{stats}]"
+        )
+    if combatants:
+        lines.append("non_hero_combat_authority:")
+        lines.extend(combatants)
     lines.append("</one_star_rules_config>")
     return "\n".join(lines)
 

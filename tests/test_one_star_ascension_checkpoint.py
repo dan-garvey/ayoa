@@ -25,9 +25,11 @@ from app.schemas.characters import CharacterAgentTier, PlayerSlotKind
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
+    ONE_STAR_COMBATANT_KEY,
     ONE_STAR_HERO_KEY,
     ONE_STAR_RULESET_ID,
     OneStarAccountEnvelope,
+    OneStarCombatantState,
     OneStarHeroState,
 )
 
@@ -121,6 +123,19 @@ def test_checkpoint_loads_as_typed_one_star_story() -> None:
             OneStarHeroState.model_validate(character.mechanics[ONE_STAR_HERO_KEY])
         else:
             assert ONE_STAR_HERO_KEY not in character.mechanics, character.character_id
+
+    iselle = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "iselle_the_guide"
+    )
+    combatant = OneStarCombatantState.model_validate(
+        iselle.mechanics[ONE_STAR_COMBATANT_KEY]
+    )
+    assert combatant.hp_current == combatant.hp_max == 2_000
+    assert combatant.stats == {
+        stat_id: 200 for stat_id in account.config.progression.stat_ids
+    }
 
 
 def test_one_star_ledger_matches_approved_seed_authority() -> None:

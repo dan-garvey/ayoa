@@ -17,6 +17,7 @@ from app.schemas.event_router import ClosedEventRouterOutput, EventRouterOutput
 ONE_STAR_RULESET_ID = "one_star_ascension"
 ONE_STAR_ACCOUNT_KEY = "one_star_account"
 ONE_STAR_HERO_KEY = "one_star_hero"
+ONE_STAR_COMBATANT_KEY = "one_star_combatant"
 ONE_STAR_GACHA_WEIGHT_TOTAL = 10_000
 
 
@@ -423,6 +424,39 @@ class OneStarHeroState(BaseModel):
             raise ValueError("equipment item_ids must be unique")
         if len({entry.skill_id for entry in self.skills}) != len(self.skills):
             raise ValueError("skill_ids must be unique")
+        return self
+
+
+class OneStarCombatantState(BaseModel):
+    """Exact combat authority for a One-Star entity that is not a Hero.
+
+    This deliberately has no stars, progression, ownership, equipment, or
+    synthesis fields.  It lets story-authored wardens and other embodied
+    non-Hero entities carry concrete arbitration values without entering the
+    Hero ledger or becoming valid targets for Hero operations.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    hp_current: int = Field(ge=0)
+    hp_max: int = Field(ge=1)
+    stats: dict[str, int] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_combatant(self) -> "OneStarCombatantState":
+        if self.hp_current > self.hp_max:
+            raise ValueError("combatant hp_current cannot exceed hp_max")
+        cleaned: dict[str, int] = {}
+        for raw_key, value in self.stats.items():
+            key = raw_key.strip()
+            if not key:
+                raise ValueError("combatant stat ids must be non-empty")
+            if value < 0:
+                raise ValueError("combatant stats cannot be negative")
+            if key in cleaned:
+                raise ValueError("combatant stat ids must be unique")
+            cleaned[key] = value
+        self.stats = cleaned
         return self
 
 

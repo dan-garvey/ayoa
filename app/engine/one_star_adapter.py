@@ -34,6 +34,7 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import SpawnRequest, WakeSignal
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
+    ONE_STAR_COMBATANT_KEY,
     ONE_STAR_GACHA_WEIGHT_TOTAL,
     ONE_STAR_HERO_KEY,
     ONE_STAR_RULESET_ID,
@@ -41,6 +42,7 @@ from app.schemas.one_star import (
     OneStarAccountState,
     OneStarActiveFeedOperation,
     OneStarCatalogueApplyOperation,
+    OneStarCombatantState,
     OneStarCost,
     OneStarEquipmentEntry,
     OneStarFormationEntry,
@@ -202,6 +204,30 @@ def load_one_star_hero(character: CharacterRecord) -> OneStarHeroState | None:
     except ValidationError as exc:
         raise OneStarTransactionError(
             f"character {character.character_id!r} has invalid One-Star Hero state"
+        ) from exc
+
+
+def load_one_star_combatant(
+    character: CharacterRecord,
+) -> OneStarCombatantState | None:
+    """Read a non-Hero combat overlay without broadening Hero semantics."""
+
+    if not isinstance(character.mechanics, dict):
+        return None
+    raw = character.mechanics.get(ONE_STAR_COMBATANT_KEY)
+    if raw is None:
+        return None
+    if ONE_STAR_HERO_KEY in character.mechanics:
+        raise OneStarTransactionError(
+            f"character {character.character_id!r} cannot be both a One-Star "
+            "Hero and a non-Hero combatant"
+        )
+    try:
+        return OneStarCombatantState.model_validate(raw)
+    except ValidationError as exc:
+        raise OneStarTransactionError(
+            f"character {character.character_id!r} has invalid One-Star "
+            "combatant state"
         ) from exc
 
 

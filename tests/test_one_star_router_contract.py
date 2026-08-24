@@ -135,6 +135,7 @@ def test_one_star_provider_schema_adds_only_one_compact_update_definition():
         "OneStarEquipmentEntry",
         "OneStarSkillEntry",
         "OneStarPendingOperation",
+        "OneStarCombatantState",
     ):
         assert adapter_private_type not in rendered
 

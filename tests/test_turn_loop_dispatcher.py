@@ -511,6 +511,12 @@ class TestRouterContext:
         assert len(bound_system) < 85_000
         assert "<one_star_rules_config>" in bound_system
         assert "summon_pools:" in bound_system
+        assert "non_hero_combat_authority:" in bound_system
+        assert (
+            "iselle_the_guide: hp=2000/2000; "
+            "stats[agility=200,power=200,resilience=200]"
+        ) in bound_system
+        assert "non_hero_combat_authority:" not in bound_user
         assert "<one_star_current_ledger>" not in bound_system
         assert "<one_star_current_ledger>" not in bound_user
         assert "authoritative_summon_draw_slates" not in bound_system

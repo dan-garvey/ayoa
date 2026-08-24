@@ -13,6 +13,7 @@ from app.engine.one_star_adapter import (
     ONE_STAR_RULESET_ID,
     effective_one_star_stamina,
     load_one_star_account,
+    load_one_star_combatant,
     load_one_star_hero,
 )
 from app.engine.one_star_progression import (
@@ -478,6 +479,20 @@ def _has_exact_own_sheet(
     )
 
 
+def _combatant_authority_lines(character: CharacterRecord) -> list[str]:
+    combatant = load_one_star_combatant(character)
+    if combatant is None:
+        return []
+    stats = _join_values(
+        f"{stat_id} {value}"
+        for stat_id, value in sorted(combatant.stats.items())
+    )
+    return [
+        "Your exact non-Hero combat authority:",
+        f"HP {combatant.hp_current}/{combatant.hp_max}; Stats: {stats}",
+    ]
+
+
 def one_star_agent_state_block(
     checkpoint: CheckpointFile,
     character: CharacterRecord,
@@ -518,10 +533,15 @@ def one_star_agent_state_block(
                 in sorted(state.tutorial_deliveries.items())
             )
         )
+        lines.extend(_combatant_authority_lines(character))
     else:
         hero = load_one_star_hero(character)
         if hero is None:
-            return ""
+            combatant_lines = _combatant_authority_lines(character)
+            if not combatant_lines:
+                return ""
+            lines = ["## Your Current Mechanics", *combatant_lines]
+            return "\n".join(lines)
         exact = (
             _has_exact_own_sheet(character.character_id, hero, envelope)
             if _belongs_to_account(hero, envelope)
