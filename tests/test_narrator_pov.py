@@ -27,12 +27,8 @@ from app.schemas.characters import (
     CharacterVisuals,
     PublicSheet,
 )
-from app.schemas.event_router import EventRouterOutput, ObserverEntry
-from app.schemas.events import (
-    CanonicalEvent,
-    ObservableFact,
-    WorldAdjudication,
-)
+from app.schemas.event_router import EventRouterOutput
+from app.schemas.events import ObservableFact
 from app.schemas.narrator import NarratorFinalOutput
 from app.schemas.state import (
     RenderBufferEntry,
@@ -192,6 +188,9 @@ class TestComposePovRender:
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], str)
         assert PARTIAL_MODE_MARKER not in user_msg["content"]
+        assert user_msg["content"].index("I look around.") < user_msg[
+            "content"
+        ].index("The arch is weathered")
 
     @pytest.mark.asyncio
     async def test_accepted_player_submission_is_replayed_on_next_render(

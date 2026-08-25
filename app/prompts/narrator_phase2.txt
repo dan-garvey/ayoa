@@ -109,9 +109,9 @@ Handoff policy: {handoff_policy}
 Handoff condition:
 {handoff_context}
 
-What reaches this viewpoint:
-{visible_events}
-
-Submitted player action:
+Submitted player attempt (earlier; not evidence that it succeeded):
 {pov_character_name}: {user_input}
+
+Authoritative visible result after adjudicating that attempt:
+{visible_events}
 </current_view>
