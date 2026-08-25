@@ -3,17 +3,20 @@
 The default experiment now targets a deliberately modest visual-novel result:
 
 1. FLUX generates one clean widescreen environment plate per seed.
-2. Qwen Image Edit generates exactly two reusable three-quarter-body sprite
-   anchors from frozen identity references. Their left/right slots and inward
-   facing directions are schema invariants, not prompt-only wishes.
+2. Qwen Image Edit generates exactly two reusable conversational sprite anchors
+   from frozen identity references. Their left/right slots and inward-facing
+   directions are schema invariants, not prompt-only wishes; an optional
+   normalized stage height preserves a materially smaller nonhuman silhouette.
+   A reviewed reference may be preserved or mirrored before editing when its
+   known facing already supplies the required direction.
 3. Each small expression/pose variant edits only its own neutral sprite anchor.
    It never receives the environment, the other character, or a second identity
    image.
 4. Native ComfyUI BiRefNet produces a checked RGBA asset for every anchor and
    variant.
-5. Pillow reuses the exact same plate, fixed-height stage slots, and deterministic
-   sprite shadow for every authored frame. The report artifact is a storyboard;
-   it also links every full-resolution frame.
+5. Pillow reuses the exact same plate, head-aligned fixed-height stage slots, and
+   deterministic sprite shadow for every authored frame. The report artifact is
+   a storyboard; it also links every full-resolution frame.
 
 There is no whole-scene model pass in visual-novel mode. Lighting separation is
 intentional presentation language rather than a defect to hide with generative
@@ -188,22 +191,40 @@ loudly; there is no alternate background remover or direct-generation fallback.
 
 ## Corpus and batch contract
 
-`visual_novel_corpus.json` is the default. It contains two tuning scenes and one
+`visual_novel_corpus.json` is the default. It contains three tuning scenes and one
 untouched holdout. Every scene has exactly two subjects, one left-facing-inward
 and one right-facing-inward, an all-anchor frame, and named expression/pose
 variants used by later frames. `corpus.json` preserves the old six-tuning and
 two-holdout cinematic stress suite. `style_packs.json` contains both rendering
 languages.
 
+The Iselle/Wren scene was manually authored from the supplied top-down beginner
+lobby image as setting and layout guidance. The source image is neither an edit
+target nor a model input: its circular open-air terrace, garden courts, and
+distant ring structures are translated into an original eye-level plate prompt.
+
 Every run requires exactly four distinct seeds. The tool generates and retains
 all requested tracks for all four; it has no winner-selection option. Holdouts
 should remain untouched until tuning decisions are frozen.
+
+An interrupted run can resume only with the same run id, corpus/style hashes,
+scene list, seeds, tracks, reference session, and prompt protocol. Hash-valid
+backgrounds, anchors, variants, and mattes are reused; missing or stale stages
+are regenerated. The interruption and every resume attempt remain in the
+manifests.
+
+`--max-workers 1..4` is an execution control, not an image-selection control.
+The default remains four concurrent jobs. Lower values still route jobs
+round-robin across every healthy worker, allowing long batches to cool idle GPUs
+between turns; concurrency may be lowered when resuming the same frozen run.
+Repeat `--worker 0..3` to restrict that rotation to known-healthy devices, and
+keep concurrency no greater than the selected worker count.
 
 Validate frozen inputs without calling either model:
 
 ```bash
 .venv/bin/python scripts/staged_image_prototype.py run \
-  --scene vn01_arrival_exchange \
+  --scene vn03_beginner_lobby_iselle_wren \
   --dry-run
 ```
 
@@ -211,15 +232,34 @@ Run the known failure scene:
 
 ```bash
 .venv/bin/python scripts/staged_image_prototype.py run \
-  --scene vn01_arrival_exchange \
-  --run-id visual-novel-arrival-v1
+  --scene vn03_beginner_lobby_iselle_wren \
+  --run-id visual-novel-lobby-iselle-wren-v1
+```
+
+Resume that exact batch after a worker or host interruption:
+
+```bash
+.venv/bin/python scripts/staged_image_prototype.py run \
+  --scene vn03_beginner_lobby_iselle_wren \
+  --run-id visual-novel-lobby-iselle-wren-v1 \
+  --resume
+```
+
+For a controlled sprite-only comparison, reuse hash-validated plates from an
+earlier run. The source prompt and derived background seed must match exactly:
+
+```bash
+.venv/bin/python scripts/staged_image_prototype.py run \
+  --scene vn03_beginner_lobby_iselle_wren \
+  --run-id visual-novel-lobby-iselle-wren-v2 \
+  --reuse-backgrounds-from visual-novel-lobby-iselle-wren-v1
 ```
 
 The default and only eligible visual-novel track is `pixel`. `masked` and
 `global` are rejected because they repaint the assembled scene. To reproduce an
 old cinematic comparison, explicitly pass
 `--corpus experiments/staged_image/corpus.json` and opt into its desired tracks.
-Use repeated `--scene` arguments for a subset; omitting them runs the two default
+Use repeated `--scene` arguments for a subset; omitting them runs the three default
 tuning scenes. Holdouts are refused unless `--include-holdout` is explicit.
 
 ## Human QA

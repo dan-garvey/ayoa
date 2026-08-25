@@ -26,7 +26,7 @@
       "style_pack_id": "visual-novel-cel",
       "title": "Stable visual-novel character staging",
       "visual_language": "Full-color Korean fantasy visual-novel illustration; controlled line weight; stable cel shading; restrained material texture; soft atmospheric environment plates; readable faces and silhouettes; consistent neutral camera language.",
-      "component_direction": "Preserve exact reference identity, age, build, hair, clothing, equipment, and asymmetry. Use stable three-quarter-body conversational framing, restrained gesture, clean silhouette separation, and neutral studio illumination that remains consistent across expression variants.",
+      "component_direction": "Preserve exact reference identity, age, build, hair, clothing, equipment, and asymmetry. Use stable conversational framing, normally three-quarter body but complete body when a nonhuman scale or silhouette requires it, with restrained gesture, clean silhouette separation, and neutral studio illumination that remains consistent across expression variants.",
       "harmonization_direction": "Visual-novel sprites remain deliberate foreground layers. Use only deterministic stage shadow and background separation; do not repaint the assembled scene."
     }
   ]

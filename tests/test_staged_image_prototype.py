@@ -34,6 +34,7 @@ from experiments.staged_image.pipeline import (
     derived_seed,
     load_experiment,
     parse_seeds,
+    prepare_component_reference_inputs,
     record_review,
     validate_matte,
 )
@@ -138,17 +139,39 @@ def test_checked_in_default_is_small_visual_novel_corpus_and_legacy_is_preserved
     corpus, styles = load_experiment(DEFAULT_CORPUS_PATH, DEFAULT_STYLE_PATH)
 
     assert isinstance(corpus, CorpusSpec)
-    assert sum(scene.split == "tuning" for scene in corpus.scenes) == 2
+    assert sum(scene.split == "tuning" for scene in corpus.scenes) == 3
     assert sum(scene.split == "holdout" for scene in corpus.scenes) == 1
     assert all(scene.presentation == "visual_novel" for scene in corpus.scenes)
     assert all(len(scene.subjects) == 2 for scene in corpus.scenes)
-    assert all(len(scene.frames) == 3 for scene in corpus.scenes)
+    assert all(len(scene.frames) >= 3 for scene in corpus.scenes)
     assert len(styles) == 4
     assert all(
         1 <= len(subject.reference_ids) <= 2
         for scene in corpus.scenes
         for subject in scene.subjects
     )
+    lobby = next(
+        scene
+        for scene in corpus.scenes
+        if scene.scene_id == "vn03_beginner_lobby_iselle_wren"
+    )
+    assert len(lobby.frames) == 7
+    assert all(len(subject.variants) == 3 for subject in lobby.subjects)
+    iselle = next(
+        subject
+        for subject in lobby.subjects
+        if subject.character_id == "iselle_the_guide"
+    )
+    assert iselle.stage_height_fraction == 0.62
+    assert iselle.grounded is False
+    assert iselle.component_mode == "reference_cutout"
+    assert iselle.facing_control == "mirror_reference"
+    wren = next(
+        subject
+        for subject in lobby.subjects
+        if subject.character_id == "wren_thelantern"
+    )
+    assert wren.facing_control == "preserve_reference"
 
     legacy, _ = load_experiment(
         LEGACY_CINEMATIC_CORPUS_PATH,
@@ -169,7 +192,7 @@ def test_checked_in_default_is_small_visual_novel_corpus_and_legacy_is_preserved
 def test_holdouts_require_an_explicit_release_flag():
     runner = StagedImageRunner()
 
-    assert len(runner.select_scenes([])) == 2
+    assert len(runner.select_scenes([])) == 3
     with pytest.raises(ValueError, match="--include-holdout"):
         runner.select_scenes(["vh01_champion_anteroom"])
     assert (
@@ -201,6 +224,23 @@ def test_visual_novel_schema_requires_inward_facing_derived_stage_geometry():
     }
     with pytest.raises(ValidationError, match="derived from screen_side"):
         SceneSpec.model_validate(duplicate_layout)
+
+
+def test_cinematic_scene_rejects_visual_novel_stage_height():
+    corpus, _ = load_experiment(
+        LEGACY_CINEMATIC_CORPUS_PATH,
+        DEFAULT_STYLE_PATH,
+    )
+    invalid = corpus.scenes[0].model_dump(mode="json")
+    invalid["subjects"][0]["stage_height_fraction"] = 0.5
+
+    with pytest.raises(ValidationError, match="cannot declare visual-novel stage"):
+        SceneSpec.model_validate(invalid)
+
+    invalid = corpus.scenes[0].model_dump(mode="json")
+    invalid["subjects"][0]["facing_control"] = "preserve_reference"
+    with pytest.raises(ValidationError, match="cannot declare visual-novel facing"):
+        SceneSpec.model_validate(invalid)
 
 
 def test_visual_novel_run_rejects_whole_scene_model_tracks_before_generation():
@@ -365,6 +405,7 @@ def test_pixel_composite_respects_authored_depth_and_builds_repair_mask(tmp_path
 
 def test_visual_novel_frames_reuse_one_plate_and_fixed_height_stage_slots(tmp_path):
     scene = _visual_novel_scene()
+    scene.subjects[0].stage_height_fraction = 0.62
     style = StylePack(
         style_pack_id="visual-novel-cel",
         title="Visual novel",
@@ -411,6 +452,14 @@ def test_visual_novel_frames_reuse_one_plate_and_fixed_height_stage_slots(tmp_pa
         box = placement["paste_box_pixels"]
         left_heights.append(box[3] - box[1])
     assert len(set(left_heights)) == 1
+    assert left_heights == [round(0.62 * scene.canvas.height)] * 3
+    right_placement = next(
+        item
+        for item in stage["frames"][0]["placements"]
+        if item["character_id"] == "right"
+    )
+    right_box = right_placement["paste_box_pixels"]
+    assert right_box[3] - right_box[1] == round(0.94 * scene.canvas.height)
     assert (case_root / "final/pixel.png").is_file()
     frame_paths = [
         tmp_path / frame["artifact"]["relative_path"] for frame in stage["frames"]
@@ -481,6 +530,201 @@ def test_declared_reference_cutout_never_calls_a_generation_client(tmp_path):
     assert stage["component_mode"] == "reference_cutout"
     assert stage["prompt"] is None
     assert (case_root / "components/subject.png").is_file()
+
+
+def test_reference_facing_mirror_is_explicit_and_non_destructive(tmp_path):
+    reference_path = tmp_path / "artifacts/reference.png"
+    reference_path.parent.mkdir()
+    source = Image.new("RGB", (4, 2), (0, 0, 0))
+    source.putpixel((0, 0), (255, 0, 0))
+    source.putpixel((3, 0), (0, 0, 255))
+    source.save(reference_path)
+    reference = ResolvedReference(
+        reference_id="reference",
+        source="reviewed",
+        path=reference_path,
+        sha256=hashlib.sha256(reference_path.read_bytes()).hexdigest(),
+        mime_type="image/png",
+        width=4,
+        height=2,
+        byte_count=reference_path.stat().st_size,
+    )
+    scene = _visual_novel_scene()
+    subject = scene.subjects[0].model_copy(
+        update={"facing_control": "mirror_reference"}
+    )
+    case_root = tmp_path / "case"
+    case_root.mkdir()
+    case = CaseState(
+        scene=scene,
+        style=StylePack(
+            style_pack_id="visual-novel-cel",
+            title="Visual novel",
+            visual_language="Stable illustration.",
+            component_direction="Preserve identity.",
+            harmonization_direction="Use deterministic layers.",
+        ),
+        seed=1,
+        directory=case_root,
+        manifest_path=case_root / "manifest.json",
+        manifest={"stages": {}},
+        references={"left": [reference], "right": []},
+    )
+
+    paths, records = prepare_component_reference_inputs(
+        case,
+        subject,
+        tmp_path,
+    )
+
+    with Image.open(reference_path) as original, Image.open(paths[0]) as mirrored:
+        assert original.getpixel((0, 0)) == (255, 0, 0)
+        assert original.getpixel((3, 0)) == (0, 0, 255)
+        assert mirrored.getpixel((0, 0)) == (0, 0, 255)
+        assert mirrored.getpixel((3, 0)) == (255, 0, 0)
+    assert records[0]["operation"] == "mirror_horizontal"
+    assert records[0]["source_sha256"] == reference.sha256
+    assert records[0]["artifact"]["relative_path"].startswith("case/inputs/")
+
+
+def test_resume_skips_hash_valid_background_and_matte_artifacts(tmp_path):
+    subject = SubjectSpec(
+        character_id="subject",
+        display_name="Subject",
+        reference_ids=["reference"],
+        identity_prompt="Stable identity.",
+        pose_prompt="Complete standing pose.",
+        target_box=UnitBox(x=0.1, y=0.1, width=0.4, height=0.8),
+        foot_anchor=UnitPoint(x=0.3, y=0.9),
+        z_index=1,
+    )
+    scene = SceneSpec(
+        scene_id="resume_scene",
+        title="Resume scene",
+        split="tuning",
+        style_pack_id="style",
+        camera=CameraSpec(description="Eye-level camera."),
+        background_prompt="An empty room.",
+        harmonize_prompt="Repair contacts.",
+        diagnostic_prompt="Render one coherent scene.",
+        subjects=[subject],
+    )
+    style = StylePack(
+        style_pack_id="style",
+        title="Style",
+        visual_language="A coherent illustration style.",
+        component_direction="Preserve the component.",
+        harmonization_direction="Repair only seams.",
+    )
+    case_root = tmp_path / "case"
+    background_path = case_root / "background.png"
+    component_path = case_root / "components/subject.png"
+    mask_path = case_root / "mattes/subject-mask.png"
+    rgba_path = case_root / "mattes/subject-rgba.png"
+    _write_png(background_path, (10, 20, 30))
+    _write_png(component_path, (40, 50, 60))
+    _write_png(mask_path, (255,), mode="L")
+    _write_png(rgba_path, (40, 50, 60, 255), mode="RGBA")
+    case = CaseState(
+        scene=scene,
+        style=style,
+        seed=5,
+        directory=case_root,
+        manifest_path=case_root / "manifest.json",
+        manifest={"stages": {}},
+        references={"subject": []},
+    )
+    background_prompt = StagedImageRunner._background_prompt(case)
+    case.manifest["stages"] = {
+        "background": {
+            "prompt_sha256": hashlib.sha256(
+                background_prompt.encode("utf-8")
+            ).hexdigest(),
+            "seed": derived_seed(5, "resume_scene", "background"),
+            "artifact": _artifact_payload(background_path, tmp_path),
+        },
+        "mattes": {
+            "subject": {
+                "component_artifact_sha256": hashlib.sha256(
+                    component_path.read_bytes()
+                ).hexdigest(),
+                "mask_artifact": _artifact_payload(mask_path, tmp_path),
+                "rgba_artifact": _artifact_payload(rgba_path, tmp_path),
+            }
+        },
+    }
+
+    class ExplodingClient:
+        def post_image(self, *_args, **_kwargs):
+            raise AssertionError("a completed stage called the gateway")
+
+    runner = object.__new__(StagedImageRunner)
+    runner.client = ExplodingClient()
+
+    runner._background_stage([case], tmp_path)
+    runner._matte_stage([case], tmp_path)
+
+
+def test_background_reuse_copies_only_a_matching_frozen_plate(tmp_path):
+    scene = _visual_novel_scene()
+    style = StylePack(
+        style_pack_id="visual-novel-cel",
+        title="Visual novel",
+        visual_language="Stable cel-shaded visual-novel illustration.",
+        component_direction="Preserve identity and stable framing.",
+        harmonization_direction="Use deterministic sprite layering.",
+    )
+    source_root = tmp_path / "source"
+    source_case_root = source_root / scene.scene_id / "seed-5"
+    source_background = source_case_root / "background.png"
+    _write_png(source_background, (12, 34, 56))
+    destination_root = tmp_path / "destination"
+    destination_case_root = destination_root / scene.scene_id / "seed-5"
+    destination_case_root.mkdir(parents=True)
+    case = CaseState(
+        scene=scene,
+        style=style,
+        seed=5,
+        directory=destination_case_root,
+        manifest_path=destination_case_root / "manifest.json",
+        manifest={"stages": {}},
+        references={subject.character_id: [] for subject in scene.subjects},
+    )
+    prompt = StagedImageRunner._background_prompt(case)
+    source_manifest = {
+        "scene_id": scene.scene_id,
+        "seed": 5,
+        "stages": {
+            "background": {
+                "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                "seed": derived_seed(5, scene.scene_id, "background"),
+                "artifact": _artifact_payload(source_background, source_root),
+            }
+        },
+    }
+    (source_root / "run.json").write_text("{}", encoding="utf-8")
+    (source_case_root / "manifest.json").write_text(
+        json.dumps(source_manifest),
+        encoding="utf-8",
+    )
+
+    runner = object.__new__(StagedImageRunner)
+    runner._reuse_backgrounds(
+        [case],
+        destination_root,
+        source_root,
+        "source",
+    )
+
+    reused = destination_case_root / "background.png"
+    assert reused.read_bytes() == source_background.read_bytes()
+    stage = case.manifest["stages"]["background"]
+    assert stage["operation"] == "frozen background reuse"
+    assert stage["source_run_id"] == "source"
+    assert (
+        stage["source_artifact_sha256"]
+        == hashlib.sha256(source_background.read_bytes()).hexdigest()
+    )
 
 
 def test_rendered_background_prompt_contains_only_positive_environment_context():
@@ -638,10 +882,14 @@ def test_qwen_component_receives_identity_views_but_not_environment_plate(tmp_pa
     client = RecordingClient()
     runner = object.__new__(StagedImageRunner)
     runner.client = client
+    runner.max_workers = 2
+    runner.worker_targets = ("worker-0", "worker-1", "worker-2", "worker-3")
 
+    runner._component_stage([case], tmp_path)
     runner._component_stage([case], tmp_path)
 
     endpoint, payload = client.calls[0]
+    assert len(client.calls) == 1
     assert endpoint == "/edit/qwen"
     assert "image2_base64" in payload
     assert "image3_base64" not in payload
@@ -691,7 +939,10 @@ def test_visual_novel_variants_edit_only_the_neutral_sprite_anchor(tmp_path):
     client = RecordingClient()
     runner = object.__new__(StagedImageRunner)
     runner.client = client
+    runner.max_workers = 2
+    runner.worker_targets = ("worker-0", "worker-1", "worker-2", "worker-3")
 
+    runner._variant_stage([case], tmp_path)
     runner._variant_stage([case], tmp_path)
 
     assert len(client.calls) == 2
@@ -699,6 +950,10 @@ def test_visual_novel_variants_edit_only_the_neutral_sprite_anchor(tmp_path):
     assert all("image_base64" in payload for _, payload in client.calls)
     assert all("image2_base64" not in payload for _, payload in client.calls)
     assert all("image3_base64" not in payload for _, payload in client.calls)
+    assert {str(payload["worker"]) for _, payload in client.calls} == {
+        "worker-0",
+        "worker-1",
+    }
     assert (case_root / "components/left--concerned.png").is_file()
     assert (case_root / "components/right--reassuring.png").is_file()
     left_stage = case.manifest["stages"]["variants"]["left"]["concerned"]
@@ -734,9 +989,16 @@ def test_visual_novel_anchor_prompt_is_single_subject_and_inward_facing():
     assert "neutral reusable visual-novel sprite anchor" in prompt
     assert "left side of the screen" in prompt
     assert "toward screen right" in prompt
-    assert "three-quarter-body crop" in prompt
+    assert "Follow the framing specified by the neutral pose" in prompt
     assert scene.subjects[1].display_name not in prompt
     assert scene.background_prompt not in prompt
+
+    prepared = scene.subjects[0].model_copy(
+        update={"facing_control": "preserve_reference"}
+    )
+    prepared_prompt = StagedImageRunner._component_prompt(case, prepared)
+    assert "already been prepared to face screen right" in prepared_prompt
+    assert "do not turn or mirror the character" in prepared_prompt
 
 
 def test_qwen_final_edits_receive_only_the_assembled_scene(tmp_path):
@@ -921,6 +1183,80 @@ def test_seed_parser_forbids_cherry_pick_batches():
     assert parse_seeds("1,2,3,4") == (1, 2, 3, 4)
     with pytest.raises(Exception, match="exactly four"):
         parse_seeds("1")
+
+
+def test_worker_concurrency_is_bounded_and_round_robin():
+    with pytest.raises(ValueError, match="between 1 and 4"):
+        StagedImageRunner(max_workers=0)
+    with pytest.raises(ValueError, match="unique values"):
+        StagedImageRunner(worker_indices=[1, 1])
+
+    runner = StagedImageRunner(max_workers=1)
+    runner.worker_targets = ("worker-0", "worker-1", "worker-2", "worker-3")
+    assert [runner._worker_target(index) for index in range(6)] == [
+        "worker-0",
+        "worker-1",
+        "worker-2",
+        "worker-3",
+        "worker-0",
+        "worker-1",
+    ]
+
+
+def test_resume_manifest_must_match_the_frozen_batch_contract():
+    runner = StagedImageRunner()
+    scenes = runner.select_scenes(["vn03_beginner_lobby_iselle_wren"])
+    seeds = (1, 2, 3, 4)
+    tracks = ("pixel",)
+    protocol_versions = {"visual_novel": "visual-novel-anchors-v2"}
+    manifest = {
+        "run_id": "run",
+        "status": "interrupted",
+        "scene_ids": ["vn03_beginner_lobby_iselle_wren"],
+        "seeds": list(seeds),
+        "tracks": list(tracks),
+        "style_pack_override": None,
+        "background_source_run_id": None,
+        "holdouts_included": False,
+        "reference_session_id": runner.corpus.reference_session_id,
+        "prompt_protocol_versions": protocol_versions,
+        "corpus": {
+            "sha256": hashlib.sha256(runner.corpus_path.read_bytes()).hexdigest()
+        },
+        "styles": {
+            "sha256": hashlib.sha256(runner.style_path.read_bytes()).hexdigest()
+        },
+        "cases": [
+            f"vn03_beginner_lobby_iselle_wren/seed-{seed}/manifest.json"
+            for seed in seeds
+        ],
+    }
+
+    runner._validate_resume_manifest(
+        run_manifest=manifest,
+        run_id="run",
+        scenes=scenes,
+        seeds=seeds,
+        tracks=tracks,
+        include_holdout=False,
+        style_pack_id=None,
+        protocol_versions=protocol_versions,
+        reuse_backgrounds_from=None,
+    )
+
+    manifest["seeds"] = [4, 3, 2, 1]
+    with pytest.raises(ValueError, match="frozen run: seeds"):
+        runner._validate_resume_manifest(
+            run_manifest=manifest,
+            run_id="run",
+            scenes=scenes,
+            seeds=seeds,
+            tracks=tracks,
+            include_holdout=False,
+            style_pack_id=None,
+            protocol_versions=protocol_versions,
+            reuse_backgrounds_from=None,
+        )
 
 
 def test_derived_stage_seeds_fit_every_deployed_backend():

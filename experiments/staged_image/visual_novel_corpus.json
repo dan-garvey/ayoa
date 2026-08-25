@@ -169,6 +169,134 @@
       ]
     },
     {
+      "scene_id": "vn03_beginner_lobby_iselle_wren",
+      "title": "Open-air beginner lobby: Iselle and Wren",
+      "split": "tuning",
+      "style_pack_id": "visual-novel-cel",
+      "presentation": "visual_novel",
+      "canvas": {"width": 1024, "height": 576},
+      "camera": {
+        "description": "Locked eye-level 50mm view across the open-air beginner lobby, widescreen composition, shallow architectural depth, and a broad quiet center gap.",
+        "horizon_y": 0.4
+      },
+      "background_prompt": "A sunlit open-air beginner lobby built across a vast circular sky terrace, with pale stone walkways between a few rectangular garden beds and low clean service buildings, one distant cylindrical summon structure crowned by concentric white rings, a second circular training dais near the dark waist-high perimeter, turquoise sky and luminous blue distance beyond the wall, cool cyan daylight, warm green planting, sparse architectural set dressing, and an uncluttered foreground.",
+      "subjects": [
+        {
+          "character_id": "iselle_the_guide",
+          "display_name": "Iselle",
+          "reference_ids": ["osa_iselle_the_guide_locked_active_profile_v1"],
+          "component_mode": "reference_cutout",
+          "identity_prompt": "Iselle is a palm-sized black-haired fairy manager with oversized-head mascot proportions, ruby eyes, long side locks, a floppy black cap marked only by an abstract pale squiggle, a fitted black uniform, narrow rose tie, black thigh-high boots, and exactly two pairs of translucent charcoal-lilac wings. She carries nothing.",
+          "pose_prompt": "Complete hovering figure in a relaxed conversational pose, empty hands resting loosely at her sides, wings spread clearly behind her, head and torso turned slightly toward Wren, neutral bright attentive expression.",
+          "screen_side": "left",
+          "facing": "right",
+          "facing_control": "mirror_reference",
+          "stage_height_fraction": 0.62,
+          "grounded": false,
+          "variants": [
+            {
+              "variant_id": "delighted",
+              "expression_prompt": "bright delight: ruby eyes widened, brows lifted, and an open cheerful grin",
+              "pose_adjustment_prompt": "lift only the inner empty hand into a small enthusiastic wave; preserve all four wings and keep the other hand relaxed"
+            },
+            {
+              "variant_id": "skeptical",
+              "expression_prompt": "comic skepticism: one brow raised, eyes angled toward Wren, and a small flat doubtful mouth",
+              "pose_adjustment_prompt": "fold the empty forearms loosely across the torso without hiding the rose tie; preserve all four wings"
+            },
+            {
+              "variant_id": "stern",
+              "expression_prompt": "sharp officious displeasure: narrowed ruby eyes, lowered brows, and a tight small frown",
+              "pose_adjustment_prompt": "place only the outer empty hand at her hip and raise the inner empty palm in a restrained stop gesture; preserve all four wings"
+            }
+          ],
+          "mask_policy": {
+            "min_coverage": 0.025,
+            "max_coverage": 0.82,
+            "max_edge_fraction": 0.1,
+            "max_significant_components": 1
+          }
+        },
+        {
+          "character_id": "wren_thelantern",
+          "display_name": "Wren",
+          "reference_ids": ["osa_wren_thelantern_locked_active_profile_v1"],
+          "identity_prompt": "Wren is an athletic human woman in her early thirties with a warm fair complexion, angular oval face, deep amber-brown eyes, long tousled ink-black hair with broken bangs, a cropped olive-gray shearling-trim jacket, structured black midriff top, low-rise fitted black trousers, forearm guards, right-thigh straps, and long black boots. This lobby portrait has no lantern, sword, weapon, medical tool, satchel, or other prop; both hands are empty.",
+          "pose_prompt": "Three-quarter body in a relaxed conversational stance, both empty hands visible and away from the waistline, shoulders turned slightly toward Iselle, neutral calm observant expression.",
+          "screen_side": "right",
+          "facing": "left",
+          "facing_control": "preserve_reference",
+          "variants": [
+            {
+              "variant_id": "amused",
+              "expression_prompt": "dry private amusement: a slight crooked smile, softened eyes, and one brow faintly raised",
+              "pose_adjustment_prompt": "settle only the outer empty hand loosely at her hip while the inner hand remains relaxed and visible"
+            },
+            {
+              "variant_id": "concerned",
+              "expression_prompt": "quiet concern: brows drawn together, eyes focused gently on Iselle, and lips slightly parted",
+              "pose_adjustment_prompt": "draw only the inner empty hand toward her collarbone and incline the shoulders a little toward Iselle"
+            },
+            {
+              "variant_id": "resolute",
+              "expression_prompt": "calm resolve: level brows, steady amber-brown eyes, and a firmly set mouth without anger",
+              "pose_adjustment_prompt": "straighten the shoulders and fold the empty forearms loosely below the chest without changing the outfit"
+            }
+          ],
+          "mask_policy": {
+            "min_coverage": 0.025,
+            "max_coverage": 0.82,
+            "max_edge_fraction": 0.1,
+            "max_significant_components": 1
+          }
+        }
+      ],
+      "frames": [
+        {
+          "frame_id": "neutral",
+          "title": "Neutral anchors",
+          "active_character_id": null,
+          "subject_variants": {}
+        },
+        {
+          "frame_id": "iselle-delighted",
+          "title": "Iselle is delighted",
+          "active_character_id": "iselle_the_guide",
+          "subject_variants": {"iselle_the_guide": "delighted"}
+        },
+        {
+          "frame_id": "wren-amused",
+          "title": "Wren is quietly amused",
+          "active_character_id": "wren_thelantern",
+          "subject_variants": {"wren_thelantern": "amused"}
+        },
+        {
+          "frame_id": "iselle-skeptical",
+          "title": "Iselle is skeptical",
+          "active_character_id": "iselle_the_guide",
+          "subject_variants": {"iselle_the_guide": "skeptical"}
+        },
+        {
+          "frame_id": "wren-concerned",
+          "title": "Wren grows concerned",
+          "active_character_id": "wren_thelantern",
+          "subject_variants": {"wren_thelantern": "concerned"}
+        },
+        {
+          "frame_id": "iselle-stern",
+          "title": "Iselle turns stern",
+          "active_character_id": "iselle_the_guide",
+          "subject_variants": {"iselle_the_guide": "stern"}
+        },
+        {
+          "frame_id": "wren-resolute",
+          "title": "Wren holds her ground",
+          "active_character_id": "wren_thelantern",
+          "subject_variants": {"wren_thelantern": "resolute"}
+        }
+      ]
+    },
+    {
       "scene_id": "vh01_champion_anteroom",
       "title": "Holdout: champions before the gate",
       "split": "holdout",

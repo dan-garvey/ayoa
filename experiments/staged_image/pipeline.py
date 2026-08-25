@@ -13,6 +13,7 @@ import hashlib
 import html
 import io
 import json
+import shutil
 import sqlite3
 import sys
 import time
@@ -43,7 +44,7 @@ TRACKS = ("pixel", "masked", "global")
 DEFAULT_TRACKS = ("pixel",)
 PROMPT_PROTOCOL_VERSIONS = {
     "cinematic": "official-minimal-v2",
-    "visual_novel": "visual-novel-anchors-v1",
+    "visual_novel": "visual-novel-anchors-v2",
 }
 BASE_VARIANT_ID = "base"
 REVIEW_REASONS = (
@@ -146,6 +147,12 @@ class SubjectSpec(BaseModel):
     z_index: int | None = Field(default=None, ge=0, le=100)
     screen_side: Literal["left", "right"] | None = None
     facing: Literal["left", "right"] | None = None
+    facing_control: Literal[
+        "prompt",
+        "preserve_reference",
+        "mirror_reference",
+    ] = "prompt"
+    stage_height_fraction: float | None = Field(default=None, ge=0.25, le=0.94)
     variants: list[SpriteVariantSpec] = Field(default_factory=list, max_length=6)
     grounded: bool = True
     mask_policy: MaskPolicy = Field(default_factory=MaskPolicy)
@@ -154,6 +161,8 @@ class SubjectSpec(BaseModel):
     def cutout_has_one_authoritative_source(self) -> "SubjectSpec":
         if self.component_mode == "reference_cutout" and len(self.reference_ids) != 1:
             raise ValueError("reference cutout requires exactly one reference")
+        if self.facing_control != "prompt" and len(self.reference_ids) != 1:
+            raise ValueError("reference-facing control requires exactly one reference")
         variant_ids = [variant.variant_id for variant in self.variants]
         if BASE_VARIANT_ID in variant_ids:
             raise ValueError(f"{BASE_VARIANT_ID!r} is reserved for the anchor sprite")
@@ -201,6 +210,14 @@ class SceneSpec(BaseModel):
                 if subject.screen_side is not None or subject.facing is not None:
                     raise ValueError(
                         "cinematic subjects cannot declare visual-novel screen geometry"
+                    )
+                if subject.stage_height_fraction is not None:
+                    raise ValueError(
+                        "cinematic subjects cannot declare visual-novel stage height"
+                    )
+                if subject.facing_control != "prompt":
+                    raise ValueError(
+                        "cinematic subjects cannot declare visual-novel facing control"
                     )
                 if subject.variants:
                     raise ValueError(
@@ -590,6 +607,20 @@ def artifact_metadata(path: Path, run_root: Path) -> dict[str, Any]:
     }
 
 
+def artifact_matches(record: Any, run_root: Path) -> bool:
+    if not isinstance(record, dict):
+        return False
+    relative_path = record.get("relative_path")
+    expected_sha256 = record.get("sha256")
+    if not isinstance(relative_path, str) or not isinstance(expected_sha256, str):
+        return False
+    root = run_root.resolve()
+    path = (root / relative_path).resolve()
+    if not path.is_relative_to(root) or not path.is_file():
+        return False
+    return sha256_path(path) == expected_sha256
+
+
 def _significant_component_count(mask: Image.Image) -> int:
     sample = mask.convert("L")
     sample.thumbnail((256, 256), Image.Resampling.NEAREST)
@@ -693,17 +724,20 @@ def _subject_placement(
     subject: SubjectSpec,
 ) -> tuple[UnitBox, UnitPoint, int, Literal["contain", "fixed_height"]]:
     if scene.presentation == "visual_novel":
+        stage_top = 0.06
+        stage_height = subject.stage_height_fraction or 0.94
+        stage_bottom = stage_top + stage_height
         if subject.screen_side == "left":
             return (
-                UnitBox(x=0.0, y=0.06, width=0.5, height=0.94),
-                UnitPoint(x=0.25, y=1.0),
+                UnitBox(x=0.0, y=stage_top, width=0.5, height=stage_height),
+                UnitPoint(x=0.25, y=stage_bottom),
                 2,
                 "fixed_height",
             )
         if subject.screen_side == "right":
             return (
-                UnitBox(x=0.5, y=0.06, width=0.5, height=0.94),
-                UnitPoint(x=0.75, y=1.0),
+                UnitBox(x=0.5, y=stage_top, width=0.5, height=stage_height),
+                UnitPoint(x=0.75, y=stage_bottom),
                 2,
                 "fixed_height",
             )
@@ -1052,6 +1086,42 @@ class CaseState:
     references: dict[str, list[ResolvedReference]]
 
 
+def prepare_component_reference_inputs(
+    case: CaseState,
+    subject: SubjectSpec,
+    run_root: Path,
+) -> tuple[list[Path], list[dict[str, Any]]]:
+    paths: list[Path] = []
+    records: list[dict[str, Any]] = []
+    for index, reference in enumerate(case.references[subject.character_id], start=1):
+        operation = "none"
+        path = reference.path
+        record: dict[str, Any] = {
+            "reference_id": reference.reference_id,
+            "operation": operation,
+            "source_sha256": reference.sha256,
+        }
+        if subject.facing_control == "mirror_reference":
+            operation = "mirror_horizontal"
+            path = (
+                case.directory
+                / "inputs"
+                / f"{slug(subject.character_id)}-reference-{index}-mirrored.png"
+            )
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with Image.open(reference.path) as source:
+                ImageOps.mirror(source.convert("RGB")).save(
+                    path,
+                    format="PNG",
+                    optimize=True,
+                )
+            record["operation"] = operation
+            record["artifact"] = artifact_metadata(path, run_root)
+        paths.append(path)
+        records.append(record)
+    return paths, records
+
+
 class StagedImageRunner:
     def __init__(
         self,
@@ -1061,7 +1131,17 @@ class StagedImageRunner:
         runtime_root: Path = DEFAULT_RUNTIME_ROOT,
         output_root: Path = DEFAULT_OUTPUT_ROOT,
         gateway_url: str = DEFAULT_GATEWAY_URL,
+        max_workers: int = 4,
+        worker_indices: Sequence[int] | None = None,
     ) -> None:
+        if not 1 <= max_workers <= 4:
+            raise ValueError("max_workers must be between 1 and 4")
+        if worker_indices is not None and (
+            not worker_indices
+            or len(set(worker_indices)) != len(worker_indices)
+            or any(index < 0 or index > 3 for index in worker_indices)
+        ):
+            raise ValueError("worker_indices must be unique values between 0 and 3")
         self.corpus_path = corpus_path.resolve()
         self.style_path = style_path.resolve()
         self.output_root = output_root.resolve()
@@ -1071,6 +1151,17 @@ class StagedImageRunner:
         )
         self.resolver = ReferenceResolver(runtime_root)
         self.client = GatewayClient(gateway_url)
+        self.max_workers = max_workers
+        self.worker_indices = (
+            tuple(worker_indices) if worker_indices is not None else None
+        )
+        self.worker_targets: tuple[str, ...] = ()
+
+    def _worker_target(self, job_index: int) -> str:
+        targets = getattr(self, "worker_targets", ())
+        if not targets:
+            return ""
+        return targets[job_index % len(targets)]
 
     def select_scenes(
         self,
@@ -1126,6 +1217,8 @@ class StagedImageRunner:
         tracks: Sequence[str],
         run_id: str | None = None,
         dry_run: bool = False,
+        resume: bool = False,
+        reuse_backgrounds_from: str | None = None,
         include_holdout: bool = False,
         style_pack_id: str | None = None,
     ) -> Path | dict[str, Any]:
@@ -1153,11 +1246,14 @@ class StagedImageRunner:
             raise KeyError(f"unknown style pack: {style_pack_id}")
         validation = self.validate_inputs(scenes)
         if dry_run:
+            if resume:
+                raise ValueError("--resume cannot be combined with --dry-run")
             return {
                 **validation,
                 "seeds": list(seeds),
                 "tracks": list(selected_tracks),
                 "style_pack_override": style_pack_id,
+                "background_source_run_id": reuse_backgrounds_from,
             }
 
         gateway_health = self.client.health()
@@ -1168,16 +1264,41 @@ class StagedImageRunner:
             raise GatewayError("gateway compose pipeline is unavailable")
         if not pipelines.get("edit", {}).get("available"):
             raise GatewayError("gateway edit pipeline is unavailable")
+        healthy_workers = [
+            worker
+            for worker in gateway_health.get("workers", [])
+            if worker.get("ok") and worker.get("base")
+        ]
+        if self.worker_indices is None:
+            selected_workers = healthy_workers
+        else:
+            advertised_workers = list(gateway_health.get("workers", []))
+            selected_workers = []
+            for index in self.worker_indices:
+                if index >= len(advertised_workers) or not advertised_workers[
+                    index
+                ].get("ok"):
+                    raise GatewayError(f"requested image worker {index} is unavailable")
+                selected_workers.append(advertised_workers[index])
+        self.worker_targets = tuple(str(worker["base"]) for worker in selected_workers)
+        if self.max_workers > len(self.worker_targets):
+            raise GatewayError(
+                "execution concurrency exceeds the selected healthy worker count"
+            )
+        execution_attempt = {
+            "started_at": utc_now(),
+            "max_workers": self.max_workers,
+            "worker_targets": list(self.worker_targets),
+        }
 
+        if resume and run_id is None:
+            raise ValueError("--resume requires --run-id")
         run_id = run_id or datetime.now(UTC).strftime("staged-%Y%m%dT%H%M%SZ")
         if slug(run_id) != run_id:
             raise ValueError(
                 "run id may contain only letters, digits, dot, dash, underscore"
             )
         run_root = self.output_root / run_id
-        if run_root.exists():
-            raise FileExistsError(f"run directory already exists: {run_root}")
-        run_root.mkdir(parents=True)
         run_manifest_path = run_root / "run.json"
         protocol_versions = {
             scene.presentation: PROMPT_PROTOCOL_VERSIONS[scene.presentation]
@@ -1188,50 +1309,114 @@ class StagedImageRunner:
             if len(protocol_versions) == 1
             else "mixed"
         )
-        run_manifest: dict[str, Any] = {
-            "schema_version": 2,
-            "run_id": run_id,
-            "status": "running",
-            "started_at": utc_now(),
-            "corpus": {
-                "path": self.corpus_path.relative_to(REPO_ROOT).as_posix(),
-                "sha256": sha256_path(self.corpus_path),
-            },
-            "styles": {
-                "path": self.style_path.relative_to(REPO_ROOT).as_posix(),
-                "sha256": sha256_path(self.style_path),
-            },
-            "reference_session_id": self.corpus.reference_session_id,
-            "scene_ids": [scene.scene_id for scene in scenes],
-            "seeds": list(seeds),
-            "tracks": list(selected_tracks),
-            "style_pack_override": style_pack_id,
-            "holdouts_included": include_holdout,
-            "batch_contract": {
-                "exact_seed_count": 4,
-                "winner_selection": False,
-                "fallback_generation": False,
-            },
-            "prompt_protocol_version": run_protocol_version,
-            "prompt_protocol_versions": protocol_versions,
-            "gateway_health": gateway_health,
-            "cases": [],
-        }
-        write_json(run_manifest_path, run_manifest)
+        if resume:
+            if not run_root.is_dir() or not run_manifest_path.is_file():
+                raise FileNotFoundError(f"run directory is not resumable: {run_root}")
+            run_manifest = json_load(run_manifest_path)
+            self._validate_resume_manifest(
+                run_manifest=run_manifest,
+                run_id=run_id,
+                scenes=scenes,
+                seeds=seeds,
+                tracks=selected_tracks,
+                include_holdout=include_holdout,
+                style_pack_id=style_pack_id,
+                protocol_versions=protocol_versions,
+                reuse_backgrounds_from=reuse_backgrounds_from,
+            )
+            cases = self._load_cases(
+                run_root,
+                scenes,
+                seeds,
+                selected_tracks,
+                style_pack_id,
+            )
+            resumed_at = utc_now()
+            run_manifest.setdefault("resume_events", []).append(
+                {
+                    "resumed_at": resumed_at,
+                    "previous_status": run_manifest.get("status"),
+                    "previous_error": run_manifest.get("error"),
+                }
+            )
+            run_manifest["status"] = "running"
+            run_manifest["gateway_health"] = gateway_health
+            run_manifest.setdefault("execution_attempts", []).append(execution_attempt)
+            run_manifest.pop("failed_at", None)
+            run_manifest.pop("error", None)
+            for case in cases:
+                case.manifest.setdefault("resume_events", []).append(
+                    {
+                        "resumed_at": resumed_at,
+                        "previous_status": case.manifest.get("status"),
+                        "previous_error": case.manifest.get("run_error"),
+                    }
+                )
+                case.manifest["status"] = "running"
+                case.manifest.pop("failed_at", None)
+                case.manifest.pop("run_error", None)
+                write_json(case.manifest_path, case.manifest)
+            write_json(run_manifest_path, run_manifest)
+        else:
+            if run_root.exists():
+                raise FileExistsError(f"run directory already exists: {run_root}")
+            run_root.mkdir(parents=True)
+            run_manifest = {
+                "schema_version": 2,
+                "run_id": run_id,
+                "status": "running",
+                "started_at": utc_now(),
+                "corpus": {
+                    "path": self.corpus_path.relative_to(REPO_ROOT).as_posix(),
+                    "sha256": sha256_path(self.corpus_path),
+                },
+                "styles": {
+                    "path": self.style_path.relative_to(REPO_ROOT).as_posix(),
+                    "sha256": sha256_path(self.style_path),
+                },
+                "reference_session_id": self.corpus.reference_session_id,
+                "scene_ids": [scene.scene_id for scene in scenes],
+                "seeds": list(seeds),
+                "tracks": list(selected_tracks),
+                "style_pack_override": style_pack_id,
+                "background_source_run_id": reuse_backgrounds_from,
+                "holdouts_included": include_holdout,
+                "batch_contract": {
+                    "exact_seed_count": 4,
+                    "winner_selection": False,
+                    "fallback_generation": False,
+                },
+                "prompt_protocol_version": run_protocol_version,
+                "prompt_protocol_versions": protocol_versions,
+                "gateway_health": gateway_health,
+                "execution_attempts": [execution_attempt],
+                "cases": [],
+            }
+            write_json(run_manifest_path, run_manifest)
 
-        cases = self._initialize_cases(
-            run_root,
-            scenes,
-            seeds,
-            selected_tracks,
-            style_pack_id,
-        )
-        run_manifest["cases"] = [
-            case.manifest_path.relative_to(run_root).as_posix() for case in cases
-        ]
-        write_json(run_manifest_path, run_manifest)
+            cases = self._initialize_cases(
+                run_root,
+                scenes,
+                seeds,
+                selected_tracks,
+                style_pack_id,
+            )
+            run_manifest["cases"] = [
+                case.manifest_path.relative_to(run_root).as_posix() for case in cases
+            ]
+            write_json(run_manifest_path, run_manifest)
 
         try:
+            if reuse_backgrounds_from is not None:
+                source_root = self.output_root / reuse_backgrounds_from
+                if source_root.resolve() == run_root.resolve():
+                    raise ValueError("a run cannot reuse its own backgrounds")
+                self._reuse_backgrounds(
+                    cases,
+                    run_root,
+                    source_root,
+                    reuse_backgrounds_from,
+                )
             self._background_stage(cases, run_root)
             self._component_stage(cases, run_root)
             self._variant_stage(cases, run_root)
@@ -1262,6 +1447,124 @@ class StagedImageRunner:
         run_manifest["completed_at"] = utc_now()
         write_json(run_manifest_path, run_manifest)
         return run_root
+
+    def _validate_resume_manifest(
+        self,
+        *,
+        run_manifest: dict[str, Any],
+        run_id: str,
+        scenes: Sequence[SceneSpec],
+        seeds: Sequence[int],
+        tracks: Sequence[str],
+        include_holdout: bool,
+        style_pack_id: str | None,
+        protocol_versions: dict[str, str],
+        reuse_backgrounds_from: str | None,
+    ) -> None:
+        if run_manifest.get("status") == "complete":
+            raise ValueError("a complete run cannot be resumed")
+        expected: dict[str, Any] = {
+            "run_id": run_id,
+            "scene_ids": [scene.scene_id for scene in scenes],
+            "seeds": list(seeds),
+            "tracks": list(tracks),
+            "style_pack_override": style_pack_id,
+            "background_source_run_id": reuse_backgrounds_from,
+            "holdouts_included": include_holdout,
+            "reference_session_id": self.corpus.reference_session_id,
+            "prompt_protocol_versions": protocol_versions,
+        }
+        mismatches = [
+            key for key, value in expected.items() if run_manifest.get(key) != value
+        ]
+        if run_manifest.get("corpus", {}).get("sha256") != sha256_path(
+            self.corpus_path
+        ):
+            mismatches.append("corpus.sha256")
+        if run_manifest.get("styles", {}).get("sha256") != sha256_path(self.style_path):
+            mismatches.append("styles.sha256")
+        expected_cases = [
+            f"{scene.scene_id}/seed-{seed}/manifest.json"
+            for scene in scenes
+            for seed in seeds
+        ]
+        if run_manifest.get("cases") != expected_cases:
+            mismatches.append("cases")
+        if mismatches:
+            raise ValueError(
+                "resume arguments or source artifacts differ from the frozen run: "
+                + ", ".join(sorted(set(mismatches)))
+            )
+
+    def _load_cases(
+        self,
+        run_root: Path,
+        scenes: Sequence[SceneSpec],
+        seeds: Sequence[int],
+        tracks: Sequence[str],
+        style_pack_id: str | None,
+    ) -> list[CaseState]:
+        cases: list[CaseState] = []
+        for scene in scenes:
+            style = self.styles[style_pack_id or scene.style_pack_id]
+            for seed in seeds:
+                directory = run_root / scene.scene_id / f"seed-{seed}"
+                manifest_path = directory / "manifest.json"
+                if not manifest_path.is_file():
+                    raise FileNotFoundError(
+                        f"resume case manifest is missing: {manifest_path}"
+                    )
+                manifest = json_load(manifest_path)
+                resolved_by_subject: dict[str, list[ResolvedReference]] = {}
+                reference_manifest: dict[str, list[dict[str, Any]]] = {}
+                for subject in scene.subjects:
+                    resolved = [
+                        self.resolver.resolve(
+                            self.corpus.reference_session_id,
+                            reference_id,
+                        )
+                        for reference_id in subject.reference_ids
+                    ]
+                    resolved_by_subject[subject.character_id] = resolved
+                    reference_manifest[subject.character_id] = [
+                        item.manifest_value(self.resolver.runtime_root)
+                        for item in resolved
+                    ]
+                expected_values = {
+                    "scene_id": scene.scene_id,
+                    "seed": seed,
+                    "tracks": list(tracks),
+                    "scene_spec_sha256": sha256_text(
+                        scene.model_dump_json(exclude_none=True)
+                    ),
+                    "style_pack_sha256": sha256_text(style.model_dump_json()),
+                    "prompt_protocol_version": PROMPT_PROTOCOL_VERSIONS[
+                        scene.presentation
+                    ],
+                    "references": reference_manifest,
+                }
+                mismatches = [
+                    key
+                    for key, value in expected_values.items()
+                    if manifest.get(key) != value
+                ]
+                if mismatches:
+                    raise ValueError(
+                        f"resume case differs from frozen inputs ({scene.scene_id}/"
+                        f"{seed}): {', '.join(sorted(mismatches))}"
+                    )
+                cases.append(
+                    CaseState(
+                        scene=scene,
+                        style=style,
+                        seed=seed,
+                        directory=directory,
+                        manifest_path=manifest_path,
+                        manifest=manifest,
+                        references=resolved_by_subject,
+                    )
+                )
+        return cases
 
     def _initialize_cases(
         self,
@@ -1333,11 +1636,102 @@ class StagedImageRunner:
         for case in cases:
             write_json(case.manifest_path, case.manifest)
 
+    def _reuse_backgrounds(
+        self,
+        cases: Sequence[CaseState],
+        run_root: Path,
+        source_root: Path,
+        source_run_id: str,
+    ) -> None:
+        if not source_root.is_dir() or not (source_root / "run.json").is_file():
+            raise FileNotFoundError(
+                f"background source run does not exist: {source_root}"
+            )
+        for case in cases:
+            prompt = self._background_prompt(case)
+            stage_seed = derived_seed(case.seed, case.scene.scene_id, "background")
+            existing = case.manifest.get("stages", {}).get("background", {})
+            if (
+                existing.get("prompt_sha256") == sha256_text(prompt)
+                and existing.get("seed") == stage_seed
+                and artifact_matches(existing.get("artifact"), run_root)
+            ):
+                continue
+            source_manifest_path = (
+                source_root
+                / case.scene.scene_id
+                / f"seed-{case.seed}"
+                / "manifest.json"
+            )
+            if not source_manifest_path.is_file():
+                raise FileNotFoundError(
+                    f"source background case is missing: {source_manifest_path}"
+                )
+            source_manifest = json_load(source_manifest_path)
+            source_stage = source_manifest.get("stages", {}).get("background", {})
+            if (
+                source_manifest.get("scene_id") != case.scene.scene_id
+                or source_manifest.get("seed") != case.seed
+            ):
+                raise ValueError(
+                    f"source background case identity mismatch: {source_manifest_path}"
+                )
+            if (
+                source_stage.get("prompt_sha256") != sha256_text(prompt)
+                or source_stage.get("seed") != stage_seed
+                or not artifact_matches(source_stage.get("artifact"), source_root)
+            ):
+                raise ValueError(
+                    "source background does not match the current plate contract: "
+                    f"{source_manifest_path}"
+                )
+            source_artifact = source_stage["artifact"]
+            source_path = (
+                source_root / str(source_artifact["relative_path"])
+            ).resolve()
+            destination = case.directory / "background.png"
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            started = time.monotonic()
+            shutil.copy2(source_path, destination)
+            destination_artifact = artifact_metadata(destination, run_root)
+            if destination_artifact["sha256"] != source_artifact["sha256"]:
+                raise ValueError(
+                    f"reused background hash changed while copying: {destination}"
+                )
+            case.manifest["stages"]["background"] = {
+                "operation": "frozen background reuse",
+                "source_run_id": source_run_id,
+                "source_case_manifest": source_manifest_path.relative_to(
+                    source_root
+                ).as_posix(),
+                "source_artifact_sha256": source_artifact["sha256"],
+                "prompt": prompt,
+                "prompt_sha256": sha256_text(prompt),
+                "seed": stage_seed,
+                "duration_seconds": round(time.monotonic() - started, 3),
+                "response_headers": {},
+                "artifact": destination_artifact,
+            }
+            write_json(case.manifest_path, case.manifest)
+
     def _background_stage(self, cases: Sequence[CaseState], run_root: Path) -> None:
         print(f"background stage: {len(cases)} jobs", file=sys.stderr, flush=True)
         for index, case in enumerate(cases, start=1):
             prompt = self._background_prompt(case)
             stage_seed = derived_seed(case.seed, case.scene.scene_id, "background")
+            existing = case.manifest.get("stages", {}).get("background", {})
+            if (
+                existing.get("prompt_sha256") == sha256_text(prompt)
+                and existing.get("seed") == stage_seed
+                and artifact_matches(existing.get("artifact"), run_root)
+            ):
+                print(
+                    f"background {index}/{len(cases)} reused: "
+                    f"{case.scene.scene_id} {case.seed}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                continue
             started = time.monotonic()
             data, headers = self.client.post_image(
                 "/generate",
@@ -1391,26 +1785,67 @@ class StagedImageRunner:
         )
 
     def _component_stage(self, cases: Sequence[CaseState], run_root: Path) -> None:
+        concurrency = getattr(self, "max_workers", 4)
+
+        def is_complete(case: CaseState, subject: SubjectSpec) -> bool:
+            record = (
+                case.manifest.get("stages", {})
+                .get("components", {})
+                .get(subject.character_id, {})
+            )
+            if record.get("component_mode") != subject.component_mode:
+                return False
+            if record.get("reference_order") != subject.reference_ids:
+                return False
+            if subject.component_mode == "qwen_edit":
+                prompt = self._component_prompt(case, subject)
+                expected_seed = derived_seed(
+                    case.seed,
+                    case.scene.scene_id,
+                    "component",
+                    subject.character_id,
+                )
+                if record.get("prompt_sha256") != sha256_text(prompt):
+                    return False
+                if record.get("seed") != expected_seed:
+                    return False
+            return artifact_matches(record.get("artifact"), run_root)
+
         job_count = sum(
-            subject.component_mode == "qwen_edit"
+            subject.component_mode == "qwen_edit" and not is_complete(case, subject)
             for case in cases
             for subject in case.scene.subjects
         )
         cutout_count = sum(
             subject.component_mode == "reference_cutout"
+            and not is_complete(case, subject)
             for case in cases
             for subject in case.scene.subjects
         )
         print(
-            f"component stage: {job_count} Qwen jobs on four workers, "
+            f"component stage: {job_count} Qwen jobs at "
+            f"concurrency {concurrency}, "
             f"{cutout_count} reviewed cutouts",
             file=sys.stderr,
             flush=True,
         )
-        futures: dict[Future[Any], tuple[CaseState, SubjectSpec, str, int, float]] = {}
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        futures: dict[
+            Future[Any],
+            tuple[CaseState, SubjectSpec, str, int, float, list[dict[str, Any]]],
+        ] = {}
+        request_index = 0
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
             for case in cases:
                 for subject in case.scene.subjects:
+                    reference_input_paths, reference_input_records = (
+                        prepare_component_reference_inputs(
+                            case,
+                            subject,
+                            run_root,
+                        )
+                    )
+                    if is_complete(case, subject):
+                        continue
                     if subject.component_mode == "reference_cutout":
                         started = time.monotonic()
                         reference = case.references[subject.character_id][0]
@@ -1418,7 +1853,7 @@ class StagedImageRunner:
                             case.directory,
                             subject.character_id,
                         )
-                        save_response_image(reference.path.read_bytes(), path)
+                        save_response_image(reference_input_paths[0].read_bytes(), path)
                         component_stages = case.manifest["stages"].setdefault(
                             "components", {}
                         )
@@ -1428,6 +1863,7 @@ class StagedImageRunner:
                             "prompt_sha256": None,
                             "seed": None,
                             "reference_order": [reference.reference_id],
+                            "reference_inputs": reference_input_records,
                             "duration_seconds": round(time.monotonic() - started, 3),
                             "response_headers": {},
                             "artifact": artifact_metadata(path, run_root),
@@ -1444,7 +1880,7 @@ class StagedImageRunner:
                     references = case.references[subject.character_id]
                     payload: dict[str, Any] = {
                         "prompt": prompt,
-                        "image_base64": encode_image(references[0].path),
+                        "image_base64": encode_image(reference_input_paths[0]),
                         "seed": stage_seed,
                         "steps": 28,
                         "cfg": 4.0,
@@ -1453,7 +1889,13 @@ class StagedImageRunner:
                         ),
                     }
                     if len(references) == 2:
-                        payload["image2_base64"] = encode_image(references[1].path)
+                        payload["image2_base64"] = encode_image(
+                            reference_input_paths[1]
+                        )
+                    worker = self._worker_target(request_index)
+                    request_index += 1
+                    if worker:
+                        payload["worker"] = worker
                     started = time.monotonic()
                     future = executor.submit(
                         self.client.post_image,
@@ -1466,10 +1908,18 @@ class StagedImageRunner:
                         prompt,
                         stage_seed,
                         started,
+                        reference_input_records,
                     )
             failures: list[str] = []
             for future in as_completed(futures):
-                case, subject, prompt, stage_seed, started = futures[future]
+                (
+                    case,
+                    subject,
+                    prompt,
+                    stage_seed,
+                    started,
+                    reference_input_records,
+                ) = futures[future]
                 try:
                     data, headers = future.result()
                     path = _sprite_component_path(
@@ -1489,6 +1939,7 @@ class StagedImageRunner:
                             item.reference_id
                             for item in case.references[subject.character_id]
                         ],
+                        "reference_inputs": reference_input_records,
                         "duration_seconds": round(time.monotonic() - started, 3),
                         "response_headers": headers,
                         "artifact": artifact_metadata(path, run_root),
@@ -1516,22 +1967,32 @@ class StagedImageRunner:
                 f"{subject.display_name}."
             )
         if case.scene.presentation == "visual_novel":
+            if subject.facing_control == "prompt":
+                orientation = (
+                    f"Orientation: Place the sprite for the {subject.screen_side} "
+                    f"side of the screen, with body and face turned slightly toward "
+                    f"screen {subject.facing}; keep the face readable to the viewer."
+                )
+            else:
+                orientation = (
+                    f"Orientation: Image 1 has already been prepared to face screen "
+                    f"{subject.facing} from the {subject.screen_side} stage slot. "
+                    "Preserve its body and face direction exactly; do not turn or "
+                    "mirror the character."
+                )
             return "\n".join(
                 (
                     mapping,
                     f"Primary edit: Create the neutral reusable visual-novel sprite "
                     f"anchor for {subject.display_name} on a plain neutral gray "
                     "studio backdrop.",
-                    f"Orientation: Place the sprite for the {subject.screen_side} "
-                    f"side of the screen, with body and face turned slightly toward "
-                    f"screen {subject.facing}; keep the face readable to the viewer.",
+                    orientation,
                     f"Neutral pose: {subject.pose_prompt}",
                     f"Identity to preserve: {subject.identity_prompt}",
                     f"Style: {case.style.visual_language} {case.style.component_direction}",
-                    f"Composition: Only {subject.display_name} appears. Use a stable "
-                    "three-quarter-body crop from head through upper thighs, with "
-                    "comfortable neutral margin around the complete "
-                    "visible silhouette and any equipment.",
+                    f"Composition: Only {subject.display_name} appears. Follow the "
+                    "framing specified by the neutral pose, with comfortable neutral "
+                    "margin around the complete visible silhouette and any equipment.",
                     "Continuity: Neutral conversational expression and restrained "
                     "gesture; avoid dramatic action, foreshortening, or camera tilt.",
                 )
@@ -1551,16 +2012,51 @@ class StagedImageRunner:
         )
 
     def _variant_stage(self, cases: Sequence[CaseState], run_root: Path) -> None:
+        concurrency = getattr(self, "max_workers", 4)
+
+        def is_complete(
+            case: CaseState,
+            subject: SubjectSpec,
+            variant: SpriteVariantSpec,
+        ) -> bool:
+            record = (
+                case.manifest.get("stages", {})
+                .get("variants", {})
+                .get(subject.character_id, {})
+                .get(variant.variant_id, {})
+            )
+            anchor_path = _sprite_component_path(
+                case.directory,
+                subject.character_id,
+            )
+            if not anchor_path.is_file():
+                return False
+            prompt = self._variant_prompt(case, subject, variant)
+            expected_seed = derived_seed(
+                case.seed,
+                case.scene.scene_id,
+                "variant",
+                subject.character_id,
+                variant.variant_id,
+            )
+            return (
+                record.get("anchor_artifact_sha256") == sha256_path(anchor_path)
+                and record.get("prompt_sha256") == sha256_text(prompt)
+                and record.get("seed") == expected_seed
+                and artifact_matches(record.get("artifact"), run_root)
+            )
+
         jobs = [
             (case, subject, variant)
             for case in cases
             for subject in case.scene.subjects
             for variant in subject.variants
+            if not is_complete(case, subject, variant)
         ]
         if not jobs:
             return
         print(
-            f"sprite variant stage: {len(jobs)} Qwen jobs on four workers",
+            f"sprite variant stage: {len(jobs)} Qwen jobs at concurrency {concurrency}",
             file=sys.stderr,
             flush=True,
         )
@@ -1568,8 +2064,8 @@ class StagedImageRunner:
             Future[Any],
             tuple[CaseState, SubjectSpec, SpriteVariantSpec, str, int, float],
         ] = {}
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            for case, subject, variant in jobs:
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            for job_index, (case, subject, variant) in enumerate(jobs):
                 prompt = self._variant_prompt(case, subject, variant)
                 stage_seed = derived_seed(
                     case.seed,
@@ -1593,6 +2089,9 @@ class StagedImageRunner:
                         f"{variant.variant_id}"
                     ),
                 }
+                worker = self._worker_target(job_index)
+                if worker:
+                    payload["worker"] = worker
                 started = time.monotonic()
                 future = executor.submit(
                     self.client.post_image,
@@ -1667,43 +2166,88 @@ class StagedImageRunner:
                 f"Small pose adjustment: {variant.pose_adjustment_prompt}",
                 "Continuity: Preserve identity, age, body type, facial structure, "
                 "hair, clothing, equipment, screen-facing direction, three-quarter "
-                "crop, camera, scale, linework, lighting, and neutral backdrop.",
+                "or complete-body anchor crop, camera, scale, linework, lighting, "
+                "and neutral backdrop.",
                 "Scope: Keep the adjustment restrained and conversational. Do not "
                 "add or remove a character, prop, limb, costume element, or text.",
             )
         )
 
     def _matte_stage(self, cases: Sequence[CaseState], run_root: Path) -> None:
-        job_count = sum(len(_case_sprite_assets(case)) for case in cases)
+        concurrency = getattr(self, "max_workers", 4)
+
+        def stage_record(
+            case: CaseState,
+            subject: SubjectSpec,
+            variant_id: str,
+        ) -> dict[str, Any]:
+            if variant_id == BASE_VARIANT_ID:
+                return (
+                    case.manifest.get("stages", {})
+                    .get("mattes", {})
+                    .get(subject.character_id, {})
+                )
+            return (
+                case.manifest.get("stages", {})
+                .get("variant_mattes", {})
+                .get(subject.character_id, {})
+                .get(variant_id, {})
+            )
+
+        jobs = [
+            (case, subject, variant_id, component_path)
+            for case in cases
+            for subject, variant_id, component_path in _case_sprite_assets(case)
+            if not (
+                component_path.is_file()
+                and stage_record(case, subject, variant_id).get(
+                    "component_artifact_sha256"
+                )
+                == sha256_path(component_path)
+                and artifact_matches(
+                    stage_record(case, subject, variant_id).get("mask_artifact"),
+                    run_root,
+                )
+                and artifact_matches(
+                    stage_record(case, subject, variant_id).get("rgba_artifact"),
+                    run_root,
+                )
+            )
+        ]
+        job_count = len(jobs)
         print(f"matte stage: {job_count} BiRefNet jobs", file=sys.stderr, flush=True)
         futures: dict[
             Future[Any],
             tuple[CaseState, SubjectSpec, str, Path, float],
         ] = {}
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            for case in cases:
-                for subject, variant_id, component_path in _case_sprite_assets(case):
-                    payload = {
-                        "image_base64": encode_image(component_path),
-                        "filename_prefix": slug(
-                            f"matte_{case.scene.scene_id}_{subject.character_id}_"
-                            f"{variant_id}"
-                        ),
-                        "model_name": "birefnet.safetensors",
-                    }
-                    started = time.monotonic()
-                    future = executor.submit(
-                        self.client.post_image,
-                        "/prototype/matte/birefnet",
-                        payload,
-                    )
-                    futures[future] = (
-                        case,
-                        subject,
-                        variant_id,
-                        component_path,
-                        started,
-                    )
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            for job_index, (case, subject, variant_id, component_path) in enumerate(
+                jobs
+            ):
+                payload = {
+                    "image_base64": encode_image(component_path),
+                    "filename_prefix": slug(
+                        f"matte_{case.scene.scene_id}_{subject.character_id}_"
+                        f"{variant_id}"
+                    ),
+                    "model_name": "birefnet.safetensors",
+                }
+                worker = self._worker_target(job_index)
+                if worker:
+                    payload["worker"] = worker
+                started = time.monotonic()
+                future = executor.submit(
+                    self.client.post_image,
+                    "/prototype/matte/birefnet",
+                    payload,
+                )
+                futures[future] = (
+                    case,
+                    subject,
+                    variant_id,
+                    component_path,
+                    started,
+                )
             failures: list[str] = []
             for future in as_completed(futures):
                 case, subject, variant_id, component_path, started = futures[future]
@@ -1735,6 +2279,7 @@ class StagedImageRunner:
                         "model": "BiRefNet",
                         "model_file": "birefnet.safetensors",
                         "variant_id": variant_id,
+                        "component_artifact_sha256": sha256_path(component_path),
                         "duration_seconds": round(time.monotonic() - started, 3),
                         "response_headers": headers,
                         "validation": metrics,
@@ -1851,18 +2396,21 @@ class StagedImageRunner:
         run_root: Path,
         tracks: Sequence[str],
     ) -> None:
+        concurrency = getattr(self, "max_workers", 4)
         requested = [track for track in tracks if track != "pixel"]
         if not requested:
             return
         if any(case.scene.presentation == "visual_novel" for case in cases):
             raise ValueError("visual-novel scenes cannot use whole-scene edit tracks")
         print(
-            f"final stage: {len(cases) * len(requested)} Qwen jobs on four workers",
+            f"final stage: {len(cases) * len(requested)} Qwen jobs at "
+            f"concurrency {concurrency}",
             file=sys.stderr,
             flush=True,
         )
         futures: dict[Future[Any], tuple[CaseState, str, str, int, float]] = {}
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        job_index = 0
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
             for case in cases:
                 pixel_path = case.directory / "final" / "pixel.png"
                 for track in requested:
@@ -1901,6 +2449,10 @@ class StagedImageRunner:
                                 f"staged_global_{case.scene.scene_id}_{case.seed}"
                             ),
                         }
+                    worker = self._worker_target(job_index)
+                    job_index += 1
+                    if worker:
+                        payload["worker"] = worker
                     started = time.monotonic()
                     future = executor.submit(self.client.post_image, endpoint, payload)
                     futures[future] = (case, track, prompt, stage_seed, started)
@@ -2196,6 +2748,16 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--tracks", type=parse_tracks, default=DEFAULT_TRACKS)
     run.add_argument("--run-id")
     run.add_argument("--dry-run", action="store_true")
+    run.add_argument("--resume", action="store_true")
+    run.add_argument("--reuse-backgrounds-from")
+    run.add_argument("--max-workers", type=int, choices=range(1, 5), default=4)
+    run.add_argument(
+        "--worker",
+        action="append",
+        dest="workers",
+        type=int,
+        choices=range(4),
+    )
     run.add_argument("--include-holdout", action="store_true")
     run.add_argument("--style-pack")
     run.add_argument("--gateway-url", default=DEFAULT_GATEWAY_URL)
@@ -2227,6 +2789,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             runtime_root=arguments.runtime_root,
             output_root=arguments.output_root,
             gateway_url=arguments.gateway_url,
+            max_workers=arguments.max_workers,
+            worker_indices=arguments.workers,
         )
         result = runner.run(
             scene_ids=arguments.scenes,
@@ -2234,6 +2798,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             tracks=arguments.tracks,
             run_id=arguments.run_id,
             dry_run=arguments.dry_run,
+            resume=arguments.resume,
+            reuse_backgrounds_from=arguments.reuse_backgrounds_from,
             include_holdout=arguments.include_holdout,
             style_pack_id=arguments.style_pack,
         )
