@@ -23,7 +23,10 @@ from app.schemas.narrator import VisualNovelPage
 
 CARD_WIDTH = 1024
 CARD_HEIGHT = 576
-_RENDERER_VERSION = "classic-adv-v2-segmented-stages"
+_RENDERER_VERSION = "classic-adv-v3-verified-decks"
+_MANIFEST_VERSION = 2
+_SUPPORTED_MANIFEST_VERSIONS = frozenset({1, _MANIFEST_VERSION})
+_SHA256_LENGTH = 64
 _DEFAULT_REGULAR_FONT = Path(
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 )
@@ -117,27 +120,34 @@ class VisualNovelCardRenderer:
             ))
         identity = {
             "renderer": _RENDERER_VERSION,
+            "card_size": [CARD_WIDTH, CARD_HEIGHT],
+            "fonts": {
+                "regular_sha256": _file_sha256(self.regular_font_path),
+                "bold_sha256": _file_sha256(self.bold_font_path),
+            },
             "sections": [
                 {
                     "stage_sha256": stage_sha256,
+                    "used_neutral_stage": used_neutral,
                     "pages": [
                         page.model_dump(mode="json") for page in physical_pages
                     ],
                 }
-                for _stage, stage_sha256, _used_neutral, physical_pages
+                for _stage, stage_sha256, used_neutral, physical_pages
                 in resolved_sections
             ],
         }
-        deck_id = hashlib.sha256(
-            json.dumps(
-                identity,
-                sort_keys=True,
-                separators=(",", ":"),
-                ensure_ascii=True,
-            ).encode("utf-8")
-        ).hexdigest()
+        deck_id = _canonical_json_sha256(identity)
         deck_dir = self.deck_root / deck_id
+        if deck_dir.is_symlink() or (
+            deck_dir.exists() and not deck_dir.is_dir()
+        ):
+            raise RuntimeError("visual-novel deck path is not a safe directory")
         manifest_path = deck_dir / "manifest.json"
+        if manifest_path.is_symlink() or (
+            manifest_path.exists() and not manifest_path.is_file()
+        ):
+            raise RuntimeError("visual-novel manifest path is not a safe file")
         if manifest_path.is_file():
             cached = self.load_deck(deck_id)
             if cached is not None:
@@ -149,7 +159,16 @@ class VisualNovelCardRenderer:
             for _stage, _sha256, _used_neutral, physical_pages
             in resolved_sections
         )
+        for index in range(1, count + 1):
+            output_path = deck_dir / f"page-{index:03d}.png"
+            if output_path.is_symlink() or (
+                output_path.exists() and not output_path.is_file()
+            ):
+                raise RuntimeError(
+                    "visual-novel card path is not a safe file"
+                )
         cards: list[VisualNovelCard] = []
+        card_sha256s: list[str] = []
         physical_pages: list[VisualNovelPage] = []
         index = 0
         for stage, _stage_sha256, _used_neutral, section_pages in resolved_sections:
@@ -168,6 +187,7 @@ class VisualNovelCardRenderer:
                     f".page-{index:03d}.{uuid.uuid4().hex}.tmp"
                 )
                 card_image.save(temporary, format="PNG", optimize=False)
+                card_sha256s.append(_file_sha256(temporary))
                 temporary.replace(output_path)
                 cards.append(VisualNovelCard(
                     index=index,
@@ -185,8 +205,9 @@ class VisualNovelCardRenderer:
             in resolved_sections
         )
         manifest = {
-            "version": 1,
+            "version": _MANIFEST_VERSION,
             "deck_id": deck_id,
+            "identity": identity,
             "used_neutral_stage": used_neutral,
             "transcript": transcript,
             "cards": [
@@ -197,6 +218,7 @@ class VisualNovelCardRenderer:
                     "speaker": card.speaker,
                     "text": card.text,
                     "filename": card.image_path.name,
+                    "sha256": card_sha256s[card.index - 1],
                 }
                 for card in cards
             ],
@@ -223,44 +245,140 @@ class VisualNovelCardRenderer:
         )
 
     def load_deck(self, deck_id: str) -> VisualNovelDeck | None:
+        """Load one fail-closed persisted deck.
+
+        Version 1 is a read-only legacy policy: its original manifest did not
+        retain canonical identity inputs or card hashes, so it is accepted only
+        after exact structural and decoded-PNG validation. Version 2 additionally
+        requires this renderer contract, re-hashes the canonical render identity,
+        and verifies every card digest. Its font digests identify the historical
+        render inputs; they need not match fonts installed after a restart.
+        Unsupported versions and renderers are not migrated or guessed.
+        """
+
         clean_id = str(deck_id or "").strip().lower()
         if (
-            len(clean_id) != 64
+            len(clean_id) != _SHA256_LENGTH
             or any(character not in "0123456789abcdef" for character in clean_id)
         ):
             return None
+        try:
+            return self._load_validated_deck(clean_id)
+        except Exception:
+            # Persisted files are a restart boundary. Malformed JSON, odd path
+            # types, Pillow decoder failures, and unexpected legacy values all
+            # fail closed instead of escaping through a Discord callback.
+            return None
+
+    def _load_validated_deck(self, clean_id: str) -> VisualNovelDeck | None:
         deck_dir = self.deck_root / clean_id
         manifest_path = deck_dir / "manifest.json"
-        try:
-            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, TypeError):
+        if (
+            not deck_dir.is_dir()
+            or deck_dir.is_symlink()
+            or not manifest_path.is_file()
+            or manifest_path.is_symlink()
+        ):
             return None
-        if payload.get("deck_id") != clean_id:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if type(payload) is not dict:
             return None
+
+        version = payload.get("version")
+        if type(version) is not int or version not in _SUPPORTED_MANIFEST_VERSIONS:
+            return None
+        expected_manifest_keys = {
+            "version",
+            "deck_id",
+            "used_neutral_stage",
+            "transcript",
+            "cards",
+        }
+        if version == _MANIFEST_VERSION:
+            expected_manifest_keys.add("identity")
+        if set(payload) != expected_manifest_keys:
+            return None
+        if type(payload["deck_id"]) is not str or payload["deck_id"] != clean_id:
+            return None
+        if type(payload["used_neutral_stage"]) is not bool:
+            return None
+        if type(payload["transcript"]) is not str:
+            return None
+
+        raw_cards = payload["cards"]
+        if type(raw_cards) is not list or not raw_cards:
+            return None
+        expected_card_keys = {
+            "index",
+            "count",
+            "kind",
+            "speaker",
+            "text",
+            "filename",
+        }
+        if version == _MANIFEST_VERSION:
+            expected_card_keys.add("sha256")
+
         cards: list[VisualNovelCard] = []
-        for raw in payload.get("cards", []):
-            filename = str(raw.get("filename") or "")
-            if Path(filename).name != filename or not filename.endswith(".png"):
+        pages: list[VisualNovelPage] = []
+        count = len(raw_cards)
+        for expected_index, raw in enumerate(raw_cards, start=1):
+            if type(raw) is not dict or set(raw) != expected_card_keys:
+                return None
+            if type(raw["index"]) is not int or raw["index"] != expected_index:
+                return None
+            if type(raw["count"]) is not int or raw["count"] != count:
+                return None
+            if not _valid_page_fields(
+                kind=raw["kind"],
+                speaker=raw["speaker"],
+                text=raw["text"],
+            ):
+                return None
+            filename = raw["filename"]
+            canonical_filename = f"page-{expected_index:03d}.png"
+            if type(filename) is not str or filename != canonical_filename:
                 return None
             image_path = deck_dir / filename
-            if not image_path.is_file():
+            expected_sha256 = raw.get("sha256")
+            if version == _MANIFEST_VERSION and not _is_sha256(expected_sha256):
+                return None
+            if not _valid_card_png(
+                image_path,
+                expected_sha256=(
+                    expected_sha256 if version == _MANIFEST_VERSION else None
+                ),
+            ):
                 return None
             cards.append(VisualNovelCard(
-                index=int(raw["index"]),
-                count=int(raw["count"]),
-                kind=str(raw["kind"]),
-                speaker=str(raw.get("speaker") or ""),
-                text=str(raw["text"]),
+                index=raw["index"],
+                count=raw["count"],
+                kind=raw["kind"],
+                speaker=raw["speaker"],
+                text=raw["text"],
                 image_path=image_path,
             ))
-        if not cards:
+            pages.append(VisualNovelPage(
+                kind=raw["kind"],
+                speaker=raw["speaker"],
+                text=raw["text"],
+            ))
+
+        if payload["transcript"] != _transcript(pages):
+            return None
+        if version == _MANIFEST_VERSION and not _valid_v2_identity(
+            payload["identity"],
+            deck_id=clean_id,
+            pages=pages,
+            used_neutral_stage=payload["used_neutral_stage"],
+        ):
             return None
         return VisualNovelDeck(
             deck_id=clean_id,
             cards=tuple(cards),
-            transcript=str(payload.get("transcript") or ""),
+            transcript=payload["transcript"],
             manifest_path=manifest_path,
-            used_neutral_stage=bool(payload.get("used_neutral_stage", False)),
+            used_neutral_stage=payload["used_neutral_stage"],
         )
 
     def _fonts(self) -> "_CardFonts":
@@ -277,6 +395,153 @@ class VisualNovelCardRenderer:
             speaker=ImageFont.truetype(str(self.bold_font_path), 25),
             counter=ImageFont.truetype(str(self.regular_font_path), 16),
         )
+
+
+def _canonical_json_sha256(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) == _SHA256_LENGTH
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _valid_page_fields(*, kind: object, speaker: object, text: object) -> bool:
+    if type(kind) is not str or kind not in {"narration", "dialogue"}:
+        return False
+    if type(speaker) is not str or len(speaker) > 80:
+        return False
+    if type(text) is not str or not text.strip() or len(text) > 4_000:
+        return False
+    if speaker != speaker.strip() or text != text.strip():
+        return False
+    if kind == "narration":
+        return speaker == ""
+    return bool(speaker.strip())
+
+
+def _valid_card_png(path: Path, *, expected_sha256: str | None) -> bool:
+    if not path.is_file() or path.is_symlink():
+        return False
+    try:
+        data = path.read_bytes()
+        if (
+            expected_sha256 is not None
+            and hashlib.sha256(data).hexdigest() != expected_sha256
+        ):
+            return False
+        with Image.open(BytesIO(data)) as opened:
+            if not _valid_static_card_image(opened):
+                return False
+            opened.verify()
+        # ``verify`` checks container integrity without decoding pixel data.
+        # Reopen and load so truncated IDAT streams also fail closed.
+        with Image.open(BytesIO(data)) as opened:
+            if not _valid_static_card_image(opened):
+                return False
+            opened.load()
+    except Exception:
+        return False
+    return True
+
+
+def _valid_static_card_image(image: Image.Image) -> bool:
+    return (
+        image.format == "PNG"
+        and image.mode == "RGB"
+        and image.size == (CARD_WIDTH, CARD_HEIGHT)
+        and not bool(getattr(image, "is_animated", False))
+        and int(getattr(image, "n_frames", 1)) == 1
+    )
+
+
+def _valid_v2_identity(
+    identity: object,
+    *,
+    deck_id: str,
+    pages: Sequence[VisualNovelPage],
+    used_neutral_stage: bool,
+) -> bool:
+    if type(identity) is not dict or set(identity) != {
+        "renderer",
+        "card_size",
+        "fonts",
+        "sections",
+    }:
+        return False
+    if identity["renderer"] != _RENDERER_VERSION:
+        return False
+    if identity["card_size"] != [CARD_WIDTH, CARD_HEIGHT]:
+        return False
+    fonts = identity["fonts"]
+    if type(fonts) is not dict or set(fonts) != {
+        "regular_sha256",
+        "bold_sha256",
+    }:
+        return False
+    if not all(_is_sha256(value) for value in fonts.values()):
+        return False
+
+    sections = identity["sections"]
+    if type(sections) is not list or not sections:
+        return False
+    identity_pages: list[VisualNovelPage] = []
+    neutral_sections: list[bool] = []
+    for section in sections:
+        if type(section) is not dict or set(section) != {
+            "stage_sha256",
+            "used_neutral_stage",
+            "pages",
+        }:
+            return False
+        if not _is_sha256(section["stage_sha256"]):
+            return False
+        if type(section["used_neutral_stage"]) is not bool:
+            return False
+        raw_pages = section["pages"]
+        if type(raw_pages) is not list or not raw_pages:
+            return False
+        neutral_sections.append(section["used_neutral_stage"])
+        for raw_page in raw_pages:
+            if type(raw_page) is not dict or set(raw_page) != {
+                "kind",
+                "speaker",
+                "text",
+            }:
+                return False
+            if not _valid_page_fields(
+                kind=raw_page["kind"],
+                speaker=raw_page["speaker"],
+                text=raw_page["text"],
+            ):
+                return False
+            identity_pages.append(VisualNovelPage(**raw_page))
+
+    if _canonical_json_sha256(identity) != deck_id:
+        return False
+    if any(neutral_sections) != used_neutral_stage:
+        return False
+    return [page.model_dump(mode="json") for page in identity_pages] == [
+        page.model_dump(mode="json") for page in pages
+    ]
 
 
 @dataclass(frozen=True)

@@ -155,7 +155,6 @@ class TestSettingsMutation:
                 self.groups[group.name] = group
 
         engine = MagicMock()
-        engine.set_setting = AsyncMock(return_value="visual_novel")
         smap = MagicMock()
         smap.get = AsyncMock(return_value=SimpleNamespace(session_id="s"))
         tree = FakeTree()
@@ -167,7 +166,31 @@ class TestSettingsMutation:
         inter.response.send_message = AsyncMock()
         inter.followup.send = AsyncMock()
 
-        asyncio.run(command.callback(inter, "presentation_mode", "vn"))
+        async def exercise() -> None:
+            write_started = asyncio.Event()
+            release_write = asyncio.Event()
+
+            async def blocked_setting_write(*_args):
+                write_started.set()
+                await release_write.wait()
+                return "visual_novel"
+
+            engine.set_setting = AsyncMock(side_effect=blocked_setting_write)
+            command_task = asyncio.create_task(
+                command.callback(inter, "presentation_mode", "vn")
+            )
+            await asyncio.wait_for(write_started.wait(), timeout=1)
+            try:
+                inter.response.defer.assert_awaited_once_with(
+                    thinking=True,
+                    ephemeral=True,
+                )
+                inter.followup.send.assert_not_awaited()
+            finally:
+                release_write.set()
+                await command_task
+
+        asyncio.run(exercise())
 
         inter.response.defer.assert_awaited_once_with(
             thinking=True,
@@ -2428,6 +2451,44 @@ class TestVisualNovelDiscordDeck:
         )
         kwargs["attachments"][0].close()
 
+    def test_persistent_control_contains_unexpected_loader_exception(
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        deck = self._deck(tmp_path)
+        engine = SimpleNamespace(
+            load_visual_novel_deck=MagicMock(
+                side_effect=RuntimeError("malformed persisted deck")
+            ),
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=42),
+            client=SimpleNamespace(_ayoa_visual_novel_engine=engine),
+            response=SimpleNamespace(
+                edit_message=AsyncMock(),
+                send_message=AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=AsyncMock()),
+        )
+        control = bot_commands._VisualNovelControl(
+            deck_id=deck.deck_id,
+            user_id=42,
+            index=0,
+            action="n",
+        )
+
+        with caplog.at_level(logging.ERROR, logger="app.bot.commands"):
+            asyncio.run(control.callback(interaction))
+
+        interaction.response.send_message.assert_awaited_once_with(
+            "This story deck is no longer available.",
+            ephemeral=True,
+        )
+        interaction.response.edit_message.assert_not_awaited()
+        interaction.followup.send.assert_not_awaited()
+        assert "persistent deck reload failed" in caplog.text
+
     def test_private_card_posts_to_thread_and_records_restart_safe_delivery(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -2524,7 +2585,7 @@ class TestVisualNovelDiscordDeck:
         assert description.endswith("…")
         assert "  " not in description
 
-    def test_thread_tracking_exception_does_not_retry_delivery(
+    def test_thread_tracking_failure_does_not_retry_delivery(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
@@ -2552,10 +2613,9 @@ class TestVisualNovelDiscordDeck:
             "_ensure_pov_thread",
             AsyncMock(return_value=thread),
         )
-        monkeypatch.setattr(
-            bot_commands,
-            "_record_turn_message",
-            AsyncMock(side_effect=RuntimeError("tracking unavailable")),
+        smap = MagicMock()
+        smap.record_turn_message = AsyncMock(
+            side_effect=RuntimeError("tracking unavailable")
         )
         user = SimpleNamespace(id=42, send=AsyncMock())
         interaction = SimpleNamespace(channel_id=777, channel=object())
@@ -2566,11 +2626,11 @@ class TestVisualNovelDiscordDeck:
             rendered_event_ids=["evt_1"],
         )])
 
-        with caplog.at_level(logging.ERROR, logger="app.bot.commands"):
+        with caplog.at_level(logging.ERROR):
             venue, returned_thread = asyncio.run(
                 bot_commands._post_visual_novel_render(
                     inter=interaction,
-                    smap=MagicMock(),
+                    smap=smap,
                     engine=engine,
                     user=user,
                     character_id="iselle",
@@ -2584,12 +2644,14 @@ class TestVisualNovelDiscordDeck:
         assert (venue, returned_thread) == ("thread", thread)
         thread.send.assert_awaited_once()
         user.send.assert_not_awaited()
-        assert "message sent but tracking raised" in caplog.text
+        smap.record_turn_message.assert_awaited_once()
+        assert "turn-message tracking failed" in caplog.text
+        assert "message sent but tracking failed" in caplog.text
         assert "session=session" in caplog.text
         assert "Hello" not in caplog.text
         thread.send.await_args.kwargs["file"].close()
 
-    def test_dm_tracking_exception_does_not_trigger_prose_fallback(
+    def test_dm_tracking_failure_does_not_trigger_prose_fallback(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
@@ -2604,10 +2666,9 @@ class TestVisualNovelDiscordDeck:
             "_session_text_channel",
             lambda _interaction: None,
         )
-        monkeypatch.setattr(
-            bot_commands,
-            "_record_turn_message",
-            AsyncMock(side_effect=RuntimeError("tracking unavailable")),
+        smap = MagicMock()
+        smap.record_turn_message = AsyncMock(
+            side_effect=RuntimeError("tracking unavailable")
         )
         sent_message = SimpleNamespace(
             id=4321,
@@ -2625,11 +2686,11 @@ class TestVisualNovelDiscordDeck:
             rendered_event_ids=["evt_1"],
         )])
 
-        with caplog.at_level(logging.ERROR, logger="app.bot.commands"):
+        with caplog.at_level(logging.ERROR):
             venue, returned_thread = asyncio.run(
                 bot_commands._post_visual_novel_render(
                     inter=interaction,
-                    smap=MagicMock(),
+                    smap=smap,
                     engine=engine,
                     user=user,
                     character_id="iselle",
@@ -2642,7 +2703,9 @@ class TestVisualNovelDiscordDeck:
 
         assert (venue, returned_thread) == ("dm", None)
         user.send.assert_awaited_once()
-        assert "message sent but tracking raised" in caplog.text
+        smap.record_turn_message.assert_awaited_once()
+        assert "turn-message tracking failed" in caplog.text
+        assert "message sent but tracking failed" in caplog.text
         assert "session=session" in caplog.text
         assert "Hello" not in caplog.text
         user.send.await_args.kwargs["file"].close()

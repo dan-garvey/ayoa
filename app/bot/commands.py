@@ -167,7 +167,14 @@ class _VisualNovelControl(
                 ephemeral=True,
             )
             return
-        deck = engine.load_visual_novel_deck(self.deck_id)
+        try:
+            deck = engine.load_visual_novel_deck(self.deck_id)
+        except Exception:
+            logger.exception(
+                "visual-novel persistent deck reload failed deck=%s",
+                self.deck_id[:12],
+            )
+            deck = None
         if deck is None:
             await interaction.response.send_message(
                 "This story deck is no longer available.",
@@ -263,11 +270,18 @@ async def _record_visual_novel_message(
     delivery: str,
     recipient_user_id: int,
     discord_channel_id: int | None = None,
-) -> None:
+) -> bool:
     """Track an already-sent card without turning tracking into transport."""
 
+    message_id = getattr(message, "id", None)
+    message_channel = getattr(message, "channel", None)
+    delivered_channel_id = discord_channel_id or getattr(
+        message_channel,
+        "id",
+        None,
+    )
     try:
-        await _record_turn_message(
+        tracked_ref = await _record_turn_message(
             smap=smap,
             session_channel_id=_session_channel_id(inter),
             session_id=session_id,
@@ -278,13 +292,6 @@ async def _record_visual_novel_message(
             recipient_user_id=recipient_user_id,
         )
     except Exception as exc:
-        message_id = getattr(message, "id", None)
-        message_channel = getattr(message, "channel", None)
-        delivered_channel_id = discord_channel_id or getattr(
-            message_channel,
-            "id",
-            None,
-        )
         logger.error(
             "visual-novel message sent but tracking raised "
             "session=%s turn=%s delivery=%s channel=%s message=%s error=%s",
@@ -295,6 +302,22 @@ async def _record_visual_novel_message(
             message_id,
             type(exc).__name__,
         )
+        return False
+    if tracked_ref is not None:
+        return True
+
+    logger.error(
+        "visual-novel message sent but tracking failed "
+        "session=%s turn=%s delivery=%s channel=%s message=%s",
+        session_id,
+        turn_index,
+        delivery,
+        delivered_channel_id,
+        message_id,
+    )
+    # The story card is current player content, not a stale image. Do not retry
+    # another transport or enqueue it for the stale-media deletion outbox.
+    return False
 
 
 # D&D Beyond browser exports are larger than story prompts because they
