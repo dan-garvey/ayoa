@@ -35,6 +35,10 @@ _MEDIATED_VISUAL_NOUNS = (
     r"image|portrait|photograph|photo|likeness|sketch|drawing|painting|"
     r"illustration|poster|mural|statue|sculpture|scrying\s+mirror"
 )
+_TEXTUAL_CHANNEL_NOUNS = (
+    r"voice\s+message|message|e-?mail|mail|letter|note|"
+    r"text(?:\s+message)?|writing|written\s+report"
+)
 _MEDIATED_SUBJECT_PREFIX_RE = re.compile(
     rf"\b(?:{_MEDIATED_CHANNEL_NOUNS}|{_MEDIATED_VISUAL_NOUNS}|voice|"
     rf"message|mail|letter|note|report|rumou?r|news)\b"
@@ -53,14 +57,16 @@ _MEDIATED_CHANNEL_BINDING_RE = re.compile(
     rf"\b(?:on|in)\s+(?:a|an|the)?\s*(?:{_MEDIATED_VISUAL_NOUNS})\b",
     re.IGNORECASE,
 )
-_PRIOR_REPORTING_RE = re.compile(
-    rf"\b(?:{_SPEECH_VERB_RE})\b|\baccording\s+to\b",
+_MEDIATED_REPORT_BINDING_RE = re.compile(
+    rf"\b(?:{_SPEECH_VERB_RE})\b[^.?!;\n]{{0,48}}\b(?:"
+    rf"(?:in|via|through|on|from)\s+(?:a|an|the)?\s*"
+    rf"(?:{_TEXTUAL_CHANNEL_NOUNS})|"
+    rf"by\s+(?:{_TEXTUAL_CHANNEL_NOUNS})"
+    rf")\b",
     re.IGNORECASE,
 )
-_REPORTED_CONTENT_VERB_RE = re.compile(
-    r"\b(?:says?|said|reports?|reported|reporting|announces?|announced|"
-    r"announcing|mentions?|mentioned|mentioning|states?|stated|stating|"
-    r"describes?|described|describing)\b",
+_PRIOR_REPORTING_RE = re.compile(
+    rf"\b(?:{_SPEECH_VERB_RE})\b|\baccording\s+to\b",
     re.IGNORECASE,
 )
 _CLAUSE_BOUNDARY_RE = re.compile(
@@ -264,7 +270,7 @@ def _subject_scope_start(
             _PHYSICAL_PRESENCE_VERB_RE.search(prior_predicate)
             or _COPRESENCE_PREDICATE_RE.search(prior_predicate)
         ):
-            report = _REPORTED_CONTENT_VERB_RE.search(prior_predicate)
+            report = _PRIOR_REPORTING_RE.search(prior_predicate)
             reported_text = (
                 prior_predicate[report.end():] if report is not None else ""
             )
@@ -369,16 +375,24 @@ def _presence_evidence_for_match(
             gap=gap,
         ):
             continue
-        if _NON_CURRENT_PRESENCE_RE.search(
-            sentence[subject_match.end():evidence_start]
+        predicate_lead = sentence[subject_match.end():evidence_start]
+        if _NON_CURRENT_PRESENCE_RE.search(predicate_lead):
+            continue
+        future_tail = sentence[
+            evidence_end:min(predicate_end, evidence_end + 32)
+        ]
+        if (
+            _FUTURE_TIME_RE.search(
+                sentence[subject_scope_start:subject_match.start()]
+            )
+            or _FUTURE_TIME_RE.search(predicate_lead)
+            or _FUTURE_TIME_RE.search(future_tail)
         ):
             continue
-        if _FUTURE_TIME_RE.search(
-            sentence[evidence_end:min(predicate_end, evidence_end + 32)]
-        ):
-            continue
-        if _MEDIATED_CHANNEL_BINDING_RE.search(
-            sentence[predicate_start:predicate_end]
+        predicate = sentence[predicate_start:predicate_end]
+        if (
+            _MEDIATED_CHANNEL_BINDING_RE.search(predicate)
+            or _MEDIATED_REPORT_BINDING_RE.search(predicate)
         ):
             continue
         return _PresenceEvidence(

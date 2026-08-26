@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from typing import Any
+from urllib.parse import urlsplit
 
 
 REDACTED_IMPORT_SENTINEL = "[redacted private module material]"
@@ -79,9 +80,12 @@ _PRIVATE_FILE_SUFFIXES = (
     r"jsonl?|kdbx|key|keystore|log|md|p12|p7[bc]|p8|pdf|pem|pfx|pgp|"
     r"png|ppk|py|safetensors|sqlite3?|svg|toml|tsv|txt|webp|ya?ml"
 )
-_HTTP_URL_RE = re.compile(
-    r"(?<![A-Za-z0-9])https?://[^\s\"'<>]+",
+_HTTP_URL_CANDIDATE_RE = re.compile(
+    r"(?<![A-Za-z0-9])https?://[^\s\"'<>\\]+",
     re.IGNORECASE,
+)
+_ADJACENT_PRIVATE_PATH_RE = re.compile(
+    r"[,;.!?)}\]](?=(?:/|[A-Za-z]:[\\/]))"
 )
 _UNQUOTED_PRIVATE_FILE_PATH_RE = re.compile(
     rf"(?<![A-Za-z0-9_.-])(?:/[^\r\n\"'<>|]*?|"
@@ -188,11 +192,32 @@ def _protect_http_urls(value: str) -> tuple[str, list[tuple[str, str]]]:
     protected: list[tuple[str, str]] = []
 
     def replace(match: re.Match[str]) -> str:
+        candidate = match.group(0)
+        separator = _ADJACENT_PRIVATE_PATH_RE.search(candidate)
+        url = candidate[:separator.start()] if separator else candidate
+        suffix = candidate[len(url):]
+        try:
+            parsed = urlsplit(url)
+            hostname = parsed.hostname
+            parsed.port
+        except ValueError:
+            return candidate
+        if (
+            parsed.scheme.casefold() not in {"http", "https"}
+            or not parsed.netloc
+            or not hostname
+            or not hostname.strip(".")
+            or (
+                match.end() < len(match.string)
+                and match.string[match.end()] == "\\"
+            )
+        ):
+            return candidate
         token = f"{prefix}{len(protected)}END"
-        protected.append((token, match.group(0)))
-        return token
+        protected.append((token, url))
+        return token + suffix
 
-    return _HTTP_URL_RE.sub(replace, value), protected
+    return _HTTP_URL_CANDIDATE_RE.sub(replace, value), protected
 
 
 def _restore_http_urls(

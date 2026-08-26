@@ -781,7 +781,8 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
         story_premise=(
             "SAFE PREMISE SENTINEL. actor.hidden "
             "app/storage/stories/private/outline.txt /secret.env "
-            "https://example.com/public/story-guide.png"
+            "https://example.com/public/story-guide.png,/secret.key "
+            "https:///private/story/leaked.pem"
         ),
         visible_facts=((
             "SAFE EVENT SENTINEL. Alice enters from "
@@ -823,7 +824,8 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
         projection,
         stage_context=(
             "SAFE STAGE SENTINEL. scripts/private/stage-builder.py "
-            "/secret.kdbx\x1b[31m",
+            "/secret.kdbx\x1b[31m "
+            r"https://C:\Users\dan\ayoa\private\leaked.pfx",
         ),
     )
 
@@ -854,6 +856,8 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
         "/secret.key",
         "/secret.p12",
         "/secret.kdbx",
+        "/private/story/leaked.pem",
+        r"C:\Users\dan\ayoa\private\leaked.pfx",
         "\x1b",
     ):
         assert private_text not in rendered
