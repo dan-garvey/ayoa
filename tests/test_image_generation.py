@@ -780,10 +780,12 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
         base,
         story_premise=(
             "SAFE PREMISE SENTINEL. actor.hidden "
-            "app/storage/stories/private/outline.txt"
+            "app/storage/stories/private/outline.txt /secret.env "
+            "https://example.com/public/story-guide.png"
         ),
         visible_facts=((
-            r"SAFE EVENT SENTINEL. Alice enters from C:\Users\dan\ayoa\private\plate.png",
+            "SAFE EVENT SENTINEL. Alice enters from "
+            r"C:\Users\dan\ayoa\private\plate.png /secret.pem",
             0,
             3,
         ),),
@@ -794,7 +796,8 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
                 "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             ),
             default_loadout=(
-                "SAFE LOADOUT SENTINEL. tests/fixtures/private/alice.png"
+                "SAFE LOADOUT SENTINEL. tests/fixtures/private/alice.png "
+                "/secret.key"
             ),
         ),),
         reference_options=(SelectableVisualReference(
@@ -803,7 +806,7 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
             scope_id="alice",
             selection_hint=(
                 "SAFE REFERENCE SENTINEL. "
-                r"\\authoring-host\private-share\alice.png"
+                r"\\authoring-host\private-share\alice.png /secret.p12"
             ),
         ),),
     )
@@ -819,7 +822,8 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
     ).decide(
         projection,
         stage_context=(
-            "SAFE STAGE SENTINEL. scripts/private/stage-builder.py\x1b[31m",
+            "SAFE STAGE SENTINEL. scripts/private/stage-builder.py "
+            "/secret.kdbx\x1b[31m",
         ),
     )
 
@@ -835,6 +839,7 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
         "SAFE STAGE SENTINEL",
     ):
         assert safe_text in rendered
+    assert "https://example.com/public/story-guide.png" in rendered
     for private_text in (
         "actor.hidden",
         "app/storage/stories",
@@ -844,6 +849,11 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
         "tests/fixtures",
         r"\\authoring-host\private-share",
         "scripts/private",
+        "/secret.env",
+        "/secret.pem",
+        "/secret.key",
+        "/secret.p12",
+        "/secret.kdbx",
         "\x1b",
     ):
         assert private_text not in rendered

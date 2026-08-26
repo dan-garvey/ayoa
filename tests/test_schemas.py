@@ -1318,6 +1318,40 @@ class TestTurnResponse:
             "Alice follows the path and keeps watch."
         )
 
+    def test_player_output_preserves_http_urls_and_redacts_credentials(self):
+        output_url = "https://example.com/public/hero.png"
+        pov_url = "http://docs.example.invalid/player-guide.pdf?download=1"
+        response = TurnResponse(
+            session_id="abc",
+            output_text=(
+                f"The public portrait is at {output_url}. /secret.env"
+            ),
+            per_player_renders={
+                "alice": (
+                    f"Alice opens the guide at {pov_url}. /secret.pem"
+                ),
+            },
+            per_player_visual_novel_renders={
+                "alice": VisualNovelRender(segments=[
+                    VisualNovelRenderSegment(
+                        pages=[VisualNovelPage(
+                            kind="narration",
+                            text=f"The public guide is {pov_url}. /secret.key",
+                        )],
+                        rendered_event_ids=["evt1"],
+                    ),
+                ]),
+            },
+        )
+
+        assert output_url in response.output_text
+        assert pov_url in response.per_player_renders["alice"]
+        page = response.per_player_visual_novel_renders["alice"].segments[0].pages[0]
+        assert pov_url in page.text
+        assert "/secret.env" not in response.output_text
+        assert "/secret.pem" not in response.per_player_renders["alice"]
+        assert "/secret.key" not in page.text
+
 
 class TestCheckpointFile:
     def test_construct(self):

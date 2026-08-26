@@ -19,6 +19,25 @@ from app.schemas.content_privacy import (
         "/home/dan/ayoa/app/storage/stories/secret/hero.png",
         "/secret.png",
         '"/secret.png"',
+        "/secret.env",
+        "/secret.env.",
+        "/secret.asc",
+        "/secret.cer",
+        "/secret.crt",
+        "/secret.der",
+        "/secret.gpg",
+        "/secret.pem",
+        "/secret.key",
+        "/secret.p12",
+        "/secret.p7b",
+        "/secret.p7c",
+        "/secret.p8",
+        "/secret.pfx",
+        "/secret.pgp",
+        "/secret.ppk",
+        "/secret.kdbx",
+        "/secret.jks",
+        "/secret.keystore",
         r"C:\Users\dan\ayoa\private\hero.png",
         "D:/ayoa/private/hero.png",
         r"\\authoring-host\private-share\ayoa\hero.png",
@@ -85,4 +104,21 @@ def test_content_redactors_preserve_single_token_slash_commands(
     redactor,
     prose: str,
 ) -> None:
+    assert redactor(prose) == prose
+
+
+@pytest.mark.parametrize(
+    "redactor",
+    (redact_imported_asset_text, redact_imported_content_metadata_text),
+)
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://example.com/public/hero.png",
+        "http://docs.example.invalid/guides/player-reference.pdf?download=1",
+    ),
+)
+def test_content_redactors_preserve_http_urls(redactor, url: str) -> None:
+    prose = f"The public reference remains available at {url} for review."
+
     assert redactor(prose) == prose

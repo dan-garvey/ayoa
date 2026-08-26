@@ -870,6 +870,16 @@ class TestComposePovRender:
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = presentation_mode
+        ckpt.world_state.setting.premise = (
+            "SAFE PREMISE SENTINEL. source_path=/private/story/outline.md "
+            "actor.hidden /secret.env https://example.com/public/premise.png "
+            "\x1b[31m"
+        )
+        ckpt.session.config.narrative_rules = (
+            "SAFE NARRATIVE RULE SENTINEL. "
+            "tests/fixtures/private/rules.txt /secret.pem "
+            "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        )
         beta_event = next(
             event for event in ckpt.canonical_events
             if event.event_id == "evt_beta"
@@ -923,13 +933,20 @@ class TestComposePovRender:
         )
         assert "Scarlet coat" in provider_input
         assert "brass clasp" in provider_input
+        assert "SAFE PREMISE SENTINEL" in provider_input
+        assert "SAFE NARRATIVE RULE SENTINEL" in provider_input
+        assert "https://example.com/public/premise.png" in provider_input
         assert REDACTED_IMPORT_SENTINEL in provider_input
+        assert "/private/story/outline.md" not in provider_input
         assert "/private/module/source-map.png" not in provider_input
+        assert "/secret.env" not in provider_input
+        assert "/secret.pem" not in provider_input
         assert "private_extractions" not in provider_input
         assert r"C:\Users\dan\ayoa" not in provider_input
         assert "app/storage/stories" not in provider_input
         assert "actor.hidden" not in provider_input
         assert "0123456789abcdef" not in provider_input
+        assert "aaaaaaaaaaaaaaaa" not in provider_input
         assert "\x1b" not in provider_input
         assert "\x07" not in provider_input
 
