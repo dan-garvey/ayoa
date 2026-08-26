@@ -39,6 +39,7 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
 from app.schemas.events import ObservableFact
 from app.schemas.image_director import ImageDirection, ImageDirectorOutput
 from app.schemas.image_generation import (
@@ -653,6 +654,86 @@ async def test_director_receives_only_text_projection_and_can_return_zero():
     assert "PRIVATE WORLD SECRET" not in rendered
     assert "PRIVATE ALICE SECRET" not in rendered
     assert not any(isinstance(message.get("content"), bytes) for message in client.messages)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("presentation_mode", ["prose", "visual_novel"])
+async def test_director_redacts_private_paths_and_metadata_before_provider_input(
+    presentation_mode: str,
+):
+    base = _projection(presentation_mode=presentation_mode)
+    projection = replace(
+        base,
+        story_premise=(
+            "SAFE PREMISE SENTINEL. actor.hidden "
+            "app/storage/stories/private/outline.txt"
+        ),
+        visible_facts=((
+            r"SAFE EVENT SENTINEL. Alice enters from C:\Users\dan\ayoa\private\plate.png",
+            0,
+            3,
+        ),),
+        characters=(replace(
+            base.characters[0],
+            appearance=(
+                "SAFE APPEARANCE SENTINEL. "
+                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            ),
+            default_loadout=(
+                "SAFE LOADOUT SENTINEL. tests/fixtures/private/alice.png"
+            ),
+        ),),
+        reference_options=(SelectableVisualReference(
+            reference_id="authored.alice.v1",
+            scope="character",
+            scope_id="alice",
+            selection_hint=(
+                "SAFE REFERENCE SENTINEL. "
+                r"\\authoring-host\private-share\alice.png"
+            ),
+        ),),
+    )
+    output = ImageDirectorOutput(
+        stage_action=("reuse" if presentation_mode == "visual_novel" else "independent"),
+        requests=[],
+    )
+    client = FakeDirectorClient(output)
+
+    await ImageDirector(
+        client,
+        PromptManager("app/prompts"),
+    ).decide(
+        projection,
+        stage_context=(
+            "SAFE STAGE SENTINEL. scripts/private/stage-builder.py\x1b[31m",
+        ),
+    )
+
+    rendered = "\n".join(
+        str(message.get("content", "")) for message in client.messages
+    )
+    for safe_text in (
+        "SAFE PREMISE SENTINEL",
+        "SAFE EVENT SENTINEL",
+        "SAFE APPEARANCE SENTINEL",
+        "SAFE LOADOUT SENTINEL",
+        "SAFE REFERENCE SENTINEL",
+        "SAFE STAGE SENTINEL",
+    ):
+        assert safe_text in rendered
+    for private_text in (
+        "actor.hidden",
+        "app/storage/stories",
+        r"C:\Users\dan\ayoa",
+        "sha256:",
+        "0123456789abcdef",
+        "tests/fixtures",
+        r"\\authoring-host\private-share",
+        "scripts/private",
+        "\x1b",
+    ):
+        assert private_text not in rendered
+    assert REDACTED_IMPORT_SENTINEL in rendered
 
 
 def test_projection_includes_creator_player_without_binding():

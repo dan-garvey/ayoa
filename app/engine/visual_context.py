@@ -24,17 +24,39 @@ _SPEECH_VERB_RE = (
 _QUOTED_SPAN_RE = re.compile(
     r'"[^"\n]*"|“[^”\n]*”|\'[^\'\n]*\'|‘[^’\n]*’'
 )
-_MEDIATED_PRESENCE_RE = re.compile(
-    r"\b(?:over|through|via|on|in|from)\s+(?:a|an|the)?\s*"
-    r"(?:radio|intercom|telephone|phone|voicemail|recording|broadcast|screen|"
-    r"monitor|camera|video|feed|speaker|projection|hologram)\b|"
-    r"\b(?:radio|intercom|telephone|phone|voicemail|recording|broadcast|screen|"
-    r"monitor|camera|video|feed|speaker|projection|hologram)\b"
-    r"[^.?!;\n]{0,48}\b(?:shows?|displays?|carries|relays?|plays?|crackles|"
-    r"reports?|says?|announces?)\b|"
-    r"\b(?:message|mail|letter|note|report|rumou?r|news)\b"
-    r"(?:\s*:|\s+(?:from|about|mentions?|says?|reports?)\b)|"
-    r"\b(?:voice|image|portrait|photograph|photo|likeness)\s+(?:of|from)\b",
+_MEDIATED_CHANNEL_NOUNS = (
+    r"radio|intercom|telephone|phone|voicemail|recording|broadcast|screen|"
+    r"monitor|camera|video|feed|speaker|projection|hologram"
+)
+_MEDIATED_VISUAL_NOUNS = (
+    r"screen|monitor|camera|video|feed|projection|hologram|recording|"
+    r"image|portrait|photograph|photo|likeness"
+)
+_MEDIATED_SUBJECT_PREFIX_RE = re.compile(
+    rf"\b(?:{_MEDIATED_CHANNEL_NOUNS}|image|portrait|photograph|photo|"
+    rf"likeness|voice|message|mail|letter|note|report|rumou?r|news)\b"
+    rf"[^.?!;\n]{{0,96}}\b(?:shows?|displays?|depicts?|captures?|carries|"
+    rf"relays?|plays?|crackles|reports?|says?|announces?|mentions?|from|"
+    rf"about|of)\b[^.?!;\n]*$|"
+    rf"\b(?:over|through|via|on|from)\s+(?:a|an|the)?\s*"
+    rf"(?:{_MEDIATED_CHANNEL_NOUNS})\b[^.?!;\n]*$|"
+    rf"\b(?:on|in)\s+(?:a|an|the)?\s*(?:{_MEDIATED_VISUAL_NOUNS})\b"
+    rf"[^.?!;\n]*$",
+    re.IGNORECASE,
+)
+_MEDIATED_CHANNEL_BINDING_RE = re.compile(
+    rf"\b(?:over|through|via|on|from)\s+(?:a|an|the)?\s*"
+    rf"(?:{_MEDIATED_CHANNEL_NOUNS})\b|"
+    rf"\b(?:on|in)\s+(?:a|an|the)?\s*(?:{_MEDIATED_VISUAL_NOUNS})\b",
+    re.IGNORECASE,
+)
+_PRIOR_REPORTING_RE = re.compile(
+    rf"\b(?:{_SPEECH_VERB_RE})\b|\baccording\s+to\b",
+    re.IGNORECASE,
+)
+_CLAUSE_BOUNDARY_RE = re.compile(
+    r"(?:[,;]\s*|\s+)\b(?:while|whereas|although|though|meanwhile|then|"
+    r"afterwards?|but|as)\b(?:\s+|,\s*)",
     re.IGNORECASE,
 )
 _PHYSICAL_PRESENCE_VERB_RE = re.compile(
@@ -70,6 +92,10 @@ _FUTURE_TIME_RE = re.compile(
     r"\b(?:later|tomorrow|eventually|next\s+(?:day|week|month|year))\b",
     re.IGNORECASE,
 )
+_COPRESENCE_RELATION_RE = re.compile(
+    r"\b(?:alongside|beside|near|with|among|by|behind|before|next\s+to)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -84,6 +110,14 @@ class VisualIntroduction:
 class VisualIntroductionPlan:
     loadouts: list[VisualIntroduction]
     mark_character_ids: list[str]
+
+
+@dataclass(frozen=True)
+class _PresenceEvidence:
+    character_id: str
+    evidence_start: int
+    clause_start: int
+    clause_end: int
 
 
 def _character_status_value(character: CharacterRecord) -> str:
@@ -187,6 +221,139 @@ def _presence_gap_is_bounded_subject_context(
     return not re.search(r"[A-Za-z0-9_]", cleaned)
 
 
+def _clause_bounds(sentence: str, position: int) -> tuple[int, int]:
+    start = 0
+    end = len(sentence)
+    for boundary in _CLAUSE_BOUNDARY_RE.finditer(sentence):
+        if boundary.end() <= position:
+            start = boundary.end()
+            continue
+        if boundary.start() >= position:
+            end = boundary.start()
+            break
+    return start, end
+
+
+def _presence_evidence_for_match(
+    ckpt: CheckpointFile,
+    *,
+    sentence: str,
+    character_id: str,
+    subject_match: re.Match[str],
+) -> _PresenceEvidence | None:
+    if re.match(
+        r"\s*[’']s\b",
+        sentence[subject_match.end():],
+        re.IGNORECASE,
+    ):
+        return None
+
+    clause_start, clause_end = _clause_bounds(sentence, subject_match.start())
+    bounded_end = min(clause_end, subject_match.end() + 180)
+    suffix = sentence[subject_match.end():bounded_end]
+    evidence_matches = [
+        evidence
+        for matcher in (
+            _PHYSICAL_PRESENCE_VERB_RE,
+            _COPRESENCE_PREDICATE_RE,
+        )
+        if (evidence := matcher.search(suffix)) is not None
+    ]
+    if not evidence_matches:
+        return None
+    evidence_match = min(evidence_matches, key=lambda item: item.start())
+    gap = suffix[:evidence_match.start()]
+    if not _presence_gap_is_bounded_subject_context(
+        ckpt,
+        character_id=character_id,
+        gap=gap,
+    ):
+        return None
+    if _NON_CURRENT_PRESENCE_RE.search(gap):
+        return None
+
+    subject_prefix = sentence[clause_start:subject_match.start()]
+    if _MEDIATED_SUBJECT_PREFIX_RE.search(subject_prefix):
+        return None
+    if _PRIOR_REPORTING_RE.search(subject_prefix):
+        return None
+
+    evidence_start = subject_match.end() + evidence_match.start()
+    evidence_end = subject_match.end() + evidence_match.end()
+    if _FUTURE_TIME_RE.search(
+        sentence[evidence_end:min(clause_end, evidence_end + 32)]
+    ):
+        return None
+    if _MEDIATED_CHANNEL_BINDING_RE.search(
+        sentence[subject_match.end():clause_end]
+    ):
+        return None
+    return _PresenceEvidence(
+        character_id=character_id,
+        evidence_start=evidence_start,
+        clause_start=clause_start,
+        clause_end=clause_end,
+    )
+
+
+def _copresent_object_ids(
+    ckpt: CheckpointFile,
+    *,
+    sentence: str,
+    evidence_records: Iterable[_PresenceEvidence],
+) -> set[str]:
+    object_ids: set[str] = set()
+    for evidence in evidence_records:
+        relation_end = min(
+            evidence.clause_end,
+            evidence.evidence_start + 120,
+        )
+        for relation in _COPRESENCE_RELATION_RE.finditer(
+            sentence,
+            evidence.evidence_start,
+            relation_end,
+        ):
+            for character in _active_roster_characters(ckpt):
+                if character.character_id == evidence.character_id:
+                    continue
+                seen_probes: set[str] = set()
+                for probe in (character.character_id, character.name):
+                    if not probe or probe.casefold() in seen_probes:
+                        continue
+                    seen_probes.add(probe.casefold())
+                    pattern = re.compile(
+                        rf"(?<![A-Za-z0-9_]){re.escape(probe)}"
+                        rf"(?![A-Za-z0-9_])",
+                        re.IGNORECASE,
+                    )
+                    for match in pattern.finditer(
+                        sentence,
+                        relation.end(),
+                        evidence.clause_end,
+                    ):
+                        if re.match(
+                            r"\s*[’']s\b",
+                            sentence[match.end():],
+                            re.IGNORECASE,
+                        ):
+                            continue
+                        if not _presence_gap_is_bounded_subject_context(
+                            ckpt,
+                            character_id=character.character_id,
+                            gap=sentence[relation.end():match.start()],
+                        ):
+                            continue
+                        if _MEDIATED_SUBJECT_PREFIX_RE.search(
+                            sentence[evidence.clause_start:match.start()]
+                        ):
+                            continue
+                        object_ids.add(character.character_id)
+                        break
+                    if character.character_id in object_ids:
+                        break
+    return object_ids
+
+
 def _physically_present_character_ids(
     ckpt: CheckpointFile,
     visible_texts: Iterable[str],
@@ -195,65 +362,42 @@ def _physically_present_character_ids(
     if not texts:
         return set()
     physical: set[str] = set()
-    for character in _active_roster_characters(ckpt):
-        probes = [character.character_id, character.name]
-        for probe in probes:
-            if not probe:
-                continue
-            probe_pattern = re.compile(
-                rf"(?<![A-Za-z0-9_]){re.escape(probe)}(?![A-Za-z0-9_])",
-                re.IGNORECASE,
-            )
-            found = False
-            for text in texts:
-                unquoted = _QUOTED_SPAN_RE.sub(" ", text)
-                for sentence in re.split(r"(?<=[.!?])\s+|\n+", unquoted):
-                    if _MEDIATED_PRESENCE_RE.search(sentence):
+    roster = _active_roster_characters(ckpt)
+    for text in texts:
+        unquoted = _QUOTED_SPAN_RE.sub(" ", text)
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", unquoted):
+            evidence_records: list[_PresenceEvidence] = []
+            for character in roster:
+                seen_probes: set[str] = set()
+                found_for_sentence = False
+                for probe in (character.character_id, character.name):
+                    if not probe or probe.casefold() in seen_probes:
                         continue
+                    seen_probes.add(probe.casefold())
+                    probe_pattern = re.compile(
+                        rf"(?<![A-Za-z0-9_]){re.escape(probe)}"
+                        rf"(?![A-Za-z0-9_])",
+                        re.IGNORECASE,
+                    )
                     for match in probe_pattern.finditer(sentence):
-                        suffix = sentence[match.end():]
-                        if re.match(r"\s*[’']s\b", suffix, re.IGNORECASE):
-                            continue
-                        bounded_suffix = suffix[:180]
-                        evidence_matches = [
-                            match
-                            for matcher in (
-                                _PHYSICAL_PRESENCE_VERB_RE,
-                                _COPRESENCE_PREDICATE_RE,
-                            )
-                            if (match := matcher.search(bounded_suffix)) is not None
-                        ]
-                        if not evidence_matches:
-                            continue
-                        evidence_match = min(
-                            evidence_matches,
-                            key=lambda item: item.start(),
-                        )
-                        if not _presence_gap_is_bounded_subject_context(
+                        evidence = _presence_evidence_for_match(
                             ckpt,
+                            sentence=sentence,
                             character_id=character.character_id,
-                            gap=bounded_suffix[:evidence_match.start()],
-                        ):
-                            continue
-                        if _NON_CURRENT_PRESENCE_RE.search(
-                            bounded_suffix[:evidence_match.start()]
-                        ):
-                            continue
-                        if _FUTURE_TIME_RE.search(
-                            bounded_suffix[
-                                evidence_match.end():evidence_match.end() + 32
-                            ]
-                        ):
-                            continue
-                        physical.add(character.character_id)
-                        found = True
+                            subject_match=match,
+                        )
+                        if evidence is not None:
+                            evidence_records.append(evidence)
+                            physical.add(character.character_id)
+                            found_for_sentence = True
+                            break
+                    if found_for_sentence:
                         break
-                    if found:
-                        break
-                if found:
-                    break
-            if found:
-                break
+            physical.update(_copresent_object_ids(
+                ckpt,
+                sentence=sentence,
+                evidence_records=evidence_records,
+            ))
     return physical
 
 

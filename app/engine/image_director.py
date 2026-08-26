@@ -17,7 +17,7 @@ from app.schemas.characters import (
     is_player_authored_slot,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.content_privacy import redact_imported_asset_text
+from app.schemas.content_privacy import redact_imported_content_metadata_text
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.image_director import ImageDirectorOutput, ImageGenerationMode
 from app.schemas.state import (
@@ -63,11 +63,13 @@ class PublicCharacterVisual:
     recurring_actor: bool = False
 
     def prompt_line(self) -> str:
+        character_id = _safe_identifier(self.character_id)
+        name = _safe_text(self.name, 200)
         fields = [
-            f"id={self.character_id}",
-            f"name={self.name or self.character_id}",
-            f"role={self.public_role or '(unspecified)'}",
-            f"depiction_policy={self.depiction_policy}",
+            f"id={character_id}",
+            f"name={name or character_id}",
+            f"role={_safe_text(self.public_role, 300) or '(unspecified)'}",
+            f"depiction_policy={_safe_text(self.depiction_policy, 80)}",
             f"new_character={'yes' if self.is_new_character else 'no'}",
             f"player_controlled={'yes' if self.is_playable else 'no'}",
             f"recurring_actor={'yes' if self.recurring_actor else 'no'}",
@@ -78,9 +80,11 @@ class PublicCharacterVisual:
             ),
         ]
         if self.appearance:
-            fields.append(f"appearance={self.appearance}")
+            fields.append(f"appearance={_safe_text(self.appearance, 600)}")
         if self.default_loadout:
-            fields.append(f"loadout={self.default_loadout}")
+            fields.append(
+                f"loadout={_safe_text(self.default_loadout, 700)}"
+            )
         return "- " + "; ".join(fields)
 
 
@@ -95,11 +99,14 @@ class SelectableVisualReference:
 
     def prompt_line(self) -> str:
         applies_to = (
-            self.scope_id if self.scope == "character" else "visible_location"
+            _safe_identifier(self.scope_id)
+            if self.scope == "character"
+            else "visible_location"
         )
         return (
-            f"- id={self.reference_id}; applies_to={applies_to}; "
-            f"use={self.selection_hint}"
+            f"- id={_safe_identifier(self.reference_id)}; "
+            f"applies_to={applies_to}; "
+            f"use={_safe_text(self.selection_hint, 500)}"
         )
 
 
@@ -1114,10 +1121,10 @@ def text_names_public_character(
 
 def _story_block(projection: VisibleEventProjection) -> str:
     lines = [
-        f"genre: {projection.story_genre or '(unspecified)'}",
-        f"era: {projection.story_era or '(unspecified)'}",
-        f"tone: {projection.story_tone or '(unspecified)'}",
-        f"premise: {projection.story_premise or '(unspecified)'}",
+        f"genre: {_safe_text(projection.story_genre, 300) or '(unspecified)'}",
+        f"era: {_safe_text(projection.story_era, 300) or '(unspecified)'}",
+        f"tone: {_safe_text(projection.story_tone, 300) or '(unspecified)'}",
+        f"premise: {_safe_text(projection.story_premise, 1_000) or '(unspecified)'}",
         f"canonical events so far: {projection.canonical_event_count}",
         f"active roster count: {projection.active_roster_count}",
         f"total roster count: {projection.total_roster_count}",
@@ -1136,9 +1143,10 @@ def _visible_event_block(projection: VisibleEventProjection) -> str:
         ),
     ]
     for text, offset, duration in projection.visible_facts:
-        lines.append(
-            f"- +{offset}s, duration {duration}s: {text}"
-        )
+        if cleaned := _safe_text(text, 2_000):
+            lines.append(
+                f"- +{offset}s, duration {duration}s: {cleaned}"
+            )
     return "\n".join(lines)
 
 
@@ -1169,7 +1177,7 @@ def _visible_location_label(
 
 def _safe_text(value: object, max_chars: int) -> str:
     text = strip_terminal_control(
-        redact_imported_asset_text(str(value or ""))
+        redact_imported_content_metadata_text(str(value or ""))
     )
     text = " ".join(text.split())
     return text[:max_chars].rstrip()

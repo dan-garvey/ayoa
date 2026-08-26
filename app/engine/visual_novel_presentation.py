@@ -18,14 +18,17 @@ from typing import Iterable, Sequence
 from PIL import Image, ImageDraw, ImageFont
 
 from app.engine.player_media import PlayerMediaBytes
-from app.schemas.narrator import VisualNovelPage
+from app.schemas.narrator import (
+    VisualNovelPage,
+    visual_novel_pages_contain_source_identifiers,
+    visual_novel_text_contains_source_identifiers,
+)
 
 
 CARD_WIDTH = 1024
 CARD_HEIGHT = 576
 _RENDERER_VERSION = "classic-adv-v3-verified-decks"
 _MANIFEST_VERSION = 2
-_SUPPORTED_MANIFEST_VERSIONS = frozenset({1, _MANIFEST_VERSION})
 _SHA256_LENGTH = 64
 _DEFAULT_REGULAR_FONT = Path(
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
@@ -95,6 +98,13 @@ class VisualNovelCardRenderer:
     ) -> VisualNovelDeck:
         if not sections:
             raise ValueError("visual-novel decks require at least one section")
+        if any(
+            visual_novel_pages_contain_source_identifiers(section.pages)
+            for section in sections
+        ):
+            raise ValueError(
+                "visual-novel deck pages cannot expose source-shaped ids"
+            )
         fonts = self._fonts()
         resolved_sections: list[
             tuple[Image.Image, str, bool, list[VisualNovelPage]]
@@ -247,13 +257,12 @@ class VisualNovelCardRenderer:
     def load_deck(self, deck_id: str) -> VisualNovelDeck | None:
         """Load one fail-closed persisted deck.
 
-        Version 1 is a read-only legacy policy: its original manifest did not
-        retain canonical identity inputs or card hashes, so it is accepted only
-        after exact structural and decoded-PNG validation. Version 2 additionally
-        requires this renderer contract, re-hashes the canonical render identity,
-        and verifies every card digest. Its font digests identify the historical
-        render inputs; they need not match fonts installed after a restart.
-        Unsupported versions and renderers are not migrated or guessed.
+        Only version 2 is accepted. It requires this renderer contract,
+        re-hashes the canonical render identity, verifies every card digest,
+        and rejects source-shaped identifiers in player-visible fields. Its
+        font digests identify the historical render inputs; they need not match
+        fonts installed after a restart. Older versions and unknown renderers
+        are not migrated or guessed.
         """
 
         clean_id = str(deck_id or "").strip().lower()
@@ -285,17 +294,16 @@ class VisualNovelCardRenderer:
             return None
 
         version = payload.get("version")
-        if type(version) is not int or version not in _SUPPORTED_MANIFEST_VERSIONS:
+        if type(version) is not int or version != _MANIFEST_VERSION:
             return None
         expected_manifest_keys = {
             "version",
             "deck_id",
+            "identity",
             "used_neutral_stage",
             "transcript",
             "cards",
         }
-        if version == _MANIFEST_VERSION:
-            expected_manifest_keys.add("identity")
         if set(payload) != expected_manifest_keys:
             return None
         if type(payload["deck_id"]) is not str or payload["deck_id"] != clean_id:
@@ -315,9 +323,8 @@ class VisualNovelCardRenderer:
             "speaker",
             "text",
             "filename",
+            "sha256",
         }
-        if version == _MANIFEST_VERSION:
-            expected_card_keys.add("sha256")
 
         cards: list[VisualNovelCard] = []
         pages: list[VisualNovelPage] = []
@@ -340,14 +347,12 @@ class VisualNovelCardRenderer:
             if type(filename) is not str or filename != canonical_filename:
                 return None
             image_path = deck_dir / filename
-            expected_sha256 = raw.get("sha256")
-            if version == _MANIFEST_VERSION and not _is_sha256(expected_sha256):
+            expected_sha256 = raw["sha256"]
+            if not _is_sha256(expected_sha256):
                 return None
             if not _valid_card_png(
                 image_path,
-                expected_sha256=(
-                    expected_sha256 if version == _MANIFEST_VERSION else None
-                ),
+                expected_sha256=expected_sha256,
             ):
                 return None
             cards.append(VisualNovelCard(
@@ -366,7 +371,7 @@ class VisualNovelCardRenderer:
 
         if payload["transcript"] != _transcript(pages):
             return None
-        if version == _MANIFEST_VERSION and not _valid_v2_identity(
+        if not _valid_v2_identity(
             payload["identity"],
             deck_id=clean_id,
             pages=pages,
@@ -432,6 +437,11 @@ def _valid_page_fields(*, kind: object, speaker: object, text: object) -> bool:
     if type(text) is not str or not text.strip() or len(text) > 4_000:
         return False
     if speaker != speaker.strip() or text != text.strip():
+        return False
+    if any(
+        visual_novel_text_contains_source_identifiers(value)
+        for value in (speaker, text)
+    ):
         return False
     if kind == "narration":
         return speaker == ""

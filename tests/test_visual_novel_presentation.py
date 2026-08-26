@@ -151,7 +151,7 @@ def test_new_manifest_binds_v2_identity_and_card_hashes(tmp_path: Path):
     assert renderer.load_deck(deck.deck_id) == deck
 
 
-def test_valid_v1_manifest_uses_structural_png_compatibility_policy(
+def test_loader_rejects_v1_manifest_instead_of_guessing_legacy_identity(
     tmp_path: Path,
 ):
     renderer, deck = _single_page_deck(tmp_path)
@@ -162,20 +162,63 @@ def test_valid_v1_manifest_uses_structural_png_compatibility_policy(
         card.pop("sha256")
     _write_manifest(deck, payload)
 
-    assert renderer.load_deck(deck.deck_id) == deck
-
-
-def test_v1_manifest_still_rejects_corrupt_png(tmp_path: Path):
-    renderer, deck = _single_page_deck(tmp_path)
-    payload = _manifest(deck)
-    payload["version"] = 1
-    payload.pop("identity")
-    for card in payload["cards"]:
-        card.pop("sha256")
-    _write_manifest(deck, payload)
-    deck.cards[0].image_path.write_bytes(b"not a png")
-
     assert renderer.load_deck(deck.deck_id) is None
+
+
+@pytest.mark.parametrize(
+    ("speaker", "text"),
+    (
+        ("summon_sword", "The newcomer steps into the light."),
+        ("Pip", "The summon_sword steps into the light."),
+    ),
+)
+def test_render_rejects_source_shaped_ids_before_writing(
+    tmp_path: Path,
+    speaker: str,
+    text: str,
+):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+
+    with pytest.raises(ValueError, match="source-shaped ids"):
+        renderer.render_deck([
+            VisualNovelDeckSection(pages=(VisualNovelPage(
+                kind="dialogue",
+                speaker=speaker,
+                text=text,
+            ),)),
+        ])
+
+    assert list(renderer.deck_root.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("field", "unsafe_value"),
+    (
+        ("speaker", "summon_sword"),
+        ("text", "The summon_sword steps into the light."),
+    ),
+)
+def test_v2_loader_rejects_self_consistent_source_shaped_page_fields(
+    tmp_path: Path,
+    field: str,
+    unsafe_value: str,
+):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(pages=(VisualNovelPage(
+            kind="dialogue",
+            speaker="Pip",
+            text="The newcomer steps into the light.",
+        ),)),
+    ])
+    payload = _manifest(deck)
+    payload["cards"][0][field] = unsafe_value
+    payload["identity"]["sections"][0]["pages"][0][field] = unsafe_value
+    page = payload["identity"]["sections"][0]["pages"][0]
+    payload["transcript"] = f"{page['speaker']}: {page['text']}"
+    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+
+    assert renderer.load_deck(new_deck_id) is None
 
 
 def test_loader_rejects_unsupported_manifest_without_raising(tmp_path: Path):
