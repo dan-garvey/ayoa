@@ -1995,6 +1995,7 @@ class TestActingDescribe:
             speaker="  Iselle  ",
             text="Wait   for me.",
             image_path=image_path,
+            image_bytes=b"manifest-verified image bytes",
         )
 
         run(state._play_visual_novel_deck(
@@ -2002,6 +2003,9 @@ class TestActingDescribe:
             character_id="aldric",
         ))
 
+        assert image_renderer.prepare_calls[0]["media"].data == (
+            b"manifest-verified image bytes"
+        )
         assert "Iselle: Wait for me." in capsys.readouterr().out
 
     def test_turn_response_prints_per_pov_asset_reveals_for_claimed_characters(

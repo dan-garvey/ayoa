@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import stat
 import uuid
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Iterator, Sequence
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -28,7 +30,7 @@ from app.schemas.narrator import (
 
 CARD_WIDTH = 1024
 CARD_HEIGHT = 576
-_RENDERER_VERSION = "classic-adv-v3-verified-decks"
+_RENDERER_VERSION = "classic-adv-v4-content-bound-decks"
 _MANIFEST_VERSION = 2
 _SHA256_LENGTH = 64
 _DEFAULT_REGULAR_FONT = Path(
@@ -41,12 +43,20 @@ _DEFAULT_BOLD_FONT = Path(
 
 @dataclass(frozen=True)
 class VisualNovelCard:
+    """One physical card with immutable bytes as transport truth.
+
+    ``image_path`` locates the persisted artifact for diagnostics and cache
+    maintenance. Frontends must use ``image_bytes`` so a later filesystem
+    change cannot alter bytes already accepted by the manifest validator.
+    """
+
     index: int
     count: int
     kind: str
     speaker: str
     text: str
     image_path: Path
+    image_bytes: bytes = field(repr=False)
 
     @property
     def accessible_text(self) -> str:
@@ -89,36 +99,29 @@ class VisualNovelCardRenderer:
     ) -> None:
         self.runtime_root = Path(runtime_root)
         self.deck_root = self.runtime_root / "decks"
+        self._absolute_runtime_root = Path(os.path.abspath(self.runtime_root))
         try:
-            metadata = self.deck_root.stat(follow_symlinks=False)
-        except FileNotFoundError:
+            runtime_fd = _open_directory_path(
+                self._absolute_runtime_root,
+                create=True,
+            )
             try:
-                self.deck_root.mkdir(parents=True)
-            except OSError as exc:
-                raise RuntimeError(
-                    "visual-novel deck root is not a safe directory"
-                ) from exc
-            metadata = self._deck_root_metadata()
+                try:
+                    os.mkdir("decks", dir_fd=runtime_fd)
+                except FileExistsError:
+                    pass
+                deck_fd = _open_child_directory(runtime_fd, "decks")
+                try:
+                    self._runtime_root_identity = _fd_identity(runtime_fd)
+                    self._deck_root_identity = _fd_identity(deck_fd)
+                finally:
+                    os.close(deck_fd)
+            finally:
+                os.close(runtime_fd)
         except OSError as exc:
             raise RuntimeError(
                 "visual-novel deck root is not a safe directory"
             ) from exc
-        if not stat.S_ISDIR(metadata.st_mode):
-            raise RuntimeError(
-                "visual-novel deck root is not a safe directory"
-            )
-        try:
-            self._resolved_runtime_root = self.runtime_root.resolve(strict=True)
-            self._resolved_deck_root = self.deck_root.resolve(strict=True)
-        except (OSError, RuntimeError) as exc:
-            raise RuntimeError(
-                "visual-novel deck root is not a safe directory"
-            ) from exc
-        if self._resolved_deck_root.parent != self._resolved_runtime_root:
-            raise RuntimeError(
-                "visual-novel deck root is not a safe directory"
-            )
-        self._deck_root_identity = (metadata.st_dev, metadata.st_ino)
         self.regular_font_path = Path(regular_font_path)
         self.bold_font_path = Path(bold_font_path)
 
@@ -126,7 +129,7 @@ class VisualNovelCardRenderer:
         self,
         sections: Sequence[VisualNovelDeckSection],
     ) -> VisualNovelDeck:
-        self._require_pinned_deck_root()
+        self._verify_pinned_deck_root()
         if not sections:
             raise ValueError("visual-novel decks require at least one section")
         if any(
@@ -178,47 +181,18 @@ class VisualNovelCardRenderer:
                 in resolved_sections
             ],
         }
-        deck_id = _canonical_json_sha256(identity)
-        self._require_pinned_deck_root()
-        deck_dir = self.deck_root / deck_id
-        if deck_dir.is_symlink() or (
-            deck_dir.exists() and not deck_dir.is_dir()
-        ):
-            raise RuntimeError("visual-novel deck path is not a safe directory")
-        manifest_path = deck_dir / "manifest.json"
-        if manifest_path.is_symlink() or (
-            manifest_path.exists() and not manifest_path.is_file()
-        ):
-            raise RuntimeError("visual-novel manifest path is not a safe file")
-        if manifest_path.is_file():
-            cached = self.load_deck(deck_id)
-            if cached is not None:
-                return cached
-
-        self._require_pinned_deck_root()
-        deck_dir.mkdir(parents=True, exist_ok=True)
         count = sum(
             len(physical_pages)
             for _stage, _sha256, _used_neutral, physical_pages
             in resolved_sections
         )
-        for index in range(1, count + 1):
-            output_path = deck_dir / f"page-{index:03d}.png"
-            if output_path.is_symlink() or (
-                output_path.exists() and not output_path.is_file()
-            ):
-                raise RuntimeError(
-                    "visual-novel card path is not a safe file"
-                )
-        cards: list[VisualNovelCard] = []
-        card_sha256s: list[str] = []
+        rendered_cards: list[tuple[VisualNovelPage, bytes, str]] = []
         physical_pages: list[VisualNovelPage] = []
         index = 0
         for stage, _stage_sha256, _used_neutral, section_pages in resolved_sections:
             for page in section_pages:
                 index += 1
                 physical_pages.append(page)
-                output_path = deck_dir / f"page-{index:03d}.png"
                 card_image = _compose_card(
                     stage,
                     page,
@@ -226,21 +200,13 @@ class VisualNovelCardRenderer:
                     count=count,
                     fonts=fonts,
                 )
-                temporary = deck_dir / (
-                    f".page-{index:03d}.{uuid.uuid4().hex}.tmp"
-                )
-                self._require_pinned_deck_root()
-                card_image.save(temporary, format="PNG", optimize=False)
-                card_sha256s.append(_file_sha256(temporary))
-                self._require_pinned_deck_root()
-                temporary.replace(output_path)
-                cards.append(VisualNovelCard(
-                    index=index,
-                    count=count,
-                    kind=page.kind,
-                    speaker=page.speaker,
-                    text=page.text,
-                    image_path=output_path,
+                encoded = BytesIO()
+                card_image.save(encoded, format="PNG", optimize=False)
+                image_bytes = encoded.getvalue()
+                rendered_cards.append((
+                    page,
+                    image_bytes,
+                    hashlib.sha256(image_bytes).hexdigest(),
                 ))
 
         transcript = _transcript(physical_pages)
@@ -249,57 +215,110 @@ class VisualNovelCardRenderer:
             for _stage, _sha256, section_used_neutral, _pages
             in resolved_sections
         )
-        manifest = {
-            "version": _MANIFEST_VERSION,
-            "deck_id": deck_id,
-            "identity": identity,
-            "used_neutral_stage": used_neutral,
-            "transcript": transcript,
-            "cards": [
-                {
-                    "index": card.index,
-                    "count": card.count,
-                    "kind": card.kind,
-                    "speaker": card.speaker,
-                    "text": card.text,
-                    "filename": card.image_path.name,
-                    "sha256": card_sha256s[card.index - 1],
+        card_sha256s = [sha256 for _page, _data, sha256 in rendered_cards]
+        deck_id = _deck_content_id(identity, card_sha256s)
+        deck_dir = self.deck_root / deck_id
+        manifest_path = deck_dir / "manifest.json"
+
+        with self._pinned_deck_root_fd() as deck_root_fd:
+            deck_fd = self._open_render_deck_directory(
+                deck_root_fd,
+                deck_id,
+            )
+            try:
+                cached = self._load_validated_deck_from_fd(
+                    clean_id=deck_id,
+                    deck_fd=deck_fd,
+                )
+                if cached is not None:
+                    return cached
+
+                _require_safe_regular_target(
+                    deck_fd,
+                    "manifest.json",
+                    label="manifest",
+                )
+                for card_index in range(1, count + 1):
+                    _require_safe_regular_target(
+                        deck_fd,
+                        f"page-{card_index:03d}.png",
+                        label="card",
+                    )
+
+                cards: list[VisualNovelCard] = []
+                raw_card_manifest: list[dict[str, object]] = []
+                for card_index, (page, image_bytes, sha256) in enumerate(
+                    rendered_cards,
+                    start=1,
+                ):
+                    filename = f"page-{card_index:03d}.png"
+                    self._verify_pinned_deck_root()
+                    _atomic_write_regular_file(
+                        deck_fd,
+                        filename,
+                        image_bytes,
+                    )
+                    cards.append(VisualNovelCard(
+                        index=card_index,
+                        count=count,
+                        kind=page.kind,
+                        speaker=page.speaker,
+                        text=page.text,
+                        image_path=deck_dir / filename,
+                        image_bytes=image_bytes,
+                    ))
+                    raw_card_manifest.append({
+                        "index": card_index,
+                        "count": count,
+                        "kind": page.kind,
+                        "speaker": page.speaker,
+                        "text": page.text,
+                        "filename": filename,
+                        "sha256": sha256,
+                    })
+
+                manifest = {
+                    "version": _MANIFEST_VERSION,
+                    "deck_id": deck_id,
+                    "identity": identity,
+                    "used_neutral_stage": used_neutral,
+                    "transcript": transcript,
+                    "cards": raw_card_manifest,
                 }
-                for card in cards
-            ],
-        }
-        temporary_manifest = deck_dir / (
-            f".manifest.{uuid.uuid4().hex}.tmp"
-        )
-        self._require_pinned_deck_root()
-        temporary_manifest.write_text(
-            json.dumps(
-                manifest,
-                sort_keys=True,
-                indent=2,
-                ensure_ascii=False,
-            ) + "\n",
-            encoding="utf-8",
-        )
-        self._require_pinned_deck_root()
-        temporary_manifest.replace(manifest_path)
-        return VisualNovelDeck(
-            deck_id=deck_id,
-            cards=tuple(cards),
-            transcript=transcript,
-            manifest_path=manifest_path,
-            used_neutral_stage=used_neutral,
-        )
+                manifest_bytes = (
+                    json.dumps(
+                        manifest,
+                        sort_keys=True,
+                        indent=2,
+                        ensure_ascii=False,
+                    ) + "\n"
+                ).encode("utf-8")
+                self._verify_pinned_deck_root()
+                _atomic_write_regular_file(
+                    deck_fd,
+                    "manifest.json",
+                    manifest_bytes,
+                )
+            finally:
+                os.close(deck_fd)
+
+            return VisualNovelDeck(
+                deck_id=deck_id,
+                cards=tuple(cards),
+                transcript=transcript,
+                manifest_path=manifest_path,
+                used_neutral_stage=used_neutral,
+            )
 
     def load_deck(self, deck_id: str) -> VisualNovelDeck | None:
         """Load one fail-closed persisted deck.
 
         Only version 2 is accepted. It requires this renderer contract,
-        re-hashes the canonical render identity, verifies every card digest,
-        and rejects source-shaped identifiers in player-visible fields. Its
-        font digests identify the historical render inputs; they need not match
-        fonts installed after a restart. Older versions and unknown renderers
-        are not migrated or guessed.
+        binds the ordered card digests into the deck id, verifies and snapshots
+        every card's exact bytes, and rejects source-shaped identifiers in
+        player-visible fields. Its font digests identify the historical render
+        inputs; they need not match fonts installed after a restart. Older
+        versions and unknown renderers are not migrated or guessed.
         """
 
         clean_id = str(deck_id or "").strip().lower()
@@ -309,25 +328,37 @@ class VisualNovelCardRenderer:
         ):
             return None
         try:
-            self._require_pinned_deck_root()
-            return self._load_validated_deck(clean_id)
+            with self._pinned_deck_root_fd() as deck_root_fd:
+                deck_fd = self._open_load_deck_directory(
+                    deck_root_fd,
+                    clean_id,
+                )
+                try:
+                    return self._load_validated_deck_from_fd(
+                        clean_id=clean_id,
+                        deck_fd=deck_fd,
+                    )
+                finally:
+                    os.close(deck_fd)
         except Exception:
             # Persisted files are a restart boundary. Malformed JSON, odd path
             # types, Pillow decoder failures, and unexpected legacy values all
             # fail closed instead of escaping through a Discord callback.
             return None
 
-    def _load_validated_deck(self, clean_id: str) -> VisualNovelDeck | None:
+    def _load_validated_deck_from_fd(
+        self,
+        *,
+        clean_id: str,
+        deck_fd: int,
+    ) -> VisualNovelDeck | None:
         deck_dir = self.deck_root / clean_id
         manifest_path = deck_dir / "manifest.json"
-        if (
-            not deck_dir.is_dir()
-            or deck_dir.is_symlink()
-            or not manifest_path.is_file()
-            or manifest_path.is_symlink()
-        ):
+        self._verify_pinned_deck_root()
+        manifest_bytes = _read_regular_file(deck_fd, "manifest.json")
+        if manifest_bytes is None:
             return None
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        payload = json.loads(manifest_bytes.decode("utf-8"))
         if type(payload) is not dict:
             return None
 
@@ -366,6 +397,7 @@ class VisualNovelCardRenderer:
 
         cards: list[VisualNovelCard] = []
         pages: list[VisualNovelPage] = []
+        card_sha256s: list[str] = []
         count = len(raw_cards)
         for expected_index, raw in enumerate(raw_cards, start=1):
             if type(raw) is not dict or set(raw) != expected_card_keys:
@@ -384,22 +416,25 @@ class VisualNovelCardRenderer:
             canonical_filename = f"page-{expected_index:03d}.png"
             if type(filename) is not str or filename != canonical_filename:
                 return None
-            image_path = deck_dir / filename
             expected_sha256 = raw["sha256"]
             if not _is_sha256(expected_sha256):
                 return None
-            if not _valid_card_png(
-                image_path,
+            self._verify_pinned_deck_root()
+            image_bytes = _read_regular_file(deck_fd, filename)
+            if image_bytes is None or not _valid_card_png_bytes(
+                image_bytes,
                 expected_sha256=expected_sha256,
             ):
                 return None
+            card_sha256s.append(expected_sha256)
             cards.append(VisualNovelCard(
                 index=raw["index"],
                 count=raw["count"],
                 kind=raw["kind"],
                 speaker=raw["speaker"],
                 text=raw["text"],
-                image_path=image_path,
+                image_path=deck_dir / filename,
+                image_bytes=image_bytes,
             ))
             pages.append(VisualNovelPage(
                 kind=raw["kind"],
@@ -414,6 +449,7 @@ class VisualNovelCardRenderer:
             deck_id=clean_id,
             pages=pages,
             used_neutral_stage=payload["used_neutral_stage"],
+            card_sha256s=card_sha256s,
         ):
             return None
         return VisualNovelDeck(
@@ -439,40 +475,224 @@ class VisualNovelCardRenderer:
             counter=ImageFont.truetype(str(self.regular_font_path), 16),
         )
 
-    def _deck_root_metadata(self):
+    def _open_pinned_root_fds(self) -> tuple[int, int]:
         try:
-            metadata = self.deck_root.stat(follow_symlinks=False)
+            runtime_fd = _open_directory_path(
+                self._absolute_runtime_root,
+                create=False,
+            )
         except OSError as exc:
             raise RuntimeError(
-                "visual-novel deck root is not a safe directory"
-            ) from exc
-        if not stat.S_ISDIR(metadata.st_mode):
-            raise RuntimeError(
-                "visual-novel deck root is not a safe directory"
-            )
-        return metadata
-
-    def _require_pinned_deck_root(self) -> None:
-        metadata = self._deck_root_metadata()
-        if (metadata.st_dev, metadata.st_ino) != self._deck_root_identity:
-            raise RuntimeError(
                 "visual-novel deck root changed after renderer construction"
-            )
+            ) from exc
         try:
-            resolved_runtime_root = self.runtime_root.resolve(strict=True)
-            resolved_deck_root = self.deck_root.resolve(strict=True)
-        except (OSError, RuntimeError) as exc:
+            if _fd_identity(runtime_fd) != self._runtime_root_identity:
+                raise RuntimeError(
+                    "visual-novel deck root changed after renderer construction"
+                )
+            try:
+                deck_fd = _open_child_directory(runtime_fd, "decks")
+            except OSError as exc:
+                raise RuntimeError(
+                    "visual-novel deck root changed after renderer construction"
+                ) from exc
+            if _fd_identity(deck_fd) != self._deck_root_identity:
+                os.close(deck_fd)
+                raise RuntimeError(
+                    "visual-novel deck root changed after renderer construction"
+                )
+        except Exception:
+            os.close(runtime_fd)
+            raise
+        return runtime_fd, deck_fd
+
+    def _verify_pinned_deck_root(self) -> None:
+        runtime_fd, deck_fd = self._open_pinned_root_fds()
+        os.close(deck_fd)
+        os.close(runtime_fd)
+
+    @contextmanager
+    def _pinned_deck_root_fd(self) -> Iterator[int]:
+        """Anchor I/O to pinned inodes and recheck their named path on exit."""
+
+        runtime_fd, deck_fd = self._open_pinned_root_fds()
+        completed = False
+        try:
+            yield deck_fd
+            completed = True
+        finally:
+            os.close(deck_fd)
+            os.close(runtime_fd)
+            if completed:
+                self._verify_pinned_deck_root()
+
+    def _open_render_deck_directory(
+        self,
+        deck_root_fd: int,
+        deck_id: str,
+    ) -> int:
+        self._verify_pinned_deck_root()
+        try:
+            return _open_child_directory(deck_root_fd, deck_id)
+        except FileNotFoundError:
+            self._verify_pinned_deck_root()
+            try:
+                os.mkdir(deck_id, dir_fd=deck_root_fd)
+            except FileExistsError:
+                pass
+            except OSError as exc:
+                raise RuntimeError(
+                    "visual-novel deck path is not a safe directory"
+                ) from exc
+            try:
+                return _open_child_directory(deck_root_fd, deck_id)
+            except OSError as exc:
+                raise RuntimeError(
+                    "visual-novel deck path is not a safe directory"
+                ) from exc
+        except OSError as exc:
             raise RuntimeError(
-                "visual-novel deck root is not a safe directory"
+                "visual-novel deck path is not a safe directory"
             ) from exc
-        if (
-            resolved_runtime_root != self._resolved_runtime_root
-            or resolved_deck_root != self._resolved_deck_root
-            or resolved_deck_root.parent != resolved_runtime_root
-        ):
-            raise RuntimeError(
-                "visual-novel deck root changed after renderer construction"
-            )
+
+    def _open_load_deck_directory(
+        self,
+        deck_root_fd: int,
+        deck_id: str,
+    ) -> int:
+        self._verify_pinned_deck_root()
+        return _open_child_directory(deck_root_fd, deck_id)
+
+
+def _directory_open_flags() -> int:
+    return (
+        os.O_RDONLY
+        | os.O_DIRECTORY
+        | os.O_NOFOLLOW
+        | os.O_CLOEXEC
+    )
+
+
+def _open_child_directory(parent_fd: int, name: str) -> int:
+    if not name or name in {".", ".."} or "/" in name:
+        raise ValueError("directory name must be one canonical component")
+    return os.open(
+        name,
+        _directory_open_flags(),
+        dir_fd=parent_fd,
+    )
+
+
+def _open_directory_path(path: Path, *, create: bool) -> int:
+    """Open a directory by components without following symlink ancestors."""
+
+    if not path.is_absolute():
+        raise ValueError("directory path must be absolute")
+    current_fd = os.open("/", _directory_open_flags())
+    try:
+        for component in path.parts[1:]:
+            if create:
+                try:
+                    os.mkdir(component, dir_fd=current_fd)
+                except FileExistsError:
+                    pass
+            next_fd = _open_child_directory(current_fd, component)
+            os.close(current_fd)
+            current_fd = next_fd
+        return current_fd
+    except Exception:
+        os.close(current_fd)
+        raise
+
+
+def _fd_identity(fd: int) -> tuple[int, int]:
+    metadata = os.fstat(fd)
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise NotADirectoryError("file descriptor is not a directory")
+    return metadata.st_dev, metadata.st_ino
+
+
+def _read_regular_file(directory_fd: int, filename: str) -> bytes | None:
+    try:
+        fd = os.open(
+            filename,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=directory_fd,
+        )
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        with os.fdopen(fd, "rb", closefd=False) as handle:
+            return handle.read()
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+
+
+def _require_safe_regular_target(
+    directory_fd: int,
+    filename: str,
+    *,
+    label: str,
+) -> None:
+    try:
+        metadata = os.stat(
+            filename,
+            dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise RuntimeError(
+            f"visual-novel {label} path is not a safe file"
+        ) from exc
+    if not stat.S_ISREG(metadata.st_mode):
+        raise RuntimeError(
+            f"visual-novel {label} path is not a safe file"
+        )
+
+
+def _atomic_write_regular_file(
+    directory_fd: int,
+    filename: str,
+    data: bytes,
+) -> None:
+    label = "manifest" if filename == "manifest.json" else "card"
+    _require_safe_regular_target(
+        directory_fd,
+        filename,
+        label=label,
+    )
+    temporary = f".{filename}.{uuid.uuid4().hex}.tmp"
+    fd = os.open(
+        temporary,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+        0o600,
+        dir_fd=directory_fd,
+    )
+    try:
+        with os.fdopen(fd, "wb", closefd=False) as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(
+            temporary,
+            filename,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+        )
+    except Exception:
+        try:
+            os.unlink(temporary, dir_fd=directory_fd)
+        except OSError:
+            pass
+        raise
+    finally:
+        os.close(fd)
 
 
 def _canonical_json_sha256(value: object) -> str:
@@ -484,6 +704,16 @@ def _canonical_json_sha256(value: object) -> str:
             ensure_ascii=True,
         ).encode("utf-8")
     ).hexdigest()
+
+
+def _deck_content_id(
+    identity: object,
+    card_sha256s: Sequence[str],
+) -> str:
+    return _canonical_json_sha256({
+        "identity": identity,
+        "card_sha256s": list(card_sha256s),
+    })
 
 
 def _file_sha256(path: Path) -> str:
@@ -521,11 +751,12 @@ def _valid_page_fields(*, kind: object, speaker: object, text: object) -> bool:
     return bool(speaker.strip())
 
 
-def _valid_card_png(path: Path, *, expected_sha256: str | None) -> bool:
-    if not path.is_file() or path.is_symlink():
-        return False
+def _valid_card_png_bytes(
+    data: bytes,
+    *,
+    expected_sha256: str | None,
+) -> bool:
     try:
-        data = path.read_bytes()
         if (
             expected_sha256 is not None
             and hashlib.sha256(data).hexdigest() != expected_sha256
@@ -562,6 +793,7 @@ def _valid_v2_identity(
     deck_id: str,
     pages: Sequence[VisualNovelPage],
     used_neutral_stage: bool,
+    card_sha256s: Sequence[str],
 ) -> bool:
     if type(identity) is not dict or set(identity) != {
         "renderer",
@@ -624,7 +856,7 @@ def _valid_v2_identity(
                 return False
             identity_pages.append(VisualNovelPage(**raw_page))
 
-    if _canonical_json_sha256(identity) != deck_id:
+    if _deck_content_id(identity, card_sha256s) != deck_id:
         return False
     if any(neutral_sections) != used_neutral_stage:
         return False

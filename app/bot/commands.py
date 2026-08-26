@@ -37,6 +37,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
+from io import BytesIO
 import json
 import logging
 import os
@@ -256,7 +257,7 @@ class _VisualNovelView(discord.ui.View):
 def _visual_novel_discord_file(deck, index: int) -> discord.File:
     card = deck.cards[index]
     return discord.File(
-        str(card.image_path),
+        BytesIO(card.image_bytes),
         filename=(
             f"visual-novel-{deck.deck_id[:12]}-{card.index:03d}.png"
         ),
