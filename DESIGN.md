@@ -268,6 +268,15 @@ images are never delivered independently; the shared deterministic compositor
 adds the classic ADV text box after generation. Explicit portrait identity
 review remains a separate raw-image workflow.
 
+Every materialized director run records the exact set of diffusion jobs it
+admitted. Stage readiness, prior-stage context, and final plate resolution use
+that run-to-job association rather than matching only on event or transaction
+metadata. A run moves through an explicit `materializing` state until admission
+is finalized; only then does it become `succeeded`. A finalized replacement
+with no admitted job resolves to the neutral stage, while a partial admission
+error fails the run and cancels its otherwise-unowned jobs. This keeps sibling
+private POV projections from observing or waiting on one another's artifacts.
+
 Generated illustrations are noncanonical output artifacts and are never
 evidence for story state. Imported images retain their manual review and
 spoiler/privacy gate. Generated images and frozen diffusion references use
@@ -344,7 +353,15 @@ commits the speculative stage transaction; turn failure or rewind cancels stale
 work. GPU inference runs in an isolated subprocess. CLI and Discord both load
 the same content-addressed card deck; Discord navigation state lives in
 persistent component ids, so previous, next, and transcript controls survive a
-bot restart.
+bot restart. The frontend lock serializes every checkpoint mutation exposed by
+the bridge, including pending-roll continuation and settings changes, in a
+fixed bridge-before-orchestrator lock order. Persisted deck manifests are
+untrusted restart inputs: supported manifests, card order and metadata, deck
+identity, filenames, hashes, PNG format, and 1024x576 dimensions are validated
+before a card is served. New decks use manifest v2 with canonical render
+identity and per-card hashes. Version 1 remains read-only for existing controls
+and must pass strict metadata plus decoded static-PNG validation; other versions
+and renderer identities fail closed rather than being migrated or guessed.
 
 ### 5.2 Orchestrator
 
@@ -535,7 +552,10 @@ omitted when they add no new information.
 A render-buffer reference that cannot be resolved against canonical history is
 a loud contract failure, not a skippable stale entry. Likewise, a `render`
 handoff requires non-empty prose or at least one semantic page; an empty
-draft/deck is permitted only for a discarded `continue` judgment.
+draft/deck is permitted only for a discarded `continue` judgment. A forced
+render boundary rejects `continue` before image-candidate acceptance, buffer
+flush, narrator-history commit, or first-meeting ledger mutation; every POV in
+that render batch rolls back together.
 
 Both narrator modes receive optional first-meeting appearance vocabulary in a
 separate volatile user-tail block before the submitted attempt and final
@@ -547,11 +567,15 @@ ledger advances only when an accepted render directly presents that exterior;
 indirect observation and rejected handoffs do not consume it.
 
 Before a visual-novel deck becomes accessible text or history, every speaker
-and page text is checked for exact active-roster source ids and underscore-form
-identifiers. One rejected deck may be corrected in the same narrator context
-without translating the identifier through roster metadata or cosmetic
-prettification. A second violation fails loudly, and commit reasserts the same
-invariant before mutating narrator history or introduction state.
+and page text is checked for exact source ids from the complete checkpoint
+roster, including culled records, and for generic underscore-form identifiers.
+One rejected deck may be corrected in the same narrator context without
+translating the identifier through roster metadata or cosmetic prettification.
+That correction must preserve the handoff, page count and kinds, and every
+already-safe field exactly; it may change only the unsafe fields. A second
+violation or structural rewrite fails loudly, and response assembly and commit
+reassert the invariant before exposing output or mutating narrator history or
+introduction state.
 
 The engine constructs a transient render record from the real player input and
 the deterministic accessible text projection for response assembly. In visual-

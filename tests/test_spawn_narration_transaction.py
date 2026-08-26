@@ -511,8 +511,19 @@ async def test_failed_render_persists_inactive_records_and_restart_reuses_them(
     assert [record.character_id for record in dispatcher.agent_records] == [
         "summon_staff"
     ]
+    # The canonical fact places the whole summoned trio in direct view of one
+    # another. Preserve those peer first-meeting edges, as well as Alice's,
+    # through the failed render and restart boundary.
     expected_introductions = {
-        character_id: ["alice"] for character_id in _AUTHORED
+        character_id: [
+            "alice",
+            *(
+                peer_id
+                for peer_id in _AUTHORED
+                if peer_id != character_id
+            ),
+        ]
+        for character_id in _AUTHORED
     }
     assert {
         character_id: dispatcher.narrator_introductions[0][character_id]
@@ -589,9 +600,10 @@ async def test_failed_render_persists_inactive_records_and_restart_reuses_them(
             if character.character_id == character_id
         )
         assert character.model_dump() == expected
-        assert reloaded.session.visual_introductions[character_id] == [
-            "alice"
-        ]
+        assert (
+            reloaded.session.visual_introductions[character_id]
+            == expected_introductions[character_id]
+        )
     assert set(reloaded.session.visual_introductions["alice"]) >= set(_AUTHORED)
     retry_prompt = _narrator_prompt_text(retry_dispatcher, 0)
     for character_id, (name, _role, loadout) in _AUTHORED.items():
