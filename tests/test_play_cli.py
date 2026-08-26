@@ -48,7 +48,8 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.dnd_inventory import DndLootOffer, DndLootOfferItem
 from app.schemas.narrator import TranscriptEntry
-from app.schemas.responses import DiceRollDisplay
+from app.schemas.narrator import VisualNovelPage
+from app.schemas.responses import DiceRollDisplay, VisualNovelRender
 from app.schemas.state import SessionState, SlotEntry, WorldState
 
 
@@ -323,8 +324,8 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
         output_text="opening narration",
         per_player_renders={"aldric": "Aldric wakes."},
     ))
-    engine.image_sidecar.config.diffusion_enabled = False
-    engine.image_generation.wait_for_render_images = AsyncMock(
+    engine.image_generation.can_generate_render.return_value = False
+    engine.wait_for_visual_novel_stage_work = AsyncMock(
         return_value=True,
     )
     engine.opening_lobby.return_value = OpeningLobbyView(
@@ -1907,30 +1908,43 @@ class TestActingDescribe:
 
         run(state.handle_line("/query what does the crest look like?"))
 
-        engine.image_generation.wait_for_render_images.assert_not_awaited()
+        engine.wait_for_visual_novel_stage_work.assert_not_awaited()
         assert "illustrating" not in capsys.readouterr().out
 
-    def test_unsupported_terminal_does_not_wait_for_illustration(
+    def test_visual_stage_wait_is_independent_of_terminal_image_support(
         self, run, capsys,
     ):
         engine = _mock_engine()
-        engine.image_sidecar.config.diffusion_enabled = True
+        engine.image_generation.can_generate_render.return_value = True
+        engine.prepare_visual_novel_deck = AsyncMock(
+            side_effect=RuntimeError("test presentation fallback")
+        )
         engine.run_query = AsyncMock(return_value=_turn_response(
             beat_ended_reason="query_response",
             turn_index=4,
             output_text="The crest is weathered silver.",
             per_player_renders={"aldric": "The crest is weathered silver."},
+            per_player_visual_novel_renders={
+                "aldric": VisualNovelRender(pages=[
+                    VisualNovelPage(
+                        kind="narration",
+                        text="The crest is weathered silver.",
+                    )
+                ])
+            },
             rendered_event_ids_by_pov={"aldric": ["evt_crest"]},
         ))
         state = CLIState(engine, SESSION_ID, STORY_ID)
-        engine.image_generation.can_accept_render.return_value = False
         run(state.handle_line("/join aldric"))
         capsys.readouterr()
 
         run(state.handle_line("/query what does the crest look like?"))
 
-        engine.image_generation.wait_for_render_images.assert_not_awaited()
-        assert "illustrating" not in capsys.readouterr().out
+        engine.wait_for_visual_novel_stage_work.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            rendered_event_ids_by_pov={"aldric": ["evt_crest"]},
+        )
+        assert "illustrating" in capsys.readouterr().out
 
     def test_turn_response_prints_per_pov_asset_reveals_for_claimed_characters(
         self, run, capsys,

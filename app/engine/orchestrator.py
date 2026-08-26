@@ -98,7 +98,7 @@ from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.requests import TurnRequest
-from app.schemas.responses import TurnResponse
+from app.schemas.responses import TurnResponse, VisualNovelRender
 from app.schemas.state import CommitmentRevisionPrompt, PendingNarratorRender
 
 logger = logging.getLogger(__name__)
@@ -414,6 +414,21 @@ def _combine_beat_renders(results: list[BeatResult]) -> dict[str, str]:
     return combined
 
 
+def _combine_visual_novel_renders(
+    results: list[BeatResult],
+) -> dict[str, VisualNovelRender]:
+    combined: dict[str, VisualNovelRender] = {}
+    for result in results:
+        for character_id, render in result.visual_novel_renders.items():
+            existing = combined.get(character_id)
+            pages = [page.model_copy(deep=True) for page in render.pages]
+            if existing is None:
+                combined[character_id] = VisualNovelRender(pages=pages)
+            else:
+                existing.pages.extend(pages)
+    return combined
+
+
 def _combine_loot_prompts(results: list[BeatResult]) -> dict[str, list[str]]:
     combined: dict[str, list[str]] = {}
     for result in results:
@@ -575,6 +590,7 @@ def _turn_response_from_beat_results(
     if not beat_results:
         return None
     per_player = _combine_beat_renders(beat_results)
+    visual_novel = _combine_visual_novel_renders(beat_results)
     final_result = beat_results[-1]
     output_text = per_player.get(acting_id, "")
     if fallback_to_first_render and not output_text:
@@ -585,6 +601,7 @@ def _turn_response_from_beat_results(
         turn_index=ckpt.session.turn_index,
         output_text=output_text,
         per_player_renders=per_player,
+        per_player_visual_novel_renders=visual_novel,
         rendered_event_ids_by_pov=_combined_rendered_event_ids(beat_results),
         beat_ended_reason=_combined_beat_reason(beat_results),
         reaction_prompts=final_result.reaction_prompts or {},
@@ -754,11 +771,7 @@ class Orchestrator:
         director_enabled = bool(
             self.image_generation is not None
             and self.image_sink is not None
-            and getattr(
-                getattr(self.image_sink, "config", None),
-                "director_enabled",
-                False,
-            )
+            and ckpt.session.config.settings.presentation_mode == "visual_novel"
         )
         source_checkpoint_sha256 = ""
         if director_enabled:
@@ -1852,6 +1865,7 @@ class Orchestrator:
                     evt_live.initiator_id,
                     *followup_result.event_actor_ids,
                 ],
+                visual_novel_renders=followup_result.visual_novel_renders,
                 reaction_prompts=followup_result.reaction_prompts or {},
                 rendered_event_ids_by_pov=(
                     followup_result.rendered_event_ids_by_pov

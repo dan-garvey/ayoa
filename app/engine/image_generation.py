@@ -21,6 +21,7 @@ from app.engine.image_director import (
     text_names_public_character,
 )
 from app.engine.image_job_store import ImageJobStore
+from app.engine.image_job_store import VisualNovelStageResolution
 from app.engine.image_worker_client import (
     ImageWorkerClient,
     ImageWorkerConfig,
@@ -78,9 +79,6 @@ ImageDeliveryHandler = Callable[
     ],
     Awaitable[bool],
 ]
-ImagePresentationCapability = Callable[[str, str], bool]
-
-
 @dataclass(frozen=True)
 class ImageDeliveryTarget:
     pov_character_id: str
@@ -176,10 +174,6 @@ class ImageGenerationCoordinator:
             ImageDeliveryKind,
             ImageDeliveryHandler,
         ] = {}
-        self._presentation_capabilities: dict[
-            ImageDeliveryKind,
-            ImagePresentationCapability,
-        ] = {}
         self._runner: asyncio.Task[None] | None = None
         self._delivery_runner: asyncio.Task[None] | None = None
         self._ownership_runner: asyncio.Task[None] | None = None
@@ -210,44 +204,18 @@ class ImageGenerationCoordinator:
         self,
         delivery_kind: ImageDeliveryKind,
         handler: ImageDeliveryHandler,
-        *,
-        can_present: ImagePresentationCapability | None = None,
     ) -> None:
         self._delivery_handlers[delivery_kind] = handler
-        self._presentation_capabilities[delivery_kind] = (
-            can_present or (lambda _session_id, _pov_character_id: True)
-        )
         if self._started and self._delivery_runner is None:
             self._delivery_runner = asyncio.create_task(
                 self._run_delivery_poll(),
                 name="ayoa-image-delivery",
             )
 
-    def can_accept_render(
-        self,
-        delivery_kind: ImageDeliveryKind,
-        *,
-        session_id: str,
-        pov_character_id: str,
-    ) -> bool:
-        """Whether diffusion and a usable POV-safe presentation path exist."""
-        if not self.available or not self._preflight_ready:
-            return False
-        if delivery_kind not in self._delivery_handlers:
-            return False
-        capability = self._presentation_capabilities.get(delivery_kind)
-        if capability is None:
-            return False
-        try:
-            return bool(capability(session_id, pov_character_id))
-        except Exception:
-            logger.exception(
-                "image presentation capability failed kind=%s session=%s pov=%s",
-                delivery_kind.value,
-                session_id,
-                pov_character_id,
-            )
-            return False
+    def can_generate_render(self) -> bool:
+        """Whether the worker can produce a stage without raw delivery."""
+
+        return bool(self.available and self._preflight_ready)
 
     async def start(self) -> None:
         if self._started:
@@ -366,7 +334,10 @@ class ImageGenerationCoordinator:
         reroll_of_reference_id: str = "",
         diffusion_prompt_override: str = "",
     ) -> ImageGenerationJob | None:
-        if not delivery_targets:
+        if (
+            not delivery_targets
+            and projection.presentation_mode != "visual_novel"
+        ):
             return None
         _validate_direction_for_generation(
             projection=projection,
@@ -396,7 +367,10 @@ class ImageGenerationCoordinator:
             )
             return None
 
-        width, height = _dimensions_for_kind(direction.kind)
+        width, height = _dimensions_for_kind(
+            direction.kind,
+            presentation_mode=projection.presentation_mode,
+        )
         references = self._resolve_references(
             projection=projection,
             direction=direction,
@@ -506,49 +480,6 @@ class ImageGenerationCoordinator:
         await self._notify_changed()
         return job
 
-    def open_prose_gates(
-        self,
-        *,
-        transaction_id: str,
-        rendered_event_ids_by_pov: dict[str, Sequence[str]],
-    ) -> int:
-        opened = 0
-        by_event: dict[str, list[str]] = {}
-        for pov_character_id, event_ids in rendered_event_ids_by_pov.items():
-            for event_id in event_ids:
-                by_event.setdefault(event_id, []).append(pov_character_id)
-        for event_id, pov_ids in by_event.items():
-            opened += self.store.open_prose_gate(
-                transaction_id=transaction_id,
-                source_event_id=event_id,
-                pov_character_ids=pov_ids,
-            )
-        if opened:
-            self._wake.set()
-        return opened
-
-    def open_prose_gates_for_session(
-        self,
-        *,
-        session_id: str,
-        rendered_event_ids_by_pov: dict[str, Sequence[str]],
-    ) -> int:
-        by_event: dict[str, list[str]] = {}
-        for pov_character_id, event_ids in rendered_event_ids_by_pov.items():
-            for event_id in event_ids:
-                by_event.setdefault(event_id, []).append(pov_character_id)
-        opened = sum(
-            self.store.open_prose_gate_for_session_event(
-                session_id=session_id,
-                source_event_id=event_id,
-                pov_character_ids=pov_ids,
-            )
-            for event_id, pov_ids in by_event.items()
-        )
-        if opened:
-            self._wake.set()
-        return opened
-
     async def wait_for_terminal(
         self,
         job_id: str,
@@ -638,6 +569,45 @@ class ImageGenerationCoordinator:
             job.artifact,
             runtime_root=self.config.runtime_root,
         )
+
+    def resolve_visual_novel_stage(
+        self,
+        *,
+        session_id: str,
+        pov_character_id: str,
+        rendered_event_ids: Sequence[str],
+    ) -> tuple[VisualNovelStageResolution, ResolvedPlayerMedia | None]:
+        resolution = self.store.resolve_visual_novel_stage(
+            session_id=session_id,
+            pov_character_id=pov_character_id,
+            rendered_event_ids=rendered_event_ids,
+        )
+        if resolution.artifact is None:
+            return resolution, None
+        try:
+            return (
+                resolution,
+                resolve_generated_media(
+                    resolution.artifact,
+                    runtime_root=self.config.runtime_root,
+                ),
+            )
+        except PlayerMediaError as exc:
+            logger.warning(
+                "visual-novel stage validation failed session=%s pov=%s code=%s",
+                session_id,
+                pov_character_id,
+                exc.code,
+            )
+            return (
+                VisualNovelStageResolution(
+                    action=resolution.action,
+                    artifact=None,
+                    source_run_id=resolution.source_run_id,
+                    fallback_reason="stage_artifact_invalid",
+                ),
+                None,
+            )
 
     def delivery_is_current(self, delivery_id: str) -> bool:
         return (
@@ -977,13 +947,6 @@ class ImageGenerationCoordinator:
                     reason="identity_reroll_enqueue_failed",
                 )
             raise
-        self.store.open_prose_gate(
-            transaction_id=job.request.transaction_id,
-            source_event_id=job.request.source_event_id,
-            pov_character_ids=[
-                target.pov_character_id for target in delivery_targets
-            ],
-        )
         return job
 
     async def _run(self) -> None:
@@ -1706,7 +1669,13 @@ def _character_continuity_line(
     return "- " + "; ".join(parts)
 
 
-def _dimensions_for_kind(kind: str) -> tuple[int, int]:
+def _dimensions_for_kind(
+    kind: str,
+    *,
+    presentation_mode: str = "prose",
+) -> tuple[int, int]:
+    if presentation_mode == "visual_novel":
+        return 1024, 576
     if kind == "portrait":
         return 768, 1024
     if kind in {"group_portrait", "action", "establishing"}:

@@ -14,6 +14,7 @@ recovered_playthrough.txt
 app/storage/playtest_reports/
 app/storage/runtime/image_generation/
 app/storage/runtime/image_prototypes/
+app/storage/runtime/visual_novel_presentation/
 app/storage/stories/*
 app/storage/sessions/*
 app/storage/stories/*/visual-references/

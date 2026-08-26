@@ -94,6 +94,149 @@ from app.schemas.responses import DiceRollDisplay, TurnResponse
 
 logger = logging.getLogger(__name__)
 
+
+_VISUAL_NOVEL_CUSTOM_ID_RE = (
+    r"^avn:(?P<deck>[0-9a-f]{64}):(?P<user>[0-9]{1,20}):"
+    r"(?P<index>[0-9]{1,3}):(?P<action>[pnt])$"
+)
+
+
+class _VisualNovelControl(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=_VISUAL_NOVEL_CUSTOM_ID_RE,
+):
+    """Restart-safe ADV navigation encoded entirely in the component id."""
+
+    _LABELS = {"p": "Previous", "n": "Next", "t": "Transcript"}
+
+    def __init__(
+        self,
+        *,
+        deck_id: str,
+        user_id: int,
+        index: int,
+        action: str,
+        disabled: bool = False,
+    ) -> None:
+        self.deck_id = deck_id
+        self.user_id = int(user_id)
+        self.index = max(0, int(index))
+        self.action = action
+        super().__init__(discord.ui.Button(
+            label=self._LABELS[action],
+            style=(
+                discord.ButtonStyle.secondary
+                if action in {"p", "n"}
+                else discord.ButtonStyle.primary
+            ),
+            custom_id=(
+                f"avn:{deck_id}:{self.user_id}:{self.index}:{action}"
+            ),
+            disabled=disabled,
+        ))
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        del interaction, item
+        return cls(
+            deck_id=match["deck"],
+            user_id=int(match["user"]),
+            index=int(match["index"]),
+            action=match["action"],
+        )
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message(
+            "These private story controls belong to another player.",
+            ephemeral=True,
+        )
+        return False
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        engine = getattr(
+            interaction.client,
+            "_ayoa_visual_novel_engine",
+            None,
+        )
+        if engine is None:
+            await interaction.response.send_message(
+                "This story deck is unavailable after restart.",
+                ephemeral=True,
+            )
+            return
+        deck = engine.load_visual_novel_deck(self.deck_id)
+        if deck is None:
+            await interaction.response.send_message(
+                "This story deck is no longer available.",
+                ephemeral=True,
+            )
+            return
+        if self.action == "t":
+            chunks = _chunks(deck.transcript, 1900) or ["(empty transcript)"]
+            await interaction.response.send_message(chunks[0], ephemeral=True)
+            for chunk in chunks[1:]:
+                await interaction.followup.send(chunk, ephemeral=True)
+            return
+        target = self.index + (-1 if self.action == "p" else 1)
+        target = max(0, min(target, len(deck.cards) - 1))
+        file = _visual_novel_discord_file(deck, target)
+        await interaction.response.edit_message(
+            attachments=[file],
+            view=_VisualNovelView(
+                deck_id=deck.deck_id,
+                user_id=self.user_id,
+                index=target,
+                count=len(deck.cards),
+            ),
+        )
+
+
+class _VisualNovelView(discord.ui.View):
+    def __init__(
+        self,
+        *,
+        deck_id: str,
+        user_id: int,
+        index: int,
+        count: int,
+    ) -> None:
+        super().__init__(timeout=None)
+        self.add_item(_VisualNovelControl(
+            deck_id=deck_id,
+            user_id=user_id,
+            index=index,
+            action="p",
+            disabled=index <= 0,
+        ))
+        self.add_item(_VisualNovelControl(
+            deck_id=deck_id,
+            user_id=user_id,
+            index=index,
+            action="n",
+            disabled=index >= count - 1,
+        ))
+        self.add_item(_VisualNovelControl(
+            deck_id=deck_id,
+            user_id=user_id,
+            index=index,
+            action="t",
+        ))
+
+
+def _visual_novel_discord_file(deck, index: int) -> discord.File:
+    card = deck.cards[index]
+    return discord.File(
+        str(card.image_path),
+        filename=(
+            f"visual-novel-{deck.deck_id[:12]}-{card.index:03d}.png"
+        ),
+        description=(
+            f"Visual novel story page {card.index} of {card.count}."
+        ),
+    )
+
 # D&D Beyond browser exports are larger than story prompts because they
 # include source data for spells, actions, and inventory. The attachment
 # still stays out of prompts; it is stored in checkpoints for rewind and
@@ -860,6 +1003,91 @@ async def _post_actor_render(
         )
 
     return ("none", None)
+
+
+async def _post_visual_novel_render(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    engine: EngineBridge,
+    user: discord.abc.User,
+    character_id: str,
+    char_name: str,
+    render,
+    rendered_event_ids: list[str],
+    intro_content: Optional[str] = None,
+    session_id: str,
+    turn_index: int,
+) -> tuple[str, Optional[discord.Thread]]:
+    """Post one private editable card, with thread-to-DM fail-closed routing."""
+
+    deck = await engine.prepare_visual_novel_deck(
+        session_id=session_id,
+        pov_character_id=character_id,
+        render=render,
+        rendered_event_ids=rendered_event_ids,
+    )
+    file = _visual_novel_discord_file(deck, 0)
+    view = _VisualNovelView(
+        deck_id=deck.deck_id,
+        user_id=user.id,
+        index=0,
+        count=len(deck.cards),
+    )
+    channel = _session_text_channel(inter)
+    thread: Optional[discord.Thread] = None
+    if channel is not None:
+        thread = await _ensure_pov_thread(
+            channel=channel,
+            user=user,
+            smap=smap,
+            character_id=character_id,
+            char_name=char_name,
+        )
+    if thread is not None:
+        try:
+            msg = await thread.send(
+                content=intro_content,
+                file=file,
+                view=view,
+            )
+            await _record_turn_message(
+                smap=smap,
+                session_channel_id=_session_channel_id(inter),
+                session_id=session_id,
+                turn_index=turn_index,
+                message=msg,
+                delivery="thread_visual_novel",
+                discord_channel_id=thread.id,
+                recipient_user_id=user.id,
+            )
+            return "thread", thread
+        except Exception:
+            logger.exception(
+                "visual-novel thread delivery failed; falling back to DM"
+            )
+            await smap.clear_pov_thread(
+                _session_channel_id(inter), user.id,
+            )
+    try:
+        msg = await user.send(
+            content=intro_content,
+            file=_visual_novel_discord_file(deck, 0),
+            view=view,
+        )
+        await _record_turn_message(
+            smap=smap,
+            session_channel_id=_session_channel_id(inter),
+            session_id=session_id,
+            turn_index=turn_index,
+            message=msg,
+            delivery="dm_visual_novel",
+            recipient_user_id=user.id,
+        )
+        return "dm", None
+    except Exception:
+        logger.exception("visual-novel DM fallback failed for user %s", user.id)
+        return "none", None
 
 
 async def _report_private_delivery_failure(
@@ -1925,39 +2153,6 @@ async def _deliver_loot_prompts(
             )
 
 
-async def _wait_for_render_image_delivery(
-    *,
-    engine: EngineBridge,
-    session_id: str,
-    character_id: str,
-    rendered_event_ids_by_pov: dict[str, list[str]],
-) -> None:
-    event_ids = list(rendered_event_ids_by_pov.get(character_id, []) or [])
-    if not event_ids:
-        return
-    if not bool(
-        getattr(
-            getattr(engine.image_sidecar, "config", None),
-            "diffusion_enabled",
-            False,
-        )
-    ):
-        return
-    if not engine.image_generation.can_accept_render(
-        ImageDeliveryKind.discord,
-        session_id=session_id,
-        pov_character_id=character_id,
-    ):
-        return
-    try:
-        await engine.image_generation.wait_for_render_images(
-            session_id=session_id,
-            rendered_event_ids_by_pov={character_id: event_ids},
-        )
-    except Exception:
-        logger.exception("render image wait failed for %s", character_id)
-
-
 def _numbered_ref_lines(ids: list[str]) -> str:
     return "\n".join(
         f"{index}: `{value}`" for index, value in enumerate(ids, start=1)
@@ -2089,17 +2284,6 @@ async def _deliver_turn_response_to_povs(
         bindings = {}
         roster = []
 
-    async def _wait_for_render_image_prose(
-        character_id: str,
-        rendered_event_ids_by_pov: dict[str, list[str]],
-    ) -> None:
-        await _wait_for_render_image_delivery(
-            engine=engine,
-            session_id=session_id,
-            character_id=character_id,
-            rendered_event_ids_by_pov=rendered_event_ids_by_pov,
-        )
-
     async def _dm_per_pov(
         renders: dict[str, str],
         *,
@@ -2109,12 +2293,14 @@ async def _deliver_turn_response_to_povs(
         reaction_prompts: dict[str, str] | None = None,
         commitment_revision_prompts: dict[str, list[str]] | None = None,
         rendered_event_ids_by_pov: dict[str, list[str]] | None = None,
+        visual_novel_renders: dict[str, Any] | None = None,
     ) -> list[str]:
         """Post each (cid, prose) to that user's POV thread or DM."""
         notified: list[str] = []
         reaction_prompts = reaction_prompts or {}
         commitment_revision_prompts = commitment_revision_prompts or {}
         rendered_event_ids_by_pov = rendered_event_ids_by_pov or {}
+        visual_novel_renders = visual_novel_renders or {}
         for cid, prose in renders.items():
             if cid == skip_cid or not prose:
                 continue
@@ -2137,10 +2323,6 @@ async def _deliver_turn_response_to_povs(
                 "still permits it._"
                 if commitment_revision_prompts.get(cid) else ""
             )
-            prefixes = [
-                p for p in (note_prefix, reaction_note, revision_note) if p
-            ]
-            payload = "\n\n".join([*prefixes, prose]) if prefixes else prose
             char = next((c for c in roster if c.character_id == cid), None)
             char_name = char.name if char else cid
             view = (
@@ -2155,30 +2337,78 @@ async def _deliver_turn_response_to_povs(
                 )
                 if event_id else None
             )
-            await _wait_for_render_image_prose(
-                cid,
-                rendered_event_ids_by_pov,
-            )
-            ok = await _post_to_pov(
-                inter=inter,
-                smap=smap,
-                user_id=uid,
-                character_id=cid,
-                char_name=char_name,
-                text=payload,
-                bot=inter.client,
-                session_id=session_id,
-                turn_index=turn_index,
-                view=view,
-            )
+            visual_render = visual_novel_renders.get(cid)
+            ok = False
+            if visual_render is not None:
+                user = inter.client.get_user(uid)
+                if user is None:
+                    try:
+                        user = await inter.client.fetch_user(uid)
+                    except Exception:
+                        logger.exception(
+                            "visual-novel fan-out: fetch_user(%s) failed",
+                            uid,
+                        )
+                if user is not None:
+                    try:
+                        venue, _thread = await _post_visual_novel_render(
+                            inter=inter,
+                            smap=smap,
+                            engine=engine,
+                            user=user,
+                            character_id=cid,
+                            char_name=char_name,
+                            render=visual_render,
+                            rendered_event_ids=rendered_event_ids_by_pov.get(
+                                cid, []
+                            ),
+                            intro_content=(
+                                "\n\n".join(
+                                    p for p in (note_prefix, revision_note) if p
+                                ) or None
+                            ),
+                            session_id=session_id,
+                            turn_index=turn_index,
+                        )
+                        ok = venue != "none"
+                    except Exception:
+                        logger.exception(
+                            "visual-novel POV presentation failed; using prose"
+                        )
+                if ok and reaction_note:
+                    await _post_to_pov(
+                        inter=inter,
+                        smap=smap,
+                        user_id=uid,
+                        character_id=cid,
+                        char_name=char_name,
+                        text=reaction_note,
+                        bot=inter.client,
+                        session_id=session_id,
+                        turn_index=turn_index,
+                        view=view,
+                    )
+            if not ok:
+                prefixes = [
+                    p for p in (note_prefix, reaction_note, revision_note) if p
+                ]
+                payload = (
+                    "\n\n".join([*prefixes, prose]) if prefixes else prose
+                )
+                ok = await _post_to_pov(
+                    inter=inter,
+                    smap=smap,
+                    user_id=uid,
+                    character_id=cid,
+                    char_name=char_name,
+                    text=payload,
+                    bot=inter.client,
+                    session_id=session_id,
+                    turn_index=turn_index,
+                    view=view,
+                )
             if ok:
                 notified.append(char_name)
-                engine.image_generation.open_prose_gates_for_session(
-                    session_id=session_id,
-                    rendered_event_ids_by_pov={
-                        cid: rendered_event_ids_by_pov.get(cid, [])
-                    },
-                )
         return notified
 
     async def _deliver_rolls_to_povs(
@@ -2351,6 +2581,9 @@ async def _deliver_turn_response_to_povs(
             rendered_event_ids_by_pov=(
                 pre_resp.rendered_event_ids_by_pov or {}
             ),
+            visual_novel_renders=(
+                pre_resp.per_player_visual_novel_renders or {}
+            ),
         )
         await _deliver_assets_to_povs(
             pre_resp,
@@ -2404,7 +2637,83 @@ async def _deliver_turn_response_to_povs(
         "permits it._"
         if commitment_revision_prompts.get(actor_character_id) else ""
     )
-    actor_render_delivered = False
+    async def _post_actor_story_render(
+        actor_render: str,
+        *,
+        intro_content: str | None,
+    ) -> tuple[str, Optional[discord.Thread]]:
+        reaction_event_id = reaction_prompts.get(actor_character_id, "")
+        reaction_view = (
+            _CombatReactionView(
+                engine=engine,
+                smap=smap,
+                session_id=session_id,
+                character_id=actor_character_id,
+                event_id=reaction_event_id,
+                user_id=actor_user.id,
+                turn_index=response.turn_index,
+            )
+            if reaction_event_id else None
+        )
+        visual_render = (
+            response.per_player_visual_novel_renders or {}
+        ).get(actor_character_id)
+        if visual_render is not None:
+            try:
+                venue, thread = await _post_visual_novel_render(
+                    inter=inter,
+                    smap=smap,
+                    engine=engine,
+                    user=actor_user,
+                    character_id=actor_character_id,
+                    char_name=actor_name,
+                    render=visual_render,
+                    rendered_event_ids=(
+                        response.rendered_event_ids_by_pov or {}
+                    ).get(actor_character_id, []),
+                    intro_content=intro_content,
+                    session_id=session_id,
+                    turn_index=response.turn_index,
+                )
+                if venue != "none":
+                    if reaction_view is not None:
+                        await _post_to_pov(
+                            inter=inter,
+                            smap=smap,
+                            user_id=actor_user.id,
+                            character_id=actor_character_id,
+                            char_name=actor_name,
+                            text=(
+                                "_You may use `/act` to spend your reaction "
+                                "now, or press **No reaction** to pass._"
+                            ),
+                            bot=inter.client,
+                            session_id=session_id,
+                            turn_index=response.turn_index,
+                            view=reaction_view,
+                        )
+                    return venue, thread
+            except Exception:
+                logger.exception(
+                    "actor visual-novel presentation failed; using prose"
+                )
+        embeds = render_turn(
+            output_text=actor_render,
+            turn_index=response.turn_index,
+            story_id=story_id,
+        )
+        return await _post_actor_render(
+            inter=inter,
+            smap=smap,
+            user=actor_user,
+            character_id=actor_character_id,
+            char_name=actor_name,
+            embeds=embeds,
+            intro_content=intro_content,
+            session_id=session_id,
+            turn_index=response.turn_index,
+            view=reaction_view,
+        )
 
     combat_start_blocked = response.beat_ended_reason == "combat_start_blocked"
     pending_rolls = response.beat_ended_reason == "cat_ii_pending_rolls"
@@ -2439,46 +2748,16 @@ async def _deliver_turn_response_to_povs(
                 "You'll see the beat continue when they /act._"
             )
         if actor_render:
-            embeds = render_turn(
-                output_text=actor_render,
-                turn_index=response.turn_index,
-                story_id=story_id,
-            )
-            await _wait_for_render_image_prose(
-                actor_character_id,
-                response.rendered_event_ids_by_pov or {},
-            )
-            venue, thread = await _post_actor_render(
-                inter=inter,
-                smap=smap,
-                user=actor_user,
-                character_id=actor_character_id,
-                char_name=actor_name,
-                embeds=embeds,
+            venue, thread = await _post_actor_story_render(
+                actor_render,
                 intro_content="\n\n".join(
                     p for p in (pause_note, actor_revision_note) if p
                 ),
-                session_id=session_id,
-                turn_index=response.turn_index,
-                view=(
-                    _CombatReactionView(
-                        engine=engine,
-                        smap=smap,
-                        session_id=session_id,
-                        character_id=actor_character_id,
-                        event_id=reaction_prompts[actor_character_id],
-                        user_id=actor_user.id,
-                        turn_index=response.turn_index,
-                    )
-                    if actor_character_id in reaction_prompts else None
-                ),
             )
             if venue == "thread" and thread is not None:
-                actor_render_delivered = True
                 if clear_interaction_response:
                     await _clear_interaction_response(inter)
             elif venue == "dm":
-                actor_render_delivered = True
                 if clear_interaction_response:
                     await _clear_interaction_response(inter)
             else:
@@ -2505,44 +2784,14 @@ async def _deliver_turn_response_to_povs(
             or per_player.get(actor_character_id, "")
             or "(no response)"
         )
-        embeds = render_turn(
-            output_text=actor_render,
-            turn_index=response.turn_index,
-            story_id=story_id,
-        )
-        await _wait_for_render_image_prose(
-            actor_character_id,
-            response.rendered_event_ids_by_pov or {},
-        )
-        venue, thread = await _post_actor_render(
-            inter=inter,
-            smap=smap,
-            user=actor_user,
-            character_id=actor_character_id,
-            char_name=actor_name,
-            embeds=embeds,
+        venue, thread = await _post_actor_story_render(
+            actor_render,
             intro_content=actor_revision_note or None,
-            session_id=session_id,
-            turn_index=response.turn_index,
-            view=(
-                _CombatReactionView(
-                    engine=engine,
-                    smap=smap,
-                    session_id=session_id,
-                    character_id=actor_character_id,
-                    event_id=reaction_prompts[actor_character_id],
-                    user_id=actor_user.id,
-                    turn_index=response.turn_index,
-                )
-                if actor_character_id in reaction_prompts else None
-            ),
         )
         if venue == "thread" and thread is not None:
-            actor_render_delivered = True
             if clear_interaction_response:
                 await _clear_interaction_response(inter)
         elif venue == "dm":
-            actor_render_delivered = True
             if clear_interaction_response:
                 await _clear_interaction_response(inter)
         else:
@@ -2550,19 +2799,6 @@ async def _deliver_turn_response_to_povs(
                 inter,
                 subject="turn update",
             )
-
-    if actor_render and actor_render_delivered:
-        engine.image_generation.open_prose_gates_for_session(
-            session_id=session_id,
-            rendered_event_ids_by_pov={
-                actor_character_id: (
-                    response.rendered_event_ids_by_pov.get(
-                        actor_character_id,
-                        [],
-                    )
-                )
-            },
-        )
 
     if per_player:
         await _deliver_rolls_to_povs(
@@ -2578,6 +2814,9 @@ async def _deliver_turn_response_to_povs(
             commitment_revision_prompts=commitment_revision_prompts,
             rendered_event_ids_by_pov=(
                 response.rendered_event_ids_by_pov or {}
+            ),
+            visual_novel_renders=(
+                response.per_player_visual_novel_renders or {}
             ),
         )
         if notified_names:
@@ -3543,6 +3782,13 @@ def register(
     If `guild` is provided, commands are registered guild-scoped (propagate
     instantly). Without it, commands are global (up to 1h to propagate).
     """
+    client = getattr(tree, "client", None)
+    if client is not None:
+        setattr(client, "_ayoa_visual_novel_engine", engine)
+        add_dynamic_items = getattr(client, "add_dynamic_items", None)
+        if callable(add_dynamic_items):
+            add_dynamic_items(_VisualNovelControl)
+
     async def _deliver_generated_image(
         job,
         image_delivery,
@@ -4410,40 +4656,58 @@ def register(
                 ))
                 return
 
-        embeds = render_turn(
-            output_text=response.output_text,
-            turn_index=response.turn_index,
-            story_id=story_id,
-        )
         intro = f"**{char_name}** joined. You step into the moment."
-
-        await _wait_for_render_image_delivery(
-            engine=engine,
-            session_id=session_id,
-            character_id=binding_cid,
-            rendered_event_ids_by_pov=response.rendered_event_ids_by_pov or {},
-        )
-        venue, thread = await _post_actor_render(
-            inter=inter,
-            smap=smap,
-            user=inter.user,
-            character_id=binding_cid,
-            char_name=char_name,
-            embeds=embeds,
-            intro_content=intro,
-            session_id=session_id,
-            turn_index=response.turn_index,
-        )
-        actor_render_delivered = False
+        visual_render = (
+            response.per_player_visual_novel_renders or {}
+        ).get(binding_cid)
+        if visual_render is not None:
+            try:
+                venue, thread = await _post_visual_novel_render(
+                    inter=inter,
+                    smap=smap,
+                    engine=engine,
+                    user=inter.user,
+                    character_id=binding_cid,
+                    char_name=char_name,
+                    render=visual_render,
+                    rendered_event_ids=(
+                        response.rendered_event_ids_by_pov or {}
+                    ).get(binding_cid, []),
+                    intro_content=intro,
+                    session_id=session_id,
+                    turn_index=response.turn_index,
+                )
+            except Exception:
+                logger.exception(
+                    "arrival visual-novel presentation failed; using prose"
+                )
+                visual_render = None
+            if venue == "none":
+                visual_render = None
+        if visual_render is None:
+            embeds = render_turn(
+                output_text=response.output_text,
+                turn_index=response.turn_index,
+                story_id=story_id,
+            )
+            venue, thread = await _post_actor_render(
+                inter=inter,
+                smap=smap,
+                user=inter.user,
+                character_id=binding_cid,
+                char_name=char_name,
+                embeds=embeds,
+                intro_content=intro,
+                session_id=session_id,
+                turn_index=response.turn_index,
+            )
         if venue == "thread" and thread is not None:
-            actor_render_delivered = True
             await inter.followup.send(
                 f"**{char_name}** joined. Your story opens in "
                 f"{thread.mention}.",
                 ephemeral=True,
             )
         elif venue == "dm":
-            actor_render_delivered = True
             await inter.followup.send(
                 f"**{char_name}** joined. Your story opens in your DMs "
                 "(POV thread unavailable here).",
@@ -4464,17 +4728,10 @@ def register(
             rendered_event_ids_by_pov=(
                 response.rendered_event_ids_by_pov or {}
             ),
+            visual_novel_renders=(
+                response.per_player_visual_novel_renders or {}
+            ),
         )
-        if actor_render_delivered:
-            engine.image_generation.open_prose_gates_for_session(
-                session_id=session_id,
-                rendered_event_ids_by_pov={
-                    binding_cid: response.rendered_event_ids_by_pov.get(
-                        binding_cid,
-                        [],
-                    )
-                },
-            )
 
     async def _fan_out_per_player_renders(
         *,
@@ -4484,6 +4741,7 @@ def register(
         per_player: dict[str, str],
         turn_index: int,
         rendered_event_ids_by_pov: dict[str, list[str]],
+        visual_novel_renders: dict[str, Any],
     ) -> None:
         """DM each non-acting bound human their POV render for the
         last beat. Mirrors the /act fan-out path so multi-POV beats
@@ -4519,31 +4777,52 @@ def register(
                 (c for c in roster if c.character_id == cid), None,
             )
             other_name = char.name if char else cid
-            await _wait_for_render_image_delivery(
-                engine=engine,
-                session_id=session_id,
-                character_id=cid,
-                rendered_event_ids_by_pov=rendered_event_ids_by_pov,
-            )
-            ok = await _post_to_pov(
-                inter=inter,
-                smap=smap,
-                user_id=uid,
-                character_id=cid,
-                char_name=other_name,
-                text=prose,
-                bot=inter.client,
-                session_id=session_id,
-                turn_index=turn_index,
-            )
+            ok = False
+            visual_render = visual_novel_renders.get(cid)
+            if visual_render is not None:
+                user = inter.client.get_user(uid)
+                if user is None:
+                    try:
+                        user = await inter.client.fetch_user(uid)
+                    except Exception:
+                        logger.exception(
+                            "opening visual-novel fetch_user(%s) failed", uid
+                        )
+                if user is not None:
+                    try:
+                        venue, _thread = await _post_visual_novel_render(
+                            inter=inter,
+                            smap=smap,
+                            engine=engine,
+                            user=user,
+                            character_id=cid,
+                            char_name=other_name,
+                            render=visual_render,
+                            rendered_event_ids=rendered_event_ids_by_pov.get(
+                                cid, []
+                            ),
+                            session_id=session_id,
+                            turn_index=turn_index,
+                        )
+                        ok = venue != "none"
+                    except Exception:
+                        logger.exception(
+                            "opening visual-novel fan-out failed; using prose"
+                        )
+            if not ok:
+                ok = await _post_to_pov(
+                    inter=inter,
+                    smap=smap,
+                    user_id=uid,
+                    character_id=cid,
+                    char_name=other_name,
+                    text=prose,
+                    bot=inter.client,
+                    session_id=session_id,
+                    turn_index=turn_index,
+                )
             if ok:
                 notified.append(other_name)
-                engine.image_generation.open_prose_gates_for_session(
-                    session_id=session_id,
-                    rendered_event_ids_by_pov={
-                        cid: rendered_event_ids_by_pov.get(cid, [])
-                    },
-                )
         if notified:
             try:
                 phrase = ", ".join(f"**{n}**" for n in notified)
@@ -5595,32 +5874,57 @@ def register(
                 )
                 actor_name = triggering_cid
 
-            embeds = render_turn(
-                output_text=actor_text,
-                turn_index=response.turn_index,
-                story_id=row.story_id,
-            )
             intro = "**The story opens.**"
-            venue, thread = await _post_actor_render(
-                inter=inter,
-                smap=smap,
-                user=inter.user,
-                character_id=triggering_cid,
-                char_name=actor_name,
-                embeds=embeds,
-                intro_content=intro,
-                session_id=row.session_id,
-                turn_index=response.turn_index,
-            )
-            actor_render_delivered = False
+            visual_render = (
+                response.per_player_visual_novel_renders or {}
+            ).get(triggering_cid)
+            if visual_render is not None:
+                try:
+                    venue, thread = await _post_visual_novel_render(
+                        inter=inter,
+                        smap=smap,
+                        engine=engine,
+                        user=inter.user,
+                        character_id=triggering_cid,
+                        char_name=actor_name,
+                        render=visual_render,
+                        rendered_event_ids=(
+                            response.rendered_event_ids_by_pov or {}
+                        ).get(triggering_cid, []),
+                        intro_content=intro,
+                        session_id=row.session_id,
+                        turn_index=response.turn_index,
+                    )
+                    if venue == "none":
+                        visual_render = None
+                except Exception:
+                    logger.exception(
+                        "opening visual-novel presentation failed; using prose"
+                    )
+                    visual_render = None
+            if visual_render is None:
+                embeds = render_turn(
+                    output_text=actor_text,
+                    turn_index=response.turn_index,
+                    story_id=row.story_id,
+                )
+                venue, thread = await _post_actor_render(
+                    inter=inter,
+                    smap=smap,
+                    user=inter.user,
+                    character_id=triggering_cid,
+                    char_name=actor_name,
+                    embeds=embeds,
+                    intro_content=intro,
+                    session_id=row.session_id,
+                    turn_index=response.turn_index,
+                )
             if venue == "thread" and thread is not None:
-                actor_render_delivered = True
                 await inter.followup.send(
                     f"The story opens in {thread.mention}.",
                     ephemeral=True,
                 )
             elif venue == "dm":
-                actor_render_delivered = True
                 await inter.followup.send(
                     "The story opens in your DMs (POV thread "
                     "unavailable here).",
@@ -5630,18 +5934,6 @@ def register(
                 await _report_private_delivery_failure(
                     inter,
                     subject="opening update",
-                )
-            if actor_render_delivered:
-                engine.image_generation.open_prose_gates_for_session(
-                    session_id=row.session_id,
-                    rendered_event_ids_by_pov={
-                        triggering_cid: (
-                            response.rendered_event_ids_by_pov.get(
-                                triggering_cid,
-                                [],
-                            )
-                        )
-                    },
                 )
         else:
             await inter.followup.send(
@@ -5660,6 +5952,9 @@ def register(
             turn_index=response.turn_index,
             rendered_event_ids_by_pov=(
                 response.rendered_event_ids_by_pov or {}
+            ),
+            visual_novel_renders=(
+                response.per_player_visual_novel_renders or {}
             ),
         )
 

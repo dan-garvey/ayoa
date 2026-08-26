@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -755,6 +754,7 @@ class TestHappyPath:
     ):
         ckpt = _ckpt(bindings={"alice": "u1"})
         ckpt.session.turn_index = 4
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
         event = _router_out(
             event_id="evt_failed_render",
             event_kind="cascade_exhausted",
@@ -778,8 +778,6 @@ class TestHappyPath:
         manager.save(ckpt)
 
         class RecordingImageSink:
-            config = SimpleNamespace(director_enabled=True)
-
             def __init__(self):
                 self.source_turn_indexes = []
                 self.committed = []

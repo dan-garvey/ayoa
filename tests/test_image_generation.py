@@ -41,6 +41,7 @@ from app.schemas.events import ObservableFact
 from app.schemas.image_director import ImageDirection, ImageDirectorOutput
 from app.schemas.image_generation import (
     FrozenReferenceInput,
+    GeneratedImageArtifact,
     IdentityReferenceStatus,
     ImageDeliveryKind,
     ImageGenerationStatus,
@@ -177,11 +178,13 @@ def _projection(
     event_id: str = "evt_1",
     event_sequence: int = 0,
     viewers: tuple[str, ...] = ("alice", "bob"),
+    source_turn_index: int = 1,
+    presentation_mode: str = "prose",
 ) -> VisibleEventProjection:
     return VisibleEventProjection(
         session_id="image_test",
         transaction_id=transaction_id,
-        source_turn_index=1,
+        source_turn_index=source_turn_index,
         event_id=event_id,
         event_sequence=event_sequence,
         event_fingerprint=hashlib.sha256(event_id.encode()).hexdigest(),
@@ -218,8 +221,7 @@ def _projection(
         active_roster_count=2,
         total_roster_count=2,
         engine_visual_style="soft cinematic illustration",
-        delivery_kind="cli",
-        viewer_delivery_bindings=tuple((viewer, "") for viewer in viewers),
+        presentation_mode=presentation_mode,
     )
 
 
@@ -291,7 +293,6 @@ def test_projection_groups_equivalent_viewers_and_respects_fact_visibility():
         event_sequence=0,
         transaction_id="tx_shared",
         source_turn_index=1,
-        delivery_kind="cli",
     )
     assert len(grouped) == 1
     assert grouped[0].viewer_character_ids == ("alice", "bob")
@@ -310,7 +311,6 @@ def test_projection_groups_equivalent_viewers_and_respects_fact_visibility():
         event_sequence=1,
         transaction_id="tx_split",
         source_turn_index=1,
-        delivery_kind="cli",
     )
     assert len(projections) == 2
     by_viewer = {projection.viewer_character_ids[0]: projection for projection in projections}
@@ -357,7 +357,6 @@ def test_render_batch_keeps_private_povs_separate_and_anchors_latest_event():
         eligible_viewer_ids={"alice", "bob"},
         transaction_id="tx_batch",
         source_turn_index=1,
-        delivery_kind="cli",
     )
 
     assert len(projections) == 2
@@ -452,7 +451,6 @@ async def test_one_star_image_projection_uses_only_current_visible_equipment():
         transaction_id="tx_live_equipment",
         source_turn_index=1,
         actor_id="alice",
-        delivery_kind="cli",
     )[0]
     assert projection.characters[0].default_loadout == (
         "Live Blade worn or carried in the hand slot"
@@ -472,6 +470,14 @@ async def test_one_star_image_projection_uses_only_current_visible_equipment():
     assert rendered_snapshot.session.config.settings.ruleset_id == (
         ONE_STAR_RULESET_ID
     )
+    assert rendered_snapshot.characters[0].visuals.default_loadout == (
+        "Live Blade worn or carried in the hand slot"
+    )
+    assert rendered_snapshot.characters[0].mechanics == {}
+    assert image_loadout_for_character(
+        rendered_snapshot,
+        rendered_snapshot.characters[0],
+    ) == "Live Blade worn or carried in the hand slot"
     snapshot_text = rendered_snapshot.model_dump_json()
     assert "Secret Armor" not in snapshot_text
 
@@ -591,7 +597,6 @@ def test_projection_does_not_disclose_engine_known_actor_to_other_viewers():
         transaction_id="tx_anonymous_actor",
         source_turn_index=2,
         actor_id="bob",
-        delivery_kind="cli",
     )
 
     by_viewer = {
@@ -665,7 +670,6 @@ def test_projection_includes_creator_player_without_binding():
         transaction_id="tx_creator",
         source_turn_index=1,
         actor_id="alice",
-        delivery_kind="cli",
     )
 
     assert len(projections) == 1
@@ -1059,7 +1063,7 @@ def test_one_star_story_has_reviewed_style_and_omits_unseen_master():
     assert master.visuals.depiction_policy == "omit"
 
 
-def test_v1_actor_cadence_store_is_retired_in_direct_v7_migration(tmp_path):
+def test_v1_actor_cadence_store_is_retired_in_direct_v8_migration(tmp_path):
     db_path = tmp_path / "jobs.sqlite"
     with sqlite3.connect(db_path) as db:
         db.execute(
@@ -1086,8 +1090,72 @@ def test_v1_actor_cadence_store_is_retired_in_direct_v7_migration(tmp_path):
             WHERE type = 'table' AND name = 'image_eligible_beats'
             """
         ).fetchone()
-    assert version == "7"
+    assert version == "8"
     assert old_table is None
+
+
+def test_v7_prose_gate_store_is_retired_before_foreign_key_parent(tmp_path):
+    db_path = tmp_path / "jobs.sqlite"
+    with sqlite3.connect(db_path) as db:
+        db.execute("PRAGMA foreign_keys = ON")
+        db.execute(
+            "CREATE TABLE image_store_meta (key TEXT PRIMARY KEY, value TEXT)"
+        )
+        db.execute(
+            "INSERT INTO image_store_meta VALUES ('schema_version', '7')"
+        )
+        db.execute(
+            "CREATE TABLE image_transactions (transaction_id TEXT PRIMARY KEY)"
+        )
+        db.execute(
+            """
+            CREATE TABLE image_prose_gates (
+                transaction_id TEXT NOT NULL,
+                source_event_id TEXT NOT NULL,
+                pov_character_id TEXT NOT NULL,
+                FOREIGN KEY(transaction_id)
+                    REFERENCES image_transactions(transaction_id)
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE image_prose_receipts (
+                session_id TEXT NOT NULL,
+                source_event_id TEXT NOT NULL,
+                pov_character_id TEXT NOT NULL
+            )
+            """
+        )
+        db.execute("INSERT INTO image_transactions VALUES ('tx_old')")
+        db.execute(
+            "INSERT INTO image_prose_gates VALUES ('tx_old', 'evt_old', 'alice')"
+        )
+        db.execute(
+            "INSERT INTO image_prose_receipts VALUES ('old', 'evt_old', 'alice')"
+        )
+
+    store = ImageJobStore(db_path)
+
+    with store._connect() as db:
+        version = db.execute(
+            "SELECT value FROM image_store_meta WHERE key = 'schema_version'"
+        ).fetchone()["value"]
+        retired = {
+            row["name"]
+            for row in db.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type = 'table' AND name LIKE 'image_prose_%'
+                """
+            ).fetchall()
+        }
+        transaction_count = db.execute(
+            "SELECT COUNT(*) AS count FROM image_transactions"
+        ).fetchone()["count"]
+    assert version == "8"
+    assert retired == set()
+    assert transaction_count == 0
 
 
 def test_same_version_intermediate_store_is_retired_by_layout(tmp_path):
@@ -1127,7 +1195,7 @@ def test_same_version_intermediate_store_is_retired_by_layout(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_generation_starts_speculatively_but_delivery_waits_for_commit_and_prose(
+async def test_identity_delivery_waits_for_transaction_commit(
     tmp_path,
 ):
     worker = FakeImageWorker()
@@ -1170,19 +1238,7 @@ async def test_generation_starts_speculatively_but_delivery_waits_for_commit_and
             "tx_1",
             target_checkpoint_sha256="b" * 64,
         )
-        await asyncio.sleep(0.6)
-        assert delivered == []
-
-        coordinator.open_prose_gates(
-            transaction_id="tx_1",
-            rendered_event_ids_by_pov={"alice": ["evt_1"]},
-        )
-        await _wait_until(lambda: delivered == ["alice"])
-        coordinator.open_prose_gates_for_session(
-            session_id="image_test",
-            rendered_event_ids_by_pov={"bob": ["evt_1"]},
-        )
-        await _wait_until(lambda: delivered == ["alice", "bob"])
+        await _wait_until(lambda: sorted(delivered) == ["alice", "bob"])
     finally:
         await coordinator.close()
 
@@ -1306,6 +1362,217 @@ async def test_render_wait_finishes_when_no_director_requests_are_admitted(
 
 
 @pytest.mark.asyncio
+async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
+    tmp_path,
+):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+    )
+    direction = ImageDirection(
+        kind="group_portrait",
+        title="Rainy Courtyard",
+        subject_character_ids=["alice", "bob"],
+        scene_prompt=(
+            "Alice and Bob stand separately in a rainy courtyard, angled "
+            "slightly toward each other in a stable medium-wide scene."
+        ),
+    )
+
+    _begin(coordinator, "tx_stage_1")
+    first_projection = _projection(
+        transaction_id="tx_stage_1",
+        event_id="evt_stage_1",
+        event_sequence=1,
+        viewers=("alice",),
+        source_turn_index=1,
+        presentation_mode="visual_novel",
+    )
+    first_run = coordinator.store.enqueue_director_run(first_projection)
+    assert coordinator.store.claim_next_director_run() is not None
+    first_output = ImageDirectorOutput(
+        stage_action="replace",
+        requests=[direction],
+    )
+    coordinator.store.complete_director_run(first_run.run_id, first_output)
+    first_job = await coordinator.enqueue_direction(
+        projection=first_projection,
+        direction=direction,
+        request_ordinal=0,
+        visual_style="cinematic",
+        delivery_targets=[],
+    )
+    assert first_job is not None
+    assert first_job.request.width == 1024
+    assert first_job.request.height == 576
+    claimed = coordinator.store.claim_next()
+    assert claimed is not None
+    artifact = GeneratedImageArtifact(
+        sha256="b" * 64,
+        relative_path="artifacts/bb/stage.webp",
+        width=1024,
+        height=576,
+        byte_count=123,
+    )
+    coordinator.store.mark_succeeded(claimed.job_id, artifact)
+    coordinator.store.finalize_director_materialization(
+        first_run.run_id,
+        first_output,
+    )
+    assert coordinator.store.commit_transaction(
+        "tx_stage_1",
+        target_checkpoint_sha256="c" * 64,
+    )
+    assert "current_stage=active" in "\n".join(
+        coordinator.store.current_visual_novel_stage_context(
+            "image_test",
+            viewer_character_ids=["alice"],
+        )
+    )
+    assert coordinator.store.current_visual_novel_stage_context(
+        "image_test",
+        viewer_character_ids=["bob"],
+    ) == []
+    assert coordinator.store.current_visual_novel_stage_context(
+        "image_test",
+        viewer_character_ids=["alice", "bob"],
+    ) == ["current_stage=neutral; reason=no shared compatible stage"]
+
+    _begin(coordinator, "tx_stage_2")
+    reuse_projection = _projection(
+        transaction_id="tx_stage_2",
+        event_id="evt_stage_2",
+        event_sequence=2,
+        viewers=("alice",),
+        source_turn_index=2,
+        presentation_mode="visual_novel",
+    )
+    reuse_run = coordinator.store.enqueue_director_run(reuse_projection)
+    assert coordinator.store.claim_next_director_run() is not None
+    coordinator.store.complete_director_run(
+        reuse_run.run_id,
+        ImageDirectorOutput(stage_action="reuse", requests=[]),
+    )
+    assert coordinator.store.commit_transaction(
+        "tx_stage_2",
+        target_checkpoint_sha256="d" * 64,
+    )
+
+    reused = coordinator.store.resolve_visual_novel_stage(
+        session_id="image_test",
+        pov_character_id="alice",
+        rendered_event_ids=["evt_stage_2"],
+    )
+    assert reused.action == "reuse"
+    assert reused.artifact == artifact
+    assert reused.fallback_reason == ""
+    assert "current_stage=reused" in "\n".join(
+        coordinator.store.current_visual_novel_stage_context(
+            "image_test",
+            viewer_character_ids=["alice"],
+        )
+    )
+
+    _begin(coordinator, "tx_stage_3")
+    failed_projection = _projection(
+        transaction_id="tx_stage_3",
+        event_id="evt_stage_3",
+        event_sequence=3,
+        viewers=("alice",),
+        source_turn_index=3,
+        presentation_mode="visual_novel",
+    )
+    failed_run = coordinator.store.enqueue_director_run(failed_projection)
+    assert coordinator.store.claim_next_director_run() is not None
+    coordinator.store.complete_director_run(
+        failed_run.run_id,
+        ImageDirectorOutput(stage_action="replace", requests=[direction]),
+    )
+    failed_job = await coordinator.enqueue_direction(
+        projection=failed_projection,
+        direction=direction,
+        request_ordinal=0,
+        visual_style="cinematic",
+        delivery_targets=[],
+    )
+    assert failed_job is not None
+    claimed_failed = coordinator.store.claim_next()
+    assert claimed_failed is not None
+    coordinator.store.mark_failed(claimed_failed.job_id, "worker_failed")
+    assert coordinator.store.commit_transaction(
+        "tx_stage_3",
+        target_checkpoint_sha256="e" * 64,
+    )
+
+    failed = coordinator.store.resolve_visual_novel_stage(
+        session_id="image_test",
+        pov_character_id="alice",
+        rendered_event_ids=["evt_stage_3"],
+    )
+    assert failed.action == "replace"
+    assert failed.artifact is None
+    assert failed.fallback_reason == "replacement_failed"
+    assert coordinator.store.current_visual_novel_stage_context(
+        "image_test",
+        viewer_character_ids=["alice"],
+    ) == ["current_stage=neutral; reason=no shared compatible stage"]
+
+    _begin(coordinator, "tx_stage_4")
+    failed_direction_projection = _projection(
+        transaction_id="tx_stage_4",
+        event_id="evt_stage_4",
+        event_sequence=4,
+        viewers=("alice",),
+        source_turn_index=4,
+        presentation_mode="visual_novel",
+    )
+    failed_direction_run = coordinator.store.enqueue_director_run(
+        failed_direction_projection
+    )
+    assert coordinator.store.claim_next_director_run() is not None
+    coordinator.store.fail_director_run(
+        failed_direction_run.run_id,
+        "director_failed",
+    )
+    assert coordinator.store.commit_transaction(
+        "tx_stage_4",
+        target_checkpoint_sha256="f" * 64,
+    )
+
+    _begin(coordinator, "tx_stage_5")
+    unsafe_reuse_projection = _projection(
+        transaction_id="tx_stage_5",
+        event_id="evt_stage_5",
+        event_sequence=5,
+        viewers=("alice",),
+        source_turn_index=5,
+        presentation_mode="visual_novel",
+    )
+    unsafe_reuse_run = coordinator.store.enqueue_director_run(
+        unsafe_reuse_projection
+    )
+    assert coordinator.store.claim_next_director_run() is not None
+    coordinator.store.complete_director_run(
+        unsafe_reuse_run.run_id,
+        ImageDirectorOutput(stage_action="reuse", requests=[]),
+    )
+    assert coordinator.store.commit_transaction(
+        "tx_stage_5",
+        target_checkpoint_sha256="0" * 64,
+    )
+
+    unsafe_reuse = coordinator.store.resolve_visual_novel_stage(
+        session_id="image_test",
+        pov_character_id="alice",
+        rendered_event_ids=["evt_stage_5"],
+    )
+    assert unsafe_reuse.action == "reuse"
+    assert unsafe_reuse.artifact is None
+    assert unsafe_reuse.fallback_reason == "reused_stage_transition_failed"
+
+
+@pytest.mark.asyncio
 async def test_cancelled_succeeded_director_run_cannot_wedge_render_wait(
     tmp_path,
 ):
@@ -1408,7 +1675,7 @@ async def test_capacity_rejects_new_event_without_fallback(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_prose_receipt_survives_when_it_arrives_before_director_job(
+async def test_committed_raw_identity_delivery_needs_no_story_prose_receipt(
     tmp_path,
 ):
     coordinator = ImageGenerationCoordinator(
@@ -1426,10 +1693,6 @@ async def test_prose_receipt_survives_when_it_arrives_before_director_job(
     await coordinator.start()
     _begin(coordinator, "tx_1")
     try:
-        assert coordinator.open_prose_gates_for_session(
-            session_id="image_test",
-            rendered_event_ids_by_pov={"alice": ["evt_1"]},
-        ) == 0
         job = await coordinator.enqueue_direction(
             projection=_projection(viewers=("alice",)),
             direction=ImageDirection(
@@ -1496,13 +1759,6 @@ async def test_first_portrait_establishes_reference_and_reroll_swaps_on_success(
             "tx_1",
             target_checkpoint_sha256="b" * 64,
         )
-        coordinator.open_prose_gates(
-            transaction_id="tx_1",
-            rendered_event_ids_by_pov={
-                "alice": ["evt_1"],
-                "bob": ["evt_1"],
-            },
-        )
         await _wait_until(lambda: len(delivered_instructions) == 2)
         assert all(
             original.candidate_id in instructions
@@ -1528,18 +1784,6 @@ async def test_first_portrait_establishes_reference_and_reroll_swaps_on_success(
             original.candidate_id
         ]
         await coordinator.wait_for_terminal(action.job_id, timeout=2)
-        assert "runs through the rain" in "\n".join(
-            coordinator.store.recent_illustrations(
-                "image_test",
-                viewer_character_ids=["alice"],
-            )
-        )
-        assert "runs through the rain" not in "\n".join(
-            coordinator.store.recent_illustrations(
-                "image_test",
-                viewer_character_ids=["bob"],
-            )
-        )
         group = await coordinator.enqueue_direction(
             projection=_projection(event_id="evt_3", event_sequence=2),
             direction=ImageDirection(

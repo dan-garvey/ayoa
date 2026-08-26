@@ -4,6 +4,7 @@ import json
 import os
 import sqlite3
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -95,23 +96,6 @@ ON image_jobs(status, created_at, job_id);
 CREATE INDEX IF NOT EXISTS image_jobs_lineage_idx
 ON image_jobs(session_id, source_turn_index, source_event_id);
 
-CREATE TABLE IF NOT EXISTS image_prose_gates (
-    transaction_id      TEXT NOT NULL,
-    source_event_id     TEXT NOT NULL,
-    pov_character_id    TEXT NOT NULL,
-    opened_at           REAL NOT NULL,
-    PRIMARY KEY (transaction_id, source_event_id, pov_character_id),
-    FOREIGN KEY(transaction_id) REFERENCES image_transactions(transaction_id)
-);
-
-CREATE TABLE IF NOT EXISTS image_prose_receipts (
-    session_id           TEXT NOT NULL,
-    source_event_id      TEXT NOT NULL,
-    pov_character_id     TEXT NOT NULL,
-    opened_at            REAL NOT NULL,
-    PRIMARY KEY (session_id, source_event_id, pov_character_id)
-);
-
 CREATE TABLE IF NOT EXISTS image_deliveries (
     delivery_id         TEXT PRIMARY KEY,
     job_id              TEXT NOT NULL,
@@ -123,7 +107,6 @@ CREATE TABLE IF NOT EXISTS image_deliveries (
     delivery_kind       TEXT NOT NULL,
     delivery_json       TEXT NOT NULL,
     status              TEXT NOT NULL,
-    prose_rendered      INTEGER NOT NULL DEFAULT 0,
     attempts            INTEGER NOT NULL DEFAULT 0,
     next_attempt_at     REAL NOT NULL DEFAULT 0,
     created_at          REAL NOT NULL,
@@ -135,7 +118,7 @@ CREATE TABLE IF NOT EXISTS image_deliveries (
 );
 
 CREATE INDEX IF NOT EXISTS image_deliveries_queue_idx
-ON image_deliveries(status, prose_rendered, next_attempt_at, created_at);
+ON image_deliveries(status, next_attempt_at, created_at);
 
 CREATE INDEX IF NOT EXISTS image_deliveries_destination_idx
 ON image_deliveries(session_id, delivery_kind, status);
@@ -204,6 +187,14 @@ CREATE TABLE IF NOT EXISTS image_identity_policies (
 );
 """
 
+
+@dataclass(frozen=True)
+class VisualNovelStageResolution:
+    action: str
+    artifact: GeneratedImageArtifact | None
+    source_run_id: str = ""
+    fallback_reason: str = ""
+
 _CURRENT_SCHEMA_COLUMNS = {
     "image_transactions": {
         "source_turn_index",
@@ -226,7 +217,6 @@ _CURRENT_SCHEMA_COLUMNS = {
     },
     "image_deliveries": {
         "transaction_id",
-        "prose_rendered",
         "next_attempt_at",
         "delivery_json",
     },
@@ -395,23 +385,6 @@ class ImageJobStore:
                 (_clean_reason(reason), now, transaction_id),
             )
             if transaction is not None:
-                db.execute(
-                    """
-                    DELETE FROM image_prose_receipts
-                    WHERE session_id = ? AND source_event_id IN (
-                        SELECT source_event_id FROM image_director_runs
-                        WHERE transaction_id = ?
-                        UNION
-                        SELECT source_event_id FROM image_jobs
-                        WHERE transaction_id = ?
-                    )
-                    """,
-                    (
-                        str(transaction["session_id"]),
-                        transaction_id,
-                        transaction_id,
-                    ),
-                )
                 self._retire_cancelled_candidates(
                     db,
                     session_id=str(transaction["session_id"]),
@@ -792,33 +765,14 @@ class ImageJobStore:
                 raise RuntimeError(
                     "image delivery requires current event lineage"
                 )
-            gate = db.execute(
-                """
-                SELECT 1 FROM image_prose_gates
-                WHERE transaction_id = ? AND source_event_id = ?
-                  AND pov_character_id = ?
-                UNION
-                SELECT 1 FROM image_prose_receipts
-                WHERE session_id = ? AND source_event_id = ?
-                  AND pov_character_id = ?
-                """,
-                (
-                    job.request.transaction_id,
-                    job.request.source_event_id,
-                    pov_character_id,
-                    session_id,
-                    job.request.source_event_id,
-                    pov_character_id,
-                ),
-            ).fetchone()
             db.execute(
                 """
                 INSERT OR IGNORE INTO image_deliveries (
                     delivery_id, job_id, session_id, transaction_id,
                     source_event_id, source_turn_index, pov_character_id,
-                    delivery_kind, delivery_json, status, prose_rendered,
+                    delivery_kind, delivery_json, status,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     delivery_id,
@@ -831,7 +785,6 @@ class ImageJobStore:
                     delivery_kind.value,
                     delivery_json,
                     ImageDeliveryStatus.pending.value,
-                    1 if gate is not None else 0,
                     now,
                     now,
                 ),
@@ -1143,109 +1096,6 @@ class ImageJobStore:
             )
         return self.get(job_id)
 
-    def open_prose_gate(
-        self,
-        *,
-        transaction_id: str,
-        source_event_id: str,
-        pov_character_ids: Iterable[str],
-    ) -> int:
-        ids = tuple(dict.fromkeys(item for item in pov_character_ids if item))
-        if not ids:
-            return 0
-        placeholders = ",".join("?" for _ in ids)
-        with self._connect() as db:
-            db.executemany(
-                """
-                INSERT OR IGNORE INTO image_prose_gates (
-                    transaction_id, source_event_id, pov_character_id,
-                    opened_at
-                ) VALUES (?, ?, ?, ?)
-                """,
-                (
-                    (
-                        transaction_id,
-                        source_event_id,
-                        pov_character_id,
-                        time.time(),
-                    )
-                    for pov_character_id in ids
-                ),
-            )
-            cursor = db.execute(
-                f"""
-                UPDATE image_deliveries
-                SET prose_rendered = 1, updated_at = ?
-                WHERE transaction_id = ? AND source_event_id = ?
-                  AND pov_character_id IN ({placeholders})
-                  AND status = ?
-                """,
-                (
-                    time.time(),
-                    transaction_id,
-                    source_event_id,
-                    *ids,
-                    ImageDeliveryStatus.pending.value,
-                ),
-            )
-        return cursor.rowcount
-
-    def open_prose_gate_for_session_event(
-        self,
-        *,
-        session_id: str,
-        source_event_id: str,
-        pov_character_ids: Iterable[str],
-    ) -> int:
-        ids = tuple(
-            dict.fromkeys(item for item in pov_character_ids if item)
-        )
-        if not ids:
-            return 0
-        with self._connect() as db:
-            db.executemany(
-                """
-                INSERT OR IGNORE INTO image_prose_receipts (
-                    session_id, source_event_id, pov_character_id, opened_at
-                ) VALUES (?, ?, ?, ?)
-                """,
-                (
-                    (
-                        session_id,
-                        source_event_id,
-                        pov_character_id,
-                        time.time(),
-                    )
-                    for pov_character_id in ids
-                ),
-            )
-            transaction_ids = {
-                str(row["transaction_id"])
-                for row in db.execute(
-                    """
-                    SELECT DISTINCT transaction_id FROM image_director_runs
-                    WHERE session_id = ? AND source_event_id = ?
-                    UNION
-                    SELECT DISTINCT transaction_id FROM image_jobs
-                    WHERE session_id = ? AND source_event_id = ?
-                    """,
-                    (
-                        session_id,
-                        source_event_id,
-                        session_id,
-                        source_event_id,
-                    ),
-                ).fetchall()
-            }
-        return sum(
-            self.open_prose_gate(
-                transaction_id=transaction_id,
-                source_event_id=source_event_id,
-                pov_character_ids=ids,
-            )
-            for transaction_id in transaction_ids
-        )
-
     def claim_next_delivery(
         self,
         kind: ImageDeliveryKind,
@@ -1260,7 +1110,7 @@ class ImageJobStore:
                 JOIN image_transactions AS t
                   ON t.transaction_id = d.transaction_id
                 WHERE d.status = ? AND d.delivery_kind = ?
-                  AND d.prose_rendered = 1 AND d.next_attempt_at <= ?
+                  AND d.next_attempt_at <= ?
                   AND j.status = ? AND t.status = 'committed'
                 ORDER BY d.created_at, d.delivery_id
                 LIMIT 1
@@ -1462,35 +1312,6 @@ class ImageJobStore:
                 """,
                 (now, session_id, turn_index),
             )
-            db.execute(
-                """
-                DELETE FROM image_prose_receipts
-                WHERE session_id = ? AND source_event_id IN (
-                    SELECT source_event_id FROM image_director_runs
-                    WHERE session_id = ? AND source_turn_index > ?
-                    UNION
-                    SELECT source_event_id FROM image_jobs
-                    WHERE session_id = ? AND source_turn_index > ?
-                )
-                """,
-                (
-                    session_id,
-                    session_id,
-                    turn_index,
-                    session_id,
-                    turn_index,
-                ),
-            )
-            db.execute(
-                """
-                DELETE FROM image_prose_gates
-                WHERE transaction_id IN (
-                    SELECT transaction_id FROM image_transactions
-                    WHERE session_id = ? AND source_turn_index > ?
-                )
-                """,
-                (session_id, turn_index),
-            )
             self._retire_cancelled_candidates(db, session_id=session_id)
             self._restore_rewound_identity_retirements(
                 db,
@@ -1559,24 +1380,6 @@ class ImageJobStore:
                     """,
                     (time.time(), session_id),
                 )
-            current_ids = set(event_ids)
-            if current_ids:
-                placeholders = ",".join("?" for _ in current_ids)
-                db.execute(
-                    f"""
-                    DELETE FROM image_prose_receipts
-                    WHERE session_id = ?
-                      AND source_event_id NOT IN ({placeholders})
-                    """,
-                    (session_id, *sorted(current_ids)),
-                )
-            else:
-                db.execute(
-                    """
-                    DELETE FROM image_prose_receipts WHERE session_id = ?
-                    """,
-                    (session_id,),
-                )
         return len(stale_ids)
 
     def cancel_session(self, session_id: str) -> int:
@@ -1611,10 +1414,6 @@ class ImageJobStore:
             )
             db.execute(
                 "DELETE FROM image_reviewed_references WHERE session_id = ?",
-                (session_id,),
-            )
-            db.execute(
-                "DELETE FROM image_prose_receipts WHERE session_id = ?",
                 (session_id,),
             )
             db.execute(
@@ -1654,49 +1453,79 @@ class ImageJobStore:
             )
         return cursor.rowcount
 
-    def recent_illustrations(
+    def current_visual_novel_stage_context(
         self,
         session_id: str,
         *,
         viewer_character_ids: Sequence[str],
-        limit: int = 8,
     ) -> list[str]:
-        viewers = tuple(
-            dict.fromkeys(
-                character_id
-                for character_id in viewer_character_ids
-                if character_id
-            )
-        )
-        if not viewers or limit <= 0:
+        """Describe the one effective shared stage without stale inheritance."""
+
+        viewers = {
+            str(character_id).strip()
+            for character_id in viewer_character_ids
+            if str(character_id).strip()
+        }
+        if not viewers:
             return []
-        placeholders = ",".join("?" for _ in viewers)
         with self._connect() as db:
             rows = db.execute(
-                f"""
-                SELECT j.request_json FROM image_jobs AS j
-                JOIN image_deliveries AS d ON d.job_id = j.job_id
-                WHERE j.session_id = ? AND j.status = ?
-                  AND d.pov_character_id IN ({placeholders})
-                GROUP BY j.job_id
-                HAVING COUNT(DISTINCT d.pov_character_id) = ?
-                ORDER BY j.completed_at DESC LIMIT ?
+                """
+                SELECT r.* FROM image_director_runs AS r
+                JOIN image_transactions AS t
+                  ON t.transaction_id = r.transaction_id
+                WHERE r.session_id = ? AND t.status = 'committed'
+                ORDER BY r.source_turn_index DESC,
+                         r.source_event_sequence DESC,
+                         r.created_at DESC,
+                         r.run_id DESC
                 """,
-                (
-                    session_id,
-                    ImageGenerationStatus.succeeded.value,
-                    *viewers,
-                    len(viewers),
-                    max(0, limit),
-                ),
+                (session_id,),
             ).fetchall()
-        return [
-            _recent_illustration_summary(
-                ImageGenerationRequest.model_validate_json(
-                    row["request_json"]
-                )
-            )
+
+        runs = [
+            run
             for row in rows
+            if (
+                (run := _director_run_from_row(row)).projection.presentation_mode
+                == "visual_novel"
+            )
+        ]
+
+        def _effective_stage(viewer: str):
+            inherited = False
+            for run in runs:
+                if viewer not in run.projection.viewer_character_ids:
+                    continue
+                if run.status != "succeeded" or run.output is None:
+                    return "neutral", "", None, inherited
+                action = run.output.stage_action
+                if action == "reuse":
+                    inherited = True
+                    continue
+                if action != "replace":
+                    return "neutral", "", None, inherited
+                job = self._visual_novel_job_for_run(run)
+                if job is None:
+                    return "neutral", "", None, inherited
+                return "active", job.job_id, job, inherited
+            return "missing", "", None, inherited
+
+        effective = [_effective_stage(viewer) for viewer in sorted(viewers)]
+        if all(state == "missing" for state, *_ in effective):
+            return []
+        if any(state != "active" for state, *_ in effective):
+            return ["current_stage=neutral; reason=no shared compatible stage"]
+        job_ids = {job_id for _, job_id, _, _ in effective}
+        if len(job_ids) != 1:
+            return ["current_stage=neutral; reason=no shared compatible stage"]
+        job = effective[0][2]
+        if job is None:
+            return ["current_stage=neutral; reason=no shared compatible stage"]
+        inherited = any(item[3] for item in effective)
+        state = "reused" if inherited else "active"
+        return [
+            f"current_stage={state}; {_recent_illustration_summary(job.request)}"
         ]
 
     def rendered_event_image_status(
@@ -1796,6 +1625,168 @@ class ImageJobStore:
             ):
                 return True, False
         return True, True
+
+    def resolve_visual_novel_stage(
+        self,
+        *,
+        session_id: str,
+        pov_character_id: str,
+        rendered_event_ids: Sequence[str],
+    ) -> VisualNovelStageResolution:
+        """Resolve the explicit stage transition for one accepted POV render.
+
+        A failed or absent current transition never silently inherits an older
+        image. Only a current ``reuse`` transition may walk backward to the
+        last successful ``replace`` not superseded by ``clear`` or a failed
+        replacement.
+        """
+
+        event_ids = {
+            str(event_id).strip()
+            for event_id in rendered_event_ids
+            if str(event_id).strip()
+        }
+        if not event_ids:
+            return VisualNovelStageResolution(
+                action="clear",
+                artifact=None,
+                fallback_reason="no_rendered_events",
+            )
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT r.* FROM image_director_runs AS r
+                JOIN image_transactions AS t
+                  ON t.transaction_id = r.transaction_id
+                WHERE r.session_id = ? AND t.status = 'committed'
+                ORDER BY r.source_turn_index DESC,
+                         r.source_event_sequence DESC,
+                         r.created_at DESC,
+                         r.run_id DESC
+                """,
+                (session_id,),
+            ).fetchall()
+
+        runs: list[DurableDirectorRun] = []
+        for row in rows:
+            run = _director_run_from_row(row)
+            if (
+                run.projection.presentation_mode == "visual_novel"
+                and pov_character_id in run.projection.viewer_character_ids
+            ):
+                runs.append(run)
+        current_index = next(
+            (
+                index
+                for index, run in enumerate(runs)
+                if run.projection.event_id in event_ids
+            ),
+            None,
+        )
+        if current_index is None:
+            return VisualNovelStageResolution(
+                action="clear",
+                artifact=None,
+                fallback_reason="missing_current_transition",
+            )
+        current = runs[current_index]
+        if current.status != "succeeded" or current.output is None:
+            return VisualNovelStageResolution(
+                action="clear",
+                artifact=None,
+                source_run_id=current.run_id,
+                fallback_reason="current_direction_failed",
+            )
+        action = current.output.stage_action
+        if action == "clear":
+            return VisualNovelStageResolution(
+                action=action,
+                artifact=None,
+                source_run_id=current.run_id,
+                fallback_reason="stage_cleared",
+            )
+        if action == "replace":
+            artifact = self._visual_novel_artifact_for_run(current)
+            return VisualNovelStageResolution(
+                action=action,
+                artifact=artifact,
+                source_run_id=current.run_id,
+                fallback_reason=("" if artifact is not None else "replacement_failed"),
+            )
+        if action != "reuse":
+            return VisualNovelStageResolution(
+                action="clear",
+                artifact=None,
+                source_run_id=current.run_id,
+                fallback_reason="invalid_stage_transition",
+            )
+
+        for prior in runs[current_index + 1:]:
+            if prior.status != "succeeded" or prior.output is None:
+                return VisualNovelStageResolution(
+                    action="reuse",
+                    artifact=None,
+                    source_run_id=current.run_id,
+                    fallback_reason="reused_stage_transition_failed",
+                )
+            prior_action = prior.output.stage_action
+            if prior_action == "reuse":
+                continue
+            if prior_action == "clear":
+                return VisualNovelStageResolution(
+                    action="reuse",
+                    artifact=None,
+                    source_run_id=current.run_id,
+                    fallback_reason="reused_stage_was_cleared",
+                )
+            if prior_action == "replace":
+                artifact = self._visual_novel_artifact_for_run(prior)
+                return VisualNovelStageResolution(
+                    action="reuse",
+                    artifact=artifact,
+                    source_run_id=current.run_id,
+                    fallback_reason=(
+                        "" if artifact is not None else "reused_replacement_failed"
+                    ),
+                )
+        return VisualNovelStageResolution(
+            action="reuse",
+            artifact=None,
+            source_run_id=current.run_id,
+            fallback_reason="no_prior_stage",
+        )
+
+    def _visual_novel_artifact_for_run(
+        self,
+        run: DurableDirectorRun,
+    ) -> GeneratedImageArtifact | None:
+        job = self._visual_novel_job_for_run(run)
+        return job.artifact if job is not None else None
+
+    def _visual_novel_job_for_run(
+        self,
+        run: DurableDirectorRun,
+    ) -> ImageGenerationJob | None:
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT * FROM image_jobs
+                WHERE transaction_id = ? AND source_event_id = ?
+                  AND source_event_fingerprint = ? AND status = ?
+                ORDER BY created_at, job_id
+                """,
+                (
+                    run.projection.transaction_id,
+                    run.projection.event_id,
+                    run.projection.event_fingerprint,
+                    ImageGenerationStatus.succeeded.value,
+                ),
+            ).fetchall()
+        for row in rows:
+            job = _job_from_row(row)
+            if job.request.kind != "portrait" and job.artifact is not None:
+                return job
+        return None
 
     def create_identity_candidate(
         self,
@@ -2539,8 +2530,8 @@ class ImageJobStore:
         # storage boundaries.
         for table in (
             "image_deliveries",
-            "image_prose_gates",
             "image_prose_receipts",
+            "image_prose_gates",
             "image_reviewed_identity_bindings",
             "image_reviewed_location_bindings",
             "image_reviewed_references",

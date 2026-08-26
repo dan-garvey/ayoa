@@ -13,6 +13,7 @@ ImageDirectionKind = Literal[
     "detail",
 ]
 ImageGenerationMode = Literal["compose", "edit"]
+ImageStageAction = Literal["independent", "reuse", "replace", "clear"]
 
 
 class ImageDirection(BaseModel):
@@ -55,4 +56,8 @@ class ImageDirectorOutput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # ``independent`` is retained for explicit identity-review jobs that are
+    # not a story stage. Visual-novel render direction must choose one of the
+    # other three transitions.
+    stage_action: ImageStageAction = "independent"
     requests: list[ImageDirection]

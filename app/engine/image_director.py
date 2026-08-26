@@ -126,13 +126,12 @@ class VisibleEventProjection:
     total_roster_count: int
     reference_options: tuple[SelectableVisualReference, ...] = ()
     engine_visual_style: str = ""
-    delivery_kind: str = "discord"
-    viewer_delivery_bindings: tuple[tuple[str, str], ...] = ()
     # Engine-only opaque key used after the director returns. The label is
     # deliberately omitted from rendered LLM messages; the director sees only
     # has_location_reference plus public observable facts.
     engine_location_label: str = ""
     has_location_reference: bool = False
+    presentation_mode: str = "prose"
 
     def grouping_key(self) -> str:
         """Identity of model and diffusion input, excluding audiences."""
@@ -161,6 +160,7 @@ class VisibleEventProjection:
             ),
             "engine_location_label": self.engine_location_label,
             "has_location_reference": self.has_location_reference,
+            "presentation_mode": self.presentation_mode,
         }
         return _json_hash(payload)
 
@@ -189,12 +189,9 @@ class VisibleEventProjection:
             "active_roster_count": self.active_roster_count,
             "total_roster_count": self.total_roster_count,
             "engine_visual_style": self.engine_visual_style,
-            "delivery_kind": self.delivery_kind,
-            "viewer_delivery_bindings": [
-                list(item) for item in self.viewer_delivery_bindings
-            ],
             "engine_location_label": self.engine_location_label,
             "has_location_reference": self.has_location_reference,
+            "presentation_mode": self.presentation_mode,
         }
 
     @classmethod
@@ -235,17 +232,13 @@ class VisibleEventProjection:
             active_roster_count=int(value["active_roster_count"]),
             total_roster_count=int(value["total_roster_count"]),
             engine_visual_style=str(value.get("engine_visual_style") or ""),
-            delivery_kind=str(value.get("delivery_kind") or "discord"),
-            viewer_delivery_bindings=tuple(
-                (str(item[0]), str(item[1]))
-                for item in value.get("viewer_delivery_bindings", [])  # type: ignore[union-attr]
-            ),
             engine_location_label=str(
                 value.get("engine_location_label") or ""
             ),
             has_location_reference=bool(
                 value.get("has_location_reference", False)
             ),
+            presentation_mode=str(value.get("presentation_mode") or "prose"),
         )
 
 
@@ -278,9 +271,10 @@ def projection_checkpoint_snapshot(
     """Copy only bounded public state needed by asynchronous projection."""
 
     setting = checkpoint.world_state.setting
+    settings = getattr(checkpoint.session.config, "settings", None)
     ruleset_id = str(
         getattr(
-            getattr(checkpoint.session.config, "settings", None),
+            settings,
             "ruleset_id",
             "",
         )
@@ -295,7 +289,13 @@ def projection_checkpoint_snapshot(
                 checkpoint.session.character_bindings or {}
             ),
             config=SessionConfig(
-                settings=SessionSettings(ruleset_id=ruleset_id),
+                settings=SessionSettings(
+                    ruleset_id=ruleset_id,
+                    presentation_mode=str(
+                        getattr(settings, "presentation_mode", "prose")
+                        or "prose"
+                    ),
+                ),
             ),
         ),
         world_state=WorldState(
@@ -323,7 +323,7 @@ def projection_checkpoint_snapshot(
                 ),
                 visuals=CharacterVisuals(
                     default_loadout=_safe_text(
-                        character.visuals.default_loadout,
+                        image_loadout_for_character(checkpoint, character),
                         700,
                     ),
                     depiction_policy=character.visuals.depiction_policy,
@@ -335,10 +335,6 @@ def projection_checkpoint_snapshot(
                     intentions_enabled=bool(
                         character.private_state.intentions_enabled
                     ),
-                ),
-                mechanics=_snapshot_image_mechanics(
-                    character,
-                    ruleset_id=ruleset_id,
                 ),
                 is_playable=bool(character.is_playable),
             )
@@ -378,7 +374,6 @@ def build_projection_groups(
     actor_id: str = "",
     active_identity_character_ids: Iterable[str] = (),
     active_location_labels: Iterable[str] = (),
-    delivery_kind: str = "discord",
 ) -> list[VisibleEventProjection]:
     """Project one finalized event and merge equivalent human audiences."""
 
@@ -430,7 +425,6 @@ def build_projection_groups(
             for character in by_id.values()
         ),
         "engine_visual_style": _safe_text(setting.visual_style, 800),
-        "delivery_kind": delivery_kind,
     }
 
     grouped: dict[str, VisibleEventProjection] = {}
@@ -482,17 +476,6 @@ def build_projection_groups(
             effective_at_s=max(0, int(event.effective_at_s)),
             duration_s=max(0, int(event.duration_s)),
             visible_facts=facts,
-            viewer_delivery_bindings=(
-                (
-                    viewer_id,
-                    str(
-                        checkpoint.session.character_bindings.get(
-                            viewer_id,
-                            "",
-                        )
-                    ),
-                ),
-            ),
             engine_location_label=(
                 location_label if has_location_reference else ""
             ),
@@ -511,22 +494,6 @@ def build_projection_groups(
                             (*prior.viewer_character_ids, viewer_id)
                         )
                     ),
-                    "viewer_delivery_bindings": tuple(
-                        dict.fromkeys(
-                            (
-                                *prior.viewer_delivery_bindings,
-                                (
-                                    viewer_id,
-                                    str(
-                                        checkpoint.session.character_bindings.get(
-                                            viewer_id,
-                                            "",
-                                        )
-                                    ),
-                                ),
-                            )
-                        )
-                    ),
                 }
             )
     return list(grouped.values())
@@ -543,7 +510,6 @@ def build_render_batch_projection_groups(
     actor_ids_by_event_id: dict[str, str] | None = None,
     active_identity_character_ids: Iterable[str] = (),
     active_location_labels: Iterable[str] = (),
-    delivery_kind: str = "discord",
 ) -> list[VisibleEventProjection]:
     """Project a complete pending render and merge equivalent POV batches."""
     actor_ids = actor_ids_by_event_id or {}
@@ -584,7 +550,6 @@ def build_render_batch_projection_groups(
             actor_id=actor_ids.get(event_id, ""),
             active_identity_character_ids=active_identity_character_ids,
             active_location_labels=active_location_labels,
-            delivery_kind=delivery_kind,
         ):
             for viewer_id in projection.viewer_character_ids:
                 if viewer_id in eligible_viewer_ids:
@@ -639,21 +604,15 @@ def build_render_batch_projection_groups(
             **{
                 **anchor.__dict__,
                 "viewer_character_ids": (viewer_id,),
-                "viewer_delivery_bindings": ((
-                    viewer_id,
-                    str(
-                        checkpoint.session.character_bindings.get(
-                            viewer_id,
-                            "",
-                        )
-                    ),
-                ),),
                 "perception_level": perception_level,
                 "effective_at_s": start_s,
                 "duration_s": max(0, end_s - start_s),
                 "visible_facts": facts,
                 "characters": tuple(characters.values()),
                 "reference_options": tuple(references.values()),
+                "presentation_mode": (
+                    checkpoint.session.config.settings.presentation_mode
+                ),
             }
         )
         key = projection.grouping_key()
@@ -667,10 +626,6 @@ def build_render_batch_projection_groups(
                 "viewer_character_ids": tuple(dict.fromkeys((
                     *prior.viewer_character_ids,
                     viewer_id,
-                ))),
-                "viewer_delivery_bindings": tuple(dict.fromkeys((
-                    *prior.viewer_delivery_bindings,
-                    *projection.viewer_delivery_bindings,
                 ))),
             }
         )
@@ -703,10 +658,11 @@ class ImageDirector:
         self,
         projection: VisibleEventProjection,
         *,
-        recent_illustrations: Sequence[str] = (),
+        stage_context: Sequence[str] = (),
     ) -> ImageDirectorOutput:
+        visual_novel = projection.presentation_mode == "visual_novel"
         messages = self.prompt_manager.render_messages(
-            "image_director",
+            "image_director_visual_novel" if visual_novel else "image_director",
             story_block=_story_block(projection),
             visible_event_block=_visible_event_block(projection),
             perception_level=projection.perception_level,
@@ -727,10 +683,10 @@ class ImageDirector:
             generation_modes_block="\n".join(
                 f"- {mode}" for mode in self.generation_modes
             ),
-            recent_illustrations_block=(
+            stage_context_block=(
                 "\n".join(
                     f"- {_safe_text(item, 500)}"
-                    for item in recent_illustrations
+                    for item in stage_context
                     if _safe_text(item, 500)
                 )
                 or "None."
@@ -738,6 +694,17 @@ class ImageDirector:
             max_requests=self.max_requests,
             max_subjects=self.max_subjects,
             max_references=self.max_references,
+        )
+        identity_retry_rule = (
+            "For a visual-novel stage, use reuse or clear with no request, "
+            "or replace with exactly one non-portrait request whose subjects "
+            "already have identity references."
+            if visual_novel
+            else (
+                "New named characters without identity references need "
+                "individual portrait requests before any group, action, "
+                "establishing, or detail request includes them as subjects."
+            )
         )
         for attempt in range(2):
             response = await self.client.complete(
@@ -771,11 +738,8 @@ class ImageDirector:
                             "in either subjects or scene_prompt. Do not request "
                             "visible text, symbols, cards, windows, HUD, "
                             "interface overlays, speech bubbles, panel borders, "
-                            "collages, lineups, or chibi substitutions. New "
-                            "named characters without identity references need "
-                            "individual portrait requests before any group, "
-                            "action, establishing, or detail request includes "
-                            "them as subjects."
+                            "collages, lineups, or chibi substitutions. "
+                            f"{identity_retry_rule}"
                         ),
                     },
                 ]
@@ -788,6 +752,12 @@ class ImageDirector:
         projection: VisibleEventProjection,
         output: ImageDirectorOutput,
     ) -> None:
+        if projection.presentation_mode == "visual_novel":
+            self._validate_visual_novel_stage(output)
+        elif output.stage_action != "independent":
+            raise ValueError(
+                "non-visual-novel direction must use independent stage_action"
+            )
         if len(output.requests) > self.max_requests:
             raise ValueError(
                 f"image director returned {len(output.requests)} requests; "
@@ -813,7 +783,10 @@ class ImageDirector:
             if request.kind == "portrait"
             and len(request.subject_character_ids) == 1
         }
-        if len(new_unanchored) <= self.max_requests:
+        if (
+            projection.presentation_mode != "visual_novel"
+            and len(new_unanchored) <= self.max_requests
+        ):
             missing_portraits = sorted(new_unanchored - portrait_subjects)
             if missing_portraits:
                 raise ValueError(
@@ -919,6 +892,25 @@ class ImageDirector:
                 raise ValueError(
                     "group_portrait requests require at least two subjects"
                 )
+
+    @staticmethod
+    def _validate_visual_novel_stage(output: ImageDirectorOutput) -> None:
+        if output.stage_action == "independent":
+            raise ValueError(
+                "visual-novel direction requires reuse, replace, or clear"
+            )
+        if output.stage_action in {"reuse", "clear"}:
+            if output.requests:
+                raise ValueError(
+                    f"{output.stage_action} stage transitions require no requests"
+                )
+            return
+        if len(output.requests) != 1:
+            raise ValueError(
+                "replace stage transitions require exactly one scene request"
+            )
+        if output.requests[0].kind == "portrait":
+            raise ValueError("visual-novel stage replacements cannot be portraits")
 
 
 def _selectable_reference_options(
@@ -1036,33 +1028,6 @@ def image_loadout_for_character(
 
         return _safe_text(visible_equipped_item_description(character), 700)
     return _safe_text(character.visuals.default_loadout, 700)
-
-
-def _snapshot_image_mechanics(
-    character: CharacterRecord,
-    *,
-    ruleset_id: str,
-) -> dict[str, object]:
-    """Keep only visible One-Star equipment for async image projection."""
-    if ruleset_id != _ONE_STAR_RULESET_ID:
-        return {}
-    # Import the optional adapter only for the opt-in One-Star snapshot path.
-    from app.engine.one_star_adapter import load_one_star_hero
-
-    hero = load_one_star_hero(character)
-    if hero is None:
-        return {}
-    return {
-        _ONE_STAR_HERO_KEY: {
-            "birth_stars": hero.birth_stars,
-            "current_stars": hero.current_stars,
-            "equipment": [
-                item.model_dump()
-                for item in hero.equipment
-                if item.visible
-            ],
-        },
-    }
 
 
 def _text_names_character(text: str, character: CharacterRecord) -> bool:

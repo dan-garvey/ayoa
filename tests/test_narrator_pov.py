@@ -29,7 +29,11 @@ from app.schemas.characters import (
 )
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import ObservableFact
-from app.schemas.narrator import NarratorFinalOutput
+from app.schemas.narrator import (
+    NarratorFinalOutput,
+    VisualNovelNarratorOutput,
+    VisualNovelPage,
+)
 from app.schemas.state import (
     RenderBufferEntry,
     SessionConfig,
@@ -40,6 +44,7 @@ from tests.support.factories import (
     character_record,
     checkpoint,
     narrator_llm_response,
+    llm_response,
     router_output,
 )
 
@@ -129,6 +134,68 @@ def mock_client() -> MagicMock:
 
 
 class TestComposePovRender:
+    @pytest.mark.asyncio
+    async def test_visual_novel_mode_uses_structured_pages_and_plain_history(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        mock_client.complete = AsyncMock(return_value=llm_response(
+            VisualNovelNarratorOutput(
+                handoff="render",
+                handoff_reason="Pip's question returns control.",
+                pages=[
+                    VisualNovelPage(
+                        kind="narration",
+                        text="Rain beads on the weathered arch.",
+                    ),
+                    VisualNovelPage(
+                        kind="dialogue",
+                        speaker="Pip",
+                        text="Are you coming?",
+                    ),
+                ],
+            )
+        ))
+        buffered = [
+            RenderBufferEntry(event_id="evt_alpha", observation_level="direct"),
+        ]
+
+        result, entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            partial_mode=False,
+            user_input="I wait under the arch.",
+        )
+
+        assert isinstance(result, VisualNovelNarratorOutput)
+        assert entry.assistant == (
+            "Rain beads on the weathered arch.\n\nPip: Are you coming?"
+        )
+        call = mock_client.complete.await_args.kwargs
+        assert call["response_model"] is VisualNovelNarratorOutput
+        assert "Page contract:" in call["messages"][0]["content"]
+        assert "I wait under the arch." in call["messages"][-1]["content"]
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=result,
+            user_input=entry.user,
+        )
+        stored = json.loads(
+            ckpt.narrator_conversations["alice"][-1].content[0]["text"]
+        )
+        assert "final_text" not in stored
+        assert stored["pages"][1] == {
+            "kind": "dialogue",
+            "speaker": "Pip",
+            "text": "Are you coming?",
+        }
+
     @pytest.mark.asyncio
     async def test_basic_render_commits_history_only_when_accepted(
         self, mock_client, prompt_manager,

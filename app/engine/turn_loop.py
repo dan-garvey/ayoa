@@ -105,7 +105,13 @@ from app.schemas.events import (
     WorldAdjudication,
     visible_fact_texts,
 )
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.narrator import (
+    NarratorOutput,
+    TranscriptEntry,
+    VisualNovelNarratorOutput,
+    narrator_plain_text,
+)
+from app.schemas.responses import VisualNovelRender
 from app.schemas.router_targets import (
     RouterOutputTarget,
     targets_from_router_output,
@@ -2808,15 +2814,16 @@ class Dispatcher(Protocol):
         user_input: str = "",
         handoff_policy: str = "forced",
         handoff_context: str = "",
-    ) -> tuple[NarratorFinalOutput, TranscriptEntry]:
-        """Render this human's POV prose for the beat. Input: their
+    ) -> tuple[NarratorOutput, TranscriptEntry]:
+        """Render this human's POV presentation for the beat. Input: their
         buffered events since last render, observation levels tagged.
-        Returns `(NarratorFinalOutput, TranscriptEntry)`.
+        Returns the active typed narrator output plus `TranscriptEntry`.
 
         The transient entry is constructed engine-side from `user_input`
         (passed by the acting-POV caller; "" for incidental POVs) and the
-        rendered `final_text`. Durable `/history` reads the per-character
-        narrator conversations rather than a second checkpoint transcript.
+        accepted accessible text projection. Durable `/history` reads the
+        per-character narrator conversations rather than a second checkpoint
+        transcript.
 
         `partial_mode_override`, when not None, wins over the dispatcher's
         default slot-scan detection — the v11-r6a Cat II-open render path
@@ -2854,6 +2861,9 @@ class BeatResult:
     ended_reason: str  # Semantic event kind, safety cap, or pending Cat II boundary.
     transcript_entries: dict[str, TranscriptEntry]
     event_actor_ids: list[str]
+    visual_novel_renders: dict[str, VisualNovelRender] = field(
+        default_factory=dict
+    )
     reaction_prompts: dict[str, str] | None = None
     loot_prompts: dict[str, list[str]] | None = None
     rendered_event_ids_by_pov: dict[str, list[str]] = field(
@@ -4122,6 +4132,7 @@ async def _end_beat(
       no real input ever made it that far.
     """
     renders: dict[str, str] = {}
+    visual_novel_renders: dict[str, VisualNovelRender] = {}
     transcript_entries: dict[str, TranscriptEntry] = {}
     rendered_event_ids_by_pov: dict[str, list[str]] = {}
     from app.engine.context_builder import collect_player_ids
@@ -4222,7 +4233,7 @@ async def _end_beat(
 
     async def _render_one(
         h: str, buf: list[RenderBufferEntry],
-    ) -> tuple[str, NarratorFinalOutput, TranscriptEntry]:
+    ) -> tuple[str, NarratorOutput, TranscriptEntry]:
         pov_user_input = (
             acting_player_input if h == acting_player_id else ""
         )
@@ -4341,7 +4352,11 @@ async def _end_beat(
                 result=envelope,
                 user_input=entry.user,
             )
-            renders[h] = envelope.final_text
+            renders[h] = narrator_plain_text(envelope)
+            if isinstance(envelope, VisualNovelNarratorOutput):
+                visual_novel_renders[h] = VisualNovelRender(
+                    pages=[page.model_copy(deep=True) for page in envelope.pages]
+                )
             transcript_entries[h] = entry
         rendered_event_ids_by_pov = {
             h: [entry.event_id for entry in buf]
@@ -4386,6 +4401,7 @@ async def _end_beat(
         renders=renders, events_closed=events_closed, ended_reason=final_reason,
         transcript_entries=transcript_entries,
         event_actor_ids=event_actor_ids,
+        visual_novel_renders=visual_novel_renders,
         reaction_prompts=reaction_prompts,
         rendered_event_ids_by_pov=rendered_event_ids_by_pov,
     )

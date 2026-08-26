@@ -74,7 +74,7 @@ from app.schemas.one_star import (
     OneStarStateUpdateList,
     OneStarTransaction,
 )
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.narrator import NarratorOutput, TranscriptEntry
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
 
 logger = logging.getLogger(__name__)
@@ -2838,7 +2838,7 @@ class LLMDispatcher:
         user_input: str = "",
         handoff_policy: str = "forced",
         handoff_context: str = "",
-    ) -> tuple[NarratorFinalOutput, "TranscriptEntry"]:
+    ) -> tuple[NarratorOutput, "TranscriptEntry"]:
         """Render per-POV prose via narrator.compose_pov_render.
 
         Returns `(NarratorFinalOutput, TranscriptEntry)` so run_beat can

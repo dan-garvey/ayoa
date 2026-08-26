@@ -13,7 +13,6 @@ from app.engine.closed_event_runtime import (
 )
 from app.engine.event_image_sidecar import (
     EventImageSidecar,
-    EventImageSidecarConfig,
 )
 from app.engine.image_generation import (
     ImageGenerationConfig,
@@ -84,11 +83,12 @@ class BlockingDirector:
         self.started = asyncio.Event()
         self.release = asyncio.Event()
 
-    async def decide(self, projection, *, recent_illustrations=()):
+    async def decide(self, projection, *, stage_context=()):
+        del stage_context
         self.calls.append(projection)
         self.started.set()
         await self.release.wait()
-        return ImageDirectorOutput(requests=[])
+        return ImageDirectorOutput(stage_action="clear", requests=[])
 
 
 class BlockingNarratorDispatcher(InstanceFakeDispatcher):
@@ -162,11 +162,6 @@ def test_event_router_contract_has_no_image_responsibility():
         for field_name in EventRouterOutput.model_fields
         if "image" in field_name or "illustration" in field_name
     }
-
-
-def test_retired_shadow_image_mode_is_rejected():
-    with pytest.raises(ValueError, match="disabled or enabled"):
-        EventImageSidecarConfig(mode="shadow")
 
 
 @pytest.mark.asyncio
@@ -362,6 +357,7 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
     tmp_path: Path,
 ):
     ckpt = checkpoint()
+    ckpt.session.config.settings.presentation_mode = "visual_novel"
     ckpt.session.session_id = "sidecar"
     ckpt.session.character_bindings = {"alice": "11", "bob": "22"}
     event = router_output(
@@ -379,8 +375,6 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
         director=director,
         generation=generation,
         spawn_authoring=spawn,
-        delivery_kind=ImageDeliveryKind.cli,
-        config=EventImageSidecarConfig(mode="enabled"),
     )
     async def _deliver(*_args):
         return True
@@ -411,6 +405,7 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
             actor_ids_by_event_id={event.event_id: "alice"},
         )
         assert transaction_id is not None
+        await sidecar.wait_for_stage_discovery("sidecar")
         await asyncio.wait_for(director.started.wait(), timeout=1)
         assert len(director.calls) == 1
         assert director.calls[0].viewer_character_ids == ("alice", "bob")
@@ -427,7 +422,8 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
             return bool(
                 row is not None
                 and row["status"] == "succeeded"
-                and row["output_json"] == '{"requests":[]}'
+                and row["output_json"]
+                == '{"stage_action":"clear","requests":[]}'
             )
 
         deadline = asyncio.get_running_loop().time() + 2
@@ -443,16 +439,12 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("worker", "register_handler", "can_present"),
+    "worker",
     [
-        (AvailableNoopWorker(), False, True),
-        (AvailableNoopWorker(), True, False),
-        (UnavailableWorker(), True, True),
-        (FailedPreflightWorker(), True, True),
+        UnavailableWorker(),
+        FailedPreflightWorker(),
     ],
     ids=(
-        "no-presentation-handler",
-        "frontend-cannot-present",
         "worker-unavailable",
         "preflight-failed",
     ),
@@ -460,10 +452,9 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
 async def test_sidecar_skips_direction_without_usable_presentation_path(
     tmp_path: Path,
     worker,
-    register_handler: bool,
-    can_present: bool,
 ):
     ckpt = checkpoint()
+    ckpt.session.config.settings.presentation_mode = "visual_novel"
     ckpt.session.session_id = "sidecar_skipped"
     ckpt.session.character_bindings = {"alice": "11"}
     event = router_output(event_id="evt_skipped", observer_ids=["alice"])
@@ -480,18 +471,7 @@ async def test_sidecar_skips_direction_without_usable_presentation_path(
         spawn_authoring=SpawnAuthoringCoordinator(
             BlockingCharacterManager()
         ),
-        delivery_kind=ImageDeliveryKind.cli,
-        config=EventImageSidecarConfig(mode="enabled"),
     )
-    if register_handler:
-        async def _deliver(*_args):
-            return True
-
-        generation.register_delivery_handler(
-            ImageDeliveryKind.cli,
-            _deliver,
-            can_present=lambda _session_id, _pov_id: can_present,
-        )
 
     await generation.start()
     await sidecar.start()
@@ -526,6 +506,7 @@ async def test_sidecar_skips_direction_without_usable_presentation_path(
 @pytest.mark.asyncio
 async def test_director_starts_while_narrator_is_still_blocked(tmp_path: Path):
     ckpt = checkpoint()
+    ckpt.session.config.settings.presentation_mode = "visual_novel"
     ckpt.session.session_id = "concurrent_sidecar"
     ckpt.session.character_bindings = {"alice": "11"}
     spawn = SpawnAuthoringCoordinator(BlockingCharacterManager())
@@ -539,8 +520,6 @@ async def test_director_starts_while_narrator_is_still_blocked(tmp_path: Path):
         director=director,
         generation=generation,
         spawn_authoring=spawn,
-        delivery_kind=ImageDeliveryKind.cli,
-        config=EventImageSidecarConfig(mode="enabled"),
     )
     async def _deliver(*_args):
         return True

@@ -127,6 +127,20 @@ class TestSettingsHelpers:
         assert new == "interactive"
         assert ckpt.session.config.settings.player_roll_mode == "interactive"
 
+    @pytest.mark.parametrize("raw", ["visual_novel", "visual-novel", "vn"])
+    def test_set_visual_novel_presentation_mode(self, raw):
+        ckpt = _ckpt()
+
+        new = set_setting(ckpt, "presentation_mode", raw)
+
+        assert new == "visual_novel"
+        assert ckpt.session.config.settings.presentation_mode == "visual_novel"
+
+    def test_reject_unknown_presentation_mode(self):
+        ckpt = _ckpt()
+        with pytest.raises(ValueError, match="prose or visual_novel"):
+            set_setting(ckpt, "presentation_mode", "cinematic")
+
     @pytest.mark.parametrize(
         "retired_key",
         ["image_generation_mode", "image_generation_every_n_beats"],
@@ -218,4 +232,5 @@ class TestEngineBridgeSettings:
             "max_agent_cascades_per_beat",
             "ruleset_id",
             "player_roll_mode",
+            "presentation_mode",
         }.issubset(keys)

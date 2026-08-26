@@ -30,7 +30,13 @@ from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.narrator import (
+    NarratorFinalOutput,
+    NarratorOutput,
+    TranscriptEntry,
+    VisualNovelNarratorOutput,
+    narrator_plain_text,
+)
 from app.schemas.state import RenderBufferEntry
 
 logger = logging.getLogger(__name__)
@@ -165,7 +171,7 @@ async def compose_pov_render(
     user_input: str = "",
     handoff_policy: str = "forced",
     handoff_context: str = "",
-) -> tuple[NarratorFinalOutput, "TranscriptEntry"]:
+) -> tuple[NarratorOutput, "TranscriptEntry"]:
     """v11 per-POV narrator entry point.
 
     Renders the beat from `pov_character_id`'s point of view in
@@ -188,9 +194,10 @@ async def compose_pov_render(
     When `partial_mode=True`, the user message carries a natural-language
     instruction to stop before the attempted action resolves.
 
-    Returns `(NarratorFinalOutput, TranscriptEntry)`. The schema only
-    carries `final_text` now; the engine constructs the transcript
-    entry from the real `user_input` + the rendered prose.
+    Returns the active narrator schema plus a `TranscriptEntry`. Prose mode
+    carries `final_text`; visual-novel mode carries ordered semantic pages.
+    The engine constructs the shared text projection from the real
+    `user_input` and whichever accepted schema was selected.
 
     Composition is side-effect free. The caller commits accepted prose with
     `commit_pov_render`; rejected handoff candidates must not affect narrator
@@ -237,8 +244,11 @@ async def compose_pov_render(
     pov_history = ckpt.narrator_conversations.setdefault(pov_character_id, [])
 
     render_t0 = time.monotonic()
+    visual_novel = (
+        ckpt.session.config.settings.presentation_mode == "visual_novel"
+    )
     messages = prompt_mgr.render_conversation(
-        "narrator_phase2",
+        "narrator_visual_novel" if visual_novel else "narrator_phase2",
         history=pov_history,
         setting_summary=setting_summary,
         narrative_rules=narrative_rules,
@@ -262,20 +272,24 @@ async def compose_pov_render(
     response = await client.complete(
         role="narrator",
         messages=messages,
-        response_model=NarratorFinalOutput,
+        response_model=(
+            VisualNovelNarratorOutput
+            if visual_novel
+            else NarratorFinalOutput
+        ),
         temperature=0.5,
         max_tokens=8000,
         cache=True,
         compact=True,
     )
-    result: NarratorFinalOutput = response.parsed
-    if result is not None:
+    result: NarratorOutput = response.parsed
+    if isinstance(result, NarratorFinalOutput):
         result.final_text = _strip_unmatched_trailing_closers(result.final_text)
         response.parsed = result
 
     if result is None:
         raise RuntimeError("Narrator returned no structured result.")
-    final_text = result.final_text
+    final_text = narrator_plain_text(result)
     logger.info(
         "compose_pov_render: pov=%s rendered %d chars",
         pov_character_id, len(final_text),
@@ -291,7 +305,7 @@ def commit_pov_render(
     *,
     pov_character_id: str,
     buffered_events: list[RenderBufferEntry],
-    result: NarratorFinalOutput,
+    result: NarratorOutput,
     user_input: str,
 ) -> None:
     """Persist one accepted POV conversation turn and visual introductions."""
@@ -310,12 +324,18 @@ def commit_pov_render(
     history = ckpt.narrator_conversations.setdefault(pov_character_id, [])
     if user_input:
         history.append(ConversationMessage(role="user", content=user_input))
+    if isinstance(result, VisualNovelNarratorOutput):
+        history_payload = {
+            "pages": [page.model_dump(mode="json") for page in result.pages]
+        }
+    else:
+        history_payload = {"final_text": result.final_text}
     history.append(ConversationMessage(
         role="assistant",
         content=[{
             "type": "text",
             "text": json.dumps(
-                {"final_text": result.final_text},
+                history_payload,
                 ensure_ascii=True,
                 separators=(",", ":"),
             ),

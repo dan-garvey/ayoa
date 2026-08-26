@@ -2,11 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import uuid
-from collections.abc import Sequence
-from dataclasses import dataclass
-from typing import Literal
 
 from app.engine.image_director import (
     ImageDirector,
@@ -14,10 +10,7 @@ from app.engine.image_director import (
     build_render_batch_projection_groups,
     projection_checkpoint_snapshot,
 )
-from app.engine.image_generation import (
-    ImageDeliveryTarget,
-    ImageGenerationCoordinator,
-)
+from app.engine.image_generation import ImageGenerationCoordinator
 from app.engine.spawn_authoring import (
     SpawnAuthoringCoordinator,
     SpawnAuthoringKey,
@@ -25,50 +18,10 @@ from app.engine.spawn_authoring import (
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.image_director import ImageDirection, ImageDirectorOutput
-from app.schemas.image_generation import ImageDeliveryKind
 from app.schemas.state import RenderBufferEntry
 
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class EventImageSidecarConfig:
-    mode: Literal["disabled", "enabled"] = "disabled"
-    recent_illustration_limit: int = 8
-
-    def __post_init__(self) -> None:
-        if self.mode not in {"disabled", "enabled"}:
-            raise ValueError("image director mode must be disabled or enabled")
-
-    @property
-    def director_enabled(self) -> bool:
-        return self.mode == "enabled"
-
-    @property
-    def diffusion_enabled(self) -> bool:
-        return self.mode == "enabled"
-
-    @classmethod
-    def from_environment(cls) -> "EventImageSidecarConfig":
-        raw = os.getenv("AYOA_IMAGE_DIRECTOR_ENABLED", "0").strip().lower()
-        aliases = {
-            "0": "disabled",
-            "false": "disabled",
-            "off": "disabled",
-            "disabled": "disabled",
-            "1": "enabled",
-            "true": "enabled",
-            "on": "enabled",
-            "enabled": "enabled",
-        }
-        try:
-            mode = aliases[raw]
-        except KeyError as exc:
-            raise ValueError(
-                "AYOA_IMAGE_DIRECTOR_ENABLED must be 0 or 1"
-            ) from exc
-        return cls(mode=mode)
 
 
 class EventImageSidecar:
@@ -80,25 +33,20 @@ class EventImageSidecar:
         director: ImageDirector,
         generation: ImageGenerationCoordinator,
         spawn_authoring: SpawnAuthoringCoordinator,
-        delivery_kind: ImageDeliveryKind,
-        config: EventImageSidecarConfig | None = None,
     ) -> None:
         self.director = director
         self.generation = generation
         self.spawn_authoring = spawn_authoring
-        self.delivery_kind = delivery_kind
-        self.config = config or EventImageSidecarConfig.from_environment()
         self._wake = asyncio.Event()
         self._runner: asyncio.Task[None] | None = None
         self._preparation_tasks: dict[
             str,
             set[asyncio.Task[None]],
         ] = {}
+        self._projection_tasks: dict[str, set[asyncio.Task[None]]] = {}
         self._closing = False
 
     async def start(self) -> None:
-        if not self.config.director_enabled:
-            return
         if self._runner is None or self._runner.done():
             self._closing = False
             self.generation.store.recover_expired_director_runs()
@@ -125,6 +73,23 @@ class EventImageSidecar:
             await asyncio.gather(*tasks, return_exceptions=True)
         self._runner = None
         self._preparation_tasks.clear()
+        self._projection_tasks.clear()
+
+    async def wait_for_stage_discovery(self, session_id: str) -> None:
+        """Wait until this session's candidate projections are durable."""
+
+        while True:
+            tasks = tuple(
+                task
+                for task in self._projection_tasks.get(session_id, set())
+                if not task.done()
+            )
+            if not tasks:
+                return
+            await asyncio.gather(
+                *(asyncio.shield(task) for task in tasks),
+                return_exceptions=True,
+            )
 
     async def start_render_candidate(
         self,
@@ -138,7 +103,8 @@ class EventImageSidecar:
     ) -> str | None:
         """Start one speculative direction/diffusion transaction per render."""
         if (
-            not self.config.diffusion_enabled
+            checkpoint.session.config.settings.presentation_mode
+            != "visual_novel"
             or self.generation.config.max_requests <= 0
         ):
             return None
@@ -146,11 +112,7 @@ class EventImageSidecar:
         eligible_viewer_ids = {
             viewer_id
             for viewer_id, entries in buffered_events_by_pov.items()
-            if entries and self.generation.can_accept_render(
-                self.delivery_kind,
-                session_id=session_id,
-                pov_character_id=viewer_id,
-            )
+            if entries and self.generation.can_generate_render()
         }
         if not eligible_viewer_ids:
             return None
@@ -196,6 +158,12 @@ class EventImageSidecar:
             name=f"image-render-project:{transaction_id}",
         )
         self._track_transaction_task(transaction_id, task)
+        self._projection_tasks.setdefault(session_id, set()).add(task)
+        task.add_done_callback(
+            lambda completed, session_id=session_id: (
+                self._projection_done(session_id, completed)
+            )
+        )
         return transaction_id
 
     async def cancel_transaction(
@@ -261,7 +229,6 @@ class EventImageSidecar:
                     checkpoint.session.session_id
                 )
             ),
-            delivery_kind=self.delivery_kind.value,
         )
         for projection in projections:
             try:
@@ -297,13 +264,12 @@ class EventImageSidecar:
             try:
                 output = await self.director.decide(
                     run.projection,
-                    recent_illustrations=(
-                        self.generation.store.recent_illustrations(
+                    stage_context=(
+                        self.generation.store.current_visual_novel_stage_context(
                             run.projection.session_id,
                             viewer_character_ids=(
                                 run.projection.viewer_character_ids
                             ),
-                            limit=self.config.recent_illustration_limit,
                         )
                     ),
                 )
@@ -312,15 +278,14 @@ class EventImageSidecar:
                     output,
                 )
                 if (
-                    self.config.diffusion_enabled
-                    and completed is not None
+                    completed is not None
                     and completed.status == "succeeded"
                 ):
                     materialization = asyncio.create_task(
                         self._materialize_requests(
                             run.run_id,
                             run.projection,
-                            output.requests,
+                            output,
                         ),
                         name=(
                             "image-materialize:"
@@ -356,7 +321,7 @@ class EventImageSidecar:
         self,
         run_id: str,
         projection: VisibleEventProjection,
-        requests: Sequence[ImageDirection],
+        output: ImageDirectorOutput,
     ) -> None:
         admitted: list[ImageDirection] = []
         try:
@@ -365,8 +330,9 @@ class EventImageSidecar:
                     "image director produced requests but diffusion is unavailable"
                 )
                 return
-            targets = _delivery_targets(projection)
-            for ordinal, direction in enumerate(requests):
+            # Story-stage images are consumed by the shared card composer.
+            # Raw delivery remains reserved for explicit identity-review jobs.
+            for ordinal, direction in enumerate(output.requests):
                 establishes_unknown_identity = bool(
                     direction.kind == "portrait"
                     and len(direction.subject_character_ids) == 1
@@ -380,7 +346,7 @@ class EventImageSidecar:
                     direction=direction,
                     request_ordinal=ordinal,
                     visual_style=projection.engine_visual_style,
-                    delivery_targets=targets,
+                    delivery_targets=[],
                 )
                 if job is None:
                     continue
@@ -393,7 +359,10 @@ class EventImageSidecar:
         finally:
             self.generation.store.finalize_director_materialization(
                 run_id,
-                ImageDirectorOutput(requests=admitted),
+                ImageDirectorOutput(
+                    stage_action=output.stage_action,
+                    requests=admitted,
+                ),
             )
 
     def _preparation_done(
@@ -416,6 +385,18 @@ class EventImageSidecar:
                 transaction_id,
             )
 
+    def _projection_done(
+        self,
+        session_id: str,
+        task: asyncio.Task[None],
+    ) -> None:
+        tasks = self._projection_tasks.get(session_id)
+        if tasks is None:
+            return
+        tasks.discard(task)
+        if not tasks:
+            self._projection_tasks.pop(session_id, None)
+
     def _track_transaction_task(
         self,
         transaction_id: str,
@@ -427,24 +408,3 @@ class EventImageSidecar:
                 self._preparation_done(transaction_id, completed)
             )
         )
-
-
-def _delivery_targets(
-    projection: VisibleEventProjection,
-) -> list[ImageDeliveryTarget]:
-    try:
-        kind = ImageDeliveryKind(projection.delivery_kind)
-    except ValueError:
-        raise ValueError("unsupported event image delivery kind") from None
-    user_by_pov = dict(projection.viewer_delivery_bindings)
-    return [
-        ImageDeliveryTarget(
-            pov_character_id=pov_character_id,
-            delivery_kind=kind,
-            delivery={
-                "character_id": pov_character_id,
-                "user_id": user_by_pov.get(pov_character_id, ""),
-            },
-        )
-        for pov_character_id in projection.viewer_character_ids
-    ]

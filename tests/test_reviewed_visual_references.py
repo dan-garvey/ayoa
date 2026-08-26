@@ -247,8 +247,6 @@ def _projection(
         active_roster_count=1,
         total_roster_count=1,
         engine_visual_style="restrained cinematic illustration",
-        delivery_kind="cli",
-        viewer_delivery_bindings=(("alice", ""),),
         engine_location_label=(location_label if has_location_reference else ""),
         has_location_reference=has_location_reference,
     )

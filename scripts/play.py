@@ -73,6 +73,7 @@ import atexit
 import argparse
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import os
@@ -118,6 +119,7 @@ from app.engine.cli_image_display import (
     CliImageDisplayResult,
 )
 from app.engine.text_safety import strip_terminal_control
+from app.engine.player_media import ResolvedPlayerMedia
 from app.llm.config import LLMConfig, MissingLLMCredential, live_play_required_roles
 from app.schemas.image_generation import ImageDeliveryKind
 
@@ -1523,11 +1525,6 @@ class CLIState:
         self.engine.image_generation.register_delivery_handler(
             ImageDeliveryKind.cli,
             self._deliver_cli_image,
-            can_present=lambda session_id, pov_character_id: (
-                session_id == self.session_id
-                and self.asset_image_renderer.backend.is_supported()
-                and pov_character_id in self._pov_claims()
-            ),
         )
         # When set, restrict printed POV renders/asset reveals to this one
         # character. Separate-terminal one-shot play sets this so each
@@ -2026,7 +2023,7 @@ class CLIState:
                 response,
                 actor_id=self.current_actor or "",
             )
-            self._print_turn_response(
+            await self._print_turn_response(
                 response,
                 actor_id=self.current_actor or "",
             )
@@ -2095,7 +2092,7 @@ class CLIState:
         if actor_id:
             self.current_actor = actor_id
         await self._wait_for_render_images(response, actor_id=actor_id)
-        self._print_turn_response(
+        await self._print_turn_response(
             response,
             actor_id=actor_id,
         )
@@ -2616,7 +2613,7 @@ class CLIState:
                 join_result.response,
                 actor_id=char_id,
             )
-            self._print_turn_response(
+            await self._print_turn_response(
                 join_result.response,
                 actor_id=char_id,
             )
@@ -2830,7 +2827,7 @@ class CLIState:
             response,
             actor_id=self.current_actor,
         )
-        self._print_turn_response(
+        await self._print_turn_response(
             response,
             actor_id=self.current_actor,
         )
@@ -3083,7 +3080,7 @@ class CLIState:
                 response,
                 actor_id=result.actor_id,
             )
-            self._print_turn_response(
+            await self._print_turn_response(
                 response,
                 actor_id=result.actor_id,
             )
@@ -3308,7 +3305,7 @@ class CLIState:
                     response,
                     actor_id=self.current_actor,
                 )
-                self._print_turn_response(
+                await self._print_turn_response(
                     response,
                     actor_id=self.current_actor,
                 )
@@ -3337,7 +3334,7 @@ class CLIState:
             response,
             actor_id=self.current_actor,
         )
-        self._print_turn_response(
+        await self._print_turn_response(
             response,
             actor_id=self.current_actor,
         )
@@ -3359,64 +3356,37 @@ class CLIState:
         *,
         actor_id: str,
     ) -> None:
-        if not bool(
-            getattr(
-                getattr(self.engine.image_sidecar, "config", None),
-                "diffusion_enabled",
-                False,
-            )
-        ):
+        if not self.engine.image_generation.can_generate_render():
             return
         responses = [
             *(getattr(response, "pre_turn_resolutions", None) or []),
             response,
         ]
         for item in responses:
-            rendered = self._rendered_event_ids_for_visible_prose(
-                item,
-                actor_id=actor_id,
+            visual_renders = (
+                getattr(item, "per_player_visual_novel_renders", {}) or {}
             )
-            if not any(rendered.values()):
-                continue
-            if not any(
-                self.engine.image_generation.can_accept_render(
-                    ImageDeliveryKind.cli,
-                    session_id=self.session_id,
-                    pov_character_id=pov_character_id,
+            rendered = {
+                cid: list(
+                    (getattr(item, "rendered_event_ids_by_pov", {}) or {}).get(
+                        cid, []
+                    )
                 )
-                for pov_character_id in rendered
-            ):
+                for cid in visual_renders
+                if cid == actor_id or cid in self._pov_claims()
+            }
+            if not any(rendered.values()):
                 continue
             try:
                 async with _progress("illustrating"):
-                    await self.engine.image_generation.wait_for_render_images(
+                    await self.engine.wait_for_visual_novel_stage_work(
                         session_id=self.session_id,
                         rendered_event_ids_by_pov=rendered,
                     )
             except Exception:
                 logger.exception("render image wait failed")
 
-    def _rendered_event_ids_for_visible_prose(
-        self,
-        response,
-        *,
-        actor_id: str,
-    ) -> dict[str, list[str]]:
-        rendered_ids = getattr(response, "rendered_event_ids_by_pov", {}) or {}
-        visible_povs = {
-            cid
-            for cid, prose in (getattr(response, "per_player_renders", {}) or {}).items()
-            if prose and (cid == actor_id or cid in self._pov_claims())
-        }
-        if getattr(response, "output_text", "") and actor_id:
-            visible_povs.add(actor_id)
-        return {
-            cid: list(rendered_ids.get(cid, []))
-            for cid in visible_povs
-            if rendered_ids.get(cid)
-        }
-
-    def _print_turn_response(
+    async def _print_turn_response(
         self,
         response,
         *,
@@ -3451,7 +3421,7 @@ class CLIState:
                     "--- Earlier story update · viewed as "
                     f"{self._character_name(cid)} ---"
                 )
-                print(prose)
+                await self._print_story_render(pre_resp, cid, prose)
                 print()
             self._print_asset_reveals(pre_resp)
             self._print_loot_prompts(pre_resp)
@@ -3476,7 +3446,9 @@ class CLIState:
                     f"--- Story update {response.turn_index} · viewed as "
                     f"{actor_name} (partial) ---"
                 )
-                print(actor_render)
+                await self._print_story_render(
+                    response, actor_id, actor_render,
+                )
             print()
         elif response.beat_ended_reason == "combat_start_blocked":
             print()
@@ -3490,7 +3462,11 @@ class CLIState:
                 f"--- Story update {response.turn_index} · viewed as "
                 f"{actor_name} ---"
             )
-            print(response.output_text)
+            await self._print_story_render(
+                response,
+                actor_id,
+                response.output_text,
+            )
             print()
         else:
             print()
@@ -3498,7 +3474,11 @@ class CLIState:
                 f"--- Story update {response.turn_index} · viewed as "
                 f"{actor_name} ---"
             )
-            print(response.output_text)
+            await self._print_story_render(
+                response,
+                actor_id,
+                response.output_text,
+            )
             print()
 
         self._print_combat_started_notice(response)
@@ -3514,7 +3494,7 @@ class CLIState:
                 "--- Same story update · viewed as "
                 f"{self._character_name(cid)} ---"
             )
-            print(prose)
+            await self._print_story_render(response, cid, prose)
             print()
 
         self._print_asset_reveals(response)
@@ -3527,21 +3507,89 @@ class CLIState:
         self._print_loot_prompts(response)
         self._print_commitment_revision_prompts(response)
         self._sync_current_actor_to_active_combat()
-        rendered_ids = (
-            getattr(response, "rendered_event_ids_by_pov", {}) or {}
+
+    async def _print_story_render(
+        self,
+        response,
+        character_id: str,
+        prose_fallback: str,
+    ) -> None:
+        visual_renders = (
+            getattr(response, "per_player_visual_novel_renders", {}) or {}
         )
-        delivered_povs = {
-            cid
-            for cid, prose in (response.per_player_renders or {}).items()
-            if prose and (cid == actor_id or cid in self._pov_claims())
-        }
-        self.engine.image_generation.open_prose_gates_for_session(
-            session_id=self.session_id,
-            rendered_event_ids_by_pov={
-                cid: rendered_ids.get(cid, [])
-                for cid in delivered_povs
-            },
-        )
+        visual_render = visual_renders.get(character_id)
+        if visual_render is None:
+            print(prose_fallback)
+            return
+        try:
+            deck = await self.engine.prepare_visual_novel_deck(
+                session_id=self.session_id,
+                pov_character_id=character_id,
+                render=visual_render,
+                rendered_event_ids=(
+                    getattr(response, "rendered_event_ids_by_pov", {}) or {}
+                ).get(character_id, []),
+            )
+            await self._play_visual_novel_deck(deck, character_id=character_id)
+        except Exception:
+            logger.exception("visual-novel CLI presentation failed")
+            print(prose_fallback)
+
+    async def _play_visual_novel_deck(
+        self,
+        deck,
+        *,
+        character_id: str,
+    ) -> None:
+        index = 0
+        while True:
+            card = deck.cards[index]
+            data = card.image_path.read_bytes()
+            media = ResolvedPlayerMedia(
+                filename=card.image_path.name,
+                mime_type="image/png",
+                data=data,
+                sha256=hashlib.sha256(data).hexdigest(),
+                byte_count=len(data),
+                width=1024,
+                height=576,
+            )
+            prepared = self.asset_image_renderer.prepare_generated(
+                media,
+                session_id=self.session_id,
+                pov_character_id=character_id,
+                cache_root=(
+                    self.engine.visual_novel_renderer.runtime_root / "cli_cache"
+                ),
+            )
+            result = self.asset_image_renderer.render_prepared(prepared)
+            if not result.displayed:
+                label = f"{card.speaker}: " if card.speaker else ""
+                print(f"{label}{card.text.replace(chr(10), ' ')}")
+                if result.export_path is not None:
+                    print(f"Card image: {result.export_path}")
+            if self.one_shot_mode or len(deck.cards) == 1:
+                index += 1
+                if index >= len(deck.cards):
+                    return
+                continue
+            command = (
+                await self.console.prompt(
+                    f"[page {index + 1}/{len(deck.cards)} · "
+                    "Enter/next, p, t, q] "
+                )
+            ).strip().lower()
+            if command in {"q", "quit", "done"}:
+                return
+            if command in {"t", "transcript"}:
+                print(deck.transcript)
+                continue
+            if command in {"p", "prev", "previous"}:
+                index = max(0, index - 1)
+                continue
+            index += 1
+            if index >= len(deck.cards):
+                return
 
     async def _deliver_cli_image(
         self,
@@ -4071,10 +4119,7 @@ async def main_async(args: argparse.Namespace) -> int:
         print(_format_missing_llm_credentials(missing_credentials), file=sys.stderr)
         return 2
 
-    engine = EngineBridge(
-        llm_config=llm_config,
-        image_delivery_kind=ImageDeliveryKind.cli,
-    )
+    engine = EngineBridge(llm_config=llm_config)
 
     try:
         try:

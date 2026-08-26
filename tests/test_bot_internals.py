@@ -14,6 +14,7 @@ infrastructure we don't have.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from types import SimpleNamespace
@@ -22,13 +23,19 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.bot import commands as bot_commands
-from app.bot.engine_bridge import EngineBridge
+from app.bot.engine_bridge import EngineBridge, _narrator_history_message_text
 from app.engine.frontend_views import OpeningLobbyView, RetryRenderResult
+from app.engine.visual_novel_presentation import VisualNovelCardRenderer
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.dnd_inventory import DndLootOffer
-from app.schemas.responses import DiceRollDisplay, TurnResponse
+from app.schemas.narrator import VisualNovelPage
+from app.schemas.responses import (
+    DiceRollDisplay,
+    TurnResponse,
+    VisualNovelRender,
+)
 from app.schemas.state import (
     PendingNarratorRender,
     SessionState,
@@ -944,14 +951,13 @@ class TestTurnResponseDelivery:
         ))
 
         public_render.assert_not_awaited()
-        engine.image_generation.open_prose_gates_for_session.assert_not_called()
         inter.followup.send.assert_awaited_once()
         args, kwargs = inter.followup.send.await_args
         assert "Nothing was posted publicly" in args[0]
         assert "Secret actor-only result" not in args[0]
         assert kwargs["ephemeral"] is True
 
-    def test_begin_private_delivery_failure_does_not_open_asset_gates(
+    def test_begin_private_delivery_failure_remains_fail_closed(
         self, monkeypatch,
     ):
         class FakeTree:
@@ -1017,7 +1023,6 @@ class TestTurnResponseDelivery:
         asyncio.run(tree.commands["begin"](inter, True))
 
         public_render.assert_not_awaited()
-        engine.image_generation.open_prose_gates_for_session.assert_not_called()
         followups = [str(call.args[0]) for call in inter.followup.send.await_args_list]
         assert any("Nothing was posted publicly" in text for text in followups)
         assert all("Alice's private opening" not in text for text in followups)
@@ -2165,6 +2170,164 @@ class TestPostActorRenderCascade:
         ))
         assert venue == "none"
         assert returned_thread is None
+
+
+class TestVisualNovelDiscordDeck:
+    def _deck(self, tmp_path: Path):
+        renderer = VisualNovelCardRenderer(tmp_path / "vn")
+        return renderer.render_deck(
+            [
+                VisualNovelPage(
+                    kind="narration",
+                    text="The terrace opens beneath a clear turquoise sky.",
+                ),
+                VisualNovelPage(
+                    kind="dialogue",
+                    speaker="Iselle",
+                    text="You made it. Wren was beginning to worry.",
+                ),
+            ],
+            stage_path=None,
+        )
+
+    def test_restart_safe_controls_encode_complete_navigation_state(
+        self, tmp_path: Path,
+    ):
+        deck = self._deck(tmp_path)
+        view = bot_commands._VisualNovelView(
+            deck_id=deck.deck_id,
+            user_id=42,
+            index=0,
+            count=len(deck.cards),
+        )
+
+        assert view.timeout is None
+        assert len(view.children) == 3
+        controls = {
+            child.action: child
+            for child in view.children
+            if isinstance(child, bot_commands._VisualNovelControl)
+        }
+        assert set(controls) == {"p", "n", "t"}
+        assert controls["p"].item.disabled is True
+        assert controls["n"].item.disabled is False
+        for control in controls.values():
+            custom_id = control.item.custom_id
+            assert custom_id is not None
+            assert len(custom_id) <= 100
+            assert custom_id.startswith(f"avn:{deck.deck_id}:42:0:")
+
+    def test_next_control_reloads_deck_and_edits_one_attachment(
+        self, tmp_path: Path,
+    ):
+        deck = self._deck(tmp_path)
+        engine = SimpleNamespace(
+            load_visual_novel_deck=MagicMock(return_value=deck),
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=42),
+            client=SimpleNamespace(_ayoa_visual_novel_engine=engine),
+            response=SimpleNamespace(
+                edit_message=AsyncMock(),
+                send_message=AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=AsyncMock()),
+        )
+        control = bot_commands._VisualNovelControl(
+            deck_id=deck.deck_id,
+            user_id=42,
+            index=0,
+            action="n",
+        )
+
+        asyncio.run(control.callback(interaction))
+
+        engine.load_visual_novel_deck.assert_called_once_with(deck.deck_id)
+        interaction.response.edit_message.assert_awaited_once()
+        kwargs = interaction.response.edit_message.await_args.kwargs
+        assert len(kwargs["attachments"]) == 1
+        assert kwargs["attachments"][0].filename.endswith("-002.png")
+        assert isinstance(kwargs["view"], bot_commands._VisualNovelView)
+        assert any(
+            isinstance(child, bot_commands._VisualNovelControl)
+            and child.index == 1
+            for child in kwargs["view"].children
+        )
+        kwargs["attachments"][0].close()
+
+    def test_private_card_posts_to_thread_and_records_restart_safe_delivery(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ):
+        deck = self._deck(tmp_path)
+        engine = SimpleNamespace(
+            prepare_visual_novel_deck=AsyncMock(return_value=deck),
+        )
+        sent_message = SimpleNamespace(id=1234)
+        thread = SimpleNamespace(
+            id=999,
+            send=AsyncMock(return_value=sent_message),
+        )
+        monkeypatch.setattr(
+            bot_commands,
+            "_session_text_channel",
+            lambda _interaction: object(),
+        )
+        monkeypatch.setattr(
+            bot_commands,
+            "_ensure_pov_thread",
+            AsyncMock(return_value=thread),
+        )
+        record = AsyncMock()
+        monkeypatch.setattr(bot_commands, "_record_turn_message", record)
+        user = SimpleNamespace(id=42, send=AsyncMock())
+        interaction = SimpleNamespace(
+            channel=object(),
+            channel_id=777,
+        )
+        render = VisualNovelRender(pages=[
+            VisualNovelPage(kind="dialogue", speaker="Iselle", text="Hello."),
+        ])
+
+        venue, returned_thread = asyncio.run(
+            bot_commands._post_visual_novel_render(
+                inter=interaction,
+                smap=MagicMock(),
+                engine=engine,
+                user=user,
+                character_id="iselle",
+                char_name="Iselle",
+                render=render,
+                rendered_event_ids=["evt_1"],
+                intro_content=None,
+                session_id="session",
+                turn_index=3,
+            )
+        )
+
+        assert venue == "thread"
+        assert returned_thread is thread
+        thread.send.assert_awaited_once()
+        send_kwargs = thread.send.await_args.kwargs
+        assert isinstance(send_kwargs["file"], bot_commands.discord.File)
+        assert isinstance(send_kwargs["view"], bot_commands._VisualNovelView)
+        user.send.assert_not_awaited()
+        record.assert_awaited_once()
+        assert record.await_args.kwargs["delivery"] == "thread_visual_novel"
+        send_kwargs["file"].close()
+
+    def test_history_projection_reads_structured_pages(self):
+        content = json.dumps({
+            "pages": [
+                {"kind": "narration", "speaker": "", "text": "Wind stirs."},
+                {"kind": "dialogue", "speaker": "Wren", "text": "Ready?"},
+            ],
+        })
+
+        assert _narrator_history_message_text(content) == (
+            "Wind stirs.\n\nWren: Ready?"
+        )
 
 
 def _asset_payload(**overrides) -> SafeAssetRevealPayload:

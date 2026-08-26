@@ -250,18 +250,23 @@ models then consume those authored artifacts; they never receive the
 source image or a request to infer from it.
 
 Player-facing image display is presentation only. Discord or CLI views may
-reveal reviewed imported assets to players. When the optional local image
-worker is installed, an event-driven sidecar may also illustrate finalized
-canonical events. It projects only router-authored visible facts and public
-character metadata for equivalent human observers, then asks a dedicated
-image-director role for zero or more aesthetic directions. Narrator prose is
-only a delivery-order gate; director and diffusion work start at event closure
-and overlap the remaining agent cascade and POV narration.
-The director may skip ordinary repetitive beats, but first clear primary
-character introductions, other named introduction waves, first reveals of
-materially new locations, and first reveals of major bosses or transformed
-forms are mandatory visual beats when the visible projection contains enough
-public information to depict them safely.
+reveal reviewed imported assets to players. Sessions default to
+`presentation_mode="prose"`, which performs no event illustration work. The
+opt-in `visual_novel` mode gives each accepted POV render an ordered semantic
+page deck and one explicit noncanonical stage transition: `reuse`, `replace`,
+or `clear`. Only `reuse` can inherit a prior successful stage. A failed
+replacement and `clear` both resolve to the deterministic neutral stage rather
+than silently showing stale fiction.
+
+When the optional local image worker is installed, the event-driven visual-
+novel sidecar projects only router-authored visible facts and public character
+metadata for equivalent human observers. A dedicated image-director role may
+reuse the current plate or request exactly one new 16:9 scene plate. Direction
+and generation may overlap narration, but the stage transition becomes
+eligible only with the accepted, committed POV render. Raw generated scene
+images are never delivered independently; the shared deterministic compositor
+adds the classic ADV text box after generation. Explicit portrait identity
+review remains a separate raw-image workflow.
 
 Generated illustrations are noncanonical output artifacts and are never
 evidence for story state. Imported images retain their manual review and
@@ -320,14 +325,16 @@ the live `LLMClient`, `CheckpointManager`, `PromptManager`, and `Orchestrator`;
 wraps turns in a per-session frontend lock; runs stale Cat II sweeps before
 new `/act` processing; and exposes helper flows for join, begin, arrival,
 takeover, leave, settings, query, and rewind. It also owns the optional local
-`ImageGenerationCoordinator` and event image sidecar. Each finalized event is
-copied into immutable observer projections without awaiting presentation work.
-The sidecar groups equivalent projections, queues durable image-director runs,
-and materializes accepted directions as event-provenance diffusion jobs.
-Checkpoint save commits the speculative presentation transaction; turn failure
-or rewind cancels stale work. GPU inference runs in an isolated subprocess,
-network delivery runs separately, and images remain gated until source prose
-has reached each intended POV.
+`ImageGenerationCoordinator`, visual-novel event sidecar, and shared
+`VisualNovelCardRenderer`. Each finalized event is copied into immutable
+observer projections without awaiting presentation work. The sidecar groups
+equivalent projections, queues durable image-director runs, and materializes a
+replacement direction as an event-provenance diffusion job. Checkpoint save
+commits the speculative stage transaction; turn failure or rewind cancels stale
+work. GPU inference runs in an isolated subprocess. CLI and Discord both load
+the same content-addressed card deck; Discord navigation state lives in
+persistent component ids, so previous, next, and transcript controls survive a
+bot restart.
 
 ### 5.2 Orchestrator
 
@@ -478,13 +485,29 @@ Events are resolved by id against `checkpoint.canonical_events`, filtered
 by fact visibility, and tagged with direct / indirect / inferred
 observation level.
 
-The narrator output schema is:
+Prose-mode narrator output is:
 
 ```json
 {
   "handoff": "render | continue",
   "handoff_reason": "diagnostic sentence",
   "final_text": "string"
+}
+```
+
+Visual-novel mode uses a separate typed output:
+
+```json
+{
+  "handoff": "render | continue",
+  "handoff_reason": "diagnostic sentence",
+  "pages": [
+    {
+      "kind": "narration | dialogue",
+      "speaker": "required only for dialogue",
+      "text": "one semantic ADV page"
+    }
+  ]
 }
 ```
 
@@ -501,12 +524,15 @@ omitted when they add no new information.
 
 A render-buffer reference that cannot be resolved against canonical history is
 a loud contract failure, not a skippable stale entry. Likewise, a `render`
-handoff requires non-empty `final_text`; an empty draft is permitted only for a
-discarded `continue` judgment.
+handoff requires non-empty prose or at least one semantic page; an empty
+draft/deck is permitted only for a discarded `continue` judgment.
 
 The engine constructs a transient render record from the real player input and
-the rendered `final_text` for response assembly. Durable player history is the
-per-character narrator conversation, not a second checkpoint transcript.
+the deterministic accessible text projection for response assembly. In visual-
+novel mode that projection is narration text plus `Speaker: dialogue`, while
+the structured pages remain available to the compositor. Durable player
+history is the per-character narrator conversation, not a second checkpoint
+transcript.
 
 ### 5.8 Character Manager
 

@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.schemas.image_director import ImageDirectionKind, ImageGenerationMode
 
 
-IMAGE_JOB_SCHEMA_VERSION = "7"
+IMAGE_JOB_SCHEMA_VERSION = "8"
 
 
 class ImageGenerationStatus(str, Enum):

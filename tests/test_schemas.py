@@ -27,7 +27,12 @@ from app.schemas.event_router import (
 from app.schemas.dnd_cat_ii import DndCombatManagerAdjudication, RulesAdjudication
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.content_pack import SafeAssetRevealPayload
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.narrator import (
+    NarratorFinalOutput,
+    VisualNovelNarratorOutput,
+    VisualNovelPage,
+    narrator_plain_text,
+)
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 from app.schemas.checkpoint import CheckpointFile
@@ -1010,6 +1015,36 @@ class TestNarratorFinalOutput:
         }
         result = NarratorFinalOutput(**data)
         assert result.final_text == ""
+
+
+class TestVisualNovelNarratorOutput:
+    def test_dialogue_is_structured_and_projects_accessible_text(self):
+        output = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="The question is a player boundary.",
+            pages=[
+                VisualNovelPage(kind="narration", text="You reach the gate."),
+                VisualNovelPage(
+                    kind="dialogue",
+                    speaker="Wren",
+                    text="Ready?",
+                ),
+            ],
+        )
+
+        assert narrator_plain_text(output) == (
+            "You reach the gate.\n\nWren: Ready?"
+        )
+
+    def test_dialogue_requires_speaker_and_continue_requires_no_pages(self):
+        with pytest.raises(ValidationError):
+            VisualNovelPage(kind="dialogue", text="Who said this?")
+        with pytest.raises(ValidationError):
+            VisualNovelNarratorOutput(
+                handoff="continue",
+                handoff_reason="Motion continues.",
+                pages=[VisualNovelPage(kind="narration", text="Discard me.")],
+            )
 
 
 class TestTurnRequest:

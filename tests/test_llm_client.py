@@ -90,18 +90,13 @@ class TestExtractJson:
 # --- LLMConfig tests ---
 
 class TestLLMConfig:
-    @pytest.mark.parametrize("mode", ["0", "disabled", "shadow"])
-    def test_image_director_role_is_not_required_for_disabled_modes(
-        self, monkeypatch, mode,
+    @pytest.mark.parametrize("legacy_value", ["0", "disabled", "enabled"])
+    def test_retired_global_image_flag_does_not_change_startup_roles(
+        self, monkeypatch, legacy_value,
     ):
-        monkeypatch.setenv("AYOA_IMAGE_DIRECTOR_ENABLED", mode)
+        monkeypatch.setenv("AYOA_IMAGE_DIRECTOR_ENABLED", legacy_value)
 
         assert "image_director" not in live_play_required_roles()
-
-    def test_image_director_role_is_required_when_enabled(self, monkeypatch):
-        monkeypatch.setenv("AYOA_IMAGE_DIRECTOR_ENABLED", "enabled")
-
-        assert "image_director" in live_play_required_roles()
 
     def test_defaults_use_gpt_router_narrator_and_anthropic_agents(self):
         config = LLMConfig()

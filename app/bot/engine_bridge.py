@@ -84,6 +84,10 @@ from app.engine.settings import (
 )
 from app.engine.turn_loop import broadcast_event, flush_combat_visible_facts
 from app.engine.visual_context import forget_visual_introductions_for_character
+from app.engine.visual_novel_presentation import (
+    VisualNovelCardRenderer,
+    VisualNovelDeck,
+)
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import (
@@ -103,9 +107,13 @@ from app.schemas.event_router import (
 )
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.image_generation import ImageDeliveryKind
-from app.schemas.narrator import TranscriptEntry
+from app.schemas.narrator import (
+    TranscriptEntry,
+    VisualNovelPage,
+    visual_novel_pages_plain_text,
+)
 from app.schemas.requests import TurnRequest
-from app.schemas.responses import TurnResponse
+from app.schemas.responses import TurnResponse, VisualNovelRender
 from app.schemas.state import SlotEntry
 
 def _loot_claim_message(result: dict[str, Any]) -> str:
@@ -261,7 +269,6 @@ class EngineBridge:
         llm_config: LLMConfig | None = None,
         image_generation: ImageGenerationCoordinator | None = None,
         image_sidecar: EventImageSidecar | None = None,
-        image_delivery_kind: ImageDeliveryKind = ImageDeliveryKind.discord,
     ):
         self.stories_dir = Path(stories_dir or "app/storage/stories")
         self.sessions_dir = Path(sessions_dir or "app/storage/sessions")
@@ -277,6 +284,9 @@ class EngineBridge:
                 runtime_root=image_runtime_root,
             ),
             repo_root=Path.cwd(),
+        )
+        self.visual_novel_renderer = VisualNovelCardRenderer(
+            self.sessions_dir.parent / "runtime" / "visual_novel_presentation"
         )
         self._reviewed_visual_binding_signatures: dict[str, str] = {}
         self.checkpoint_mgr.set_load_validator(
@@ -301,7 +311,6 @@ class EngineBridge:
             ),
             generation=self.image_generation,
             spawn_authoring=self.spawn_authoring,
-            delivery_kind=image_delivery_kind,
         )
         self.orchestrator = Orchestrator(
             self.client,
@@ -323,6 +332,65 @@ class EngineBridge:
         await self.image_sidecar.close()
         await self.image_generation.close()
         await self.client.close()
+
+    async def prepare_visual_novel_deck(
+        self,
+        *,
+        session_id: str,
+        pov_character_id: str,
+        render: VisualNovelRender,
+        rendered_event_ids: Iterable[str],
+    ) -> VisualNovelDeck:
+        """Build the shared CLI/Discord ADV deck for one accepted POV render."""
+
+        event_ids = [
+            str(event_id).strip()
+            for event_id in rendered_event_ids
+            if str(event_id).strip()
+        ]
+        await self.wait_for_visual_novel_stage_work(
+            session_id=session_id,
+            rendered_event_ids_by_pov={pov_character_id: event_ids},
+        )
+        resolution, stage_media = (
+            self.image_generation.resolve_visual_novel_stage(
+                session_id=session_id,
+                pov_character_id=pov_character_id,
+                rendered_event_ids=event_ids,
+            )
+        )
+        if resolution.fallback_reason:
+            logger.info(
+                "visual-novel neutral stage session=%s pov=%s reason=%s",
+                session_id,
+                pov_character_id,
+                resolution.fallback_reason,
+            )
+        return self.visual_novel_renderer.render_deck(
+            render.pages,
+            stage_path=None,
+            stage_media=stage_media,
+        )
+
+    async def wait_for_visual_novel_stage_work(
+        self,
+        *,
+        session_id: str,
+        rendered_event_ids_by_pov: dict[str, Iterable[str]],
+    ) -> bool:
+        """Wait through sidecar discovery and any durable replacement job."""
+
+        await self.image_sidecar.wait_for_stage_discovery(session_id)
+        return await self.image_generation.wait_for_render_images(
+            session_id=session_id,
+            rendered_event_ids_by_pov={
+                pov: list(event_ids)
+                for pov, event_ids in rendered_event_ids_by_pov.items()
+            },
+        )
+
+    def load_visual_novel_deck(self, deck_id: str) -> VisualNovelDeck | None:
+        return self.visual_novel_renderer.load_deck(deck_id)
 
     def _validate_loaded_visual_references(
         self,
@@ -3976,9 +4044,13 @@ def _narrator_history_message_text(content: Any) -> str:
         try:
             payload = json.loads(text)
             final_text = payload.get("final_text")
-            if not isinstance(final_text, str):
-                raise ValueError("narrator history has no final_text string")
-            return final_text
+            if isinstance(final_text, str):
+                return final_text
+            raw_pages = payload.get("pages")
+            if isinstance(raw_pages, list):
+                pages = [VisualNovelPage.model_validate(page) for page in raw_pages]
+                return visual_novel_pages_plain_text(pages)
+            raise ValueError("narrator history has no supported render payload")
         except Exception:
             logger.warning(
                 "Skipping malformed narrator history envelope",

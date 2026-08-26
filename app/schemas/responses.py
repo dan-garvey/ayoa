@@ -9,6 +9,7 @@ from app.schemas.content_privacy import (
     sanitize_player_safe_text,
 )
 from app.schemas.content_pack import SafeAssetRevealPayload
+from app.schemas.narrator import VisualNovelPage
 from app.schemas.state import DndExperienceAwardDisplay
 
 
@@ -63,6 +64,12 @@ class DiceRollDisplay(BaseModel):
     automatic: bool = True
 
 
+class VisualNovelRender(BaseModel):
+    """Structured player-safe narrator render before card composition."""
+
+    pages: list[VisualNovelPage] = Field(min_length=1)
+
+
 class TurnResponse(BaseModel):
     session_id: str
     checkpoint_id: str = ""
@@ -80,9 +87,14 @@ class TurnResponse(BaseModel):
     # the beat paused mid-Cat-II (see
     # `beat_ended_reason`) or nobody was present to observe.
     per_player_renders: dict[str, str] = Field(default_factory=dict)
-    # Internal delivery-order proof: canonical event ids included in each
-    # successful POV render. Frontends open image delivery gates only after
-    # that POV's prose has actually been posted.
+    # Structured ADV pages for POVs rendered while the session is in
+    # visual_novel mode. ``per_player_renders`` remains the deterministic
+    # accessibility/transcript projection of these same pages.
+    per_player_visual_novel_renders: dict[str, VisualNovelRender] = Field(
+        default_factory=dict
+    )
+    # Canonical event ids included in each successful POV render. Presentation
+    # uses these ids to resolve the committed stage transition for that POV.
     rendered_event_ids_by_pov: dict[str, list[str]] = Field(
         default_factory=dict
     )
@@ -143,6 +155,10 @@ class TurnResponse(BaseModel):
             str(cid): redact_imported_asset_text(text)
             for cid, text in (self.per_player_renders or {}).items()
         }
+        for render in (self.per_player_visual_novel_renders or {}).values():
+            for page in render.pages:
+                page.speaker = sanitize_player_safe_text(page.speaker)
+                page.text = redact_imported_asset_text(page.text)
         self.asset_reveals = _safe_asset_payloads(self.asset_reveals)
         self.per_player_asset_reveals = {
             str(cid): _safe_asset_payloads(payloads)

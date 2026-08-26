@@ -76,5 +76,5 @@ Every field is required. Use `{{"requests":[]}}` when no illustration is warrant
 </visual_references>
 
 <recent_illustrations>
-{recent_illustrations_block}
+{stage_context_block}
 </recent_illustrations>

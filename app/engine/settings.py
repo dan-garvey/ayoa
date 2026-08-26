@@ -83,6 +83,22 @@ def _parse_player_roll_mode(raw: str) -> str:
     return value
 
 
+def _parse_presentation_mode(raw: str) -> str:
+    value = raw.strip().lower().replace("-", "_")
+    aliases = {
+        "prose": "prose",
+        "text": "prose",
+        "visual_novel": "visual_novel",
+        "vn": "visual_novel",
+    }
+    try:
+        return aliases[value]
+    except KeyError as exc:
+        raise ValueError(
+            "Presentation mode must be prose or visual_novel."
+        ) from exc
+
+
 SETTINGS: list[SettingDef] = [
     SettingDef(
         key="max_events_per_beat",
@@ -124,6 +140,16 @@ SETTINGS: list[SettingDef] = [
             "NPC/agent rolls are always automatic."
         ),
         parse=_parse_player_roll_mode,
+    ),
+    SettingDef(
+        key="presentation_mode",
+        default="prose",
+        description=(
+            "Player-facing narrator presentation. prose is the original text "
+            "surface; visual_novel renders ordered ADV-style cards over one "
+            "safe reusable scene plate."
+        ),
+        parse=_parse_presentation_mode,
     ),
 ]
 

@@ -61,15 +61,7 @@ LIVE_PLAY_REQUIRED_ROLES = frozenset((
 
 
 def live_play_required_roles() -> frozenset[str]:
-    roles = set(LIVE_PLAY_REQUIRED_ROLES)
-    if os.getenv("AYOA_IMAGE_DIRECTOR_ENABLED", "0").strip().lower() in {
-        "1",
-        "true",
-        "on",
-        "enabled",
-    }:
-        roles.add("image_director")
-    return frozenset(roles)
+    return LIVE_PLAY_REQUIRED_ROLES
 
 
 def _normalise_provider(provider: str) -> str:

@@ -663,6 +663,11 @@ class SessionSettings(BaseModel):
     # player rolls are automatic by default for playtest speed, or can pause
     # for Discord UI when set to "interactive".
     player_roll_mode: str = "auto"
+    # Player-facing narration surface. ``prose`` preserves the original
+    # rules-neutral text delivery. ``visual_novel`` asks the narrator for
+    # ordered narration/dialogue pages and lets frontends render those pages
+    # over one noncanonical scene plate.
+    presentation_mode: Literal["prose", "visual_novel"] = "prose"
     # Imported-content manager cadence. The manager sees recent canonical
     # facts plus compact entity knowledge, so calling it every route cycle is
     # usually redundant. Deterministic pending-content lookup still runs on
