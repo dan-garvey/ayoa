@@ -242,6 +242,18 @@ class ImageGenerationCoordinator:
             )
         else:
             self._log_unavailable("image generation unavailable")
+            if self._acquire_queue_owner():
+                try:
+                    failed = self.store.fail_unserviceable_finalized_jobs()
+                finally:
+                    self._release_queue_owner()
+                if failed:
+                    logger.warning(
+                        "failed %d finalized image job(s) because no capable "
+                        "queue owner is available",
+                        failed,
+                    )
+                    await self._notify_changed()
         # Delivery is a separate worker and may drain artifacts created by
         # another process even when this process has no diffusion runtime.
         if self._delivery_handlers:

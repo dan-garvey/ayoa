@@ -326,6 +326,52 @@ def _fail_director(
     )
 
 
+async def _persist_finalized_visual_novel_job(
+    coordinator: ImageGenerationCoordinator,
+):
+    _begin(coordinator, "tx_restart")
+    projection = _projection(
+        transaction_id="tx_restart",
+        event_id="evt_restart",
+        viewers=("alice",),
+        presentation_mode="visual_novel",
+    )
+    direction = ImageDirection(
+        kind="establishing",
+        title="Restart Courtyard",
+        subject_character_ids=[],
+        scene_prompt="A rain-dark courtyard beneath stone arcades.",
+    )
+    run = coordinator.store.enqueue_director_run(projection)
+    assert coordinator.store.claim_next_director_run() is not None
+    output = ImageDirectorOutput(
+        stage_action="replace",
+        requests=[direction],
+    )
+    _complete_director(coordinator, run.run_id, output)
+    job = await coordinator.enqueue_direction(
+        projection=projection,
+        direction=direction,
+        request_ordinal=0,
+        visual_style="soft cinematic illustration",
+        delivery_targets=[],
+        director_run_id=run.run_id,
+        director_attempt=_director_attempt(coordinator, run.run_id),
+    )
+    assert job is not None
+    _finalize_director(
+        coordinator,
+        run.run_id,
+        projection=projection,
+        admitted_job_ids=[job.job_id],
+    )
+    assert coordinator.store.commit_transaction(
+        "tx_restart",
+        target_checkpoint_sha256="b" * 64,
+    )
+    return projection, run, job
+
+
 async def _wait_until(predicate, *, timeout: float = 2) -> None:
     deadline = asyncio.get_running_loop().time() + timeout
     while not predicate():
@@ -2449,6 +2495,116 @@ async def test_failed_preflight_finalizes_persisted_run_with_zero_jobs(tmp_path)
         session_id="image_test",
         rendered_event_ids_by_pov={"alice": ["evt_1"]},
     ) == (True, True)
+
+
+@pytest.mark.asyncio
+async def test_failed_preflight_restart_settles_finalized_job_without_owner(
+    tmp_path,
+):
+    config = _config(tmp_path)
+    original = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=config,
+        worker=FakeImageWorker(),
+    )
+    projection, run, job = await _persist_finalized_visual_novel_job(original)
+    await original.close()
+
+    restarted = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=config,
+        worker=FailedPreflightWorker(),
+    )
+    try:
+        await restarted.start()
+
+        settled = restarted.store.get(job.job_id)
+        assert settled is not None
+        assert settled.status == ImageGenerationStatus.failed
+        assert settled.error_code == "worker_unavailable"
+        assert restarted.store.rendered_event_image_status(
+            session_id=projection.session_id,
+            rendered_event_ids_by_pov={"alice": [projection.event_id]},
+        ) == (True, True)
+        stage, media = restarted.resolve_visual_novel_stage(
+            session_id=projection.session_id,
+            pov_character_id="alice",
+            rendered_event_ids=[projection.event_id],
+        )
+        assert stage.source_run_id == run.run_id
+        assert stage.artifact is None
+        assert stage.fallback_reason == "replacement_failed"
+        assert media is None
+        assert await restarted.wait_for_render_images(
+            session_id=projection.session_id,
+            rendered_event_ids_by_pov={"alice": [projection.event_id]},
+            timeout=0.1,
+            discovery_grace_seconds=0,
+        )
+    finally:
+        await restarted.close()
+
+
+@pytest.mark.asyncio
+async def test_failed_preflight_restart_preserves_job_with_live_owner(tmp_path):
+    config = _config(tmp_path)
+    original = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=config,
+        worker=FakeImageWorker(),
+    )
+    projection, _, job = await _persist_finalized_visual_novel_job(original)
+    await original.close()
+
+    capable_owner = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=config,
+        worker=FakeImageWorker(),
+    )
+    capable_owner._queue_owner = capable_owner._acquire_queue_owner()
+    assert capable_owner._queue_owner is True
+    assert capable_owner.can_generate_render() is True
+    restarted = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=config,
+        worker=FailedPreflightWorker(),
+    )
+    try:
+        await restarted.start()
+
+        preserved = restarted.store.get(job.job_id)
+        assert preserved is not None
+        assert preserved.status == ImageGenerationStatus.queued
+        assert restarted.store.rendered_event_image_status(
+            session_id=projection.session_id,
+            rendered_event_ids_by_pov={"alice": [projection.event_id]},
+        ) == (True, False)
+        assert not await restarted.wait_for_render_images(
+            session_id=projection.session_id,
+            rendered_event_ids_by_pov={"alice": [projection.event_id]},
+            timeout=0.05,
+            discovery_grace_seconds=0,
+        )
+    finally:
+        await restarted.close()
+        await capable_owner.close()
+
+    ownerless_restart = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=config,
+        worker=FailedPreflightWorker(),
+    )
+    try:
+        await ownerless_restart.start()
+        settled = ownerless_restart.store.get(job.job_id)
+        assert settled is not None
+        assert settled.status == ImageGenerationStatus.failed
+        assert ownerless_restart.store.rendered_event_image_status(
+            session_id=projection.session_id,
+            rendered_event_ids_by_pov={"alice": [projection.event_id]},
+        ) == (True, True)
+    finally:
+        await ownerless_restart.close()
 
 
 @pytest.mark.asyncio
