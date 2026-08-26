@@ -70,7 +70,10 @@ from app.engine import (
 )
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
 from app.engine.action_rejection import PlayerActionRejected
-from app.engine.narrator import commit_pov_render
+from app.engine.narrator import (
+    assert_narrator_handoff_policy,
+    commit_pov_render,
+)
 from app.engine.dnd_combat_access import (
     checkpoint_active_combat,
     combatant_character_id as _combatant_character_id,
@@ -4273,6 +4276,19 @@ async def _end_beat(
             result for result in results
             if isinstance(result, BaseException)
         ]
+        for result in results:
+            if isinstance(result, BaseException):
+                continue
+            h, envelope, _entry = result
+            try:
+                assert_narrator_handoff_policy(
+                    envelope,
+                    handoff_policy=(
+                        "candidate" if h == gate_id else "forced"
+                    ),
+                )
+            except ValueError as exc:
+                errors.append(exc)
         if errors:
             try:
                 if image_runtime is not None:

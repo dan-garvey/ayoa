@@ -37,18 +37,18 @@ from app.schemas.narrator import (
     VisualNovelNarratorOutput,
     narrator_plain_text,
     visual_novel_pages_contain_source_identifiers,
+    visual_novel_text_contains_source_identifiers,
 )
 from app.schemas.state import RenderBufferEntry
 
 logger = logging.getLogger(__name__)
 
 
-def _active_roster_source_ids(ckpt: CheckpointFile) -> tuple[str, ...]:
+def _checkpoint_roster_source_ids(ckpt: CheckpointFile) -> tuple[str, ...]:
     return tuple(
         character.character_id
         for character in ckpt.characters
-        if str(getattr(character.status, "value", character.status)) != "culled"
-        and character.character_id
+        if character.character_id
     )
 
 
@@ -58,11 +58,58 @@ def _assert_visual_novel_output_is_player_safe(
 ) -> None:
     if visual_novel_pages_contain_source_identifiers(
         result.pages,
-        source_ids=_active_roster_source_ids(ckpt),
+        source_ids=_checkpoint_roster_source_ids(ckpt),
     ):
         raise ValueError(
             "visual-novel narrator output exposed an engine source identifier"
         )
+
+
+def assert_narrator_handoff_policy(
+    result: NarratorOutput,
+    *,
+    handoff_policy: str,
+) -> None:
+    """Reject a provider judgment that contradicts a forced boundary."""
+
+    if handoff_policy == "forced" and result.handoff != "render":
+        raise ValueError(
+            "narrator returned handoff='continue' under forced handoff policy"
+        )
+
+
+def _assert_visual_novel_correction_preserves_contract(
+    rejected: VisualNovelNarratorOutput,
+    corrected: VisualNovelNarratorOutput,
+    *,
+    source_ids: tuple[str, ...],
+) -> None:
+    """Allow one correction to change only fields that exposed source ids."""
+
+    if corrected.handoff != rejected.handoff:
+        raise ValueError("visual-novel correction changed the handoff decision")
+    if len(corrected.pages) != len(rejected.pages):
+        raise ValueError("visual-novel correction changed the page count")
+    for index, (before, after) in enumerate(
+        zip(rejected.pages, corrected.pages, strict=True)
+    ):
+        if after.kind != before.kind:
+            raise ValueError(
+                "visual-novel correction changed page kind/order "
+                f"at page {index}"
+            )
+        for field_name in ("speaker", "text"):
+            before_value = getattr(before, field_name)
+            if visual_novel_text_contains_source_identifiers(
+                before_value,
+                source_ids=source_ids,
+            ):
+                continue
+            if getattr(after, field_name) != before_value:
+                raise ValueError(
+                    "visual-novel correction changed an already-safe "
+                    f"{field_name} field at page {index}"
+                )
 
 
 def _strip_unmatched_trailing_closers(text: str) -> str:
@@ -295,7 +342,8 @@ async def compose_pov_render(
         VisualNovelNarratorOutput if visual_novel else NarratorFinalOutput
     )
     result: NarratorOutput | None = None
-    rejected_handoff = ""
+    rejected_result: VisualNovelNarratorOutput | None = None
+    roster_source_ids = _checkpoint_roster_source_ids(ckpt)
     for attempt in range(2 if visual_novel else 1):
         response = await client.complete(
             role="narrator",
@@ -309,17 +357,23 @@ async def compose_pov_render(
         result = response.parsed
         if result is None:
             raise RuntimeError("Narrator returned no structured result.")
+        assert_narrator_handoff_policy(
+            result,
+            handoff_policy=handoff_policy,
+        )
         if isinstance(result, VisualNovelNarratorOutput):
             try:
                 _assert_visual_novel_output_is_player_safe(ckpt, result)
-                if rejected_handoff and result.handoff != rejected_handoff:
-                    raise ValueError(
-                        "visual-novel correction changed the handoff decision"
+                if rejected_result is not None:
+                    _assert_visual_novel_correction_preserves_contract(
+                        rejected_result,
+                        result,
+                        source_ids=roster_source_ids,
                     )
             except ValueError:
                 if attempt:
                     raise
-                rejected_handoff = result.handoff
+                rejected_result = result.model_copy(deep=True)
                 messages = [
                     *messages,
                     {
@@ -329,14 +383,15 @@ async def compose_pov_render(
                     {
                         "role": "user",
                         "content": (
-                            "Return corrected JSON only. Preserve the handoff, "
-                            "visible facts, dialogue order, and page boundaries, "
-                            "but remove every source identifier from "
-                            "speaker and text fields. Do not transform an "
-                            "identifier into a guessed proper name. Use an "
-                            "already established viewpoint-known name when the "
-                            "context supplies one; otherwise use a short visible "
-                            "description."
+                            "Return corrected JSON only. Keep the handoff, page "
+                            "count, page kinds, and page order unchanged. Change "
+                            "only speaker or text fields that contain a source "
+                            "identifier; preserve every other speaker and text "
+                            "field exactly. Remove every source identifier. Do "
+                            "not transform one into a guessed proper name. Use "
+                            "an already established viewpoint-known name when "
+                            "the context supplies one; otherwise use a short "
+                            "visible description."
                         ),
                     },
                 ]
