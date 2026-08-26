@@ -2409,6 +2409,73 @@ class TestVisualNovelDiscordDeck:
             assert len(custom_id) <= 100
             assert custom_id.startswith(f"avn:{deck.deck_id}:42:0:")
 
+    def test_restart_safe_controls_support_four_digit_card_indices(self):
+        view = bot_commands._VisualNovelView(
+            deck_id="a" * 64,
+            user_id=42,
+            index=1_000,
+            count=1_002,
+        )
+
+        custom_ids = [
+            child.item.custom_id
+            for child in view.children
+            if isinstance(child, bot_commands._VisualNovelControl)
+        ]
+        assert len(custom_ids) == 3
+        assert all(
+            custom_id.startswith(f"avn:{'a' * 64}:42:1000:")
+            for custom_id in custom_ids
+        )
+
+    def test_restart_safe_view_uses_exact_discord_id_budget(self):
+        view = bot_commands._VisualNovelView(
+            deck_id="f" * 64,
+            user_id=99_999_999_999_999_999_999,
+            index=bot_commands._VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX,
+            count=bot_commands._VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX + 1,
+        )
+
+        custom_ids = [
+            child.item.custom_id
+            for child in view.children
+            if isinstance(child, bot_commands._VisualNovelControl)
+        ]
+        assert len(custom_ids) == 3
+        assert all(len(custom_id) == 100 for custom_id in custom_ids)
+
+    @pytest.mark.parametrize("index", (-1, 100_000_000))
+    def test_restart_safe_control_rejects_unencodable_indices(self, index: int):
+        with pytest.raises(ValueError, match="card index must be between"):
+            bot_commands._VisualNovelControl(
+                deck_id="f" * 64,
+                user_id=42,
+                index=index,
+                action="n",
+            )
+
+    @pytest.mark.parametrize(
+        ("index", "count", "message"),
+        (
+            (0, 0, "card count must be between"),
+            (0, 100_000_001, "card count must be between"),
+            (2, 2, "card index must identify a card"),
+        ),
+    )
+    def test_restart_safe_view_validates_deck_bounds(
+        self,
+        index: int,
+        count: int,
+        message: str,
+    ):
+        with pytest.raises(ValueError, match=message):
+            bot_commands._VisualNovelView(
+                deck_id="f" * 64,
+                user_id=42,
+                index=index,
+                count=count,
+            )
+
     def test_next_control_reloads_deck_and_edits_one_attachment(
         self, tmp_path: Path,
     ):
