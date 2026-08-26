@@ -68,7 +68,48 @@ FORBIDDEN_MODULE_METADATA_KEYS = {
     "source_ref",
 }
 
-_ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_.-])/(?:[^/\s]+/)+[^/\s]+")
+_UNIX_PATH_SEGMENT = r"[^/\s\"')\]}>;,]+"
+_WINDOWS_PATH_SEGMENT = r"[^\\/\s\"')\]}>;,]+"
+_REPO_PATH_ROOTS = (
+    r"app|tests|scripts|infra|experiments|audits|samples|stories|\.agents|"
+    r"\.beads|\.cursor|private_extractions"
+)
+_PRIVATE_FILE_SUFFIXES = (
+    r"bmp|cfg|ckpt|csv|db|gif|ini|jpe?g|jsonl?|log|md|pdf|png|py|"
+    r"safetensors|sqlite3?|svg|toml|tsv|txt|webp|ya?ml"
+)
+_UNQUOTED_PRIVATE_FILE_PATH_RE = re.compile(
+    rf"(?<![A-Za-z0-9_.-])(?:/[^\r\n\"'<>|]*?|"
+    rf"[A-Za-z]:[\\/][^\r\n\"'<>|]*?|\\\\[^\r\n\"'<>|]*?|"
+    rf"(?:\.{{1,2}}[\\/])?(?:{_REPO_PATH_ROOTS})"
+    rf"[\\/][^\r\n\"'<>|]*?)\.(?:{_PRIVATE_FILE_SUFFIXES})"
+    rf"(?=$|[\s,;:)\]}}])",
+    re.IGNORECASE,
+)
+_QUOTED_PRIVATE_PATH_RE = re.compile(
+    rf"(?P<quote>[\"'])(?:/[^\r\n\"']+|[A-Za-z]:[\\/][^\r\n\"']+|"
+    rf"\\\\[^\r\n\"']+|(?:\.{{1,2}}[\\/])?(?:{_REPO_PATH_ROOTS})"
+    rf"[\\/][^\r\n\"']+)(?P=quote)",
+    re.IGNORECASE,
+)
+_UNIX_ABSOLUTE_PATH_RE = re.compile(
+    rf"(?<![A-Za-z0-9_.-])/(?:{_UNIX_PATH_SEGMENT}/)*"
+    rf"{_UNIX_PATH_SEGMENT}"
+)
+_WINDOWS_ABSOLUTE_PATH_RE = re.compile(
+    rf"(?<![A-Za-z0-9_.-])[A-Za-z]:[\\/]"
+    rf"(?:{_WINDOWS_PATH_SEGMENT}[\\/])*{_WINDOWS_PATH_SEGMENT}"
+    rf"|(?<![\\A-Za-z0-9_.-])\\\\{_WINDOWS_PATH_SEGMENT}\\"
+    rf"(?:{_WINDOWS_PATH_SEGMENT}\\)*{_WINDOWS_PATH_SEGMENT}",
+    re.IGNORECASE,
+)
+_REPO_INTERNAL_RELATIVE_PATH_RE = re.compile(
+    rf"(?<![A-Za-z0-9_.-])"
+    rf"(?:\.{{1,2}}[\\/])?"
+    rf"(?:{_REPO_PATH_ROOTS})"
+    rf"[\\/](?:{_WINDOWS_PATH_SEGMENT}[\\/])*{_WINDOWS_PATH_SEGMENT}",
+    re.IGNORECASE,
+)
 _ASSET_REF_RE = re.compile(r"\basset://[^\s\"')\]}]+", re.IGNORECASE)
 _FILE_URI_RE = re.compile(r"\bfile://[^\s\"')\]}]+", re.IGNORECASE)
 _IMAGE_PAYLOAD_RE = re.compile(
@@ -76,7 +117,10 @@ _IMAGE_PAYLOAD_RE = re.compile(
     re.IGNORECASE,
 )
 _SOURCE_PDF_RE = re.compile(r"\b[^\s\"']+\.pdf\b", re.IGNORECASE)
-_PRIVATE_STORAGE_RE = re.compile(r"\bprivate_extractions/[^\s\"')\]}]*", re.IGNORECASE)
+_PRIVATE_STORAGE_RE = re.compile(
+    r"\bprivate_extractions[\\/][^\s\"')\]}]*",
+    re.IGNORECASE,
+)
 _FORBIDDEN_FIELD_RE = re.compile(
     r"\b(?:"
     + "|".join(re.escape(key) for key in sorted(FORBIDDEN_MODULE_METADATA_KEYS))
@@ -109,13 +153,17 @@ _CONTENT_METADATA_SENTENCE_RE = re.compile(
     re.IGNORECASE,
 )
 _UNSAFE_TEXT_PATTERNS = (
+    _QUOTED_PRIVATE_PATH_RE,
+    _UNQUOTED_PRIVATE_FILE_PATH_RE,
     _FILE_URI_RE,
     _ASSET_REF_RE,
     _IMAGE_PAYLOAD_RE,
     _PRIVATE_STORAGE_RE,
     _SOURCE_PDF_RE,
     _FORBIDDEN_FIELD_RE,
-    _ABSOLUTE_PATH_RE,
+    _WINDOWS_ABSOLUTE_PATH_RE,
+    _UNIX_ABSOLUTE_PATH_RE,
+    _REPO_INTERNAL_RELATIVE_PATH_RE,
 )
 _UNSAFE_CONTENT_METADATA_PATTERNS = (
     _COMPACT_CONTENT_REF_RE,

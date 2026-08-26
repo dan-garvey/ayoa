@@ -870,10 +870,19 @@ class TestComposePovRender:
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = presentation_mode
+        beta_event = next(
+            event for event in ckpt.canonical_events
+            if event.event_id == "evt_beta"
+        )
+        beta_event.canonical_event.observable_facts = [ObservableFact.all(
+            "Pip nods in a scarlet coat. actor.hidden "
+            "app/storage/stories/private/pip.png"
+        )]
         next(c for c in ckpt.characters if c.character_id == "pip").visuals = (
             CharacterVisuals(default_loadout=(
                 "Scarlet coat. source_path=/private/module/source-map.png "
                 "private_extractions/page-07.txt actor.hidden "
+                r"C:\Users\dan\ayoa\private\pip.png "
                 "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef "
                 "\x1b[31mbrass clasp\x1b[0m\x07"
             ))
@@ -917,6 +926,8 @@ class TestComposePovRender:
         assert REDACTED_IMPORT_SENTINEL in provider_input
         assert "/private/module/source-map.png" not in provider_input
         assert "private_extractions" not in provider_input
+        assert r"C:\Users\dan\ayoa" not in provider_input
+        assert "app/storage/stories" not in provider_input
         assert "actor.hidden" not in provider_input
         assert "0123456789abcdef" not in provider_input
         assert "\x1b" not in provider_input
@@ -1221,7 +1232,10 @@ class TestComposePovRender:
         pip.visuals = CharacterVisuals(default_loadout="Default red coat.")
         ckpt.canonical_events.append(_router_event(
             "evt_query_loadout",
-            [ObservableFact.all("[loadout — Pip] Pip wears a blue cloak.")],
+            [ObservableFact.all(
+                "[loadout — Pip] Pip wears a blue cloak. actor.hidden "
+                "app/storage/stories/private/pip.png"
+            )],
         ))
 
         buffered = [
@@ -1248,6 +1262,9 @@ class TestComposePovRender:
 
         user_content = mock_client.complete.call_args.kwargs["messages"][-1]["content"]
         assert "Pip wears a blue cloak." in user_content
+        assert "actor.hidden" not in user_content
+        assert "app/storage/stories" not in user_content
+        assert REDACTED_IMPORT_SENTINEL in user_content
         assert "Default red coat" not in user_content
         assert "Newly introduced character context" not in user_content
         assert ckpt.session.visual_introductions["alice"] == ["pip"]

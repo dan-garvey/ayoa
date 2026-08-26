@@ -165,6 +165,53 @@ def test_agent_event_plan_uses_speaker_not_quoted_mentions():
     assert plan.mark_character_ids == ["alice"]
 
 
+def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            CharacterRecord(character_id="bob", name="Bob"),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+            _character("alice", "Alice", CharacterAgentTier.standard),
+        ],
+    )
+    cases = (
+        ("Pip says Alice waits at the gate.", {"pip"}),
+        ("A photograph shows Pip standing by the gate.", set()),
+        ("Pip steps into the room while the radio crackles.", {"pip"}),
+        ("Pip stands beside Alice.", {"pip", "alice"}),
+    )
+
+    for text, expected_ids in cases:
+        event = _event(text)
+        agent_plan = plan_event_visual_introductions(
+            ckpt,
+            viewer_id="bob",
+            event=event,
+            observation_level="direct",
+            max_loadouts=3,
+        )
+        narrator_plan = plan_render_visual_introductions(
+            ckpt,
+            viewer_id="bob",
+            resolved=[(
+                RenderBufferEntry(
+                    event_id=event.event_id,
+                    observation_level="direct",
+                ),
+                event,
+            )],
+            max_loadouts=3,
+        )
+
+        assert {
+            introduction.character_id for introduction in agent_plan.loadouts
+        } == expected_ids
+        assert {
+            introduction.character_id
+            for introduction in narrator_plan.loadouts
+        } == expected_ids
+
+
 def test_agent_remote_voice_does_not_consume_intro_before_direct_speech():
     ckpt = CheckpointFile(
         session=SessionState(session_id="s"),
@@ -208,6 +255,7 @@ def test_narrator_remote_references_do_not_consume_intro_before_copresence():
     )
     remote_texts = [
         "The radio crackles: 'Pip will arrive later.'",
+        "A voice from Pip says he will arrive later.",
         "Pip's message says he will arrive later.",
         "A wall feed shows Pip walking through the outer courtyard.",
         "Alice points toward Pip's empty chair.",
