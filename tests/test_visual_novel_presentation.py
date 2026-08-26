@@ -35,9 +35,14 @@ def _write_manifest(deck, payload: object) -> None:
     )
 
 
-def _identity_deck_id(identity: object) -> str:
+def _v2_deck_id(payload: dict) -> str:
     return hashlib.sha256(json.dumps(
-        identity,
+        {
+            "identity": payload["identity"],
+            "card_sha256s": [
+                card["sha256"] for card in payload["cards"]
+            ],
+        },
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=True,
@@ -45,7 +50,7 @@ def _identity_deck_id(identity: object) -> str:
 
 
 def _rehome_v2_deck(renderer, deck, payload: dict) -> str:
-    new_deck_id = _identity_deck_id(payload["identity"])
+    new_deck_id = _v2_deck_id(payload)
     payload["deck_id"] = new_deck_id
     new_deck_dir = renderer.deck_root / new_deck_id
     deck.manifest_path.parent.rename(new_deck_dir)
@@ -148,6 +153,7 @@ def test_new_manifest_binds_v2_identity_and_card_hashes(tmp_path: Path):
     assert payload["cards"][0]["sha256"] == hashlib.sha256(
         deck.cards[0].image_path.read_bytes()
     ).hexdigest()
+    assert payload["deck_id"] == _v2_deck_id(payload)
     assert renderer.load_deck(deck.deck_id) == deck
 
 
@@ -309,6 +315,20 @@ def test_renderer_rejects_symlinked_deck_root_at_construction(tmp_path: Path):
     assert list(outside.iterdir()) == []
 
 
+def test_renderer_rejects_symlinked_runtime_root_at_construction(
+    tmp_path: Path,
+):
+    runtime_root = tmp_path / "presentations"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    runtime_root.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="deck root"):
+        VisualNovelCardRenderer(runtime_root)
+
+    assert list(outside.iterdir()) == []
+
+
 def test_render_rejects_symlinked_deck_root_swap_without_writing_outside(
     tmp_path: Path,
 ):
@@ -337,6 +357,73 @@ def test_loader_rejects_symlinked_deck_root_swap(tmp_path: Path):
     renderer.deck_root.symlink_to(
         original_deck_root,
         target_is_directory=True,
+    )
+
+    assert renderer.load_deck(deck.deck_id) is None
+
+
+def test_render_rejects_deck_root_swap_after_descriptor_open(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    moved_deck_root = tmp_path / "moved-decks"
+    attacker_root = tmp_path / "attacker"
+    attacker_root.mkdir()
+    open_deck_directory = renderer._open_render_deck_directory
+
+    def swap_then_open(deck_root_fd: int, deck_id: str) -> int:
+        renderer.deck_root.rename(moved_deck_root)
+        renderer.deck_root.symlink_to(
+            attacker_root,
+            target_is_directory=True,
+        )
+        return open_deck_directory(deck_root_fd, deck_id)
+
+    monkeypatch.setattr(
+        renderer,
+        "_open_render_deck_directory",
+        swap_then_open,
+    )
+
+    with pytest.raises(RuntimeError, match="changed after"):
+        renderer.render_deck([
+            VisualNovelDeckSection(pages=(VisualNovelPage(
+                kind="narration",
+                text="Wind moves across the open beginner court.",
+            ),)),
+        ])
+
+    assert list(moved_deck_root.iterdir()) == []
+    assert list(attacker_root.iterdir()) == []
+
+
+def test_loader_rejects_deck_root_swap_after_descriptor_open(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    renderer, deck = _single_page_deck(tmp_path)
+    moved_deck_root = tmp_path / "moved-decks"
+    attacker_root = tmp_path / "attacker"
+    attacker_root.mkdir()
+    shutil.copytree(
+        deck.manifest_path.parent,
+        attacker_root / deck.deck_id,
+    )
+    open_deck_directory = renderer._open_load_deck_directory
+
+    def swap_then_open(deck_root_fd: int, deck_id: str) -> int:
+        renderer.deck_root.rename(moved_deck_root)
+        renderer.deck_root.symlink_to(
+            attacker_root,
+            target_is_directory=True,
+        )
+        return open_deck_directory(deck_root_fd, deck_id)
+
+    monkeypatch.setattr(
+        renderer,
+        "_open_load_deck_directory",
+        swap_then_open,
     )
 
     assert renderer.load_deck(deck.deck_id) is None
@@ -452,6 +539,22 @@ def test_loader_rejects_valid_png_when_card_hash_changes(tmp_path: Path):
     assert renderer.load_deck(deck.deck_id) is None
 
 
+def test_loader_rejects_valid_rehashed_png_under_original_deck_id(
+    tmp_path: Path,
+):
+    renderer, deck = _single_page_deck(tmp_path)
+    Image.new("RGB", (CARD_WIDTH, CARD_HEIGHT), (90, 10, 40)).save(
+        deck.cards[0].image_path
+    )
+    payload = _manifest(deck)
+    payload["cards"][0]["sha256"] = hashlib.sha256(
+        deck.cards[0].image_path.read_bytes()
+    ).hexdigest()
+    _write_manifest(deck, payload)
+
+    assert renderer.load_deck(deck.deck_id) is None
+
+
 @pytest.mark.parametrize("replacement", ("invalid", "wrong_size", "animated"))
 def test_loader_rejects_noncanonical_png_even_with_matching_manifest_hash(
     tmp_path: Path,
@@ -471,9 +574,9 @@ def test_loader_rejects_noncanonical_png_even_with_matching_manifest_hash(
     payload["cards"][0]["sha256"] = hashlib.sha256(
         path.read_bytes()
     ).hexdigest()
-    _write_manifest(deck, payload)
+    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
 
-    assert renderer.load_deck(deck.deck_id) is None
+    assert renderer.load_deck(new_deck_id) is None
 
 
 def test_corrupt_stage_fails_safe_to_neutral_card(tmp_path: Path):

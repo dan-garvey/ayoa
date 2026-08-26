@@ -2518,6 +2518,35 @@ class TestVisualNovelDiscordDeck:
         )
         kwargs["attachments"][0].close()
 
+    def test_discord_file_keeps_manifest_verified_bytes_after_path_swap(
+        self,
+        tmp_path: Path,
+    ):
+        deck = self._deck(tmp_path)
+        loaded = VisualNovelCardRenderer(tmp_path / "vn").load_deck(
+            deck.deck_id
+        )
+        assert loaded is not None
+        manifest = json.loads(
+            loaded.manifest_path.read_text(encoding="utf-8")
+        )
+        Image.new("RGB", (1024, 576), (190, 12, 51)).save(
+            loaded.cards[0].image_path
+        )
+
+        delivered = bot_commands._visual_novel_discord_file(loaded, 0)
+        try:
+            delivered.fp.seek(0)
+            delivered_bytes = delivered.fp.read()
+        finally:
+            delivered.close()
+
+        assert delivered_bytes == loaded.cards[0].image_bytes
+        assert hashlib.sha256(delivered_bytes).hexdigest() == (
+            manifest["cards"][0]["sha256"]
+        )
+        assert delivered_bytes != loaded.cards[0].image_path.read_bytes()
+
     def test_persistent_control_contains_unexpected_loader_exception(
         self,
         tmp_path: Path,
@@ -2641,6 +2670,7 @@ class TestVisualNovelDiscordDeck:
             speaker="",
             text="  ".join(["wind moves over the terrace"] * 100),
             image_path=deck.cards[0].image_path,
+            image_bytes=deck.cards[0].image_bytes,
         )
 
         description = bot_commands._visual_novel_discord_description(card)

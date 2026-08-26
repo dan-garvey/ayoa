@@ -3541,7 +3541,7 @@ class CLIState:
         index = 0
         while True:
             card = deck.cards[index]
-            data = card.image_path.read_bytes()
+            data = card.image_bytes
             media = ResolvedPlayerMedia(
                 filename=card.image_path.name,
                 mime_type="image/png",
