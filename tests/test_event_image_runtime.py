@@ -370,6 +370,18 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
         config=ImageGenerationConfig(runtime_root=tmp_path / "runtime"),
         worker=AvailableNoopWorker(),
     )
+    stage_context_run_ids: list[str] = []
+    stage_context_before_run = (
+        generation.store.visual_novel_stage_context_before_run
+    )
+
+    def _record_stage_context_run(run_id: str) -> list[str]:
+        stage_context_run_ids.append(run_id)
+        return stage_context_before_run(run_id)
+
+    generation.store.visual_novel_stage_context_before_run = (
+        _record_stage_context_run
+    )
     director = BlockingDirector()
     sidecar = EventImageSidecar(
         director=director,
@@ -409,6 +421,16 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
         await asyncio.wait_for(director.started.wait(), timeout=1)
         assert len(director.calls) == 1
         assert director.calls[0].viewer_character_ids == ("alice", "bob")
+        with generation.store._connect() as db:
+            running = db.execute(
+                """
+                SELECT run_id, status FROM image_director_runs
+                WHERE source_event_id = 'evt_shared'
+                """
+            ).fetchone()
+        assert running is not None
+        assert running["status"] == "running"
+        assert stage_context_run_ids == [running["run_id"]]
         director.release.set()
 
         async def decision_persisted() -> bool:

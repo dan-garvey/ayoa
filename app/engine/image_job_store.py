@@ -1453,34 +1453,54 @@ class ImageJobStore:
             )
         return cursor.rowcount
 
-    def current_visual_novel_stage_context(
+    def visual_novel_stage_context_before_run(
         self,
-        session_id: str,
-        *,
-        viewer_character_ids: Sequence[str],
+        run_id: str,
     ) -> list[str]:
-        """Describe the one effective shared stage without stale inheritance."""
+        """Describe the shared stage strictly preceding one director run."""
 
-        viewers = {
-            str(character_id).strip()
-            for character_id in viewer_character_ids
-            if str(character_id).strip()
-        }
-        if not viewers:
-            return []
         with self._connect() as db:
+            current_row = db.execute(
+                "SELECT * FROM image_director_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if current_row is None:
+                raise RuntimeError(
+                    f"visual-novel director run is unavailable: {run_id}"
+                )
+            current = _director_run_from_row(current_row)
+            viewers = {
+                str(character_id).strip()
+                for character_id in current.projection.viewer_character_ids
+                if str(character_id).strip()
+            }
+            if not viewers:
+                return []
             rows = db.execute(
                 """
                 SELECT r.* FROM image_director_runs AS r
                 JOIN image_transactions AS t
                   ON t.transaction_id = r.transaction_id
                 WHERE r.session_id = ? AND t.status = 'committed'
+                  AND r.status != 'cancelled'
+                  AND (
+                    r.source_turn_index < ?
+                    OR (
+                      r.source_turn_index = ?
+                      AND r.source_event_sequence < ?
+                    )
+                  )
                 ORDER BY r.source_turn_index DESC,
                          r.source_event_sequence DESC,
                          r.created_at DESC,
                          r.run_id DESC
                 """,
-                (session_id,),
+                (
+                    current.projection.session_id,
+                    current.projection.source_turn_index,
+                    current.projection.source_turn_index,
+                    current.projection.event_sequence,
+                ),
             ).fetchall()
 
         runs = [

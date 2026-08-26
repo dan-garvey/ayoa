@@ -262,16 +262,13 @@ class EventImageSidecar:
                 name=f"image-director-heartbeat:{run.run_id}",
             )
             try:
+                store = self.generation.store
+                stage_context = store.visual_novel_stage_context_before_run(
+                    run.run_id
+                )
                 output = await self.director.decide(
                     run.projection,
-                    stage_context=(
-                        self.generation.store.current_visual_novel_stage_context(
-                            run.projection.session_id,
-                            viewer_character_ids=(
-                                run.projection.viewer_character_ids
-                            ),
-                        )
-                    ),
+                    stage_context=stage_context,
                 )
                 completed = self.generation.store.complete_director_run(
                     run.run_id,

@@ -1424,20 +1424,6 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         "tx_stage_1",
         target_checkpoint_sha256="c" * 64,
     )
-    assert "current_stage=active" in "\n".join(
-        coordinator.store.current_visual_novel_stage_context(
-            "image_test",
-            viewer_character_ids=["alice"],
-        )
-    )
-    assert coordinator.store.current_visual_novel_stage_context(
-        "image_test",
-        viewer_character_ids=["bob"],
-    ) == []
-    assert coordinator.store.current_visual_novel_stage_context(
-        "image_test",
-        viewer_character_ids=["alice", "bob"],
-    ) == ["current_stage=neutral; reason=no shared compatible stage"]
 
     _begin(coordinator, "tx_stage_2")
     reuse_projection = _projection(
@@ -1449,6 +1435,11 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         presentation_mode="visual_novel",
     )
     reuse_run = coordinator.store.enqueue_director_run(reuse_projection)
+    assert "current_stage=active" in "\n".join(
+        coordinator.store.visual_novel_stage_context_before_run(
+            reuse_run.run_id
+        )
+    )
     assert coordinator.store.claim_next_director_run() is not None
     coordinator.store.complete_director_run(
         reuse_run.run_id,
@@ -1467,12 +1458,6 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
     assert reused.action == "reuse"
     assert reused.artifact == artifact
     assert reused.fallback_reason == ""
-    assert "current_stage=reused" in "\n".join(
-        coordinator.store.current_visual_novel_stage_context(
-            "image_test",
-            viewer_character_ids=["alice"],
-        )
-    )
 
     _begin(coordinator, "tx_stage_3")
     failed_projection = _projection(
@@ -1484,6 +1469,11 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         presentation_mode="visual_novel",
     )
     failed_run = coordinator.store.enqueue_director_run(failed_projection)
+    assert "current_stage=reused" in "\n".join(
+        coordinator.store.visual_novel_stage_context_before_run(
+            failed_run.run_id
+        )
+    )
     assert coordinator.store.claim_next_director_run() is not None
     coordinator.store.complete_director_run(
         failed_run.run_id,
@@ -1513,10 +1503,6 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
     assert failed.action == "replace"
     assert failed.artifact is None
     assert failed.fallback_reason == "replacement_failed"
-    assert coordinator.store.current_visual_novel_stage_context(
-        "image_test",
-        viewer_character_ids=["alice"],
-    ) == ["current_stage=neutral; reason=no shared compatible stage"]
 
     _begin(coordinator, "tx_stage_4")
     failed_direction_projection = _projection(
@@ -1530,6 +1516,9 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
     failed_direction_run = coordinator.store.enqueue_director_run(
         failed_direction_projection
     )
+    assert coordinator.store.visual_novel_stage_context_before_run(
+        failed_direction_run.run_id
+    ) == ["current_stage=neutral; reason=no shared compatible stage"]
     assert coordinator.store.claim_next_director_run() is not None
     coordinator.store.fail_director_run(
         failed_direction_run.run_id,
@@ -1552,6 +1541,9 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
     unsafe_reuse_run = coordinator.store.enqueue_director_run(
         unsafe_reuse_projection
     )
+    assert coordinator.store.visual_novel_stage_context_before_run(
+        unsafe_reuse_run.run_id
+    ) == ["current_stage=neutral; reason=no shared compatible stage"]
     assert coordinator.store.claim_next_director_run() is not None
     coordinator.store.complete_director_run(
         unsafe_reuse_run.run_id,
@@ -1570,6 +1562,154 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
     assert unsafe_reuse.action == "reuse"
     assert unsafe_reuse.artifact is None
     assert unsafe_reuse.fallback_reason == "reused_stage_transition_failed"
+
+
+async def _visual_novel_stage_context_for_schedule(
+    runtime_root,
+    *,
+    commit_current_before_claim,
+) -> list[str]:
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=runtime_root / "sessions",
+        config=_config(runtime_root),
+        worker=FakeImageWorker(),
+    )
+    direction = ImageDirection(
+        kind="group_portrait",
+        title="Established Courtyard",
+        subject_character_ids=["alice", "bob"],
+        scene_prompt="Alice and Bob stand in an established courtyard.",
+    )
+
+    _begin(coordinator, "tx_prior")
+    prior_projection = _projection(
+        transaction_id="tx_prior",
+        event_id="evt_prior",
+        event_sequence=1,
+        viewers=("alice",),
+        source_turn_index=1,
+        presentation_mode="visual_novel",
+    )
+    prior_run = coordinator.store.enqueue_director_run(prior_projection)
+    assert coordinator.store.claim_next_director_run() is not None
+    prior_output = ImageDirectorOutput(
+        stage_action="replace",
+        requests=[direction],
+    )
+    coordinator.store.complete_director_run(prior_run.run_id, prior_output)
+    prior_job = await coordinator.enqueue_direction(
+        projection=prior_projection,
+        direction=direction,
+        request_ordinal=0,
+        visual_style="cinematic",
+        delivery_targets=[],
+    )
+    assert prior_job is not None
+    claimed_job = coordinator.store.claim_next()
+    assert claimed_job is not None
+    coordinator.store.mark_succeeded(
+        claimed_job.job_id,
+        GeneratedImageArtifact(
+            sha256="a" * 64,
+            relative_path="artifacts/aa/prior-stage.webp",
+            width=1024,
+            height=576,
+            byte_count=123,
+        ),
+    )
+    coordinator.store.finalize_director_materialization(
+        prior_run.run_id,
+        prior_output,
+    )
+    assert coordinator.store.commit_transaction(
+        "tx_prior",
+        target_checkpoint_sha256="b" * 64,
+    )
+
+    _begin(coordinator, "tx_current")
+    current_projection = _projection(
+        transaction_id="tx_current",
+        event_id="evt_current",
+        event_sequence=2,
+        viewers=("alice",),
+        source_turn_index=2,
+        presentation_mode="visual_novel",
+    )
+    current_run = coordinator.store.enqueue_director_run(current_projection)
+    if commit_current_before_claim:
+        assert coordinator.store.commit_transaction(
+            "tx_current",
+            target_checkpoint_sha256="c" * 64,
+        )
+    claimed_current = coordinator.store.claim_next_director_run()
+    assert claimed_current is not None
+    assert claimed_current.run_id == current_run.run_id
+    assert claimed_current.status == "running"
+
+    sibling_projection = _projection(
+        transaction_id="tx_current",
+        event_id="evt_same_position",
+        event_sequence=2,
+        viewers=("alice",),
+        source_turn_index=2,
+        presentation_mode="visual_novel",
+    )
+    sibling_run = coordinator.store.enqueue_director_run(sibling_projection)
+    assert sibling_run.status == "queued"
+
+    _begin(coordinator, "tx_future")
+    future_projection = _projection(
+        transaction_id="tx_future",
+        event_id="evt_future",
+        event_sequence=3,
+        viewers=("alice",),
+        source_turn_index=3,
+        presentation_mode="visual_novel",
+    )
+    future_run = coordinator.store.enqueue_director_run(future_projection)
+    assert future_run.status == "queued"
+    assert coordinator.store.commit_transaction(
+        "tx_future",
+        target_checkpoint_sha256="d" * 64,
+    )
+
+    context = coordinator.store.visual_novel_stage_context_before_run(
+        current_run.run_id
+    )
+
+    if not commit_current_before_claim:
+        assert coordinator.store.commit_transaction(
+            "tx_current",
+            target_checkpoint_sha256="c" * 64,
+        )
+    return context
+
+
+@pytest.mark.asyncio
+async def test_visual_novel_stage_context_is_relative_to_claimed_run(tmp_path):
+    committed_before_claim = await _visual_novel_stage_context_for_schedule(
+        tmp_path / "committed-before-claim",
+        commit_current_before_claim=True,
+    )
+    committed_after_context = await _visual_novel_stage_context_for_schedule(
+        tmp_path / "committed-after-context",
+        commit_current_before_claim=False,
+    )
+
+    assert committed_before_claim == committed_after_context
+    assert len(committed_before_claim) == 1
+    assert committed_before_claim[0].startswith("current_stage=active;")
+
+
+def test_visual_novel_stage_context_requires_stored_target_run(tmp_path):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+    )
+
+    with pytest.raises(RuntimeError, match="director run is unavailable"):
+        coordinator.store.visual_novel_stage_context_before_run("missing")
 
 
 @pytest.mark.asyncio
