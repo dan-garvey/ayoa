@@ -3625,6 +3625,53 @@ class TestHumanNextOutputYield:
 
 
 class TestNarratorHandoff:
+    def test_candidate_context_separates_defer_frequency_from_involvement(self):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.narrator_conversations["alice"] = [
+            ConversationMessage(role="user", content="I ask Pip for the map."),
+            ConversationMessage(role="assistant", content="Pip looks up."),
+            ConversationMessage(role="user", content="(defer)"),
+            ConversationMessage(role="assistant", content="Pip considers."),
+            ConversationMessage(role="user", content="(defer)"),
+            ConversationMessage(role="assistant", content="Pip reaches inside."),
+        ]
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_id="evt_pip_next",
+            event_kind="response_requested",
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+            facts=[ObservableFact.all("Alice asks Pip for a direct answer.")],
+        ))
+        fake.queue_agent("Pip answers plainly.")
+        fake.queue_route(_router_out(
+            event_id="evt_pip_answer",
+            event_kind="cascade_exhausted",
+            observer_ids=["alice", "pip"],
+            facts=[ObservableFact.all("Pip answers plainly.")],
+        ))
+        fake.queue_narrator(
+            handoff="render",
+            reason="The question is a useful boundary.",
+            text="Pip looks ready to answer.",
+        )
+
+        asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="Pip, answer me plainly.",
+        ))
+
+        context = fake.narrator_calls[0]["handoff_context"]
+        assert "Meaningful player-owned response available now: no." in context
+        assert "Autonomous character response selected next: yes." in context
+        assert "2 of the last 4 player submissions were (defer)" in context
+        assert (
+            "1 of the last 3 prior player submissions were substantive" in context
+        )
+        assert "I ask Pip for the map" not in context
+
     def test_pending_retry_anchor_uses_the_selected_gate_pov(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
         prior = _router_out(

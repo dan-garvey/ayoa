@@ -149,6 +149,53 @@ def replace_character_ids_with_names(
     return out
 
 
+_QUOTED_CHARACTER_PRONOUN_RE = (
+    r"you|your|yours|yourself|yourselves|"
+    r"he|him|his|himself|she|her|hers|herself|"
+    r"they|them|their|theirs|themself|themselves"
+)
+
+
+def replace_character_ids_for_narrator(
+    text: str,
+    checkpoint: CheckpointFile,
+) -> str:
+    """Project identity-anchored quoted pronouns into natural narrator prose.
+
+    Canonical quoted dialogue retains the spoken pronoun and appends a silent
+    ``[character_id]`` anchor so routing and character observations keep an
+    unambiguous referent. The narrator needs the spoken surface, not that
+    anchor. Strip only a roster-owned anchor immediately following a character
+    pronoun, then apply the ordinary player-safe name projection everywhere
+    else.
+    """
+
+    if not text:
+        return ""
+    out = text
+    character_ids = sorted(
+        (
+            character.character_id
+            for character in checkpoint.characters
+            if character.character_id
+        ),
+        key=len,
+        reverse=True,
+    )
+    if character_ids:
+        character_id_pattern = "|".join(
+            re.escape(character_id) for character_id in character_ids
+        )
+        pattern = re.compile(
+            rf"(?P<pronoun>\b(?:{_QUOTED_CHARACTER_PRONOUN_RE})\b)"
+            rf"\s+\[(?:{character_id_pattern})"
+            rf"(?:\s*,\s*(?:{character_id_pattern}))*\]",
+            re.IGNORECASE,
+        )
+        out = pattern.sub(lambda match: match.group("pronoun"), out)
+    return replace_character_ids_with_names(out, checkpoint)
+
+
 def build_character_state(
     char: CharacterRecord,
     checkpoint: CheckpointFile | None = None,

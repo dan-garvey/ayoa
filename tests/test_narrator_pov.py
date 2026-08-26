@@ -1429,6 +1429,32 @@ class TestFormatVisibleEventsBlock:
         assert "Alice sets Pip's ledger on the table." in out
         assert "alice sets pip" not in out
 
+    def test_quoted_pronoun_anchor_keeps_identity_but_narrates_naturally(self):
+        from app.engine.context_builder import replace_character_ids_with_names
+        from app.engine.narrator import _format_visible_events_block
+
+        ckpt = _ckpt()
+        ckpt.characters.append(character_record("bob", name="Bob", role="npc"))
+        fact = (
+            "Alice tells Pip, 'I cannot offer you [pip] another route, but "
+            "you [pip] may inspect the hall. I saw you [pip,bob] arrive.'"
+        )
+        resolved = self._resolved(
+            event_id="evt_quoted_anchor",
+            facts=[ObservableFact.all(fact)],
+        )
+
+        agent_surface = replace_character_ids_with_names(fact, ckpt)
+        narrator_surface = _format_visible_events_block(resolved, ckpt=ckpt)
+
+        assert "you [Pip]" in agent_surface
+        assert "you [Pip,Bob]" in agent_surface
+        assert "you [Pip]" not in narrator_surface
+        assert "[Pip,Bob]" not in narrator_surface
+        assert "I cannot offer you another route" in narrator_surface
+        assert "but you may inspect the hall" in narrator_surface
+        assert "I saw you arrive" in narrator_surface
+
     def test_scoped_facts_filter_by_pov_before_narrator_sees_them(self):
         from app.engine.narrator import _format_visible_events_block
         resolved = self._resolved(

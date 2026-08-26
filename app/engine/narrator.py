@@ -17,7 +17,7 @@ import time
 from app.engine.prompt_manager import PromptManager
 from app.engine.context_builder import (
     build_narrator_player_characters_block,
-    replace_character_ids_with_names,
+    replace_character_ids_for_narrator,
 )
 from app.engine.text_safety import strip_terminal_control
 from app.schemas.content_privacy import redact_imported_content_metadata_text
@@ -223,7 +223,7 @@ def _format_visible_events_block(
         ]
         if ckpt is not None:
             facts = [
-                replace_character_ids_with_names(fact, ckpt)
+                replace_character_ids_for_narrator(fact, ckpt)
                 for fact in facts
             ]
         if pov_character_id and not facts:

@@ -139,6 +139,34 @@ narrator preserve them. If that voice is undesirable, tune Iselle's story-specif
 character context or agent behavior; weakening narrator faithfulness would hide the
 source and risk changing other characters' dialogue.
 
+## Tuning replay follow-up
+
+The follow-up replay used the original `event_0004` and `event_0005` checkpoint
+state, the original Master narrator history, and the live production Terra
+narrator. Prompt-only attempts were retained as failed evidence rather than
+discarded:
+
+- `vn_narrator_tuning_20260826T202505Z`: the narrator repeated Mara in direct
+  address and rendered the observer-only candidate despite `4/5` recent defers.
+- `vn_narrator_tuning_20260826T202737Z`: stronger instructions fixed the handoff
+  but still changed the direct addressee to third-person `her` / `she`.
+
+The final approach stopped asking the narrator to infer lost grammar. Quoted
+canonical dialogue now keeps the spoken pronoun followed by a silent identity
+anchor (`you [character_id]`); narrator input removes the anchor
+deterministically, while character observations retain its safe-name form. The
+final `vn_narrator_tuning_20260826T203448Z` report passed the live producer and
+consumer checks: the router emitted `you [alice]` twice, Iselle rendered `you`
+twice without a repeated full name, the long action became complete semantic
+pages and fitted cards, and the repeated-defer spectator candidate chose
+`continue` with no pages.
+
+The compositor replay also proves a defensive repair for the archived broken
+pair (`...tight in her` / `other hand.`): adjacent same-channel fragments that
+look syntactically continuous are rejoined before measured pagination. Ordinary
+overflow moves at complete sentence boundaries; a short unpunctuated utterance
+remains its own authored page.
+
 ### Performance observation
 
 The cold `/begin` took about 5 minutes 39 seconds from command to first deck. The

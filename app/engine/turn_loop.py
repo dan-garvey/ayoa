@@ -139,6 +139,13 @@ narrator_handoff_logger = logging.getLogger(
 narrator_handoff_logger.setLevel(logging.INFO)
 
 MAX_BACKGROUND_THREADS_PER_BEAT = 4
+_RECENT_HANDOFF_SUBMISSION_LIMIT = 6
+_HISTORICAL_HANDOFF_SUBMISSION_LIMIT = 24
+_NON_SUBSTANTIVE_HANDOFF_INPUTS = {
+    "(arrive)",
+    "(begin)",
+    "(defer)",
+}
 
 FORCED_HANDOFF_EVENT_KINDS = {
     "cat_ii_open",
@@ -1253,6 +1260,138 @@ def _binding_aware_next_output_targets(
         if autonomous:
             targets.append(("autonomous", autonomous[0]))
     return targets
+
+
+def _player_submission_history(
+    ckpt: CheckpointFile,
+    pov_character_id: str,
+) -> list[str]:
+    """Return accepted player submissions for one narrator viewpoint.
+
+    Narrator conversations are the durable record of delivery opportunities.
+    Assistant messages are deliberately ignored, as are non-string user blocks
+    from any malformed or hand-authored checkpoint. The summary built from
+    these values exposes counts only; prior player prose is never copied into
+    the handoff-control block.
+    """
+
+    submissions: list[str] = []
+    for message in ckpt.narrator_conversations.get(pov_character_id, []):
+        if message.role != "user" or not isinstance(message.content, str):
+            continue
+        value = message.content.strip()
+        if value:
+            submissions.append(value)
+    return submissions
+
+
+def _is_defer_submission(value: str) -> bool:
+    return value.strip().casefold() == "(defer)"
+
+
+def _is_substantive_handoff_submission(value: str) -> bool:
+    return value.strip().casefold() not in _NON_SUBSTANTIVE_HANDOFF_INPUTS
+
+
+def _candidate_response_ownership(
+    ckpt: CheckpointFile,
+    buffered_events: list[RenderBufferEntry],
+) -> tuple[bool, bool]:
+    """Project the latest semantic next-output owner for narrator pacing."""
+
+    if not buffered_events:
+        return False, False
+    event_id = buffered_events[-1].event_id
+    event = next(
+        (
+            candidate
+            for candidate in reversed(ckpt.canonical_events)
+            if candidate.event_id == event_id
+        ),
+        None,
+    )
+    if event is None:
+        raise RuntimeError(
+            "Narrator handoff buffer references missing canonical event "
+            f"{event_id!r}."
+        )
+    targets = _binding_aware_next_output_targets(ckpt, event)
+    if not targets:
+        return False, False
+    first_kind, _character_id = targets[0]
+    return first_kind == "bound", first_kind == "autonomous"
+
+
+def _narrator_handoff_context(
+    ckpt: CheckpointFile,
+    *,
+    pov_character_id: str,
+    buffered_events: list[RenderBufferEntry],
+    commitments: list[str],
+    current_user_input: str,
+    candidate: bool,
+) -> str:
+    """Build one bounded, non-fictional handoff decision block."""
+
+    lines = [
+        (
+            "Unresolved submitted activity: " + "; ".join(commitments)
+            if commitments
+            else "No unresolved submitted activity."
+        )
+    ]
+    if not candidate:
+        return "\n".join(lines)
+
+    player_response_due, autonomous_response_next = (
+        _candidate_response_ownership(ckpt, buffered_events)
+    )
+    lines.extend([
+        "Meaningful player-owned response available now: "
+        + ("yes." if player_response_due else "no."),
+        "Autonomous character response selected next: "
+        + ("yes." if autonomous_response_next else "no."),
+    ])
+
+    prior_submissions = _player_submission_history(ckpt, pov_character_id)
+    recent_submissions = list(prior_submissions)
+    current_submission = current_user_input.strip()
+    if current_submission:
+        recent_submissions.append(current_submission)
+    recent_submissions = recent_submissions[-_RECENT_HANDOFF_SUBMISSION_LIMIT:]
+    if recent_submissions:
+        recent_defer_count = sum(
+            _is_defer_submission(value) for value in recent_submissions
+        )
+        lines.append(
+            "Recent pacing feedback: "
+            f"{recent_defer_count} of the last {len(recent_submissions)} "
+            "player submissions were (defer)."
+        )
+    else:
+        lines.append(
+            "Recent pacing feedback: no player submissions are recorded."
+        )
+
+    historical_submissions = prior_submissions[
+        -_HISTORICAL_HANDOFF_SUBMISSION_LIMIT:
+    ]
+    if historical_submissions:
+        substantive_count = sum(
+            _is_substantive_handoff_submission(value)
+            for value in historical_submissions
+        )
+        lines.append(
+            "Historical involvement: "
+            f"{substantive_count} of the last {len(historical_submissions)} "
+            "prior player submissions were substantive rather than opening "
+            "or defer controls."
+        )
+    else:
+        lines.append(
+            "Historical involvement: no prior player submissions are recorded."
+        )
+    return "\n".join(lines)
 
 
 def _validate_cat_ii_open_participant_state(
@@ -4241,10 +4380,14 @@ async def _end_beat(
             for commitment in ckpt.session.open_commitments
             if h in commitment.actor_ids and commitment.description
         ]
-        handoff_context = (
-            "Unresolved submitted activity: " + "; ".join(commitments)
-            if commitments
-            else "No unresolved submitted activity."
+        candidate_handoff = h == gate_id
+        handoff_context = _narrator_handoff_context(
+            ckpt,
+            pov_character_id=h,
+            buffered_events=buf,
+            commitments=commitments,
+            current_user_input=pov_user_input,
+            candidate=candidate_handoff,
         )
         envelope, entry = await dispatcher.narrator_compose(
             ckpt=ckpt,
@@ -4253,7 +4396,7 @@ async def _end_beat(
             partial_mode_override=partial_override,
             user_input=pov_user_input,
             handoff_policy=(
-                "candidate" if h == gate_id else "forced"
+                "candidate" if candidate_handoff else "forced"
             ),
             handoff_context=handoff_context,
         )

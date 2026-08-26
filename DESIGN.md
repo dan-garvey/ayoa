@@ -496,6 +496,13 @@ The nested `canonical_event` deliberately carries only:
 * `world_adjudication.feasible`
 * `observable_facts`
 
+Outside quoted speech, non-self character references use canonical character
+ids. Quoted speech preserves the spoken pronoun and immediately follows it with
+a silent bracketed character-id anchor, such as `you [bob]` or `her [alice]`;
+one plural pronoun uses one comma-separated anchor such as `you [bob,carol]`.
+Character observations retain the player-safe identity anchor; narrator input
+deterministically removes it so the spoken grammar reaches prose unchanged.
+
 Legacy audit fields such as `attempted_action` and `resolved_outcome`
 are retired. Old checkpoints that still contain them are loaded by
 dropping those fields during validation.

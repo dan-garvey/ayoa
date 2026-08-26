@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import stat
 import uuid
 from contextlib import contextmanager
@@ -30,9 +31,65 @@ from app.schemas.narrator import (
 
 CARD_WIDTH = 1024
 CARD_HEIGHT = 576
-_RENDERER_VERSION = "classic-adv-v4-content-bound-decks"
+_RENDERER_VERSION = "classic-adv-v5-semantic-pagination"
 _MANIFEST_VERSION = 2
 _SHA256_LENGTH = 64
+_MAX_BODY_LINES = 4
+_SENTENCE_BOUNDARY_RE = re.compile(
+    r"[.!?…]+(?:[\"”’')\]]+)?(?=\s+|$)"
+)
+_CLAUSE_BOUNDARY_RE = re.compile(r"(?<=[,;:—–])\s+")
+_COMMON_ABBREVIATIONS = {
+    "dr.",
+    "e.g.",
+    "i.e.",
+    "mr.",
+    "mrs.",
+    "ms.",
+    "prof.",
+    "st.",
+    "vs.",
+}
+_CONTINUATION_FINAL_WORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "because",
+    "but",
+    "by",
+    "for",
+    "from",
+    "had",
+    "has",
+    "have",
+    "her",
+    "his",
+    "in",
+    "into",
+    "is",
+    "its",
+    "of",
+    "on",
+    "or",
+    "our",
+    "over",
+    "than",
+    "that",
+    "the",
+    "their",
+    "through",
+    "to",
+    "toward",
+    "towards",
+    "under",
+    "was",
+    "were",
+    "with",
+    "your",
+}
 _DEFAULT_REGULAR_FONT = Path(
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 )
@@ -943,16 +1000,193 @@ def _paginate_pages(
     body_font: ImageFont.FreeTypeFont,
 ) -> list[VisualNovelPage]:
     result: list[VisualNovelPage] = []
-    for page in pages:
-        lines = _wrap_text(page.text, body_font, max_width=924)
-        chunks = list(_chunks(lines, 4))
-        for chunk in chunks:
+    for page in _coalesce_incomplete_pages(pages):
+        for physical_text in _paginate_page_text(page.text, body_font):
             result.append(VisualNovelPage(
                 kind=page.kind,
                 speaker=page.speaker,
-                text="\n".join(chunk),
+                text=physical_text,
             ))
     return result
+
+
+def _coalesce_incomplete_pages(
+    pages: Sequence[VisualNovelPage],
+) -> list[VisualNovelPage]:
+    """Repair adjacent model pages that split one speaker's sentence."""
+
+    coalesced: list[VisualNovelPage] = []
+    for source_page in pages:
+        page = source_page.model_copy(deep=True)
+        if not coalesced:
+            coalesced.append(page)
+            continue
+        previous = coalesced[-1]
+        same_channel = (
+            previous.kind == page.kind
+            and previous.speaker == page.speaker
+        )
+        if not same_channel or not _continues_prior_page(
+            previous.text,
+            page.text,
+        ):
+            coalesced.append(page)
+            continue
+        separator = "" if previous.text.rstrip().endswith(("-", "—")) else " "
+        previous.text = (
+            previous.text.rstrip() + separator + page.text.lstrip()
+        )
+    return coalesced
+
+
+def _ends_complete_sentence(text: str) -> bool:
+    value = str(text or "").rstrip()
+    if not value:
+        return False
+    return any(
+        match.end() == len(value)
+        for match in _SENTENCE_BOUNDARY_RE.finditer(value)
+    )
+
+
+def _continues_prior_page(previous_text: str, next_text: str) -> bool:
+    """Recognize a likely model-authored mid-sentence page boundary."""
+
+    previous = str(previous_text or "").rstrip()
+    following = str(next_text or "").lstrip()
+    if not previous or not following or _ends_complete_sentence(previous):
+        return False
+    if previous.endswith((",", ";", ":", "-", "—", "(", "[")):
+        return True
+    if _looks_like_abbreviation(previous):
+        return True
+    first_letter = re.search(r"[A-Za-z]", following)
+    if first_letter is not None and first_letter.group(0).islower():
+        return True
+    final_word = re.search(r"([A-Za-z]+)[^A-Za-z]*$", previous)
+    return bool(
+        final_word is not None
+        and final_word.group(1).casefold() in _CONTINUATION_FINAL_WORDS
+    )
+
+
+def _looks_like_abbreviation(sentence_prefix: str) -> bool:
+    value = sentence_prefix.rstrip("\"”’')]").rstrip()
+    token_match = re.search(r"(?:^|\s)([^\s]+)$", value)
+    if token_match is None:
+        return False
+    token = token_match.group(1)
+    if token.casefold() in _COMMON_ABBREVIATIONS:
+        return True
+    return bool(
+        re.fullmatch(r"(?:[A-Z]\.){1,4}", token)
+        or re.fullmatch(r"[A-Z]\.", token)
+    )
+
+
+def _sentence_units(text: str) -> list[str]:
+    """Split normalized page prose at complete sentence/utterance ends."""
+
+    value = " ".join(str(text or "").split())
+    if not value:
+        return [""]
+    units: list[str] = []
+    start = 0
+    for match in _SENTENCE_BOUNDARY_RE.finditer(value):
+        end = match.end()
+        candidate = value[start:end].strip()
+        if not candidate:
+            continue
+        if match.group(0).rstrip("\"”’')]") == "." and (
+            _looks_like_abbreviation(candidate)
+        ):
+            continue
+        units.append(candidate)
+        start = end
+    tail = value[start:].strip()
+    if tail:
+        units.append(tail)
+    return units or [value]
+
+
+def _wrapped_page_text(
+    text: str,
+    body_font: ImageFont.FreeTypeFont,
+) -> str:
+    return "\n".join(_wrap_text(text, body_font, max_width=924))
+
+
+def _oversized_sentence_pages(
+    sentence: str,
+    body_font: ImageFont.FreeTypeFont,
+) -> list[str]:
+    """Prefer clause boundaries before a last-resort measured line split."""
+
+    clauses = [
+        clause.strip()
+        for clause in _CLAUSE_BOUNDARY_RE.split(sentence)
+        if clause.strip()
+    ]
+    if len(clauses) > 1:
+        result: list[str] = []
+        pending = ""
+        for clause in clauses:
+            candidate = f"{pending} {clause}".strip()
+            candidate_lines = _wrap_text(
+                candidate,
+                body_font,
+                max_width=924,
+            )
+            if len(candidate_lines) <= _MAX_BODY_LINES:
+                pending = candidate
+                continue
+            if pending:
+                result.append(_wrapped_page_text(pending, body_font))
+                pending = ""
+            clause_lines = _wrap_text(clause, body_font, max_width=924)
+            if len(clause_lines) <= _MAX_BODY_LINES:
+                pending = clause
+                continue
+            result.extend(
+                "\n".join(chunk)
+                for chunk in _chunks(clause_lines, _MAX_BODY_LINES)
+            )
+        if pending:
+            result.append(_wrapped_page_text(pending, body_font))
+        return result
+
+    lines = _wrap_text(sentence, body_font, max_width=924)
+    return [
+        "\n".join(chunk)
+        for chunk in _chunks(lines, _MAX_BODY_LINES)
+    ]
+
+
+def _paginate_page_text(
+    text: str,
+    body_font: ImageFont.FreeTypeFont,
+) -> list[str]:
+    """Fit a semantic page while preserving ordinary sentence boundaries."""
+
+    result: list[str] = []
+    pending = ""
+    for sentence in _sentence_units(text):
+        candidate = f"{pending} {sentence}".strip()
+        candidate_lines = _wrap_text(candidate, body_font, max_width=924)
+        if len(candidate_lines) <= _MAX_BODY_LINES:
+            pending = candidate
+            continue
+        if pending:
+            result.append(_wrapped_page_text(pending, body_font))
+            pending = ""
+        sentence_lines = _wrap_text(sentence, body_font, max_width=924)
+        if len(sentence_lines) <= _MAX_BODY_LINES:
+            pending = sentence
+            continue
+        result.extend(_oversized_sentence_pages(sentence, body_font))
+    if pending:
+        result.append(_wrapped_page_text(pending, body_font))
+    return result or [""]
 
 
 def _wrap_text(

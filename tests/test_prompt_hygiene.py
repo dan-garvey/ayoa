@@ -79,6 +79,26 @@ def test_narrator_prompt_does_not_leak_routing_structures():
     assert not leaks, "Narrator prompt leaks routing internals: " + ", ".join(leaks)
 
 
+def test_visual_novel_narrator_has_no_mechanical_page_budget_or_literal_anchor_rule():
+    text = (PROMPTS_DIR / "narrator_visual_novel.txt").read_text()
+    forbidden = [
+        re.compile(
+            r"\b(?:under|maximum|max|no more than|fewer than)\s+"
+            r"\d+\s+characters?\b",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\b(?:only|lightly)\s+(?:adjust|change)\s+punctuation\b",
+            re.IGNORECASE,
+        ),
+    ]
+
+    leaks = [pattern.pattern for pattern in forbidden if pattern.search(text)]
+    assert not leaks, "Conflicting visual-novel narrator limits: " + ", ".join(
+        leaks
+    )
+
+
 def test_dnd_cat_ii_prompt_does_not_receive_runtime_control_policy():
     text = (PROMPTS_DIR / "dnd_cat_ii_router.txt").read_text().lower()
     forbidden = [

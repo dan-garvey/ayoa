@@ -115,7 +115,82 @@ def test_long_semantic_page_splits_into_measured_cards(tmp_path: Path):
         range(1, len(deck.cards) + 1)
     )
     assert {card.count for card in deck.cards} == {len(deck.cards)}
+    assert all(len(card.text.splitlines()) <= 4 for card in deck.cards)
     assert deck.used_neutral_stage is True
+
+
+def test_overflow_moves_complete_sentences_to_the_next_card(tmp_path: Path):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    first = (
+        "Wren checks each plain timber post before crossing the quiet lobby "
+        "floor, keeping her pace measured while afternoon light moves across "
+        "the open courtyard and the unadorned railings frame the entrance."
+    )
+    second = (
+        "Iselle watches from beside the modest arch, one hand resting at her "
+        "side while her knife remains in the other hand and dust shifts over "
+        "the simple paving between them."
+    )
+
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(pages=(VisualNovelPage(
+            kind="narration",
+            text=f"{first} {second}",
+        ),)),
+    ])
+
+    assert len(deck.cards) == 2
+    assert " ".join(deck.cards[0].text.split()) == first
+    assert " ".join(deck.cards[1].text.split()) == second
+    assert all(len(card.text.splitlines()) <= 4 for card in deck.cards)
+
+
+def test_adjacent_mid_sentence_model_pages_are_rejoined_before_layout(
+    tmp_path: Path,
+):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(pages=(
+            VisualNovelPage(
+                kind="narration",
+                text=(
+                    "Iselle shifts her stance toward Wren, but her knife "
+                    "stays tight in her"
+                ),
+            ),
+            VisualNovelPage(
+                kind="narration",
+                text="other hand.",
+            ),
+        )),
+    ])
+
+    assert len(deck.cards) == 1
+    assert " ".join(deck.cards[0].text.split()) == (
+        "Iselle shifts her stance toward Wren, but her knife stays tight in "
+        "her other hand."
+    )
+
+
+def test_unpunctuated_short_utterance_keeps_its_authored_page(tmp_path: Path):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(pages=(
+            VisualNovelPage(kind="dialogue", speaker="Wren", text="No"),
+            VisualNovelPage(
+                kind="dialogue",
+                speaker="Wren",
+                text="Try again.",
+            ),
+        )),
+    ])
+
+    assert [" ".join(card.text.split()) for card in deck.cards] == [
+        "No",
+        "Try again.",
+    ]
 
 
 def test_content_addressed_deck_reloads_same_artifacts(tmp_path: Path):
