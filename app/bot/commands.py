@@ -97,8 +97,10 @@ logger = logging.getLogger(__name__)
 
 _VISUAL_NOVEL_CUSTOM_ID_RE = (
     r"^avn:(?P<deck>[0-9a-f]{64}):(?P<user>[0-9]{1,20}):"
-    r"(?P<index>[0-9]{1,3}):(?P<action>[pnt])$"
+    r"(?P<index>[0-9]{1,8}):(?P<action>[pnt])$"
 )
+_VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX = 99_999_999
+_DISCORD_COMPONENT_CUSTOM_ID_MAX = 100
 _DISCORD_ATTACHMENT_DESCRIPTION_MAX = 1024
 
 
@@ -119,10 +121,19 @@ class _VisualNovelControl(
         action: str,
         disabled: bool = False,
     ) -> None:
+        page_index = int(index)
+        if not 0 <= page_index <= _VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX:
+            raise ValueError(
+                "visual-novel card index must be between 0 and "
+                f"{_VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX}"
+            )
         self.deck_id = deck_id
         self.user_id = int(user_id)
-        self.index = max(0, int(index))
+        self.index = page_index
         self.action = action
+        custom_id = f"avn:{deck_id}:{self.user_id}:{self.index}:{action}"
+        if len(custom_id) > _DISCORD_COMPONENT_CUSTOM_ID_MAX:
+            raise ValueError("visual-novel custom id exceeds Discord's limit")
         super().__init__(discord.ui.Button(
             label=self._LABELS[action],
             style=(
@@ -130,9 +141,7 @@ class _VisualNovelControl(
                 if action in {"p", "n"}
                 else discord.ButtonStyle.primary
             ),
-            custom_id=(
-                f"avn:{deck_id}:{self.user_id}:{self.index}:{action}"
-            ),
+            custom_id=custom_id,
             disabled=disabled,
         ))
 
@@ -210,25 +219,36 @@ class _VisualNovelView(discord.ui.View):
         index: int,
         count: int,
     ) -> None:
+        page_index = int(index)
+        card_count = int(count)
+        if not 1 <= card_count <= _VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX + 1:
+            raise ValueError(
+                "visual-novel card count must be between 1 and "
+                f"{_VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX + 1}"
+            )
+        if not 0 <= page_index < card_count:
+            raise ValueError(
+                "visual-novel card index must identify a card in the deck"
+            )
         super().__init__(timeout=None)
         self.add_item(_VisualNovelControl(
             deck_id=deck_id,
             user_id=user_id,
-            index=index,
+            index=page_index,
             action="p",
-            disabled=index <= 0,
+            disabled=page_index <= 0,
         ))
         self.add_item(_VisualNovelControl(
             deck_id=deck_id,
             user_id=user_id,
-            index=index,
+            index=page_index,
             action="n",
-            disabled=index >= count - 1,
+            disabled=page_index >= card_count - 1,
         ))
         self.add_item(_VisualNovelControl(
             deck_id=deck_id,
             user_id=user_id,
-            index=index,
+            index=page_index,
             action="t",
         ))
 
