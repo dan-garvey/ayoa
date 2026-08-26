@@ -333,7 +333,13 @@ class ImageGenerationCoordinator:
         delivery_targets: Sequence[ImageDeliveryTarget],
         reroll_of_reference_id: str = "",
         diffusion_prompt_override: str = "",
+        director_run_id: str = "",
+        director_attempt: int = 0,
     ) -> ImageGenerationJob | None:
+        if bool(director_run_id) != bool(director_attempt):
+            raise ValueError(
+                "director admission requires both run id and attempt"
+            )
         if (
             not delivery_targets
             and projection.presentation_mode != "visual_novel"
@@ -347,25 +353,6 @@ class ImageGenerationCoordinator:
         )
         if direction.generation_mode not in self.supported_generation_modes:
             raise ValueError("requested image generation mode is unavailable")
-        if self.store.active_count() >= self.config.queue_limit:
-            logger.warning(
-                "image generation queue is full; rejecting event request"
-            )
-            return None
-        session_active = sum(
-            job.request.session_id == projection.session_id
-            and job.status
-            in {
-                ImageGenerationStatus.queued,
-                ImageGenerationStatus.running,
-            }
-            for job in self.store.all_jobs()
-        )
-        if session_active >= self.config.per_session_queue_limit:
-            logger.warning(
-                "session image backlog is full; rejecting event request"
-            )
-            return None
 
         width, height = _dimensions_for_kind(
             direction.kind,
@@ -458,16 +445,52 @@ class ImageGenerationCoordinator:
             reference_inputs=references,
             reroll_of_reference_id=reroll_of_reference_id,
         )
-        existing = self.store.get(f"img_{dedupe_key[:32]}")
-        if existing is None:
-            job = self.store.enqueue(request)
+        if director_run_id:
+            job = self.store.admit_director_request(
+                request,
+                run_id=director_run_id,
+                attempt=director_attempt,
+                queue_limit=self.config.queue_limit,
+                per_session_queue_limit=self.config.per_session_queue_limit,
+            )
+            if job is None:
+                logger.warning(
+                    "image generation capacity rejected director request"
+                )
+                return None
         else:
-            job = existing
-            if (
-                job.status == ImageGenerationStatus.failed
-                and job.attempts < 2
-            ):
-                job = self.store.requeue_retryable(job.job_id) or job
+            existing = self.store.get(f"img_{dedupe_key[:32]}")
+            retrying = bool(
+                existing is not None
+                and existing.status == ImageGenerationStatus.failed
+                and existing.attempts < 2
+            )
+            if existing is None or retrying:
+                if self.store.active_count() >= self.config.queue_limit:
+                    logger.warning(
+                        "image generation queue is full; rejecting event request"
+                    )
+                    return None
+                session_active = sum(
+                    queued.request.session_id == projection.session_id
+                    and queued.status
+                    in {
+                        ImageGenerationStatus.queued,
+                        ImageGenerationStatus.running,
+                    }
+                    for queued in self.store.all_jobs()
+                )
+                if session_active >= self.config.per_session_queue_limit:
+                    logger.warning(
+                        "session image backlog is full; rejecting event request"
+                    )
+                    return None
+            if existing is None:
+                job = self.store.enqueue(request)
+            else:
+                job = existing
+                if retrying:
+                    job = self.store.requeue_retryable(job.job_id) or job
         for target in delivery_targets:
             self.store.add_delivery(
                 job_id=job.job_id,
@@ -643,6 +666,22 @@ class ImageGenerationCoordinator:
             await self.worker.abort_current()
         await self._notify_changed()
         return job
+
+    async def abort_cancelled_attempts(
+        self,
+        cancelled_attempts: Sequence[tuple[str, int]],
+    ) -> bool:
+        """Abort only the in-process worker lease canceled by the store."""
+
+        current = self._current_job
+        if current is None or (
+            current.job_id,
+            current.attempts,
+        ) not in set(cancelled_attempts):
+            return False
+        await self.worker.abort_current()
+        await self._notify_changed()
+        return True
 
     async def cancel_delivery(
         self,

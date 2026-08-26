@@ -112,6 +112,11 @@ class FakeImageWorker:
         self.release.set()
 
 
+class FailedPreflightWorker(FakeImageWorker):
+    async def preflight(self) -> bool:
+        return False
+
+
 class FakeDirectorClient:
     def __init__(
         self,
@@ -255,6 +260,69 @@ def _begin(
         session_id="image_test",
         source_turn_index=1,
         source_checkpoint_sha256="a" * 64,
+    )
+
+
+def _director_attempt(
+    coordinator: ImageGenerationCoordinator,
+    run_id: str,
+) -> int:
+    with coordinator.store._connect() as db:
+        row = db.execute(
+            "SELECT attempts FROM image_director_runs WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+    if row is None:
+        raise AssertionError(f"director run is unavailable: {run_id}")
+    return int(row["attempts"])
+
+
+def _complete_director(
+    coordinator: ImageGenerationCoordinator,
+    run_id: str,
+    output: ImageDirectorOutput,
+):
+    return coordinator.store.complete_director_run(
+        run_id,
+        output,
+        attempt=_director_attempt(coordinator, run_id),
+    )
+
+
+def _finalize_director(
+    coordinator: ImageGenerationCoordinator,
+    run_id: str,
+    *,
+    projection: VisibleEventProjection,
+    admitted_job_ids: list[str],
+):
+    return coordinator.store.finalize_director_materialization(
+        run_id,
+        attempt=_director_attempt(coordinator, run_id),
+        projection=projection,
+        admitted_job_ids=admitted_job_ids,
+    )
+
+
+def _heartbeat_director(
+    coordinator: ImageGenerationCoordinator,
+    run_id: str,
+) -> bool:
+    return coordinator.store.heartbeat_director_run(
+        run_id,
+        attempt=_director_attempt(coordinator, run_id),
+    )
+
+
+def _fail_director(
+    coordinator: ImageGenerationCoordinator,
+    run_id: str,
+    error_code: str,
+):
+    return coordinator.store.fail_director_run(
+        run_id,
+        error_code,
+        attempt=_director_attempt(coordinator, run_id),
     )
 
 
@@ -1299,7 +1367,7 @@ def test_one_star_story_has_reviewed_style_and_omits_unseen_master():
     assert master.visuals.depiction_policy == "omit"
 
 
-def test_v1_actor_cadence_store_is_retired_in_direct_v9_migration(tmp_path):
+def test_v1_actor_cadence_store_is_retired_in_direct_v10_migration(tmp_path):
     db_path = tmp_path / "jobs.sqlite"
     with sqlite3.connect(db_path) as db:
         db.execute(
@@ -1326,7 +1394,7 @@ def test_v1_actor_cadence_store_is_retired_in_direct_v9_migration(tmp_path):
             WHERE type = 'table' AND name = 'image_eligible_beats'
             """
         ).fetchone()
-    assert version == "9"
+    assert version == "10"
     assert old_table is None
 
 
@@ -1389,7 +1457,7 @@ def test_v7_prose_gate_store_is_retired_before_foreign_key_parent(tmp_path):
         transaction_count = db.execute(
             "SELECT COUNT(*) AS count FROM image_transactions"
         ).fetchone()["count"]
-    assert version == "9"
+    assert version == "10"
     assert retired == set()
     assert transaction_count == 0
 
@@ -1507,7 +1575,7 @@ async def test_render_wait_tracks_all_requested_event_images(tmp_path):
         claimed = coordinator.store.claim_next_director_run()
         assert claimed is not None
         assert claimed.run_id == queued.run_id
-        coordinator.store.complete_director_run(
+        _complete_director(coordinator,
             claimed.run_id,
             ImageDirectorOutput(requests=[direction_one, direction_two]),
         )
@@ -1518,6 +1586,8 @@ async def test_render_wait_tracks_all_requested_event_images(tmp_path):
             request_ordinal=0,
             visual_style="cinematic",
             delivery_targets=[_target("alice")],
+            director_run_id=claimed.run_id,
+            director_attempt=claimed.attempts,
         )
         second = await coordinator.enqueue_direction(
             projection=projection,
@@ -1525,12 +1595,14 @@ async def test_render_wait_tracks_all_requested_event_images(tmp_path):
             request_ordinal=1,
             visual_style="cinematic",
             delivery_targets=[_target("alice")],
+            director_run_id=claimed.run_id,
+            director_attempt=claimed.attempts,
         )
         assert first is not None
         assert second is not None
         assert first.request.title == "Rain Run"
         assert second.request.title == "Brass Key"
-        coordinator.store.finalize_director_materialization(
+        _finalize_director(coordinator,
             claimed.run_id,
             projection=projection,
             admitted_job_ids=[first.job_id, second.job_id],
@@ -1578,7 +1650,7 @@ async def test_render_wait_finishes_when_no_director_requests_are_admitted(
         subject_character_ids=["alice"],
         scene_prompt="Alice runs into the rain.",
     )
-    coordinator.store.complete_director_run(
+    _complete_director(coordinator,
         queued.run_id,
         ImageDirectorOutput(requests=[direction]),
     )
@@ -1596,7 +1668,7 @@ async def test_render_wait_finishes_when_no_director_requests_are_admitted(
         discovery_grace_seconds=0,
     ) is False
 
-    coordinator.store.finalize_director_materialization(
+    _finalize_director(coordinator,
         queued.run_id,
         projection=projection,
         admitted_job_ids=[],
@@ -1613,6 +1685,65 @@ async def test_render_wait_finishes_when_no_director_requests_are_admitted(
         timeout=0.05,
         discovery_grace_seconds=0,
     ) is True
+
+
+def test_director_claim_order_is_durable_across_store_instances(tmp_path):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+    )
+    _begin(coordinator, "tx_order")
+    earlier = coordinator.store.enqueue_director_run(_projection(
+        transaction_id="tx_order",
+        event_id="evt_order_a",
+        event_sequence=10,
+        source_turn_index=3,
+        presentation_mode="visual_novel",
+    ))
+    sibling = coordinator.store.enqueue_director_run(_projection(
+        transaction_id="tx_order",
+        event_id="evt_order_b",
+        event_sequence=10,
+        source_turn_index=3,
+        presentation_mode="visual_novel",
+    ))
+    later = coordinator.store.enqueue_director_run(_projection(
+        transaction_id="tx_order",
+        event_id="evt_order_later",
+        event_sequence=11,
+        source_turn_index=3,
+        presentation_mode="visual_novel",
+    ))
+    second_process_store = ImageJobStore(coordinator.store.db_path)
+
+    first_claim = coordinator.store.claim_next_director_run()
+    second_claim = second_process_store.claim_next_director_run()
+    assert first_claim is not None
+    assert second_claim is not None
+    assert {first_claim.run_id, second_claim.run_id} == {
+        earlier.run_id,
+        sibling.run_id,
+    }
+    assert second_process_store.claim_next_director_run() is None
+
+    for claim in (first_claim, second_claim):
+        completed = coordinator.store.complete_director_run(
+            claim.run_id,
+            ImageDirectorOutput(stage_action="clear", requests=[]),
+            attempt=claim.attempts,
+        )
+        assert completed is not None
+        coordinator.store.finalize_director_materialization(
+            claim.run_id,
+            attempt=claim.attempts,
+            projection=claim.projection,
+            admitted_job_ids=[],
+        )
+
+    later_claim = second_process_store.claim_next_director_run()
+    assert later_claim is not None
+    assert later_claim.run_id == later.run_id
 
 
 @pytest.mark.asyncio
@@ -1638,7 +1769,7 @@ async def test_sidecar_start_recovers_expired_unmaterialized_director_run(
     queued = coordinator.store.enqueue_director_run(projection)
     claimed = coordinator.store.claim_next_director_run()
     assert claimed is not None and claimed.run_id == queued.run_id
-    materializing = coordinator.store.complete_director_run(
+    materializing = _complete_director(coordinator,
         queued.run_id,
         ImageDirectorOutput(
             stage_action="replace",
@@ -1657,7 +1788,7 @@ async def test_sidecar_start_recovers_expired_unmaterialized_director_run(
             "UPDATE image_director_runs SET updated_at = 0 WHERE run_id = ?",
             (queued.run_id,),
         )
-    assert coordinator.store.heartbeat_director_run(queued.run_id)
+    assert _heartbeat_director(coordinator, queued.run_id)
     assert coordinator.store.recover_expired_director_runs(
         lease_seconds=1
     ) == 0
@@ -1713,14 +1844,457 @@ async def test_sidecar_start_recovers_expired_unmaterialized_director_run(
 
 
 @pytest.mark.asyncio
-async def test_materialization_failure_fails_run_and_cancels_partial_jobs(
-    tmp_path,
-):
+async def test_stale_director_attempt_cannot_mutate_reclaimed_attempt(tmp_path):
     coordinator = ImageGenerationCoordinator(
         sessions_dir=tmp_path / "sessions",
         config=_config(tmp_path),
         worker=FakeImageWorker(),
     )
+    _begin(coordinator, "tx_fenced")
+    projection = _projection(
+        transaction_id="tx_fenced",
+        event_id="evt_fenced",
+        event_sequence=2,
+        presentation_mode="visual_novel",
+    )
+    first_direction = ImageDirection(
+        kind="establishing",
+        title="First Attempt",
+        subject_character_ids=[],
+        scene_prompt="A rain-dark courtyard before the interruption.",
+    )
+    second_direction = ImageDirection(
+        kind="establishing",
+        title="Reclaimed Attempt",
+        subject_character_ids=[],
+        scene_prompt="A bright courtyard after the interruption.",
+    )
+    run = coordinator.store.enqueue_director_run(projection)
+    first_claim = coordinator.store.claim_next_director_run()
+    assert first_claim is not None and first_claim.run_id == run.run_id
+    first_output = ImageDirectorOutput(
+        stage_action="replace",
+        requests=[first_direction],
+    )
+    assert coordinator.store.complete_director_run(
+        run.run_id,
+        first_output,
+        attempt=first_claim.attempts,
+    ) is not None
+    first_job = await coordinator.enqueue_direction(
+        projection=projection,
+        direction=first_direction,
+        request_ordinal=0,
+        visual_style="cinematic",
+        delivery_targets=[],
+        director_run_id=run.run_id,
+        director_attempt=first_claim.attempts,
+    )
+    assert first_job is not None
+
+    with coordinator.store._connect() as db:
+        db.execute(
+            "UPDATE image_director_runs SET updated_at = 0 WHERE run_id = ?",
+            (run.run_id,),
+        )
+    assert coordinator.store.recover_expired_director_runs(
+        lease_seconds=1
+    ) == 1
+    recovered_first_job = coordinator.store.get(first_job.job_id)
+    assert recovered_first_job is not None
+    assert recovered_first_job.status == ImageGenerationStatus.cancelled
+
+    second_claim = coordinator.store.claim_next_director_run()
+    assert second_claim is not None
+    assert second_claim.run_id == run.run_id
+    assert second_claim.attempts == first_claim.attempts + 1
+    assert coordinator.store.complete_director_run(
+        run.run_id,
+        first_output,
+        attempt=first_claim.attempts,
+    ) is None
+    assert not coordinator.store.heartbeat_director_run(
+        run.run_id,
+        attempt=first_claim.attempts,
+    )
+
+    second_output = ImageDirectorOutput(
+        stage_action="replace",
+        requests=[second_direction],
+    )
+    assert coordinator.store.complete_director_run(
+        run.run_id,
+        second_output,
+        attempt=second_claim.attempts,
+    ) is not None
+    second_job = await coordinator.enqueue_direction(
+        projection=projection,
+        direction=second_direction,
+        request_ordinal=0,
+        visual_style="cinematic",
+        delivery_targets=[],
+        director_run_id=run.run_id,
+        director_attempt=second_claim.attempts,
+    )
+    assert second_job is not None
+
+    assert coordinator.store.fail_director_run(
+        run.run_id,
+        "stale_failure",
+        attempt=first_claim.attempts,
+    ) is None
+    with pytest.raises(RuntimeError, match="attempt is stale"):
+        coordinator.store.finalize_director_materialization(
+            run.run_id,
+            attempt=first_claim.attempts,
+            projection=projection,
+            admitted_job_ids=[first_job.job_id],
+        )
+    current_second_job = coordinator.store.get(second_job.job_id)
+    assert current_second_job is not None
+    assert current_second_job.status == ImageGenerationStatus.queued
+    with coordinator.store._connect() as db:
+        links = db.execute(
+            """
+            SELECT attempt, job_id, finalized
+            FROM image_director_run_jobs WHERE run_id = ?
+            """,
+            (run.run_id,),
+        ).fetchall()
+    assert [tuple(link) for link in links] == [
+        (second_claim.attempts, second_job.job_id, 0)
+    ]
+
+    finalized = coordinator.store.finalize_director_materialization(
+        run.run_id,
+        attempt=second_claim.attempts,
+        projection=projection,
+        admitted_job_ids=[second_job.job_id],
+    )
+    assert finalized.status == "succeeded"
+    assert finalized.output == second_output
+
+
+@pytest.mark.asyncio
+async def test_cleanup_aborts_only_last_linked_running_image_attempt(tmp_path):
+    worker = FakeImageWorker(wait=True)
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=worker,
+    )
+    await coordinator.start()
+    _begin(coordinator, "tx_shared_attempt")
+    shared = _projection(
+        transaction_id="tx_shared_attempt",
+        event_id="evt_shared_attempt",
+        event_sequence=4,
+        viewers=("alice",),
+        presentation_mode="visual_novel",
+    )
+    sibling_projection = replace(
+        shared,
+        viewer_character_ids=("bob",),
+        visible_facts=(("Bob sees the same courtyard privately.", 0, 3),),
+    )
+    direction = ImageDirection(
+        kind="establishing",
+        title="Shared Courtyard",
+        subject_character_ids=[],
+        scene_prompt="A single courtyard shared across private viewpoints.",
+    )
+    output = ImageDirectorOutput(
+        stage_action="replace",
+        requests=[direction],
+    )
+    first_run = coordinator.store.enqueue_director_run(shared)
+    second_run = coordinator.store.enqueue_director_run(sibling_projection)
+    first_claim = coordinator.store.claim_next_director_run()
+    second_claim = coordinator.store.claim_next_director_run()
+    assert first_claim is not None
+    assert second_claim is not None
+    assert {first_claim.run_id, second_claim.run_id} == {
+        first_run.run_id,
+        second_run.run_id,
+    }
+    claims = {
+        first_claim.run_id: first_claim,
+        second_claim.run_id: second_claim,
+    }
+    for claim in claims.values():
+        assert coordinator.store.complete_director_run(
+            claim.run_id,
+            output,
+            attempt=claim.attempts,
+        ) is not None
+
+    try:
+        first_job = await coordinator.enqueue_direction(
+            projection=shared,
+            direction=direction,
+            request_ordinal=0,
+            visual_style="cinematic",
+            delivery_targets=[],
+            diffusion_prompt_override=direction.scene_prompt,
+            director_run_id=first_run.run_id,
+            director_attempt=claims[first_run.run_id].attempts,
+        )
+        second_job = await coordinator.enqueue_direction(
+            projection=sibling_projection,
+            direction=direction,
+            request_ordinal=0,
+            visual_style="cinematic",
+            delivery_targets=[],
+            diffusion_prompt_override=direction.scene_prompt,
+            director_run_id=second_run.run_id,
+            director_attempt=claims[second_run.run_id].attempts,
+        )
+        assert first_job is not None
+        assert second_job is not None
+        assert first_job.job_id == second_job.job_id
+        await asyncio.wait_for(worker.started.wait(), timeout=1)
+
+        failed, cancelled_attempts = (
+            coordinator.store.fail_director_run_with_cleanup(
+                second_run.run_id,
+                "sibling_failed",
+                attempt=claims[second_run.run_id].attempts,
+            )
+        )
+        assert failed is not None
+        assert cancelled_attempts == ()
+        assert not await coordinator.abort_cancelled_attempts(
+            cancelled_attempts
+        )
+        retained = coordinator.store.get(first_job.job_id)
+        assert retained is not None
+        assert retained.status == ImageGenerationStatus.running
+        assert worker.aborted is False
+
+        with coordinator.store._connect() as db:
+            db.execute(
+                """
+                UPDATE image_director_runs SET updated_at = 0
+                WHERE run_id = ?
+                """,
+                (first_run.run_id,),
+            )
+        recovered, cancelled_attempts = (
+            coordinator.store.recover_expired_director_runs_with_cleanup(
+                lease_seconds=1
+            )
+        )
+        assert recovered == 1
+        assert cancelled_attempts == ((first_job.job_id, 1),)
+        assert await coordinator.abort_cancelled_attempts(
+            cancelled_attempts
+        )
+        assert worker.aborted is True
+        cancelled = coordinator.store.get(first_job.job_id)
+        assert cancelled is not None
+        assert cancelled.status == ImageGenerationStatus.cancelled
+    finally:
+        worker.release.set()
+        await coordinator.close()
+
+
+@pytest.mark.asyncio
+async def test_reclaimed_attempt_admits_identical_orphan_before_capacity(
+    tmp_path,
+):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path, queue_limit=1, per_session_queue_limit=1),
+        worker=FakeImageWorker(),
+    )
+    _begin(coordinator, "tx_orphan")
+    projection = _projection(
+        transaction_id="tx_orphan",
+        event_id="evt_orphan",
+        event_sequence=3,
+        presentation_mode="visual_novel",
+    )
+    direction = ImageDirection(
+        kind="establishing",
+        title="Recovered Courtyard",
+        subject_character_ids=[],
+        scene_prompt="A courtyard whose queued render survived a restart.",
+    )
+    output = ImageDirectorOutput(
+        stage_action="replace",
+        requests=[direction],
+    )
+    run = coordinator.store.enqueue_director_run(projection)
+    first_claim = coordinator.store.claim_next_director_run()
+    assert first_claim is not None
+    assert coordinator.store.complete_director_run(
+        run.run_id,
+        output,
+        attempt=first_claim.attempts,
+    ) is not None
+
+    # Simulate the historical crash window: the exact queued request survived,
+    # but the director-attempt association did not.
+    orphan = await coordinator.enqueue_direction(
+        projection=projection,
+        direction=direction,
+        request_ordinal=0,
+        visual_style="cinematic",
+        delivery_targets=[],
+    )
+    assert orphan is not None
+    assert coordinator.store.active_count() == 1
+    with coordinator.store._connect() as db:
+        db.execute(
+            "UPDATE image_director_runs SET updated_at = 0 WHERE run_id = ?",
+            (run.run_id,),
+        )
+    assert coordinator.store.recover_expired_director_runs(
+        lease_seconds=1
+    ) == 1
+    recovered_orphan = coordinator.store.get(orphan.job_id)
+    assert recovered_orphan is not None
+    assert recovered_orphan.status == ImageGenerationStatus.queued
+
+    second_claim = coordinator.store.claim_next_director_run()
+    assert second_claim is not None
+    assert coordinator.store.complete_director_run(
+        run.run_id,
+        output,
+        attempt=second_claim.attempts,
+    ) is not None
+    admitted = await coordinator.enqueue_direction(
+        projection=projection,
+        direction=direction,
+        request_ordinal=0,
+        visual_style="cinematic",
+        delivery_targets=[],
+        director_run_id=run.run_id,
+        director_attempt=second_claim.attempts,
+    )
+    assert admitted is not None
+    assert admitted.job_id == orphan.job_id
+    assert coordinator.store.active_count() == 1
+    coordinator.store.finalize_director_materialization(
+        run.run_id,
+        attempt=second_claim.attempts,
+        projection=projection,
+        admitted_job_ids=[admitted.job_id],
+    )
+    with coordinator.store._connect() as db:
+        association = db.execute(
+            """
+            SELECT attempt, job_id, finalized
+            FROM image_director_run_jobs WHERE run_id = ?
+            """,
+            (run.run_id,),
+        ).fetchone()
+    assert association is not None
+    assert tuple(association) == (second_claim.attempts, orphan.job_id, 1)
+    assert coordinator.store.rendered_event_image_status(
+        session_id="image_test",
+        rendered_event_ids_by_pov={"alice": ["evt_orphan"]},
+    ) == (True, False)
+    claimed_job = coordinator.store.claim_next()
+    assert claimed_job is not None and claimed_job.job_id == orphan.job_id
+    coordinator.store.mark_failed(claimed_job.job_id, "test_terminal")
+    assert coordinator.store.rendered_event_image_status(
+        session_id="image_test",
+        rendered_event_ids_by_pov={"alice": ["evt_orphan"]},
+    ) == (True, True)
+
+
+@pytest.mark.asyncio
+async def test_director_recovery_runs_between_continuously_queued_work(tmp_path):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+    )
+    _begin(coordinator, "tx_cadence_1")
+    _begin(coordinator, "tx_cadence_2")
+    first = coordinator.store.enqueue_director_run(_projection(
+        transaction_id="tx_cadence_1",
+        event_id="evt_cadence_1",
+        event_sequence=20,
+        source_turn_index=5,
+        presentation_mode="visual_novel",
+    ))
+    second = coordinator.store.enqueue_director_run(_projection(
+        transaction_id="tx_cadence_2",
+        event_id="evt_cadence_2",
+        event_sequence=21,
+        source_turn_index=5,
+        presentation_mode="visual_novel",
+    ))
+
+    recover = coordinator.store.recover_expired_director_runs_with_cleanup
+    recovery_calls = 0
+
+    def track_recovery(
+        *,
+        lease_seconds: float = 300,
+    ) -> tuple[int, tuple[tuple[str, int], ...]]:
+        nonlocal recovery_calls
+        recovery_calls += 1
+        return recover(lease_seconds=lease_seconds)
+
+    coordinator.store.recover_expired_director_runs_with_cleanup = (  # type: ignore[method-assign]
+        track_recovery
+    )
+    observations: list[tuple[str, int]] = []
+    second_decision = asyncio.Event()
+
+    class ClearDirector:
+        async def decide(self, projection, *, stage_context=()):
+            del stage_context
+            observations.append((projection.event_id, recovery_calls))
+            if projection.event_id == second.projection.event_id:
+                second_decision.set()
+            return ImageDirectorOutput(stage_action="clear", requests=[])
+
+    sidecar = EventImageSidecar(
+        director=ClearDirector(),  # type: ignore[arg-type]
+        generation=coordinator,
+        spawn_authoring=SimpleNamespace(),  # type: ignore[arg-type]
+    )
+
+    def both_finalized() -> bool:
+        with coordinator.store._connect() as db:
+            count = db.execute(
+                """
+                SELECT COUNT(*) FROM image_director_runs
+                WHERE run_id IN (?, ?) AND status = 'succeeded'
+                  AND materialized_at IS NOT NULL
+                """,
+                (first.run_id, second.run_id),
+            ).fetchone()[0]
+        return int(count) == 2
+
+    await sidecar.start()
+    try:
+        await asyncio.wait_for(second_decision.wait(), timeout=1)
+        await _wait_until(both_finalized)
+    finally:
+        await sidecar.close()
+
+    assert observations == [
+        (first.projection.event_id, 1),
+        (second.projection.event_id, 2),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_materialization_failure_fails_run_and_cancels_partial_jobs(
+    tmp_path,
+):
+    worker = FakeImageWorker(wait=True)
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=worker,
+    )
+    await coordinator.start()
     _begin(coordinator, "tx_1")
     projection = _projection(
         viewers=("alice",),
@@ -1742,7 +2316,7 @@ async def test_materialization_failure_fails_run_and_cancels_partial_jobs(
     ]
     run = coordinator.store.enqueue_director_run(projection)
     assert coordinator.store.claim_next_director_run() is not None
-    coordinator.store.complete_director_run(
+    _complete_director(coordinator,
         run.run_id,
         ImageDirectorOutput(
             stage_action="replace",
@@ -1756,6 +2330,7 @@ async def test_materialization_failure_fails_run_and_cancels_partial_jobs(
         nonlocal calls
         calls += 1
         if calls == 2:
+            await asyncio.wait_for(worker.started.wait(), timeout=1)
             raise RuntimeError("admission failed")
         return await enqueue_direction(**kwargs)
 
@@ -1766,19 +2341,25 @@ async def test_materialization_failure_fails_run_and_cancels_partial_jobs(
         spawn_authoring=SimpleNamespace(),  # type: ignore[arg-type]
     )
 
-    with pytest.raises(RuntimeError, match="admission failed"):
-        await sidecar._materialize_requests(
-            run.run_id,
-            projection,
-            ImageDirectorOutput(
-                stage_action="replace",
-                requests=directions,
-            ),
-        )
+    try:
+        with pytest.raises(RuntimeError, match="admission failed"):
+            await sidecar._materialize_requests(
+                run.run_id,
+                _director_attempt(coordinator, run.run_id),
+                projection,
+                ImageDirectorOutput(
+                    stage_action="replace",
+                    requests=directions,
+                ),
+            )
+    finally:
+        worker.release.set()
+        await coordinator.close()
 
     jobs = coordinator.store.all_jobs()
     assert len(jobs) == 1
     assert jobs[0].status == ImageGenerationStatus.cancelled
+    assert worker.aborted is True
     with coordinator.store._connect() as db:
         failed_run = db.execute(
             """
@@ -1803,9 +2384,8 @@ async def test_materialization_failure_fails_run_and_cancels_partial_jobs(
 
 
 @pytest.mark.asyncio
-async def test_unavailable_diffusion_finalizes_zero_admitted_jobs(tmp_path):
-    worker = FakeImageWorker()
-    worker.available = False
+async def test_failed_preflight_finalizes_persisted_run_with_zero_jobs(tmp_path):
+    worker = FailedPreflightWorker()
     coordinator = ImageGenerationCoordinator(
         sessions_dir=tmp_path / "sessions",
         config=_config(tmp_path),
@@ -1828,14 +2408,25 @@ async def test_unavailable_diffusion_finalizes_zero_admitted_jobs(tmp_path):
         stage_action="replace",
         requests=[direction],
     )
-    coordinator.store.complete_director_run(run.run_id, output)
+    _complete_director(coordinator, run.run_id, output)
+    await coordinator.start()
+    assert worker.available is True
+    assert coordinator.can_generate_render() is False
     sidecar = EventImageSidecar(
         director=SimpleNamespace(),  # type: ignore[arg-type]
         generation=coordinator,
         spawn_authoring=SimpleNamespace(),  # type: ignore[arg-type]
     )
 
-    await sidecar._materialize_requests(run.run_id, projection, output)
+    try:
+        await sidecar._materialize_requests(
+            run.run_id,
+            _director_attempt(coordinator, run.run_id),
+            projection,
+            output,
+        )
+    finally:
+        await coordinator.close()
 
     with coordinator.store._connect() as db:
         finalized = db.execute(
@@ -1902,7 +2493,7 @@ async def test_split_private_pov_stages_resolve_only_their_linked_artifact(
     alice_run = coordinator.store.enqueue_director_run(alice_projection)
     claimed = coordinator.store.claim_next_director_run()
     assert claimed is not None and claimed.run_id == alice_run.run_id
-    coordinator.store.complete_director_run(
+    _complete_director(coordinator,
         alice_run.run_id,
         ImageDirectorOutput(
             stage_action="replace",
@@ -1912,7 +2503,7 @@ async def test_split_private_pov_stages_resolve_only_their_linked_artifact(
     bob_run = coordinator.store.enqueue_director_run(bob_projection)
     claimed = coordinator.store.claim_next_director_run()
     assert claimed is not None and claimed.run_id == bob_run.run_id
-    coordinator.store.complete_director_run(
+    _complete_director(coordinator,
         bob_run.run_id,
         ImageDirectorOutput(
             stage_action="replace",
@@ -1927,6 +2518,8 @@ async def test_split_private_pov_stages_resolve_only_their_linked_artifact(
         request_ordinal=0,
         visual_style="cinematic",
         delivery_targets=[],
+        director_run_id=alice_run.run_id,
+        director_attempt=_director_attempt(coordinator, alice_run.run_id),
     )
     bob_job = await coordinator.enqueue_direction(
         projection=bob_projection,
@@ -1934,14 +2527,16 @@ async def test_split_private_pov_stages_resolve_only_their_linked_artifact(
         request_ordinal=0,
         visual_style="cinematic",
         delivery_targets=[],
+        director_run_id=bob_run.run_id,
+        director_attempt=_director_attempt(coordinator, bob_run.run_id),
     )
     assert alice_job is not None and bob_job is not None
-    coordinator.store.finalize_director_materialization(
+    _finalize_director(coordinator,
         alice_run.run_id,
         projection=alice_projection,
         admitted_job_ids=[alice_job.job_id],
     )
-    coordinator.store.finalize_director_materialization(
+    _finalize_director(coordinator,
         bob_run.run_id,
         projection=bob_projection,
         admitted_job_ids=[bob_job.job_id],
@@ -2054,7 +2649,7 @@ async def test_split_private_pov_readiness_waits_for_its_own_finalization(
 
     alice_run = coordinator.store.enqueue_director_run(alice_projection)
     assert coordinator.store.claim_next_director_run() is not None
-    coordinator.store.complete_director_run(
+    _complete_director(coordinator,
         alice_run.run_id,
         ImageDirectorOutput(
             stage_action="replace",
@@ -2063,7 +2658,7 @@ async def test_split_private_pov_readiness_waits_for_its_own_finalization(
     )
     bob_run = coordinator.store.enqueue_director_run(bob_projection)
     assert coordinator.store.claim_next_director_run() is not None
-    coordinator.store.complete_director_run(
+    _complete_director(coordinator,
         bob_run.run_id,
         ImageDirectorOutput(
             stage_action="replace",
@@ -2076,9 +2671,11 @@ async def test_split_private_pov_readiness_waits_for_its_own_finalization(
         request_ordinal=0,
         visual_style="cinematic",
         delivery_targets=[],
+        director_run_id=alice_run.run_id,
+        director_attempt=_director_attempt(coordinator, alice_run.run_id),
     )
     assert alice_job is not None
-    coordinator.store.finalize_director_materialization(
+    _finalize_director(coordinator,
         alice_run.run_id,
         projection=alice_projection,
         admitted_job_ids=[alice_job.job_id],
@@ -2105,17 +2702,21 @@ async def test_split_private_pov_readiness_waits_for_its_own_finalization(
         rendered_event_ids_by_pov={"bob": ["evt_split"]},
     ) == (True, False)
     with pytest.raises(ValueError, match="direction mismatch"):
-        coordinator.store.finalize_director_materialization(
-            bob_run.run_id,
-            projection=bob_projection,
-            admitted_job_ids=[alice_job.job_id],
+        await coordinator.enqueue_direction(
+            projection=alice_projection,
+            direction=alice_direction,
+            request_ordinal=0,
+            visual_style="cinematic",
+            delivery_targets=[],
+            director_run_id=bob_run.run_id,
+            director_attempt=_director_attempt(coordinator, bob_run.run_id),
         )
     assert coordinator.store.rendered_event_image_status(
         session_id="image_test",
         rendered_event_ids_by_pov={"bob": ["evt_split"]},
     ) == (True, False)
 
-    finalized = coordinator.store.finalize_director_materialization(
+    finalized = _finalize_director(coordinator,
         bob_run.run_id,
         projection=bob_projection,
         admitted_job_ids=[],
@@ -2174,13 +2775,15 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         stage_action="replace",
         requests=[direction],
     )
-    coordinator.store.complete_director_run(first_run.run_id, first_output)
+    _complete_director(coordinator, first_run.run_id, first_output)
     first_job = await coordinator.enqueue_direction(
         projection=first_projection,
         direction=direction,
         request_ordinal=0,
         visual_style="cinematic",
         delivery_targets=[],
+        director_run_id=first_run.run_id,
+        director_attempt=_director_attempt(coordinator, first_run.run_id),
     )
     assert first_job is not None
     assert first_job.request.width == 1024
@@ -2195,7 +2798,7 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         byte_count=123,
     )
     coordinator.store.mark_succeeded(claimed.job_id, artifact)
-    coordinator.store.finalize_director_materialization(
+    _finalize_director(coordinator,
         first_run.run_id,
         projection=first_projection,
         admitted_job_ids=[first_job.job_id],
@@ -2221,11 +2824,11 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         )
     )
     assert coordinator.store.claim_next_director_run() is not None
-    coordinator.store.complete_director_run(
+    _complete_director(coordinator,
         reuse_run.run_id,
         ImageDirectorOutput(stage_action="reuse", requests=[]),
     )
-    coordinator.store.finalize_director_materialization(
+    _finalize_director(coordinator,
         reuse_run.run_id,
         projection=reuse_projection,
         admitted_job_ids=[],
@@ -2260,7 +2863,7 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         )
     )
     assert coordinator.store.claim_next_director_run() is not None
-    coordinator.store.complete_director_run(
+    _complete_director(coordinator,
         failed_run.run_id,
         ImageDirectorOutput(stage_action="replace", requests=[direction]),
     )
@@ -2270,9 +2873,11 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         request_ordinal=0,
         visual_style="cinematic",
         delivery_targets=[],
+        director_run_id=failed_run.run_id,
+        director_attempt=_director_attempt(coordinator, failed_run.run_id),
     )
     assert failed_job is not None
-    coordinator.store.finalize_director_materialization(
+    _finalize_director(coordinator,
         failed_run.run_id,
         projection=failed_projection,
         admitted_job_ids=[failed_job.job_id],
@@ -2310,7 +2915,7 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         failed_direction_run.run_id
     ) == ["current_stage=neutral; reason=no shared compatible stage"]
     assert coordinator.store.claim_next_director_run() is not None
-    coordinator.store.fail_director_run(
+    _fail_director(coordinator,
         failed_direction_run.run_id,
         "director_failed",
     )
@@ -2335,11 +2940,11 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         unsafe_reuse_run.run_id
     ) == ["current_stage=neutral; reason=no shared compatible stage"]
     assert coordinator.store.claim_next_director_run() is not None
-    coordinator.store.complete_director_run(
+    _complete_director(coordinator,
         unsafe_reuse_run.run_id,
         ImageDirectorOutput(stage_action="reuse", requests=[]),
     )
-    coordinator.store.finalize_director_materialization(
+    _finalize_director(coordinator,
         unsafe_reuse_run.run_id,
         projection=unsafe_reuse_projection,
         admitted_job_ids=[],
@@ -2391,13 +2996,15 @@ async def _visual_novel_stage_context_for_schedule(
         stage_action="replace",
         requests=[direction],
     )
-    coordinator.store.complete_director_run(prior_run.run_id, prior_output)
+    _complete_director(coordinator, prior_run.run_id, prior_output)
     prior_job = await coordinator.enqueue_direction(
         projection=prior_projection,
         direction=direction,
         request_ordinal=0,
         visual_style="cinematic",
         delivery_targets=[],
+        director_run_id=prior_run.run_id,
+        director_attempt=_director_attempt(coordinator, prior_run.run_id),
     )
     assert prior_job is not None
     claimed_job = coordinator.store.claim_next()
@@ -2412,7 +3019,7 @@ async def _visual_novel_stage_context_for_schedule(
             byte_count=123,
         ),
     )
-    coordinator.store.finalize_director_materialization(
+    _finalize_director(coordinator,
         prior_run.run_id,
         projection=prior_projection,
         admitted_job_ids=[prior_job.job_id],
@@ -2523,7 +3130,7 @@ async def test_cancelled_materializing_director_run_cannot_wedge_render_wait(
     claimed = coordinator.store.claim_next_director_run()
     assert claimed is not None
     assert claimed.run_id == queued.run_id
-    coordinator.store.complete_director_run(
+    _complete_director(coordinator,
         queued.run_id,
         ImageDirectorOutput(requests=[ImageDirection(
             kind="action",

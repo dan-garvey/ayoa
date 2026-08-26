@@ -49,7 +49,6 @@ class EventImageSidecar:
     async def start(self) -> None:
         if self._runner is None or self._runner.done():
             self._closing = False
-            self.generation.store.recover_expired_director_runs()
             self._runner = asyncio.create_task(
                 self._run_director_queue(),
                 name="ayoa-image-director",
@@ -245,9 +244,19 @@ class EventImageSidecar:
     async def _run_director_queue(self) -> None:
         while not self._closing:
             try:
+                # Recovery is a queue cadence, not an idle-only maintenance
+                # task. A stranded run in one busy session must not wait for
+                # unrelated director work to drain before its lease is noticed.
+                _, cancelled_attempts = (
+                    self.generation.store
+                    .recover_expired_director_runs_with_cleanup()
+                )
+                await self.generation.abort_cancelled_attempts(
+                    cancelled_attempts
+                )
                 run = self.generation.store.claim_next_director_run()
             except Exception:
-                logger.exception("image director queue claim failed")
+                logger.exception("image director queue recovery or claim failed")
                 await asyncio.sleep(1)
                 continue
             if run is None:
@@ -255,10 +264,10 @@ class EventImageSidecar:
                 try:
                     await asyncio.wait_for(self._wake.wait(), timeout=5)
                 except TimeoutError:
-                    self.generation.store.recover_expired_director_runs()
+                    pass
                 continue
             heartbeat = asyncio.create_task(
-                self._heartbeat_director_run(run.run_id),
+                self._heartbeat_director_run(run.run_id, run.attempts),
                 name=f"image-director-heartbeat:{run.run_id}",
             )
             try:
@@ -273,6 +282,7 @@ class EventImageSidecar:
                 completed = self.generation.store.complete_director_run(
                     run.run_id,
                     output,
+                    attempt=run.attempts,
                 )
                 if (
                     completed is not None
@@ -284,6 +294,7 @@ class EventImageSidecar:
                     # first-portrait identity dependency waits for its result.
                     await self._materialize_requests(
                         run.run_id,
+                        run.attempts,
                         run.projection,
                         output,
                     )
@@ -293,6 +304,7 @@ class EventImageSidecar:
                 self.generation.store.fail_director_run(
                     run.run_id,
                     type(exc).__name__,
+                    attempt=run.attempts,
                 )
                 logger.exception(
                     "image director run failed event=%s",
@@ -302,21 +314,29 @@ class EventImageSidecar:
                 heartbeat.cancel()
                 await asyncio.gather(heartbeat, return_exceptions=True)
 
-    async def _heartbeat_director_run(self, run_id: str) -> None:
+    async def _heartbeat_director_run(
+        self,
+        run_id: str,
+        attempt: int,
+    ) -> None:
         while True:
             await asyncio.sleep(30)
-            if not self.generation.store.heartbeat_director_run(run_id):
+            if not self.generation.store.heartbeat_director_run(
+                run_id,
+                attempt=attempt,
+            ):
                 return
 
     async def _materialize_requests(
         self,
         run_id: str,
+        attempt: int,
         projection: VisibleEventProjection,
         output: ImageDirectorOutput,
     ) -> None:
         admitted_job_ids: list[str] = []
         try:
-            if not self.generation.available:
+            if not self.generation.can_generate_render():
                 logger.warning(
                     "image director produced requests but diffusion is unavailable"
                 )
@@ -338,6 +358,8 @@ class EventImageSidecar:
                         request_ordinal=ordinal,
                         visual_style=projection.engine_visual_style,
                         delivery_targets=[],
+                        director_run_id=run_id,
+                        director_attempt=attempt,
                     )
                     if job is None:
                         continue
@@ -350,20 +372,21 @@ class EventImageSidecar:
                         await self.generation.wait_for_terminal(job.job_id)
             self.generation.store.finalize_director_materialization(
                 run_id,
+                attempt=attempt,
                 projection=projection,
                 admitted_job_ids=admitted_job_ids,
             )
         except asyncio.CancelledError:
             await self._fail_materialization(
                 run_id,
-                admitted_job_ids,
+                attempt,
                 error_code="materialization_cancelled",
             )
             raise
         except Exception as exc:
             await self._fail_materialization(
                 run_id,
-                admitted_job_ids,
+                attempt,
                 error_code=f"materialization_{type(exc).__name__}",
             )
             raise
@@ -371,24 +394,20 @@ class EventImageSidecar:
     async def _fail_materialization(
         self,
         run_id: str,
-        admitted_job_ids: list[str],
+        attempt: int,
         *,
         error_code: str,
     ) -> None:
-        for job_id in admitted_job_ids:
-            if self.generation.store.image_job_has_director_links(job_id):
-                continue
-            try:
-                await self.generation.cancel_job(
-                    job_id,
-                    error_code=error_code,
-                )
-            except Exception:
-                logger.exception(
-                    "failed to cancel partial image materialization job=%s",
-                    job_id,
-                )
-        self.generation.store.fail_director_run(run_id, error_code)
+        failed, cancelled_attempts = (
+            self.generation.store.fail_director_run_with_cleanup(
+                run_id,
+                error_code,
+                attempt=attempt,
+            )
+        )
+        if failed is None:
+            return
+        await self.generation.abort_cancelled_attempts(cancelled_attempts)
 
     def _preparation_done(
         self,

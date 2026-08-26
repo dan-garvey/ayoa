@@ -99,11 +99,13 @@ ON image_jobs(session_id, source_turn_index, source_event_id);
 
 CREATE TABLE IF NOT EXISTS image_director_run_jobs (
     run_id              TEXT NOT NULL,
+    attempt             INTEGER NOT NULL,
     request_ordinal     INTEGER NOT NULL,
     job_id              TEXT NOT NULL,
+    finalized           INTEGER NOT NULL DEFAULT 0,
     created_at          REAL NOT NULL,
-    PRIMARY KEY(run_id, request_ordinal),
-    UNIQUE(run_id, job_id),
+    PRIMARY KEY(run_id, attempt, request_ordinal),
+    UNIQUE(run_id, attempt, job_id),
     FOREIGN KEY(run_id) REFERENCES image_director_runs(run_id)
         ON DELETE CASCADE,
     FOREIGN KEY(job_id) REFERENCES image_jobs(job_id)
@@ -228,8 +230,10 @@ _CURRENT_SCHEMA_COLUMNS = {
     },
     "image_director_run_jobs": {
         "run_id",
+        "attempt",
         "request_ordinal",
         "job_id",
+        "finalized",
     },
     "image_jobs": {
         "dedupe_key",
@@ -409,6 +413,16 @@ class ImageJobStore:
                 """,
                 (_clean_reason(reason), now, transaction_id),
             )
+            db.execute(
+                """
+                DELETE FROM image_director_run_jobs
+                WHERE finalized = 0 AND run_id IN (
+                    SELECT run_id FROM image_director_runs
+                    WHERE transaction_id = ? AND status = 'cancelled'
+                )
+                """,
+                (transaction_id,),
+            )
             if transaction is not None:
                 self._retire_cancelled_candidates(
                     db,
@@ -521,6 +535,175 @@ class ImageJobStore:
             raise RuntimeError("image job enqueue did not produce a row")
         return _job_from_row(row)
 
+    def admit_director_request(
+        self,
+        request: ImageGenerationRequest,
+        *,
+        run_id: str,
+        attempt: int,
+        queue_limit: int,
+        per_session_queue_limit: int,
+    ) -> ImageGenerationJob | None:
+        """Atomically enqueue and provisionally link one director request.
+
+        The provisional link closes the crash window between job admission and
+        run finalization. Recovery can therefore retire only work owned by the
+        expired attempt, while a same-position sibling that shares the exact
+        dedupe job keeps that work alive through its own link.
+        """
+
+        now = time.time()
+        job_id = f"img_{request.dedupe_key[:32]}"
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            run_row = db.execute(
+                """
+                SELECT * FROM image_director_runs
+                WHERE run_id = ? AND attempts = ? AND status = 'materializing'
+                """,
+                (run_id, attempt),
+            ).fetchone()
+            if run_row is None:
+                raise RuntimeError("director admission attempt is stale")
+            run = _director_run_from_row(run_row)
+            if run.output is None:
+                raise RuntimeError("director admission output is unavailable")
+
+            transaction = db.execute(
+                """
+                SELECT session_id, status FROM image_transactions
+                WHERE transaction_id = ?
+                """,
+                (request.transaction_id,),
+            ).fetchone()
+            if transaction is None:
+                raise RuntimeError(
+                    "image request transaction was not registered"
+                )
+            if transaction["session_id"] != request.session_id:
+                raise ValueError("image request session/transaction mismatch")
+            if transaction["status"] == "cancelled":
+                raise RuntimeError("cannot enqueue into a cancelled transaction")
+
+            row = db.execute(
+                "SELECT * FROM image_jobs WHERE dedupe_key = ?",
+                (request.dedupe_key,),
+            ).fetchone()
+            needs_capacity = row is None
+            if row is not None:
+                existing = _job_from_row(row)
+                if existing.request != request:
+                    raise RuntimeError("image job dedupe contract mismatch")
+                retryable_failed = bool(
+                    existing.status == ImageGenerationStatus.failed
+                    and existing.attempts < 2
+                )
+                retryable_cancelled = bool(
+                    existing.status == ImageGenerationStatus.cancelled
+                    and (
+                        existing.error_code == "director_attempt_expired"
+                        or existing.error_code.startswith("materialization_")
+                    )
+                )
+                needs_capacity = retryable_failed or retryable_cancelled
+
+            if needs_capacity and not self._image_capacity_available(
+                db,
+                session_id=request.session_id,
+                queue_limit=queue_limit,
+                per_session_queue_limit=per_session_queue_limit,
+            ):
+                db.commit()
+                return None
+
+            if row is None:
+                db.execute(
+                    """
+                    INSERT INTO image_jobs (
+                        job_id, dedupe_key, session_id, transaction_id,
+                        source_event_id, source_event_fingerprint,
+                        source_event_sequence, source_turn_index, status,
+                        request_json, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        job_id,
+                        request.dedupe_key,
+                        request.session_id,
+                        request.transaction_id,
+                        request.source_event_id,
+                        request.source_event_fingerprint,
+                        request.source_event_sequence,
+                        request.source_turn_index,
+                        ImageGenerationStatus.queued.value,
+                        request.model_dump_json(),
+                        now,
+                        now,
+                    ),
+                )
+                row = db.execute(
+                    "SELECT * FROM image_jobs WHERE job_id = ?",
+                    (job_id,),
+                ).fetchone()
+            elif needs_capacity:
+                db.execute(
+                    """
+                    UPDATE image_jobs
+                    SET status = ?, error_code = '', updated_at = ?,
+                        started_at = NULL, completed_at = NULL
+                    WHERE job_id = ? AND status IN (?, ?)
+                    """,
+                    (
+                        ImageGenerationStatus.queued.value,
+                        now,
+                        job_id,
+                        ImageGenerationStatus.failed.value,
+                        ImageGenerationStatus.cancelled.value,
+                    ),
+                )
+                row = db.execute(
+                    "SELECT * FROM image_jobs WHERE job_id = ?",
+                    (job_id,),
+                ).fetchone()
+            if row is None:
+                raise RuntimeError(
+                    "director admission did not produce an image job"
+                )
+
+            job = _job_from_row(row)
+            ordinal = request.request_ordinal
+            link_error = _director_job_link_error(run, ordinal, job)
+            if link_error:
+                raise ValueError(f"director admission image-job {link_error}")
+            db.execute(
+                """
+                INSERT INTO image_director_run_jobs (
+                    run_id, attempt, request_ordinal, job_id,
+                    finalized, created_at
+                ) VALUES (?, ?, ?, ?, 0, ?)
+                ON CONFLICT(run_id, attempt, request_ordinal) DO NOTHING
+                """,
+                (run_id, attempt, ordinal, job.job_id, now),
+            )
+            association = db.execute(
+                """
+                SELECT job_id FROM image_director_run_jobs
+                WHERE run_id = ? AND attempt = ? AND request_ordinal = ?
+                """,
+                (run_id, attempt, ordinal),
+            ).fetchone()
+            if association is None or association["job_id"] != job.job_id:
+                raise RuntimeError("director admission ordinal changed")
+            db.execute(
+                """
+                UPDATE image_transactions SET updated_at = ?
+                WHERE transaction_id = ?
+                """,
+                (now, request.transaction_id),
+            )
+            db.commit()
+        return job
+
     def enqueue_director_run(
         self,
         projection: VisibleEventProjection,
@@ -607,7 +790,25 @@ class ImageJobStore:
                 JOIN image_transactions AS t
                   ON t.transaction_id = r.transaction_id
                 WHERE r.status = 'queued' AND t.status != 'cancelled'
-                ORDER BY r.source_event_sequence, r.created_at, r.run_id
+                  AND NOT EXISTS (
+                    SELECT 1 FROM image_director_runs AS predecessor
+                    JOIN image_transactions AS predecessor_transaction
+                      ON predecessor_transaction.transaction_id =
+                         predecessor.transaction_id
+                    WHERE predecessor.session_id = r.session_id
+                      AND predecessor.status IN ('running', 'materializing')
+                      AND predecessor_transaction.status != 'cancelled'
+                      AND (
+                        predecessor.source_turn_index < r.source_turn_index
+                        OR (
+                          predecessor.source_turn_index = r.source_turn_index
+                          AND predecessor.source_event_sequence <
+                              r.source_event_sequence
+                        )
+                      )
+                  )
+                ORDER BY r.source_turn_index, r.source_event_sequence,
+                         r.created_at, r.run_id
                 LIMIT 1
                 """
             ).fetchone()
@@ -643,17 +844,21 @@ class ImageJobStore:
         self,
         run_id: str,
         output: ImageDirectorOutput,
+        *,
+        attempt: int,
     ) -> DurableDirectorRun | None:
         with self._connect() as db:
-            db.execute(
+            cursor = db.execute(
                 """
                 UPDATE image_director_runs
                 SET status = 'materializing', output_json = ?,
                     materialized_at = NULL, error_code = '', updated_at = ?
-                WHERE run_id = ? AND status = 'running'
+                WHERE run_id = ? AND attempts = ? AND status = 'running'
                 """,
-                (output.model_dump_json(), time.time(), run_id),
+                (output.model_dump_json(), time.time(), run_id, attempt),
             )
+            if cursor.rowcount != 1:
+                return None
             row = db.execute(
                 """
                 SELECT * FROM image_director_runs WHERE run_id = ?
@@ -666,6 +871,7 @@ class ImageJobStore:
         self,
         run_id: str,
         *,
+        attempt: int,
         projection: VisibleEventProjection,
         admitted_job_ids: Sequence[str],
     ) -> DurableDirectorRun:
@@ -697,20 +903,26 @@ class ImageJobStore:
             run = _director_run_from_row(row)
             if run.projection != projection:
                 raise ValueError("director materialization projection mismatch")
+            if run.attempts != attempt:
+                raise RuntimeError("director materialization attempt is stale")
             if run.status == "cancelled":
                 db.commit()
                 return run
             existing_rows = db.execute(
                 """
-                SELECT request_ordinal, job_id
+                SELECT request_ordinal, job_id, finalized
                 FROM image_director_run_jobs
-                WHERE run_id = ?
+                WHERE run_id = ? AND attempt = ?
                 ORDER BY request_ordinal
                 """,
-                (run_id,),
+                (run_id, attempt),
             ).fetchall()
             if run.status == "succeeded" and run.materialized_at is not None:
-                existing_job_ids = [str(item["job_id"]) for item in existing_rows]
+                existing_job_ids = [
+                    str(item["job_id"])
+                    for item in existing_rows
+                    if bool(item["finalized"])
+                ]
                 if existing_job_ids != job_ids:
                     raise RuntimeError(
                         "director materialization was already finalized differently"
@@ -721,66 +933,52 @@ class ImageJobStore:
                 raise RuntimeError(
                     "director materialization requires a materializing run"
                 )
-            if existing_rows:
+            if any(bool(item["finalized"]) for item in existing_rows):
                 raise RuntimeError(
-                    "unfinalized director run already has linked image jobs"
+                    "materializing director run has finalized image jobs"
                 )
-
-            jobs_by_id: dict[str, ImageGenerationJob] = {}
-            if job_ids:
-                placeholders = ",".join("?" for _ in job_ids)
-                job_rows = db.execute(
-                    f"""
-                    SELECT * FROM image_jobs
-                    WHERE job_id IN ({placeholders})
-                    """,
-                    job_ids,
-                ).fetchall()
-                jobs_by_id = {
-                    str(job_row["job_id"]): _job_from_row(job_row)
-                    for job_row in job_rows
-                }
-            if len(jobs_by_id) != len(job_ids):
+            provisional_job_ids = [
+                str(item["job_id"]) for item in existing_rows
+            ]
+            if provisional_job_ids != job_ids:
                 raise RuntimeError(
-                    "director materialization references an unavailable image job"
+                    "director materialization admissions changed before finalization"
                 )
-
-            admitted: list[tuple[int, str]] = []
-            seen_ordinals: set[int] = set()
-            for job_id in job_ids:
-                job = jobs_by_id[job_id]
-                request = job.request
-                ordinal = request.request_ordinal
-                if ordinal in seen_ordinals:
-                    raise ValueError(
-                        "director materialization contains duplicate ordinals"
+            for item in existing_rows:
+                job_row = db.execute(
+                    "SELECT * FROM image_jobs WHERE job_id = ?",
+                    (item["job_id"],),
+                ).fetchone()
+                if job_row is None:
+                    raise RuntimeError(
+                        "director materialization references an unavailable "
+                        "image job"
                     )
-                link_error = _director_job_link_error(run, ordinal, job)
+                link_error = _director_job_link_error(
+                    run,
+                    int(item["request_ordinal"]),
+                    _job_from_row(job_row),
+                )
                 if link_error:
                     raise ValueError(
-                        f"director materialization image-job {link_error}"
+                        "director materialization image-job " + link_error
                     )
-                seen_ordinals.add(ordinal)
-                admitted.append((ordinal, job_id))
-
-            admitted.sort(key=lambda item: item[0])
-            for ordinal, job_id in admitted:
-                db.execute(
-                    """
-                    INSERT INTO image_director_run_jobs (
-                        run_id, request_ordinal, job_id, created_at
-                    ) VALUES (?, ?, ?, ?)
-                    """,
-                    (run_id, ordinal, job_id, now),
-                )
+            db.execute(
+                """
+                UPDATE image_director_run_jobs SET finalized = 1
+                WHERE run_id = ? AND attempt = ? AND finalized = 0
+                """,
+                (run_id, attempt),
+            )
             cursor = db.execute(
                 """
                 UPDATE image_director_runs
                 SET status = 'succeeded', materialized_at = ?, updated_at = ?
-                WHERE run_id = ? AND status = 'materializing'
+                WHERE run_id = ? AND attempts = ?
+                  AND status = 'materializing'
                   AND materialized_at IS NULL
                 """,
-                (now, now, run_id),
+                (now, now, run_id, attempt),
             )
             if cursor.rowcount != 1:
                 raise RuntimeError("director materialization finalization raced")
@@ -793,14 +991,15 @@ class ImageJobStore:
             raise RuntimeError("director materialization final row is unavailable")
         return _director_run_from_row(finalized_row)
 
-    def heartbeat_director_run(self, run_id: str) -> bool:
+    def heartbeat_director_run(self, run_id: str, *, attempt: int) -> bool:
         with self._connect() as db:
             cursor = db.execute(
                 """
                 UPDATE image_director_runs SET updated_at = ?
-                WHERE run_id = ? AND status IN ('running', 'materializing')
+                WHERE run_id = ? AND attempts = ?
+                  AND status IN ('running', 'materializing')
                 """,
-                (time.time(), run_id),
+                (time.time(), run_id, attempt),
             )
         return cursor.rowcount == 1
 
@@ -808,15 +1007,75 @@ class ImageJobStore:
         self,
         run_id: str,
         error_code: str,
+        *,
+        attempt: int,
     ) -> DurableDirectorRun | None:
+        run, _ = self.fail_director_run_with_cleanup(
+            run_id,
+            error_code,
+            attempt=attempt,
+        )
+        return run
+
+    def fail_director_run_with_cleanup(
+        self,
+        run_id: str,
+        error_code: str,
+        *,
+        attempt: int,
+    ) -> tuple[DurableDirectorRun | None, tuple[tuple[str, int], ...]]:
+        now = time.time()
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            current = db.execute(
+                """
+                SELECT * FROM image_director_runs
+                WHERE run_id = ? AND attempts = ?
+                  AND status IN ('running', 'materializing')
+                """,
+                (run_id, attempt),
+            ).fetchone()
+            if current is None:
+                db.commit()
+                return None, ()
+            job_ids = [
+                str(row["job_id"])
+                for row in db.execute(
+                    """
+                    SELECT job_id FROM image_director_run_jobs
+                    WHERE run_id = ? AND attempt = ? AND finalized = 0
+                    """,
+                    (run_id, attempt),
+                ).fetchall()
+            ]
             db.execute(
+                """
+                DELETE FROM image_director_run_jobs
+                WHERE run_id = ? AND attempt = ? AND finalized = 0
+                """,
+                (run_id, attempt),
+            )
+            cancelled_attempts = self._cancel_unlinked_jobs(
+                db,
+                job_ids=job_ids,
+                error_code=_clean_reason(error_code),
+                now=now,
+            )
+            cursor = db.execute(
                 """
                 UPDATE image_director_runs
                 SET status = 'failed', error_code = ?, updated_at = ?
-                WHERE run_id = ? AND status IN ('running', 'materializing')
+                WHERE run_id = ? AND attempts = ?
+                  AND status IN ('running', 'materializing')
                 """,
-                (_clean_reason(error_code), time.time(), run_id),
+                (_clean_reason(error_code), now, run_id, attempt),
+            )
+            if cursor.rowcount != 1:
+                db.rollback()
+                return None, ()
+            self._retire_cancelled_candidates(
+                db,
+                session_id=str(current["session_id"]),
             )
             row = db.execute(
                 """
@@ -824,40 +1083,88 @@ class ImageJobStore:
                 """,
                 (run_id,),
             ).fetchone()
-        return _director_run_from_row(row) if row is not None else None
+            db.commit()
+        return (
+            _director_run_from_row(row) if row is not None else None,
+            cancelled_attempts,
+        )
 
     def recover_expired_director_runs(
         self,
         *,
         lease_seconds: float = 300,
     ) -> int:
+        recovered, _ = self.recover_expired_director_runs_with_cleanup(
+            lease_seconds=lease_seconds,
+        )
+        return recovered
+
+    def recover_expired_director_runs_with_cleanup(
+        self,
+        *,
+        lease_seconds: float = 300,
+    ) -> tuple[int, tuple[tuple[str, int], ...]]:
         now = time.time()
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
             cutoff = now - max(1.0, lease_seconds)
-            db.execute(
+            expired = db.execute(
                 """
-                DELETE FROM image_director_run_jobs
-                WHERE run_id IN (
-                    SELECT run_id FROM image_director_runs
-                    WHERE status IN ('running', 'materializing')
-                      AND updated_at < ?
-                )
-                """,
-                (cutoff,),
-            )
-            cursor = db.execute(
-                """
-                UPDATE image_director_runs
-                SET status = 'queued', output_json = '',
-                    materialized_at = NULL, error_code = '', updated_at = ?
+                SELECT run_id, attempts, session_id
+                FROM image_director_runs
                 WHERE status IN ('running', 'materializing')
                   AND updated_at < ?
                 """,
-                (now, cutoff),
-            )
+                (cutoff,),
+            ).fetchall()
+            recovered = 0
+            affected_sessions: set[str] = set()
+            cancelled_attempts: list[tuple[str, int]] = []
+            for row in expired:
+                run_id = str(row["run_id"])
+                attempt = int(row["attempts"])
+                job_ids = [
+                    str(item["job_id"])
+                    for item in db.execute(
+                        """
+                        SELECT job_id FROM image_director_run_jobs
+                        WHERE run_id = ? AND attempt = ? AND finalized = 0
+                        """,
+                        (run_id, attempt),
+                    ).fetchall()
+                ]
+                db.execute(
+                    """
+                    DELETE FROM image_director_run_jobs
+                    WHERE run_id = ? AND attempt = ? AND finalized = 0
+                    """,
+                    (run_id, attempt),
+                )
+                cancelled_attempts.extend(
+                    self._cancel_unlinked_jobs(
+                        db,
+                        job_ids=job_ids,
+                        error_code="director_attempt_expired",
+                        now=now,
+                    )
+                )
+                cursor = db.execute(
+                    """
+                    UPDATE image_director_runs
+                    SET status = 'queued', output_json = '',
+                        materialized_at = NULL, error_code = '', updated_at = ?
+                    WHERE run_id = ? AND attempts = ?
+                      AND status IN ('running', 'materializing')
+                      AND updated_at < ?
+                    """,
+                    (now, run_id, attempt, cutoff),
+                )
+                recovered += cursor.rowcount
+                affected_sessions.add(str(row["session_id"]))
+            for session_id in affected_sessions:
+                self._retire_cancelled_candidates(db, session_id=session_id)
             db.commit()
-        return cursor.rowcount
+        return recovered, tuple(cancelled_attempts)
 
     def add_delivery(
         self,
@@ -953,19 +1260,6 @@ class ImageJobStore:
                 (job_id,),
             ).fetchone()
         return _job_from_row(row) if row is not None else None
-
-    def image_job_has_director_links(self, job_id: str) -> bool:
-        """Whether a generation job is retained by any finalized run mapping."""
-
-        with self._connect() as db:
-            row = db.execute(
-                """
-                SELECT 1 FROM image_director_run_jobs
-                WHERE job_id = ? LIMIT 1
-                """,
-                (job_id,),
-            ).fetchone()
-        return row is not None
 
     def get_delivery(self, delivery_id: str) -> ImageDelivery | None:
         with self._connect() as db:
@@ -1476,6 +1770,17 @@ class ImageJobStore:
                 """,
                 (now, session_id, turn_index),
             )
+            db.execute(
+                """
+                DELETE FROM image_director_run_jobs
+                WHERE finalized = 0 AND run_id IN (
+                    SELECT run_id FROM image_director_runs
+                    WHERE session_id = ? AND source_turn_index > ?
+                      AND status = 'cancelled'
+                )
+                """,
+                (session_id, turn_index),
+            )
             self._retire_cancelled_candidates(db, session_id=session_id)
             self._restore_rewound_identity_retirements(
                 db,
@@ -1518,6 +1823,7 @@ class ImageJobStore:
         for job_id in stale_ids:
             self.mark_cancelled(job_id, "event_not_in_lineage")
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
             if fingerprints:
                 placeholders = ",".join("?" for _ in fingerprints)
                 db.execute(
@@ -1548,6 +1854,38 @@ class ImageJobStore:
                     """,
                     (time.time(), session_id),
                 )
+            provisional_job_ids = [
+                str(row["job_id"])
+                for row in db.execute(
+                    """
+                    SELECT association.job_id
+                    FROM image_director_run_jobs AS association
+                    JOIN image_director_runs AS run
+                      ON run.run_id = association.run_id
+                    WHERE run.session_id = ? AND run.status = 'cancelled'
+                      AND association.finalized = 0
+                    """,
+                    (session_id,),
+                ).fetchall()
+            ]
+            db.execute(
+                """
+                DELETE FROM image_director_run_jobs
+                WHERE finalized = 0 AND run_id IN (
+                    SELECT run_id FROM image_director_runs
+                    WHERE session_id = ? AND status = 'cancelled'
+                )
+                """,
+                (session_id,),
+            )
+            self._cancel_unlinked_jobs(
+                db,
+                job_ids=provisional_job_ids,
+                error_code="event_not_in_lineage",
+                now=time.time(),
+            )
+            self._retire_cancelled_candidates(db, session_id=session_id)
+            db.commit()
         return len(stale_ids)
 
     def cancel_session(self, session_id: str) -> int:
@@ -1775,6 +2113,7 @@ class ImageJobStore:
                 FROM image_director_run_jobs AS association
                 JOIN image_jobs AS job ON job.job_id = association.job_id
                 WHERE association.run_id IN ({run_placeholders})
+                  AND association.finalized = 1
                 ORDER BY association.run_id, association.request_ordinal
                 """,
                 run_ids,
@@ -1974,10 +2313,11 @@ class ImageJobStore:
                        job.*
                 FROM image_director_run_jobs AS association
                 JOIN image_jobs AS job ON job.job_id = association.job_id
-                WHERE association.run_id = ?
+                WHERE association.run_id = ? AND association.attempt = ?
+                  AND association.finalized = 1
                 ORDER BY association.request_ordinal
                 """,
-                (run.run_id,),
+                (run.run_id, run.attempts),
             ).fetchall()
         for row in rows:
             job = _job_from_row(row)
@@ -2581,6 +2921,101 @@ class ImageJobStore:
                 "SELECT * FROM image_jobs ORDER BY created_at, job_id"
             ).fetchall()
         return [_job_from_row(row) for row in rows]
+
+    @staticmethod
+    def _image_capacity_available(
+        db: sqlite3.Connection,
+        *,
+        session_id: str,
+        queue_limit: int,
+        per_session_queue_limit: int,
+    ) -> bool:
+        active = db.execute(
+            """
+            SELECT COUNT(*) FROM image_jobs WHERE status IN (?, ?)
+            """,
+            (
+                ImageGenerationStatus.queued.value,
+                ImageGenerationStatus.running.value,
+            ),
+        ).fetchone()
+        if active is not None and int(active[0]) >= max(1, queue_limit):
+            return False
+        session_active = db.execute(
+            """
+            SELECT COUNT(*) FROM image_jobs
+            WHERE session_id = ? AND status IN (?, ?)
+            """,
+            (
+                session_id,
+                ImageGenerationStatus.queued.value,
+                ImageGenerationStatus.running.value,
+            ),
+        ).fetchone()
+        return bool(
+            session_active is None
+            or int(session_active[0]) < max(1, per_session_queue_limit)
+        )
+
+    @staticmethod
+    def _cancel_unlinked_jobs(
+        db: sqlite3.Connection,
+        *,
+        job_ids: Sequence[str],
+        error_code: str,
+        now: float,
+    ) -> tuple[tuple[str, int], ...]:
+        cancelled_attempts: list[tuple[str, int]] = []
+        for job_id in dict.fromkeys(job_ids):
+            retained = db.execute(
+                """
+                SELECT 1 FROM image_director_run_jobs
+                WHERE job_id = ? LIMIT 1
+                """,
+                (job_id,),
+            ).fetchone()
+            if retained is not None:
+                continue
+            state = db.execute(
+                "SELECT attempts FROM image_jobs WHERE job_id = ?",
+                (job_id,),
+            ).fetchone()
+            cursor = db.execute(
+                """
+                UPDATE image_jobs
+                SET status = ?, error_code = ?, completed_at = ?, updated_at = ?
+                WHERE job_id = ? AND status IN (?, ?, ?)
+                """,
+                (
+                    ImageGenerationStatus.cancelled.value,
+                    error_code,
+                    now,
+                    now,
+                    job_id,
+                    ImageGenerationStatus.queued.value,
+                    ImageGenerationStatus.running.value,
+                    ImageGenerationStatus.succeeded.value,
+                ),
+            )
+            if cursor.rowcount == 1 and state is not None:
+                cancelled_attempts.append(
+                    (job_id, int(state["attempts"] or 0))
+                )
+            db.execute(
+                """
+                UPDATE image_deliveries
+                SET status = ?, updated_at = ?
+                WHERE job_id = ? AND status IN (?, ?)
+                """,
+                (
+                    ImageDeliveryStatus.cancelled.value,
+                    now,
+                    job_id,
+                    ImageDeliveryStatus.pending.value,
+                    ImageDeliveryStatus.delivering.value,
+                ),
+            )
+        return tuple(cancelled_attempts)
 
     def _retire_cancelled_candidates(
         self,
