@@ -1,6 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "issue_id": "ayoa-ale8",
+  "extension_issue_id": "ayoa-nptq",
   "created_on": "2026-08-26",
   "experiment_only": true,
   "production_binding_changed": false,
@@ -49,6 +50,9 @@
     }
   ],
   "generation": {
+    "tier": "2F/3F",
+    "preserved_from_commit": "dd6abefbe6170f59821bcc540cfe927b5fb69d38",
+    "byte_identity_verified": true,
     "mode": "built-in image_gen",
     "model_identifier": null,
     "model_identifier_note": "The built-in service does not expose a model identifier.",
@@ -58,6 +62,7 @@
     "outputs": [
       {
         "id": "A",
+        "tier": "2F/3F",
         "file": "backgrounds/lobby_open_air_courtyard_v1.png",
         "dimensions": [1664, 936],
         "sha256": "5a454563d6ba57aee4cccdb69395862b9997e86098c85eb7a05abcd6bee57ac0",
@@ -70,6 +75,7 @@
       },
       {
         "id": "B",
+        "tier": "2F/3F",
         "file": "backgrounds/lobby_covered_arrival_pavilion_v1.png",
         "dimensions": [1664, 936],
         "sha256": "d430ccc7cbe902f0dc8144737e851b941a84ec5b01bf13506b08b3d9d70830b2",
@@ -82,6 +88,55 @@
       }
     ]
   },
+  "generation_1f": {
+    "tier": "1F",
+    "single_experimental_variable": "architectural tier",
+    "frozen_invariants": [
+      "accepted reference crop bytes and reference-to-output mapping",
+      "built-in image_gen reference-guided generation method",
+      "polished Korean webtoon/manhwa rendering language",
+      "bright late-morning daylight",
+      "eye-level exact-16:9 framing",
+      "broad central and lower visual-novel sprite-staging space"
+    ],
+    "mode": "built-in image_gen",
+    "model_identifier": null,
+    "model_identifier_note": "The built-in service does not expose a model identifier.",
+    "call_count": 2,
+    "output_count": 2,
+    "prompt_conflict_audit": "prompt_conflict_audit_1f.md",
+    "postprocess": "Center-crop only from 1672x941 to exact 16:9 1664x936 using [4, 2, 1668, 938); no resampling.",
+    "outputs": [
+      {
+        "id": "1F-A",
+        "tier": "1F",
+        "file": "backgrounds/1f/lobby_1f_open_air_courtyard_v1.png",
+        "dimensions": [1664, 936],
+        "sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "prompt_file": "prompts/1f/basic_open_air_courtyard.txt",
+        "prompt_sha256": "c77ae40747b1a584850dc3629ad641811abc4bbf97f92c6bb20281e76c39b5ae",
+        "reference_ids": ["ref01", "ref02", "ref03"],
+        "raw_file": "generation_raw/1f/builtin_1f_open_air_courtyard_raw.png",
+        "raw_dimensions": [1672, 941],
+        "raw_sha256": "47bf264f4fb09ab41d6f3471dfb13dd2d6a11581f4a0f2d998dca665c0a25d09",
+        "manual_review": "Pass: character-free, creature-free, text-free, no logo or watermark; modest low-rise plaster-and-timber courtyard with one plain arch, practical paving, restrained railings and greenery, and broad unobstructed sprite-staging space; no upper-tier monumental or ceremonial motifs."
+      },
+      {
+        "id": "1F-B",
+        "tier": "1F",
+        "file": "backgrounds/1f/lobby_1f_covered_pavilion_v1.png",
+        "dimensions": [1664, 936],
+        "sha256": "d1e014fa5dc5349334c2a4e178a6f9ed74db234a101f07f7adff5a8562256a3c",
+        "prompt_file": "prompts/1f/basic_covered_pavilion.txt",
+        "prompt_sha256": "3536423ce89030a219656e3dda81323958b5270db677e3b9550f79d92279d952",
+        "reference_ids": ["ref01", "ref03", "ref04"],
+        "raw_file": "generation_raw/1f/builtin_1f_covered_pavilion_raw.png",
+        "raw_dimensions": [1672, 941],
+        "raw_sha256": "c07af575a6f2485b843b7efc471e9091988619c23f56f2bf5d6529290d7d46ee",
+        "manual_review": "Pass: character-free, creature-free, text-free, no logo or watermark; plain one-story timber shelter with uncarved square posts, a simple roof and stone floor, and broad unobstructed sprite-staging space; no upper-tier monumental or ceremonial motifs."
+      }
+    ]
+  },
   "screening_evidence": {
     "full_source_overviews": [
       "contact_sheets/pmu070_all_strips_overview.png",
@@ -90,6 +145,11 @@
     "detailed_y_index_glob": "contact_sheets/*_y_index.png",
     "accepted_crop_directory": "crops/accepted",
     "screening_crop_directory": "crops/screening"
+  },
+  "review_overviews": {
+    "preserved_2f_3f": "review_overview.jpg",
+    "new_1f": "review_overview_1f.jpg",
+    "tier_comparison": "review_overview_tiers.jpg"
   },
   "windows_review_path": "C:\\Users\\danim\\Pictures\\Ayoa\\PMU Lobby Background Review 20260826"
 }
