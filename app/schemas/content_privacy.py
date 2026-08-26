@@ -75,15 +75,20 @@ _REPO_PATH_ROOTS = (
     r"\.beads|\.cursor|private_extractions"
 )
 _PRIVATE_FILE_SUFFIXES = (
-    r"bmp|cfg|ckpt|csv|db|gif|ini|jpe?g|jsonl?|log|md|pdf|png|py|"
-    r"safetensors|sqlite3?|svg|toml|tsv|txt|webp|ya?ml"
+    r"asc|bmp|cer|cfg|ckpt|crt|csv|db|der|env|gif|gpg|ini|jks|jpe?g|"
+    r"jsonl?|kdbx|key|keystore|log|md|p12|p7[bc]|p8|pdf|pem|pfx|pgp|"
+    r"png|ppk|py|safetensors|sqlite3?|svg|toml|tsv|txt|webp|ya?ml"
+)
+_HTTP_URL_RE = re.compile(
+    r"(?<![A-Za-z0-9])https?://[^\s\"'<>]+",
+    re.IGNORECASE,
 )
 _UNQUOTED_PRIVATE_FILE_PATH_RE = re.compile(
     rf"(?<![A-Za-z0-9_.-])(?:/[^\r\n\"'<>|]*?|"
     rf"[A-Za-z]:[\\/][^\r\n\"'<>|]*?|\\\\[^\r\n\"'<>|]*?|"
     rf"(?:\.{{1,2}}[\\/])?(?:{_REPO_PATH_ROOTS})"
     rf"[\\/][^\r\n\"'<>|]*?)\.(?:{_PRIVATE_FILE_SUFFIXES})"
-    rf"(?=$|[\s,;:)\]}}])",
+    rf"(?=$|[\s,;:!?)\]}}]|\.(?:$|\s))",
     re.IGNORECASE,
 )
 _QUOTED_PRIVATE_PATH_RE = re.compile(
@@ -174,17 +179,44 @@ _UNSAFE_CONTENT_METADATA_PATTERNS = (
 )
 
 
+def _protect_http_urls(value: str) -> tuple[str, list[tuple[str, str]]]:
+    """Keep public web references intact while redacting private paths."""
+
+    prefix = "AYOAHTTPURLTOKEN"
+    while prefix in value:
+        prefix = f"X{prefix}"
+    protected: list[tuple[str, str]] = []
+
+    def replace(match: re.Match[str]) -> str:
+        token = f"{prefix}{len(protected)}END"
+        protected.append((token, match.group(0)))
+        return token
+
+    return _HTTP_URL_RE.sub(replace, value), protected
+
+
+def _restore_http_urls(
+    value: str,
+    protected: Sequence[tuple[str, str]],
+) -> str:
+    for token, url in protected:
+        value = value.replace(token, url)
+    return value
+
+
 def contains_imported_asset_sentinel(value: str) -> bool:
-    return any(pattern.search(value or "") for pattern in _UNSAFE_TEXT_PATTERNS)
+    text, _protected_urls = _protect_http_urls(value or "")
+    return any(pattern.search(text) for pattern in _UNSAFE_TEXT_PATTERNS)
 
 
 def redact_imported_asset_text(value: str) -> str:
     text = str(value or "")
     if not text:
         return ""
+    text, protected_urls = _protect_http_urls(text)
     for pattern in _UNSAFE_TEXT_PATTERNS:
         text = pattern.sub(REDACTED_IMPORT_SENTINEL, text)
-    return " ".join(text.split())
+    return _restore_http_urls(" ".join(text.split()), protected_urls)
 
 
 def redact_imported_content_metadata_text(
@@ -197,6 +229,7 @@ def redact_imported_content_metadata_text(
     text = str(value or "")
     if not text:
         return ""
+    text, protected_urls = _protect_http_urls(text)
     protected = {str(item or "").strip() for item in protected_terms}
     for term in sorted(protected, key=len, reverse=True):
         if len(term) < 8:
@@ -207,7 +240,7 @@ def redact_imported_content_metadata_text(
     text = _CONTENT_METADATA_SENTENCE_RE.sub(" ", text)
     for pattern in _UNSAFE_CONTENT_METADATA_PATTERNS:
         text = pattern.sub(REDACTED_IMPORT_SENTINEL, text)
-    return " ".join(text.split())
+    return _restore_http_urls(" ".join(text.split()), protected_urls)
 
 
 def sanitize_player_safe_text(

@@ -1176,8 +1176,8 @@ def _visible_location_label(
 
 
 def _safe_text(value: object, max_chars: int) -> str:
-    text = strip_terminal_control(
-        redact_imported_content_metadata_text(str(value or ""))
+    text = redact_imported_content_metadata_text(
+        strip_terminal_control(str(value or ""))
     )
     text = " ".join(text.split())
     return text[:max_chars].rstrip()

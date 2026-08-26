@@ -176,8 +176,18 @@ def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
     )
     cases = (
         ("Pip says Alice waits at the gate.", {"pip"}),
+        ("Alice reports Pip waits at the gate.", {"alice"}),
+        ("Bob reports Pip waits and Alice stands guard.", set()),
         ("A photograph shows Pip standing by the gate.", set()),
+        ("A sketch shows Pip standing by the gate.", set()),
+        ("A sketch shows Pip standing and Alice kneeling.", set()),
         ("Pip steps into the room while the radio crackles.", {"pip"}),
+        ("Pip steps into the room and speaks over the radio.", {"pip"}),
+        ("Pip speaks over the radio and steps into the room.", {"pip"}),
+        ("Pip speaks over the radio and stands beside Alice.", {"pip", "alice"}),
+        ("Alice says hello and Pip enters the room.", {"alice", "pip"}),
+        ("Pip arrives and Alice enters the room.", {"pip", "alice"}),
+        ("Pip and Alice step into the room.", {"pip", "alice"}),
         ("Pip stands beside Alice.", {"pip", "alice"}),
     )
 
@@ -210,6 +220,77 @@ def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
             introduction.character_id
             for introduction in narrator_plan.loadouts
         } == expected_ids
+
+
+def test_remote_reports_and_depictions_preserve_later_physical_introduction():
+    for consumer in ("agent", "narrator"):
+        for remote_text in (
+            "Alice reports Pip waits at the gate.",
+            "A sketch shows Pip standing by the gate.",
+        ):
+            ckpt = CheckpointFile(
+                session=SessionState(session_id="s"),
+                characters=[
+                    CharacterRecord(character_id="bob", name="Bob"),
+                    _character("alice", "Alice", CharacterAgentTier.standard),
+                    _character("pip", "Pip", CharacterAgentTier.standard),
+                ],
+            )
+            remote_event = _event(remote_text)
+            if consumer == "agent":
+                remote = plan_event_visual_introductions(
+                    ckpt,
+                    viewer_id="bob",
+                    event=remote_event,
+                    observation_level="direct",
+                    max_loadouts=3,
+                )
+            else:
+                remote = plan_render_visual_introductions(
+                    ckpt,
+                    viewer_id="bob",
+                    resolved=[(
+                        RenderBufferEntry(
+                            event_id=remote_event.event_id,
+                            observation_level="direct",
+                        ),
+                        remote_event,
+                    )],
+                    max_loadouts=3,
+                )
+            mark_visual_introductions(
+                ckpt,
+                "bob",
+                remote.mark_character_ids,
+            )
+
+            assert "pip" not in remote.mark_character_ids
+
+            meeting_event = _event("Pip steps into the gatehouse.")
+            if consumer == "agent":
+                meeting = plan_event_visual_introductions(
+                    ckpt,
+                    viewer_id="bob",
+                    event=meeting_event,
+                    observation_level="direct",
+                    max_loadouts=3,
+                )
+            else:
+                meeting = plan_render_visual_introductions(
+                    ckpt,
+                    viewer_id="bob",
+                    resolved=[(
+                        RenderBufferEntry(
+                            event_id=meeting_event.event_id,
+                            observation_level="direct",
+                        ),
+                        meeting_event,
+                    )],
+                    max_loadouts=3,
+                )
+
+            assert [intro.character_id for intro in meeting.loadouts] == ["pip"]
+            assert meeting.mark_character_ids == ["pip"]
 
 
 def test_agent_remote_voice_does_not_consume_intro_before_direct_speech():

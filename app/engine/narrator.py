@@ -45,6 +45,12 @@ from app.schemas.state import RenderBufferEntry
 logger = logging.getLogger(__name__)
 
 
+def _safe_narrator_prompt_context(value: object) -> str:
+    return redact_imported_content_metadata_text(
+        strip_terminal_control(str(value or ""))
+    ).strip()
+
+
 def _checkpoint_roster_source_ids(ckpt: CheckpointFile) -> tuple[str, ...]:
     return tuple(
         character.character_id
@@ -289,9 +295,11 @@ async def compose_pov_render(
     pov_name = pov_char.name if pov_char else pov_character_id
 
     from app.engine.context_builder import build_setting_summary
-    setting_summary = build_setting_summary(ckpt)
+    setting_summary = _safe_narrator_prompt_context(
+        build_setting_summary(ckpt)
+    )
     narrative_rules = (
-        ckpt.session.config.narrative_rules
+        _safe_narrator_prompt_context(ckpt.session.config.narrative_rules)
         or "No specific narrative rules."
     )
     player_characters_block = build_narrator_player_characters_block(

@@ -19,7 +19,9 @@ _LOADOUT_TAG_RE = re.compile(r"^\[loadout\s+[—–-]\s*([^\]]+)\]", re.IGNORECA
 _SPEECH_VERB_RE = (
     r"says|said|asks|asked|replies|replied|whispers|whispered|"
     r"shouts|shouted|speaks|spoke|calls|called|murmurs|murmured|"
-    r"mutters|muttered|tells|told"
+    r"mutters|muttered|tells|told|reports|reported|reporting|"
+    r"announces|announced|announcing|mentions|mentioned|mentioning|"
+    r"states|stated|stating|describes|described|describing"
 )
 _QUOTED_SPAN_RE = re.compile(
     r'"[^"\n]*"|“[^”\n]*”|\'[^\'\n]*\'|‘[^’\n]*’'
@@ -30,14 +32,15 @@ _MEDIATED_CHANNEL_NOUNS = (
 )
 _MEDIATED_VISUAL_NOUNS = (
     r"screen|monitor|camera|video|feed|projection|hologram|recording|"
-    r"image|portrait|photograph|photo|likeness"
+    r"image|portrait|photograph|photo|likeness|sketch|drawing|painting|"
+    r"illustration|poster|mural|statue|sculpture|scrying\s+mirror"
 )
 _MEDIATED_SUBJECT_PREFIX_RE = re.compile(
-    rf"\b(?:{_MEDIATED_CHANNEL_NOUNS}|image|portrait|photograph|photo|"
-    rf"likeness|voice|message|mail|letter|note|report|rumou?r|news)\b"
-    rf"[^.?!;\n]{{0,96}}\b(?:shows?|displays?|depicts?|captures?|carries|"
-    rf"relays?|plays?|crackles|reports?|says?|announces?|mentions?|from|"
-    rf"about|of)\b[^.?!;\n]*$|"
+    rf"\b(?:{_MEDIATED_CHANNEL_NOUNS}|{_MEDIATED_VISUAL_NOUNS}|voice|"
+    rf"message|mail|letter|note|report|rumou?r|news)\b"
+    rf"[^.?!;\n]{{0,96}}\b(?:shows?|displays?|depicts?|portrays?|"
+    rf"represents?|renders?|captures?|carries|relays?|plays?|crackles|"
+    rf"reports?|says?|announces?|mentions?|from|about|of)\b[^.?!;\n]*$|"
     rf"\b(?:over|through|via|on|from)\s+(?:a|an|the)?\s*"
     rf"(?:{_MEDIATED_CHANNEL_NOUNS})\b[^.?!;\n]*$|"
     rf"\b(?:on|in)\s+(?:a|an|the)?\s*(?:{_MEDIATED_VISUAL_NOUNS})\b"
@@ -54,11 +57,18 @@ _PRIOR_REPORTING_RE = re.compile(
     rf"\b(?:{_SPEECH_VERB_RE})\b|\baccording\s+to\b",
     re.IGNORECASE,
 )
+_REPORTED_CONTENT_VERB_RE = re.compile(
+    r"\b(?:says?|said|reports?|reported|reporting|announces?|announced|"
+    r"announcing|mentions?|mentioned|mentioning|states?|stated|stating|"
+    r"describes?|described|describing)\b",
+    re.IGNORECASE,
+)
 _CLAUSE_BOUNDARY_RE = re.compile(
     r"(?:[,;]\s*|\s+)\b(?:while|whereas|although|though|meanwhile|then|"
     r"afterwards?|but|as)\b(?:\s+|,\s*)",
     re.IGNORECASE,
 )
+_PREDICATE_COORDINATOR_RE = re.compile(r"\b(?:and|or)\b", re.IGNORECASE)
 _PHYSICAL_PRESENCE_VERB_RE = re.compile(
     rf"\b(?:(?:{_SPEECH_VERB_RE})|"
     r"adjust(?:s|ed|ing)?|approach(?:es|ed|ing)?|arriv(?:e|es|ed|ing)|"
@@ -234,6 +244,61 @@ def _clause_bounds(sentence: str, position: int) -> tuple[int, int]:
     return start, end
 
 
+def _subject_scope_start(
+    ckpt: CheckpointFile,
+    sentence: str,
+    *,
+    clause_start: int,
+    subject_start: int,
+) -> int:
+    """Start at an independent coordinated subject, not an earlier speaker."""
+
+    scope_start = clause_start
+    for coordinator in _PREDICATE_COORDINATOR_RE.finditer(
+        sentence,
+        clause_start,
+        subject_start,
+    ):
+        prior_predicate = sentence[scope_start:coordinator.start()]
+        if (
+            _PHYSICAL_PRESENCE_VERB_RE.search(prior_predicate)
+            or _COPRESENCE_PREDICATE_RE.search(prior_predicate)
+        ):
+            report = _REPORTED_CONTENT_VERB_RE.search(prior_predicate)
+            reported_text = (
+                prior_predicate[report.end():] if report is not None else ""
+            )
+            reported_roster_subject = any(
+                re.search(
+                    rf"(?<![A-Za-z0-9_]){re.escape(probe)}"
+                    rf"(?![A-Za-z0-9_])",
+                    reported_text,
+                    re.IGNORECASE,
+                )
+                for character in _active_roster_characters(ckpt)
+                for probe in (character.character_id, character.name)
+                if probe
+            )
+            if (
+                _MEDIATED_SUBJECT_PREFIX_RE.search(prior_predicate)
+                or reported_roster_subject
+            ):
+                continue
+            scope_start = coordinator.end()
+    return scope_start
+
+
+def _presence_evidence_matches(suffix: str) -> list[re.Match[str]]:
+    matches: dict[tuple[int, int], re.Match[str]] = {}
+    for matcher in (
+        _PHYSICAL_PRESENCE_VERB_RE,
+        _COPRESENCE_PREDICATE_RE,
+    ):
+        for match in matcher.finditer(suffix):
+            matches.setdefault((match.start(), match.end()), match)
+    return sorted(matches.values(), key=lambda item: (item.start(), item.end()))
+
+
 def _presence_evidence_for_match(
     ckpt: CheckpointFile,
     *,
@@ -249,51 +314,80 @@ def _presence_evidence_for_match(
         return None
 
     clause_start, clause_end = _clause_bounds(sentence, subject_match.start())
+    subject_scope_start = _subject_scope_start(
+        ckpt,
+        sentence,
+        clause_start=clause_start,
+        subject_start=subject_match.start(),
+    )
     bounded_end = min(clause_end, subject_match.end() + 180)
     suffix = sentence[subject_match.end():bounded_end]
-    evidence_matches = [
-        evidence
-        for matcher in (
-            _PHYSICAL_PRESENCE_VERB_RE,
-            _COPRESENCE_PREDICATE_RE,
-        )
-        if (evidence := matcher.search(suffix)) is not None
-    ]
+    evidence_matches = _presence_evidence_matches(suffix)
     if not evidence_matches:
         return None
-    evidence_match = min(evidence_matches, key=lambda item: item.start())
-    gap = suffix[:evidence_match.start()]
-    if not _presence_gap_is_bounded_subject_context(
-        ckpt,
-        character_id=character_id,
-        gap=gap,
-    ):
-        return None
-    if _NON_CURRENT_PRESENCE_RE.search(gap):
-        return None
 
-    subject_prefix = sentence[clause_start:subject_match.start()]
+    subject_prefix = sentence[subject_scope_start:subject_match.start()]
     if _MEDIATED_SUBJECT_PREFIX_RE.search(subject_prefix):
         return None
     if _PRIOR_REPORTING_RE.search(subject_prefix):
         return None
 
-    evidence_start = subject_match.end() + evidence_match.start()
-    evidence_end = subject_match.end() + evidence_match.end()
-    if _FUTURE_TIME_RE.search(
-        sentence[evidence_end:min(clause_end, evidence_end + 32)]
-    ):
-        return None
-    if _MEDIATED_CHANNEL_BINDING_RE.search(
-        sentence[subject_match.end():clause_end]
-    ):
-        return None
-    return _PresenceEvidence(
-        character_id=character_id,
-        evidence_start=evidence_start,
-        clause_start=clause_start,
-        clause_end=clause_end,
-    )
+    absolute_matches = [
+        (
+            subject_match.end() + match.start(),
+            subject_match.end() + match.end(),
+        )
+        for match in evidence_matches
+    ]
+    for index, (evidence_start, evidence_end) in enumerate(absolute_matches):
+        predicate_start = subject_match.end()
+        if index:
+            previous_end = absolute_matches[index - 1][1]
+            coordinators = list(_PREDICATE_COORDINATOR_RE.finditer(
+                sentence,
+                previous_end,
+                evidence_start,
+            ))
+            if coordinators:
+                predicate_start = coordinators[-1].end()
+
+        predicate_end = clause_end
+        if index + 1 < len(absolute_matches):
+            next_start = absolute_matches[index + 1][0]
+            next_coordinator = _PREDICATE_COORDINATOR_RE.search(
+                sentence,
+                evidence_end,
+                next_start,
+            )
+            if next_coordinator:
+                predicate_end = next_coordinator.start()
+
+        gap = sentence[predicate_start:evidence_start]
+        if not _presence_gap_is_bounded_subject_context(
+            ckpt,
+            character_id=character_id,
+            gap=gap,
+        ):
+            continue
+        if _NON_CURRENT_PRESENCE_RE.search(
+            sentence[subject_match.end():evidence_start]
+        ):
+            continue
+        if _FUTURE_TIME_RE.search(
+            sentence[evidence_end:min(predicate_end, evidence_end + 32)]
+        ):
+            continue
+        if _MEDIATED_CHANNEL_BINDING_RE.search(
+            sentence[predicate_start:predicate_end]
+        ):
+            continue
+        return _PresenceEvidence(
+            character_id=character_id,
+            evidence_start=evidence_start,
+            clause_start=predicate_start,
+            clause_end=predicate_end,
+        )
+    return None
 
 
 def _copresent_object_ids(
