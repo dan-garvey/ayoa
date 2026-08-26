@@ -58,7 +58,12 @@ from app.schemas.events import (
     WorldAdjudication,
     visible_fact_texts,
 )
-from app.schemas.narrator import VisualNovelNarratorOutput, VisualNovelPage
+from app.schemas.narrator import (
+    NarratorFinalOutput,
+    TranscriptEntry,
+    VisualNovelNarratorOutput,
+    VisualNovelPage,
+)
 from app.schemas.router_targets import targets_from_router_output
 from app.schemas.state import (
     DndCombatantState,
@@ -3225,6 +3230,145 @@ class TestSchemaValidators:
 
 
 class TestEndBeatFanout:
+    @pytest.mark.parametrize("presentation_mode", ["prose", "visual_novel"])
+    @pytest.mark.parametrize(
+        "pov_ids",
+        [("alice",), ("alice", "bob")],
+        ids=["single_pov", "multi_pov"],
+    )
+    def test_forced_continue_rolls_back_entire_render_batch_atomically(
+        self,
+        presentation_mode,
+        pov_ids,
+    ):
+        from app.engine.turn_loop import _end_beat
+
+        ckpt = _ckpt({
+            character_id: str(index)
+            for index, character_id in enumerate(pov_ids, start=1)
+        })
+        ckpt.session.config.settings.presentation_mode = presentation_mode
+        event = _router_out(
+            event_id="evt_forced_boundary",
+            event_kind="cascade_exhausted",
+            observer_ids=list(pov_ids),
+            facts=[ObservableFact.all("The gate locks open.")],
+        )
+        ckpt.canonical_events.append(event)
+        for character_id in pov_ids:
+            append_to_render_buffer(
+                ckpt,
+                character_id,
+                event.event_id,
+                "direct",
+            )
+            ckpt.narrator_conversations[character_id] = [ConversationMessage(
+                role="assistant",
+                content=f"prior {character_id} render",
+            )]
+        ckpt.session.visual_introductions = {
+            character_id: ["existing_npc"] for character_id in pov_ids
+        }
+        expected_history = {
+            character_id: [
+                message.model_dump(mode="json")
+                for message in ckpt.narrator_conversations[character_id]
+            ]
+            for character_id in pov_ids
+        }
+        expected_introductions = {
+            character_id: ["existing_npc"] for character_id in pov_ids
+        }
+
+        cancelled_transactions: list[str] = []
+
+        class RecordingImageSink:
+            async def start_render_candidate(self, **_kwargs):
+                return "imgtx_forced_boundary"
+
+            async def cancel_transaction(self, transaction_id, **_kwargs):
+                cancelled_transactions.append(transaction_id)
+
+            async def commit_transaction(self, *_args, **_kwargs):
+                return None
+
+        image_runtime = ClosedEventRuntime(
+            transaction_id="tx_forced_boundary",
+            source_turn_index=1,
+            spawn_authoring=SpawnAuthoringCoordinator(object()),
+            image_sink=RecordingImageSink(),
+        )
+        install_closed_event_runtime(ckpt, image_runtime)
+
+        class MutatingDispatcher(FakeDispatcher):
+            async def narrator_compose(self, **kwargs):
+                self.narrator_calls.append(kwargs)
+                character_id = kwargs["character_id"]
+                kwargs["ckpt"].narrator_conversations[character_id].append(
+                    ConversationMessage(
+                        role="assistant",
+                        content="speculative narrator mutation",
+                    )
+                )
+                kwargs["ckpt"].session.visual_introductions[
+                    character_id
+                ].append("pip")
+                handoff = "continue" if character_id == "alice" else "render"
+                if presentation_mode == "visual_novel":
+                    envelope = VisualNovelNarratorOutput(
+                        handoff=handoff,
+                        handoff_reason="Forced-boundary contract test.",
+                        pages=(
+                            []
+                            if handoff == "continue"
+                            else [VisualNovelPage(
+                                kind="narration",
+                                text="The gate locks open.",
+                            )]
+                        ),
+                    )
+                else:
+                    envelope = NarratorFinalOutput(
+                        handoff=handoff,
+                        handoff_reason="Forced-boundary contract test.",
+                        final_text=(
+                            "" if handoff == "continue" else "The gate locks open."
+                        ),
+                    )
+                return envelope, TranscriptEntry(
+                    user=kwargs.get("user_input", ""),
+                    assistant=(
+                        "" if handoff == "continue" else "The gate locks open."
+                    ),
+                )
+
+        fake = MutatingDispatcher()
+
+        with pytest.raises(ValueError, match="forced handoff policy"):
+            asyncio.run(_end_beat(
+                ckpt,
+                fake,
+                ended_reason="cascade_exhausted",
+                events_closed=1,
+                event_actor_ids=["alice"],
+            ))
+
+        assert {
+            character_id: [
+                message.model_dump(mode="json")
+                for message in ckpt.narrator_conversations[character_id]
+            ]
+            for character_id in pov_ids
+        } == expected_history
+        assert ckpt.session.visual_introductions == expected_introductions
+        assert all(
+            [entry.event_id for entry in ckpt.session.render_buffers[character_id]]
+            == [event.event_id]
+            for character_id in pov_ids
+        )
+        assert cancelled_transactions == ["imgtx_forced_boundary"]
+        assert image_runtime.accepted_image_transaction_ids == set()
+
     def test_buffered_humans_render_in_parallel(self):
         import time
         from app.engine.turn_loop import _end_beat

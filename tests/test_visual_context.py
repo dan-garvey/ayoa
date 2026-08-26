@@ -165,6 +165,92 @@ def test_agent_event_plan_uses_speaker_not_quoted_mentions():
     assert plan.mark_character_ids == ["alice"]
 
 
+def test_agent_remote_voice_does_not_consume_intro_before_direct_speech():
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            CharacterRecord(character_id="bob", name="Bob"),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+        ],
+    )
+
+    remote = plan_event_visual_introductions(
+        ckpt,
+        viewer_id="bob",
+        event=_event("Pip says over the radio, 'I will arrive later.'"),
+        observation_level="direct",
+        max_loadouts=3,
+    )
+    mark_visual_introductions(ckpt, "bob", remote.mark_character_ids)
+
+    assert remote.loadouts == []
+    assert ckpt.session.visual_introductions == {}
+
+    meeting = plan_event_visual_introductions(
+        ckpt,
+        viewer_id="bob",
+        event=_event("Pip holds a sealed letter and says, 'I made it.'"),
+        observation_level="direct",
+        max_loadouts=3,
+    )
+
+    assert [intro.character_id for intro in meeting.loadouts] == ["pip"]
+    assert meeting.mark_character_ids == ["pip"]
+
+
+def test_narrator_remote_references_do_not_consume_intro_before_copresence():
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s", character_bindings={"alice": "1"}),
+        characters=[
+            CharacterRecord(character_id="alice", name="Alice"),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+        ],
+    )
+    remote_texts = [
+        "The radio crackles: 'Pip will arrive later.'",
+        "Pip's message says he will arrive later.",
+        "A wall feed shows Pip walking through the outer courtyard.",
+        "Alice points toward Pip's empty chair.",
+        "Alice mentions Pip and smiles.",
+    ]
+    for index, text in enumerate(remote_texts):
+        event = _event(text)
+        event.event_id = f"evt_remote_{index}"
+        plan = plan_render_visual_introductions(
+            ckpt,
+            viewer_id="alice",
+            resolved=[(
+                RenderBufferEntry(
+                    event_id=event.event_id,
+                    observation_level="direct",
+                ),
+                event,
+            )],
+            max_loadouts=3,
+        )
+        mark_visual_introductions(ckpt, "alice", plan.mark_character_ids)
+        assert plan.loadouts == []
+
+    assert ckpt.session.visual_introductions == {}
+
+    meeting = _event("Pip is now beside Alice in the gatehouse.")
+    plan = plan_render_visual_introductions(
+        ckpt,
+        viewer_id="alice",
+        resolved=[(
+            RenderBufferEntry(
+                event_id=meeting.event_id,
+                observation_level="direct",
+            ),
+            meeting,
+        )],
+        max_loadouts=3,
+    )
+
+    assert [intro.character_id for intro in plan.loadouts] == ["pip"]
+    assert plan.mark_character_ids == ["pip"]
+
+
 def test_agent_event_plan_ignores_plain_name_mentions():
     ckpt = CheckpointFile(
         session=SessionState(session_id="s"),

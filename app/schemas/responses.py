@@ -9,7 +9,10 @@ from app.schemas.content_privacy import (
     sanitize_player_safe_text,
 )
 from app.schemas.content_pack import SafeAssetRevealPayload
-from app.schemas.narrator import VisualNovelPage
+from app.schemas.narrator import (
+    VisualNovelPage,
+    visual_novel_pages_contain_source_identifiers,
+)
 from app.schemas.state import DndExperienceAwardDisplay
 
 
@@ -77,6 +80,14 @@ class VisualNovelRenderSegment(BaseModel):
         if any(not value for value in cleaned):
             raise ValueError("rendered_event_ids cannot contain blank ids")
         return cleaned
+
+    @model_validator(mode="after")
+    def _reject_source_shaped_page_fields(self) -> "VisualNovelRenderSegment":
+        if visual_novel_pages_contain_source_identifiers(self.pages):
+            raise ValueError(
+                "visual-novel response pages cannot expose source-shaped ids"
+            )
+        return self
 
 
 class VisualNovelRender(BaseModel):

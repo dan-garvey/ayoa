@@ -81,6 +81,25 @@ _UNDERSCORE_SOURCE_IDENTIFIER_RE = re.compile(
 )
 
 
+def visual_novel_text_contains_source_identifiers(
+    value: str,
+    *,
+    source_ids: Sequence[str] = (),
+) -> bool:
+    """Return whether one player-visible ADV field exposes an engine id."""
+
+    if _UNDERSCORE_SOURCE_IDENTIFIER_RE.search(value):
+        return True
+    return any(
+        re.search(
+            rf"(?<![A-Za-z0-9_]){re.escape(source_id)}(?![A-Za-z0-9_])",
+            value,
+        )
+        for source_id in dict.fromkeys(source_ids)
+        if source_id
+    )
+
+
 def visual_novel_pages_contain_source_identifiers(
     pages: Sequence[VisualNovelPage],
     *,
@@ -94,18 +113,12 @@ def visual_novel_pages_contain_source_identifiers(
     match to be rejected.
     """
 
-    exact_patterns = [
-        re.compile(
-            rf"(?<![A-Za-z0-9_]){re.escape(source_id)}(?![A-Za-z0-9_])"
-        )
-        for source_id in dict.fromkeys(source_ids)
-        if source_id
-    ]
     for page in pages:
         for value in (page.speaker, page.text):
-            if _UNDERSCORE_SOURCE_IDENTIFIER_RE.search(value):
-                return True
-            if any(pattern.search(value) for pattern in exact_patterns):
+            if visual_novel_text_contains_source_identifiers(
+                value,
+                source_ids=source_ids,
+            ):
                 return True
     return False
 

@@ -1089,6 +1089,27 @@ class TestVisualNovelRender:
         assert render.segments[0].pages[0].text == "Scene two."
 
     @pytest.mark.parametrize(
+        "page",
+        [
+            VisualNovelPage(
+                kind="dialogue",
+                speaker="unknown_guard",
+                text="Halt.",
+            ),
+            VisualNovelPage(
+                kind="narration",
+                text="The unknown_guard raises a hand.",
+            ),
+        ],
+    )
+    def test_response_segment_rejects_generic_source_shaped_ids(self, page):
+        with pytest.raises(ValidationError, match="source-shaped ids"):
+            VisualNovelRenderSegment(
+                pages=[page],
+                rendered_event_ids=["evt_one"],
+            )
+
+    @pytest.mark.parametrize(
         "kwargs",
         [
             {"pages": [], "rendered_event_ids": ["evt_one"]},
