@@ -58,6 +58,7 @@ from app.schemas.events import (
     WorldAdjudication,
     visible_fact_texts,
 )
+from app.schemas.narrator import VisualNovelNarratorOutput, VisualNovelPage
 from app.schemas.router_targets import targets_from_router_output
 from app.schemas.state import (
     DndCombatantState,
@@ -3558,7 +3559,24 @@ class TestNarratorHandoff:
             actor_ids=["alice"],
             opened_event_id="evt_prior",
         )]
-        fake = FakeDispatcher()
+
+        class VisualNovelDispatcher(FakeDispatcher):
+            async def narrator_compose(self, **kwargs):
+                envelope, entry = await super().narrator_compose(**kwargs)
+                return VisualNovelNarratorOutput(
+                    handoff=envelope.handoff,
+                    handoff_reason=envelope.handoff_reason,
+                    pages=(
+                        [VisualNovelPage(
+                            kind="narration",
+                            text=envelope.final_text,
+                        )]
+                        if envelope.handoff == "render"
+                        else []
+                    ),
+                ), entry
+
+        fake = VisualNovelDispatcher()
         fake.queue_route(_router_out(
             event_id="evt_motion",
             event_kind="cascade_exhausted",
@@ -3591,9 +3609,15 @@ class TestNarratorHandoff:
             ))
 
         assert result.renders == {"alice": "ACCEPTED BATCH"}
-        assert result.rendered_event_ids_by_pov == {
-            "alice": ["evt_motion", "evt_arrival"]
-        }
+        render = result.visual_novel_renders["alice"]
+        assert len(render.segments) == 1
+        assert render.segments[0].rendered_event_ids == [
+            "evt_motion",
+            "evt_arrival",
+        ]
+        assert [page.text for page in render.segments[0].pages] == [
+            "ACCEPTED BATCH"
+        ]
         assert [
             len(call["buffered_events"]) for call in fake.narrator_calls
         ] == [1, 2]

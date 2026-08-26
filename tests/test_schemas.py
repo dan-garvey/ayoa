@@ -34,7 +34,11 @@ from app.schemas.narrator import (
     narrator_plain_text,
 )
 from app.schemas.requests import TurnRequest
-from app.schemas.responses import TurnResponse
+from app.schemas.responses import (
+    TurnResponse,
+    VisualNovelRender,
+    VisualNovelRenderSegment,
+)
 from app.schemas.checkpoint import CheckpointFile
 
 
@@ -1047,6 +1051,44 @@ class TestVisualNovelNarratorOutput:
             )
 
 
+class TestVisualNovelRender:
+    def test_segments_keep_pages_with_ordered_event_provenance(self):
+        render = VisualNovelRender(segments=[VisualNovelRenderSegment(
+            pages=[VisualNovelPage(kind="narration", text="Scene two.")],
+            rendered_event_ids=["evt_second", "evt_first"],
+        )])
+
+        assert render.segments[0].rendered_event_ids == [
+            "evt_second",
+            "evt_first",
+        ]
+        assert render.segments[0].pages[0].text == "Scene two."
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"pages": [], "rendered_event_ids": ["evt_one"]},
+            {
+                "pages": [VisualNovelPage(kind="narration", text="Scene.")],
+                "rendered_event_ids": [],
+            },
+            {
+                "pages": [VisualNovelPage(kind="narration", text="Scene.")],
+                "rendered_event_ids": ["   "],
+            },
+        ],
+    )
+    def test_segment_requires_pages_and_nonblank_event_ids(self, kwargs):
+        with pytest.raises(ValidationError):
+            VisualNovelRenderSegment(**kwargs)
+
+    def test_render_requires_segments_and_has_no_flat_page_reader(self):
+        with pytest.raises(ValidationError):
+            VisualNovelRender(pages=[
+                VisualNovelPage(kind="narration", text="Legacy flat page.")
+            ])
+
+
 class TestTurnRequest:
     def test_construct(self):
         tr = TurnRequest(session_id="abc", user_input="I look around.")
@@ -1102,6 +1144,7 @@ class TestTurnResponse:
         assert tr.dice_rolls == []
         assert tr.asset_reveals == []
         assert tr.per_player_asset_reveals == {}
+        assert not hasattr(tr, "rendered_event_ids_by_pov")
 
     def test_legacy_debug_payload_silently_dropped(self):
         tr = TurnResponse(

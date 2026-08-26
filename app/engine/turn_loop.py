@@ -111,7 +111,7 @@ from app.schemas.narrator import (
     VisualNovelNarratorOutput,
     narrator_plain_text,
 )
-from app.schemas.responses import VisualNovelRender
+from app.schemas.responses import VisualNovelRender, VisualNovelRenderSegment
 from app.schemas.router_targets import (
     RouterOutputTarget,
     targets_from_router_output,
@@ -2866,9 +2866,6 @@ class BeatResult:
     )
     reaction_prompts: dict[str, str] | None = None
     loot_prompts: dict[str, list[str]] | None = None
-    rendered_event_ids_by_pov: dict[str, list[str]] = field(
-        default_factory=dict
-    )
     continue_requested: bool = False
 
 
@@ -4134,7 +4131,6 @@ async def _end_beat(
     renders: dict[str, str] = {}
     visual_novel_renders: dict[str, VisualNovelRender] = {}
     transcript_entries: dict[str, TranscriptEntry] = {}
-    rendered_event_ids_by_pov: dict[str, list[str]] = {}
     from app.engine.context_builder import collect_player_ids
     player_ids = collect_player_ids(ckpt)
     reaction_prompts = _eligible_combat_reaction_prompts(
@@ -4355,13 +4351,20 @@ async def _end_beat(
             renders[h] = narrator_plain_text(envelope)
             if isinstance(envelope, VisualNovelNarratorOutput):
                 visual_novel_renders[h] = VisualNovelRender(
-                    pages=[page.model_copy(deep=True) for page in envelope.pages]
+                    segments=[
+                        VisualNovelRenderSegment(
+                            pages=[
+                                page.model_copy(deep=True)
+                                for page in envelope.pages
+                            ],
+                            rendered_event_ids=[
+                                buffered.event_id
+                                for buffered in dict(targets)[h]
+                            ],
+                        )
+                    ]
                 )
             transcript_entries[h] = entry
-        rendered_event_ids_by_pov = {
-            h: [entry.event_id for entry in buf]
-            for h, buf in targets
-        }
 
     _accept_speculative_spawn_roster(ckpt)
 
@@ -4403,7 +4406,6 @@ async def _end_beat(
         event_actor_ids=event_actor_ids,
         visual_novel_renders=visual_novel_renders,
         reaction_prompts=reaction_prompts,
-        rendered_event_ids_by_pov=rendered_event_ids_by_pov,
     )
 
 

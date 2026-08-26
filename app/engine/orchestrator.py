@@ -421,11 +421,13 @@ def _combine_visual_novel_renders(
     for result in results:
         for character_id, render in result.visual_novel_renders.items():
             existing = combined.get(character_id)
-            pages = [page.model_copy(deep=True) for page in render.pages]
+            segments = [
+                segment.model_copy(deep=True) for segment in render.segments
+            ]
             if existing is None:
-                combined[character_id] = VisualNovelRender(pages=pages)
+                combined[character_id] = VisualNovelRender(segments=segments)
             else:
-                existing.pages.extend(pages)
+                existing.segments.extend(segments)
     return combined
 
 
@@ -565,19 +567,6 @@ def _combined_beat_reason(results: list[BeatResult]) -> str:
     return results[-1].ended_reason if results else ""
 
 
-def _combined_rendered_event_ids(
-    results: list[BeatResult],
-) -> dict[str, list[str]]:
-    combined: dict[str, list[str]] = {}
-    for result in results:
-        for pov_id, event_ids in result.rendered_event_ids_by_pov.items():
-            destination = combined.setdefault(pov_id, [])
-            for event_id in event_ids:
-                if event_id not in destination:
-                    destination.append(event_id)
-    return combined
-
-
 def _turn_response_from_beat_results(
     *,
     session_id: str,
@@ -602,7 +591,6 @@ def _turn_response_from_beat_results(
         output_text=output_text,
         per_player_renders=per_player,
         per_player_visual_novel_renders=visual_novel,
-        rendered_event_ids_by_pov=_combined_rendered_event_ids(beat_results),
         beat_ended_reason=_combined_beat_reason(beat_results),
         reaction_prompts=final_result.reaction_prompts or {},
         loot_prompts=_combine_loot_prompts(beat_results),
@@ -1867,9 +1855,6 @@ class Orchestrator:
                 ],
                 visual_novel_renders=followup_result.visual_novel_renders,
                 reaction_prompts=followup_result.reaction_prompts or {},
-                rendered_event_ids_by_pov=(
-                    followup_result.rendered_event_ids_by_pov
-                ),
             )
 
         return await _end_beat(

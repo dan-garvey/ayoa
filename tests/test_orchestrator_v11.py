@@ -34,8 +34,10 @@ from app.schemas.events import (
     ObservableFact,
     WorldAdjudication,
 )
-from app.schemas.requests import TurnRequest
+from app.schemas.narrator import VisualNovelPage
 from app.schemas.one_star import OneStarEventRouterOutput
+from app.schemas.requests import TurnRequest
+from app.schemas.responses import VisualNovelRender, VisualNovelRenderSegment
 from app.schemas.state import (
     CatIIRollRecord,
     CatIIRollTransaction,
@@ -379,6 +381,63 @@ def test_turn_response_xp_award_drain_is_persisted(patched_orchestrator):
     orch._save_if_response_drained_runtime_state(ckpt, response)
 
     mgr.save.assert_called_once_with(ckpt)
+
+
+def test_turn_response_preserves_visual_novel_beat_segments():
+    ckpt = _ckpt(bindings={"alice": "u1"})
+    first = VisualNovelRenderSegment(
+        pages=[VisualNovelPage(kind="narration", text="Scene A.")],
+        rendered_event_ids=["evt_a"],
+    )
+    second = VisualNovelRenderSegment(
+        pages=[VisualNovelPage(
+            kind="dialogue",
+            speaker="Alice",
+            text="Scene B.",
+        )],
+        rendered_event_ids=["evt_b"],
+    )
+
+    response = _turn_response_from_beat_results(
+        session_id="s",
+        ckpt=ckpt,
+        acting_id="alice",
+        beat_results=[
+            BeatResult(
+                renders={"alice": "Scene A."},
+                events_closed=1,
+                ended_reason="cascade_exhausted",
+                transcript_entries={},
+                event_actor_ids=["alice"],
+                visual_novel_renders={
+                    "alice": VisualNovelRender(segments=[first])
+                },
+            ),
+            BeatResult(
+                renders={"alice": "Alice: Scene B."},
+                events_closed=1,
+                ended_reason="awaiting_player_turn",
+                transcript_entries={},
+                event_actor_ids=["alice"],
+                visual_novel_renders={
+                    "alice": VisualNovelRender(segments=[second])
+                },
+            ),
+        ],
+        roll_keys_before=set(),
+    )
+
+    assert response is not None
+    assert response.output_text == "Scene A. Alice: Scene B."
+    render = response.per_player_visual_novel_renders["alice"]
+    assert [segment.rendered_event_ids for segment in render.segments] == [
+        ["evt_a"],
+        ["evt_b"],
+    ]
+    assert [
+        page.text for segment in render.segments for page in segment.pages
+    ] == ["Scene A.", "Scene B."]
+    assert not hasattr(response, "rendered_event_ids_by_pov")
 
 
 @pytest.fixture

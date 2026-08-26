@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.content_privacy import (
     redact_imported_asset_text,
@@ -64,10 +64,25 @@ class DiceRollDisplay(BaseModel):
     automatic: bool = True
 
 
-class VisualNovelRender(BaseModel):
-    """Structured player-safe narrator render before card composition."""
+class VisualNovelRenderSegment(BaseModel):
+    """One accepted POV beat and its canonical stage provenance."""
 
     pages: list[VisualNovelPage] = Field(min_length=1)
+    rendered_event_ids: list[str] = Field(min_length=1)
+
+    @field_validator("rendered_event_ids")
+    @classmethod
+    def _require_nonempty_event_ids(cls, values: list[str]) -> list[str]:
+        cleaned = [str(value).strip() for value in values]
+        if any(not value for value in cleaned):
+            raise ValueError("rendered_event_ids cannot contain blank ids")
+        return cleaned
+
+
+class VisualNovelRender(BaseModel):
+    """Ordered player-safe beat segments before card composition."""
+
+    segments: list[VisualNovelRenderSegment] = Field(min_length=1)
 
 
 class TurnResponse(BaseModel):
@@ -87,15 +102,11 @@ class TurnResponse(BaseModel):
     # the beat paused mid-Cat-II (see
     # `beat_ended_reason`) or nobody was present to observe.
     per_player_renders: dict[str, str] = Field(default_factory=dict)
-    # Structured ADV pages for POVs rendered while the session is in
-    # visual_novel mode. ``per_player_renders`` remains the deterministic
-    # accessibility/transcript projection of these same pages.
+    # Structured ADV beat segments for POVs rendered while the session is in
+    # visual_novel mode. Each segment carries the canonical event ids used to
+    # resolve its own stage plate. ``per_player_renders`` remains the
+    # deterministic accessibility/transcript projection of the same pages.
     per_player_visual_novel_renders: dict[str, VisualNovelRender] = Field(
-        default_factory=dict
-    )
-    # Canonical event ids included in each successful POV render. Presentation
-    # uses these ids to resolve the committed stage transition for that POV.
-    rendered_event_ids_by_pov: dict[str, list[str]] = Field(
         default_factory=dict
     )
     # Player-safe asset reveal payloads for legacy single-POV callers. For
@@ -156,9 +167,10 @@ class TurnResponse(BaseModel):
             for cid, text in (self.per_player_renders or {}).items()
         }
         for render in (self.per_player_visual_novel_renders or {}).values():
-            for page in render.pages:
-                page.speaker = sanitize_player_safe_text(page.speaker)
-                page.text = redact_imported_asset_text(page.text)
+            for segment in render.segments:
+                for page in segment.pages:
+                    page.speaker = sanitize_player_safe_text(page.speaker)
+                    page.text = redact_imported_asset_text(page.text)
         self.asset_reveals = _safe_asset_payloads(self.asset_reveals)
         self.per_player_asset_reveals = {
             str(cid): _safe_asset_payloads(payloads)
