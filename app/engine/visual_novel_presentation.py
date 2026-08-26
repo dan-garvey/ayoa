@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 import uuid
 from dataclasses import dataclass
 from io import BytesIO
@@ -88,7 +89,36 @@ class VisualNovelCardRenderer:
     ) -> None:
         self.runtime_root = Path(runtime_root)
         self.deck_root = self.runtime_root / "decks"
-        self.deck_root.mkdir(parents=True, exist_ok=True)
+        try:
+            metadata = self.deck_root.stat(follow_symlinks=False)
+        except FileNotFoundError:
+            try:
+                self.deck_root.mkdir(parents=True)
+            except OSError as exc:
+                raise RuntimeError(
+                    "visual-novel deck root is not a safe directory"
+                ) from exc
+            metadata = self._deck_root_metadata()
+        except OSError as exc:
+            raise RuntimeError(
+                "visual-novel deck root is not a safe directory"
+            ) from exc
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise RuntimeError(
+                "visual-novel deck root is not a safe directory"
+            )
+        try:
+            self._resolved_runtime_root = self.runtime_root.resolve(strict=True)
+            self._resolved_deck_root = self.deck_root.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise RuntimeError(
+                "visual-novel deck root is not a safe directory"
+            ) from exc
+        if self._resolved_deck_root.parent != self._resolved_runtime_root:
+            raise RuntimeError(
+                "visual-novel deck root is not a safe directory"
+            )
+        self._deck_root_identity = (metadata.st_dev, metadata.st_ino)
         self.regular_font_path = Path(regular_font_path)
         self.bold_font_path = Path(bold_font_path)
 
@@ -96,6 +126,7 @@ class VisualNovelCardRenderer:
         self,
         sections: Sequence[VisualNovelDeckSection],
     ) -> VisualNovelDeck:
+        self._require_pinned_deck_root()
         if not sections:
             raise ValueError("visual-novel decks require at least one section")
         if any(
@@ -148,6 +179,7 @@ class VisualNovelCardRenderer:
             ],
         }
         deck_id = _canonical_json_sha256(identity)
+        self._require_pinned_deck_root()
         deck_dir = self.deck_root / deck_id
         if deck_dir.is_symlink() or (
             deck_dir.exists() and not deck_dir.is_dir()
@@ -163,6 +195,7 @@ class VisualNovelCardRenderer:
             if cached is not None:
                 return cached
 
+        self._require_pinned_deck_root()
         deck_dir.mkdir(parents=True, exist_ok=True)
         count = sum(
             len(physical_pages)
@@ -196,8 +229,10 @@ class VisualNovelCardRenderer:
                 temporary = deck_dir / (
                     f".page-{index:03d}.{uuid.uuid4().hex}.tmp"
                 )
+                self._require_pinned_deck_root()
                 card_image.save(temporary, format="PNG", optimize=False)
                 card_sha256s.append(_file_sha256(temporary))
+                self._require_pinned_deck_root()
                 temporary.replace(output_path)
                 cards.append(VisualNovelCard(
                     index=index,
@@ -236,6 +271,7 @@ class VisualNovelCardRenderer:
         temporary_manifest = deck_dir / (
             f".manifest.{uuid.uuid4().hex}.tmp"
         )
+        self._require_pinned_deck_root()
         temporary_manifest.write_text(
             json.dumps(
                 manifest,
@@ -245,6 +281,7 @@ class VisualNovelCardRenderer:
             ) + "\n",
             encoding="utf-8",
         )
+        self._require_pinned_deck_root()
         temporary_manifest.replace(manifest_path)
         return VisualNovelDeck(
             deck_id=deck_id,
@@ -272,6 +309,7 @@ class VisualNovelCardRenderer:
         ):
             return None
         try:
+            self._require_pinned_deck_root()
             return self._load_validated_deck(clean_id)
         except Exception:
             # Persisted files are a restart boundary. Malformed JSON, odd path
@@ -401,6 +439,41 @@ class VisualNovelCardRenderer:
             counter=ImageFont.truetype(str(self.regular_font_path), 16),
         )
 
+    def _deck_root_metadata(self):
+        try:
+            metadata = self.deck_root.stat(follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError(
+                "visual-novel deck root is not a safe directory"
+            ) from exc
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise RuntimeError(
+                "visual-novel deck root is not a safe directory"
+            )
+        return metadata
+
+    def _require_pinned_deck_root(self) -> None:
+        metadata = self._deck_root_metadata()
+        if (metadata.st_dev, metadata.st_ino) != self._deck_root_identity:
+            raise RuntimeError(
+                "visual-novel deck root changed after renderer construction"
+            )
+        try:
+            resolved_runtime_root = self.runtime_root.resolve(strict=True)
+            resolved_deck_root = self.deck_root.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise RuntimeError(
+                "visual-novel deck root is not a safe directory"
+            ) from exc
+        if (
+            resolved_runtime_root != self._resolved_runtime_root
+            or resolved_deck_root != self._resolved_deck_root
+            or resolved_deck_root.parent != resolved_runtime_root
+        ):
+            raise RuntimeError(
+                "visual-novel deck root changed after renderer construction"
+            )
+
 
 def _canonical_json_sha256(value: object) -> str:
     return hashlib.sha256(
@@ -499,7 +572,13 @@ def _valid_v2_identity(
         return False
     if identity["renderer"] != _RENDERER_VERSION:
         return False
-    if identity["card_size"] != [CARD_WIDTH, CARD_HEIGHT]:
+    card_size = identity["card_size"]
+    if (
+        type(card_size) is not list
+        or len(card_size) != 2
+        or any(type(dimension) is not int for dimension in card_size)
+        or card_size != [CARD_WIDTH, CARD_HEIGHT]
+    ):
         return False
     fonts = identity["fonts"]
     if type(fonts) is not dict or set(fonts) != {
