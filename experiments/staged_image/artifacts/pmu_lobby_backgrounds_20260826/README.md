@@ -4,29 +4,42 @@ This isolated experiment screens the 22 files whose basenames begin `PMU` in:
 
 `C:\Users\danim\Pictures\Ayoa\ManhwaPanelDatasetReview_20260813\raw_strips`
 
-It produces exactly two candidate visual-novel background plates. Nothing in this pack is bound into a story, prompt, runtime image director, or environment configuration. Runtime LLMs do not receive any image data.
+It contains four candidate visual-novel background plates across two architectural tiers. Nothing in this pack is bound into a story, prompt, runtime image director, or environment configuration. Runtime LLMs do not receive any image data.
 
-## Final candidates
+## Beginner-tier 1F candidates
+
+These two files were generated in the `ayoa-nptq` extension. They reuse the frozen PMU references, method, rendering language, daylight, framing, and VN staging contract from the first run. Architectural tier is the only intended experimental variable.
 
 | Choice | File | Size | SHA256 | Manual review |
 | --- | --- | --- | --- | --- |
-| A | `backgrounds/lobby_open_air_courtyard_v1.png` | 1664x936 | `5a454563d6ba57aee4cccdb69395862b9997e86098c85eb7a05abcd6bee57ac0` | Pass: bright outdoor lobby, character-free, text-free, wide calm sprite-staging area. Abstract banner emblems and tiny side fixtures are non-text and non-dominant. |
-| B | `backgrounds/lobby_covered_arrival_pavilion_v1.png` | 1664x936 | `d430ccc7cbe902f0dc8144737e851b941a84ec5b01bf13506b08b3d9d70830b2` | Pass: bright open-sided concourse, character-free, text-free, strong central staging floor. Abstract banner emblems and hanging lamps are non-text and non-dominant. |
+| 1F A | `backgrounds/1f/lobby_1f_open_air_courtyard_v1.png` | 1664x936 | `04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f` | Pass: plain low-rise plaster-and-timber courtyard, single modest arch, practical paving and railings, character-free and text-free, with broad calm staging space. No banner, crest, tower, spire, tracery, gold, ceremony, damage, or grime. |
+| 1F B | `backgrounds/1f/lobby_1f_covered_pavilion_v1.png` | 1664x936 | `d1e014fa5dc5349334c2a4e178a6f9ed74db234a101f07f7adff5a8562256a3c` | Pass: plain one-story timber shelter with square posts, simple roof and stone floor, character-free and text-free, with broad calm staging space. No banner, crest, tower, spire, arch array, lantern array, gold, ceremony, damage, or grime. |
 
-`review_overview.jpg` shows A and B side by side. The Windows review copy is at:
+`review_overview_1f.jpg` shows the two new 1F plates side by side. `review_overview_tiers.jpg` places them above the byte-preserved higher-tier plates for a direct tier check. The pre-call conflict audit is in `prompt_conflict_audit_1f.md`.
+
+## Preserved higher-tier 2F/3F candidates
+
+The original A/B files are intentionally unchanged. Their more monumental gate, tracery, towers, banners, elaborate roof framing, and lanterns make them better fits for later 2F/3F progression than for the beginner lobby.
+
+| Choice | File | Size | SHA256 | Manual review |
+| --- | --- | --- | --- | --- |
+| 2F/3F A | `backgrounds/lobby_open_air_courtyard_v1.png` | 1664x936 | `5a454563d6ba57aee4cccdb69395862b9997e86098c85eb7a05abcd6bee57ac0` | Preserved byte-identically: bright outdoor lobby, character-free, text-free, wide calm sprite-staging area. Abstract banner emblems and tiny side fixtures are non-text and non-dominant. |
+| 2F/3F B | `backgrounds/lobby_covered_arrival_pavilion_v1.png` | 1664x936 | `d430ccc7cbe902f0dc8144737e851b941a84ec5b01bf13506b08b3d9d70830b2` | Preserved byte-identically: bright open-sided concourse, character-free, text-free, strong central staging floor. Abstract banner emblems and hanging lamps are non-text and non-dominant. |
+
+`review_overview.jpg` remains the original higher-tier A/B overview. The Windows review copy is at:
 
 `C:\Users\danim\Pictures\Ayoa\PMU Lobby Background Review 20260826`
 
 ## Generation method
 
 - Mode: built-in `image_gen`, reference-guided generation. The built-in service does not expose a model identifier.
-- Calls: two, one independent call per final asset.
-- Raw tool output: 1672x941 PNG in `generation_raw/`.
+- Calls: two in the original run and exactly two in the 1F extension, one independent call per final asset.
+- Raw tool output: 1672x941 PNG in `generation_raw/` for the preserved 2F/3F pair and `generation_raw/1f/` for the 1F pair.
 - Final normalization: deterministic center crop `[4, 2, 1668, 938)` to 1664x936, an exact 16:9 ratio. There was no resampling, repainting, or other post-processing.
-- Prompts: exact call text is preserved in `prompts/`.
+- Prompts: exact call text is preserved in `prompts/` and `prompts/1f/`.
 - References: accepted decoded-pixel crops in `crops/accepted/`; each input was manually inspected before use.
 
-Candidate A used references 01, 02, and 03. Candidate B used references 01, 03, and 04. Reference images supplied style, palette, architecture, and spatial cues only; prompts explicitly forbade copying source characters, text, logos, panel borders, or exact buildings.
+The open-air candidate in each tier used references 01, 02, and 03. The covered candidate in each tier used references 01, 03, and 04. Reference images supplied style, palette, architecture, and spatial cues only; prompts explicitly forbade copying source characters, text, logos, panel borders, or exact buildings. The 1F prompts additionally reject the higher-tier motifs visible in those references. Their positive-instruction conflict audit and frozen prompt hashes are recorded in `prompt_conflict_audit_1f.md`.
 
 ## Accepted reference crops
 
@@ -57,4 +70,4 @@ The broad screening crops remain under `crops/screening/` as rejection and refin
 
 ## Promotion boundary
 
-These are review candidates, not approved story assets. Promotion should be a separate decision that selects one or both files and updates a story-owned visual-reference/background binding. Until then, production director modes, prompts, `.env`, and approved originals remain unchanged.
+These are review candidates, not approved story assets. Promotion should be a separate decision that selects files and updates a story-owned visual-reference/background binding. Until then, production director modes, app prompts, `.env`, and approved originals remain unchanged.
