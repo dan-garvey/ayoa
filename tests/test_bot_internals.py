@@ -14,13 +14,16 @@ infrastructure we don't have.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from PIL import Image
 
 from app.bot import commands as bot_commands
 from app.bot.engine_bridge import EngineBridge, _narrator_history_message_text
@@ -30,9 +33,12 @@ from app.engine.frontend_views import (
     PlayerJoinResult,
     RetryRenderResult,
 )
+from app.engine.image_job_store import VisualNovelStageResolution
+from app.engine.player_media import ResolvedPlayerMedia
 from app.engine.visual_novel_presentation import (
     VisualNovelCard,
     VisualNovelCardRenderer,
+    VisualNovelDeckSection,
 )
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
@@ -43,6 +49,7 @@ from app.schemas.responses import (
     DiceRollDisplay,
     TurnResponse,
     VisualNovelRender,
+    VisualNovelRenderSegment,
 )
 from app.schemas.state import (
     PendingNarratorRender,
@@ -186,6 +193,113 @@ def mock_bridge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EngineBridge
         sessions_dir=str(tmp_path / "sessions"),
         prompts_dir="app/prompts",
     )
+
+
+def _visual_novel_stage_media(
+    color: tuple[int, int, int],
+) -> ResolvedPlayerMedia:
+    image = Image.new("RGB", (1024, 576), (19, 31, 47))
+    image.putpixel((5, 5), color)
+    stream = BytesIO()
+    image.save(stream, format="PNG")
+    data = stream.getvalue()
+    return ResolvedPlayerMedia(
+        filename="visual-novel-stage.png",
+        mime_type="image/png",
+        data=data,
+        sha256=hashlib.sha256(data).hexdigest(),
+        byte_count=len(data),
+        width=1024,
+        height=576,
+    )
+
+
+class TestEngineBridgeVisualNovelPresentation:
+    def test_segments_resolve_ordered_stages_and_wait_for_stable_union(
+        self,
+        mock_bridge: EngineBridge,
+    ):
+        render = VisualNovelRender(segments=[
+            VisualNovelRenderSegment(
+                pages=[VisualNovelPage(
+                    kind="dialogue",
+                    speaker="Iselle",
+                    text=" ".join(["Stay on the first stage."] * 45),
+                )],
+                rendered_event_ids=["evt_first", "evt_shared"],
+            ),
+            VisualNovelRenderSegment(
+                pages=[VisualNovelPage(
+                    kind="dialogue",
+                    speaker="Wren",
+                    text="Now the scene has changed.",
+                )],
+                rendered_event_ids=["evt_shared", "evt_second"],
+            ),
+        ])
+        mock_bridge.image_sidecar.wait_for_stage_discovery = AsyncMock()
+        mock_bridge.image_generation.wait_for_render_images = AsyncMock(
+            return_value=True
+        )
+        first_media = _visual_novel_stage_media((221, 37, 73))
+        second_media = _visual_novel_stage_media((17, 199, 101))
+        mock_bridge.image_generation.resolve_visual_novel_stage = MagicMock(
+            side_effect=[
+                (
+                    VisualNovelStageResolution(
+                        action="replace",
+                        artifact=None,
+                    ),
+                    first_media,
+                ),
+                (
+                    VisualNovelStageResolution(
+                        action="replace",
+                        artifact=None,
+                    ),
+                    second_media,
+                ),
+            ]
+        )
+
+        deck = asyncio.run(mock_bridge.prepare_visual_novel_deck(
+            session_id="session",
+            pov_character_id="alice",
+            render=render,
+        ))
+
+        mock_bridge.image_sidecar.wait_for_stage_discovery.assert_awaited_once_with(
+            "session"
+        )
+        mock_bridge.image_generation.wait_for_render_images.assert_awaited_once_with(
+            session_id="session",
+            rendered_event_ids_by_pov={
+                "alice": ["evt_first", "evt_shared", "evt_second"]
+            },
+        )
+        assert [
+            invocation.kwargs["rendered_event_ids"]
+            for invocation in (
+                mock_bridge.image_generation.resolve_visual_novel_stage
+                .call_args_list
+            )
+        ] == [
+            ["evt_first", "evt_shared"],
+            ["evt_shared", "evt_second"],
+        ]
+        iselle_cards = [
+            card for card in deck.cards if card.speaker == "Iselle"
+        ]
+        wren_cards = [card for card in deck.cards if card.speaker == "Wren"]
+        assert len(iselle_cards) > 1
+        assert len(wren_cards) == 1
+        for card in iselle_cards:
+            with Image.open(card.image_path) as image:
+                assert image.convert("RGB").getpixel((5, 5)) == (
+                    221, 37, 73
+                )
+        with Image.open(wren_cards[0].image_path) as image:
+            assert image.convert("RGB").getpixel((5, 5)) == (17, 199, 101)
 
 
 class TestEngineBridgeQuery:
@@ -2232,7 +2346,7 @@ class TestVisualNovelDiscordDeck:
     def _deck(self, tmp_path: Path):
         renderer = VisualNovelCardRenderer(tmp_path / "vn")
         return renderer.render_deck(
-            [
+            [VisualNovelDeckSection(pages=(
                 VisualNovelPage(
                     kind="narration",
                     text="The terrace opens beneath a clear turquoise sky.",
@@ -2242,8 +2356,7 @@ class TestVisualNovelDiscordDeck:
                     speaker="Iselle",
                     text="You made it. Wren was beginning to worry.",
                 ),
-            ],
-            stage_path=None,
+            ))],
         )
 
     def test_restart_safe_controls_encode_complete_navigation_state(
@@ -2346,9 +2459,12 @@ class TestVisualNovelDiscordDeck:
             channel=object(),
             channel_id=777,
         )
-        render = VisualNovelRender(pages=[
-            VisualNovelPage(kind="dialogue", speaker="Iselle", text="Hello."),
-        ])
+        render = VisualNovelRender(segments=[VisualNovelRenderSegment(
+            pages=[VisualNovelPage(
+                kind="dialogue", speaker="Iselle", text="Hello."
+            )],
+            rendered_event_ids=["evt_1"],
+        )])
 
         venue, returned_thread = asyncio.run(
             bot_commands._post_visual_novel_render(
@@ -2359,7 +2475,6 @@ class TestVisualNovelDiscordDeck:
                 character_id="iselle",
                 char_name="Iselle",
                 render=render,
-                rendered_event_ids=["evt_1"],
                 intro_content=None,
                 session_id="session",
                 turn_index=3,
@@ -2368,6 +2483,11 @@ class TestVisualNovelDiscordDeck:
 
         assert venue == "thread"
         assert returned_thread is thread
+        engine.prepare_visual_novel_deck.assert_awaited_once_with(
+            session_id="session",
+            pov_character_id="iselle",
+            render=render,
+        )
         thread.send.assert_awaited_once()
         send_kwargs = thread.send.await_args.kwargs
         assert isinstance(send_kwargs["file"], bot_commands.discord.File)
@@ -2439,9 +2559,12 @@ class TestVisualNovelDiscordDeck:
         )
         user = SimpleNamespace(id=42, send=AsyncMock())
         interaction = SimpleNamespace(channel_id=777, channel=object())
-        render = VisualNovelRender(pages=[
-            VisualNovelPage(kind="dialogue", speaker="Iselle", text="Hello."),
-        ])
+        render = VisualNovelRender(segments=[VisualNovelRenderSegment(
+            pages=[VisualNovelPage(
+                kind="dialogue", speaker="Iselle", text="Hello."
+            )],
+            rendered_event_ids=["evt_1"],
+        )])
 
         with caplog.at_level(logging.ERROR, logger="app.bot.commands"):
             venue, returned_thread = asyncio.run(
@@ -2453,7 +2576,6 @@ class TestVisualNovelDiscordDeck:
                     character_id="iselle",
                     char_name="Iselle",
                     render=render,
-                    rendered_event_ids=["evt_1"],
                     session_id="session",
                     turn_index=3,
                 )
@@ -2496,9 +2618,12 @@ class TestVisualNovelDiscordDeck:
             send=AsyncMock(return_value=sent_message),
         )
         interaction = SimpleNamespace(channel_id=777, channel=object())
-        render = VisualNovelRender(pages=[
-            VisualNovelPage(kind="dialogue", speaker="Iselle", text="Hello."),
-        ])
+        render = VisualNovelRender(segments=[VisualNovelRenderSegment(
+            pages=[VisualNovelPage(
+                kind="dialogue", speaker="Iselle", text="Hello."
+            )],
+            rendered_event_ids=["evt_1"],
+        )])
 
         with caplog.at_level(logging.ERROR, logger="app.bot.commands"):
             venue, returned_thread = asyncio.run(
@@ -2510,7 +2635,6 @@ class TestVisualNovelDiscordDeck:
                     character_id="iselle",
                     char_name="Iselle",
                     render=render,
-                    rendered_event_ids=["evt_1"],
                     session_id="session",
                     turn_index=3,
                 )
@@ -2555,18 +2679,20 @@ class TestVisualNovelJoinArrival:
             def add_command(self, *_args, **_kwargs):
                 return None
 
-        actor_render = VisualNovelRender(pages=[
-            VisualNovelPage(
+        actor_render = VisualNovelRender(segments=[VisualNovelRenderSegment(
+            pages=[VisualNovelPage(
                 kind="narration",
                 text="Alice steps into the lantern light.",
-            ),
-        ])
-        bystander_render = VisualNovelRender(pages=[
-            VisualNovelPage(
+            )],
+            rendered_event_ids=["evt_arrive"],
+        )])
+        bystander_render = VisualNovelRender(segments=[VisualNovelRenderSegment(
+            pages=[VisualNovelPage(
                 kind="narration",
                 text="Bob sees Alice arrive.",
-            ),
-        ])
+            )],
+            rendered_event_ids=["evt_arrive"],
+        )])
         response = TurnResponse(
             session_id="s",
             checkpoint_id="ckpt_0004",
@@ -2579,10 +2705,6 @@ class TestVisualNovelJoinArrival:
             per_player_visual_novel_renders={
                 "alice": actor_render,
                 "bob": bystander_render,
-            },
-            rendered_event_ids_by_pov={
-                "alice": ["evt_arrive"],
-                "bob": ["evt_arrive"],
             },
         )
         engine = MagicMock()

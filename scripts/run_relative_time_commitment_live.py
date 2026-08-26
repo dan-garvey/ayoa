@@ -1094,14 +1094,14 @@ def _parse_setting_like_current(current: Any, raw_value: str) -> Any:
     return raw_value
 
 
-def _apply_progressive_setting(
+async def _apply_progressive_setting(
     engine: EngineBridge,
     session_id: str,
     key: str,
     raw_value: str,
 ) -> Any:
     try:
-        return engine.set_setting(session_id, key, raw_value)
+        return await engine.set_setting(session_id, key, raw_value)
     except UnknownSettingError:
         ckpt = engine.load_latest(session_id)
         settings = ckpt.session.config.settings
@@ -1770,7 +1770,7 @@ async def _run_progressive_step(
     settings_applied: dict[str, str] = {}
     for key, value in step.settings:
         settings_applied[key] = str(
-            _apply_progressive_setting(engine, session_id, key, value)
+            await _apply_progressive_setting(engine, session_id, key, value)
         )
 
     before = engine.load_latest(session_id)

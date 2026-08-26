@@ -277,7 +277,7 @@ async def _record_visual_novel_message(
             discord_channel_id=discord_channel_id,
             recipient_user_id=recipient_user_id,
         )
-    except Exception:
+    except Exception as exc:
         message_id = getattr(message, "id", None)
         message_channel = getattr(message, "channel", None)
         delivered_channel_id = discord_channel_id or getattr(
@@ -285,14 +285,15 @@ async def _record_visual_novel_message(
             "id",
             None,
         )
-        logger.exception(
+        logger.error(
             "visual-novel message sent but tracking raised "
-            "session=%s turn=%s delivery=%s channel=%s message=%s",
+            "session=%s turn=%s delivery=%s channel=%s message=%s error=%s",
             session_id,
             turn_index,
             delivery,
             delivered_channel_id,
             message_id,
+            type(exc).__name__,
         )
 
 
@@ -1073,7 +1074,6 @@ async def _post_visual_novel_render(
     character_id: str,
     char_name: str,
     render,
-    rendered_event_ids: list[str],
     intro_content: Optional[str] = None,
     session_id: str,
     turn_index: int,
@@ -1084,7 +1084,6 @@ async def _post_visual_novel_render(
         session_id=session_id,
         pov_character_id=character_id,
         render=render,
-        rendered_event_ids=rendered_event_ids,
     )
     view = _VisualNovelView(
         deck_id=deck.deck_id,
@@ -2351,14 +2350,12 @@ async def _deliver_turn_response_to_povs(
         note_prefix: str = "",
         reaction_prompts: dict[str, str] | None = None,
         commitment_revision_prompts: dict[str, list[str]] | None = None,
-        rendered_event_ids_by_pov: dict[str, list[str]] | None = None,
         visual_novel_renders: dict[str, Any] | None = None,
     ) -> list[str]:
         """Post each (cid, prose) to that user's POV thread or DM."""
         notified: list[str] = []
         reaction_prompts = reaction_prompts or {}
         commitment_revision_prompts = commitment_revision_prompts or {}
-        rendered_event_ids_by_pov = rendered_event_ids_by_pov or {}
         visual_novel_renders = visual_novel_renders or {}
         for cid, prose in renders.items():
             if cid == skip_cid or not prose:
@@ -2418,9 +2415,6 @@ async def _deliver_turn_response_to_povs(
                             character_id=cid,
                             char_name=char_name,
                             render=visual_render,
-                            rendered_event_ids=rendered_event_ids_by_pov.get(
-                                cid, []
-                            ),
                             intro_content=(
                                 "\n\n".join(
                                     p for p in (note_prefix, revision_note) if p
@@ -2637,9 +2631,6 @@ async def _deliver_turn_response_to_povs(
             commitment_revision_prompts=(
                 pre_resp.commitment_revision_prompts or {}
             ),
-            rendered_event_ids_by_pov=(
-                pre_resp.rendered_event_ids_by_pov or {}
-            ),
             visual_novel_renders=(
                 pre_resp.per_player_visual_novel_renders or {}
             ),
@@ -2727,9 +2718,6 @@ async def _deliver_turn_response_to_povs(
                     character_id=actor_character_id,
                     char_name=actor_name,
                     render=visual_render,
-                    rendered_event_ids=(
-                        response.rendered_event_ids_by_pov or {}
-                    ).get(actor_character_id, []),
                     intro_content=intro_content,
                     session_id=session_id,
                     turn_index=response.turn_index,
@@ -2871,9 +2859,6 @@ async def _deliver_turn_response_to_povs(
             turn_index=response.turn_index,
             reaction_prompts=reaction_prompts,
             commitment_revision_prompts=commitment_revision_prompts,
-            rendered_event_ids_by_pov=(
-                response.rendered_event_ids_by_pov or {}
-            ),
             visual_novel_renders=(
                 response.per_player_visual_novel_renders or {}
             ),
@@ -4731,9 +4716,6 @@ def register(
                     character_id=binding_cid,
                     char_name=char_name,
                     render=visual_render,
-                    rendered_event_ids=(
-                        response.rendered_event_ids_by_pov or {}
-                    ).get(binding_cid, []),
                     intro_content=intro,
                     session_id=session_id,
                     turn_index=response.turn_index,
@@ -4790,9 +4772,6 @@ def register(
                 actor_cid=binding_cid,
                 per_player=response.per_player_renders or {},
                 turn_index=response.turn_index,
-                rendered_event_ids_by_pov=(
-                    response.rendered_event_ids_by_pov or {}
-                ),
                 visual_novel_renders=(
                     response.per_player_visual_novel_renders or {}
                 ),
@@ -4805,7 +4784,6 @@ def register(
         actor_cid: str,
         per_player: dict[str, str],
         turn_index: int,
-        rendered_event_ids_by_pov: dict[str, list[str]],
         visual_novel_renders: dict[str, Any],
     ) -> None:
         """DM each non-acting bound human their POV render for the
@@ -4863,9 +4841,6 @@ def register(
                             character_id=cid,
                             char_name=other_name,
                             render=visual_render,
-                            rendered_event_ids=rendered_event_ids_by_pov.get(
-                                cid, []
-                            ),
                             session_id=session_id,
                             turn_index=turn_index,
                         )
@@ -5953,9 +5928,6 @@ def register(
                         character_id=triggering_cid,
                         char_name=actor_name,
                         render=visual_render,
-                        rendered_event_ids=(
-                            response.rendered_event_ids_by_pov or {}
-                        ).get(triggering_cid, []),
                         intro_content=intro,
                         session_id=row.session_id,
                         turn_index=response.turn_index,
@@ -6015,9 +5987,6 @@ def register(
             actor_cid=triggering_cid,
             per_player=per_player,
             turn_index=response.turn_index,
-            rendered_event_ids_by_pov=(
-                response.rendered_event_ids_by_pov or {}
-            ),
             visual_novel_renders=(
                 response.per_player_visual_novel_renders or {}
             ),

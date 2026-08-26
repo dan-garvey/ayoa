@@ -42,6 +42,7 @@ from app.engine.frontend_views import (
     StorySummary,
     TurnHistoryEntry,
 )
+from app.engine.visual_novel_presentation import VisualNovelCard
 from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig, MissingLLMCredential
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
@@ -49,7 +50,11 @@ from app.schemas.conversation import ConversationMessage
 from app.schemas.dnd_inventory import DndLootOffer, DndLootOfferItem
 from app.schemas.narrator import TranscriptEntry
 from app.schemas.narrator import VisualNovelPage
-from app.schemas.responses import DiceRollDisplay, VisualNovelRender
+from app.schemas.responses import (
+    DiceRollDisplay,
+    VisualNovelRender,
+    VisualNovelRenderSegment,
+)
 from app.schemas.state import SessionState, SlotEntry, WorldState
 
 
@@ -1918,7 +1923,6 @@ class TestActingDescribe:
             turn_index=4,
             output_text="The crest is weathered silver.",
             per_player_renders={"aldric": "The crest is weathered silver."},
-            rendered_event_ids_by_pov={"aldric": ["evt_crest"]},
         ))
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join aldric"))
@@ -1943,14 +1947,16 @@ class TestActingDescribe:
             output_text="The crest is weathered silver.",
             per_player_renders={"aldric": "The crest is weathered silver."},
             per_player_visual_novel_renders={
-                "aldric": VisualNovelRender(pages=[
-                    VisualNovelPage(
+                "aldric": VisualNovelRender(segments=[
+                    VisualNovelRenderSegment(
+                        pages=[VisualNovelPage(
                         kind="narration",
                         text="The crest is weathered silver.",
+                        )],
+                        rendered_event_ids=["evt_crest"],
                     )
                 ])
             },
-            rendered_event_ids_by_pov={"aldric": ["evt_crest"]},
         ))
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join aldric"))
@@ -1960,9 +1966,43 @@ class TestActingDescribe:
 
         engine.wait_for_visual_novel_stage_work.assert_awaited_once_with(
             session_id=SESSION_ID,
-            rendered_event_ids_by_pov={"aldric": ["evt_crest"]},
+            renders_by_pov={
+                "aldric": engine.run_query.return_value
+                .per_player_visual_novel_renders["aldric"]
+            },
         )
         assert "illustrating" in capsys.readouterr().out
+
+    def test_visual_card_fallback_prints_shared_accessible_projection(
+        self, run, capsys, tmp_path,
+    ):
+        engine = _mock_engine()
+        engine.visual_novel_renderer = SimpleNamespace(runtime_root=tmp_path)
+        image_renderer = _FakeAssetImageRenderer(displayed=False)
+        state = CLIState(
+            engine,
+            SESSION_ID,
+            STORY_ID,
+            asset_image_renderer=image_renderer,
+        )
+        state.one_shot_mode = True
+        image_path = tmp_path / "card.png"
+        image_path.write_bytes(b"test image bytes")
+        card = VisualNovelCard(
+            index=1,
+            count=1,
+            kind="dialogue",
+            speaker="  Iselle  ",
+            text="Wait   for me.",
+            image_path=image_path,
+        )
+
+        run(state._play_visual_novel_deck(
+            SimpleNamespace(cards=(card,), transcript="Iselle: Wait for me."),
+            character_id="aldric",
+        ))
+
+        assert "Iselle: Wait for me." in capsys.readouterr().out
 
     def test_turn_response_prints_per_pov_asset_reveals_for_claimed_characters(
         self, run, capsys,

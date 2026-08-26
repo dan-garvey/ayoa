@@ -87,6 +87,7 @@ from app.engine.visual_context import forget_visual_introductions_for_character
 from app.engine.visual_novel_presentation import (
     VisualNovelCardRenderer,
     VisualNovelDeck,
+    VisualNovelDeckSection,
 )
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
@@ -339,54 +340,61 @@ class EngineBridge:
         session_id: str,
         pov_character_id: str,
         render: VisualNovelRender,
-        rendered_event_ids: Iterable[str],
     ) -> VisualNovelDeck:
-        """Build the shared CLI/Discord ADV deck for one accepted POV render."""
+        """Build one ordered deck while preserving each beat's stage plate."""
 
-        event_ids = [
-            str(event_id).strip()
-            for event_id in rendered_event_ids
-            if str(event_id).strip()
-        ]
         await self.wait_for_visual_novel_stage_work(
             session_id=session_id,
-            rendered_event_ids_by_pov={pov_character_id: event_ids},
+            renders_by_pov={pov_character_id: render},
         )
-        resolution, stage_media = (
-            self.image_generation.resolve_visual_novel_stage(
-                session_id=session_id,
-                pov_character_id=pov_character_id,
-                rendered_event_ids=event_ids,
+        sections: list[VisualNovelDeckSection] = []
+        for segment_index, segment in enumerate(render.segments, start=1):
+            resolution, stage_media = (
+                self.image_generation.resolve_visual_novel_stage(
+                    session_id=session_id,
+                    pov_character_id=pov_character_id,
+                    rendered_event_ids=list(segment.rendered_event_ids),
+                )
             )
-        )
-        if resolution.fallback_reason:
-            logger.info(
-                "visual-novel neutral stage session=%s pov=%s reason=%s",
-                session_id,
-                pov_character_id,
-                resolution.fallback_reason,
-            )
-        return self.visual_novel_renderer.render_deck(
-            render.pages,
-            stage_path=None,
-            stage_media=stage_media,
-        )
+            if resolution.fallback_reason:
+                logger.info(
+                    "visual-novel neutral stage session=%s pov=%s "
+                    "segment=%s reason=%s",
+                    session_id,
+                    pov_character_id,
+                    segment_index,
+                    resolution.fallback_reason,
+                )
+            sections.append(VisualNovelDeckSection(
+                pages=tuple(segment.pages),
+                stage_media=stage_media,
+            ))
+        return self.visual_novel_renderer.render_deck(sections)
 
     async def wait_for_visual_novel_stage_work(
         self,
         *,
         session_id: str,
-        rendered_event_ids_by_pov: dict[str, Iterable[str]],
+        renders_by_pov: dict[str, VisualNovelRender],
     ) -> bool:
-        """Wait through sidecar discovery and any durable replacement job."""
+        """Wait through sidecar discovery and all segment replacement jobs."""
+
+        rendered_event_ids_by_pov: dict[str, list[str]] = {}
+        for pov_character_id, render in renders_by_pov.items():
+            seen: set[str] = set()
+            event_ids: list[str] = []
+            for segment in render.segments:
+                for event_id in segment.rendered_event_ids:
+                    if event_id in seen:
+                        continue
+                    seen.add(event_id)
+                    event_ids.append(event_id)
+            rendered_event_ids_by_pov[pov_character_id] = event_ids
 
         await self.image_sidecar.wait_for_stage_discovery(session_id)
         return await self.image_generation.wait_for_render_images(
             session_id=session_id,
-            rendered_event_ids_by_pov={
-                pov: list(event_ids)
-                for pov, event_ids in rendered_event_ids_by_pov.items()
-            },
+            rendered_event_ids_by_pov=rendered_event_ids_by_pov,
         )
 
     def load_visual_novel_deck(self, deck_id: str) -> VisualNovelDeck | None:

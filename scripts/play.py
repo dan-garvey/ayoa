@@ -3370,22 +3370,18 @@ class CLIState:
             visual_renders = (
                 getattr(item, "per_player_visual_novel_renders", {}) or {}
             )
-            rendered = {
-                cid: list(
-                    (getattr(item, "rendered_event_ids_by_pov", {}) or {}).get(
-                        cid, []
-                    )
-                )
-                for cid in visual_renders
+            renders = {
+                cid: render
+                for cid, render in visual_renders.items()
                 if cid == actor_id or cid in self._pov_claims()
             }
-            if not any(rendered.values()):
+            if not renders:
                 continue
             try:
                 async with _progress("illustrating"):
                     await self.engine.wait_for_visual_novel_stage_work(
                         session_id=self.session_id,
-                        rendered_event_ids_by_pov=rendered,
+                        renders_by_pov=renders,
                     )
             except Exception:
                 logger.exception("render image wait failed")
@@ -3530,9 +3526,6 @@ class CLIState:
                 session_id=self.session_id,
                 pov_character_id=character_id,
                 render=visual_render,
-                rendered_event_ids=(
-                    getattr(response, "rendered_event_ids_by_pov", {}) or {}
-                ).get(character_id, []),
             )
             await self._play_visual_novel_deck(deck, character_id=character_id)
         except Exception:

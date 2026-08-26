@@ -23,7 +23,7 @@ from app.schemas.narrator import VisualNovelPage
 
 CARD_WIDTH = 1024
 CARD_HEIGHT = 576
-_RENDERER_VERSION = "classic-adv-v1"
+_RENDERER_VERSION = "classic-adv-v2-segmented-stages"
 _DEFAULT_REGULAR_FONT = Path(
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 )
@@ -61,6 +61,15 @@ class VisualNovelDeck:
     used_neutral_stage: bool
 
 
+@dataclass(frozen=True)
+class VisualNovelDeckSection:
+    """Ordered semantic pages resolved against one immutable stage plate."""
+
+    pages: tuple[VisualNovelPage, ...]
+    stage_path: str | Path | None = None
+    stage_media: PlayerMediaBytes | None = None
+
+
 class VisualNovelCardRenderer:
     """Build and load content-addressed 1024x576 PNG card decks."""
 
@@ -79,23 +88,45 @@ class VisualNovelCardRenderer:
 
     def render_deck(
         self,
-        pages: Sequence[VisualNovelPage],
-        *,
-        stage_path: str | Path | None,
-        stage_media: PlayerMediaBytes | None = None,
+        sections: Sequence[VisualNovelDeckSection],
     ) -> VisualNovelDeck:
-        if not pages:
-            raise ValueError("visual-novel decks require at least one page")
+        if not sections:
+            raise ValueError("visual-novel decks require at least one section")
         fonts = self._fonts()
-        physical_pages = _paginate_pages(pages, fonts.body)
-        stage, stage_sha256, used_neutral = _load_stage(
-            stage_path,
-            stage_media=stage_media,
-        )
+        resolved_sections: list[
+            tuple[Image.Image, str, bool, list[VisualNovelPage]]
+        ] = []
+        for section in sections:
+            if not section.pages:
+                raise ValueError(
+                    "visual-novel deck sections require at least one page"
+                )
+            if section.stage_path is not None and section.stage_media is not None:
+                raise ValueError(
+                    "visual-novel deck sections accept one stage source"
+                )
+            stage, stage_sha256, used_neutral = _load_stage(
+                section.stage_path,
+                stage_media=section.stage_media,
+            )
+            resolved_sections.append((
+                stage,
+                stage_sha256,
+                used_neutral,
+                _paginate_pages(section.pages, fonts.body),
+            ))
         identity = {
             "renderer": _RENDERER_VERSION,
-            "stage_sha256": stage_sha256,
-            "pages": [page.model_dump(mode="json") for page in physical_pages],
+            "sections": [
+                {
+                    "stage_sha256": stage_sha256,
+                    "pages": [
+                        page.model_dump(mode="json") for page in physical_pages
+                    ],
+                }
+                for _stage, stage_sha256, _used_neutral, physical_pages
+                in resolved_sections
+            ],
         }
         deck_id = hashlib.sha256(
             json.dumps(
@@ -113,32 +144,46 @@ class VisualNovelCardRenderer:
                 return cached
 
         deck_dir.mkdir(parents=True, exist_ok=True)
-        count = len(physical_pages)
+        count = sum(
+            len(physical_pages)
+            for _stage, _sha256, _used_neutral, physical_pages
+            in resolved_sections
+        )
         cards: list[VisualNovelCard] = []
-        for index, page in enumerate(physical_pages, start=1):
-            output_path = deck_dir / f"page-{index:03d}.png"
-            card_image = _compose_card(
-                stage,
-                page,
-                index=index,
-                count=count,
-                fonts=fonts,
-            )
-            temporary = deck_dir / (
-                f".page-{index:03d}.{uuid.uuid4().hex}.tmp"
-            )
-            card_image.save(temporary, format="PNG", optimize=False)
-            temporary.replace(output_path)
-            cards.append(VisualNovelCard(
-                index=index,
-                count=count,
-                kind=page.kind,
-                speaker=page.speaker,
-                text=page.text,
-                image_path=output_path,
-            ))
+        physical_pages: list[VisualNovelPage] = []
+        index = 0
+        for stage, _stage_sha256, _used_neutral, section_pages in resolved_sections:
+            for page in section_pages:
+                index += 1
+                physical_pages.append(page)
+                output_path = deck_dir / f"page-{index:03d}.png"
+                card_image = _compose_card(
+                    stage,
+                    page,
+                    index=index,
+                    count=count,
+                    fonts=fonts,
+                )
+                temporary = deck_dir / (
+                    f".page-{index:03d}.{uuid.uuid4().hex}.tmp"
+                )
+                card_image.save(temporary, format="PNG", optimize=False)
+                temporary.replace(output_path)
+                cards.append(VisualNovelCard(
+                    index=index,
+                    count=count,
+                    kind=page.kind,
+                    speaker=page.speaker,
+                    text=page.text,
+                    image_path=output_path,
+                ))
 
         transcript = _transcript(physical_pages)
+        used_neutral = any(
+            section_used_neutral
+            for _stage, _sha256, section_used_neutral, _pages
+            in resolved_sections
+        )
         manifest = {
             "version": 1,
             "deck_id": deck_id,
