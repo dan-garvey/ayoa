@@ -276,6 +276,13 @@ is finalized; only then does it become `succeeded`. A finalized replacement
 with no admitted job resolves to the neutral stage, while a partial admission
 error fails the run and cancels its otherwise-unowned jobs. This keeps sibling
 private POV projections from observing or waiting on one another's artifacts.
+Admissions are provisional and attempt-scoped before diffusion begins. Every
+heartbeat, completion, finalization, failure, cleanup, and active-worker abort
+is fenced by the claimed attempt, so an expired worker cannot mutate a reclaimed
+run or cancel a sibling's shared job. The durable claim query also holds a later
+same-session event position behind any earlier running or materializing
+position across process/store handles; lease recovery runs on every queue cycle,
+not only when the queue becomes idle.
 
 Generated illustrations are noncanonical output artifacts and are never
 evidence for story state. Imported images retain their manual review and
@@ -289,6 +296,12 @@ records, and visual output never enter an LLM message, canonical event,
 narrator history, or character-agent history. A checkpoint may retain only an
 engine-owned identity-reference ID used by the diffusion pipeline; that handle
 does not change textual canon.
+
+Authored visual context is treated as untrusted imported text before it reaches
+any runtime LLM. Control characters, metadata fields, hashes, asset handles,
+Unix and Windows/UNC paths, and repository-internal relative paths are removed
+under the shared content-privacy policy for narrator, character, and image-
+director inputs.
 
 A visual-novel replacement may list only normal, currently identity-anchored
 subjects, and every named roster character in its scene description must be in
@@ -358,10 +371,12 @@ the bridge, including pending-roll continuation and settings changes, in a
 fixed bridge-before-orchestrator lock order. Persisted deck manifests are
 untrusted restart inputs: supported manifests, card order and metadata, deck
 identity, filenames, hashes, PNG format, and 1024x576 dimensions are validated
-before a card is served. New decks use manifest v2 with canonical render
-identity and per-card hashes. Version 1 remains read-only for existing controls
-and must pass strict metadata plus decoded static-PNG validation; other versions
-and renderer identities fail closed rather than being migrated or guessed.
+before a card is served. The deck-storage root is pinned and revalidated across
+reads and writes so a symlink or directory swap cannot redirect persistence.
+Only manifest v2 is accepted, with canonical render identity, exact typed card
+dimensions, per-card hashes, and an independent generic source-identifier
+check. Version 1 predates the privacy invariant and is retired rather than
+migrated or guessed; unknown versions and renderer identities also fail closed.
 
 ### 5.2 Orchestrator
 
@@ -565,6 +580,10 @@ cannot establish presence, a known name, rank, role, faction, relationship,
 biography, intent, action, or consequence. The per-viewpoint introduction
 ledger advances only when an accepted render directly presents that exterior;
 indirect observation and rejected handoffs do not consume it.
+Direct-person detection is scoped per subject and clause: quoted or reported
+speech and mediated images, feeds, messages, or recordings cannot consume the
+ledger, while a direct speaker, coordinated physical arrival, or bounded
+spatial copresence can.
 
 Before a visual-novel deck becomes accessible text or history, every speaker
 and page text is checked for exact source ids from the complete checkpoint
