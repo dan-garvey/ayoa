@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "issue_id": "ayoa-ale8",
+  "created_on": "2026-08-26",
+  "experiment_only": true,
+  "production_binding_changed": false,
+  "runtime_image_input_changed": false,
+  "source_root_windows": "C:\\Users\\danim\\Pictures\\Ayoa\\ManhwaPanelDatasetReview_20260813\\raw_strips",
+  "source_root_posix": "/mnt/c/Users/danim/Pictures/Ayoa/ManhwaPanelDatasetReview_20260813/raw_strips",
+  "source_selector": "case-insensitive basename prefix PMU",
+  "screened_source_count": 22,
+  "crop_rectangle_convention": "[left, top, right, bottom), decoded source pixels",
+  "accepted_reference_crops": [
+    {
+      "id": "ref01",
+      "file": "crops/accepted/ref01_open_gate_plaza.png",
+      "source_path": "/mnt/c/Users/danim/Pictures/Ayoa/ManhwaPanelDatasetReview_20260813/raw_strips/PMU070_p002_d51049bebf.webp",
+      "source_sha256": "d2144c90ab2c892450721ba53913b4379bd35c45247681b3a3f1d73b175aa10d",
+      "crop_rect": [0, 2354, 800, 2807],
+      "dimensions": [800, 453],
+      "sha256": "79fcdcd114382e95457eabe332012cecc9d2e3858ab3c7a71e9abc0b2ab2dd8f"
+    },
+    {
+      "id": "ref02",
+      "file": "crops/accepted/ref02_aerial_lobby_courtyard.png",
+      "source_path": "/mnt/c/Users/danim/Pictures/Ayoa/ManhwaPanelDatasetReview_20260813/raw_strips/PMU070_p006_1416c20d25.webp",
+      "source_sha256": "3f8da01d4549188df33d7c0cedb8e520030c23a500db9c200d928fcff801c494",
+      "crop_rect": [0, 9932, 800, 10822],
+      "dimensions": [800, 890],
+      "sha256": "387dac115c5eab246c3fee4c26da1a3a82894f14bc46c243a0ef134f7f2499f8"
+    },
+    {
+      "id": "ref03",
+      "file": "crops/accepted/ref03_open_training_courtyard_architecture.png",
+      "source_path": "/mnt/c/Users/danim/Pictures/Ayoa/ManhwaPanelDatasetReview_20260813/raw_strips/PMU150_p007_e12a70ed75.webp",
+      "source_sha256": "165b3ec2e6bf60e4dde5a53cab7a77c395b473f9491919c2e6c99780979a7eec",
+      "crop_rect": [0, 6550, 800, 7244],
+      "dimensions": [800, 694],
+      "sha256": "d6eeb072119f425627ca74204fd5bbda90ef1ff93e2fe3238cf82234185cb0bf"
+    },
+    {
+      "id": "ref04",
+      "file": "crops/accepted/ref04_bright_pavilion_exterior.png",
+      "source_path": "/mnt/c/Users/danim/Pictures/Ayoa/ManhwaPanelDatasetReview_20260813/raw_strips/PMU150_p009_bba679eca4.webp",
+      "source_sha256": "b5826dc2e96081ca084eaf5d0d49cf83d59a3058d64d867d67e79378d4023c18",
+      "crop_rect": [114, 6755, 800, 7254],
+      "dimensions": [686, 499],
+      "sha256": "1740a76ea83491aea302c518af7b51d614f42dc2e8210266b6f7622d3f5d56fa"
+    }
+  ],
+  "generation": {
+    "mode": "built-in image_gen",
+    "model_identifier": null,
+    "model_identifier_note": "The built-in service does not expose a model identifier.",
+    "call_count": 2,
+    "output_count": 2,
+    "postprocess": "Center-crop only from 1672x941 to exact 16:9 1664x936 using [4, 2, 1668, 938); no resampling.",
+    "outputs": [
+      {
+        "id": "A",
+        "file": "backgrounds/lobby_open_air_courtyard_v1.png",
+        "dimensions": [1664, 936],
+        "sha256": "5a454563d6ba57aee4cccdb69395862b9997e86098c85eb7a05abcd6bee57ac0",
+        "prompt_file": "prompts/open_air_courtyard.txt",
+        "reference_ids": ["ref01", "ref02", "ref03"],
+        "raw_file": "generation_raw/builtin_open_air_courtyard_raw.png",
+        "raw_dimensions": [1672, 941],
+        "raw_sha256": "f161a0d49705fcd524ec56fde1c5a9b8d9aced91f330f9d42e7b65cd9a70db64",
+        "manual_review": "Pass: character-free, creature-free, text-free, no logo or watermark, bright outdoor scene, and broad unobstructed sprite-staging area."
+      },
+      {
+        "id": "B",
+        "file": "backgrounds/lobby_covered_arrival_pavilion_v1.png",
+        "dimensions": [1664, 936],
+        "sha256": "d430ccc7cbe902f0dc8144737e851b941a84ec5b01bf13506b08b3d9d70830b2",
+        "prompt_file": "prompts/covered_arrival_pavilion.txt",
+        "reference_ids": ["ref01", "ref03", "ref04"],
+        "raw_file": "generation_raw/builtin_covered_arrival_pavilion_raw.png",
+        "raw_dimensions": [1672, 941],
+        "raw_sha256": "190a0af4a6e459182a7346cfaaadfebcac54a85d9c415cabe512189c5f3ebdb9",
+        "manual_review": "Pass: character-free, creature-free, text-free, no logo or watermark, airy open-sided concourse, and broad unobstructed sprite-staging area."
+      }
+    ]
+  },
+  "screening_evidence": {
+    "full_source_overviews": [
+      "contact_sheets/pmu070_all_strips_overview.png",
+      "contact_sheets/pmu150_all_strips_overview.png"
+    ],
+    "detailed_y_index_glob": "contact_sheets/*_y_index.png",
+    "accepted_crop_directory": "crops/accepted",
+    "screening_crop_directory": "crops/screening"
+  },
+  "windows_review_path": "C:\\Users\\danim\\Pictures\\Ayoa\\PMU Lobby Background Review 20260826"
+}

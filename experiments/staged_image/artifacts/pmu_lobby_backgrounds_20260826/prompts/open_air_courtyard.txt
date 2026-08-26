@@ -1,0 +1,10 @@
+Use case: stylized-concept
+Asset type: 16:9 visual-novel environment background plate
+Input images: Images 1-3 are environmental style, palette, architectural-scale, and layout references only; they are not edit targets. Do not reproduce any reference character, person, text, logo, panel border, or exact building.
+Primary request: Create an original open-air beginner guild lobby courtyard for a fantasy progression game.
+Scene/backdrop: A welcoming walled courtyard under a broad blue sky, with pale stone paving, a graceful arched reception gate, small timber-and-stone guild buildings around the perimeter, restrained greenery, and visible circulation paths. It should feel like a practical arrival and gathering lobby rather than a palace or battlefield.
+Style/medium: polished Korean webtoon/manhwa-inspired game background art, clean ink contours, cel-shaded painted architecture, subtle texture, original design.
+Composition/framing: exact 16:9 landscape, eye-level wide establishing view suitable behind two visual-novel character sprites; camera around standing eye height; keep the central 55 percent and lower foreground calm, open, and uncluttered; architectural interest toward the sides and rear; no top-down view.
+Lighting/mood: bright diffuse late-morning daylight, airy, clean, welcoming, gentle cyan and warm stone balance; no dramatic fog.
+Constraints: environment only; character-free; creature-free; no silhouettes or distant people; no text; no signs with writing; no speech balloons; no interface; no logos; no watermark; no panel gutters; no dominant props; coherent perspective; finished edge-to-edge background plate.
+Avoid: clammy corridors, dark dungeon stone, thermal or infrared color cast, ominous ruins, heavy clutter, weapons, carts, market stalls, desks, close-up furniture, extreme camera angle, copying the exact reference composition.

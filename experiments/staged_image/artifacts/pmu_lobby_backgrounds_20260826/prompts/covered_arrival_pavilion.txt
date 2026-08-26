@@ -1,0 +1,10 @@
+Use case: stylized-concept
+Asset type: 16:9 visual-novel environment background plate
+Input images: Images 1-3 are environmental style, palette, architectural-material, and spatial-scale references only; they are not edit targets. Do not reproduce any reference character, person, text, logo, panel border, or exact building.
+Primary request: Create an original bright covered arrival pavilion and reception concourse for a beginner fantasy guild lobby.
+Scene/backdrop: A large open-sided timber-and-pale-stone pavilion at the edge of a sunny courtyard, with a high vaulted roof, repeated arches, broad open doorways, and glimpses of blue sky, green trees, and neighboring guild buildings. The space functions as an airy arrival and orientation area, not a hallway.
+Style/medium: polished Korean webtoon/manhwa-inspired game background art, clean ink contours, cel-shaded painted architecture, subtle material texture, original design.
+Composition/framing: exact 16:9 landscape, eye-level wide view suitable behind two visual-novel character sprites; camera around standing eye height; calm open stone floor across the central 55 percent and lower foreground; structural rhythm at the sides and high roof overhead; deep but simple perspective; no top-down view.
+Lighting/mood: bright reflected daylight from the courtyard, warm timber against cool pale stone, welcoming and breathable, soft clean shadows.
+Constraints: environment only; character-free; creature-free; no silhouettes or distant people; no text; no signs with writing; no speech balloons; no interface; no logos; no watermark; no panel gutters; no dominant props; no reception desk; no tables or furniture in the central staging area; coherent perspective; finished edge-to-edge background plate.
+Avoid: clammy corridors, sealed dungeon interiors, dark blue funerary lighting, thermal or infrared color cast, ominous ruins, heavy fog, heavy clutter, weapons, carts, market stalls, close-up furniture, extreme camera angle, copying the exact reference composition.
