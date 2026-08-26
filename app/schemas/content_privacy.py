@@ -87,13 +87,15 @@ _UNQUOTED_PRIVATE_FILE_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 _QUOTED_PRIVATE_PATH_RE = re.compile(
-    rf"(?P<quote>[\"'])(?:/[^\r\n\"']+|[A-Za-z]:[\\/][^\r\n\"']+|"
+    rf"(?P<quote>[\"'])(?:/(?:[^/\r\n\"']+/[^\r\n\"']+|"
+    rf"[^/\r\n\"']+\.(?:{_PRIVATE_FILE_SUFFIXES}))|"
+    rf"[A-Za-z]:[\\/][^\r\n\"']+|"
     rf"\\\\[^\r\n\"']+|(?:\.{{1,2}}[\\/])?(?:{_REPO_PATH_ROOTS})"
     rf"[\\/][^\r\n\"']+)(?P=quote)",
     re.IGNORECASE,
 )
 _UNIX_ABSOLUTE_PATH_RE = re.compile(
-    rf"(?<![A-Za-z0-9_.-])/(?:{_UNIX_PATH_SEGMENT}/)*"
+    rf"(?<![A-Za-z0-9_.-])/(?:{_UNIX_PATH_SEGMENT}/)+"
     rf"{_UNIX_PATH_SEGMENT}"
 )
 _WINDOWS_ABSOLUTE_PATH_RE = re.compile(
