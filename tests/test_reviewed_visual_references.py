@@ -16,6 +16,7 @@ from app.engine.image_director import (
     SelectableVisualReference,
     VisibleEventProjection,
     build_projection_groups,
+    build_render_batch_projection_groups,
     projection_checkpoint_snapshot,
 )
 from app.engine.image_generation import (
@@ -46,7 +47,13 @@ from app.schemas.image_generation import (
     ImageGenerationStatus,
     ImageWorkerResult,
 )
-from app.schemas.state import SessionState, StorySetting, WorldState
+from app.schemas.event_router import LocationUpdateSignal
+from app.schemas.state import (
+    RenderBufferEntry,
+    SessionState,
+    StorySetting,
+    WorldState,
+)
 from app.schemas.visual_references import ReviewedVisualReference
 from tests.support.factories import router_output
 
@@ -485,6 +492,181 @@ async def test_llm_projection_exposes_only_authored_selection_metadata(tmp_path)
     # The opaque location binding is private runtime routing, not model input.
     assert "applies_to=station" not in rendered.lower()
     assert str(story_dir) not in rendered
+
+
+def test_direct_visual_scene_uses_embodied_cast_location_not_omit_viewer_screen(
+    tmp_path,
+):
+    story_dir, checkpoint, _identity, location = _reviewed_story(tmp_path)
+    viewer = checkpoint.characters[0]
+    viewer.location = "remote_screen"
+    viewer.visuals.depiction_policy = "omit"
+    checkpoint.characters.append(
+        CharacterRecord(
+            character_id="bob",
+            name="Bob",
+            location="station",
+            public_sheet=PublicSheet(
+                role="porter",
+                appearance="silver hair and a black coat",
+            ),
+        )
+    )
+    checkpoint.characters.append(
+        CharacterRecord(
+            character_id="carol",
+            name="Carol",
+            location="station",
+            public_sheet=PublicSheet(
+                role="clerk",
+                appearance="brown hair and a grey waistcoat",
+            ),
+        )
+    )
+
+    visible = router_output(
+        event_id="evt_remote_view",
+        observer_ids=["alice"],
+        facts=[ObservableFact.all("Bob steps into the rain at the station.")],
+    )
+    projection = build_projection_groups(
+        checkpoint=checkpoint,
+        event=visible,
+        event_sequence=0,
+        transaction_id="tx_remote_view",
+        source_turn_index=1,
+        actor_id="alice",
+        active_location_labels={"station"},
+    )[0]
+
+    assert projection.engine_location_label == "station"
+    assert projection.has_location_reference is True
+    assert [
+        option.reference_id
+        for option in projection.reference_options
+        if option.scope == "location"
+    ] == [location.reference_id]
+
+    split_scene = router_output(
+        event_id="evt_split_scene",
+        observer_ids=["alice"],
+        facts=[
+            ObservableFact.all(
+                "Bob enters the laboratory while Carol waits at the station."
+            )
+        ],
+    )
+    split_scene.location_updates = [
+        LocationUpdateSignal(
+            character_id="bob",
+            location_label="laboratory",
+        )
+    ]
+    split_projection = build_projection_groups(
+        checkpoint=checkpoint,
+        event=split_scene,
+        event_sequence=1,
+        transaction_id="tx_split_scene",
+        source_turn_index=1,
+        actor_id="bob",
+        active_location_labels={"station", "laboratory"},
+    )[0]
+    # The remote viewer's own room is intentionally not exposed as a selectable
+    # scene.  Ambiguous simultaneous locations therefore project no location.
+    assert split_projection.engine_location_label == ""
+    assert split_projection.has_location_reference is False
+
+    reported = router_output(
+        event_id="evt_remote_report",
+        observer_ids=["alice"],
+        facts=[ObservableFact.all("A message reports Bob waits at the station.")],
+    )
+    report_projection = build_projection_groups(
+        checkpoint=checkpoint,
+        event=reported,
+        event_sequence=2,
+        transaction_id="tx_remote_report",
+        source_turn_index=1,
+        actor_id="alice",
+        active_location_labels={"station"},
+    )[0]
+    assert report_projection.engine_location_label == ""
+    assert report_projection.has_location_reference is False
+
+    validate_story_visual_references(checkpoint, story_dir=story_dir)
+
+
+def test_render_batch_offers_only_final_scene_location_references(tmp_path):
+    story_dir, checkpoint, _identity, station = _reviewed_story(tmp_path)
+    laboratory_path = story_dir / "visual-references" / "laboratory.png"
+    _write_png(laboratory_path, (80, 30, 100))
+    laboratory = _metadata(
+        laboratory_path,
+        reference_id="authored.laboratory.v1",
+        purpose="environment",
+        scope="location",
+        scope_id="laboratory",
+    )
+    checkpoint.reviewed_visual_references.append(laboratory)
+    checkpoint.location_visual_reference_ids["laboratory"] = [
+        laboratory.reference_id
+    ]
+
+    platform_event = router_output(
+        event_id="evt_platform",
+        observer_ids=["alice"],
+        facts=[ObservableFact.all("Alice waits on the station platform.")],
+    )
+    laboratory_event = router_output(
+        event_id="evt_laboratory",
+        observer_ids=["alice"],
+        facts=[ObservableFact.all("Alice enters the laboratory.")],
+    )
+    laboratory_event.location_updates = [
+        LocationUpdateSignal(
+            character_id="alice",
+            location_label="laboratory",
+        )
+    ]
+    checkpoint.canonical_events = [platform_event, laboratory_event]
+
+    projections = build_render_batch_projection_groups(
+        checkpoint=checkpoint,
+        buffered_events_by_pov={
+            "alice": [
+                RenderBufferEntry(
+                    event_id=platform_event.event_id,
+                    event_sequence=0,
+                    visible_at_s=0,
+                ),
+                RenderBufferEntry(
+                    event_id=laboratory_event.event_id,
+                    event_sequence=1,
+                    visible_at_s=1,
+                ),
+            ]
+        },
+        eligible_viewer_ids={"alice"},
+        transaction_id="tx_location_change",
+        source_turn_index=1,
+        actor_ids_by_event_id={
+            platform_event.event_id: "alice",
+            laboratory_event.event_id: "alice",
+        },
+        active_location_labels={"station", "laboratory"},
+    )
+
+    assert len(projections) == 1
+    projection = projections[0]
+    assert projection.engine_location_label == "laboratory"
+    assert [
+        option.reference_id
+        for option in projection.reference_options
+        if option.scope == "location"
+    ] == [laboratory.reference_id]
+    assert station.reference_id not in {
+        option.reference_id for option in projection.reference_options
+    }
 
 
 @pytest.mark.asyncio

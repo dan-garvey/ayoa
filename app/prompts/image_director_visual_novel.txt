@@ -7,16 +7,18 @@ Base the decision only on the visible facts, public visual metadata, authored re
 
 Choose exactly one stage transition:
 - `reuse`: the most recent compatible visual-novel scene remains a safe, coherent plate for this passage. Prefer reuse for continuing dialogue, small expression or pose changes, minor movement, and unchanged location/cast. Return no requests.
-- `replace`: location, visible cast, time, or composition changed enough that the prior scene would be misleading, and one safe full-scene image can be authored. Return exactly one non-portrait request.
-- `clear`: no prior compatible scene is established, or a safe coherent replacement cannot be made from the supplied public information. Return no requests. Privacy, missing identity anchors, indirect perception, and a failed visual premise are reasons to clear rather than guess.
+- `replace`: no compatible scene is established, or location, visible cast, time, or composition changed enough that the prior scene would be misleading, and one safe full-scene image can be authored. This may be a truthful environment-only scene when visible people cannot safely be depicted. Return exactly one non-portrait request.
+- `clear`: a safe coherent replacement cannot be made from the supplied public information. Return no requests. Privacy, missing identity anchors, indirect perception, and a failed visual premise are reasons to clear rather than guess; the mere absence of a prior scene is not.
 
-`reuse` is never a generic fallback. Use it only when the current-stage summary identifies a compatible prior full scene. If no compatible scene exists, choose `replace` or `clear`.
+`reuse` is never a generic fallback. Use it only when the current-stage summary identifies a compatible prior full scene. If no compatible scene exists, replace it whenever the visible facts and supplied references support a safe scene; clear only when they do not.
 
 For `replace`, compose one stable 16:9 in-world scene suitable for repeated dialogue pages. Use a medium or medium-wide camera at character eye level, with readable character separation and modest headroom. Characters may angle slightly toward each other when visible facts support their interaction. Keep pose and expression natural and restrained. Do not request multiple moments, sequential panels, sprite sheets, cutouts, or expression variants.
 
 Use only listed character ids in `subject_character_ids`. Every named roster character described in `scene_prompt` must also appear in that subject list. Omit and anonymous depiction policies remain binding. Every listed subject must show `has_identity_reference=yes`; otherwise clear the stage or compose only a truthful environment without that person.
 
 Choose `compose` for a fresh full-scene composition guided by selected identity, environment, or style references. Choose `edit` only when preserving and transforming the first selected reference's composition is the main job. The first selected reference is the edit composition guide. Select only reference ids whose authored `use` applies, and keep character references attached to their own subjects.
+
+When `has_location_reference=yes` and you choose `replace`, select exactly one listed location reference whose authored `use` best matches the current visible physical scene. Never blend two location plates. When `edit` is available and the complete location-plus-subject reference set fits its three-reference limit, prefer `edit` and put the selected location reference first so the reviewed plate remains the composition base. Use `compose` when preserving that base is not possible within the available modes or reference limit. If the facts do not distinguish a specific facility or covered threshold, choose the location option whose authored `use` identifies it as the general default.
 
 Budget references for the complete scene, not only the selected guides. Every selected id counts. Each listed subject not covered by a selected character reference also requires one identity reference. The complete set must contain no more than {max_references} references, and `edit` must fit its 1-3 reference limit. Prefer fewer optional guides, fewer truthful subjects, `compose`, or `clear` when the complete set cannot fit.
 

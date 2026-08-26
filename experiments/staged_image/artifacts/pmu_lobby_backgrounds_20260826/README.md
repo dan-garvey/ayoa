@@ -4,7 +4,7 @@ This isolated experiment screens the 22 files whose basenames begin `PMU` in:
 
 `C:\Users\danim\Pictures\Ayoa\ManhwaPanelDatasetReview_20260813\raw_strips`
 
-It contains four candidate visual-novel background plates across two architectural tiers. Nothing in this pack is bound into a story, prompt, runtime image director, or environment configuration. Runtime LLMs do not receive any image data.
+It contains six final visual-novel background plates across two architectural tiers. The four reviewed 1F plates are promoted into the One-Star story as authored location guides; the ornate pair remains registered but unbound for later 2F/3F progression. Runtime LLMs receive only opaque handles and authored selection hints, never image data, paths, hashes, crop metadata, or image-derived analysis.
 
 ## Beginner-tier 1F candidates
 
@@ -16,6 +16,20 @@ These two files were generated in the `ayoa-nptq` extension. They reuse the froz
 | 1F B | `backgrounds/1f/lobby_1f_covered_pavilion_v1.png` | 1664x936 | `d1e014fa5dc5349334c2a4e178a6f9ed74db234a101f07f7adff5a8562256a3c` | Pass: plain one-story timber shelter with square posts, simple roof and stone floor, character-free and text-free, with broad calm staging space. No banner, crest, tower, spire, arch array, lantern array, gold, ceremony, damage, or grime. |
 
 `review_overview_1f.jpg` shows the two new 1F plates side by side. `review_overview_tiers.jpg` places them above the byte-preserved higher-tier plates for a direct tier check. The pre-call conflict audit is in `prompt_conflict_audit_1f.md`.
+
+## Beginner-tier 1F scene variety
+
+The scene extension adds two purpose-specific plates without replacing the
+general courtyard or pavilion.
+
+| Scene | File | Size | SHA256 | Manual review |
+| --- | --- | --- | --- | --- |
+| Crack of Space and Time | `backgrounds/1f/lobby_1f_crack_of_space_and_time_v1.png` | 1664x936 | `82b568c7b8676c4122e24b5f853bc005738285c31fa5e15b14e129cca4b640ce` | Pass: matches the supplied source's segmented white/cyan seam, dark ribbed aperture, and enclosing arch; surrounding courtyard remains plain 1F construction; no people, text, UI, logo, or watermark; broad foreground remains usable. |
+| Synthesis Chamber | `backgrounds/1f/lobby_1f_synthesis_chamber_v1.png` | 1664x936 | `668e6fc4c1e7ac9b79601e6024aaf97f3565901ba9cbacc0aeac9e50d1d4afc1` | Pass: clean sparse plaster/timber/stone room with one low cold-blue floor recess and barrier; no people, text, UI, console, loose props, restraints, gore, logo, or watermark; broad foreground remains usable. |
+
+`review_overview_1f_scenes.jpg` shows all four active 1F choices. Exact
+scene prompts and their pre-call conflict audit are in `prompts/1f/` and
+`prompt_conflict_audit_1f_scenes.md`.
 
 ## Preserved higher-tier 2F/3F candidates
 
@@ -33,13 +47,13 @@ The original A/B files are intentionally unchanged. Their more monumental gate, 
 ## Generation method
 
 - Mode: built-in `image_gen`, reference-guided generation. The built-in service does not expose a model identifier.
-- Calls: two in the original run and exactly two in the 1F extension, one independent call per final asset.
+- Calls: two in the original run, two in the architectural-tier extension, and three in the scene extension. The interrupted scene call still completed both outputs; its first Crack was rejected after the canonical source arrived, and one independent corrected Crack call replaced it.
 - Raw tool output: 1672x941 PNG in `generation_raw/` for the preserved 2F/3F pair and `generation_raw/1f/` for the 1F pair.
 - Final normalization: deterministic center crop `[4, 2, 1668, 938)` to 1664x936, an exact 16:9 ratio. There was no resampling, repainting, or other post-processing.
 - Prompts: exact call text is preserved in `prompts/` and `prompts/1f/`.
 - References: accepted decoded-pixel crops in `crops/accepted/`; each input was manually inspected before use.
 
-The open-air candidate in each tier used references 01, 02, and 03. The covered candidate in each tier used references 01, 03, and 04. Reference images supplied style, palette, architecture, and spatial cues only; prompts explicitly forbade copying source characters, text, logos, panel borders, or exact buildings. The 1F prompts additionally reject the higher-tier motifs visible in those references. Their positive-instruction conflict audit and frozen prompt hashes are recorded in `prompt_conflict_audit_1f.md`.
+The open-air candidate in each tier used references 01, 02, and 03. The covered candidate in each tier used references 01, 03, and 04. The Synthesis Chamber used the two approved 1F plates plus reference 03. The corrected Crack used the user-supplied canonical Crack image plus the two approved 1F plates. Reference images supplied canonical object identity, style, palette, architecture, and spatial cues only; every prompt treats them as references rather than edit targets. The positive-instruction audits and frozen prompt hashes are recorded in `prompt_conflict_audit_1f.md` and `prompt_conflict_audit_1f_scenes.md`.
 
 ## Accepted reference crops
 
@@ -53,6 +67,15 @@ Crop rectangles use Pillow's half-open pixel convention: `[left, top, right, bot
 | 04 `ref04_bright_pavilion_exterior.png` | `PMU150_p009_bba679eca4.webp`, `b5826dc2e96081ca084eaf5d0d49cf83d59a3058d64d867d67e79378d4023c18` | `[114, 6755, 800, 7254)` | 686x499, `1740a76ea83491aea302c518af7b51d614f42dc2e8210266b6f7622d3f5d56fa` | Bright masonry, repeated arched windows, warm/cool pavilion material cue. |
 
 The PNG crops are lossless with respect to the decoded RGB pixels of the untouched WebP sources. The source files themselves were never modified.
+
+## Canonical Crack source reference
+
+The user-supplied 765x1024 PNG is preserved byte-for-byte at
+`source_references/crack_of_space_and_time_source.png`, SHA256
+`3b85b43ed9e007c1f93bd2c441702ffac1ac89e55886beb135b165d7cdb8ba43`.
+It is an authoring-time visual reference only. Its recognizable traits were
+manually authored into the corrected generation prompt; no runtime model reads
+the source image.
 
 ## Screening and rejections
 
@@ -68,6 +91,20 @@ Notable rejected directions:
 
 The broad screening crops remain under `crops/screening/` as rejection and refinement evidence; only files under `crops/accepted/` were supplied to image generation.
 
-## Promotion boundary
+## Production promotion
 
-These are review candidates, not approved story assets. Promotion should be a separate decision that selects files and updates a story-owned visual-reference/background binding. Until then, production director modes, app prompts, `.env`, and approved originals remain unchanged.
+The One-Star checkpoint registers all six exact files under its story-owned
+visual-reference root. The active 1F bindings offer the general courtyard,
+covered pavilion, and Crack approach for `niflheim_lobby`, the Synthesis
+Chamber only for `niflheim_synthesis_chamber`, and the Crack plate alone for
+its dedicated facility label. The 2F/3F pair is deliberately absent from the
+active location map until lobby progression supplies an authored higher-tier
+binding.
+
+For a visual-novel replacement, the director receives only the current visible
+facts and these candidates' opaque handles plus selection hints. It must choose
+exactly one matching location guide; an edit keeps that guide first as the
+composition base. Directly embodied visible characters may establish the
+depicted location for a remote non-depictable viewer, while indirect reports
+remain anchored to the viewer's own location. No production prompt, `.env`, or
+runtime model receives image bytes or source provenance.

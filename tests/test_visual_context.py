@@ -1,6 +1,7 @@
 from app.engine.visual_context import (
     format_narrator_visual_introductions,
     mark_visual_introductions,
+    physically_present_character_ids,
     plan_event_visual_introductions,
     plan_render_visual_introductions,
 )
@@ -9,6 +10,7 @@ from app.schemas.characters import (
     CharacterDescriptions,
     CharacterRecord,
     CharacterVisuals,
+    PlayerSlotKind,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
@@ -37,6 +39,37 @@ def _character(
         agent_tier=tier,
         visuals=CharacterVisuals(default_loadout=f"{name} loadout."),
     )
+
+
+def test_presence_excludes_unbound_player_authored_slot_until_claimed():
+    checkpoint = CheckpointFile(
+        session=SessionState(
+            session_id="s",
+            character_bindings={"guide": "guide-player"},
+        ),
+        characters=[
+            CharacterRecord(
+                character_id="guide",
+                name="Guide",
+                location="lobby",
+            ),
+            CharacterRecord(
+                character_id="newcomer",
+                name="the Newcomer",
+                location="not_yet_fictional",
+                player_slot_kind=PlayerSlotKind.player_authored,
+            ),
+        ],
+    )
+    text = "Guide waits with the newcomer in the lobby courtyard."
+
+    assert physically_present_character_ids(checkpoint, [text]) == {"guide"}
+
+    checkpoint.session.character_bindings["newcomer"] = "newcomer-player"
+    assert physically_present_character_ids(checkpoint, [text]) == {
+        "guide",
+        "newcomer",
+    }
 
 
 def test_first_meeting_plan_caps_by_tier_and_leaves_overflow_unintroduced():

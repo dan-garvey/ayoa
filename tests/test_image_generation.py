@@ -699,6 +699,41 @@ def test_projection_snapshot_omits_unclaimed_player_authored_slot():
     assert "UNCLAIMED APPEARANCE" not in serialized
 
 
+def test_projection_groups_omit_unclaimed_player_authored_slot_directly():
+    source = _checkpoint()
+    source.characters.append(CharacterRecord(
+        character_id="blank_arrival",
+        name="the Newcomer",
+        location="not_yet_fictional",
+        is_playable=True,
+        player_slot_kind=PlayerSlotKind.player_authored,
+        public_sheet=PublicSheet(appearance="UNCLAIMED APPEARANCE"),
+    ))
+    event = router_output(
+        event_id="evt_unclaimed_mention",
+        observer_ids=["alice"],
+        facts=[
+            ObservableFact.all(
+                "Alice waits with the Newcomer in the rainy courtyard."
+            )
+        ],
+    )
+
+    projection = build_projection_groups(
+        checkpoint=source,
+        event=event,
+        event_sequence=0,
+        transaction_id="tx_unclaimed_mention",
+        source_turn_index=1,
+        actor_id="alice",
+    )[0]
+
+    assert [character.character_id for character in projection.characters] == [
+        "alice"
+    ]
+    assert "UNCLAIMED APPEARANCE" not in str(projection)
+
+
 def test_projection_does_not_disclose_engine_known_actor_to_other_viewers():
     ckpt = _checkpoint()
     event = router_output(
@@ -1141,19 +1176,39 @@ def test_visual_novel_reference_budget_includes_unselected_subject_identities():
             selection_hint="Front courtyard framing.",
         ),
         SelectableVisualReference(
-            reference_id="authored.station.light",
-            scope="location",
-            scope_id="station",
-            selection_hint="Courtyard lighting.",
+            reference_id="authored.alice.face",
+            scope="character",
+            scope_id="alice",
+            selection_hint="Alice face identity.",
         ),
+        SelectableVisualReference(
+            reference_id="authored.bob.face",
+            scope="character",
+            scope_id="bob",
+            selection_hint="Bob face identity.",
+        ),
+    )
+    base_characters = tuple(
+        replace(character, has_identity_reference=True)
+        for character in _projection().characters
     )
     projection = replace(
         _projection(presentation_mode="visual_novel"),
-        characters=tuple(
-            replace(character, has_identity_reference=True)
-            for character in _projection().characters
+        characters=(
+            *base_characters,
+            PublicCharacterVisual(
+                character_id="carol",
+                name="Carol",
+                appearance="long auburn hair",
+                default_loadout="green wool coat",
+                depiction_policy="normal",
+                is_new_character=False,
+                has_identity_reference=True,
+            ),
         ),
         reference_options=options,
+        engine_location_label="station",
+        has_location_reference=True,
     )
     director = ImageDirector(
         FakeDirectorClient(ImageDirectorOutput(requests=[])),
@@ -1171,17 +1226,97 @@ def test_visual_novel_reference_budget_includes_unselected_subject_identities():
                     ImageDirection(
                         kind="group_portrait",
                         title="Rainy Meeting",
-                        subject_character_ids=["alice", "bob"],
+                        subject_character_ids=["alice", "bob", "carol"],
                         generation_mode="edit",
                         reference_ids=[
                             "authored.station.front",
-                            "authored.station.light",
+                            "authored.alice.face",
+                            "authored.bob.face",
                         ],
-                        scene_prompt="Alice and Bob meet in the rainy courtyard.",
+                        scene_prompt=(
+                            "Alice, Bob, and Carol meet in the rainy courtyard."
+                        ),
                     )
                 ],
             ),
         )
+
+
+def test_visual_novel_replace_selects_one_location_and_edit_keeps_it_first():
+    options = (
+        SelectableVisualReference(
+            reference_id="authored.station.open",
+            scope="location",
+            scope_id="station",
+            selection_hint="Open platform default.",
+        ),
+        SelectableVisualReference(
+            reference_id="authored.station.shelter",
+            scope="location",
+            scope_id="station",
+            selection_hint="Covered platform shelter.",
+        ),
+        SelectableVisualReference(
+            reference_id="authored.alice.face",
+            scope="character",
+            scope_id="alice",
+            selection_hint="Alice face identity.",
+        ),
+    )
+    projection = replace(
+        _projection(presentation_mode="visual_novel"),
+        characters=tuple(
+            replace(character, has_identity_reference=True)
+            for character in _projection().characters
+        ),
+        reference_options=options,
+        engine_location_label="station",
+        has_location_reference=True,
+    )
+    director = ImageDirector(
+        FakeDirectorClient(ImageDirectorOutput(requests=[])),
+        PromptManager("app/prompts"),
+        generation_modes=("compose", "edit"),
+    )
+
+    def output(reference_ids, *, generation_mode="compose"):
+        return ImageDirectorOutput(
+            stage_action="replace",
+            requests=[
+                ImageDirection(
+                    kind="action",
+                    title="Rainy Turn",
+                    subject_character_ids=["alice"],
+                    generation_mode=generation_mode,
+                    reference_ids=reference_ids,
+                    scene_prompt="Alice turns on the rainy platform.",
+                )
+            ],
+        )
+
+    with pytest.raises(ValueError, match="exactly one authored location"):
+        director.validate_output(projection, output([]))
+    with pytest.raises(ValueError, match="cannot blend multiple"):
+        director.validate_output(
+            projection,
+            output(["authored.station.open", "authored.station.shelter"]),
+        )
+    with pytest.raises(ValueError, match="location guide first"):
+        director.validate_output(
+            projection,
+            output(
+                ["authored.alice.face", "authored.station.open"],
+                generation_mode="edit",
+            ),
+        )
+
+    director.validate_output(
+        projection,
+        output(
+            ["authored.station.shelter", "authored.alice.face"],
+            generation_mode="edit",
+        ),
+    )
 
 
 @pytest.mark.asyncio

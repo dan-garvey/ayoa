@@ -321,6 +321,18 @@ count and byte limits and the edit mode's three-reference ceiling. Live binding,
 file, byte-count, or hash failure admits no diffusion job, so the replacement
 resolves through the ordinary neutral-stage failure contract.
 
+When an authored location has reviewed environment plates, a visual-novel
+replacement selects exactly one plate whose human-authored applicability fits
+the current visible scene. Multiple plates are choices, never a blend. An edit
+keeps the chosen location first as its composition base; compose remains
+available when the complete reference set cannot fit edit's three-reference
+ceiling. Location selection is engine-routed from canonical physical presence:
+a directly observed embodied cast may establish the depicted location for an
+omit-policy or remote-interface viewer, while indirect reports and mediated
+name mentions stay anchored to the viewer's own location. A render batch offers
+only its final scene's location choices. Higher-tier authored plates may remain
+validated but unbound until story progression activates them.
+
 ## 5. Runtime Components
 
 ### 5.1 Discord Bot And EngineBridge

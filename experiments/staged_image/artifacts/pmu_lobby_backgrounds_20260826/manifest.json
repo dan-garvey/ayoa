@@ -1,10 +1,11 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "issue_id": "ayoa-ale8",
   "extension_issue_id": "ayoa-nptq",
+  "promotion_issue_id": "ayoa-yvja",
   "created_on": "2026-08-26",
-  "experiment_only": true,
-  "production_binding_changed": false,
+  "experiment_only": false,
+  "production_binding_changed": true,
   "runtime_image_input_changed": false,
   "source_root_windows": "C:\\Users\\danim\\Pictures\\Ayoa\\ManhwaPanelDatasetReview_20260813\\raw_strips",
   "source_root_posix": "/mnt/c/Users/danim/Pictures/Ayoa/ManhwaPanelDatasetReview_20260813/raw_strips",
@@ -137,6 +138,69 @@
       }
     ]
   },
+  "generation_1f_scenes": {
+    "tier": "1F",
+    "mode": "built-in image_gen",
+    "model_identifier": null,
+    "model_identifier_note": "The built-in service does not expose a model identifier.",
+    "call_count": 3,
+    "output_count": 3,
+    "accepted_output_count": 2,
+    "rejected_output_count": 1,
+    "prompt_conflict_audit": "prompt_conflict_audit_1f_scenes.md",
+    "postprocess": "Center-crop only from 1672x941 to exact 16:9 1664x936 using [4, 2, 1668, 938); no resampling.",
+    "source_references": [
+      {
+        "id": "canonical_crack",
+        "file": "source_references/crack_of_space_and_time_source.png",
+        "supplied_path": "/mnt/c/Users/danim/AppData/Local/Temp/tmp14F4.png",
+        "dimensions": [765, 1024],
+        "sha256": "3b85b43ed9e007c1f93bd2c441702ffac1ac89e55886beb135b165d7cdb8ba43",
+        "role": "Canonical visual identity reference for the Crack of Space and Time; authoring-time inspection only."
+      }
+    ],
+    "outputs": [
+      {
+        "id": "1F-C",
+        "tier": "1F",
+        "scene": "crack_of_space_and_time",
+        "file": "backgrounds/1f/lobby_1f_crack_of_space_and_time_v1.png",
+        "dimensions": [1664, 936],
+        "sha256": "82b568c7b8676c4122e24b5f853bc005738285c31fa5e15b14e129cca4b640ce",
+        "prompt_file": "prompts/1f/crack_of_space_and_time.txt",
+        "prompt_sha256": "f0d6ed95a5fa78b11ec31a8a05a4e2c28597bc2f4d9c51e2ebddebb71f5f9e24",
+        "reference_ids": ["canonical_crack", "1F-A", "1F-B"],
+        "raw_file": "generation_raw/1f/builtin_1f_crack_of_space_and_time_raw.png",
+        "raw_dimensions": [1672, 941],
+        "raw_sha256": "709badb0c276ecaff68aafca71feade7f87de2d2c9a6f8226590d5f70ae21c46",
+        "manual_review": "Pass: canonical segmented seam, ribbed aperture, and enclosing arch; plain 1F courtyard; no people, creatures, text, UI, logo, or watermark; broad staging foreground."
+      },
+      {
+        "id": "1F-D",
+        "tier": "1F",
+        "scene": "synthesis_chamber",
+        "file": "backgrounds/1f/lobby_1f_synthesis_chamber_v1.png",
+        "dimensions": [1664, 936],
+        "sha256": "668e6fc4c1e7ac9b79601e6024aaf97f3565901ba9cbacc0aeac9e50d1d4afc1",
+        "prompt_file": "prompts/1f/synthesis_chamber.txt",
+        "prompt_sha256": "1f5f682611e36fc202823de37e113e6b6ef5d9db8c03c75cfdf17f23b9b41ce9",
+        "reference_ids": ["1F-A", "1F-B", "ref03"],
+        "raw_file": "generation_raw/1f/builtin_1f_synthesis_chamber_raw.png",
+        "raw_dimensions": [1672, 941],
+        "raw_sha256": "77ca2019567bf7d6cee0fc6ecb10c68dba2953c0825ed51a9cc4d43920f1fc28",
+        "manual_review": "Pass: simple maintained chamber, low cold-blue built-in recess, no people, creatures, text, UI, console, loose props, gore, logo, or watermark; broad staging foreground."
+      }
+    ],
+    "rejected_outputs": [
+      {
+        "id": "1F-C-pre-source",
+        "file": "generation_raw/1f/rejected/builtin_1f_crack_pre_source_raw.png",
+        "dimensions": [1672, 941],
+        "sha256": "1d1f78f9aa8f88ab8c335ada33db41e6101f468785779f6ac39125baae8ea1b2",
+        "reason": "Rejected after canonical source arrived: clean 1F courtyard passed, but the unsupported star-filled lightning tear did not match the established arched ribbed aperture and segmented block-glitch seam."
+      }
+    ]
+  },
   "screening_evidence": {
     "full_source_overviews": [
       "contact_sheets/pmu070_all_strips_overview.png",
@@ -149,7 +213,8 @@
   "review_overviews": {
     "preserved_2f_3f": "review_overview.jpg",
     "new_1f": "review_overview_1f.jpg",
-    "tier_comparison": "review_overview_tiers.jpg"
+    "tier_comparison": "review_overview_tiers.jpg",
+    "active_1f_scenes": "review_overview_1f_scenes.jpg"
   },
   "windows_review_path": "C:\\Users\\danim\\Pictures\\Ayoa\\PMU Lobby Background Review 20260826"
 }

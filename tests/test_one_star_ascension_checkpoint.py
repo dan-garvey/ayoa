@@ -476,7 +476,10 @@ def test_reviewed_identity_bindings_match_human_selection() -> None:
         ]
         for character_id in BOUND_IDENTITY_REFERENCE_IDS
     }
-    assert len(checkpoint.reviewed_visual_references) == 61
+    assert sum(
+        reference.scope == "character"
+        for reference in checkpoint.reviewed_visual_references
+    ) == 61
     assert len(grouped["soren_ironvow"]) == 5
     assert len(grouped["warden_of_the_eighth"]) == 1
     assert all(
@@ -522,6 +525,46 @@ def test_reviewed_identity_bindings_match_human_selection() -> None:
     renna = by_id["renna_holt"]
     assert "child" not in renna.public_sheet.appearance.lower()
     assert "copper-red" in renna.public_sheet.appearance.lower()
+
+
+def test_reviewed_lobby_backgrounds_bind_only_current_1f_scenes() -> None:
+    checkpoint = _load_checkpoint()
+    references = {
+        reference.reference_id: reference
+        for reference in checkpoint.reviewed_visual_references
+        if reference.scope == "location"
+    }
+
+    assert checkpoint.location_visual_reference_ids == {
+        "niflheim_lobby": [
+            "osa_loc_1f_courtyard_v1",
+            "osa_loc_1f_pavilion_v1",
+            "osa_loc_1f_crack_lobby_v1",
+        ],
+        "niflheim_synthesis_chamber": ["osa_loc_1f_synthesis_v1"],
+        "niflheim_crack_of_space_and_time": [
+            "osa_loc_1f_crack_facility_v1"
+        ],
+    }
+    active_ids = {
+        reference_id
+        for reference_ids in checkpoint.location_visual_reference_ids.values()
+        for reference_id in reference_ids
+    }
+    assert {
+        "osa_loc_2f3f_courtyard_v1",
+        "osa_loc_2f3f_pavilion_v1",
+    }.isdisjoint(active_ids)
+    assert set(references) == active_ids | {
+        "osa_loc_2f3f_courtyard_v1",
+        "osa_loc_2f3f_pavilion_v1",
+    }
+    for label, reference_ids in checkpoint.location_visual_reference_ids.items():
+        for reference_id in reference_ids:
+            reference = references[reference_id]
+            assert reference.scope_id == label
+            assert reference.purpose == "environment"
+            assert reference.diffusion_authorized is True
 
 
 def test_player_character_is_a_blank_user_created_slot() -> None:

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from app.engine.text_safety import strip_terminal_control
-from app.schemas.characters import CharacterRecord
+from app.schemas.characters import CharacterRecord, is_player_authored_slot
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_content_metadata_text
 from app.schemas.event_router import EventRouterOutput
@@ -182,6 +182,12 @@ def _active_roster_characters(ckpt: CheckpointFile) -> list[CharacterRecord]:
     return [
         character for character in ckpt.characters
         if _character_status_value(character) != "culled"
+        and not (
+            is_player_authored_slot(character)
+            and character.character_id
+            not in (ckpt.session.character_bindings or {})
+            and character.character_id != ckpt.session.player_character_id
+        )
     ]
 
 
@@ -507,6 +513,21 @@ def _physically_present_character_ids(
                 evidence_records=evidence_records,
             ))
     return physical
+
+
+def physically_present_character_ids(
+    ckpt: CheckpointFile,
+    visible_texts: Iterable[str],
+) -> set[str]:
+    """Return roster ids directly embodied in the supplied visible facts.
+
+    This is the shared person-channel classifier used for first-meeting state
+    and noncanonical visual staging.  Keeping both consumers on one contract
+    prevents a reported name, screen image, or future arrival from selecting
+    the named person's remote location as the current scene.
+    """
+
+    return _physically_present_character_ids(ckpt, visible_texts)
 
 
 def _loadout_tag_character_ids(

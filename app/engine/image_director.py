@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from app.engine.text_safety import strip_terminal_control
+from app.engine.visual_context import physically_present_character_ids
 from app.llm.client import LLMClient
 from app.schemas.characters import (
     CharacterRecord,
@@ -271,6 +272,18 @@ def source_event_fingerprint(event: EventRouterOutput) -> str:
     ).hexdigest()
 
 
+def _is_unbound_player_authored_slot(
+    checkpoint: CheckpointFile,
+    character: CharacterRecord,
+) -> bool:
+    return bool(
+        is_player_authored_slot(character)
+        and character.character_id
+        not in (checkpoint.session.character_bindings or {})
+        and character.character_id != checkpoint.session.player_character_id
+    )
+
+
 def projection_checkpoint_snapshot(
     checkpoint: CheckpointFile,
     *,
@@ -347,11 +360,7 @@ def projection_checkpoint_snapshot(
                 is_playable=bool(character.is_playable),
             )
             for character in checkpoint.characters
-            if not (
-                is_player_authored_slot(character)
-                and character.character_id
-                not in (checkpoint.session.character_bindings or {})
-            )
+            if not _is_unbound_player_authored_slot(checkpoint, character)
         ],
         reviewed_visual_references=[
             reference.model_copy(deep=True)
@@ -402,7 +411,9 @@ def build_projection_groups(
         character.character_id: character for character in spawned_records
     }
     by_id = {
-        character.character_id: character for character in checkpoint.characters
+        character.character_id: character
+        for character in checkpoint.characters
+        if not _is_unbound_player_authored_slot(checkpoint, character)
     }
     by_id.update(spawned_by_id)
     new_ids = {
@@ -460,10 +471,26 @@ def build_projection_groups(
             new_ids=new_ids,
             active_identity_character_ids=active_references,
         )
+        directly_present_ids = physically_present_character_ids(
+            checkpoint,
+            (text for text, _offset, _duration in facts),
+        )
+        directly_present_ids.update(
+            request.character_id
+            for request in event.spawn
+            if request.character_id
+        )
+        directly_present_ids.update(
+            wake.character_id
+            for wake in event.activate
+            if wake.character_id
+        )
         location_label = _visible_location_label(
             checkpoint=checkpoint,
             event=event,
             viewer_character_id=viewer_id,
+            directly_present_character_ids=directly_present_ids,
+            by_id=by_id,
         )
         has_location_reference = location_label in active_locations
         projection = VisibleEventProjection(
@@ -598,11 +625,6 @@ def build_render_batch_projection_groups(
             for part in parts
             for character in part.characters
         }
-        references = {
-            reference.reference_id: reference
-            for part in parts
-            for reference in part.reference_options
-        }
         anchor = parts[-1]
         perception_level = max(
             (part.perception_level for part in parts),
@@ -617,7 +639,10 @@ def build_render_batch_projection_groups(
                 "duration_s": max(0, end_s - start_s),
                 "visible_facts": facts,
                 "characters": tuple(characters.values()),
-                "reference_options": tuple(references.values()),
+                # One VN plate depicts the final/current scene in the batch.
+                # Earlier location guides cannot be selected against the
+                # anchor's engine-owned location binding.
+                "reference_options": anchor.reference_options,
                 "presentation_mode": (
                     checkpoint.session.config.settings.presentation_mode
                 ),
@@ -706,7 +731,9 @@ class ImageDirector:
         identity_retry_rule = (
             "For a visual-novel stage, use reuse or clear with no request, "
             "or replace with exactly one non-portrait request whose subjects "
-            "already have identity references."
+            "already have identity references. A replacement with an "
+            "available authored location must select exactly one matching "
+            "location reference; an edit puts that reference first."
             if visual_novel
             else (
                 "New named characters without identity references need "
@@ -864,6 +891,30 @@ class ImageDirector:
                     f"character ids: {', '.join(unknown)}"
                 )
             if visual_novel_replace:
+                selected_location_ids = [
+                    reference_id
+                    for reference_id in request.reference_ids
+                    if allowed_references[reference_id].scope == "location"
+                ]
+                if len(selected_location_ids) > 1:
+                    raise ValueError(
+                        "visual-novel replacement cannot blend multiple "
+                        "authored location guides"
+                    )
+                if projection.has_location_reference and not selected_location_ids:
+                    raise ValueError(
+                        "visual-novel replacement must select exactly one "
+                        "authored location guide for the depicted scene"
+                    )
+                if (
+                    request.generation_mode == "edit"
+                    and selected_location_ids
+                    and request.reference_ids[0] != selected_location_ids[0]
+                ):
+                    raise ValueError(
+                        "visual-novel edit must put the authored location "
+                        "guide first so it remains the composition base"
+                    )
                 omitted_named_subjects = [
                     character.character_id
                     for character in allowed.values()
@@ -1155,6 +1206,8 @@ def _visible_location_label(
     checkpoint: CheckpointFile,
     event: EventRouterOutput,
     viewer_character_id: str,
+    directly_present_character_ids: set[str],
+    by_id: dict[str, CharacterRecord],
 ) -> str:
     for update in reversed(event.location_updates):
         if update.character_id == viewer_character_id:
@@ -1170,9 +1223,49 @@ def _visible_location_label(
         ),
         None,
     )
-    if character is None:
-        return ""
-    return _safe_identifier(character.location)
+    viewer_location = (
+        _safe_identifier(character.location) if character is not None else ""
+    )
+    observer = next(
+        (
+            item
+            for item in event.observers
+            if item.character_id == viewer_character_id
+        ),
+        None,
+    )
+    if observer is None or observer.observation_level != "d":
+        return viewer_location
+
+    depicted_location_by_character = {
+        character_id: location
+        for character_id in directly_present_character_ids
+        if (record := by_id.get(character_id)) is not None
+        if (location := _safe_identifier(record.location))
+    }
+    for update in event.location_updates:
+        if update.character_id in directly_present_character_ids:
+            depicted_location_by_character[update.character_id] = (
+                _safe_identifier(update.location_label)
+            )
+    for wake in event.activate:
+        if wake.character_id in directly_present_character_ids:
+            depicted_location_by_character[wake.character_id] = (
+                _safe_identifier(wake.location_label)
+            )
+    for request in event.spawn:
+        if request.character_id in directly_present_character_ids:
+            depicted_location_by_character[request.character_id] = (
+                _safe_identifier(request.seed.location)
+            )
+    depicted_locations = {
+        location
+        for location in depicted_location_by_character.values()
+        if location
+    }
+    if len(depicted_locations) == 1:
+        return next(iter(depicted_locations))
+    return viewer_location
 
 
 def _safe_text(value: object, max_chars: int) -> str:
