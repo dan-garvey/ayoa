@@ -2618,6 +2618,79 @@ async def test_failed_preflight_restart_preserves_job_with_live_owner(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_failed_preflight_watcher_settles_job_after_live_owner_exits(
+    tmp_path,
+):
+    config = _config(tmp_path)
+    original = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=config,
+        worker=FakeImageWorker(),
+    )
+    projection, _, job = await _persist_finalized_visual_novel_job(original)
+    await original.close()
+
+    live_worker = FakeImageWorker(wait=True)
+    capable_owner = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=config,
+        worker=live_worker,
+    )
+    unavailable_worker = FailedPreflightWorker()
+    unavailable = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=config,
+        worker=unavailable_worker,
+    )
+    owner_closed = False
+    try:
+        await capable_owner.start()
+        await asyncio.wait_for(live_worker.started.wait(), timeout=1)
+        await unavailable.start()
+
+        preserved = unavailable.store.get(job.job_id)
+        assert preserved is not None
+        assert preserved.status == ImageGenerationStatus.running
+        assert unavailable._ownership_runner is not None
+        assert unavailable._runner is None
+        assert unavailable.store.rendered_event_image_status(
+            session_id=projection.session_id,
+            rendered_event_ids_by_pov={"alice": [projection.event_id]},
+        ) == (True, False)
+
+        await capable_owner.close()
+        owner_closed = True
+        await _wait_until(
+            lambda: (
+                (current := unavailable.store.get(job.job_id)) is not None
+                and current.status == ImageGenerationStatus.failed
+            ),
+        )
+
+        settled = unavailable.store.get(job.job_id)
+        assert settled is not None
+        assert settled.error_code == "worker_unavailable"
+        assert unavailable._queue_owner is False
+        assert unavailable._queue_lock_handle is None
+        assert unavailable._runner is None
+        assert unavailable_worker.calls == 0
+        assert unavailable.store.rendered_event_image_status(
+            session_id=projection.session_id,
+            rendered_event_ids_by_pov={"alice": [projection.event_id]},
+        ) == (True, True)
+        assert await unavailable.wait_for_render_images(
+            session_id=projection.session_id,
+            rendered_event_ids_by_pov={"alice": [projection.event_id]},
+            timeout=0.1,
+            discovery_grace_seconds=0,
+        )
+    finally:
+        await unavailable.close()
+        if not owner_closed:
+            await capable_owner.close()
+
+
+@pytest.mark.asyncio
 async def test_split_private_pov_stages_resolve_only_their_linked_artifact(
     tmp_path,
 ):

@@ -236,24 +236,13 @@ class ImageGenerationCoordinator:
             self._queue_owner = self._acquire_queue_owner()
             if self._queue_owner:
                 self._activate_queue_owner()
-            self._ownership_runner = asyncio.create_task(
-                self._run_owner_election(),
-                name="ayoa-image-owner-election",
-            )
         else:
             self._log_unavailable("image generation unavailable")
-            if self._acquire_queue_owner():
-                try:
-                    failed = self.store.fail_unserviceable_finalized_jobs()
-                finally:
-                    self._release_queue_owner()
-                if failed:
-                    logger.warning(
-                        "failed %d finalized image job(s) because no capable "
-                        "queue owner is available",
-                        failed,
-                    )
-                    await self._notify_changed()
+            await self._settle_unserviceable_jobs_if_unowned()
+        self._ownership_runner = asyncio.create_task(
+            self._run_owner_election(),
+            name="ayoa-image-owner-election",
+        )
         # Delivery is a separate worker and may drain artifacts created by
         # another process even when this process has no diffusion runtime.
         if self._delivery_handlers:
@@ -1173,22 +1162,41 @@ class ImageGenerationCoordinator:
 
     async def _run_owner_election(self) -> None:
         while not self._closing:
-            self._reconcile_speculative_transactions()
-            if not self._queue_owner and self._acquire_queue_owner():
-                self._queue_owner = True
-                self._activate_queue_owner()
-                self._wake.set()
-            elif (
-                self._queue_owner
-                and self._runner is not None
-                and self._runner.done()
-            ):
-                logger.error("image queue runner stopped; restarting")
-                self._runner = asyncio.create_task(
-                    self._run(),
-                    name="ayoa-image-generation",
-                )
+            if self._preflight_ready:
+                self._reconcile_speculative_transactions()
+                if not self._queue_owner and self._acquire_queue_owner():
+                    self._queue_owner = True
+                    self._activate_queue_owner()
+                    self._wake.set()
+                elif (
+                    self._queue_owner
+                    and self._runner is not None
+                    and self._runner.done()
+                ):
+                    logger.error("image queue runner stopped; restarting")
+                    self._runner = asyncio.create_task(
+                        self._run(),
+                        name="ayoa-image-generation",
+                    )
+            else:
+                await self._settle_unserviceable_jobs_if_unowned()
             await asyncio.sleep(1)
+
+    async def _settle_unserviceable_jobs_if_unowned(self) -> int:
+        if self.can_generate_render() or not self._acquire_queue_owner():
+            return 0
+        try:
+            failed = self.store.fail_unserviceable_finalized_jobs()
+        finally:
+            self._release_queue_owner()
+        if failed:
+            logger.warning(
+                "failed %d finalized image job(s) because no capable "
+                "queue owner is available",
+                failed,
+            )
+            await self._notify_changed()
+        return failed
 
     def _reconcile_speculative_transactions(self) -> None:
         now = time.time()
