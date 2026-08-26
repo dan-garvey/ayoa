@@ -99,6 +99,7 @@ _VISUAL_NOVEL_CUSTOM_ID_RE = (
     r"^avn:(?P<deck>[0-9a-f]{64}):(?P<user>[0-9]{1,20}):"
     r"(?P<index>[0-9]{1,3}):(?P<action>[pnt])$"
 )
+_DISCORD_ATTACHMENT_DESCRIPTION_MAX = 1024
 
 
 class _VisualNovelControl(
@@ -232,10 +233,68 @@ def _visual_novel_discord_file(deck, index: int) -> discord.File:
         filename=(
             f"visual-novel-{deck.deck_id[:12]}-{card.index:03d}.png"
         ),
-        description=(
-            f"Visual novel story page {card.index} of {card.count}."
-        ),
+        description=_visual_novel_discord_description(card),
     )
+
+
+def _visual_novel_discord_description(card) -> str:
+    """Describe only the current raster card within Discord's alt-text cap."""
+
+    kind_prefix = "" if card.kind == "dialogue" else "Narration: "
+    description = (
+        f"Visual novel story page {card.index} of {card.count}. "
+        f"{kind_prefix}{card.accessible_text}"
+    )
+    if len(description) <= _DISCORD_ATTACHMENT_DESCRIPTION_MAX:
+        return description
+    return (
+        description[: _DISCORD_ATTACHMENT_DESCRIPTION_MAX - 1].rstrip()
+        + "…"
+    )
+
+
+async def _record_visual_novel_message(
+    *,
+    smap: SessionMap,
+    inter: discord.Interaction,
+    session_id: str,
+    turn_index: int,
+    message: object,
+    delivery: str,
+    recipient_user_id: int,
+    discord_channel_id: int | None = None,
+) -> None:
+    """Track an already-sent card without turning tracking into transport."""
+
+    try:
+        await _record_turn_message(
+            smap=smap,
+            session_channel_id=_session_channel_id(inter),
+            session_id=session_id,
+            turn_index=turn_index,
+            message=message,
+            delivery=delivery,
+            discord_channel_id=discord_channel_id,
+            recipient_user_id=recipient_user_id,
+        )
+    except Exception:
+        message_id = getattr(message, "id", None)
+        message_channel = getattr(message, "channel", None)
+        delivered_channel_id = discord_channel_id or getattr(
+            message_channel,
+            "id",
+            None,
+        )
+        logger.exception(
+            "visual-novel message sent but tracking raised "
+            "session=%s turn=%s delivery=%s channel=%s message=%s",
+            session_id,
+            turn_index,
+            delivery,
+            delivered_channel_id,
+            message_id,
+        )
+
 
 # D&D Beyond browser exports are larger than story prompts because they
 # include source data for spells, actions, and inventory. The attachment
@@ -1027,7 +1086,6 @@ async def _post_visual_novel_render(
         render=render,
         rendered_event_ids=rendered_event_ids,
     )
-    file = _visual_novel_discord_file(deck, 0)
     view = _VisualNovelView(
         deck_id=deck.deck_id,
         user_id=user.id,
@@ -1048,12 +1106,20 @@ async def _post_visual_novel_render(
         try:
             msg = await thread.send(
                 content=intro_content,
-                file=file,
+                file=_visual_novel_discord_file(deck, 0),
                 view=view,
             )
-            await _record_turn_message(
+        except Exception:
+            logger.exception(
+                "visual-novel thread delivery failed; falling back to DM"
+            )
+            await smap.clear_pov_thread(
+                _session_channel_id(inter), user.id,
+            )
+        else:
+            await _record_visual_novel_message(
                 smap=smap,
-                session_channel_id=_session_channel_id(inter),
+                inter=inter,
                 session_id=session_id,
                 turn_index=turn_index,
                 message=msg,
@@ -1062,32 +1128,25 @@ async def _post_visual_novel_render(
                 recipient_user_id=user.id,
             )
             return "thread", thread
-        except Exception:
-            logger.exception(
-                "visual-novel thread delivery failed; falling back to DM"
-            )
-            await smap.clear_pov_thread(
-                _session_channel_id(inter), user.id,
-            )
     try:
         msg = await user.send(
             content=intro_content,
             file=_visual_novel_discord_file(deck, 0),
             view=view,
         )
-        await _record_turn_message(
-            smap=smap,
-            session_channel_id=_session_channel_id(inter),
-            session_id=session_id,
-            turn_index=turn_index,
-            message=msg,
-            delivery="dm_visual_novel",
-            recipient_user_id=user.id,
-        )
-        return "dm", None
     except Exception:
         logger.exception("visual-novel DM fallback failed for user %s", user.id)
         return "none", None
+    await _record_visual_novel_message(
+        smap=smap,
+        inter=inter,
+        session_id=session_id,
+        turn_index=turn_index,
+        message=msg,
+        delivery="dm_visual_novel",
+        recipient_user_id=user.id,
+    )
+    return "dm", None
 
 
 async def _report_private_delivery_failure(
@@ -4660,6 +4719,8 @@ def register(
         visual_render = (
             response.per_player_visual_novel_renders or {}
         ).get(binding_cid)
+        venue: str = "none"
+        thread: Optional[discord.Thread] = None
         if visual_render is not None:
             try:
                 venue, thread = await _post_visual_novel_render(
@@ -4681,57 +4742,61 @@ def register(
                 logger.exception(
                     "arrival visual-novel presentation failed; using prose"
                 )
-                visual_render = None
-            if venue == "none":
-                visual_render = None
-        if visual_render is None:
+        if venue == "none":
             embeds = render_turn(
                 output_text=response.output_text,
                 turn_index=response.turn_index,
                 story_id=story_id,
             )
-            venue, thread = await _post_actor_render(
-                inter=inter,
-                smap=smap,
-                user=inter.user,
-                character_id=binding_cid,
-                char_name=char_name,
-                embeds=embeds,
-                intro_content=intro,
-                session_id=session_id,
-                turn_index=response.turn_index,
-            )
-        if venue == "thread" and thread is not None:
-            await inter.followup.send(
-                f"**{char_name}** joined. Your story opens in "
-                f"{thread.mention}.",
-                ephemeral=True,
-            )
-        elif venue == "dm":
-            await inter.followup.send(
-                f"**{char_name}** joined. Your story opens in your DMs "
-                "(POV thread unavailable here).",
-                ephemeral=True,
-            )
-        else:
-            await _report_private_delivery_failure(
-                inter,
-                subject="arrival update",
-            )
+            try:
+                venue, thread = await _post_actor_render(
+                    inter=inter,
+                    smap=smap,
+                    user=inter.user,
+                    character_id=binding_cid,
+                    char_name=char_name,
+                    embeds=embeds,
+                    intro_content=intro,
+                    session_id=session_id,
+                    turn_index=response.turn_index,
+                )
+            except Exception:
+                logger.exception("arrival prose fallback delivery failed")
 
-        await _fan_out_per_player_renders(
-            inter=inter,
-            session_id=session_id,
-            actor_cid=binding_cid,
-            per_player=response.per_player_renders or {},
-            turn_index=response.turn_index,
-            rendered_event_ids_by_pov=(
-                response.rendered_event_ids_by_pov or {}
-            ),
-            visual_novel_renders=(
-                response.per_player_visual_novel_renders or {}
-            ),
-        )
+        try:
+            if venue == "thread" and thread is not None:
+                await inter.followup.send(
+                    f"**{char_name}** joined. Your story opens in "
+                    f"{thread.mention}.",
+                    ephemeral=True,
+                )
+            elif venue == "dm":
+                await inter.followup.send(
+                    f"**{char_name}** joined. Your story opens in your DMs "
+                    "(POV thread unavailable here).",
+                    ephemeral=True,
+                )
+            else:
+                await _report_private_delivery_failure(
+                    inter,
+                    subject="arrival update",
+                )
+        except Exception:
+            logger.exception("arrival private-delivery acknowledgement failed")
+        finally:
+            await _fan_out_per_player_renders(
+                inter=inter,
+                session_id=session_id,
+                actor_cid=binding_cid,
+                per_player=response.per_player_renders or {},
+                turn_index=response.turn_index,
+                rendered_event_ids_by_pov=(
+                    response.rendered_event_ids_by_pov or {}
+                ),
+                visual_novel_renders=(
+                    response.per_player_visual_novel_renders or {}
+                ),
+            )
 
     async def _fan_out_per_player_renders(
         *,
@@ -7503,11 +7568,12 @@ def register(
                 "No session here. Run `/session start` first.", ephemeral=True,
             )
             return
+        await inter.response.defer(thinking=True, ephemeral=True)
         try:
-            new_value = engine.set_setting(row.session_id, key, value)
+            new_value = await engine.set_setting(row.session_id, key, value)
         except KeyError:
             valid = ", ".join(engine.known_setting_keys()) or "(none)"
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(
                     f"Unknown setting `{key}`. Valid keys: {valid}"
                 ),
@@ -7515,19 +7581,19 @@ def register(
             )
             return
         except ValueError as e:
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(str(e)), ephemeral=True,
             )
             return
         except Exception as e:
             logger.exception("set_setting failed")
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
 
-        await inter.response.send_message(
+        await inter.followup.send(
             f"Setting `{key}` → `{new_value}`.",
             ephemeral=True,
         )

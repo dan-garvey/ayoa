@@ -3181,7 +3181,7 @@ class CLIState:
             f"{len(result.deleted_turns)} checkpoint(s){location_note}"
         )
 
-    def cmd_settings(self, arg: str) -> None:
+    async def cmd_settings(self, arg: str) -> None:
         """
         /settings                 → list all
         /settings <key>           → show one value
@@ -3218,7 +3218,11 @@ class CLIState:
 
         raw_value = parts[1]
         try:
-            new_value = self.engine.set_setting(self.session_id, key, raw_value)
+            new_value = await self.engine.set_setting(
+                self.session_id,
+                key,
+                raw_value,
+            )
         except KeyError:
             valid = ", ".join(self.engine.known_setting_keys()) or "(none)"
             print(f"unknown setting: {key}. valid: {valid}")
@@ -3564,8 +3568,7 @@ class CLIState:
             )
             result = self.asset_image_renderer.render_prepared(prepared)
             if not result.displayed:
-                label = f"{card.speaker}: " if card.speaker else ""
-                print(f"{label}{card.text.replace(chr(10), ' ')}")
+                print(card.accessible_text)
                 if result.export_path is not None:
                     print(f"Card image: {result.export_path}")
             if self.one_shot_mode or len(deck.cards) == 1:

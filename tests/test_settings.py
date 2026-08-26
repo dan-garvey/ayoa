@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -193,9 +194,63 @@ class TestEngineBridgeSettings:
         assert bridge.get_setting(SESSION_ID, "max_events_per_beat") == 40
 
     def test_set_persists_across_reloads(self, bridge: EngineBridge):
-        bridge.set_setting(SESSION_ID, "max_events_per_beat", "12")
+        asyncio.run(
+            bridge.set_setting(SESSION_ID, "max_events_per_beat", "12")
+        )
         # New handle, fresh disk read.
         assert bridge.get_setting(SESSION_ID, "max_events_per_beat") == 12
+
+    def test_set_waits_for_running_turn_then_persists(
+        self,
+        bridge: EngineBridge,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        observed_modes: list[str] = []
+
+        async def exercise() -> None:
+            turn_started = asyncio.Event()
+            finish_turn = asyncio.Event()
+
+            async def fake_run_turn_locked(**_kwargs):
+                ckpt = bridge.checkpoint_mgr.load_latest(SESSION_ID)
+                observed_modes.append(
+                    ckpt.session.config.settings.presentation_mode
+                )
+                turn_started.set()
+                await finish_turn.wait()
+                ckpt.session.turn_index += 1
+                bridge.checkpoint_mgr.save(ckpt)
+                return None
+
+            monkeypatch.setattr(
+                bridge,
+                "_run_turn_locked",
+                fake_run_turn_locked,
+            )
+            turn_task = asyncio.create_task(bridge.run_turn(
+                session_id=SESSION_ID,
+                user_input="I wait.",
+                acting_character_id="aldric",
+            ))
+            await turn_started.wait()
+            setting_task = asyncio.create_task(bridge.set_setting(
+                SESSION_ID,
+                "presentation_mode",
+                "visual_novel",
+            ))
+            await asyncio.sleep(0)
+            assert setting_task.done() is False
+
+            finish_turn.set()
+            await turn_task
+            assert await setting_task == "visual_novel"
+
+        asyncio.run(exercise())
+
+        latest = bridge.checkpoint_mgr.load_latest(SESSION_ID)
+        assert observed_modes == ["prose"]
+        assert latest.session.turn_index == 2
+        assert latest.session.config.settings.presentation_mode == "visual_novel"
 
     def test_story_start_preserves_runtime_defaults(
         self, bridge: EngineBridge,

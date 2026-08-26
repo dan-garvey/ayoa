@@ -24,8 +24,16 @@ import pytest
 
 from app.bot import commands as bot_commands
 from app.bot.engine_bridge import EngineBridge, _narrator_history_message_text
-from app.engine.frontend_views import OpeningLobbyView, RetryRenderResult
-from app.engine.visual_novel_presentation import VisualNovelCardRenderer
+from app.engine.frontend_views import (
+    CharacterSummary,
+    OpeningLobbyView,
+    PlayerJoinResult,
+    RetryRenderResult,
+)
+from app.engine.visual_novel_presentation import (
+    VisualNovelCard,
+    VisualNovelCardRenderer,
+)
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_pack import SafeAssetRevealPayload
@@ -120,6 +128,54 @@ class TestNumberedReferenceHelpers:
         ) == "alpha"
         with pytest.raises(ValueError, match="numbered 3"):
             bot_commands._resolve_numbered_ref("3", choices, label="story")
+
+
+class TestSettingsMutation:
+    def test_discord_defers_privately_before_awaiting_setting_write(self):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+                self.groups = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, group, **_kwargs):
+                self.groups[group.name] = group
+
+        engine = MagicMock()
+        engine.set_setting = AsyncMock(return_value="visual_novel")
+        smap = MagicMock()
+        smap.get = AsyncMock(return_value=SimpleNamespace(session_id="s"))
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+        command = tree.groups["settings"].get_command("set")
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.response.defer = AsyncMock()
+        inter.response.send_message = AsyncMock()
+        inter.followup.send = AsyncMock()
+
+        asyncio.run(command.callback(inter, "presentation_mode", "vn"))
+
+        inter.response.defer.assert_awaited_once_with(
+            thinking=True,
+            ephemeral=True,
+        )
+        engine.set_setting.assert_awaited_once_with(
+            "s",
+            "presentation_mode",
+            "vn",
+        )
+        inter.response.send_message.assert_not_awaited()
+        inter.followup.send.assert_awaited_once_with(
+            "Setting `presentation_mode` → `visual_novel`.",
+            ephemeral=True,
+        )
 
 
 @pytest.fixture
@@ -2247,6 +2303,10 @@ class TestVisualNovelDiscordDeck:
         kwargs = interaction.response.edit_message.await_args.kwargs
         assert len(kwargs["attachments"]) == 1
         assert kwargs["attachments"][0].filename.endswith("-002.png")
+        assert kwargs["attachments"][0].description == (
+            "Visual novel story page 2 of 2. "
+            "Iselle: You made it. Wren was beginning to worry."
+        )
         assert isinstance(kwargs["view"], bot_commands._VisualNovelView)
         assert any(
             isinstance(child, bot_commands._VisualNovelControl)
@@ -2311,11 +2371,157 @@ class TestVisualNovelDiscordDeck:
         thread.send.assert_awaited_once()
         send_kwargs = thread.send.await_args.kwargs
         assert isinstance(send_kwargs["file"], bot_commands.discord.File)
+        assert send_kwargs["file"].description == (
+            "Visual novel story page 1 of 2. Narration: "
+            "The terrace opens beneath a clear turquoise sky."
+        )
         assert isinstance(send_kwargs["view"], bot_commands._VisualNovelView)
         user.send.assert_not_awaited()
         record.assert_awaited_once()
         assert record.await_args.kwargs["delivery"] == "thread_visual_novel"
         send_kwargs["file"].close()
+
+    def test_attachment_description_truncates_current_page_at_discord_limit(
+        self,
+        tmp_path: Path,
+    ):
+        deck = self._deck(tmp_path)
+        card = VisualNovelCard(
+            index=1,
+            count=1,
+            kind="narration",
+            speaker="",
+            text="  ".join(["wind moves over the terrace"] * 100),
+            image_path=deck.cards[0].image_path,
+        )
+
+        description = bot_commands._visual_novel_discord_description(card)
+
+        assert len(description) <= 1024
+        assert description.startswith(
+            "Visual novel story page 1 of 1. Narration: wind moves"
+        )
+        assert description.endswith("…")
+        assert "  " not in description
+
+    def test_thread_tracking_exception_does_not_retry_delivery(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        deck = self._deck(tmp_path)
+        engine = SimpleNamespace(
+            prepare_visual_novel_deck=AsyncMock(return_value=deck),
+        )
+        sent_message = SimpleNamespace(
+            id=1234,
+            channel=SimpleNamespace(id=999),
+        )
+        thread = SimpleNamespace(
+            id=999,
+            send=AsyncMock(return_value=sent_message),
+        )
+        monkeypatch.setattr(
+            bot_commands,
+            "_session_text_channel",
+            lambda _interaction: object(),
+        )
+        monkeypatch.setattr(
+            bot_commands,
+            "_ensure_pov_thread",
+            AsyncMock(return_value=thread),
+        )
+        monkeypatch.setattr(
+            bot_commands,
+            "_record_turn_message",
+            AsyncMock(side_effect=RuntimeError("tracking unavailable")),
+        )
+        user = SimpleNamespace(id=42, send=AsyncMock())
+        interaction = SimpleNamespace(channel_id=777, channel=object())
+        render = VisualNovelRender(pages=[
+            VisualNovelPage(kind="dialogue", speaker="Iselle", text="Hello."),
+        ])
+
+        with caplog.at_level(logging.ERROR, logger="app.bot.commands"):
+            venue, returned_thread = asyncio.run(
+                bot_commands._post_visual_novel_render(
+                    inter=interaction,
+                    smap=MagicMock(),
+                    engine=engine,
+                    user=user,
+                    character_id="iselle",
+                    char_name="Iselle",
+                    render=render,
+                    rendered_event_ids=["evt_1"],
+                    session_id="session",
+                    turn_index=3,
+                )
+            )
+
+        assert (venue, returned_thread) == ("thread", thread)
+        thread.send.assert_awaited_once()
+        user.send.assert_not_awaited()
+        assert "message sent but tracking raised" in caplog.text
+        assert "session=session" in caplog.text
+        assert "Hello" not in caplog.text
+        thread.send.await_args.kwargs["file"].close()
+
+    def test_dm_tracking_exception_does_not_trigger_prose_fallback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        deck = self._deck(tmp_path)
+        engine = SimpleNamespace(
+            prepare_visual_novel_deck=AsyncMock(return_value=deck),
+        )
+        monkeypatch.setattr(
+            bot_commands,
+            "_session_text_channel",
+            lambda _interaction: None,
+        )
+        monkeypatch.setattr(
+            bot_commands,
+            "_record_turn_message",
+            AsyncMock(side_effect=RuntimeError("tracking unavailable")),
+        )
+        sent_message = SimpleNamespace(
+            id=4321,
+            channel=SimpleNamespace(id=555),
+        )
+        user = SimpleNamespace(
+            id=42,
+            send=AsyncMock(return_value=sent_message),
+        )
+        interaction = SimpleNamespace(channel_id=777, channel=object())
+        render = VisualNovelRender(pages=[
+            VisualNovelPage(kind="dialogue", speaker="Iselle", text="Hello."),
+        ])
+
+        with caplog.at_level(logging.ERROR, logger="app.bot.commands"):
+            venue, returned_thread = asyncio.run(
+                bot_commands._post_visual_novel_render(
+                    inter=interaction,
+                    smap=MagicMock(),
+                    engine=engine,
+                    user=user,
+                    character_id="iselle",
+                    char_name="Iselle",
+                    render=render,
+                    rendered_event_ids=["evt_1"],
+                    session_id="session",
+                    turn_index=3,
+                )
+            )
+
+        assert (venue, returned_thread) == ("dm", None)
+        user.send.assert_awaited_once()
+        assert "message sent but tracking raised" in caplog.text
+        assert "session=session" in caplog.text
+        assert "Hello" not in caplog.text
+        user.send.await_args.kwargs["file"].close()
 
     def test_history_projection_reads_structured_pages(self):
         content = json.dumps({
@@ -2328,6 +2534,150 @@ class TestVisualNovelDiscordDeck:
         assert _narrator_history_message_text(content) == (
             "Wind stirs.\n\nWren: Ready?"
         )
+
+
+class TestVisualNovelJoinArrival:
+    def test_failed_visual_arrival_uses_prose_and_fans_out_bystander(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, *_args, **_kwargs):
+                return None
+
+        actor_render = VisualNovelRender(pages=[
+            VisualNovelPage(
+                kind="narration",
+                text="Alice steps into the lantern light.",
+            ),
+        ])
+        bystander_render = VisualNovelRender(pages=[
+            VisualNovelPage(
+                kind="narration",
+                text="Bob sees Alice arrive.",
+            ),
+        ])
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0004",
+            turn_index=4,
+            output_text="Alice steps into the lantern light.",
+            per_player_renders={
+                "alice": "Alice steps into the lantern light.",
+                "bob": "Bob sees Alice arrive.",
+            },
+            per_player_visual_novel_renders={
+                "alice": actor_render,
+                "bob": bystander_render,
+            },
+            rendered_event_ids_by_pov={
+                "alice": ["evt_arrive"],
+                "bob": ["evt_arrive"],
+            },
+        )
+        engine = MagicMock()
+        engine.get_user_binding.return_value = None
+        engine.list_joinable_characters.return_value = [CharacterSummary(
+            character_id="alice",
+            name="Alice",
+            role="traveler",
+            faction="",
+            appearance="dusty coat",
+            status="active",
+            is_playable=True,
+        )]
+        engine.join_player_character = AsyncMock(return_value=PlayerJoinResult(
+            character_id="alice",
+            character_name="Alice",
+            pre_play=False,
+            response=response,
+        ))
+        engine.load_latest.return_value = SimpleNamespace(
+            session=SimpleNamespace(
+                character_bindings={"alice": "42", "bob": "99"},
+            ),
+            characters=[
+                SimpleNamespace(character_id="alice", name="Alice"),
+                SimpleNamespace(character_id="bob", name="Bob"),
+            ],
+        )
+        smap = MagicMock()
+        smap.get = AsyncMock(return_value=SimpleNamespace(
+            session_id="s",
+            story_id="story",
+        ))
+        visual_post = AsyncMock(side_effect=RuntimeError("card failed"))
+        actor_post = AsyncMock(return_value=(
+            "thread",
+            SimpleNamespace(mention="#alice-pov"),
+        ))
+        prose_fanout = AsyncMock(return_value=True)
+        monkeypatch.setattr(
+            bot_commands,
+            "_post_visual_novel_render",
+            visual_post,
+        )
+        monkeypatch.setattr(bot_commands, "_post_actor_render", actor_post)
+        monkeypatch.setattr(bot_commands, "_post_to_pov", prose_fanout)
+
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+        join_inter = MagicMock()
+        join_inter.channel_id = 777
+        join_inter.user = SimpleNamespace(id=42)
+        join_inter.response.send_message = AsyncMock()
+        asyncio.run(tree.commands["join"](join_inter))
+        picker = join_inter.response.send_message.await_args.kwargs["view"]
+
+        picker._select._values = ["alice"]
+        pick_inter = MagicMock()
+        pick_inter.user = SimpleNamespace(id=42)
+        pick_inter.response.send_modal = AsyncMock()
+        asyncio.run(picker._on_pick(pick_inter))
+        modal = pick_inter.response.send_modal.await_args.args[0]
+        modal.name_in._value = ""
+        modal.appearance_in._value = ""
+
+        bob_user = SimpleNamespace(id=99, send=AsyncMock())
+        modal_inter = MagicMock()
+        modal_inter.channel_id = 777
+        modal_inter.channel = MagicMock()
+        modal_inter.user = SimpleNamespace(id=42)
+        modal_inter.client.get_user.return_value = bob_user
+        modal_inter.client.fetch_user = AsyncMock()
+        modal_inter.response.defer = AsyncMock()
+        modal_inter.followup.send = AsyncMock()
+
+        asyncio.run(modal.on_submit(modal_inter))
+
+        engine.join_player_character.assert_awaited_once_with(
+            "s",
+            "alice",
+            42,
+            name="",
+            appearance="",
+        )
+        assert visual_post.await_count == 2
+        actor_post.assert_awaited_once()
+        assert actor_post.await_args.kwargs["embeds"][0].description == (
+            "Alice steps into the lantern light."
+        )
+        prose_fanout.assert_awaited_once()
+        assert prose_fanout.await_args.kwargs["user_id"] == 99
+        assert prose_fanout.await_args.kwargs["text"] == (
+            "Bob sees Alice arrive."
+        )
+        modal_inter.channel.send.assert_not_called()
 
 
 def _asset_payload(**overrides) -> SafeAssetRevealPayload:

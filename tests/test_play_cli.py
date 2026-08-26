@@ -1328,6 +1328,24 @@ class TestStatusCommand:
         assert "user id" not in out.lower()
 
 
+class TestSettingsCommand:
+    def test_setting_mutation_awaits_bridge(self, run, capsys):
+        engine = _mock_engine()
+        engine.set_setting = AsyncMock(return_value="visual_novel")
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/settings presentation_mode vn"))
+
+        engine.set_setting.assert_awaited_once_with(
+            SESSION_ID,
+            "presentation_mode",
+            "vn",
+        )
+        assert capsys.readouterr().out.strip() == (
+            "presentation_mode = visual_novel"
+        )
+
+
 class TestOneStarMasterCommands:
     def test_master_commands_use_selected_actor_and_shared_projection(
         self, run, capsys,

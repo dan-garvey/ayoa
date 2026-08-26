@@ -2701,17 +2701,32 @@ class EngineBridge:
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         return get_setting(ckpt, key)
 
-    def set_setting(self, session_id: str, key: str, raw_value: str) -> Any:
-        """Update a setting from its string representation and persist.
-        Returns the parsed new value. Raises UnknownSettingError for an
-        unregistered key, or ValueError if the raw value can't be parsed."""
-        ckpt = self.checkpoint_mgr.load_latest(session_id)
-        new_value = set_setting(ckpt, key, raw_value)
-        self.checkpoint_mgr.save(ckpt)
-        logger.info(
-            "Setting updated in %s: %s = %r", session_id, key, new_value,
-        )
-        return new_value
+    async def set_setting(
+        self,
+        session_id: str,
+        key: str,
+        raw_value: str,
+    ) -> Any:
+        """Update and persist one setting under the session mutation lock.
+
+        A turn loads, mutates, and saves the same checkpoint. Serializing this
+        read-modify-write path with turns ensures an already-running turn
+        finishes with its original configuration and the requested setting is
+        then applied to that completed checkpoint instead of being overwritten.
+        """
+
+        lock = await self._lock_for(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            new_value = set_setting(ckpt, key, raw_value)
+            self.checkpoint_mgr.save(ckpt)
+            logger.info(
+                "Setting updated in %s: %s = %r",
+                session_id,
+                key,
+                new_value,
+            )
+            return new_value
 
     def known_setting_keys(self) -> list[str]:
         """Exposed so bot command autocomplete and CLI can surface the

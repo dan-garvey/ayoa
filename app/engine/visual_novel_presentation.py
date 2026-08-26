@@ -41,6 +41,16 @@ class VisualNovelCard:
     text: str
     image_path: Path
 
+    @property
+    def accessible_text(self) -> str:
+        """Return this physical card's transport-neutral text projection."""
+
+        text = " ".join(str(self.text or "").split())
+        if self.kind != "dialogue":
+            return text
+        speaker = " ".join(str(self.speaker or "").split())
+        return f"{speaker}: {text}" if speaker else text
+
 
 @dataclass(frozen=True)
 class VisualNovelDeck:
