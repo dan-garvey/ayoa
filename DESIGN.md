@@ -281,6 +281,16 @@ narrator history, or character-agent history. A checkpoint may retain only an
 engine-owned identity-reference ID used by the diffusion pipeline; that handle
 does not change textual canon.
 
+A visual-novel replacement may list only normal, currently identity-anchored
+subjects, and every named roster character in its scene description must be in
+that subject list. Director-selected handles are ordered optional guides, not a
+replacement for identity coverage: materialization preserves those guides,
+then deterministically adds one live owner-validated identity reference for
+each uncovered subject. The complete ordered union must satisfy the configured
+count and byte limits and the edit mode's three-reference ceiling. Live binding,
+file, byte-count, or hash failure admits no diffusion job, so the replacement
+resolves through the ordinary neutral-stage failure contract.
+
 ## 5. Runtime Components
 
 ### 5.1 Discord Bot And EngineBridge
@@ -526,6 +536,22 @@ A render-buffer reference that cannot be resolved against canonical history is
 a loud contract failure, not a skippable stale entry. Likewise, a `render`
 handoff requires non-empty prose or at least one semantic page; an empty
 draft/deck is permitted only for a discarded `continue` judgment.
+
+Both narrator modes receive optional first-meeting appearance vocabulary in a
+separate volatile user-tail block before the submitted attempt and final
+authoritative visible result. That block contains only the stable visible
+exterior/loadout of a directly observed person. It is not event evidence and
+cannot establish presence, a known name, rank, role, faction, relationship,
+biography, intent, action, or consequence. The per-viewpoint introduction
+ledger advances only when an accepted render directly presents that exterior;
+indirect observation and rejected handoffs do not consume it.
+
+Before a visual-novel deck becomes accessible text or history, every speaker
+and page text is checked for exact active-roster source ids and underscore-form
+identifiers. One rejected deck may be corrected in the same narrator context
+without translating the identifier through roster metadata or cosmetic
+prettification. A second violation fails loudly, and commit reasserts the same
+invariant before mutating narrator history or introduction state.
 
 The engine constructs a transient render record from the real player input and
 the deterministic accessible text projection for response assembly. In visual-

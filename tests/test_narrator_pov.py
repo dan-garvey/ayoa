@@ -197,6 +197,152 @@ class TestComposePovRender:
         }
 
     @pytest.mark.asyncio
+    async def test_visual_novel_source_identifier_gets_one_transient_correction(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        unsafe = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="The reply returns control.",
+            pages=[
+                VisualNovelPage(
+                    kind="dialogue",
+                    speaker="pip",
+                    text="Are you coming?",
+                ),
+            ],
+        )
+        safe = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="The reply returns control.",
+            pages=[
+                VisualNovelPage(
+                    kind="dialogue",
+                    speaker="the small courier",
+                    text="Are you coming?",
+                ),
+            ],
+        )
+        mock_client.complete = AsyncMock(
+            side_effect=[llm_response(unsafe), llm_response(safe)]
+        )
+        buffered = [
+            RenderBufferEntry(event_id="evt_beta", observation_level="direct"),
+        ]
+
+        result, entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            partial_mode=False,
+        )
+
+        assert mock_client.complete.await_count == 2
+        correction_messages = mock_client.complete.await_args_list[1].kwargs[
+            "messages"
+        ]
+        assert correction_messages[-2] == {
+            "role": "assistant",
+            "content": unsafe.model_dump_json(),
+        }
+        assert correction_messages[-1]["role"] == "user"
+        assert result == safe
+        assert entry.assistant == "the small courier: Are you coming?"
+
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=result,
+            user_input=entry.user,
+        )
+        stored_history = json.dumps(
+            [item.model_dump() for item in ckpt.narrator_conversations["alice"]]
+        )
+        assert '"speaker": "pip"' not in stored_history
+        assert "the small courier" in stored_history
+
+    @pytest.mark.asyncio
+    async def test_visual_novel_second_identifier_failure_rolls_back_state(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        next(c for c in ckpt.characters if c.character_id == "pip").visuals = (
+            CharacterVisuals(default_loadout="Patched red coat.")
+        )
+        first = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="The reply returns control.",
+            pages=[VisualNovelPage(kind="dialogue", speaker="pip", text="Ready?")],
+        )
+        second = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="The reply returns control.",
+            pages=[
+                VisualNovelPage(
+                    kind="narration",
+                    text="off_roster_id waits beneath the arch.",
+                )
+            ],
+        )
+        mock_client.complete = AsyncMock(
+            side_effect=[llm_response(first), llm_response(second)]
+        )
+
+        with pytest.raises(ValueError, match="source identifier"):
+            await compose_pov_render(
+                client=mock_client,
+                prompt_mgr=prompt_manager,
+                ckpt=ckpt,
+                pov_character_id="alice",
+                buffered_events=[
+                    RenderBufferEntry(
+                        event_id="evt_beta",
+                        observation_level="direct",
+                    )
+                ],
+                partial_mode=False,
+            )
+
+        assert mock_client.complete.await_count == 2
+        assert ckpt.narrator_conversations == {}
+        assert ckpt.session.visual_introductions == {}
+
+    def test_visual_novel_commit_reasserts_identifier_safety_before_mutation(
+        self,
+    ):
+        ckpt = _ckpt()
+        next(c for c in ckpt.characters if c.character_id == "pip").visuals = (
+            CharacterVisuals(default_loadout="Patched red coat.")
+        )
+        unsafe = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="The reply returns control.",
+            pages=[VisualNovelPage(kind="dialogue", speaker="pip", text="Ready?")],
+        )
+
+        with pytest.raises(ValueError, match="source identifier"):
+            commit_pov_render(
+                ckpt,
+                pov_character_id="alice",
+                buffered_events=[
+                    RenderBufferEntry(
+                        event_id="evt_beta",
+                        observation_level="direct",
+                    )
+                ],
+                result=unsafe,
+                user_input="",
+            )
+
+        assert ckpt.narrator_conversations == {}
+        assert ckpt.session.visual_introductions == {}
+
+    @pytest.mark.asyncio
     async def test_basic_render_commits_history_only_when_accepted(
         self, mock_client, prompt_manager,
     ):
@@ -479,18 +625,22 @@ class TestComposePovRender:
             if isinstance(m.get("content"), str)
         )
 
-        assert "Newly introduced character context" not in system_content
-        assert "Sora Kageyama: Sora is the cohort's informal leader" not in system_content
+        assert "Sora Kageyama: visible exterior" not in system_content
         assert "blue sun-crest tabard" not in system_content
         assert "quietly watching" not in system_content
         assert "private authorial role" not in system_content
         assert "Crown's blue Hero livery" not in flat
 
-        assert "Newly introduced character context" in user_content
-        assert "- Sora Kageyama" in user_content
-        assert "cohort's informal leader" in user_content
-        assert "blue sun-crest tabard" in user_content
+        assert "First-meeting context (non-evidence exterior vocabulary)" in (
+            user_content
+        )
+        assert "- Sora Kageyama: visible exterior" in user_content
+        assert "cohort's informal leader" not in user_content
+        assert "Blue sun-crest tabard" in user_content
         assert "private authorial role" not in user_content
+        assert user_content.index("First-meeting context") < user_content.index(
+            "Submitted player attempt"
+        ) < user_content.index("Authoritative visible result")
 
     @pytest.mark.asyncio
     async def test_public_context_does_not_use_raw_sheet_or_private_description(
@@ -537,7 +687,7 @@ class TestComposePovRender:
             m["content"] for m in messages
             if isinstance(m.get("content"), str)
         )
-        assert "Korva is an S-rank Guild adventurer" in flat
+        assert "Korva is an S-rank Guild adventurer" not in flat
         assert "quartermaster" not in flat
         assert "privately the demon heir" not in flat
         assert "Plain travel leathers" not in flat
@@ -654,10 +804,11 @@ class TestComposePovRender:
         messages = mock_client.complete.call_args.kwargs["messages"]
         system_content = messages[0]["content"]
         user_content = messages[-1]["content"]
-        assert "Newly introduced character context" not in system_content
         assert "Patched red coat" not in system_content
-        assert "Newly introduced character context" in user_content
-        assert "Pip: first visible impression: Patched red coat" in user_content
+        assert "First-meeting context (non-evidence exterior vocabulary)" in (
+            user_content
+        )
+        assert "Pip: visible exterior: Patched red coat" in user_content
         assert ckpt.session.visual_introductions["alice"] == ["pip"]
 
     @pytest.mark.asyncio

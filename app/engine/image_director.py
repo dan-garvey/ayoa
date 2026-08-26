@@ -799,6 +799,10 @@ class ImageDirector:
             for character in projection.characters
             if character.depiction_policy != "normal"
         ]
+        visual_novel_replace = (
+            projection.presentation_mode == "visual_novel"
+            and output.stage_action == "replace"
+        )
         for request in output.requests:
             if request.generation_mode not in self.generation_modes:
                 raise ValueError(
@@ -851,6 +855,56 @@ class ImageDirector:
                     "image director selected unavailable or non-depictable "
                     f"character ids: {', '.join(unknown)}"
                 )
+            if visual_novel_replace:
+                omitted_named_subjects = [
+                    character.character_id
+                    for character in allowed.values()
+                    if character.character_id
+                    not in request.subject_character_ids
+                    and text_names_public_character(
+                        request.scene_prompt,
+                        character,
+                    )
+                ]
+                if omitted_named_subjects:
+                    raise ValueError(
+                        "visual-novel scene_prompt names roster characters "
+                        "that are not listed subjects: "
+                        + ", ".join(omitted_named_subjects)
+                    )
+                unanchored_subjects = [
+                    character_id
+                    for character_id in request.subject_character_ids
+                    if not allowed[character_id].has_identity_reference
+                ]
+                if unanchored_subjects:
+                    raise ValueError(
+                        "visual-novel replacement subjects require active "
+                        "identity references: "
+                        + ", ".join(unanchored_subjects)
+                    )
+                selected_character_ids = {
+                    allowed_references[reference_id].scope_id
+                    for reference_id in request.reference_ids
+                    if allowed_references[reference_id].scope == "character"
+                }
+                required_reference_count = len(request.reference_ids) + sum(
+                    character_id not in selected_character_ids
+                    for character_id in request.subject_character_ids
+                )
+                if required_reference_count > self.max_references:
+                    raise ValueError(
+                        "visual-novel selected guides plus required identity "
+                        "references exceed the configured limit"
+                    )
+                if (
+                    request.generation_mode == "edit"
+                    and required_reference_count > 3
+                ):
+                    raise ValueError(
+                        "visual-novel edit selected guides plus required "
+                        "identity references exceed the 3-reference limit"
+                    )
             named_restricted = [
                 character.character_id
                 for character in restricted

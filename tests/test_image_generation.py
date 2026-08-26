@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -865,6 +866,155 @@ def test_director_validates_generation_mode_and_reference_selection():
         director.validate_output(projection, valid)
 
 
+def test_visual_novel_replace_requires_anchored_listed_named_subjects():
+    projection = replace(
+        _projection(presentation_mode="visual_novel"),
+        characters=tuple(
+            replace(character, has_identity_reference=True)
+            for character in _projection().characters
+        ),
+    )
+    director = ImageDirector(
+        FakeDirectorClient(ImageDirectorOutput(requests=[])),
+        PromptManager("app/prompts"),
+    )
+
+    with pytest.raises(ValueError, match="not listed subjects.*bob"):
+        director.validate_output(
+            projection,
+            ImageDirectorOutput(
+                stage_action="replace",
+                requests=[
+                    ImageDirection(
+                        kind="action",
+                        title="Alice In Rain",
+                        subject_character_ids=["alice"],
+                        scene_prompt="Alice and Bob face each other in the rain.",
+                    )
+                ],
+            ),
+        )
+
+    unanchored = replace(
+        projection,
+        characters=tuple(
+            replace(
+                character,
+                has_identity_reference=(character.character_id == "alice"),
+            )
+            for character in projection.characters
+        ),
+    )
+    with pytest.raises(ValueError, match="active identity references.*bob"):
+        director.validate_output(
+            unanchored,
+            ImageDirectorOutput(
+                stage_action="replace",
+                requests=[
+                    ImageDirection(
+                        kind="action",
+                        title="Bob In Rain",
+                        subject_character_ids=["bob"],
+                        scene_prompt="Bob pauses alone in the rain.",
+                    )
+                ],
+            ),
+        )
+
+
+def test_visual_novel_reference_budget_includes_unselected_subject_identities():
+    options = (
+        SelectableVisualReference(
+            reference_id="authored.station.front",
+            scope="location",
+            scope_id="station",
+            selection_hint="Front courtyard framing.",
+        ),
+        SelectableVisualReference(
+            reference_id="authored.station.light",
+            scope="location",
+            scope_id="station",
+            selection_hint="Courtyard lighting.",
+        ),
+    )
+    projection = replace(
+        _projection(presentation_mode="visual_novel"),
+        characters=tuple(
+            replace(character, has_identity_reference=True)
+            for character in _projection().characters
+        ),
+        reference_options=options,
+    )
+    director = ImageDirector(
+        FakeDirectorClient(ImageDirectorOutput(requests=[])),
+        PromptManager("app/prompts"),
+        max_references=4,
+        generation_modes=("compose", "edit"),
+    )
+
+    with pytest.raises(ValueError, match="3-reference limit"):
+        director.validate_output(
+            projection,
+            ImageDirectorOutput(
+                stage_action="replace",
+                requests=[
+                    ImageDirection(
+                        kind="group_portrait",
+                        title="Rainy Meeting",
+                        subject_character_ids=["alice", "bob"],
+                        generation_mode="edit",
+                        reference_ids=[
+                            "authored.station.front",
+                            "authored.station.light",
+                        ],
+                        scene_prompt="Alice and Bob meet in the rainy courtyard.",
+                    )
+                ],
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_visual_novel_director_corrects_invalid_named_subject_once():
+    projection = replace(
+        _projection(presentation_mode="visual_novel"),
+        characters=tuple(
+            replace(character, has_identity_reference=True)
+            for character in _projection().characters
+        ),
+    )
+    invalid = ImageDirectorOutput(
+        stage_action="replace",
+        requests=[
+            ImageDirection(
+                kind="action",
+                title="Alice In Rain",
+                subject_character_ids=["alice"],
+                scene_prompt="Alice and Bob stand in the rain.",
+            )
+        ],
+    )
+    client = FakeDirectorClient(
+        [invalid, ImageDirectorOutput(stage_action="clear", requests=[])]
+    )
+
+    output = await ImageDirector(
+        client,
+        PromptManager("app/prompts"),
+    ).decide(projection)
+
+    assert output.stage_action == "clear"
+    assert client.calls == 2
+
+    failing_client = FakeDirectorClient([invalid, invalid])
+    with pytest.raises(ValueError, match="not listed subjects"):
+        await ImageDirector(
+            failing_client,
+            PromptManager("app/prompts"),
+        ).decide(projection)
+    assert failing_client.calls == 2
+
+
 def test_director_requires_first_portraits_for_new_named_characters():
     projection = _projection()
     projection = VisibleEventProjection(
@@ -995,6 +1145,10 @@ def test_diffusion_prompt_labels_reference_images_by_subject():
                 allowed_root="artifacts",
             ),
         ],
+        identity_reference_owners={
+            "alice_ref": "alice",
+            "bob_ref": "bob",
+        },
     )
 
     assert "Reference image 1 is Alice (alice)." in prompt
@@ -1371,12 +1525,12 @@ async def test_visual_novel_stage_reuse_is_explicit_and_failed_replace_is_safe(
         worker=FakeImageWorker(),
     )
     direction = ImageDirection(
-        kind="group_portrait",
+        kind="establishing",
         title="Rainy Courtyard",
-        subject_character_ids=["alice", "bob"],
+        subject_character_ids=[],
         scene_prompt=(
-            "Alice and Bob stand separately in a rainy courtyard, angled "
-            "slightly toward each other in a stable medium-wide scene."
+            "A rainy courtyard with sheltered stone arcades in a stable "
+            "medium-wide scene."
         ),
     )
 
@@ -1575,10 +1729,10 @@ async def _visual_novel_stage_context_for_schedule(
         worker=FakeImageWorker(),
     )
     direction = ImageDirection(
-        kind="group_portrait",
+        kind="establishing",
         title="Established Courtyard",
-        subject_character_ids=["alice", "bob"],
-        scene_prompt="Alice and Bob stand in an established courtyard.",
+        subject_character_ids=[],
+        scene_prompt="An established courtyard beneath a clear evening sky.",
     )
 
     _begin(coordinator, "tx_prior")

@@ -31,18 +31,14 @@ Avoid these patterns:
 - Soft consolation after failure.
 - Praise or gilding of a player character's action unless another character visibly does it.
 
-Character names are constrained by what the viewpoint character could know. Apply this independently for this viewpoint; a name known in another viewpoint or present in context is not automatically known here. Before using any proper name for a non-player character, check the source: this viewpoint must have heard that exact name in quoted speech, read it in visible text, received it through direct identification, or already used it in an earlier passage for this viewpoint. Names that appear only in unquoted supplied narration are labels, not viewpoint knowledge. If a person has not been introduced to this viewpoint, use a visible description until a name is spoken or otherwise available. Once a name is available, use it naturally.
-
-If a supplied name-like reference contains an underscore, treat it as a leaked raw identifier. Do not copy the underscore form into prose or dialogue. If a proper name is paired with a raw identifier in parentheses or brackets, treat the proper name as a leaked label too unless this viewpoint has actually learned it. If the name is available to this viewpoint, render the best available display name: use any known matching name from context, or replace underscores with spaces and capitalize the words as a fallback. If the name is not available to this viewpoint, render a visible description instead.
-
-Use newly introduced character context only when it appears inside "What reaches this viewpoint." Treat it as vocabulary and first-look context, not event evidence. Use at most one short appositive or phrase. Do not turn it into exposition. Do not introduce a person, faction, rank, uniform, relationship, or fact only because it appears in that context.
+{include "narrator_viewpoint_knowledge"}
 
 Observation clarity:
 - Seen and heard directly: quote speech and render concrete visible action.
 - Partly heard or noticed: keep it muted and incomplete. Do not quote speech verbatim. Do not describe facial expressions or gestures the viewpoint could not confirm.
 - Inferred from aftermath: no dialogue, no paraphrased contents, no specific unseen action. Render only surface aftermath.
 
-When appearance details are supplied for people the viewpoint is looking over, weave them as visible appearance only. Do not copy source tags or explain that a look was requested. Ignore first visible impressions for any person the visible facts clearly present only as a voice, message, quoted mention, remote feed, or otherwise not physically visible to this viewpoint.
+When appearance details are available for people the viewpoint is looking over, weave at most one short visible phrase into the passage. Do not copy source tags or turn the phrase into exposition.
 
 Use faithful semantic compression to deliver an accurate, interesting portrayal of what happened, not a mechanical inventory of every supplied detail. Preserve the visible sequence and its meaning, while fusing adjacent facts and removing repeated staging, unchanged ambient description, incidental environmental texture, and inconsequential micro-movements when they add no new information.
 
@@ -108,6 +104,9 @@ Handoff policy: {handoff_policy}
 
 Handoff condition:
 {handoff_context}
+
+First-meeting context (non-evidence exterior vocabulary):
+{first_meeting_context}
 
 Submitted player attempt (earlier; not evidence that it succeeded):
 {pov_character_name}: {user_input}

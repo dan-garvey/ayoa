@@ -1,10 +1,12 @@
 from app.engine.visual_context import (
+    format_narrator_visual_introductions,
     mark_visual_introductions,
     plan_event_visual_introductions,
     plan_render_visual_introductions,
 )
 from app.schemas.characters import (
     CharacterAgentTier,
+    CharacterDescriptions,
     CharacterRecord,
     CharacterVisuals,
 )
@@ -110,6 +112,34 @@ def test_first_meeting_plan_uses_explicit_loadout_not_raw_appearance():
 
     assert plan.loadouts == []
     assert plan.mark_character_ids == []
+
+
+def test_narrator_first_meeting_excludes_public_bio_without_exterior():
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s", character_bindings={"alice": "1"}),
+        characters=[
+            CharacterRecord(character_id="alice", name="Alice"),
+            CharacterRecord(
+                character_id="korva",
+                name="Korva",
+                descriptions=CharacterDescriptions(
+                    public="Korva is an S-rank guild quartermaster."
+                ),
+            ),
+        ],
+    )
+    event = _event("Korva enters the room.")
+
+    plan = plan_render_visual_introductions(
+        ckpt,
+        viewer_id="alice",
+        resolved=[(RenderBufferEntry(event_id=event.event_id), event)],
+        max_loadouts=3,
+    )
+
+    assert plan.loadouts == []
+    assert plan.mark_character_ids == []
+    assert format_narrator_visual_introductions(plan.loadouts) == ""
 
 
 def test_agent_event_plan_uses_speaker_not_quoted_mentions():

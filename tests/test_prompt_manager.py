@@ -337,9 +337,10 @@ class TestPromptManagerWithRealTemplates:
             rendering_note=PARTIAL_MODE_MARKER,
             visible_events=(
                 "Seen directly:\n"
-                "- Unique event fact.\n\n"
-                "Newly introduced character context:\n"
-                "- Pip UniqueKnown: player-safe context: stable public glossary marker."
+                "- Unique event fact."
+            ),
+            first_meeting_context=(
+                "- Pip UniqueKnown: visible exterior: unique blue coat."
             ),
             user_input="Unique submitted action.",
             handoff_policy="Unique candidate policy.",
@@ -353,7 +354,7 @@ class TestPromptManagerWithRealTemplates:
         assert "Unique player-block appearance" not in system
         assert "Pip UniqueKnown" not in system
         assert "Unique event fact" not in system
-        assert "stable public glossary marker" not in system
+        assert "unique blue coat" not in system
         assert "Unique submitted action" not in system
         assert "Unique candidate policy" not in system
         assert "Unique unresolved motion" not in system
@@ -364,7 +365,7 @@ class TestPromptManagerWithRealTemplates:
         assert "Aldric UniquePOV" in user
         assert "Unique player-block appearance" in user
         assert "Pip UniqueKnown" in user
-        assert "stable public glossary marker" in user
+        assert "unique blue coat" in user
         assert "Unique event fact" in user
         assert "Unique submitted action" in user
         assert "Unique candidate policy" in user

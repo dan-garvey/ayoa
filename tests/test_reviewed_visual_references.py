@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +13,7 @@ from app.bot.engine_bridge import EngineBridge
 from app.engine.image_director import (
     ImageDirector,
     PublicCharacterVisual,
+    SelectableVisualReference,
     VisibleEventProjection,
     build_projection_groups,
     projection_checkpoint_snapshot,
@@ -107,6 +109,7 @@ def _metadata(
     reference_id: str,
     purpose: str,
     scope: str,
+    scope_id: str = "",
 ) -> ReviewedVisualReference:
     data = path.read_bytes()
     return ReviewedVisualReference(
@@ -119,7 +122,7 @@ def _metadata(
         sha256=hashlib.sha256(data).hexdigest(),
         purpose=purpose,
         scope=scope,
-        scope_id="alice" if scope == "character" else "station",
+        scope_id=(scope_id or ("alice" if scope == "character" else "station")),
         selection_hint=(
             "Front identity reference for portraits."
             if scope == "character"
@@ -249,6 +252,31 @@ def _projection(
         engine_visual_style="restrained cinematic illustration",
         engine_location_label=(location_label if has_location_reference else ""),
         has_location_reference=has_location_reference,
+    )
+
+
+def _visual_novel_projection(
+    *,
+    identity_reference_id: str,
+    location_reference_id: str,
+) -> VisibleEventProjection:
+    return replace(
+        _projection(),
+        presentation_mode="visual_novel",
+        reference_options=(
+            SelectableVisualReference(
+                reference_id=identity_reference_id,
+                scope="character",
+                scope_id="alice",
+                selection_hint="Front identity reference.",
+            ),
+            SelectableVisualReference(
+                reference_id=location_reference_id,
+                scope="location",
+                scope_id="station",
+                selection_hint="Platform framing guide.",
+            ),
+        ),
     )
 
 
@@ -569,6 +597,199 @@ async def test_subject_then_location_references_forward_to_worker(tmp_path):
         )
     finally:
         await coordinator.close()
+
+
+@pytest.mark.asyncio
+async def test_visual_novel_selected_guide_stays_first_and_identity_is_appended(
+    tmp_path,
+):
+    story_dir, checkpoint, identity, location = _reviewed_story(tmp_path)
+    bob_path = story_dir / "visual-references" / "bob.png"
+    _write_png(bob_path, (70, 80, 190))
+    bob_identity = _metadata(
+        bob_path,
+        reference_id="authored.bob.v1",
+        purpose="identity",
+        scope="character",
+        scope_id="bob",
+    )
+    checkpoint.reviewed_visual_references.append(bob_identity)
+    checkpoint.characters.append(
+        CharacterRecord(
+            character_id="bob",
+            name="Bob",
+            location="station",
+            visuals=CharacterVisuals(
+                default_loadout="black formal coat",
+                identity_reference_id=bob_identity.reference_id,
+            ),
+        )
+    )
+    frozen = freeze_story_visual_references(
+        checkpoint,
+        story_dir=story_dir,
+        runtime_root=tmp_path / "runtime",
+    )
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=_Worker(),
+    )
+    _register(coordinator, checkpoint, frozen)
+    projection = _visual_novel_projection(
+        identity_reference_id=identity.reference_id,
+        location_reference_id=location.reference_id,
+    )
+    projection = replace(
+        projection,
+        characters=(
+            *projection.characters,
+            PublicCharacterVisual(
+                character_id="bob",
+                name="Bob",
+                appearance="silver hair",
+                default_loadout="black formal coat",
+                depiction_policy="normal",
+                is_new_character=False,
+                has_identity_reference=True,
+            ),
+        ),
+    )
+
+    job = await coordinator.enqueue_direction(
+        projection=projection,
+        direction=ImageDirection(
+            kind="action",
+            title="Platform Turn",
+            subject_character_ids=["bob", "alice"],
+            generation_mode="edit",
+            reference_ids=[location.reference_id],
+            scene_prompt="Bob and Alice turn on the rain-swept platform.",
+        ),
+        request_ordinal=0,
+        visual_style="cinematic",
+        delivery_targets=[],
+    )
+
+    assert job is not None
+    assert [
+        reference.reference_id
+        for reference in job.request.reference_inputs
+    ] == [
+        location.reference_id,
+        bob_identity.reference_id,
+        identity.reference_id,
+    ]
+    assert "Reference image 1 is the visible location guide." in (
+        job.request.prompt
+    )
+    assert "Reference image 2 is Bob (bob)." in job.request.prompt
+    assert "Reference image 3 is Alice (alice)." in job.request.prompt
+
+
+@pytest.mark.asyncio
+async def test_visual_novel_revalidates_selected_identity_owner_before_enqueue(
+    tmp_path,
+):
+    story_dir, checkpoint, identity, location = _reviewed_story(tmp_path)
+    frozen = freeze_story_visual_references(
+        checkpoint,
+        story_dir=story_dir,
+        runtime_root=tmp_path / "runtime",
+    )
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=_Worker(),
+    )
+    _register(coordinator, checkpoint, frozen)
+    coordinator.store.replace_reviewed_references(
+        session_id=checkpoint.session.session_id,
+        references={
+            identity.reference_id: (
+                frozen[identity.reference_id],
+                identity.purpose,
+                identity.scope,
+            ),
+            location.reference_id: (
+                frozen[location.reference_id],
+                location.purpose,
+                location.scope,
+            ),
+        },
+        identity_bindings={"somebody_else": [identity.reference_id]},
+        location_bindings={"station": [location.reference_id]},
+    )
+    projection = _visual_novel_projection(
+        identity_reference_id=identity.reference_id,
+        location_reference_id=location.reference_id,
+    )
+
+    with pytest.raises(RuntimeError, match="owner is invalid"):
+        await coordinator.enqueue_direction(
+            projection=projection,
+            direction=ImageDirection(
+                kind="action",
+                title="Mismatched Identity",
+                subject_character_ids=["alice"],
+                generation_mode="edit",
+                reference_ids=[identity.reference_id],
+                scene_prompt="Alice turns on the platform.",
+            ),
+            request_ordinal=0,
+            visual_style="cinematic",
+            delivery_targets=[],
+        )
+    assert coordinator.store.all_jobs() == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["binding", "file", "bytes"])
+async def test_visual_novel_live_identity_failure_admits_no_job(
+    tmp_path,
+    failure,
+):
+    story_dir, checkpoint, identity, location = _reviewed_story(tmp_path)
+    frozen = freeze_story_visual_references(
+        checkpoint,
+        story_dir=story_dir,
+        runtime_root=tmp_path / "runtime",
+    )
+    max_bytes = 1 if failure == "bytes" else 20_000_000
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path, max_reference_bytes=max_bytes),
+        worker=_Worker(),
+    )
+    _register(coordinator, checkpoint, frozen)
+    if failure == "binding":
+        coordinator.store.suppress_reviewed_identity_binding(
+            session_id=checkpoint.session.session_id,
+            character_id="alice",
+        )
+    elif failure == "file":
+        (
+            coordinator.config.runtime_root
+            / frozen[identity.reference_id].relative_path
+        ).unlink()
+
+    with pytest.raises((RuntimeError, ValueError)):
+        await coordinator.enqueue_direction(
+            projection=_visual_novel_projection(
+                identity_reference_id=identity.reference_id,
+                location_reference_id=location.reference_id,
+            ),
+            direction=ImageDirection(
+                kind="action",
+                title="Platform Turn",
+                subject_character_ids=["alice"],
+                scene_prompt="Alice turns on the platform.",
+            ),
+            request_ordinal=0,
+            visual_style="cinematic",
+            delivery_targets=[],
+        )
+    assert coordinator.store.all_jobs() == []
 
 
 @pytest.mark.asyncio

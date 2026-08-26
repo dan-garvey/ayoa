@@ -32,6 +32,7 @@ from app.schemas.narrator import (
     VisualNovelNarratorOutput,
     VisualNovelPage,
     narrator_plain_text,
+    visual_novel_pages_contain_source_identifiers,
 )
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import (
@@ -1049,6 +1050,29 @@ class TestVisualNovelNarratorOutput:
                 handoff_reason="Motion continues.",
                 pages=[VisualNovelPage(kind="narration", text="Discard me.")],
             )
+
+    @pytest.mark.parametrize(
+        "page",
+        [
+            VisualNovelPage(kind="dialogue", speaker="guard_17", text="Halt."),
+            VisualNovelPage(
+                kind="narration",
+                text="The guard_17 raises a hand.",
+            ),
+            VisualNovelPage(kind="dialogue", speaker="guard", text="Halt."),
+        ],
+    )
+    def test_source_identifier_detection_covers_speaker_and_text(self, page):
+        assert visual_novel_pages_contain_source_identifiers(
+            [page],
+            source_ids=["guard"],
+        )
+
+    def test_source_identifier_detection_preserves_display_name_case(self):
+        assert not visual_novel_pages_contain_source_identifiers(
+            [VisualNovelPage(kind="dialogue", speaker="Guard", text="Halt.")],
+            source_ids=["guard"],
+        )
 
 
 class TestVisualNovelRender:

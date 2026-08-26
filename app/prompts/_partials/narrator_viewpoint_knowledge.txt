@@ -1,0 +1,18 @@
+Treat names independently for this viewpoint. A name is available only after
+this viewpoint heard it in quoted speech, read it in visible text, received a
+direct identification, or used it in an earlier accepted passage. A name known
+elsewhere is not automatically known here. Names and source labels supplied as
+context are mapping vocabulary, not evidence that the viewpoint knows them.
+Until a name is available, use a short visible description.
+
+Never copy an underscore-form source identifier into player-visible text or a
+speaker label. Do not turn such an identifier into a guessed proper name by
+changing underscores, spaces, capitalization, or punctuation. Use an already
+viewpoint-known name when one is available; otherwise use a visible description.
+
+First-meeting context is optional vocabulary for a directly visible exterior.
+It is not event evidence and cannot establish that anyone is present. It also
+cannot establish a name, rank, role, faction, relationship, biography, intent,
+action, or consequence. Use it only when the authoritative visible result shows
+that person physically and directly to this viewpoint. Ignore it for voices,
+messages, quoted mentions, remote feeds, indirect perception, and aftermath.

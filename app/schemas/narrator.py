@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Literal
 
@@ -73,6 +74,40 @@ class VisualNovelNarratorOutput(BaseModel):
 
 
 NarratorOutput = NarratorFinalOutput | VisualNovelNarratorOutput
+
+
+_UNDERSCORE_SOURCE_IDENTIFIER_RE = re.compile(
+    r"(?<![A-Za-z0-9_])[A-Za-z0-9]+(?:_[A-Za-z0-9]+)+(?![A-Za-z0-9_])"
+)
+
+
+def visual_novel_pages_contain_source_identifiers(
+    pages: Sequence[VisualNovelPage],
+    *,
+    source_ids: Sequence[str] = (),
+) -> bool:
+    """Return whether player-visible ADV fields expose engine identifiers.
+
+    Exact source ids are matched case-sensitively at identifier boundaries so
+    a display name such as ``Pip`` remains distinct from the source id ``pip``.
+    Underscore-form tokens are always source-shaped and do not need a roster
+    match to be rejected.
+    """
+
+    exact_patterns = [
+        re.compile(
+            rf"(?<![A-Za-z0-9_]){re.escape(source_id)}(?![A-Za-z0-9_])"
+        )
+        for source_id in dict.fromkeys(source_ids)
+        if source_id
+    ]
+    for page in pages:
+        for value in (page.speaker, page.text):
+            if _UNDERSCORE_SOURCE_IDENTIFIER_RE.search(value):
+                return True
+            if any(pattern.search(value) for pattern in exact_patterns):
+                return True
+    return False
 
 
 def narrator_plain_text(result: NarratorOutput) -> str:

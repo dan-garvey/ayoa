@@ -371,7 +371,7 @@ class ImageGenerationCoordinator:
             direction.kind,
             presentation_mode=projection.presentation_mode,
         )
-        references = self._resolve_references(
+        references, identity_reference_owners = self._resolve_references(
             projection=projection,
             direction=direction,
             exclude_generated_reference_id=reroll_of_reference_id,
@@ -387,6 +387,7 @@ class ImageGenerationCoordinator:
                 max_style_chars=self.config.max_style_chars,
                 style_trigger=self._worker_style_trigger(),
                 reference_inputs=references,
+                identity_reference_owners=identity_reference_owners,
             )
         )
         if not prompt.strip() or len(prompt) > 8_000:
@@ -1208,8 +1209,16 @@ class ImageGenerationCoordinator:
         projection: VisibleEventProjection,
         direction: ImageDirection,
         exclude_generated_reference_id: str = "",
-    ) -> list[FrozenReferenceInput]:
+    ) -> tuple[list[FrozenReferenceInput], dict[str, str]]:
+        if projection.presentation_mode == "visual_novel":
+            return self._resolve_visual_novel_references(
+                projection=projection,
+                direction=direction,
+                exclude_generated_reference_id=exclude_generated_reference_id,
+            )
+
         references: list[FrozenReferenceInput] = []
+        identity_owners: dict[str, str] = {}
         if direction.reference_ids:
             allowed_ids = {
                 reference.reference_id
@@ -1228,12 +1237,19 @@ class ImageGenerationCoordinator:
                         "selected authored visual reference is unavailable"
                     )
                 references.append(reference)
+                option = next(
+                    option
+                    for option in projection.reference_options
+                    if option.reference_id == reference_id
+                )
+                if option.scope == "character":
+                    identity_owners[reference_id] = option.scope_id
             self._validate_reference_limits(
                 references,
                 generation_mode=direction.generation_mode,
             )
             self._revalidate_references(references)
-            return references
+            return references, identity_owners
         missing_required_identities: list[str] = []
         public_by_id = {
             character.character_id: character
@@ -1267,6 +1283,7 @@ class ImageGenerationCoordinator:
                         allowed_root="artifacts",
                     )
                 )
+                identity_owners[candidate.candidate_id] = character_id
                 continue
             reviewed = self.store.reviewed_identity_reference(
                 session_id=projection.session_id,
@@ -1274,6 +1291,7 @@ class ImageGenerationCoordinator:
             )
             if reviewed is not None:
                 references.append(reviewed)
+                identity_owners[reviewed.reference_id] = character_id
                 continue
             if excluded_current_generated:
                 continue
@@ -1313,7 +1331,162 @@ class ImageGenerationCoordinator:
             generation_mode=direction.generation_mode,
         )
         self._revalidate_references(references)
-        return references
+        return references, identity_owners
+
+    def _resolve_visual_novel_references(
+        self,
+        *,
+        projection: VisibleEventProjection,
+        direction: ImageDirection,
+        exclude_generated_reference_id: str,
+    ) -> tuple[list[FrozenReferenceInput], dict[str, str]]:
+        """Freeze selected guides plus one live identity per scene subject."""
+
+        options = {
+            option.reference_id: option
+            for option in projection.reference_options
+        }
+        unknown_selected = set(direction.reference_ids) - set(options)
+        if unknown_selected:
+            raise ValueError("selected visual reference is unavailable")
+
+        references: list[FrozenReferenceInput] = []
+        identity_owners: dict[str, str] = {}
+        seen_reference_ids: set[str] = set()
+
+        def append_reference(
+            reference: FrozenReferenceInput,
+            *,
+            identity_owner: str = "",
+        ) -> None:
+            if reference.reference_id in seen_reference_ids:
+                prior_owner = identity_owners.get(reference.reference_id, "")
+                if identity_owner and prior_owner and prior_owner != identity_owner:
+                    raise RuntimeError(
+                        "identity reference has conflicting live owners"
+                    )
+                if identity_owner:
+                    identity_owners[reference.reference_id] = identity_owner
+                return
+            seen_reference_ids.add(reference.reference_id)
+            references.append(reference)
+            if identity_owner:
+                identity_owners[reference.reference_id] = identity_owner
+
+        live_location_references: dict[str, FrozenReferenceInput] | None = None
+        subject_ids = set(direction.subject_character_ids)
+        for reference_id in direction.reference_ids:
+            option = options[reference_id]
+            if option.scope == "character":
+                binding = self.store.reviewed_identity_binding(
+                    session_id=projection.session_id,
+                    reference_id=reference_id,
+                )
+                if binding is None:
+                    raise RuntimeError(
+                        "selected identity reference binding is unavailable"
+                    )
+                owner, reference = binding
+                if owner != option.scope_id or owner not in subject_ids:
+                    raise RuntimeError(
+                        "selected identity reference owner is invalid"
+                    )
+                append_reference(reference, identity_owner=owner)
+                continue
+            if option.scope != "location":
+                raise RuntimeError("selected visual reference scope is invalid")
+            if live_location_references is None:
+                live_location_references = {
+                    reference.reference_id: reference
+                    for reference in self.store.reviewed_location_references(
+                        session_id=projection.session_id,
+                        location_label=projection.engine_location_label,
+                    )
+                }
+            reference = live_location_references.get(reference_id)
+            if reference is None:
+                raise RuntimeError(
+                    "selected location reference binding is unavailable"
+                )
+            append_reference(reference)
+
+        public_by_id = {
+            character.character_id: character
+            for character in projection.characters
+        }
+        covered_subjects = set(identity_owners.values())
+        for character_id in direction.subject_character_ids:
+            character = public_by_id.get(character_id)
+            if character is None or character.depiction_policy != "normal":
+                raise ValueError(
+                    "visual-novel subject is unavailable or non-depictable"
+                )
+            if not character.has_identity_reference:
+                raise RuntimeError(
+                    "visual-novel subject has no active identity reference"
+                )
+            if character_id in covered_subjects:
+                continue
+
+            candidate = self.store.active_identity_candidate(
+                session_id=projection.session_id,
+                character_id=character_id,
+            )
+            if (
+                candidate is not None
+                and candidate.candidate_id != exclude_generated_reference_id
+            ):
+                artifact = candidate.artifact
+                append_reference(
+                    FrozenReferenceInput(
+                        reference_id=candidate.candidate_id,
+                        sha256=artifact.sha256,
+                        mime_type=artifact.mime_type,
+                        width=artifact.width,
+                        height=artifact.height,
+                        byte_count=artifact.byte_count,
+                        relative_path=artifact.relative_path,
+                        allowed_root="artifacts",
+                    ),
+                    identity_owner=character_id,
+                )
+                covered_subjects.add(character_id)
+                continue
+
+            reviewed = self.store.reviewed_identity_reference(
+                session_id=projection.session_id,
+                character_id=character_id,
+            )
+            if reviewed is None:
+                raise RuntimeError(
+                    "required identity reference is unavailable for "
+                    + character_id
+                )
+            live_binding = self.store.reviewed_identity_binding(
+                session_id=projection.session_id,
+                reference_id=reviewed.reference_id,
+            )
+            if live_binding is None or live_binding[0] != character_id:
+                raise RuntimeError(
+                    "required identity reference owner is invalid for "
+                    + character_id
+                )
+            append_reference(
+                live_binding[1],
+                identity_owner=character_id,
+            )
+            covered_subjects.add(character_id)
+
+        if covered_subjects != subject_ids:
+            raise RuntimeError(
+                "visual-novel identity reference coverage is incomplete"
+            )
+        self._validate_reference_limits(
+            references,
+            generation_mode=direction.generation_mode,
+        )
+        self._revalidate_references(references)
+        return references, identity_owners
 
     def _validate_reference_limits(
         self,
@@ -1477,6 +1650,7 @@ def build_diffusion_prompt(
     max_style_chars: int,
     style_trigger: str = "",
     reference_inputs: Sequence[FrozenReferenceInput] = (),
+    identity_reference_owners: dict[str, str] | None = None,
 ) -> str:
     style = _bounded_text(visual_style, max_style_chars)
     trigger = _bounded_text(style_trigger, 100)
@@ -1522,13 +1696,13 @@ def build_diffusion_prompt(
     )
     parts = [scene]
     reference_lines = _reference_binding_lines(
-        direction=direction,
         references=reference_inputs,
         by_id=by_id,
         reference_options={
             option.reference_id: option
             for option in projection.reference_options
         },
+        identity_reference_owners=(identity_reference_owners or {}),
     )
     if reference_lines:
         parts.append(
@@ -1553,18 +1727,29 @@ def build_diffusion_prompt(
 
 def _reference_binding_lines(
     *,
-    direction: ImageDirection,
     references: Sequence[FrozenReferenceInput],
     by_id: dict[str, PublicCharacterVisual],
     reference_options: dict[str, Any],
+    identity_reference_owners: dict[str, str],
 ) -> list[str]:
     if not references:
         return []
     described: list[str] = []
     for index, reference in enumerate(references, start=1):
+        identity_owner = identity_reference_owners.get(reference.reference_id)
+        if identity_owner:
+            character = by_id.get(identity_owner)
+            name = character.name if character is not None else "the listed subject"
+            described.append(
+                f"Reference image {index} is {name} ({identity_owner})."
+            )
+            continue
         option = reference_options.get(reference.reference_id)
         if option is None:
-            break
+            described.append(
+                f"Reference image {index} is an authorized visual guide."
+            )
+            continue
         if option.scope == "character":
             character = by_id.get(option.scope_id)
             name = character.name if character is not None else option.scope_id
@@ -1575,23 +1760,7 @@ def _reference_binding_lines(
             described.append(
                 f"Reference image {index} is the visible location guide."
             )
-    if len(described) == len(references):
-        return described
-
-    subject_ids = list(direction.subject_character_ids)
-    if len(references) == len(subject_ids):
-        return [
-            (
-                f"Reference image {index} is "
-                f"{by_id.get(character_id).name if by_id.get(character_id) else character_id} "
-                f"({character_id})."
-            )
-            for index, character_id in enumerate(subject_ids, start=1)
-        ]
-    return [
-        f"Reference image {index} is {reference.reference_id}."
-        for index, reference in enumerate(references, start=1)
-    ]
+    return described
 
 
 def _validate_direction_for_generation(

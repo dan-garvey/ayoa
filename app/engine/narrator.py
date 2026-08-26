@@ -22,7 +22,7 @@ from app.engine.context_builder import (
 from app.schemas.content_privacy import redact_imported_asset_text
 from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.engine.visual_context import (
-    format_visual_introductions,
+    format_narrator_visual_introductions,
     mark_visual_introductions,
     plan_render_visual_introductions,
 )
@@ -36,10 +36,33 @@ from app.schemas.narrator import (
     TranscriptEntry,
     VisualNovelNarratorOutput,
     narrator_plain_text,
+    visual_novel_pages_contain_source_identifiers,
 )
 from app.schemas.state import RenderBufferEntry
 
 logger = logging.getLogger(__name__)
+
+
+def _active_roster_source_ids(ckpt: CheckpointFile) -> tuple[str, ...]:
+    return tuple(
+        character.character_id
+        for character in ckpt.characters
+        if str(getattr(character.status, "value", character.status)) != "culled"
+        and character.character_id
+    )
+
+
+def _assert_visual_novel_output_is_player_safe(
+    ckpt: CheckpointFile,
+    result: VisualNovelNarratorOutput,
+) -> None:
+    if visual_novel_pages_contain_source_identifiers(
+        result.pages,
+        source_ids=_active_roster_source_ids(ckpt),
+    ):
+        raise ValueError(
+            "visual-novel narrator output exposed an engine source identifier"
+        )
 
 
 def _strip_unmatched_trailing_closers(text: str) -> str:
@@ -230,18 +253,16 @@ async def compose_pov_render(
         viewer_id=pov_character_id,
         resolved=resolved,
     )
-    visual_intro_block = format_visual_introductions(
+    visual_intro_block = format_narrator_visual_introductions(
         visual_intro_plan.loadouts,
     )
-    if visual_intro_block:
-        visible_events_block = f"{visible_events_block}\n\n{visual_intro_block}"
     rendering_note = (
         PARTIAL_MODE_MARKER
         if partial_mode
         else "Write through to the natural handoff point."
     )
 
-    pov_history = ckpt.narrator_conversations.setdefault(pov_character_id, [])
+    pov_history = ckpt.narrator_conversations.get(pov_character_id, [])
 
     render_t0 = time.monotonic()
     visual_novel = (
@@ -253,6 +274,7 @@ async def compose_pov_render(
         setting_summary=setting_summary,
         narrative_rules=narrative_rules,
         visible_events=visible_events_block,
+        first_meeting_context=(visual_intro_block or "None."),
         user_input=user_input,
         pov_character_name=pov_name,
         player_characters_block=player_characters_block,
@@ -269,26 +291,62 @@ async def compose_pov_render(
         render_ms,
     )
 
-    response = await client.complete(
-        role="narrator",
-        messages=messages,
-        response_model=(
-            VisualNovelNarratorOutput
-            if visual_novel
-            else NarratorFinalOutput
-        ),
-        temperature=0.5,
-        max_tokens=8000,
-        cache=True,
-        compact=True,
+    response_model = (
+        VisualNovelNarratorOutput if visual_novel else NarratorFinalOutput
     )
-    result: NarratorOutput = response.parsed
+    result: NarratorOutput | None = None
+    rejected_handoff = ""
+    for attempt in range(2 if visual_novel else 1):
+        response = await client.complete(
+            role="narrator",
+            messages=messages,
+            response_model=response_model,
+            temperature=0.5,
+            max_tokens=8000,
+            cache=True,
+            compact=True,
+        )
+        result = response.parsed
+        if result is None:
+            raise RuntimeError("Narrator returned no structured result.")
+        if isinstance(result, VisualNovelNarratorOutput):
+            try:
+                _assert_visual_novel_output_is_player_safe(ckpt, result)
+                if rejected_handoff and result.handoff != rejected_handoff:
+                    raise ValueError(
+                        "visual-novel correction changed the handoff decision"
+                    )
+            except ValueError:
+                if attempt:
+                    raise
+                rejected_handoff = result.handoff
+                messages = [
+                    *messages,
+                    {
+                        "role": "assistant",
+                        "content": result.model_dump_json(),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            "Return corrected JSON only. Preserve the handoff, "
+                            "visible facts, dialogue order, and page boundaries, "
+                            "but remove every source identifier from "
+                            "speaker and text fields. Do not transform an "
+                            "identifier into a guessed proper name. Use an "
+                            "already established viewpoint-known name when the "
+                            "context supplies one; otherwise use a short visible "
+                            "description."
+                        ),
+                    },
+                ]
+                continue
+        break
+    assert result is not None
     if isinstance(result, NarratorFinalOutput):
         result.final_text = _strip_unmatched_trailing_closers(result.final_text)
         response.parsed = result
 
-    if result is None:
-        raise RuntimeError("Narrator returned no structured result.")
     final_text = narrator_plain_text(result)
     logger.info(
         "compose_pov_render: pov=%s rendered %d chars",
@@ -309,6 +367,8 @@ def commit_pov_render(
     user_input: str,
 ) -> None:
     """Persist one accepted POV conversation turn and visual introductions."""
+    if isinstance(result, VisualNovelNarratorOutput):
+        _assert_visual_novel_output_is_player_safe(ckpt, result)
     resolved = _resolve_buffered_events(ckpt, buffered_events)
     visual_intro_plan = plan_render_visual_introductions(
         ckpt,

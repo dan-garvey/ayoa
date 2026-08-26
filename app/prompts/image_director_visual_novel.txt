@@ -14,9 +14,11 @@ Choose exactly one stage transition:
 
 For `replace`, compose one stable 16:9 in-world scene suitable for repeated dialogue pages. Use a medium or medium-wide camera at character eye level, with readable character separation and modest headroom. Characters may angle slightly toward each other when visible facts support their interaction. Keep pose and expression natural and restrained. Do not request multiple moments, sequential panels, sprite sheets, cutouts, or expression variants.
 
-Use only listed character ids in `subject_character_ids`. Omit and anonymous depiction policies remain binding. A named character without an established identity reference must not be guessed as a foreground subject; clear the stage or compose only the safely depictable environment and anchored subjects when that remains truthful.
+Use only listed character ids in `subject_character_ids`. Every named roster character described in `scene_prompt` must also appear in that subject list. Omit and anonymous depiction policies remain binding. Every listed subject must show `has_identity_reference=yes`; otherwise clear the stage or compose only a truthful environment without that person.
 
-Choose `compose` for a fresh full-scene composition guided by selected identity, environment, or style references. Choose `edit` only when preserving and transforming the first selected reference's composition is the main job. `edit` requires 1-3 listed reference ids. Select only reference ids whose authored `use` applies, and keep character references attached to their own subjects.
+Choose `compose` for a fresh full-scene composition guided by selected identity, environment, or style references. Choose `edit` only when preserving and transforming the first selected reference's composition is the main job. The first selected reference is the edit composition guide. Select only reference ids whose authored `use` applies, and keep character references attached to their own subjects.
+
+Budget references for the complete scene, not only the selected guides. Every selected id counts. Each listed subject not covered by a selected character reference also requires one identity reference. The complete set must contain no more than {max_references} references, and `edit` must fit its 1-3 reference limit. Prefer fewer optional guides, fewer truthful subjects, `compose`, or `clear` when the complete set cannot fit.
 
 The request `title` is a short player-facing scene label with no spoilers. The `scene_prompt` describes main subjects, restrained pose, setting, camera, spatial separation, and lighting in concise affirmative visual language. Do not restate art style.
 

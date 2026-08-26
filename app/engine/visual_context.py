@@ -202,6 +202,7 @@ def _plan_visual_introductions(
     candidate_ids: Iterable[str] | None = None,
     priority_target_ids: Iterable[str] = (),
     max_loadouts: int,
+    include_public_context: bool = True,
 ) -> VisualIntroductionPlan:
     texts = [text for text in visible_texts if text and text.strip()]
     if not viewer_id or max_loadouts <= 0 or not texts:
@@ -235,7 +236,9 @@ def _plan_visual_introductions(
             mark_ids.append(character_id)
             continue
         loadout = _default_loadout(character)
-        public_context = _public_context(character)
+        public_context = (
+            _public_context(character) if include_public_context else ""
+        )
         if _is_redundant_context(loadout, public_context):
             public_context = ""
         if not loadout and not public_context:
@@ -315,6 +318,7 @@ def plan_render_visual_introductions(
         viewer_id=viewer_id,
         visible_texts=visible_texts,
         max_loadouts=max_loadouts,
+        include_public_context=False,
     )
 
 
@@ -333,4 +337,24 @@ def format_visual_introductions(
             parts.append(f"player-safe context: {introduction.public_context}")
         if parts:
             lines.append(f"- {introduction.name}: {' '.join(parts)}")
+    return "\n".join(lines)
+
+
+def format_narrator_visual_introductions(
+    introductions: Iterable[VisualIntroduction],
+) -> str:
+    """Format first-look exterior vocabulary for either narrator mode.
+
+    Narrators need a bounded visual impression, not the broader public
+    biography used by character agents.  Labels bind each exterior to source
+    context but do not themselves grant the viewpoint knowledge of a name.
+    """
+
+    lines: list[str] = []
+    for introduction in introductions:
+        if introduction.default_loadout:
+            lines.append(
+                f"- {introduction.name}: visible exterior: "
+                f"{introduction.default_loadout}"
+            )
     return "\n".join(lines)
