@@ -1324,11 +1324,13 @@ class TestTurnResponse:
         response = TurnResponse(
             session_id="abc",
             output_text=(
-                f"The public portrait is at {output_url}. /secret.env"
+                f"The public portrait is at {output_url},/secret.env "
+                "https:///private/story/leaked.pem"
             ),
             per_player_renders={
                 "alice": (
-                    f"Alice opens the guide at {pov_url}. /secret.pem"
+                    f"Alice opens the guide at {pov_url},/secret.pem "
+                    r"https://C:\Users\dan\ayoa\private\leaked.pfx"
                 ),
             },
             per_player_visual_novel_renders={
@@ -1336,7 +1338,10 @@ class TestTurnResponse:
                     VisualNovelRenderSegment(
                         pages=[VisualNovelPage(
                             kind="narration",
-                            text=f"The public guide is {pov_url}. /secret.key",
+                            text=(
+                                f"The public guide is {pov_url},/secret.key "
+                                "https:///private/vn/leaked.pem"
+                            ),
                         )],
                         rendered_event_ids=["evt1"],
                     ),
@@ -1351,6 +1356,12 @@ class TestTurnResponse:
         assert "/secret.env" not in response.output_text
         assert "/secret.pem" not in response.per_player_renders["alice"]
         assert "/secret.key" not in page.text
+        assert "/private/vn/leaked.pem" not in page.text
+        assert "/private/story/leaked.pem" not in response.output_text
+        assert (
+            r"C:\Users\dan\ayoa\private\leaked.pfx"
+            not in response.per_player_renders["alice"]
+        )
 
 
 class TestCheckpointFile:

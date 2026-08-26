@@ -186,6 +186,14 @@ def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
         ("Pip speaks over the radio and steps into the room.", {"pip"}),
         ("Pip speaks over the radio and stands beside Alice.", {"pip", "alice"}),
         ("Alice says hello and Pip enters the room.", {"alice", "pip"}),
+        ("Alice asks a question and Pip enters the room.", {"alice", "pip"}),
+        ("Alice asks whether Pip waits and Pip enters the room.", {"alice"}),
+        ("Pip reports in a message.", set()),
+        ("Pip reports in writing.", set()),
+        ("Pip reports by letter.", set()),
+        ("Pip reports via text.", set()),
+        ("Pip speaks over the radio and eventually enters the room.", set()),
+        ("Tomorrow, Pip speaks over the radio and enters the room.", set()),
         ("Pip arrives and Alice enters the room.", {"pip", "alice"}),
         ("Pip and Alice step into the room.", {"pip", "alice"}),
         ("Pip stands beside Alice.", {"pip", "alice"}),
@@ -222,11 +230,63 @@ def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
         } == expected_ids
 
 
-def test_remote_reports_and_depictions_preserve_later_physical_introduction():
+def test_remote_references_preserve_later_physical_introduction():
     for consumer in ("agent", "narrator"):
-        for remote_text in (
-            "Alice reports Pip waits at the gate.",
-            "A sketch shows Pip standing by the gate.",
+        for remote_text, expected_remote_ids, meeting_id, meeting_text in (
+            (
+                "Alice reports Pip waits at the gate.",
+                {"alice"},
+                "pip",
+                "Pip steps into the gatehouse.",
+            ),
+            (
+                "A sketch shows Pip standing by the gate.",
+                set(),
+                "pip",
+                "Pip steps into the gatehouse.",
+            ),
+            (
+                "Pip reports in a message.",
+                set(),
+                "pip",
+                "Pip steps into the gatehouse.",
+            ),
+            (
+                "Pip reports in writing.",
+                set(),
+                "pip",
+                "Pip steps into the gatehouse.",
+            ),
+            (
+                "Pip reports by letter.",
+                set(),
+                "pip",
+                "Pip steps into the gatehouse.",
+            ),
+            (
+                "Pip reports via text.",
+                set(),
+                "pip",
+                "Pip steps into the gatehouse.",
+            ),
+            (
+                "Pip speaks over the radio and eventually enters the room.",
+                set(),
+                "pip",
+                "Pip steps into the gatehouse.",
+            ),
+            (
+                "Tomorrow, Pip speaks over the radio and enters the room.",
+                set(),
+                "pip",
+                "Pip steps into the gatehouse.",
+            ),
+            (
+                "Alice asks whether Pip waits and Korva enters the room.",
+                {"alice"},
+                "korva",
+                "Korva steps into the gatehouse.",
+            ),
         ):
             ckpt = CheckpointFile(
                 session=SessionState(session_id="s"),
@@ -234,6 +294,7 @@ def test_remote_reports_and_depictions_preserve_later_physical_introduction():
                     CharacterRecord(character_id="bob", name="Bob"),
                     _character("alice", "Alice", CharacterAgentTier.standard),
                     _character("pip", "Pip", CharacterAgentTier.standard),
+                    _character("korva", "Korva", CharacterAgentTier.standard),
                 ],
             )
             remote_event = _event(remote_text)
@@ -264,9 +325,10 @@ def test_remote_reports_and_depictions_preserve_later_physical_introduction():
                 remote.mark_character_ids,
             )
 
-            assert "pip" not in remote.mark_character_ids
+            assert set(remote.mark_character_ids) == expected_remote_ids
+            assert meeting_id not in remote.mark_character_ids
 
-            meeting_event = _event("Pip steps into the gatehouse.")
+            meeting_event = _event(meeting_text)
             if consumer == "agent":
                 meeting = plan_event_visual_introductions(
                     ckpt,
@@ -289,8 +351,8 @@ def test_remote_reports_and_depictions_preserve_later_physical_introduction():
                     max_loadouts=3,
                 )
 
-            assert [intro.character_id for intro in meeting.loadouts] == ["pip"]
-            assert meeting.mark_character_ids == ["pip"]
+            assert [intro.character_id for intro in meeting.loadouts] == [meeting_id]
+            assert meeting.mark_character_ids == [meeting_id]
 
 
 def test_agent_remote_voice_does_not_consume_intro_before_direct_speech():

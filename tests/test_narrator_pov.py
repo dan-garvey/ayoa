@@ -872,12 +872,15 @@ class TestComposePovRender:
         ckpt.session.config.settings.presentation_mode = presentation_mode
         ckpt.world_state.setting.premise = (
             "SAFE PREMISE SENTINEL. source_path=/private/story/outline.md "
-            "actor.hidden /secret.env https://example.com/public/premise.png "
+            "actor.hidden /secret.env "
+            "https://example.com/public/premise.png,/secret.key "
+            "https:///private/story/leaked.pem "
             "\x1b[31m"
         )
         ckpt.session.config.narrative_rules = (
             "SAFE NARRATIVE RULE SENTINEL. "
             "tests/fixtures/private/rules.txt /secret.pem "
+            r"https://C:\Users\dan\ayoa\private\leaked.key "
             "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         )
         beta_event = next(
@@ -941,6 +944,9 @@ class TestComposePovRender:
         assert "/private/module/source-map.png" not in provider_input
         assert "/secret.env" not in provider_input
         assert "/secret.pem" not in provider_input
+        assert "/secret.key" not in provider_input
+        assert "/private/story/leaked.pem" not in provider_input
+        assert r"C:\Users\dan\ayoa\private\leaked.key" not in provider_input
         assert "private_extractions" not in provider_input
         assert r"C:\Users\dan\ayoa" not in provider_input
         assert "app/storage/stories" not in provider_input

@@ -122,3 +122,46 @@ def test_content_redactors_preserve_http_urls(redactor, url: str) -> None:
     prose = f"The public reference remains available at {url} for review."
 
     assert redactor(prose) == prose
+
+
+@pytest.mark.parametrize(
+    "redactor",
+    (redact_imported_asset_text, redact_imported_content_metadata_text),
+)
+@pytest.mark.parametrize(
+    "pseudo_url, private_fragment",
+    (
+        (
+            "https:///home/dan/ayoa/private/secret.pem",
+            "/home/dan/ayoa/private/secret.pem",
+        ),
+        (
+            r"https://C:\Users\dan\ayoa\private\secret.key",
+            r"C:\Users\dan\ayoa\private\secret.key",
+        ),
+    ),
+)
+def test_content_redactors_do_not_shield_malformed_http_private_paths(
+    redactor,
+    pseudo_url: str,
+    private_fragment: str,
+) -> None:
+    cleaned = redactor(f"Unsafe source: {pseudo_url}")
+
+    assert REDACTED_IMPORT_SENTINEL in cleaned
+    assert private_fragment not in cleaned
+
+
+@pytest.mark.parametrize(
+    "redactor",
+    (redact_imported_asset_text, redact_imported_content_metadata_text),
+)
+def test_content_redactors_separate_public_url_from_adjacent_private_path(
+    redactor,
+) -> None:
+    url = "https://example.com/public/hero.png"
+    cleaned = redactor(f"Public reference: {url},/secret.key")
+
+    assert url in cleaned
+    assert "/secret.key" not in cleaned
+    assert REDACTED_IMPORT_SENTINEL in cleaned
