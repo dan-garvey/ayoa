@@ -1312,6 +1312,59 @@ class ImageJobStore:
             )
         return running.rowcount
 
+    def fail_unserviceable_finalized_jobs(
+        self,
+        *,
+        error_code: str = "worker_unavailable",
+    ) -> int:
+        """Fail finalized jobs while the caller holds the queue-owner lease."""
+
+        now = time.time()
+        reason = _clean_reason(error_code or "worker_unavailable")
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            rows = db.execute(
+                """
+                SELECT DISTINCT job.job_id
+                FROM image_jobs AS job
+                JOIN image_director_run_jobs AS association
+                  ON association.job_id = job.job_id
+                JOIN image_director_runs AS run
+                  ON run.run_id = association.run_id
+                WHERE association.finalized = 1
+                  AND association.attempt = run.attempts
+                  AND run.status = 'succeeded'
+                  AND run.materialized_at IS NOT NULL
+                  AND job.status IN (?, ?)
+                """,
+                (
+                    ImageGenerationStatus.queued.value,
+                    ImageGenerationStatus.running.value,
+                ),
+            ).fetchall()
+            failed = 0
+            for row in rows:
+                cursor = db.execute(
+                    """
+                    UPDATE image_jobs
+                    SET status = ?, error_code = ?, completed_at = ?,
+                        updated_at = ?
+                    WHERE job_id = ? AND status IN (?, ?)
+                    """,
+                    (
+                        ImageGenerationStatus.failed.value,
+                        reason,
+                        now,
+                        now,
+                        row["job_id"],
+                        ImageGenerationStatus.queued.value,
+                        ImageGenerationStatus.running.value,
+                    ),
+                )
+                failed += cursor.rowcount
+            db.commit()
+        return failed
+
     def speculative_transactions(self) -> list[dict[str, object]]:
         with self._connect() as db:
             transactions = db.execute(
