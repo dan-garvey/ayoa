@@ -1828,12 +1828,30 @@ class EngineBridge:
         show the mechanical result immediately, then continue the Cat II
         resolution as a separate slower step.
         """
+        bridge_lock = await self._lock_for(session_id)
+        async with bridge_lock:
+            return await self._complete_pending_roll_locked(
+                session_id=session_id,
+                event_id=event_id,
+                roll_id=roll_id,
+                user_id=user_id,
+            )
+
+    async def _complete_pending_roll_locked(
+        self,
+        *,
+        session_id: str,
+        event_id: str,
+        roll_id: str,
+        user_id: int,
+    ) -> CompletedPendingRoll:
+        """Complete a roll while the EngineBridge session lock is held."""
         actor_id = self.get_user_binding(session_id, user_id)
         if actor_id is None:
             raise ValueError("This Discord user is not bound to a character.")
 
-        lock = await self.orchestrator.session_locks.get(session_id)
-        async with lock:
+        orchestrator_lock = await self.orchestrator.session_locks.get(session_id)
+        async with orchestrator_lock:
             ckpt = self.checkpoint_mgr.load_latest(session_id)
             sync_checkpoint_runtime_models(ckpt, self.client.config)
             bindings = ckpt.session.character_bindings or {}
@@ -1938,11 +1956,13 @@ class EngineBridge:
         actor_id: str,
     ) -> TurnResponse:
         """Finalize a Cat II after a prior complete_pending_roll call."""
-        return await self.orchestrator.continue_cat_ii_after_roll(
-            session_id=session_id,
-            event_id=event_id,
-            actor_id=actor_id,
-        )
+        bridge_lock = await self._lock_for(session_id)
+        async with bridge_lock:
+            return await self.orchestrator.continue_cat_ii_after_roll(
+                session_id=session_id,
+                event_id=event_id,
+                actor_id=actor_id,
+            )
 
     async def bind_user(
         self,

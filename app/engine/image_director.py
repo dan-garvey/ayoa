@@ -252,6 +252,7 @@ class DurableDirectorRun:
     attempts: int
     created_at: float
     updated_at: float
+    materialized_at: float | None
 
 
 def source_event_fingerprint(event: EventRouterOutput) -> str:

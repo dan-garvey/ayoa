@@ -14,6 +14,7 @@ from app.engine.closed_event_runtime import (
 from app.engine.event_image_sidecar import (
     EventImageSidecar,
 )
+from app.engine.image_director import VisibleEventProjection
 from app.engine.image_generation import (
     ImageGenerationConfig,
     ImageGenerationCoordinator,
@@ -25,8 +26,11 @@ from app.engine.turn_loop import BeatResult, broadcast_event, run_beat
 from app.engine.turn_loop_dispatcher import _router_history_record
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.conversation import ConversationMessage
-from app.schemas.image_director import ImageDirectorOutput
-from app.schemas.image_generation import ImageDeliveryKind
+from app.schemas.image_director import ImageDirection, ImageDirectorOutput
+from app.schemas.image_generation import (
+    GeneratedImageArtifact,
+    ImageDeliveryKind,
+)
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.state import RenderBufferEntry
 from tests.support.factories import (
@@ -437,13 +441,15 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
             with generation.store._connect() as db:
                 row = db.execute(
                     """
-                    SELECT status, output_json FROM image_director_runs
+                    SELECT status, output_json, materialized_at
+                    FROM image_director_runs
                     WHERE source_event_id = 'evt_shared'
                     """
                 ).fetchone()
             return bool(
                 row is not None
                 and row["status"] == "succeeded"
+                and row["materialized_at"] is not None
                 and row["output_json"]
                 == '{"stage_action":"clear","requests":[]}'
             )
@@ -457,6 +463,157 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
         director.release.set()
         await sidecar.close()
         await generation.close()
+
+
+@pytest.mark.asyncio
+async def test_later_director_stage_context_waits_for_prior_materialization(
+    tmp_path: Path,
+):
+    async def run_schedule(runtime_root: Path, *, pause: bool) -> tuple[str, ...]:
+        generation = ImageGenerationCoordinator(
+            sessions_dir=runtime_root / "sessions",
+            config=ImageGenerationConfig(runtime_root=runtime_root / "runtime"),
+            worker=AvailableNoopWorker(),
+        )
+        prior_direction = ImageDirection(
+            kind="establishing",
+            title="Prior Rain Stage",
+            subject_character_ids=[],
+            scene_prompt="A rain-dark courtyard beneath stone arcades.",
+        )
+
+        class RecordingDirector:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, tuple[str, ...]]] = []
+                self.second_called = asyncio.Event()
+
+            async def decide(self, projection, *, stage_context=()):
+                self.calls.append((projection.event_id, tuple(stage_context)))
+                if len(self.calls) == 2:
+                    self.second_called.set()
+                if projection.event_id == "evt_prior":
+                    return ImageDirectorOutput(
+                        stage_action="replace",
+                        requests=[prior_direction],
+                    )
+                return ImageDirectorOutput(stage_action="clear", requests=[])
+
+        def projection(
+            transaction_id: str,
+            event_id: str,
+            event_sequence: int,
+            source_turn_index: int,
+        ) -> VisibleEventProjection:
+            return VisibleEventProjection(
+                session_id="stage_schedule",
+                transaction_id=transaction_id,
+                source_turn_index=source_turn_index,
+                event_id=event_id,
+                event_sequence=event_sequence,
+                event_fingerprint=("a" if event_sequence == 1 else "b") * 64,
+                viewer_character_ids=("alice",),
+                perception_level="direct",
+                effective_at_s=event_sequence,
+                duration_s=1,
+                visible_facts=((f"Visible event {event_sequence}.", 0, 1),),
+                characters=(),
+                story_genre="drama",
+                story_era="contemporary",
+                story_tone="earnest",
+                story_premise="Rain gathers over an empty courtyard.",
+                canonical_event_count=event_sequence,
+                active_roster_count=1,
+                total_roster_count=1,
+                presentation_mode="visual_novel",
+            )
+
+        for transaction_id, event_id, sequence, turn in (
+            ("tx_prior", "evt_prior", 1, 1),
+            ("tx_later", "evt_later", 2, 2),
+        ):
+            generation.begin_transaction(
+                transaction_id=transaction_id,
+                session_id="stage_schedule",
+                source_turn_index=turn,
+                source_checkpoint_sha256="c" * 64,
+            )
+            generation.store.enqueue_director_run(
+                projection(transaction_id, event_id, sequence, turn)
+            )
+            assert generation.store.commit_transaction(
+                transaction_id,
+                target_checkpoint_sha256="d" * 64,
+            )
+
+        admission_reached = asyncio.Event()
+        release_admission = asyncio.Event()
+        if not pause:
+            release_admission.set()
+        enqueue_direction = generation.enqueue_direction
+
+        async def enqueue_and_finish(**kwargs):
+            job = await enqueue_direction(**kwargs)
+            assert job is not None
+            claimed = generation.store.claim_next()
+            assert claimed is not None and claimed.job_id == job.job_id
+            generation.store.mark_succeeded(
+                job.job_id,
+                GeneratedImageArtifact(
+                    sha256="e" * 64,
+                    relative_path="artifacts/ee/prior-stage.webp",
+                    width=1024,
+                    height=576,
+                    byte_count=123,
+                ),
+            )
+            admission_reached.set()
+            await release_admission.wait()
+            return job
+
+        generation.enqueue_direction = enqueue_and_finish  # type: ignore[method-assign]
+        director = RecordingDirector()
+        sidecar = EventImageSidecar(
+            director=director,  # type: ignore[arg-type]
+            generation=generation,
+            spawn_authoring=SpawnAuthoringCoordinator(
+                BlockingCharacterManager()
+            ),
+        )
+        await sidecar.start()
+        try:
+            await asyncio.wait_for(admission_reached.wait(), timeout=1)
+            if pause:
+                await asyncio.sleep(0)
+                assert [event_id for event_id, _ in director.calls] == [
+                    "evt_prior"
+                ]
+                with generation.store._connect() as db:
+                    row = db.execute(
+                        """
+                        SELECT materialized_at FROM image_director_runs
+                        WHERE source_event_id = 'evt_prior'
+                        """
+                    ).fetchone()
+                assert row is not None and row["materialized_at"] is None
+                release_admission.set()
+            await asyncio.wait_for(director.second_called.wait(), timeout=1)
+            assert [event_id for event_id, _ in director.calls[:2]] == [
+                "evt_prior",
+                "evt_later",
+            ]
+            return director.calls[1][1]
+        finally:
+            release_admission.set()
+            await sidecar.close()
+            await generation.close()
+
+    immediate = await run_schedule(tmp_path / "immediate", pause=False)
+    paused = await run_schedule(tmp_path / "paused", pause=True)
+
+    assert immediate == paused
+    assert len(paused) == 1
+    assert paused[0].startswith("current_stage=active;")
+    assert "title=Prior Rain Stage" in paused[0]
 
 
 @pytest.mark.asyncio

@@ -17,7 +17,7 @@ from app.engine.spawn_authoring import (
 )
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.image_director import ImageDirection, ImageDirectorOutput
+from app.schemas.image_director import ImageDirectorOutput
 from app.schemas.state import RenderBufferEntry
 
 
@@ -276,22 +276,16 @@ class EventImageSidecar:
                 )
                 if (
                     completed is not None
-                    and completed.status == "succeeded"
+                    and completed.status == "materializing"
                 ):
-                    materialization = asyncio.create_task(
-                        self._materialize_requests(
-                            run.run_id,
-                            run.projection,
-                            output,
-                        ),
-                        name=(
-                            "image-materialize:"
-                            f"{run.projection.event_id}"
-                        ),
-                    )
-                    self._track_transaction_task(
-                        run.projection.transaction_id,
-                        materialization,
+                    # Admission is cheap and defines the durable stage that the
+                    # next director run must observe. Diffusion still runs in
+                    # the generation worker after enqueue; only the intentional
+                    # first-portrait identity dependency waits for its result.
+                    await self._materialize_requests(
+                        run.run_id,
+                        run.projection,
+                        output,
                     )
             except asyncio.CancelledError:
                 raise
@@ -320,47 +314,81 @@ class EventImageSidecar:
         projection: VisibleEventProjection,
         output: ImageDirectorOutput,
     ) -> None:
-        admitted: list[ImageDirection] = []
+        admitted_job_ids: list[str] = []
         try:
             if not self.generation.available:
                 logger.warning(
                     "image director produced requests but diffusion is unavailable"
                 )
-                return
-            # Story-stage images are consumed by the shared card composer.
-            # Raw delivery remains reserved for explicit identity-review jobs.
-            for ordinal, direction in enumerate(output.requests):
-                establishes_unknown_identity = bool(
-                    direction.kind == "portrait"
-                    and len(direction.subject_character_ids) == 1
-                    and direction.subject_character_ids[0]
-                    not in self.generation.active_identity_character_ids(
-                        projection.session_id
+            else:
+                # Story-stage images are consumed by the shared card composer.
+                # Raw delivery remains reserved for explicit identity-review jobs.
+                for ordinal, direction in enumerate(output.requests):
+                    establishes_unknown_identity = bool(
+                        direction.kind == "portrait"
+                        and len(direction.subject_character_ids) == 1
+                        and direction.subject_character_ids[0]
+                        not in self.generation.active_identity_character_ids(
+                            projection.session_id
+                        )
                     )
-                )
-                job = await self.generation.enqueue_direction(
-                    projection=projection,
-                    direction=direction,
-                    request_ordinal=ordinal,
-                    visual_style=projection.engine_visual_style,
-                    delivery_targets=[],
-                )
-                if job is None:
-                    continue
-                admitted.append(direction)
-                # Keep later durable scene requests behind a first portrait so
-                # their frozen reference set can include the successful identity.
-                # This wait occurs only inside the presentation sidecar.
-                if establishes_unknown_identity:
-                    await self.generation.wait_for_terminal(job.job_id)
-        finally:
+                    job = await self.generation.enqueue_direction(
+                        projection=projection,
+                        direction=direction,
+                        request_ordinal=ordinal,
+                        visual_style=projection.engine_visual_style,
+                        delivery_targets=[],
+                    )
+                    if job is None:
+                        continue
+                    admitted_job_ids.append(job.job_id)
+                    # Keep later durable scene requests behind a first portrait
+                    # so their frozen reference set can include the successful
+                    # identity. This wait occurs only inside the presentation
+                    # sidecar.
+                    if establishes_unknown_identity:
+                        await self.generation.wait_for_terminal(job.job_id)
             self.generation.store.finalize_director_materialization(
                 run_id,
-                ImageDirectorOutput(
-                    stage_action=output.stage_action,
-                    requests=admitted,
-                ),
+                projection=projection,
+                admitted_job_ids=admitted_job_ids,
             )
+        except asyncio.CancelledError:
+            await self._fail_materialization(
+                run_id,
+                admitted_job_ids,
+                error_code="materialization_cancelled",
+            )
+            raise
+        except Exception as exc:
+            await self._fail_materialization(
+                run_id,
+                admitted_job_ids,
+                error_code=f"materialization_{type(exc).__name__}",
+            )
+            raise
+
+    async def _fail_materialization(
+        self,
+        run_id: str,
+        admitted_job_ids: list[str],
+        *,
+        error_code: str,
+    ) -> None:
+        for job_id in admitted_job_ids:
+            if self.generation.store.image_job_has_director_links(job_id):
+                continue
+            try:
+                await self.generation.cancel_job(
+                    job_id,
+                    error_code=error_code,
+                )
+            except Exception:
+                logger.exception(
+                    "failed to cancel partial image materialization job=%s",
+                    job_id,
+                )
+        self.generation.store.fail_director_run(run_id, error_code)
 
     def _preparation_done(
         self,

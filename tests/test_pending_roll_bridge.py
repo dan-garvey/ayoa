@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from app.bot.commands import _dice_roll_content, _roll_result_line
@@ -7,7 +9,7 @@ from app.bot.engine_bridge import EngineBridge
 from app.engine.frontend_views import CompletedPendingRoll
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.responses import DiceRollDisplay
+from app.schemas.responses import DiceRollDisplay, TurnResponse
 from app.schemas.state import (
     CatIIRollRecord,
     CatIIRollTransaction,
@@ -227,6 +229,111 @@ async def test_complete_pending_roll_rejects_stale_combat_transaction(tmp_path):
             roll_id="roll_alice",
             user_id=123,
         )
+
+
+@pytest.mark.asyncio
+async def test_complete_pending_roll_holds_bridge_lock_before_orchestrator_lock(
+    tmp_path,
+):
+    bridge = EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
+    bridge.checkpoint_mgr.save(_pending_roll_checkpoint())
+    orchestrator_lock = await bridge.orchestrator.session_locks.get(
+        "roll_session"
+    )
+    bridge_lock = await bridge._lock_for("roll_session")
+    await orchestrator_lock.acquire()
+    complete_task = asyncio.create_task(bridge.complete_pending_roll(
+        session_id="roll_session",
+        event_id="evt_open",
+        roll_id="roll_alice",
+        user_id=123,
+    ))
+    setting_task = None
+    try:
+        for _ in range(20):
+            if bridge_lock.locked():
+                break
+            await asyncio.sleep(0)
+        assert bridge_lock.locked()
+
+        setting_task = asyncio.create_task(bridge.set_setting(
+            "roll_session",
+            "presentation_mode",
+            "visual_novel",
+        ))
+        await asyncio.sleep(0)
+        assert setting_task.done() is False
+    finally:
+        orchestrator_lock.release()
+
+    completed = await complete_task
+    assert completed.remaining_pending_rolls == 0
+    assert setting_task is not None
+    assert await setting_task == "visual_novel"
+    latest = bridge.checkpoint_mgr.load_latest("roll_session")
+    assert latest.session.cat_ii_roll_transactions[0].status == "ready_to_finalize"
+    assert latest.session.config.settings.presentation_mode == "visual_novel"
+
+
+@pytest.mark.asyncio
+async def test_pending_roll_continuation_cannot_overwrite_waiting_setting(
+    tmp_path,
+    monkeypatch,
+):
+    bridge = EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
+    bridge.checkpoint_mgr.save(_pending_roll_checkpoint())
+    continuation_loaded = asyncio.Event()
+    release_continuation = asyncio.Event()
+
+    async def save_stale_continuation(**_kwargs):
+        stale = bridge.checkpoint_mgr.load_latest("roll_session")
+        continuation_loaded.set()
+        await release_continuation.wait()
+        stale.session.turn_index += 1
+        bridge.checkpoint_mgr.save(stale)
+        return TurnResponse(
+            session_id="roll_session",
+            checkpoint_id="ckpt_0005",
+            turn_index=5,
+            output_text="resolved",
+            per_player_renders={},
+            beat_ended_reason="resolved",
+        )
+
+    monkeypatch.setattr(
+        bridge.orchestrator,
+        "continue_cat_ii_after_roll",
+        save_stale_continuation,
+    )
+    continuation_task = asyncio.create_task(bridge.continue_pending_roll(
+        session_id="roll_session",
+        event_id="evt_open",
+        actor_id="alice",
+    ))
+    await continuation_loaded.wait()
+    setting_task = asyncio.create_task(bridge.set_setting(
+        "roll_session",
+        "presentation_mode",
+        "visual_novel",
+    ))
+    await asyncio.sleep(0)
+    assert setting_task.done() is False
+
+    release_continuation.set()
+    response = await continuation_task
+    assert response.turn_index == 5
+    assert await setting_task == "visual_novel"
+    latest = bridge.checkpoint_mgr.load_latest("roll_session")
+    assert latest.session.turn_index == 5
+    assert latest.session.config.settings.presentation_mode == "visual_novel"
 
 
 def test_roll_result_line_surfaces_total_for_discord_ui():
