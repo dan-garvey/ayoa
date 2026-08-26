@@ -261,6 +261,26 @@ def test_v2_loader_rejects_self_consistent_unknown_renderer(tmp_path: Path):
     assert renderer.load_deck(new_deck_id) is None
 
 
+@pytest.mark.parametrize(
+    "card_size",
+    (
+        [float(CARD_WIDTH), float(CARD_HEIGHT)],
+        [True, CARD_HEIGHT],
+        [CARD_WIDTH, False],
+    ),
+)
+def test_v2_loader_rejects_noncanonical_card_size_types(
+    tmp_path: Path,
+    card_size: list[object],
+):
+    renderer, deck = _single_page_deck(tmp_path)
+    payload = _manifest(deck)
+    payload["identity"]["card_size"] = card_size
+    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+
+    assert renderer.load_deck(new_deck_id) is None
+
+
 def test_v2_loader_keeps_historical_font_digests_as_identity_inputs(
     tmp_path: Path,
 ):
@@ -274,6 +294,87 @@ def test_v2_loader_keeps_historical_font_digests_as_identity_inputs(
 
     assert loaded is not None
     assert loaded.deck_id == new_deck_id
+
+
+def test_renderer_rejects_symlinked_deck_root_at_construction(tmp_path: Path):
+    runtime_root = tmp_path / "presentations"
+    runtime_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (runtime_root / "decks").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="deck root"):
+        VisualNovelCardRenderer(runtime_root)
+
+    assert list(outside.iterdir()) == []
+
+
+def test_render_rejects_symlinked_deck_root_swap_without_writing_outside(
+    tmp_path: Path,
+):
+    runtime_root = tmp_path / "presentations"
+    renderer = VisualNovelCardRenderer(runtime_root)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    renderer.deck_root.rmdir()
+    renderer.deck_root.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="deck root"):
+        renderer.render_deck([
+            VisualNovelDeckSection(pages=(VisualNovelPage(
+                kind="narration",
+                text="Wind moves across the open beginner court.",
+            ),)),
+        ])
+
+    assert list(outside.iterdir()) == []
+
+
+def test_loader_rejects_symlinked_deck_root_swap(tmp_path: Path):
+    renderer, deck = _single_page_deck(tmp_path)
+    original_deck_root = tmp_path / "original-decks"
+    renderer.deck_root.rename(original_deck_root)
+    renderer.deck_root.symlink_to(
+        original_deck_root,
+        target_is_directory=True,
+    )
+
+    assert renderer.load_deck(deck.deck_id) is None
+
+
+def test_render_rejects_replaced_deck_root_directory(tmp_path: Path):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    original_deck_root = tmp_path / "original-decks"
+    renderer.deck_root.rename(original_deck_root)
+    renderer.deck_root.mkdir()
+
+    with pytest.raises(RuntimeError, match="changed after"):
+        renderer.render_deck([
+            VisualNovelDeckSection(pages=(VisualNovelPage(
+                kind="narration",
+                text="Wind moves across the open beginner court.",
+            ),)),
+        ])
+
+    assert list(renderer.deck_root.iterdir()) == []
+
+
+def test_render_rejects_runtime_root_symlink_swap(tmp_path: Path):
+    runtime_root = tmp_path / "presentations"
+    renderer = VisualNovelCardRenderer(runtime_root)
+    moved_runtime_root = tmp_path / "moved-presentations"
+    runtime_root.rename(moved_runtime_root)
+    runtime_root.symlink_to(moved_runtime_root, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="changed after"):
+        renderer.render_deck([
+            VisualNovelDeckSection(pages=(VisualNovelPage(
+                kind="narration",
+                text="Wind moves across the open beginner court.",
+            ),)),
+        ])
+
+    assert list((moved_runtime_root / "decks").iterdir()) == []
 
 
 def test_render_rejects_symlinked_deck_directory_before_writing(tmp_path: Path):
