@@ -21,6 +21,7 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_content_metadata_text
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.image_director import ImageDirectorOutput, ImageGenerationMode
+from app.schemas.image_generation import FrozenReferenceInput
 from app.schemas.state import (
     RenderBufferEntry,
     SessionConfig,
@@ -97,6 +98,7 @@ class SelectableVisualReference:
     scope: str
     scope_id: str
     selection_hint: str
+    stage_eligible: bool = False
 
     def prompt_line(self) -> str:
         applies_to = (
@@ -107,6 +109,7 @@ class SelectableVisualReference:
         return (
             f"- id={_safe_identifier(self.reference_id)}; "
             f"applies_to={applies_to}; "
+            f"exact_stage={'yes' if self.stage_eligible else 'no'}; "
             f"use={_safe_text(self.selection_hint, 500)}"
         )
 
@@ -261,6 +264,7 @@ class DurableDirectorRun:
     created_at: float
     updated_at: float
     materialized_at: float | None
+    stage_reference: FrozenReferenceInput | None = None
 
 
 def source_event_fingerprint(event: EventRouterOutput) -> str:
@@ -730,10 +734,13 @@ class ImageDirector:
         )
         identity_retry_rule = (
             "For a visual-novel stage, use reuse or clear with no request, "
-            "or replace with exactly one non-portrait request whose subjects "
-            "already have identity references. A replacement with an "
-            "available authored location must select exactly one matching "
-            "location reference; an edit puts that reference first."
+            "or replace in exactly one of two ways: select one listed "
+            "location marked exact_stage=yes in stage_reference_id with no "
+            "request, or leave "
+            "stage_reference_id empty and return exactly one non-portrait "
+            "generation request whose subjects already have identity "
+            "references. A generated edit puts any selected location guide "
+            "first."
             if visual_novel
             else (
                 "New named characters without identity references need "
@@ -789,10 +796,15 @@ class ImageDirector:
     ) -> None:
         if projection.presentation_mode == "visual_novel":
             self._validate_visual_novel_stage(output)
-        elif output.stage_action != "independent":
-            raise ValueError(
-                "non-visual-novel direction must use independent stage_action"
-            )
+        else:
+            if output.stage_action != "independent":
+                raise ValueError(
+                    "non-visual-novel direction must use independent stage_action"
+                )
+            if output.stage_reference_id:
+                raise ValueError(
+                    "non-visual-novel direction cannot select a stage reference"
+                )
         if len(output.requests) > self.max_requests:
             raise ValueError(
                 f"image director returned {len(output.requests)} requests; "
@@ -807,6 +819,18 @@ class ImageDirector:
             reference.reference_id: reference
             for reference in projection.reference_options
         }
+        if output.stage_reference_id:
+            selected_stage = allowed_references.get(output.stage_reference_id)
+            if (
+                not projection.has_location_reference
+                or selected_stage is None
+                or selected_stage.scope != "location"
+                or not selected_stage.stage_eligible
+            ):
+                raise ValueError(
+                    "visual-novel stage selected an unavailable authored "
+                    "location reference"
+                )
         new_unanchored = {
             character.character_id
             for character in allowed.values()
@@ -837,6 +861,7 @@ class ImageDirector:
         visual_novel_replace = (
             projection.presentation_mode == "visual_novel"
             and output.stage_action == "replace"
+            and not output.stage_reference_id
         )
         for request in output.requests:
             if request.generation_mode not in self.generation_modes:
@@ -900,11 +925,6 @@ class ImageDirector:
                     raise ValueError(
                         "visual-novel replacement cannot blend multiple "
                         "authored location guides"
-                    )
-                if projection.has_location_reference and not selected_location_ids:
-                    raise ValueError(
-                        "visual-novel replacement must select exactly one "
-                        "authored location guide for the depicted scene"
                     )
                 if (
                     request.generation_mode == "edit"
@@ -1013,14 +1033,25 @@ class ImageDirector:
                 "visual-novel direction requires reuse, replace, or clear"
             )
         if output.stage_action in {"reuse", "clear"}:
-            if output.requests:
+            if output.requests or output.stage_reference_id:
                 raise ValueError(
-                    f"{output.stage_action} stage transitions require no requests"
+                    f"{output.stage_action} stage transitions require no "
+                    "requests or stage reference"
                 )
+            return
+        has_reference = bool(output.stage_reference_id)
+        has_request = bool(output.requests)
+        if has_reference == has_request:
+            raise ValueError(
+                "replace stage transitions require exactly one reviewed stage "
+                "reference or one scene generation request"
+            )
+        if has_reference:
             return
         if len(output.requests) != 1:
             raise ValueError(
-                "replace stage transitions require exactly one scene request"
+                "generated replace stage transitions require exactly one "
+                "scene request"
             )
         if output.requests[0].kind == "portrait":
             raise ValueError("visual-novel stage replacements cannot be portraits")
@@ -1061,6 +1092,10 @@ def _selectable_reference_options(
                 scope=reference.scope,
                 scope_id=_safe_identifier(reference.scope_id),
                 selection_hint=_safe_text(reference.selection_hint, 500),
+                stage_eligible=(
+                    reference.scope == "location"
+                    and reference.purpose == "environment"
+                ),
             )
         )
     return tuple(result)

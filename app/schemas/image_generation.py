@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.schemas.image_director import ImageDirectionKind, ImageGenerationMode
 
 
-IMAGE_JOB_SCHEMA_VERSION = "10"
+IMAGE_JOB_SCHEMA_VERSION = "11"
 
 
 class ImageGenerationStatus(str, Enum):
@@ -40,7 +40,7 @@ class IdentityReferenceStatus(str, Enum):
 
 
 class FrozenReferenceInput(BaseModel):
-    """Hash-pinned private input consumed only by the diffusion worker."""
+    """Hash-pinned private input consumed only by the image pipeline."""
 
     model_config = ConfigDict(extra="forbid")
 

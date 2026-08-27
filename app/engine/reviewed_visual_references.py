@@ -9,6 +9,7 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
+from app.engine.player_media import ResolvedPlayerMedia
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.image_generation import FrozenReferenceInput
 from app.schemas.visual_references import ReviewedVisualReference
@@ -124,6 +125,57 @@ def load_frozen_visual_references(
             allowed_root="artifacts",
         )
     return resolved
+
+
+def resolve_frozen_visual_reference_media(
+    reference: FrozenReferenceInput,
+    *,
+    runtime_root: str | Path,
+) -> ResolvedPlayerMedia:
+    """Revalidate one private reviewed plate and return immutable media bytes."""
+
+    if (
+        reference.byte_count > MAX_REVIEWED_REFERENCE_BYTES
+        or reference.width > MAX_REVIEWED_REFERENCE_EDGE
+        or reference.height > MAX_REVIEWED_REFERENCE_EDGE
+        or reference.width * reference.height > MAX_REVIEWED_REFERENCE_PIXELS
+    ):
+        raise ReviewedVisualReferenceError(
+            "frozen_reference_limits_exceeded",
+            reference_id=reference.reference_id,
+        )
+    if reference.allowed_root != "artifacts":
+        raise ReviewedVisualReferenceError(
+            "frozen_reference_root_unauthorized",
+            reference_id=reference.reference_id,
+        )
+    root = Path(runtime_root).resolve()
+    allowed = (root / reference.allowed_root).resolve()
+    try:
+        path = (root / reference.relative_path).resolve(strict=True)
+        path.relative_to(allowed)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        raise ReviewedVisualReferenceError(
+            "frozen_reference_path_unsafe",
+            reference_id=reference.reference_id,
+        ) from exc
+    if not path.is_file():
+        raise ReviewedVisualReferenceError(
+            "reference_path_unavailable_or_unsafe",
+            reference_id=reference.reference_id,
+        )
+    data = _read_exact_reference(path, reference)
+    _validate_image_bytes(data, reference)
+    extension = _CANONICAL_EXTENSION_BY_MIME[reference.mime_type]
+    return ResolvedPlayerMedia(
+        filename=f"visual-novel-stage-{reference.sha256[:16]}{extension}",
+        mime_type=reference.mime_type,
+        data=data,
+        sha256=reference.sha256,
+        byte_count=reference.byte_count,
+        width=reference.width,
+        height=reference.height,
+    )
 
 
 def _validate_story_registry(
@@ -292,7 +344,7 @@ def _selected_reviewed_reference_ids(
 
 def _read_exact_reference(
     path: Path,
-    metadata: ReviewedVisualReference,
+    metadata: ReviewedVisualReference | FrozenReferenceInput,
 ) -> bytes:
     try:
         with path.open("rb") as handle:
@@ -317,7 +369,7 @@ def _read_exact_reference(
 
 def _validate_image_bytes(
     data: bytes,
-    metadata: ReviewedVisualReference,
+    metadata: ReviewedVisualReference | FrozenReferenceInput,
 ) -> None:
     try:
         with Image.open(io.BytesIO(data)) as image:
