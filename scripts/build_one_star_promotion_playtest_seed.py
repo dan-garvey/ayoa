@@ -103,35 +103,41 @@ def _set_seeded_hero_level(
 
 def _faceless_character(checkpoint: CheckpointFile) -> CharacterRecord:
     _owner, account = load_one_star_account(checkpoint)
-    authored = AuthoredOneStarHeroMechanics.model_validate({
-        "strong_stat_id": "agility",
-        "weak_stat_id": "resilience",
-        "equipment": [{
-            "item_id": "worn_wooden_cargo_hook",
-            "name": "Worn Wooden Cargo Hook",
-            "slot": "belt",
-            "quantity": 1,
-            "durability_current": 12,
-            "durability_max": 20,
-            "tags": ["tool", "hauling", "wood", "worn"],
-            "visible": True,
-        }],
-        "skills": [{
-            "skill_id": "load_balancing",
-            "name": "Load Balancing",
-            "rank": 1,
-            "capability": (
-                "Steady, shift, and carry ordinary loads without losing "
-                "balance."
-            ),
-            "tags": ["porter", "hauling", "practical"],
-            "visible": True,
-        }],
-        "conditions": [],
-        "persistent_injuries": [],
-        "innate_system_sight": False,
-        "hidden_capabilities": [],
-    })
+    authored = AuthoredOneStarHeroMechanics.model_validate(
+        {
+            "strong_stat_id": "agility",
+            "weak_stat_id": "resilience",
+            "equipment": [
+                {
+                    "item_id": "worn_wooden_cargo_hook",
+                    "name": "Worn Wooden Cargo Hook",
+                    "slot": "belt",
+                    "quantity": 1,
+                    "durability_current": 12,
+                    "durability_max": 20,
+                    "tags": ["tool", "hauling", "wood", "worn"],
+                    "visible": True,
+                }
+            ],
+            "skills": [
+                {
+                    "skill_id": "load_balancing",
+                    "name": "Load Balancing",
+                    "rank": 1,
+                    "capability": (
+                        "Steady, shift, and carry ordinary loads without losing "
+                        "balance."
+                    ),
+                    "tags": ["porter", "hauling", "practical"],
+                    "visible": True,
+                }
+            ],
+            "conditions": [],
+            "persistent_injuries": [],
+            "innate_system_sight": False,
+            "hidden_capabilities": [],
+        }
+    )
     hero = build_generated_hero(
         character_id=FACELESS_CHARACTER_ID,
         generated=authored,
@@ -185,8 +191,8 @@ def _faceless_character(checkpoint: CheckpointFile) -> CharacterRecord:
                 "recover a sense of self through choices she can still make",
             ],
             current_objectives=[
-                "decide what promotion may return before entering the chamber",
-                "keep Castor's threatened synthesis from becoming an abstraction",
+                "complete both freely chosen promotions after Iselle confirms the sanctioned cost and effect",
+                "honor Castor's informed voluntary transfer without pretending his death is an abstraction",
             ],
             secrets=[],
             intentions_enabled=True,
@@ -202,9 +208,16 @@ def _faceless_character(checkpoint: CheckpointFile) -> CharacterRecord:
         ),
         known_context=(
             "Mara knows the lobby's basic sanctioned rules and that she has "
-            "reached the limit of one-star training. She knows promotion may "
-            "restore pieces of a stolen life, and that synthesis permanently "
-            "kills its source."
+            "reached the limit of one-star training. Iselle has already "
+            "briefed her that completing promotion consumes one lesser stone, "
+            "advances her exactly one star, applies retained experience, and "
+            "restores any authored memory tier for the new rank. Mara has "
+            "freely decided to accept both available promotions in this "
+            "playtest. She and Castor have already reviewed the exact "
+            "synthesis result together: synthesis permanently kills its "
+            "source, Castor has freely volunteered for this transfer without "
+            "coercion, and Mara has chosen to receive it and finish the second "
+            "promotion afterward."
         ),
         mechanics={ONE_STAR_HERO_KEY: hero.model_dump(mode="json")},
     )
@@ -346,12 +359,15 @@ def build_checkpoint() -> CheckpointFile:
     renna = _character(checkpoint, "renna_holt")
     renna.known_context = (
         "Renna knows Niflheim's basic rules and has reached level ten, the "
-        "one-star limit. The Master has supplied a promotion stone. She knows "
-        "promotion may return memory, and she has not agreed to treat the "
-        "decision lightly."
+        "one-star limit. Iselle has already briefed her that completing "
+        "promotion consumes one lesser stone, advances her exactly one star, "
+        "applies retained experience, and restores any authored memory tier "
+        "for the new rank. Renna has freely decided that she wants this "
+        "promotion and will enter once its sanctioned cost and effect are "
+        "confirmed."
     )
     renna.private_state.current_objectives = [
-        "decide what she wants to ask before entering the Promotion Chamber",
+        "enter the Promotion Chamber once its sanctioned cost and effect are confirmed",
         "watch how the Master treats Mara and Castor",
     ]
 
@@ -362,10 +378,23 @@ def build_checkpoint() -> CheckpointFile:
         level=45,
     )
     castor = _character(checkpoint, "castor_valebrand")
-    castor.private_state.current_objectives = [
-        "avoid becoming Mara's synthesis source",
-        "force the Master and Iselle to acknowledge what the selection means",
+    castor.private_state.goals = [
+        "exercise agency through the informed final transfer he chose for Mara",
+        "make the record acknowledge that his death is real and voluntary",
     ]
+    castor.private_state.current_objectives = [
+        "enter the Synthesis Chamber as Mara's freely consenting source",
+        "state his choice plainly before the already-reviewed transfer resolves",
+    ]
+    castor.known_context = (
+        castor.known_context
+        + "\n\nFor this focused playtest, Castor and Mara have already reviewed "
+        "the exact synthesis result and its finality. Castor has freely "
+        "volunteered to become Mara's synthesis source without coercion. He "
+        "has decided to follow through even though death frightens him, and "
+        "his immediate objective is to make that choice legible rather than "
+        "resist or seek cancellation."
+    )
 
     if any(
         character.character_id == FACELESS_CHARACTER_ID
@@ -377,13 +406,16 @@ def build_checkpoint() -> CheckpointFile:
     iselle = _character(checkpoint, "iselle_the_guide")
     iselle.private_state.current_objectives = [
         "present Renna and Mara's available promotions to the Master",
-        "show the exact synthesis preview before anyone enters the chamber",
-        "enforce Castor's selected synthesis only after his response is visible",
+        "honor the exact synthesis terms Castor and Mara already reviewed",
+        "witness Castor's voluntary response before the selected transfer resolves",
+        "release Mara back to the lobby for her freely chosen second promotion",
     ]
 
-    return CheckpointFile.model_validate_json(checkpoint.model_dump_json(
-        context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
-    ))
+    return CheckpointFile.model_validate_json(
+        checkpoint.model_dump_json(
+            context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
+        )
+    )
 
 
 def main() -> None:

@@ -135,16 +135,18 @@ class _VisualNovelControl(
         custom_id = f"avn:{deck_id}:{self.user_id}:{self.index}:{action}"
         if len(custom_id) > _DISCORD_COMPONENT_CUSTOM_ID_MAX:
             raise ValueError("visual-novel custom id exceeds Discord's limit")
-        super().__init__(discord.ui.Button(
-            label=self._LABELS[action],
-            style=(
-                discord.ButtonStyle.secondary
-                if action in {"p", "n"}
-                else discord.ButtonStyle.primary
-            ),
-            custom_id=custom_id,
-            disabled=disabled,
-        ))
+        super().__init__(
+            discord.ui.Button(
+                label=self._LABELS[action],
+                style=(
+                    discord.ButtonStyle.secondary
+                    if action in {"p", "n"}
+                    else discord.ButtonStyle.primary
+                ),
+                custom_id=custom_id,
+                disabled=disabled,
+            )
+        )
 
     @classmethod
     async def from_custom_id(cls, interaction, item, match):
@@ -228,39 +230,41 @@ class _VisualNovelView(discord.ui.View):
                 f"{_VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX + 1}"
             )
         if not 0 <= page_index < card_count:
-            raise ValueError(
-                "visual-novel card index must identify a card in the deck"
-            )
+            raise ValueError("visual-novel card index must identify a card in the deck")
         super().__init__(timeout=None)
-        self.add_item(_VisualNovelControl(
-            deck_id=deck_id,
-            user_id=user_id,
-            index=page_index,
-            action="p",
-            disabled=page_index <= 0,
-        ))
-        self.add_item(_VisualNovelControl(
-            deck_id=deck_id,
-            user_id=user_id,
-            index=page_index,
-            action="n",
-            disabled=page_index >= card_count - 1,
-        ))
-        self.add_item(_VisualNovelControl(
-            deck_id=deck_id,
-            user_id=user_id,
-            index=page_index,
-            action="t",
-        ))
+        self.add_item(
+            _VisualNovelControl(
+                deck_id=deck_id,
+                user_id=user_id,
+                index=page_index,
+                action="p",
+                disabled=page_index <= 0,
+            )
+        )
+        self.add_item(
+            _VisualNovelControl(
+                deck_id=deck_id,
+                user_id=user_id,
+                index=page_index,
+                action="n",
+                disabled=page_index >= card_count - 1,
+            )
+        )
+        self.add_item(
+            _VisualNovelControl(
+                deck_id=deck_id,
+                user_id=user_id,
+                index=page_index,
+                action="t",
+            )
+        )
 
 
 def _visual_novel_discord_file(deck, index: int) -> discord.File:
     card = deck.cards[index]
     return discord.File(
         BytesIO(card.image_bytes),
-        filename=(
-            f"visual-novel-{deck.deck_id[:12]}-{card.index:03d}.png"
-        ),
+        filename=(f"visual-novel-{deck.deck_id[:12]}-{card.index:03d}.png"),
         description=_visual_novel_discord_description(card),
     )
 
@@ -275,10 +279,7 @@ def _visual_novel_discord_description(card) -> str:
     )
     if len(description) <= _DISCORD_ATTACHMENT_DESCRIPTION_MAX:
         return description
-    return (
-        description[: _DISCORD_ATTACHMENT_DESCRIPTION_MAX - 1].rstrip()
-        + "…"
-    )
+    return description[: _DISCORD_ATTACHMENT_DESCRIPTION_MAX - 1].rstrip() + "…"
 
 
 async def _record_visual_novel_message(
@@ -410,17 +411,18 @@ def _render_session_status_body_lines(
         f"**Viewpoint:** {activity.viewpoint_name or 'none selected'}",
         f"**Location:** {activity.location or 'not yet in the fiction'}",
         "**Joined:** " + (", ".join(activity.joined_seat_names) or "none"),
-        "**Nearby:** "
-        + (", ".join(activity.nearby_character_names) or "no one else"),
+        "**Nearby:** " + (", ".join(activity.nearby_character_names) or "no one else"),
         f"**Activity:** {activity.state}",
     ]
     lines.extend(activity.ruleset_lines)
     if activity.last_visible_update:
-        lines.extend([
-            "",
-            "**Last visible update:**",
-            activity.last_visible_update,
-        ])
+        lines.extend(
+            [
+                "",
+                "**Last visible update:**",
+                activity.last_visible_update,
+            ]
+        )
     return lines
 
 
@@ -455,7 +457,8 @@ def _is_admin(user_id: int) -> bool:
             logger.warning(
                 "DISCORD_ADMIN_USER_IDS skipped %d non-integer entr%s (%s); "
                 "the %d valid ID(s) still grant admin access.",
-                len(bad), "y" if len(bad) == 1 else "ies",
+                len(bad),
+                "y" if len(bad) == 1 else "ies",
                 ", ".join(repr(b) for b in bad),
                 len(admin_ids),
             )
@@ -591,16 +594,10 @@ def _signed_modifier(value: int) -> str:
 
 def _dice_roll_heading(roll: DiceRollDisplay | CompletedPendingRoll) -> str:
     actor = (
-        getattr(roll, "actor_name", "")
-        or getattr(roll, "actor_id", "")
-        or "Unknown"
+        getattr(roll, "actor_name", "") or getattr(roll, "actor_id", "") or "Unknown"
     )
     label = getattr(roll, "label", "") or "Roll"
-    target = (
-        getattr(roll, "target_name", "")
-        or getattr(roll, "target_id", "")
-        or ""
-    )
+    target = getattr(roll, "target_name", "") or getattr(roll, "target_id", "") or ""
     heading = f"{actor} - {label}" if actor else label
     return f"{heading} vs {target}" if target else heading
 
@@ -677,11 +674,7 @@ def _plain_dice_detail(text: str) -> str:
 
 
 def _dice_damage_formula(roll: DiceRollDisplay | CompletedPendingRoll) -> str:
-    total = int(
-        getattr(roll, "damage_total", 0)
-        or getattr(roll, "total", 0)
-        or 0
-    )
+    total = int(getattr(roll, "damage_total", 0) or getattr(roll, "total", 0) or 0)
     raw_total = int(getattr(roll, "damage_raw_total", 0) or 0)
     damage_type = str(getattr(roll, "damage_type", "") or "")
     suffix = f" {damage_type}" if damage_type else ""
@@ -716,16 +709,12 @@ def _dice_damage_target_status(
     if not any((maximum, before, after, temp_before, temp_after)):
         return ""
     target = (
-        getattr(roll, "target_name", "")
-        or getattr(roll, "target_id", "")
-        or "Target"
+        getattr(roll, "target_name", "") or getattr(roll, "target_id", "") or "Target"
     )
     before_text = _dice_hp_text(before, maximum, temp_before)
     after_text = _dice_hp_text(after, maximum, temp_after)
     state = str(getattr(roll, "target_defeat_state", "") or "")
-    state_text = (
-        f"; {state}" if state and state not in {"active", "unknown"} else ""
-    )
+    state_text = f"; {state}" if state and state not in {"active", "unknown"} else ""
     return f"Target HP: {target} {before_text} -> {after_text}{state_text}"
 
 
@@ -749,22 +738,24 @@ def _dice_roll_content(
     healing_roll = _dice_is_healing_roll(roll)
     damage_only = _dice_is_damage_only_roll(roll)
     heading_kind = (
-        "D&D Healing" if healing_roll
-        else "D&D Damage" if damage_only
-        else "D&D Roll"
+        "D&D Healing" if healing_roll else "D&D Damage" if damage_only else "D&D Roll"
     )
     heading = f"**{heading_kind}: {_dice_roll_heading(roll)}**"
     if stage == "rolling":
         rolling = (
-            "`healing rolling...`" if healing_roll
-            else "`damage rolling...`" if damage_only
+            "`healing rolling...`"
+            if healing_roll
+            else "`damage rolling...`"
+            if damage_only
             else "`d20 rolling...`"
         )
         lines = [heading, rolling]
     elif stage == "settled":
         settled = (
-            _dice_healing_formula(roll) if healing_roll
-            else _dice_damage_formula(roll) if damage_only
+            _dice_healing_formula(roll)
+            if healing_roll
+            else _dice_damage_formula(roll)
+            if damage_only
             else f"d20 {_dice_d20_text(roll)}"
         )
         lines = [heading, f"`{settled}`"]
@@ -801,20 +792,21 @@ def _dice_roll_content(
 
 
 def _experience_award_content(award: Any) -> str:
-    name = (
-        str(getattr(award, "character_name", "") or "")
-        or str(getattr(award, "character_id", "") or "Character")
+    name = str(getattr(award, "character_name", "") or "") or str(
+        getattr(award, "character_id", "") or "Character"
     )
     amount = int(getattr(award, "amount", 0) or 0)
     source = str(getattr(award, "source", "") or "").strip()
-    progress = dnd_experience.format_experience_progress({
-        "experience_points": getattr(award, "experience_points", 0),
-        "total_level": getattr(award, "total_level", 0),
-        "eligible_level": getattr(award, "eligible_level", 0),
-        "level_available": bool(getattr(award, "eligible_level", 0)),
-        "next_level": getattr(award, "next_level", 0),
-        "xp_to_next_level": getattr(award, "xp_to_next_level", 0),
-    })
+    progress = dnd_experience.format_experience_progress(
+        {
+            "experience_points": getattr(award, "experience_points", 0),
+            "total_level": getattr(award, "total_level", 0),
+            "eligible_level": getattr(award, "eligible_level", 0),
+            "level_available": bool(getattr(award, "eligible_level", 0)),
+            "next_level": getattr(award, "next_level", 0),
+            "xp_to_next_level": getattr(award, "xp_to_next_level", 0),
+        }
+    )
     source_text = f"\n{source}" if source else ""
     return f"**XP Gained:** {name} gains **{amount:,} XP**.{source_text}\n{progress}"
 
@@ -829,7 +821,9 @@ async def _animate_interaction_roll_result(
 ) -> None:
     rolling = _dice_roll_content(result, stage="rolling")
     final = _dice_roll_content(
-        result, stage="final", interpreting=interpreting,
+        result,
+        stage="final",
+        interpreting=interpreting,
     )
     try:
         if initial_response_sent:
@@ -853,10 +847,12 @@ async def _animate_interaction_roll_result(
         await inter.edit_original_response(content=final, view=view)
     except Exception:
         logger.debug("dice roll animation failed", exc_info=True)
-        fallback = "\n".join([
-            _roll_result_line(result),
-            "_Resolving..._" if interpreting else "",
-        ]).strip()
+        fallback = "\n".join(
+            [
+                _roll_result_line(result),
+                "_Resolving..._" if interpreting else "",
+            ]
+        ).strip()
         if inter.response.is_done():
             await inter.followup.send(fallback, ephemeral=True)
         else:
@@ -921,7 +917,8 @@ async def _post_roll_displays_to_pov(
             user = await bot.fetch_user(user_id)
         except Exception:
             logger.exception(
-                "dice roll POV: fetch_user(%s) failed", user_id,
+                "dice roll POV: fetch_user(%s) failed",
+                user_id,
             )
             return False
 
@@ -1078,11 +1075,12 @@ async def _post_actor_render(
             return ("thread", thread)
         except Exception:
             logger.exception(
-                "post_actor_render: thread.send to %s failed; "
-                "falling back to DM", thread.id,
+                "post_actor_render: thread.send to %s failed; falling back to DM",
+                thread.id,
             )
             await smap.clear_pov_thread(
-                _session_channel_id(inter), user.id,
+                _session_channel_id(inter),
+                user.id,
             )
 
     try:
@@ -1103,7 +1101,8 @@ async def _post_actor_render(
         return ("dm", None)
     except Exception:
         logger.exception(
-            "post_actor_render: DM fallback to user %s failed", user.id,
+            "post_actor_render: DM fallback to user %s failed",
+            user.id,
         )
 
     return ("none", None)
@@ -1126,6 +1125,7 @@ async def _post_visual_novel_render(
 
     deck = await engine.prepare_visual_novel_deck(
         session_id=session_id,
+        checkpoint_id=f"ckpt_{turn_index:04d}",
         pov_character_id=character_id,
         render=render,
     )
@@ -1153,11 +1153,10 @@ async def _post_visual_novel_render(
                 view=view,
             )
         except Exception:
-            logger.exception(
-                "visual-novel thread delivery failed; falling back to DM"
-            )
+            logger.exception("visual-novel thread delivery failed; falling back to DM")
             await smap.clear_pov_thread(
-                _session_channel_id(inter), user.id,
+                _session_channel_id(inter),
+                user.id,
             )
         else:
             await _record_visual_novel_message(
@@ -1237,7 +1236,8 @@ async def _post_to_pov(
             user = await bot.fetch_user(user_id)
         except Exception:
             logger.exception(
-                "post_to_pov: fetch_user(%s) failed; can't deliver", user_id,
+                "post_to_pov: fetch_user(%s) failed; can't deliver",
+                user_id,
             )
             return False
 
@@ -1271,8 +1271,8 @@ async def _post_to_pov(
             return True
         except Exception:
             logger.exception(
-                "post_to_pov: thread.send to thread %s failed; "
-                "falling back to DM", thread.id,
+                "post_to_pov: thread.send to thread %s failed; falling back to DM",
+                thread.id,
             )
             await smap.clear_pov_thread(session_chan_id, user_id)
 
@@ -1294,7 +1294,8 @@ async def _post_to_pov(
         return True
     except Exception:
         logger.exception(
-            "post_to_pov: DM fallback to user %s failed", user_id,
+            "post_to_pov: DM fallback to user %s failed",
+            user_id,
         )
         return False
 
@@ -1365,11 +1366,7 @@ def _content_asset_catalog_paths(engine: EngineBridge) -> list[Path]:
 
     env_value = os.getenv("AYOA_CONTENT_ASSET_CATALOGS", "").strip()
     if env_value:
-        return [
-            Path(value)
-            for value in env_value.split(os.pathsep)
-            if value.strip()
-        ]
+        return [Path(value) for value in env_value.split(os.pathsep) if value.strip()]
 
     roots: list[Path] = []
     stories_dir = getattr(engine, "stories_dir", None)
@@ -1425,9 +1422,7 @@ def _content_asset_roots(
     env_value = os.getenv(env_name, "").strip()
     if env_value:
         roots.extend(
-            Path(value)
-            for value in env_value.split(os.pathsep)
-            if value.strip()
+            Path(value) for value in env_value.split(os.pathsep) if value.strip()
         )
 
     roots.extend(defaults)
@@ -1502,8 +1497,7 @@ async def _send_private_asset_failure_notice(
     turn_index: Optional[int],
 ) -> None:
     notice = (
-        "A private image for this turn could not be delivered. "
-        "The asset was withheld."
+        "A private image for this turn could not be delivered. The asset was withheld."
     )
     invoker_notice = (
         "A private image for this turn could not be delivered to one "
@@ -1619,8 +1613,7 @@ async def _post_assets_to_pov(
             continue
         except Exception:
             logger.warning(
-                "post_assets_to_pov: unexpected asset resolution failure; "
-                "withholding"
+                "post_assets_to_pov: unexpected asset resolution failure; withholding"
             )
             delivered_all = False
             await _send_private_asset_failure_notice(
@@ -1686,8 +1679,7 @@ class _PendingRollView(discord.ui.View):
             label=f"Roll {prompt.label}",
             style=discord.ButtonStyle.primary,
             custom_id=(
-                f"ayoa:roll:{prompt.session_id}:"
-                f"{prompt.event_id}:{prompt.roll_id}"
+                f"ayoa:roll:{prompt.session_id}:{prompt.event_id}:{prompt.roll_id}"
             )[:100],
         )
         button.callback = self._roll
@@ -1711,9 +1703,7 @@ class _PendingRollView(discord.ui.View):
         except Exception as e:
             logger.exception("pending roll submission failed")
             message = (
-                str(e)
-                if isinstance(e, ValueError)
-                else f"`{type(e).__name__}: {e}`"
+                str(e) if isinstance(e, ValueError) else f"`{type(e).__name__}: {e}`"
             )
             if roll_inter.response.is_done():
                 await roll_inter.followup.send(
@@ -1745,7 +1735,9 @@ class _PendingRollView(discord.ui.View):
             await asyncio.sleep(DICE_ROLL_ANIMATION_DELAY_S)
             await roll_inter.edit_original_response(
                 content=_dice_roll_content(
-                    result, stage="final", interpreting=True,
+                    result,
+                    stage="final",
+                    interpreting=True,
                 ),
                 view=self,
             )
@@ -1754,10 +1746,12 @@ class _PendingRollView(discord.ui.View):
             if not roll_inter.response.is_done():
                 try:
                     await roll_inter.response.send_message(
-                        "\n".join([
-                            _roll_result_line(result),
-                            "_Resolving..._",
-                        ]),
+                        "\n".join(
+                            [
+                                _roll_result_line(result),
+                                "_Resolving..._",
+                            ]
+                        ),
                         ephemeral=True,
                     )
                 except Exception:
@@ -1816,9 +1810,9 @@ class _CombatReactionView(discord.ui.View):
         button = discord.ui.Button(
             label="No reaction",
             style=discord.ButtonStyle.secondary,
-            custom_id=(
-                f"ayoa:reaction:no:{session_id}:{character_id}:{event_id}"
-            )[:100],
+            custom_id=(f"ayoa:reaction:no:{session_id}:{character_id}:{event_id}")[
+                :100
+            ],
         )
         button.callback = self._defer
         self.add_item(button)
@@ -1850,9 +1844,7 @@ class _CombatReactionView(discord.ui.View):
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 child.disabled = True
-                child.label = (
-                    "Reaction closed" if is_stale else "No reaction selected"
-                )
+                child.label = "Reaction closed" if is_stale else "No reaction selected"
         try:
             await inter.response.edit_message(view=self)
         except Exception:
@@ -1902,8 +1894,10 @@ class _LootOfferView(discord.ui.View):
 
         available_ids = set(dnd_inventory.available_item_ids(offer))
         available = [item for item in offer.items if item.item_id in available_ids]
-        if available and len(available) <= 25 and all(
-            len(item.item_id) <= 100 for item in available
+        if (
+            available
+            and len(available) <= 25
+            and all(len(item.item_id) <= 100 for item in available)
         ):
             select = discord.ui.Select(
                 placeholder="Choose item(s)",
@@ -2256,9 +2250,7 @@ async def _deliver_loot_prompts(
 
 
 def _numbered_ref_lines(ids: list[str]) -> str:
-    return "\n".join(
-        f"{index}: `{value}`" for index, value in enumerate(ids, start=1)
-    )
+    return "\n".join(f"{index}: `{value}`" for index, value in enumerate(ids, start=1))
 
 
 def _resolve_numbered_ref(value: str, choices: list[str], *, label: str) -> str:
@@ -2269,9 +2261,7 @@ def _resolve_numbered_ref(value: str, choices: list[str], *, label: str) -> str:
         index = int(token)
         if 1 <= index <= len(choices):
             return choices[index - 1]
-        raise ValueError(
-            f"No {label} numbered {index}. Run the list command again."
-        )
+        raise ValueError(f"No {label} numbered {index}. Run the list command again.")
     if token in choices:
         return token
     raise ValueError(f"Unknown {label} `{token}`. Run the list command again.")
@@ -2312,9 +2302,9 @@ def _playable_seat_roster_body(
         (
             "Claimed by another player",
             [
-                seat for seat in playable
-                if seat.bound_user_id
-                and seat.bound_user_id != own_user_id
+                seat
+                for seat in playable
+                if seat.bound_user_id and seat.bound_user_id != own_user_id
             ],
         ),
     )
@@ -2415,13 +2405,15 @@ async def _deliver_turn_response_to_povs(
             reaction_note = (
                 "_You may use `/act` to spend your reaction now, or press "
                 "**No reaction** to pass._"
-                if event_id else ""
+                if event_id
+                else ""
             )
             revision_note = (
                 "_Your ongoing activity was interrupted. Use `/act` to revise "
                 "it, or `/act (continue)` to keep going if the new situation "
                 "still permits it._"
-                if commitment_revision_prompts.get(cid) else ""
+                if commitment_revision_prompts.get(cid)
+                else ""
             )
             char = next((c for c in roster if c.character_id == cid), None)
             char_name = char.name if char else cid
@@ -2435,7 +2427,8 @@ async def _deliver_turn_response_to_povs(
                     user_id=uid,
                     turn_index=turn_index,
                 )
-                if event_id else None
+                if event_id
+                else None
             )
             visual_render = visual_novel_renders.get(cid)
             ok = False
@@ -2462,7 +2455,8 @@ async def _deliver_turn_response_to_povs(
                             intro_content=(
                                 "\n\n".join(
                                     p for p in (note_prefix, revision_note) if p
-                                ) or None
+                                )
+                                or None
                             ),
                             session_id=session_id,
                             turn_index=turn_index,
@@ -2486,12 +2480,8 @@ async def _deliver_turn_response_to_povs(
                         view=view,
                     )
             if not ok:
-                prefixes = [
-                    p for p in (note_prefix, reaction_note, revision_note) if p
-                ]
-                payload = (
-                    "\n\n".join([*prefixes, prose]) if prefixes else prose
-                )
+                prefixes = [p for p in (note_prefix, reaction_note, revision_note) if p]
+                payload = "\n\n".join([*prefixes, prose]) if prefixes else prose
                 ok = await _post_to_pov(
                     inter=inter,
                     smap=smap,
@@ -2548,9 +2538,7 @@ async def _deliver_turn_response_to_povs(
     ) -> dict[str, list[SafeAssetRevealPayload]]:
         per_player_assets = {
             cid: list(payloads or [])
-            for cid, payloads in (
-                turn_response.per_player_asset_reveals or {}
-            ).items()
+            for cid, payloads in (turn_response.per_player_asset_reveals or {}).items()
             if cid and payloads
         }
         if per_player_assets:
@@ -2617,7 +2605,8 @@ async def _deliver_turn_response_to_povs(
                     await inter.followup.send(content, ephemeral=True)
                 else:
                     char = next(
-                        (c for c in roster if c.character_id == cid), None,
+                        (c for c in roster if c.character_id == cid),
+                        None,
                     )
                     char_name = char.name if char else cid
                     await _post_to_pov(
@@ -2656,7 +2645,7 @@ async def _deliver_turn_response_to_povs(
     # Fan out pre-turn resolutions before the actor's render so private POV
     # order matches story time. These can come from stale Cat II closure or
     # resumed automated combat after a rewind.
-    for pre_resp in (response.pre_turn_resolutions or []):
+    for pre_resp in response.pre_turn_resolutions or []:
         await _deliver_rolls_to_povs(
             pre_resp.dice_rolls or [],
             pre_resp.per_player_renders or {},
@@ -2672,12 +2661,8 @@ async def _deliver_turn_response_to_povs(
             skip_cid=None,
             turn_index=pre_resp.turn_index,
             note_prefix="_(Resolved before your action.)_",
-            commitment_revision_prompts=(
-                pre_resp.commitment_revision_prompts or {}
-            ),
-            visual_novel_renders=(
-                pre_resp.per_player_visual_novel_renders or {}
-            ),
+            commitment_revision_prompts=(pre_resp.commitment_revision_prompts or {}),
+            visual_novel_renders=(pre_resp.per_player_visual_novel_renders or {}),
         )
         await _deliver_assets_to_povs(
             pre_resp,
@@ -2693,7 +2678,8 @@ async def _deliver_turn_response_to_povs(
 
     if response.beat_ended_reason == "pre_turn_resolution":
         await inter.followup.send(
-            response.output_text or (
+            response.output_text
+            or (
                 "The scene changed before your submitted action could be "
                 "applied. Submit your next action from the updated state."
             ),
@@ -2702,7 +2688,8 @@ async def _deliver_turn_response_to_povs(
         return
 
     actor_char = next(
-        (c for c in roster if c.character_id == actor_character_id), None,
+        (c for c in roster if c.character_id == actor_character_id),
+        None,
     )
     actor_name = actor_char.name if actor_char else actor_character_id
     per_player = response.per_player_renders or {}
@@ -2729,8 +2716,10 @@ async def _deliver_turn_response_to_povs(
         "_Your ongoing activity was interrupted. Use `/act` to revise it, "
         "or `/act (continue)` to keep going if the new situation still "
         "permits it._"
-        if commitment_revision_prompts.get(actor_character_id) else ""
+        if commitment_revision_prompts.get(actor_character_id)
+        else ""
     )
+
     async def _post_actor_story_render(
         actor_render: str,
         *,
@@ -2747,11 +2736,12 @@ async def _deliver_turn_response_to_povs(
                 user_id=actor_user.id,
                 turn_index=response.turn_index,
             )
-            if reaction_event_id else None
+            if reaction_event_id
+            else None
         )
-        visual_render = (
-            response.per_player_visual_novel_renders or {}
-        ).get(actor_character_id)
+        visual_render = (response.per_player_visual_novel_renders or {}).get(
+            actor_character_id
+        )
         if visual_render is not None:
             try:
                 venue, thread = await _post_visual_novel_render(
@@ -2785,9 +2775,7 @@ async def _deliver_turn_response_to_povs(
                         )
                     return venue, thread
             except Exception:
-                logger.exception(
-                    "actor visual-novel presentation failed; using prose"
-                )
+                logger.exception("actor visual-novel presentation failed; using prose")
         embeds = render_turn(
             output_text=actor_render,
             turn_index=response.turn_index,
@@ -2864,9 +2852,7 @@ async def _deliver_turn_response_to_povs(
                         ephemeral=True,
                     )
             await inter.followup.send(
-                content="\n\n".join(
-                    p for p in (pause_note, actor_revision_note) if p
-                ),
+                content="\n\n".join(p for p in (pause_note, actor_revision_note) if p),
                 ephemeral=True,
             )
     else:
@@ -2899,13 +2885,12 @@ async def _deliver_turn_response_to_povs(
             turn_index=response.turn_index,
         )
         notified_names = await _dm_per_pov(
-            per_player, skip_cid=actor_character_id,
+            per_player,
+            skip_cid=actor_character_id,
             turn_index=response.turn_index,
             reaction_prompts=reaction_prompts,
             commitment_revision_prompts=commitment_revision_prompts,
-            visual_novel_renders=(
-                response.per_player_visual_novel_renders or {}
-            ),
+            visual_novel_renders=(response.per_player_visual_novel_renders or {}),
         )
         if notified_names:
             try:
@@ -2954,7 +2939,8 @@ async def _message_channel_for_ref(
             except Exception as e:
                 logger.warning(
                     "rewind cleanup: fetch_user(%s) failed (%s)",
-                    ref.recipient_user_id, _safe_cleanup_error(e),
+                    ref.recipient_user_id,
+                    _safe_cleanup_error(e),
                 )
                 return None
         dm_channel = getattr(user, "dm_channel", None)
@@ -2964,7 +2950,8 @@ async def _message_channel_for_ref(
             except Exception as e:
                 logger.warning(
                     "rewind cleanup: create_dm(%s) failed (%s)",
-                    ref.recipient_user_id, _safe_cleanup_error(e),
+                    ref.recipient_user_id,
+                    _safe_cleanup_error(e),
                 )
                 return None
         return dm_channel
@@ -2979,7 +2966,8 @@ async def _message_channel_for_ref(
     except Exception as e:
         logger.warning(
             "rewind cleanup: fetch_channel(%s) failed (%s)",
-            ref.discord_channel_id, _safe_cleanup_error(e),
+            ref.discord_channel_id,
+            _safe_cleanup_error(e),
         )
         return None
 
@@ -3029,7 +3017,8 @@ async def _delete_rewound_turn_messages(
             cleanup.failed += 1
             logger.warning(
                 "rewind cleanup: fetch_message(%s) failed in channel %s (%s)",
-                ref.message_id, ref.discord_channel_id,
+                ref.message_id,
+                ref.discord_channel_id,
                 _safe_cleanup_error(e),
             )
             continue
@@ -3047,7 +3036,8 @@ async def _delete_rewound_turn_messages(
             logger.warning(
                 "rewind cleanup: delete failed for message %s in channel %s; "
                 "trying edit fallback (%s)",
-                ref.message_id, ref.discord_channel_id,
+                ref.message_id,
+                ref.discord_channel_id,
                 _safe_cleanup_error(e),
             )
 
@@ -3063,7 +3053,8 @@ async def _delete_rewound_turn_messages(
             logger.warning(
                 "rewind cleanup: edit fallback failed for message %s "
                 "in channel %s (%s)",
-                ref.message_id, ref.discord_channel_id,
+                ref.message_id,
+                ref.discord_channel_id,
                 _safe_cleanup_error(e),
             )
 
@@ -3119,8 +3110,7 @@ def _render_dnd_sheet_page(
     page_index = _sheet_page_index(page)
     if page_index is None:
         raise ValueError(
-            f"Unknown sheet page '{page}'. Use one of: "
-            f"{', '.join(DND_SHEET_PAGES)}."
+            f"Unknown sheet page '{page}'. Use one of: {', '.join(DND_SHEET_PAGES)}."
         )
     sheet = _dnd_sheet_for(character)
     identity = sheet.get("identity") or {}
@@ -3241,9 +3231,7 @@ def _sheet_overview(
         passive_perception = perception.get("passive")
         if passive_perception is None:
             passive_perception = 10 + _int_or(perception.get("value"), 0)
-        combat.append(
-            f"Passive Perception {_int_or(passive_perception, 10)}"
-        )
+        combat.append(f"Passive Perception {_int_or(passive_perception, 10)}")
     movement = _movement_line(defenses.get("movement") or {})
     if movement:
         combat.append(f"Speed {movement}")
@@ -3302,8 +3290,7 @@ def _sheet_abilities(embed: discord.Embed, statblock: dict[str, Any]) -> None:
         prof = " prof" if (skill.get("proficiency_multiplier") or 0) > 0 else ""
         adv = _advantage_suffix(skill.get("advantage_state"))
         skill_lines.append(
-            f"{_title_skill(name)} {_signed(skill.get('value') or 0)}"
-            f"{prof}{adv}"
+            f"{_title_skill(name)} {_signed(skill.get('value') or 0)}{prof}{adv}"
         )
     midpoint = (len(skill_lines) + 1) // 2
     _add_sheet_field(
@@ -3323,7 +3310,8 @@ def _sheet_abilities(embed: discord.Embed, statblock: dict[str, Any]) -> None:
 
 def _sheet_actions(embed: discord.Embed, statblock: dict[str, Any]) -> None:
     actions = [
-        action for action in (statblock.get("actions") or [])
+        action
+        for action in (statblock.get("actions") or [])
         if isinstance(action, dict)
     ]
     if not actions:
@@ -3356,16 +3344,15 @@ def _sheet_spells(embed: discord.Embed, statblock: dict[str, Any]) -> None:
         slots = (
             f"{slots}\nPact L{_int_or(pact.get('level'), 1)} "
             f"{_int_or(pact.get('current'), 0)}/{_int_or(pact.get('max'), 0)}"
-            if slots else
-            f"Pact L{_int_or(pact.get('level'), 1)} "
+            if slots
+            else f"Pact L{_int_or(pact.get('level'), 1)} "
             f"{_int_or(pact.get('current'), 0)}/{_int_or(pact.get('max'), 0)}"
         )
     if slots:
         _add_sheet_field(embed, "Slots", slots, inline=False)
 
     spells = [
-        spell for spell in (spellcasting.get("spells") or [])
-        if isinstance(spell, dict)
+        spell for spell in (spellcasting.get("spells") or []) if isinstance(spell, dict)
     ]
     if not spells:
         _add_sheet_field(embed, "Spells", "No spells imported.", inline=False)
@@ -3387,10 +3374,7 @@ def _sheet_spells(embed: discord.Embed, statblock: dict[str, Any]) -> None:
 
 
 def _sheet_inventory(embed: discord.Embed, inventory: dict[str, Any]) -> None:
-    items = [
-        item for item in (inventory.get("items") or [])
-        if isinstance(item, dict)
-    ]
+    items = [item for item in (inventory.get("items") or []) if isinstance(item, dict)]
     equipped = [item for item in items if item.get("equipped")]
     carried = [item for item in items if not item.get("equipped")]
     currency = inventory.get("currency") or {}
@@ -3451,23 +3435,26 @@ def _render_loot_list(offers: list[DndLootOffer]) -> discord.Embed:
 
 
 def _loot_offer_content(offer: DndLootOffer) -> str:
-    return "\n".join([
-        "--- Loot Offer ---",
-        _loot_offer_summary(offer),
-        "",
-        (
-            "Use the buttons below, `/loot take_all`, `/loot split_coins`, "
-            "or `/loot decline`."
-        ),
-        "Decline is final for your character while this offer remains open.",
-    ]).strip()
+    return "\n".join(
+        [
+            "--- Loot Offer ---",
+            _loot_offer_summary(offer),
+            "",
+            (
+                "Use the buttons below, `/loot take_all`, `/loot split_coins`, "
+                "or `/loot decline`."
+            ),
+            "Decline is final for your character while this offer remains open.",
+        ]
+    ).strip()
 
 
 def _loot_offer_summary(offer: DndLootOffer) -> str:
     label = offer.source_label or offer.source_kind
     lines = [f"**{label}** (`{offer.offer_id}`)"]
     available = [
-        item for item in offer.items
+        item
+        for item in offer.items
         if item.item_id in set(dnd_inventory.available_item_ids(offer))
     ]
     for item in available[:10]:
@@ -3500,7 +3487,8 @@ def _loot_player_error(exc: Exception) -> str:
 
 def _sheet_features(embed: discord.Embed, statblock: dict[str, Any]) -> None:
     features = [
-        feature for feature in (statblock.get("features") or [])
+        feature
+        for feature in (statblock.get("features") or [])
         if isinstance(feature, dict)
     ]
     proficiencies = statblock.get("proficiencies") or {}
@@ -3639,8 +3627,7 @@ def _slots_line(slots: dict[str, dict[str, Any]]) -> str:
         if not isinstance(slot, dict):
             continue
         lines.append(
-            f"L{level}: {_int_or(slot.get('current'), 0)}/"
-            f"{_int_or(slot.get('max'), 0)}"
+            f"L{level}: {_int_or(slot.get('current'), 0)}/{_int_or(slot.get('max'), 0)}"
         )
     return " · ".join(lines)
 
@@ -3704,26 +3691,28 @@ def _dnd_attachment_body(summary: DndSheetAttachmentSummary) -> str:
     hp = f"{summary.hit_points_current}/{summary.hit_points_max}"
     if summary.hit_points_temporary:
         hp += f" (+{summary.hit_points_temporary} temp)"
-    return "\n".join([
-        f"Attached **{summary.imported_name or 'D&D character'}** to "
-        f"`{summary.character_id}`.",
-        name_line,
-        "",
-        f"**Classes:** {classes}",
-        f"**Level:** {summary.total_level}",
-        f"**AC / HP:** {summary.armor_class} / {hp}",
-        (
-            f"**D&D mode:** `{summary.session_ruleset_id}` · "
-            f"player rolls `{summary.player_roll_mode}`"
-        ),
-        (
-            f"**Imported:** {summary.skills_count} skills, "
-            f"{summary.actions_count} actions, {summary.spells_count} spells, "
-            f"{summary.resources_count} resources"
-        ),
-        "",
-        "Use `/sheet` to view it.",
-    ])
+    return "\n".join(
+        [
+            f"Attached **{summary.imported_name or 'D&D character'}** to "
+            f"`{summary.character_id}`.",
+            name_line,
+            "",
+            f"**Classes:** {classes}",
+            f"**Level:** {summary.total_level}",
+            f"**AC / HP:** {summary.armor_class} / {hp}",
+            (
+                f"**D&D mode:** `{summary.session_ruleset_id}` · "
+                f"player rolls `{summary.player_roll_mode}`"
+            ),
+            (
+                f"**Imported:** {summary.skills_count} skills, "
+                f"{summary.actions_count} actions, {summary.spells_count} spells, "
+                f"{summary.resources_count} resources"
+            ),
+            "",
+            "Use `/sheet` to view it.",
+        ]
+    )
 
 
 def _render_xp_award(results: list[DndExperienceAwardResult]) -> discord.Embed:
@@ -3735,10 +3724,7 @@ def _render_xp_award(results: list[DndExperienceAwardResult]) -> discord.Embed:
         if result.level_available and result.eligible_level:
             progress += f"; eligible for level {result.eligible_level}"
         elif result.next_level:
-            progress += (
-                f"; {result.xp_to_next_level:,} XP to level "
-                f"{result.next_level}"
-            )
+            progress += f"; {result.xp_to_next_level:,} XP to level {result.next_level}"
         lines.append(
             f"**{result.character_name}** (`{result.character_id}`): "
             f"+{result.amount:,} XP ({progress})"
@@ -3804,9 +3790,7 @@ class _DndSheetView(discord.ui.View):
         )
 
     def _advance(self, delta: int) -> None:
-        self.page_index = (
-            self.page_index + delta
-        ) % len(DND_SHEET_PAGES)
+        self.page_index = (self.page_index + delta) % len(DND_SHEET_PAGES)
         self._sync_buttons()
 
     def _render_current(self) -> discord.Embed:
@@ -3893,37 +3877,28 @@ def register(
             return False
         row = await smap.get_by_session(job.request.session_id)
         if row is None:
-            await engine.image_generation.cancel_delivery(
-                image_delivery.delivery_id
-            )
+            await engine.image_generation.cancel_delivery(image_delivery.delivery_id)
             return False
         session_channel_id = row.channel_id
         character_id = str(
-            delivery.get("character_id")
-            or image_delivery.pov_character_id
+            delivery.get("character_id") or image_delivery.pov_character_id
         )
         try:
             ckpt = engine.load_latest(job.request.session_id)
-            if str(
-                ckpt.session.character_bindings.get(character_id, "")
-            ) != str(user_id):
+            if str(ckpt.session.character_bindings.get(character_id, "")) != str(
+                user_id
+            ):
                 await engine.image_generation.cancel_delivery(
                     image_delivery.delivery_id
                 )
                 return False
             character = next(
-                (
-                    item
-                    for item in ckpt.characters
-                    if item.character_id == character_id
-                ),
+                (item for item in ckpt.characters if item.character_id == character_id),
                 None,
             )
             char_name = character.name if character else character_id
         except Exception:
-            logger.exception(
-                "generated illustration recipient validation failed"
-            )
+            logger.exception("generated illustration recipient validation failed")
             return False
         if await smap.has_turn_delivery(
             channel_id=session_channel_id,
@@ -3940,10 +3915,7 @@ def register(
             ):
                 return False
             current_row = await smap.get(session_channel_id)
-            if (
-                current_row is None
-                or current_row.session_id != job.request.session_id
-            ):
+            if current_row is None or current_row.session_id != job.request.session_id:
                 await engine.image_generation.cancel_delivery(
                     image_delivery.delivery_id
                 )
@@ -4017,15 +3989,11 @@ def register(
         name="lock",
         description="Accept a provisional identity portrait.",
     )
-    @app_commands.describe(
-        id="Provisional generated identity candidate id."
-    )
+    @app_commands.describe(id="Provisional generated identity candidate id.")
     async def _image_lock(inter: discord.Interaction, id: str):
         row = await smap.get(_session_channel_id(inter))
         if row is None:
-            await inter.response.send_message(
-                "No session here.", ephemeral=True
-            )
+            await inter.response.send_message("No session here.", ephemeral=True)
             return
         if engine.get_user_binding(row.session_id, inter.user.id) is None:
             await inter.response.send_message(
@@ -4063,9 +4031,7 @@ def register(
     ):
         row = await smap.get(_session_channel_id(inter))
         if row is None:
-            await inter.response.send_message(
-                "No session here.", ephemeral=True
-            )
+            await inter.response.send_message("No session here.", ephemeral=True)
             return
         binding = engine.get_user_binding(row.session_id, inter.user.id)
         if binding is None:
@@ -4098,14 +4064,16 @@ def register(
     # ---- /session start / end / resume / list -------------------------------
 
     @session_group.command(
-        name="start", description="Create a named save and bind this channel.",
+        name="start",
+        description="Create a named save and bind this channel.",
     )
     @app_commands.describe(name="Save name (directory under sessions/).")
     async def _session_start(inter: discord.Interaction, name: str):
         name = name.strip()
         if not name:
             await inter.response.send_message(
-                "Session name cannot be empty.", ephemeral=True,
+                "Session name cannot be empty.",
+                ephemeral=True,
             )
             return
         existing = await smap.get(_session_channel_id(inter))
@@ -4134,7 +4102,8 @@ def register(
         )
 
     @session_group.command(
-        name="end", description="Detach this channel from its session (files stay).",
+        name="end",
+        description="Detach this channel from its session (files stay).",
     )
     async def _session_end(inter: discord.Interaction):
         row = await smap.get(_session_channel_id(inter))
@@ -4154,14 +4123,16 @@ def register(
         )
 
     @session_group.command(
-        name="resume", description="Rebind this channel to an existing session.",
+        name="resume",
+        description="Rebind this channel to an existing session.",
     )
     @app_commands.describe(name="Saved session name.")
     async def _session_resume(inter: discord.Interaction, name: str):
         name = name.strip()
         if not name:
             await inter.response.send_message(
-                "Session name cannot be empty.", ephemeral=True,
+                "Session name cannot be empty.",
+                ephemeral=True,
             )
             return
         existing = await smap.get(_session_channel_id(inter))
@@ -4206,8 +4177,7 @@ def register(
                     last_text = history[-1].entry.assistant
             elif story_id:
                 last_text = (
-                    "Session resumed. Join a character to view a private "
-                    "story history."
+                    "Session resumed. Join a character to view a private story history."
                 )
         except FileNotFoundError:
             pass  # empty session, no ckpt yet
@@ -4227,7 +4197,8 @@ def register(
         )
 
     @session_group.command(
-        name="list", description="List saved sessions.",
+        name="list",
+        description="List saved sessions.",
     )
     async def _session_list(inter: discord.Interaction):
         ids = engine.list_session_ids()
@@ -4278,9 +4249,7 @@ def register(
             return
         except Exception as e:
             logger.exception("load_story_into_session failed")
-            await inter.followup.send(embed=render_error(
-                f"`{type(e).__name__}: {e}`"
-            ))
+            await inter.followup.send(embed=render_error(f"`{type(e).__name__}: {e}`"))
             return
 
         await smap.upsert(
@@ -4302,6 +4271,7 @@ def register(
         """Ephemeral dropdown shown when /story start is called without a
         story_id. The invoker picks, the callback loads + briefs. Limited
         to 25 stories because that's Discord's Select cap."""
+
         def __init__(self, *, session_row, invoker_id: int, story_ids: list[str]):
             super().__init__(timeout=120)
             self.session_row = session_row
@@ -4316,7 +4286,8 @@ def register(
             self._select = discord.ui.Select(
                 placeholder="Pick a story to load...",
                 options=options,
-                min_values=1, max_values=1,
+                min_values=1,
+                max_values=1,
             )
             self._select.callback = self._on_pick
             self.add_item(self._select)
@@ -4324,7 +4295,8 @@ def register(
         async def interaction_check(self, check_inter: discord.Interaction) -> bool:
             if check_inter.user.id != self.invoker_id:
                 await check_inter.response.send_message(
-                    "This picker isn't yours.", ephemeral=True,
+                    "This picker isn't yours.",
+                    ephemeral=True,
                 )
                 return False
             return True
@@ -4342,8 +4314,7 @@ def register(
     )
     @app_commands.describe(
         story_id=(
-            "Optional story ID or number from /story list. "
-            "If omitted, shows a picker."
+            "Optional story ID or number from /story list. If omitted, shows a picker."
         ),
     )
     async def _start(
@@ -4512,7 +4483,8 @@ def register(
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
-                "No session here.", ephemeral=True,
+                "No session here.",
+                ephemeral=True,
             )
             return
         try:
@@ -4599,14 +4571,13 @@ def register(
             by_id = {c.character_id: c for c in roster}
             for cid in sorted(bindings.keys()):
                 ch = by_id.get(cid)
-                display_name = (
-                    ch.name if ch and (ch.name or "").strip() else cid
-                )
+                display_name = ch.name if ch and (ch.name or "").strip() else cid
                 bound_lines.append(f"• **{display_name}**")
         except Exception:
             logger.exception(
                 "lobby message: load_latest(%s) failed; "
-                "falling back to single-player ack", session_id,
+                "falling back to single-player ack",
+                session_id,
             )
 
         if not bound_lines:
@@ -4660,7 +4631,8 @@ def register(
             except Exception:
                 logger.exception(
                     "post-join dispatch: load_latest(%s) failed; "
-                    "defaulting to lobby path", session_id,
+                    "defaulting to lobby path",
+                    session_id,
                 )
                 is_pre_play = True
 
@@ -4673,11 +4645,7 @@ def register(
                 story_id=story_id,
                 binding_cid=binding_cid,
                 char_name=char_name,
-                response=(
-                    join_result.response
-                    if join_result is not None
-                    else None
-                ),
+                response=(join_result.response if join_result is not None else None),
             )
 
     async def _send_dnd_attach_hint(
@@ -4732,22 +4700,23 @@ def register(
                 )
             except TransientLLMError as e:
                 logger.warning(
-                    "join arrival turn hit transient LLM error after %d "
-                    "attempts: %s", e.attempts, e.last_error,
+                    "join arrival turn hit transient LLM error after %d attempts: %s",
+                    e.attempts,
+                    e.last_error,
                 )
                 await inter.followup.send(embed=render_error(str(e)))
                 return
             except Exception as e:
                 logger.exception("join arrival run_turn failed")
-                await inter.followup.send(embed=render_error(
-                    player_safe_error_message(e)
-                ))
+                await inter.followup.send(
+                    embed=render_error(player_safe_error_message(e))
+                )
                 return
 
         intro = f"**{char_name}** joined. You step into the moment."
-        visual_render = (
-            response.per_player_visual_novel_renders or {}
-        ).get(binding_cid)
+        visual_render = (response.per_player_visual_novel_renders or {}).get(
+            binding_cid
+        )
         venue: str = "none"
         thread: Optional[discord.Thread] = None
         if visual_render is not None:
@@ -4792,8 +4761,7 @@ def register(
         try:
             if venue == "thread" and thread is not None:
                 await inter.followup.send(
-                    f"**{char_name}** joined. Your story opens in "
-                    f"{thread.mention}.",
+                    f"**{char_name}** joined. Your story opens in {thread.mention}.",
                     ephemeral=True,
                 )
             elif venue == "dm":
@@ -4816,9 +4784,7 @@ def register(
                 actor_cid=binding_cid,
                 per_player=response.per_player_renders or {},
                 turn_index=response.turn_index,
-                visual_novel_renders=(
-                    response.per_player_visual_novel_renders or {}
-                ),
+                visual_novel_renders=(response.per_player_visual_novel_renders or {}),
             )
 
     async def _fan_out_per_player_renders(
@@ -4861,7 +4827,8 @@ def register(
             except ValueError:
                 continue
             char = next(
-                (c for c in roster if c.character_id == cid), None,
+                (c for c in roster if c.character_id == cid),
+                None,
             )
             other_name = char.name if char else cid
             ok = False
@@ -4911,7 +4878,8 @@ def register(
             try:
                 phrase = ", ".join(f"**{n}**" for n in notified)
                 await inter.followup.send(
-                    f"({phrase} notified.)", ephemeral=True,
+                    f"({phrase} notified.)",
+                    ephemeral=True,
                 )
             except Exception:
                 logger.exception(
@@ -4938,9 +4906,7 @@ def register(
             self._player_authored = player_authored
             self.name_in = discord.ui.TextInput(
                 label=(
-                    "Character name"
-                    if player_authored
-                    else "Display name (optional)"
+                    "Character name" if player_authored else "Display name (optional)"
                 ),
                 placeholder=(
                     "Choose the name this character enters the story with."
@@ -4986,7 +4952,8 @@ def register(
                 )
             except ValueError as e:
                 await modal_inter.followup.send(
-                    embed=render_error(str(e)), ephemeral=True,
+                    embed=render_error(str(e)),
+                    ephemeral=True,
                 )
                 return
             except Exception as e:
@@ -5019,7 +4986,8 @@ def register(
     JOIN_CUSTOM_SENTINEL = "__custom__"
 
     class _JoinCustomCreateModal(
-        discord.ui.Modal, title="Create your character",
+        discord.ui.Modal,
+        title="Create your character",
     ):
         """Modal fired when the user picks the 'Create your own character'
         row in /join. Three text inputs (name, appearance, backstory) feed
@@ -5072,7 +5040,8 @@ def register(
                 )
             except ValueError as e:
                 await modal_inter.followup.send(
-                    embed=render_error(str(e)), ephemeral=True,
+                    embed=render_error(str(e)),
+                    ephemeral=True,
                 )
                 return
             except Exception as e:
@@ -5121,17 +5090,20 @@ def register(
             self._select = discord.ui.Select(
                 placeholder="Pick a character to play…",
                 options=options,
-                min_values=1, max_values=1,
+                min_values=1,
+                max_values=1,
             )
             self._select.callback = self._on_pick
             self.add_item(self._select)
 
         async def interaction_check(
-            self, check_inter: discord.Interaction,
+            self,
+            check_inter: discord.Interaction,
         ) -> bool:
             if check_inter.user.id != self._invoker_id:
                 await check_inter.response.send_message(
-                    "This picker isn't yours.", ephemeral=True,
+                    "This picker isn't yours.",
+                    ephemeral=True,
                 )
                 return False
             return True
@@ -5148,7 +5120,8 @@ def register(
                 )
             else:
                 picked_name = self._char_lookup.get(
-                    picked_value, picked_value,
+                    picked_value,
+                    picked_value,
                 )
                 await pick_inter.response.send_modal(
                     _JoinIdentityModal(
@@ -5156,9 +5129,7 @@ def register(
                         story_id=self._story_id,
                         character_id=picked_value,
                         character_name=picked_name,
-                        player_authored=(
-                            picked_value in self._player_authored_ids
-                        ),
+                        player_authored=(picked_value in self._player_authored_ids),
                     )
                 )
             self.stop()
@@ -5178,8 +5149,7 @@ def register(
             return
         if not row.story_id:
             await inter.response.send_message(
-                "This session has no story loaded yet. Run `/story start` "
-                "first.",
+                "This session has no story loaded yet. Run `/story start` first.",
                 ephemeral=True,
             )
             return
@@ -5218,9 +5188,7 @@ def register(
             discord.SelectOption(
                 label="Create your own character",
                 value=JOIN_CUSTOM_SENTINEL,
-                description=(
-                    "Pick a name, appearance, and optional backstory."
-                ),
+                description=("Pick a name, appearance, and optional backstory."),
             ),
         ]
         char_lookup: dict[str, str] = {}
@@ -5235,19 +5203,19 @@ def register(
             char_lookup[c.character_id] = (c.name or "").strip() or label
             if c.player_slot_kind == "player_authored":
                 player_authored_ids.add(c.character_id)
-            descr_bits = [
-                b for b in (c.player_guidance, c.role, c.faction) if b
-            ]
+            descr_bits = [b for b in (c.player_guidance, c.role, c.faction) if b]
             description = _discord_select_text(
                 " · ".join(descr_bits) or c.appearance,
             )
             if description == label:
                 description = _discord_select_text(c.character_id)
-            options.append(discord.SelectOption(
-                label=label,
-                value=c.character_id,
-                description=description or None,
-            ))
+            options.append(
+                discord.SelectOption(
+                    label=label,
+                    value=c.character_id,
+                    description=description or None,
+                )
+            )
 
         view = _JoinPickerView(
             session_id=row.session_id,
@@ -5319,8 +5287,7 @@ def register(
 
         if engine.get_user_binding(row.session_id, inter.user.id) is None:
             await inter.response.send_message(
-                "You're not bound to a character in this story. Run `/join` "
-                "first.",
+                "You're not bound to a character in this story. Run `/join` first.",
                 ephemeral=True,
             )
             return
@@ -5412,9 +5379,7 @@ def register(
     )
     @app_commands.describe(
         page="Which sheet page to show.",
-        character_id=(
-            "Optional character id or /story characters number."
-        ),
+        character_id=("Optional character id or /story characters number."),
     )
     @app_commands.choices(
         page=[
@@ -5446,7 +5411,8 @@ def register(
                     row.session_id,
                     character_id,
                 )
-                if character_id else None
+                if character_id
+                else None
             )
             character = engine.get_bound_character_record(
                 row.session_id,
@@ -5489,9 +5455,7 @@ def register(
         guild=guild,
     )
     @app_commands.describe(
-        character_id=(
-            "Optional character id or /story characters number."
-        ),
+        character_id=("Optional character id or /story characters number."),
     )
     async def _inventory(
         inter: discord.Interaction,
@@ -5511,7 +5475,8 @@ def register(
                     row.session_id,
                     character_id,
                 )
-                if character_id else None
+                if character_id
+                else None
             )
             view = engine.list_inventory(
                 row.session_id,
@@ -5560,7 +5525,8 @@ def register(
                     row.session_id,
                     character_id,
                 )
-                if character_id else None
+                if character_id
+                else None
             )
             offers = engine.list_loot_offers(
                 row.session_id,
@@ -5612,7 +5578,8 @@ def register(
                     row.session_id,
                     character_id,
                 )
-                if character_id else None
+                if character_id
+                else None
             )
             result = await engine.claim_loot(
                 session_id=row.session_id,
@@ -5658,7 +5625,8 @@ def register(
                     row.session_id,
                     character_id,
                 )
-                if character_id else None
+                if character_id
+                else None
             )
             result = await engine.claim_loot(
                 session_id=row.session_id,
@@ -5705,7 +5673,8 @@ def register(
                     row.session_id,
                     character_id,
                 )
-                if character_id else None
+                if character_id
+                else None
             )
             result = await engine.split_loot_currency(
                 session_id=row.session_id,
@@ -5749,7 +5718,8 @@ def register(
                     row.session_id,
                     character_id,
                 )
-                if character_id else None
+                if character_id
+                else None
             )
             result = await engine.decline_loot(
                 session_id=row.session_id,
@@ -5847,8 +5817,7 @@ def register(
     )
     @app_commands.describe(
         confirm=(
-            "Confirm that every intended player has claimed a seat and open "
-            "the story."
+            "Confirm that every intended player has claimed a seat and open the story."
         ),
     )
     async def _begin(inter: discord.Interaction, confirm: bool = False):
@@ -5861,15 +5830,18 @@ def register(
             return
         if not row.story_id:
             await inter.response.send_message(
-                "This session has no story loaded yet. Run `/story start` "
-                "first.",
+                "This session has no story loaded yet. Run `/story start` first.",
                 ephemeral=True,
             )
             return
 
-        triggering_cid = engine.get_user_binding(
-            row.session_id, inter.user.id,
-        ) or ""
+        triggering_cid = (
+            engine.get_user_binding(
+                row.session_id,
+                inter.user.id,
+            )
+            or ""
+        )
         if not triggering_cid and not _is_admin(inter.user.id):
             await inter.response.send_message(
                 "You aren't bound to a character. `/join` first, then "
@@ -5912,21 +5884,25 @@ def register(
             )
         except ValueError as e:
             await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         except TransientLLMError as e:
             logger.warning(
                 "/begin hit transient LLM error after %d attempts: %s",
-                e.attempts, e.last_error,
+                e.attempts,
+                e.last_error,
             )
             await inter.followup.send(embed=render_error(str(e)))
             return
         except Exception as e:
             logger.exception("/begin run_begin_turn failed")
-            await inter.followup.send(embed=render_error(
-                player_safe_error_message(e, operation="the opening")
-            ))
+            await inter.followup.send(
+                embed=render_error(
+                    player_safe_error_message(e, operation="the opening")
+                )
+            )
             return
 
         # The router placed every bound player at the opening location
@@ -5947,8 +5923,7 @@ def register(
             try:
                 ckpt = engine.load_latest(row.session_id)
                 actor_char = next(
-                    (c for c in ckpt.characters
-                     if c.character_id == triggering_cid),
+                    (c for c in ckpt.characters if c.character_id == triggering_cid),
                     None,
                 )
                 actor_name = actor_char.name if actor_char else triggering_cid
@@ -5959,9 +5934,9 @@ def register(
                 actor_name = triggering_cid
 
             intro = "**The story opens.**"
-            visual_render = (
-                response.per_player_visual_novel_renders or {}
-            ).get(triggering_cid)
+            visual_render = (response.per_player_visual_novel_renders or {}).get(
+                triggering_cid
+            )
             if visual_render is not None:
                 try:
                     venue, thread = await _post_visual_novel_render(
@@ -6007,8 +5982,7 @@ def register(
                 )
             elif venue == "dm":
                 await inter.followup.send(
-                    "The story opens in your DMs (POV thread "
-                    "unavailable here).",
+                    "The story opens in your DMs (POV thread unavailable here).",
                     ephemeral=True,
                 )
             else:
@@ -6031,9 +6005,7 @@ def register(
             actor_cid=triggering_cid,
             per_player=per_player,
             turn_index=response.turn_index,
-            visual_novel_renders=(
-                response.per_player_visual_novel_renders or {}
-            ),
+            visual_novel_renders=(response.per_player_visual_novel_renders or {}),
         )
 
     # ---- /leave -------------------------------------------------------------
@@ -6047,7 +6019,8 @@ def register(
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
-                "No session here.", ephemeral=True,
+                "No session here.",
+                ephemeral=True,
             )
             return
 
@@ -6066,7 +6039,8 @@ def register(
 
         if freed is None:
             await inter.followup.send(
-                "You weren't bound to a character.", ephemeral=True,
+                "You weren't bound to a character.",
+                ephemeral=True,
             )
             return
         freed_name = next(
@@ -6096,7 +6070,8 @@ def register(
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
-                "No session here. `/session start` then `/story start` first.", ephemeral=True,
+                "No session here. `/session start` then `/story start` first.",
+                ephemeral=True,
             )
             return
 
@@ -6131,16 +6106,19 @@ def register(
             )
         except ValueError as e:
             await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         try:
             dossier = engine.build_character_dossier(
-                row.session_id, character_id,
+                row.session_id,
+                character_id,
             )
         except ValueError as e:
             await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         except Exception as e:
@@ -6202,7 +6180,8 @@ def register(
 
         try:
             await engine.set_character_identity(
-                row.session_id, binding,
+                row.session_id,
+                binding,
                 name=name or None,
                 appearance=appearance or None,
             )
@@ -6346,9 +6325,9 @@ def register(
             result = await engine.retry_failed_render(session_id=row.session_id)
         except TransientLLMError as e:
             logger.warning(
-                "retry_failed_render hit transient LLM error after %d "
-                "attempts: %s",
-                e.attempts, e.last_error,
+                "retry_failed_render hit transient LLM error after %d attempts: %s",
+                e.attempts,
+                e.last_error,
             )
             await inter.followup.send(embed=render_error(str(e)), ephemeral=True)
             return
@@ -6425,9 +6404,7 @@ def register(
             )
             return
 
-        prompts = engine.pending_roll_prompts(
-            row.session_id, user_id=inter.user.id
-        )
+        prompts = engine.pending_roll_prompts(row.session_id, user_id=inter.user.id)
         if not prompts:
             await inter.response.send_message(
                 "You do not have a pending D&D roll right now.",
@@ -6467,9 +6444,7 @@ def register(
         except Exception as e:
             logger.exception("/roll complete_pending_roll failed")
             message = (
-                str(e)
-                if isinstance(e, ValueError)
-                else f"`{type(e).__name__}: {e}`"
+                str(e) if isinstance(e, ValueError) else f"`{type(e).__name__}: {e}`"
             )
             await inter.response.send_message(
                 message,
@@ -6524,7 +6499,8 @@ def register(
             if binding is not None:
                 try:
                     event_id = engine.combat_reaction_prompt_event(
-                        row.session_id, binding,
+                        row.session_id,
+                        binding,
                     )
                 except Exception:
                     logger.exception("/defer reaction lookup failed")
@@ -6628,7 +6604,8 @@ def register(
         except TransientLLMError as e:
             logger.warning(
                 "/query run_query hit transient LLM error after %d attempts: %s",
-                e.attempts, e.last_error,
+                e.attempts,
+                e.last_error,
             )
             await inter.followup.send(str(e), ephemeral=True)
             return
@@ -6683,11 +6660,13 @@ def register(
             self._preview = preview
 
         async def interaction_check(
-            self, check_inter: discord.Interaction,
+            self,
+            check_inter: discord.Interaction,
         ) -> bool:
             if check_inter.user.id != self._invoker_id:
                 await check_inter.response.send_message(
-                    "This rewind preview isn't yours.", ephemeral=True,
+                    "This rewind preview isn't yours.",
+                    ephemeral=True,
                 )
                 return False
             return True
@@ -6717,11 +6696,13 @@ def register(
 
             try:
                 result = await engine.rewind_session(
-                    self._session_id, self._target_turn,
+                    self._session_id,
+                    self._target_turn,
                 )
             except (ValueError, FileNotFoundError) as e:
                 await click_inter.edit_original_response(
-                    embed=render_error(str(e)), view=None,
+                    embed=render_error(str(e)),
+                    view=None,
                 )
                 return
             except Exception as e:
@@ -6734,8 +6715,10 @@ def register(
 
             logger.info(
                 "Rewound session %s by %s: %d → %d (deleted %d ckpt(s))",
-                self._session_id, click_inter.user.display_name,
-                result.previous_latest, result.new_latest,
+                self._session_id,
+                click_inter.user.display_name,
+                result.previous_latest,
+                result.new_latest,
                 len(result.deleted_turns),
             )
 
@@ -6759,8 +6742,7 @@ def register(
             # Public announcement so co-players know the world
             # backed up. Includes who triggered it for accountability.
             location_line = (
-                f"\nResume location: `{result.location}`"
-                if result.location else ""
+                f"\nResume location: `{result.location}`" if result.location else ""
             )
             cleanup_line = ""
             if cleanup.tracked:
@@ -6771,9 +6753,7 @@ def register(
                     bits.append(f"{cleanup.missing} already gone")
                 if cleanup.failed:
                     bits.append(f"{cleanup.failed} failed")
-                cleanup_line = (
-                    "\nDiscord messages: " + ", ".join(bits) + "."
-                )
+                cleanup_line = "\nDiscord messages: " + ", ".join(bits) + "."
             announce = render_info(
                 "Session rewound",
                 f"**{click_inter.user.display_name}** rewound the story to "
@@ -6797,7 +6777,8 @@ def register(
                     "rewind: public announcement/preview cleanup failed",
                 )
                 await click_inter.edit_original_response(
-                    embed=announce, view=None,
+                    embed=announce,
+                    view=None,
                 )
 
         @discord.ui.button(
@@ -6881,10 +6862,7 @@ def register(
             current = turns[-1]
             playable = [t for t in turns if t < current]
             if not playable:
-                body = (
-                    f"Current turn: **{current}**\n"
-                    f"No earlier turns to rewind to."
-                )
+                body = f"Current turn: **{current}**\nNo earlier turns to rewind to."
             else:
                 body = (
                     f"Current turn: **{current}**\n"
@@ -6893,7 +6871,8 @@ def register(
                     f"Run `/rewind <turn>` with a number in that range."
                 )
             await inter.response.send_message(
-                embed=render_info("Available turns", body), ephemeral=True,
+                embed=render_info("Available turns", body),
+                ephemeral=True,
             )
             return
 
@@ -6901,7 +6880,8 @@ def register(
             preview = engine.preview_rewind(row.session_id, turn)
         except (ValueError, FileNotFoundError) as e:
             await inter.response.send_message(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         except Exception as e:
@@ -6913,12 +6893,12 @@ def register(
             return
 
         location_line = (
-            f"\n**Resume location:** `{preview.location}`"
-            if preview.location else ""
+            f"\n**Resume location:** `{preview.location}`" if preview.location else ""
         )
         actor_line = (
             f"\n**Resume actor:** `{preview.actor_character_id}`"
-            if preview.actor_character_id else ""
+            if preview.actor_character_id
+            else ""
         )
         body = (
             f"**Current turn:** {preview.previous_latest}\n"
@@ -6978,12 +6958,11 @@ def register(
         ] or None
         await inter.response.defer(thinking=True)
         try:
-            view = await engine.begin_combat_locked(
-                row.session_id, participant_ids
-            )
+            view = await engine.begin_combat_locked(row.session_id, participant_ids)
         except (RuntimeError, ValueError, FileNotFoundError) as e:
             await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         except Exception as e:
@@ -7007,7 +6986,8 @@ def register(
             view = engine.combat_status(row.session_id, private=True)
         except (RuntimeError, ValueError, FileNotFoundError) as e:
             await inter.response.send_message(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         except Exception as e:
@@ -7035,7 +7015,8 @@ def register(
             view = await engine.combat_next_locked(row.session_id)
         except (RuntimeError, ValueError, FileNotFoundError) as e:
             await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         except Exception as e:
@@ -7060,7 +7041,8 @@ def register(
             view = await engine.combat_end_locked(row.session_id)
         except (RuntimeError, ValueError, FileNotFoundError) as e:
             await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         except Exception as e:
@@ -7095,7 +7077,8 @@ def register(
             )
         except (RuntimeError, ValueError, FileNotFoundError) as e:
             await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         except Exception as e:
@@ -7130,7 +7113,8 @@ def register(
             )
         except (RuntimeError, ValueError, FileNotFoundError) as e:
             await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         except Exception as e:
@@ -7154,14 +7138,18 @@ def register(
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
-                "No story here.", ephemeral=True,
+                "No story here.",
+                ephemeral=True,
             )
             return
         try:
-            binding = engine.get_user_binding(
-                row.session_id,
-                inter.user.id,
-            ) or ""
+            binding = (
+                engine.get_user_binding(
+                    row.session_id,
+                    inter.user.id,
+                )
+                or ""
+            )
             lines = engine.one_star_master_command(
                 row.session_id,
                 binding,
@@ -7170,7 +7158,8 @@ def register(
             )
         except (FileNotFoundError, ValueError) as exc:
             await inter.response.send_message(
-                embed=render_error(str(exc)), ephemeral=True,
+                embed=render_error(str(exc)),
+                ephemeral=True,
             )
             return
         except Exception as exc:
@@ -7244,9 +7233,7 @@ def register(
         target: str,
         sources: str,
     ):
-        source_refs = tuple(
-            part.strip() for part in sources.split(",") if part.strip()
-        )
+        source_refs = tuple(part.strip() for part in sources.split(",") if part.strip())
         if not target.strip() or not source_refs:
             await inter.response.send_message(
                 "Choose one surviving target and at least one comma-separated "
@@ -7266,8 +7253,7 @@ def register(
         await _run_bound_turn(
             inter,
             action_summary=(
-                f"master synthesis {target.strip()} from "
-                + ", ".join(source_refs)
+                f"master synthesis {target.strip()} from " + ", ".join(source_refs)
             ),
             runner=_run,
         )
@@ -7283,15 +7269,19 @@ def register(
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
-                "No story here.", ephemeral=True,
+                "No story here.",
+                ephemeral=True,
             )
             return
 
         try:
-            binding = engine.get_user_binding(
-                row.session_id,
-                inter.user.id,
-            ) or ""
+            binding = (
+                engine.get_user_binding(
+                    row.session_id,
+                    inter.user.id,
+                )
+                or ""
+            )
             activity = engine.session_activity(row.session_id, binding)
         except FileNotFoundError:
             # Orphaned mapping — purge and tell the user so they can
@@ -7332,7 +7322,8 @@ def register(
     ):
         if not _is_admin(inter.user.id):
             await inter.response.send_message(
-                "Only admins can clear the channel.", ephemeral=True,
+                "Only admins can clear the channel.",
+                ephemeral=True,
             )
             return
 
@@ -7383,7 +7374,8 @@ def register(
                 thread_failures += 1
                 logger.warning(
                     "clear: cannot delete thread %s (Forbidden); "
-                    "purging messages instead", thread.id,
+                    "purging messages instead",
+                    thread.id,
                 )
                 try:
                     await thread.purge(limit=1000)
@@ -7424,7 +7416,9 @@ def register(
         if perms.manage_threads:
             try:
                 async for t in channel.archived_threads(
-                    private=True, joined=False, limit=None,
+                    private=True,
+                    joined=False,
+                    limit=None,
                 ):
                     await _try_delete(t)
             except discord.Forbidden:
@@ -7444,13 +7438,15 @@ def register(
             # the common case.
             try:
                 async for t in channel.archived_threads(
-                    private=True, joined=True, limit=None,
+                    private=True,
+                    joined=True,
+                    limit=None,
                 ):
                     await _try_delete(t)
             except Exception:
                 logger.exception(
-                    "clear: archived_threads(private,joined) iteration "
-                    "failed in #%s", channel.name,
+                    "clear: archived_threads(private,joined) iteration failed in #%s",
+                    channel.name,
                 )
 
         # 2) Drop the POV-thread SQL cache for this channel so the next
@@ -7497,9 +7493,13 @@ def register(
             "Cleared %d messages and %d threads (%d pov cache rows, "
             "%d turn-message rows) "
             "in #%s by %s; %d thread failures",
-            len(deleted), threads_deleted, cache_dropped,
+            len(deleted),
+            threads_deleted,
+            cache_dropped,
             turn_refs_dropped,
-            channel.name, inter.user.display_name, thread_failures,
+            channel.name,
+            inter.user.display_name,
+            thread_failures,
         )
 
         parts = [f"Deleted {len(deleted)} message(s) and {threads_deleted} thread(s)."]
@@ -7530,7 +7530,8 @@ def register(
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
-                "No session here. Run `/session start` first.", ephemeral=True,
+                "No session here. Run `/session start` first.",
+                ephemeral=True,
             )
             return
         try:
@@ -7545,7 +7546,8 @@ def register(
 
         if not view:
             await inter.response.send_message(
-                "No tunable settings registered.", ephemeral=True,
+                "No tunable settings registered.",
+                ephemeral=True,
             )
             return
 
@@ -7578,7 +7580,8 @@ def register(
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
-                "No session here. Run `/session start` first.", ephemeral=True,
+                "No session here. Run `/session start` first.",
+                ephemeral=True,
             )
             return
         await inter.response.defer(thinking=True, ephemeral=True)
@@ -7587,15 +7590,14 @@ def register(
         except KeyError:
             valid = ", ".join(engine.known_setting_keys()) or "(none)"
             await inter.followup.send(
-                embed=render_error(
-                    f"Unknown setting `{key}`. Valid keys: {valid}"
-                ),
+                embed=render_error(f"Unknown setting `{key}`. Valid keys: {valid}"),
                 ephemeral=True,
             )
             return
         except ValueError as e:
             await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
+                embed=render_error(str(e)),
+                ephemeral=True,
             )
             return
         except Exception as e:
@@ -7627,36 +7629,43 @@ def register(
         # path leaves a trail of who ran it, where, and when.
         logger.info(
             "abort_beat invoked: admin_id=%s channel_id=%s",
-            inter.user.id, inter.channel_id,
+            inter.user.id,
+            inter.channel_id,
         )
         if not _is_admin(inter.user.id):
             await inter.response.send_message(
-                "Admin-only command.", ephemeral=True,
+                "Admin-only command.",
+                ephemeral=True,
             )
             return
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
-                "No session bound to this channel.", ephemeral=True,
+                "No session bound to this channel.",
+                ephemeral=True,
             )
             return
         try:
             from app.engine.turn_loop import abort_beat
+
             ckpt = engine.load_latest(row.session_id)
             dropped = abort_beat(ckpt)
             engine.checkpoint_mgr.save(ckpt)
         except Exception as e:
             logger.exception("abort_beat failed")
             await inter.response.send_message(
-                f"abort failed: `{type(e).__name__}: {e}`", ephemeral=True,
+                f"abort failed: `{type(e).__name__}: {e}`",
+                ephemeral=True,
             )
             return
         # v11-A5: audit-log the outcome so ops can correlate an admin
         # identity with the events that got abandoned.
         logger.info(
-            "abort_beat completed: admin_id=%s channel_id=%s session_id=%s "
-            "dropped=%d",
-            inter.user.id, inter.channel_id, row.session_id, dropped,
+            "abort_beat completed: admin_id=%s channel_id=%s session_id=%s dropped=%d",
+            inter.user.id,
+            inter.channel_id,
+            row.session_id,
+            dropped,
         )
         await inter.response.send_message(
             f"Beat released. {dropped} pending reaction(s) "

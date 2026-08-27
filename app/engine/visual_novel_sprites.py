@@ -8,6 +8,7 @@ putting image metadata into any model context.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class _ResolvedCue:
+    subject_handle: str
     sprite_set_id: str
     variant_handle: str
     media: "ResolvedPlayerMedia"
@@ -65,6 +67,11 @@ def resolve_visual_novel_sprite_placements(
             checkpoint=checkpoint,
             generation=generation,
             character=character,
+            subject_handle=_subject_handle(
+                checkpoint=checkpoint,
+                viewer_character_id=viewer_character_id,
+                character=character,
+            ),
             sprite_set_id=sprite_set_id,
             expression=cue.expression,
         )
@@ -83,6 +90,7 @@ def resolve_visual_novel_sprite_placements(
         )
     return tuple(
         VisualNovelSpritePlacement(
+            subject_handle=item.subject_handle,
             identity_handle=item.sprite_set_id,
             variant_handle=item.variant_handle,
             media=item.media,
@@ -125,6 +133,7 @@ def _resolve_cue(
     checkpoint: CheckpointFile,
     generation: "ImageGenerationCoordinator",
     character: CharacterRecord,
+    subject_handle: str,
     sprite_set_id: str,
     expression: VisualNovelSpriteExpression,
 ) -> _ResolvedCue | None:
@@ -139,14 +148,16 @@ def _resolve_cue(
     if authored is not None:
         requested_reference_id = authored.variant_reference_ids.get(expression)
         neutral_reference_id = authored.variant_reference_ids["neutral"]
-        candidate_reference_ids = tuple(dict.fromkeys(
-            reference_id
-            for reference_id in (
-                requested_reference_id,
-                neutral_reference_id,
+        candidate_reference_ids = tuple(
+            dict.fromkeys(
+                reference_id
+                for reference_id in (
+                    requested_reference_id,
+                    neutral_reference_id,
+                )
+                if reference_id
             )
-            if reference_id
-        ))
+        )
         reference_id = ""
         frozen = None
         for candidate_reference_id in candidate_reference_ids:
@@ -179,6 +190,7 @@ def _resolve_cue(
             )
             return None
         return _ResolvedCue(
+            subject_handle=subject_handle,
             sprite_set_id=sprite_set_id,
             variant_handle=reference_id,
             media=media,
@@ -202,8 +214,29 @@ def _resolve_cue(
         return None
     variant_handle, media, source_facing = resolved
     return _ResolvedCue(
+        subject_handle=subject_handle,
         sprite_set_id=sprite_set_id,
         variant_handle=variant_handle,
         media=media,
         source_facing=source_facing,
     )
+
+
+def _subject_handle(
+    *,
+    checkpoint: CheckpointFile,
+    viewer_character_id: str,
+    character: CharacterRecord,
+) -> str:
+    """Return a stable opaque subject key without persisting source ids."""
+
+    digest = hashlib.sha256(
+        "\0".join(
+            (
+                checkpoint.session.session_id,
+                viewer_character_id,
+                character.character_id,
+            )
+        ).encode("utf-8")
+    ).hexdigest()
+    return f"vnsubject.{digest[:24]}"

@@ -91,25 +91,24 @@ def _dnd_fresh_router_enabled(
     ckpt: CheckpointFile,
     cat_ii_event: OpenCatIIEvent | None,
 ) -> bool:
-    return (
-        cat_ii_event is None
-        and _session_ruleset_id(ckpt) == DND5E_BASIC_RULESET_ID
-    )
+    return cat_ii_event is None and _session_ruleset_id(ckpt) == DND5E_BASIC_RULESET_ID
 
 
 def _one_star_router_enabled(ckpt: CheckpointFile) -> bool:
     return _session_ruleset_id(ckpt) == ONE_STAR_RULESET_ID
 
 
-_ONE_STAR_LOBBY_MANAGEMENT_OPERATIONS = frozenset({
-    "catalogue_apply",
-    "summon",
-    "inventory_delta",
-    "equipment_move",
-    "pending_open",
-    "pending_resolve",
-    "pending_cancel",
-})
+_ONE_STAR_LOBBY_MANAGEMENT_OPERATIONS = frozenset(
+    {
+        "catalogue_apply",
+        "summon",
+        "inventory_delta",
+        "equipment_move",
+        "pending_open",
+        "pending_resolve",
+        "pending_cancel",
+    }
+)
 
 
 def _append_one_star_system_consequences(
@@ -137,9 +136,7 @@ def _append_one_star_system_consequences(
         if character.character_id
     }
     original_observer_ids = [
-        observer.character_id
-        for observer in result.observers
-        if observer.character_id
+        observer.character_id for observer in result.observers if observer.character_id
     ]
     observer_ids = set(original_observer_ids)
     at_offset_s = max(0, int(result.duration_s))
@@ -147,15 +144,17 @@ def _append_one_star_system_consequences(
     normalized: list[tuple[str, tuple[str, ...]]] = []
     for consequence in consequences:
         text = str(getattr(consequence, "text", "") or "").strip()
-        recipients = tuple(dict.fromkeys(
-            str(character_id).strip()
-            for character_id in getattr(
-                consequence,
-                "recipient_character_ids",
-                (),
+        recipients = tuple(
+            dict.fromkeys(
+                str(character_id).strip()
+                for character_id in getattr(
+                    consequence,
+                    "recipient_character_ids",
+                    (),
+                )
+                if str(character_id).strip()
             )
-            if str(character_id).strip()
-        ))
+        )
         if not text or not recipients:
             raise ValueError(
                 "One-Star adapter consequence requires text and recipients"
@@ -185,8 +184,7 @@ def _append_one_star_system_consequences(
             for fact in result.canonical_event.observable_facts
         ):
             raise ValueError(
-                "cannot add scoped One-Star recipients to an observerless "
-                "public event"
+                "cannot add scoped One-Star recipients to an observerless public event"
             )
         for fact in result.canonical_event.observable_facts:
             if fact.audience != "all_observers":
@@ -194,11 +192,13 @@ def _append_one_star_system_consequences(
             fact.audience = "only"
             fact.visible_to = list(original_observer_ids)
         for character_id in sorted(missing_recipient_ids):
-            result.observers.append(ObserverEntry(
-                character_id=character_id,
-                observation_level="d",
-                routing_role="observe_only",
-            ))
+            result.observers.append(
+                ObserverEntry(
+                    character_id=character_id,
+                    observation_level="d",
+                    routing_role="observe_only",
+                )
+            )
             observer_ids.add(character_id)
 
     existing_facts = {
@@ -267,6 +267,14 @@ def _one_star_summon_update_signature(
     )
 
 
+def _one_star_pending_resolution_count(
+    updates: list[OneStarStateUpdate],
+) -> int:
+    """Return irreversible pending resolutions a repair may not erase."""
+
+    return sum(update.kind == "pending_resolve" for update in updates)
+
+
 def _validate_one_star_cat_ii_transaction(
     ckpt: CheckpointFile,
     result: EventRouterOutput,
@@ -330,10 +338,7 @@ def _validate_one_star_guide_routing(
         if transaction is not None and transaction.present
         else []
     )
-    operation_names = {
-        getattr(operation, "operation", "")
-        for operation in operations
-    }
+    operation_names = {getattr(operation, "operation", "") for operation in operations}
     lifecycle_ids = {
         *result.dormant,
         *(signal.character_id for signal in result.activate),
@@ -405,9 +410,7 @@ def _validate_one_star_guide_routing(
     guide_ids = tuple(account.state.guide_character_ids)
     if not guide_ids:
         return
-    observers_by_id = {
-        observer.character_id: observer for observer in result.observers
-    }
+    observers_by_id = {observer.character_id: observer for observer in result.observers}
     for guide_id in guide_ids:
         guide = characters.get(guide_id)
         if guide is None or guide.status.value != "active":
@@ -421,10 +424,10 @@ def _validate_one_star_guide_routing(
                 "One-Star account-owner lobby mutation must include configured "
                 f"guide {guide_id!r} as a mediated observer"
             )
-        if (
-            observer.observation_level != "d"
-            or observer.routing_role not in {"observe_only", "next_output"}
-        ):
+        if observer.observation_level != "d" or observer.routing_role not in {
+            "observe_only",
+            "next_output",
+        }:
             raise ValueError(
                 "One-Star guide delivery must use direct mediated observation "
                 "and an ordinary observer or genuine next-output role"
@@ -468,9 +471,7 @@ def _validate_one_star_pending_response_routing(
         if getattr(operation, "operation", "") == "summon"
         for character_id in operation.hero_ids
     }
-    characters = {
-        character.character_id: character for character in ckpt.characters
-    }
+    characters = {character.character_id: character for character in ckpt.characters}
     for operation in transaction.operations:
         if getattr(operation, "operation", "") != "pending_open":
             continue
@@ -534,9 +535,7 @@ def _include_one_star_synthesis_guide_responders(
     owner, account = load_one_star_account(ckpt)
     if actor_id != owner.character_id:
         return
-    characters = {
-        character.character_id: character for character in ckpt.characters
-    }
+    characters = {character.character_id: character for character in ckpt.characters}
     for guide_id in account.state.guide_character_ids:
         guide = characters.get(guide_id)
         if guide is None or guide.status.value != "active":
@@ -554,10 +553,7 @@ def _validate_one_star_tutorial_routing(
     transaction = _one_star_transaction_for_result(ckpt, result)
     if transaction is None or not transaction.present:
         return
-    observers = {
-        observer.character_id: observer
-        for observer in result.observers
-    }
+    observers = {observer.character_id: observer for observer in result.observers}
     for operation in transaction.operations:
         if getattr(operation, "operation", "") != "tutorial_delivery":
             continue
@@ -654,10 +650,7 @@ def _build_router_world_lore(checkpoint: CheckpointFile) -> str:
     parts: list[str] = []
     facts = [fact for fact in (checkpoint.world_state.facts or []) if fact]
     if facts:
-        parts.append(
-            "Key world facts:\n"
-            + "\n".join(f"- {fact}" for fact in facts)
-        )
+        parts.append("Key world facts:\n" + "\n".join(f"- {fact}" for fact in facts))
     if checkpoint.world_state.lore:
         parts.append(checkpoint.world_state.lore)
     if not parts:
@@ -727,23 +720,16 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
             parts.append(f"  {dnd_equipment}")
         goals = [g for g in (char.private_state.goals or []) if g]
         if goals:
-            parts.append(
-                "  Goals (long-term): " + "; ".join(goals)
-            )
+            parts.append("  Goals (long-term): " + "; ".join(goals))
         objs = [o for o in (char.private_state.current_objectives or []) if o]
         if objs:
-            parts.append(
-                "  Current objectives (active pursuits): " + "; ".join(objs)
-            )
+            parts.append("  Current objectives (active pursuits): " + "; ".join(objs))
         entries.append("\n".join(parts))
 
     if not entries:
         return ""
 
-    header = (
-        "roster_seed\n"
-        "Initial active fictional identities and pursuits:\n"
-    )
+    header = "roster_seed\nInitial active fictional identities and pursuits:\n"
     return header + "\n\n".join(entries) + "\n"
 
 
@@ -793,11 +779,7 @@ def _build_engine_state_updates_block(checkpoint: CheckpointFile) -> str:
 
 
 def _build_router_input_block(*blocks: str) -> str:
-    return "\n\n".join(
-        block.strip()
-        for block in blocks
-        if block and block.strip()
-    )
+    return "\n\n".join(block.strip() for block in blocks if block and block.strip())
 
 
 def _is_begin_directive(intention: str) -> bool:
@@ -842,18 +824,18 @@ def _build_opening_context_block(
         if character.character_id not in selected_ids:
             continue
         role = character.public_sheet.role or "unspecified role"
-        appearance = (
-            character.public_sheet.appearance or "not yet described"
-        ).strip()
+        appearance = (character.public_sheet.appearance or "not yet described").strip()
         location = character.location or "not yet placed"
-        participant_lines.extend([
-            f"- {character.character_id}",
-            f"  Name: {character.name}",
-            f"  Role: {role}",
-            f"  Appearance: {appearance}",
-            f"  Current status: {character.status.value}",
-            f"  Current location: {location}",
-        ])
+        participant_lines.extend(
+            [
+                f"- {character.character_id}",
+                f"  Name: {character.name}",
+                f"  Role: {role}",
+                f"  Appearance: {appearance}",
+                f"  Current status: {character.status.value}",
+                f"  Current location: {location}",
+            ]
+        )
         dnd_identity = build_dnd_character_identity_sentence(
             checkpoint,
             character,
@@ -868,10 +850,8 @@ def _build_opening_context_block(
             participant_lines.append(f"  {dnd_equipment}")
 
     if participant_lines:
-        participants = (
-            f"{participant_heading}\n"
-            f"{participant_purpose}\n"
-            + "\n".join(participant_lines)
+        participants = f"{participant_heading}\n{participant_purpose}\n" + "\n".join(
+            participant_lines
         )
     else:
         participants = (
@@ -931,8 +911,7 @@ def _validate_opening_spawn_authority(
     if conflicting_ids:
         raise ValueError(
             "opening spawn requests must target genuinely new character ids; "
-            "existing ids: "
-            + ", ".join(dict.fromkeys(conflicting_ids))
+            "existing ids: " + ", ".join(dict.fromkeys(conflicting_ids))
         )
 
 
@@ -944,9 +923,7 @@ def _router_call_snapshot(ckpt: CheckpointFile) -> dict[str, object]:
     fails before producing a canonical event.
     """
     return {
-        "pending_engine_state_updates": list(
-            ckpt.session.pending_engine_state_updates
-        ),
+        "pending_engine_state_updates": list(ckpt.session.pending_engine_state_updates),
         "content_state": deepcopy(getattr(ckpt.session, "content_state", {})),
         "content_manager_preflight_cycle": getattr(
             ckpt.session,
@@ -979,7 +956,7 @@ def _restore_router_call_snapshot(
         ckpt.session.content_manager_last_run_cycle = int(
             snapshot["content_manager_last_run_cycle"]
         )
-    del ckpt.session_conversation[int(snapshot["session_conversation_len"]):]
+    del ckpt.session_conversation[int(snapshot["session_conversation_len"]) :]
 
 
 def _append_pending_router_content_records(ckpt: CheckpointFile) -> list[str]:
@@ -1067,7 +1044,7 @@ def _mission_status_history_line(decision_rationale: str) -> str:
     if not marked:
         return ""
     status = _compact_router_history_text(
-        marked[0][len(_MISSION_STATUS_RATIONALE_PREFIX):]
+        marked[0][len(_MISSION_STATUS_RATIONALE_PREFIX) :]
     )
     if not status:
         raise ValueError("router emitted an empty mission_status line")
@@ -1205,9 +1182,7 @@ def _router_history_record(
             if fact.audience == "all_observers"
             else f"only[{_compact_id_list(fact.visible_to)}]"
         )
-        lines.append(
-            f"fact {audience} @{fact.at_offset_s}+{fact.duration_s}: {text}"
-        )
+        lines.append(f"fact {audience} @{fact.at_offset_s}+{fact.duration_s}: {text}")
 
     if result.observers:
         observer_bits = [
@@ -1223,8 +1198,7 @@ def _router_history_record(
         preserved_spawns = {
             parts[1]: line
             for line in preserved_auxiliary_lines
-            if line.startswith("spawn ")
-            and len(parts := line.split(" ", 2)) >= 2
+            if line.startswith("spawn ") and len(parts := line.split(" ", 2)) >= 2
         }
         for spawn in result.spawn:
             objectives = "; ".join(
@@ -1307,10 +1281,15 @@ def _router_history_record(
             if line:
                 lines.append(line)
         for line in preserved_auxiliary_lines:
-            if line.startswith((
-                "one_star_authority_hero ",
-                "one_star_authority_update ",
-            )) and line not in lines:
+            if (
+                line.startswith(
+                    (
+                        "one_star_authority_hero ",
+                        "one_star_authority_update ",
+                    )
+                )
+                and line not in lines
+            ):
                 lines.append(line)
 
     interaction_mode = getattr(result, "interaction_mode", "")
@@ -1339,14 +1318,18 @@ def _append_router_history_record(
     if f"\n{_MISSION_STATUS_HISTORY_PREFIX}" in record:
         _drop_superseded_mission_status(conversation)
     if user_prompt:
-        conversation.append(ConversationMessage(
-            role="user",
-            content=user_prompt,
-        ))
-    conversation.append(ConversationMessage(
-        role="assistant",
-        content=record,
-    ))
+        conversation.append(
+            ConversationMessage(
+                role="user",
+                content=user_prompt,
+            )
+        )
+    conversation.append(
+        ConversationMessage(
+            role="assistant",
+            content=record,
+        )
+    )
 
 
 def refresh_router_history_record(
@@ -1396,11 +1379,13 @@ def refresh_router_history_record(
             preserved_auxiliary_lines = [
                 line
                 for line in message.content.splitlines()[1:]
-                if line.startswith((
-                    "spawn ",
-                    "one_star_authority_hero ",
-                    "one_star_authority_update ",
-                ))
+                if line.startswith(
+                    (
+                        "spawn ",
+                        "one_star_authority_hero ",
+                        "one_star_authority_update ",
+                    )
+                )
             ]
             conversation[index] = ConversationMessage(
                 role="assistant",
@@ -1433,10 +1418,7 @@ def _normalize_router_result_for_history(
 ) -> None:
     if clock_anchor_character_id:
         actor = next(
-            (
-                c for c in ckpt.characters
-                if c.character_id == clock_anchor_character_id
-            ),
+            (c for c in ckpt.characters if c.character_id == clock_anchor_character_id),
             None,
         )
         if actor is not None and cat_ii_event is None:
@@ -1449,7 +1431,8 @@ def _normalize_router_result_for_history(
     if cat_ii_event is not None and cat_ii_event.opening_event_id:
         opening = next(
             (
-                event for event in ckpt.canonical_events
+                event
+                for event in ckpt.canonical_events
                 if event.event_id == cat_ii_event.opening_event_id
             ),
             None,
@@ -1480,7 +1463,8 @@ def _build_router_context(
     """
     if resolve_actor_fallback:
         acting_id, _acting_char, _acting_name = resolve_acting_character(
-            ckpt, acting_character_id,
+            ckpt,
+            acting_character_id,
         )
     else:
         acting_id = acting_character_id
@@ -1495,7 +1479,8 @@ def _build_router_context(
         "initial_roster_block": _build_initial_roster_block(ckpt),
         "engine_state_updates_block": (
             _build_engine_state_updates_block(ckpt)
-            if include_engine_state_updates else ""
+            if include_engine_state_updates
+            else ""
         ),
     }
 
@@ -1533,10 +1518,7 @@ class LLMDispatcher:
         target_ids = {cid for cid in character_ids if cid}
         if not target_ids:
             return []
-        requests = [
-            spawn for spawn in result.spawn
-            if spawn.character_id in target_ids
-        ]
+        requests = [spawn for spawn in result.spawn if spawn.character_id in target_ids]
         if not requests:
             return []
 
@@ -1547,8 +1529,7 @@ class LLMDispatcher:
         runtime = closed_event_runtime_for(ckpt)
         if runtime is None:
             raise RuntimeError(
-                "router spawn materialization requires the shared "
-                "closed-event runtime"
+                "router spawn materialization requires the shared closed-event runtime"
             )
         # Start every spawn on the finalized router output from one immutable
         # snapshot, then await because an in-beat dispatch needs the records.
@@ -1612,9 +1593,7 @@ class LLMDispatcher:
                 ckpt,
                 result.state_updates,
                 initiating_actor_id=actor_id,
-                canonical_at_s=(
-                    result.effective_at_s + result.duration_s
-                ),
+                canonical_at_s=(result.effective_at_s + result.duration_s),
             )
         adapter_spawns, adapter_wakes = one_star_standard_summon_lifecycle(
             ckpt,
@@ -1624,9 +1603,7 @@ class LLMDispatcher:
         existing_wake_ids = {signal.character_id for signal in result.activate}
         generated_overlap = (
             existing_spawn_ids & {request.character_id for request in adapter_spawns}
-        ) | (
-            existing_wake_ids & {signal.character_id for signal in adapter_wakes}
-        )
+        ) | (existing_wake_ids & {signal.character_id for signal in adapter_wakes})
         if generated_overlap:
             raise OneStarTransactionError(
                 "standard summon lifecycle is adapter-authored and was duplicated: "
@@ -1687,9 +1664,7 @@ class LLMDispatcher:
                     ckpt=ckpt,
                     result=result,
                     actor_id=actor_id,
-                    character_ids=[
-                        request.character_id for request in result.spawn
-                    ],
+                    character_ids=[request.character_id for request in result.spawn],
                 )
                 _validate_one_star_pending_response_routing(
                     ckpt,
@@ -1710,8 +1685,7 @@ class LLMDispatcher:
                 "One-Star event contains duplicate location updates"
             )
         activation_locations = {
-            signal.character_id: signal.location_label
-            for signal in result.activate
+            signal.character_id: signal.location_label for signal in result.activate
         }
         if len(activation_locations) != len(result.activate):
             _rollback_one_star_materialized_spawns(ckpt, result)
@@ -1739,9 +1713,7 @@ class LLMDispatcher:
                 dormant_character_ids=result.dormant,
                 generic_culled_character_ids=result.cull,
                 location_updates=location_updates,
-                canonical_at_s=(
-                    result.effective_at_s + result.duration_s
-                ),
+                canonical_at_s=(result.effective_at_s + result.duration_s),
                 event_fingerprint=one_star_event_fingerprint(
                     {
                         "actor_id": actor_id,
@@ -1761,18 +1733,34 @@ class LLMDispatcher:
                 summon_signature = _one_star_summon_update_signature(
                     result.state_updates,
                 )
+                pending_resolution_count = _one_star_pending_resolution_count(
+                    result.state_updates,
+                )
                 repaired = await self._repair_one_star_transaction(
                     ckpt=ckpt,
                     result=result,
                     actor_id=actor_id,
                     validation_error=str(first_error),
                 )
-                if _one_star_summon_update_signature(
-                    repaired.state_updates,
-                ) != summon_signature:
+                if (
+                    _one_star_summon_update_signature(
+                        repaired.state_updates,
+                    )
+                    != summon_signature
+                ):
                     raise OneStarTransactionError(
                         "state-update repair cannot change a summon after its "
                         "Hero lifecycle has been fixed"
+                    ) from first_error
+                if (
+                    _one_star_pending_resolution_count(
+                        repaired.state_updates,
+                    )
+                    != pending_resolution_count
+                ):
+                    raise OneStarTransactionError(
+                        "state-update repair cannot erase a pending resolution "
+                        "from the fixed canonical event"
                     ) from first_error
                 result.state_updates = repaired.state_updates
                 if player_submission:
@@ -1780,9 +1768,7 @@ class LLMDispatcher:
                         ckpt,
                         result.state_updates,
                         initiating_actor_id=actor_id,
-                        canonical_at_s=(
-                            result.effective_at_s + result.duration_s
-                        ),
+                        canonical_at_s=(result.effective_at_s + result.duration_s),
                     )
                 _include_one_star_synthesis_guide_responders(
                     ckpt,
@@ -2036,7 +2022,8 @@ class LLMDispatcher:
             logger.info(
                 "LLMDispatcher.route_intention: actor=%s cat_ii=%s "
                 "using dnd_cat_ii_router",
-                actor_id, cat_ii_event.event_id,
+                actor_id,
+                cat_ii_event.event_id,
             )
             dnd_snapshot = _router_call_snapshot(ckpt)
             try:
@@ -2087,15 +2074,18 @@ class LLMDispatcher:
             )
             initial_roster_record = ctx.pop("initial_roster_block", "")
             if initial_roster_record:
-                ckpt.session_conversation.append(ConversationMessage(
-                    role="assistant",
-                    content=initial_roster_record,
-                ))
+                ckpt.session_conversation.append(
+                    ConversationMessage(
+                        role="assistant",
+                        content=initial_roster_record,
+                    )
+                )
             dnd_fresh = _dnd_fresh_router_enabled(ckpt, cat_ii_event)
 
             if cat_ii_event is None:
                 intention_block = format_actor_submission(
-                    actor_id, intention,
+                    actor_id,
+                    intention,
                 )
                 cat_ii_resolution_block = ""
             else:
@@ -2142,7 +2132,8 @@ class LLMDispatcher:
 
             logger.info(
                 "LLMDispatcher.route_intention: actor=%s cat_ii=%s",
-                actor_id, cat_ii_event.event_id if cat_ii_event else None,
+                actor_id,
+                cat_ii_event.event_id if cat_ii_event else None,
             )
 
             response = await self.client.complete(
@@ -2243,8 +2234,7 @@ class LLMDispatcher:
             result=result,
             mode="cat_ii_resolution" if cat_ii_event else "intention",
             user_prompt=(
-                _defer_history_user_prompt(intention)
-                if cat_ii_event is None else ""
+                _defer_history_user_prompt(intention) if cat_ii_event is None else ""
             ),
         )
         return result
@@ -2258,7 +2248,9 @@ class LLMDispatcher:
     ) -> EventRouterOutput:
         """Resolve one active D&D combat turn through the ruleset adapter."""
         if not dnd_combat_manager_enabled(ckpt):
-            raise RuntimeError("D&D combat routing requested outside active D&D combat.")
+            raise RuntimeError(
+                "D&D combat routing requested outside active D&D combat."
+            )
         logger.info(
             "LLMDispatcher.route_combat_action: actor=%s using dnd_combat_manager",
             actor_id,
@@ -2302,7 +2294,8 @@ class LLMDispatcher:
                 "D&D combat roll continuation requested outside active D&D combat."
             )
         logger.info(
-            "LLMDispatcher.continue_combat_transaction: event=%s", event_id,
+            "LLMDispatcher.continue_combat_transaction: event=%s",
+            event_id,
         )
         dnd_snapshot = _router_call_snapshot(ckpt)
         try:
@@ -2369,10 +2362,12 @@ class LLMDispatcher:
             )
             initial_roster_record = ctx.pop("initial_roster_block", "")
             if initial_roster_record:
-                ckpt.session_conversation.append(ConversationMessage(
-                    role="assistant",
-                    content=initial_roster_record,
-                ))
+                ckpt.session_conversation.append(
+                    ConversationMessage(
+                        role="assistant",
+                        content=initial_roster_record,
+                    )
+                )
             continuation_block = format_router_continuation_block(
                 prior_rationale=prior_result.decision_rationale,
                 original_action=original_action,
@@ -2400,7 +2395,8 @@ class LLMDispatcher:
             )
 
             logger.info(
-                "LLMDispatcher.route_continuation: actor=%s", actor_id,
+                "LLMDispatcher.route_continuation: actor=%s",
+                actor_id,
             )
 
             response = await self.client.complete(
@@ -2469,10 +2465,12 @@ class LLMDispatcher:
             )
             initial_roster_record = ctx.pop("initial_roster_block", "")
             if initial_roster_record:
-                ckpt.session_conversation.append(ConversationMessage(
-                    role="assistant",
-                    content=initial_roster_record,
-                ))
+                ckpt.session_conversation.append(
+                    ConversationMessage(
+                        role="assistant",
+                        content=initial_roster_record,
+                    )
+                )
             ctx.pop("engine_state_updates_block", "")
             authoritative_block = format_authoritative_result_block(
                 plan,
@@ -2513,7 +2511,6 @@ class LLMDispatcher:
                 or routed.dormant
                 or routed.cull
                 or routed.activate
-                or routed.location_updates
                 or routed.commitment_open.present
                 or routed.commitment_resolutions
                 or routed.commitment_interrupts
@@ -2523,6 +2520,25 @@ class LLMDispatcher:
                     "fixed side effects"
                 )
 
+            fixed_locations: dict[str, str] = {}
+            for character_id, location in plan.location_updates:
+                if character_id in fixed_locations:
+                    raise ValueError(
+                        "authoritative result contains duplicate location updates"
+                    )
+                fixed_locations[character_id] = location
+            routed_location_ids: set[str] = set()
+            for update in routed.location_updates:
+                if (
+                    update.character_id in routed_location_ids
+                    or fixed_locations.get(update.character_id) != update.location_label
+                ):
+                    raise ValueError(
+                        "authoritative result router output attempted to author "
+                        "fixed side effects"
+                    )
+                routed_location_ids.add(update.character_id)
+
             location_updates = [
                 LocationUpdateSignal(
                     character_id=character_id,
@@ -2530,19 +2546,15 @@ class LLMDispatcher:
                 )
                 for character_id, location in plan.location_updates
             ]
-            if len({item.character_id for item in location_updates}) != len(
-                location_updates
-            ):
-                raise ValueError(
-                    "authoritative result contains duplicate location updates"
-                )
             payload = routed.model_dump(mode="python")
-            payload.update({
-                "event_kind": "ruleset_resolution",
-                "requires_responders": False,
-                "required_responders": [],
-                "location_updates": location_updates,
-            })
+            payload.update(
+                {
+                    "event_kind": "ruleset_resolution",
+                    "requires_responders": False,
+                    "required_responders": [],
+                    "location_updates": location_updates,
+                }
+            )
             if plan.state_updates:
                 if not _one_star_router_enabled(ckpt):
                     raise ValueError(
@@ -2580,8 +2592,7 @@ class LLMDispatcher:
                     "direct visible event"
                 )
             observers_by_id = {
-                observer.character_id: observer
-                for observer in result.observers
+                observer.character_id: observer for observer in result.observers
             }
             for character_id, _location in plan.location_updates:
                 observer = observers_by_id.get(character_id)
@@ -2624,8 +2635,7 @@ class LLMDispatcher:
             raise ValueError("authoritative contribution requests must be unique")
         shadow = CheckpointFile.model_validate(ckpt.model_dump(mode="python"))
         shadow_by_id = {
-            character.character_id: character
-            for character in shadow.characters
+            character.character_id: character for character in shadow.characters
         }
         for character_id, location in location_updates:
             character = shadow_by_id.get(character_id)
@@ -2664,8 +2674,7 @@ class LLMDispatcher:
         """Commit drafts only after the fixed event passes router/rules checks."""
 
         characters = {
-            character.character_id: character
-            for character in ckpt.characters
+            character.character_id: character for character in ckpt.characters
         }
         for character_id, draft in drafts:
             character = characters.get(character_id)
@@ -2715,7 +2724,8 @@ class LLMDispatcher:
         )
         if character is None:
             logger.warning(
-                "agent_intend: unknown character_id %s", character_id,
+                "agent_intend: unknown character_id %s",
+                character_id,
             )
             return ""
         from app.engine.context_builder import is_unbound_player_authored_slot
@@ -2742,9 +2752,9 @@ class LLMDispatcher:
             # sentinel is intentionally short, parenthesized, and
             # identical every time so the router can recognize it.
             logger.info(
-                "Agent %s emitted silent beat (intent=%d chars); "
-                "routing via sentinel.",
-                character.name, len(output.intent),
+                "Agent %s emitted silent beat (intent=%d chars); routing via sentinel.",
+                character.name,
+                len(output.intent),
             )
             return "(remains silent)"
         return ""
@@ -2803,7 +2813,8 @@ class LLMDispatcher:
             character = by_id.get(cid)
             if character is None:
                 logger.warning(
-                    "harvest_perceptions: unknown character_id %s", cid,
+                    "harvest_perceptions: unknown character_id %s",
+                    cid,
                 )
                 return ""
             try:
@@ -2814,7 +2825,8 @@ class LLMDispatcher:
             except Exception as exc:  # noqa: BLE001 — see docstring
                 logger.warning(
                     "harvest_perceptions: perceive() failed for %s: %s",
-                    cid, exc,
+                    cid,
+                    exc,
                 )
                 return ""
 
@@ -2878,7 +2890,8 @@ class LLMDispatcher:
 
 
 def _is_pinned_as_cat_ii_responder(
-    ckpt: CheckpointFile, character_id: str,
+    ckpt: CheckpointFile,
+    character_id: str,
 ) -> bool:
     """True iff `character_id` is pinned as a Cat II responder this beat."""
     entry = ckpt.session.active_act_slots.get(character_id)

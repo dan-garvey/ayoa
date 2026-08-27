@@ -5,4 +5,12 @@ not invent exact values or knowledge that the current mechanics do not reveal.
 Those mechanics describe constraints and affordances, not obligations: decide
 whether to cooperate, resist, bargain, hesitate, flee, or act from inside the
 character.
+
+A pending promotion has no separate preview, queue-status, or confirmation
+screen unless the current mechanics explicitly supply one. Do not invent a
+promotion preview, ask the Master to open one, or claim that its absence blocks
+the character's choice. The management surface can select, complete, or cancel
+a pending operation; do not claim that cancellation is unavailable. Only a
+supplied synthesis preview carries exact offered and applied experience or
+other preview values.
 </ruleset_guidance>

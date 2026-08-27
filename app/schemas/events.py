@@ -28,6 +28,7 @@ class ObservableFact(BaseModel):
     text: str
     audience: Literal["all_observers", "only"]
     visible_to: list[str]
+    visual_subject_ids: list[str]
     at_offset_s: int
     duration_s: int
 
@@ -37,6 +38,7 @@ class ObservableFact(BaseModel):
         if not isinstance(value, dict):
             return value
         value = dict(value)
+        value.setdefault("visual_subject_ids", [])
         value.setdefault("at_offset_s", 0)
         value.setdefault("duration_s", 0)
         return value
@@ -46,6 +48,7 @@ class ObservableFact(BaseModel):
         cls,
         text: str,
         *,
+        visual_subject_ids: Iterable[str] = (),
         at_offset_s: int = 0,
         duration_s: int = 0,
     ) -> "ObservableFact":
@@ -53,6 +56,7 @@ class ObservableFact(BaseModel):
             text=text,
             audience="all_observers",
             visible_to=[],
+            visual_subject_ids=list(visual_subject_ids),
             at_offset_s=at_offset_s,
             duration_s=duration_s,
         )
@@ -63,6 +67,7 @@ class ObservableFact(BaseModel):
         text: str,
         visible_to: Iterable[str],
         *,
+        visual_subject_ids: Iterable[str] = (),
         at_offset_s: int = 0,
         duration_s: int = 0,
     ) -> "ObservableFact":
@@ -71,6 +76,7 @@ class ObservableFact(BaseModel):
             text=text,
             audience="only",
             visible_to=ids,
+            visual_subject_ids=list(visual_subject_ids),
             at_offset_s=at_offset_s,
             duration_s=duration_s,
         )
@@ -79,6 +85,9 @@ class ObservableFact(BaseModel):
     def _validate_visibility(self) -> "ObservableFact":
         self.text = (self.text or "").strip()
         self.visible_to = [cid.strip() for cid in self.visible_to if cid.strip()]
+        self.visual_subject_ids = list(
+            dict.fromkeys(cid.strip() for cid in self.visual_subject_ids if cid.strip())
+        )
         if self.at_offset_s < 0:
             self.at_offset_s = 0
         if self.duration_s < 0:

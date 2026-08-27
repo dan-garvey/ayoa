@@ -120,6 +120,7 @@ from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse, VisualNovelRender
 from app.schemas.state import SlotEntry
 
+
 def _loot_claim_message(result: dict[str, Any]) -> str:
     parts: list[str] = []
     item_names = [
@@ -293,9 +294,7 @@ class EngineBridge:
             self.sessions_dir.parent / "runtime" / "visual_novel_presentation"
         )
         self._reviewed_visual_binding_signatures: dict[str, str] = {}
-        self.checkpoint_mgr.set_load_validator(
-            self._validate_loaded_visual_references
-        )
+        self.checkpoint_mgr.set_load_validator(self._validate_loaded_visual_references)
         self.spawn_authoring = SpawnAuthoringCoordinator(
             CharacterManager(self.client, self.prompt_mgr)
         )
@@ -309,9 +308,7 @@ class EngineBridge:
                     self.image_generation.config.max_scene_prompt_chars
                 ),
                 max_references=self.image_generation.config.max_references,
-                generation_modes=(
-                    self.image_generation.supported_generation_modes
-                ),
+                generation_modes=(self.image_generation.supported_generation_modes),
             ),
             generation=self.image_generation,
             spawn_authoring=self.spawn_authoring,
@@ -341,12 +338,13 @@ class EngineBridge:
         self,
         *,
         session_id: str,
+        checkpoint_id: str,
         pov_character_id: str,
         render: VisualNovelRender,
     ) -> VisualNovelDeck:
         """Build one ordered deck while preserving each beat's stage plate."""
 
-        checkpoint = self.load_latest(session_id)
+        checkpoint = self.load_checkpoint(session_id, checkpoint_id)
         await self._prewarm_visual_novel_sprites(
             session_id=session_id,
             checkpoint=checkpoint,
@@ -357,35 +355,34 @@ class EngineBridge:
         )
         sections: list[VisualNovelDeckSection] = []
         for segment_index, segment in enumerate(render.segments, start=1):
-            resolution, stage_media = (
-                self.image_generation.resolve_visual_novel_stage(
-                    session_id=session_id,
-                    pov_character_id=pov_character_id,
-                    rendered_event_ids=list(segment.rendered_event_ids),
-                )
+            resolution, stage_media = self.image_generation.resolve_visual_novel_stage(
+                session_id=session_id,
+                pov_character_id=pov_character_id,
+                rendered_event_ids=list(segment.rendered_event_ids),
             )
             if resolution.fallback_reason:
                 logger.info(
-                    "visual-novel neutral stage session=%s pov=%s "
-                    "segment=%s reason=%s",
+                    "visual-novel neutral stage session=%s pov=%s segment=%s reason=%s",
                     session_id,
                     pov_character_id,
                     segment_index,
                     resolution.fallback_reason,
                 )
             for page in segment.pages:
-                sections.append(VisualNovelDeckSection(
-                    pages=(page,),
-                    stage_media=stage_media,
-                    sprite_placements=(
-                        resolve_visual_novel_sprite_placements(
-                            checkpoint=checkpoint,
-                            viewer_character_id=pov_character_id,
-                            page=page,
-                            generation=self.image_generation,
-                        )
-                    ),
-                ))
+                sections.append(
+                    VisualNovelDeckSection(
+                        pages=(page,),
+                        stage_media=stage_media,
+                        sprite_placements=(
+                            resolve_visual_novel_sprite_placements(
+                                checkpoint=checkpoint,
+                                viewer_character_id=pov_character_id,
+                                page=page,
+                                generation=self.image_generation,
+                            )
+                        ),
+                    )
+                )
         return self.visual_novel_renderer.render_deck(sections)
 
     async def _prewarm_visual_novel_sprites(
@@ -398,9 +395,7 @@ class EngineBridge:
 
         try:
             source = checkpoint or self.checkpoint_mgr.load_latest(session_id)
-            await self.image_generation.ensure_visual_novel_sprite_prewarm(
-                source
-            )
+            await self.image_generation.ensure_visual_novel_sprite_prewarm(source)
         except Exception:
             logger.exception(
                 "visual-novel sprite prewarm failed session=%s",
@@ -444,18 +439,13 @@ class EngineBridge:
         checkpoint_ids = self.checkpoint_mgr.list_checkpoints(
             checkpoint.session.session_id
         )
-        if (
-            not checkpoint_ids
-            or checkpoint_path.stem != checkpoint_ids[-1]
-        ):
+        if not checkpoint_ids or checkpoint_path.stem != checkpoint_ids[-1]:
             # Historical reads must not replace the live session's runtime
             # bindings. Rewind validates its target before deleting anything.
             return
         signature = self._reviewed_visual_binding_signature(checkpoint)
         if (
-            self._reviewed_visual_binding_signatures.get(
-                checkpoint.session.session_id
-            )
+            self._reviewed_visual_binding_signatures.get(checkpoint.session.session_id)
             == signature
         ):
             return
@@ -467,9 +457,9 @@ class EngineBridge:
             checkpoint=checkpoint,
             frozen_references=frozen_references,
         )
-        self._reviewed_visual_binding_signatures[
-            checkpoint.session.session_id
-        ] = signature
+        self._reviewed_visual_binding_signatures[checkpoint.session.session_id] = (
+            signature
+        )
 
     @staticmethod
     def _reviewed_visual_binding_signature(
@@ -564,17 +554,13 @@ class EngineBridge:
                     )
                 )
             if not reference_id:
-                raise ValueError(
-                    "Your character has no identity reference to reroll."
-                )
+                raise ValueError("Your character has no identity reference to reroll.")
             checkpoint_path = (
                 self.sessions_dir
                 / session_id
                 / f"ckpt_{ckpt.session.turn_index:04d}.json"
             )
-            checkpoint_hash = hashlib.sha256(
-                checkpoint_path.read_bytes()
-            ).hexdigest()
+            checkpoint_hash = hashlib.sha256(checkpoint_path.read_bytes()).hexdigest()
             return await self.image_generation.reroll_identity_reference(
                 session_id=session_id,
                 reference_id=reference_id,
@@ -597,7 +583,8 @@ class EngineBridge:
         if not self.stories_dir.exists():
             return []
         return sorted(
-            child.name for child in self.stories_dir.iterdir()
+            child.name
+            for child in self.stories_dir.iterdir()
             if child.is_dir() and (child / "ckpt_0000.json").exists()
         )
 
@@ -641,28 +628,26 @@ class EngineBridge:
         summaries: list[StorySummary] = []
         for story_id in self.list_story_ids():
             checkpoint = self.load_story_ckpt(story_id)
-            if (
-                discoverable_only
-                and not checkpoint.world_state.setting.discoverable
-            ):
+            if discoverable_only and not checkpoint.world_state.setting.discoverable:
                 continue
             setting = checkpoint.world_state.setting
-            summaries.append(StorySummary(
-                story_id=story_id,
-                title=setting.title.strip()
-                or story_id.replace("_", " ").title(),
-                genre=setting.genre,
-                premise=setting.premise,
-                player_primer=checkpoint.player_primer,
-                recommended_players=setting.recommended_players,
-                play_guidance=setting.play_guidance,
-                playable_seat_count=sum(
-                    1
-                    for character in checkpoint.characters
-                    if character.is_playable
-                    and character.status != CharacterStatus.culled
-                ),
-            ))
+            summaries.append(
+                StorySummary(
+                    story_id=story_id,
+                    title=setting.title.strip() or story_id.replace("_", " ").title(),
+                    genre=setting.genre,
+                    premise=setting.premise,
+                    player_primer=checkpoint.player_primer,
+                    recommended_players=setting.recommended_players,
+                    play_guidance=setting.play_guidance,
+                    playable_seat_count=sum(
+                        1
+                        for character in checkpoint.characters
+                        if character.is_playable
+                        and character.status != CharacterStatus.culled
+                    ),
+                )
+            )
         return summaries
 
     # ---- session primitives --------------------------------------------------
@@ -673,8 +658,7 @@ class EngineBridge:
         if not self.sessions_dir.exists():
             return []
         return sorted(
-            child.name for child in self.sessions_dir.iterdir()
-            if child.is_dir()
+            child.name for child in self.sessions_dir.iterdir() if child.is_dir()
         )
 
     def create_empty_session(self, session_id: str) -> None:
@@ -706,8 +690,7 @@ class EngineBridge:
         dst_dir = self.sessions_dir / session_id
         if not dst_dir.exists():
             raise FileNotFoundError(
-                f"Session '{session_id}' does not exist. "
-                f"Run /session start first."
+                f"Session '{session_id}' does not exist. Run /session start first."
             )
         if any(dst_dir.glob("ckpt_*.json")):
             raise FileExistsError(
@@ -801,18 +784,14 @@ class EngineBridge:
         previous_len = 0
         for turn in self.list_checkpoint_turns(session_id):
             ckpt = self.checkpoint_mgr.load(session_id, f"ckpt_{turn:04d}")
-            messages = list(
-                ckpt.narrator_conversations.get(pov_character_id, []) or []
-            )
+            messages = list(ckpt.narrator_conversations.get(pov_character_id, []) or [])
             if len(messages) < previous_len:
                 previous_len = 0
             pending_user = ""
             for message in messages[previous_len:]:
                 if message.role == "user":
                     pending_user = (
-                        message.content
-                        if isinstance(message.content, str)
-                        else ""
+                        message.content if isinstance(message.content, str) else ""
                     )
                     continue
                 if message.role != "assistant":
@@ -820,19 +799,23 @@ class EngineBridge:
                 text = _narrator_history_message_text(message.content)
                 if not text:
                     continue
-                history.append(TurnHistoryEntry(
-                    turn_index=turn,
-                    entry=TranscriptEntry(
-                        user=pending_user,
-                        assistant=text,
-                    ),
-                ))
+                history.append(
+                    TurnHistoryEntry(
+                        turn_index=turn,
+                        entry=TranscriptEntry(
+                            user=pending_user,
+                            assistant=text,
+                        ),
+                    )
+                )
                 pending_user = ""
             previous_len = len(messages)
         return history
 
     def preview_rewind(
-        self, session_id: str, target_turn: int,
+        self,
+        session_id: str,
+        target_turn: int,
     ) -> RewindResult:
         """Same validation as `rewind_session`, without mutating disk.
         Used by the Discord confirmation flow: show the user exactly
@@ -853,9 +836,7 @@ class EngineBridge:
             )
         latest = turns[-1]
         if target_turn < 0:
-            raise ValueError(
-                f"Cannot rewind to turn {target_turn}: must be >= 0."
-            )
+            raise ValueError(f"Cannot rewind to turn {target_turn}: must be >= 0.")
         if target_turn not in turns:
             raise ValueError(
                 f"Turn {target_turn} has no checkpoint for session "
@@ -929,9 +910,7 @@ class EngineBridge:
             )
         latest = turns[-1]
         if target_turn < 0:
-            raise ValueError(
-                f"Cannot rewind to turn {target_turn}: must be >= 0."
-            )
+            raise ValueError(f"Cannot rewind to turn {target_turn}: must be >= 0.")
         if target_turn not in turns:
             raise ValueError(
                 f"Turn {target_turn} has no checkpoint for session "
@@ -970,12 +949,13 @@ class EngineBridge:
                 target_checkpoint,
                 runtime_root=self.image_generation.config.runtime_root,
             )
-            target_visual_signature = (
-                self._reviewed_visual_binding_signature(target_checkpoint)
+            target_visual_signature = self._reviewed_visual_binding_signature(
+                target_checkpoint
             )
             await self.image_generation.cancel_after(session_id, target_turn)
             deleted = self.checkpoint_mgr.delete_checkpoints_after(
-                session_id, target_turn,
+                session_id,
+                target_turn,
             )
             new_latest = self.list_checkpoint_turns(session_id)[-1]
             self.image_generation.register_reviewed_visual_references(
@@ -1033,7 +1013,10 @@ class EngineBridge:
         per-session lock so it cannot lose its write to a concurrent /act."""
         async with await self._lock_for(session_id):
             return self._set_character_identity_locked(
-                session_id, character_id, name=name, appearance=appearance,
+                session_id,
+                character_id,
+                name=name,
+                appearance=appearance,
             )
 
     def _set_character_identity_locked(
@@ -1160,12 +1143,12 @@ class EngineBridge:
             convo_snippets = []
             for msg in history[-20:]:
                 content = (
-                    msg.content if hasattr(msg, "content")
-                    else msg.get("content", "")
+                    msg.content if hasattr(msg, "content") else msg.get("content", "")
                 )
                 if isinstance(content, list):
                     content = " ".join(
-                        b.get("text", "") for b in content
+                        b.get("text", "")
+                        for b in content
                         if isinstance(b, dict) and b.get("type") == "text"
                     )
                 if content:
@@ -1174,46 +1157,50 @@ class EngineBridge:
                     snippet = (public or "").strip()
                     if snippet:
                         convo_snippets.append(f"[{role}] {snippet[:500]}")
-            history_block = (
-                "\n".join(convo_snippets) or "(no rolling conversation yet)"
-            )
+            history_block = "\n".join(convo_snippets) or "(no rolling conversation yet)"
 
             messages = [
-                {"role": "system", "content": (
-                    "<role>\n"
-                    "You are a characterization editor for an interactive "
-                    "fiction engine.\n"
-                    "</role>\n\n"
-                    "<instructions>\n"
-                    "Distill a character's personality into a single prose "
-                    "block for engine-side use. Cover three things in one "
-                    "paragraph (or a few): how they speak, how they carry "
-                    "themselves, and how to play them under pressure. Base "
-                    "your write-up on the character's authored identity and "
-                    "their prior rolling conversation if any. No bullet "
-                    "points. No commentary outside the JSON.\n"
-                    "</instructions>\n\n"
-                    "<output_schema>\n"
-                    'Respond with ONLY valid JSON: {"personality": "<prose>"}\n'
-                    "</output_schema>"
-                )},
-                {"role": "user", "content": (
-                    "<character_context>\n"
-                    f"Character: {target.name} ({character_id})\n"
-                    f"Role: {target.public_sheet.role}\n"
-                    f"Appearance: {target.public_sheet.appearance}\n"
-                    f"Faction: {target.public_sheet.faction}\n"
-                    f"Backstory: {target.backstory}\n"
-                    f"Known context: {target.known_context}\n"
-                    f"Goals: {', '.join(target.private_state.goals)}\n"
-                    "</character_context>\n\n"
-                    "<recent_conversation>\n"
-                    f"{history_block}\n"
-                    "</recent_conversation>\n\n"
-                    "<task>\n"
-                    "Write the personality JSON now.\n"
-                    "</task>"
-                )},
+                {
+                    "role": "system",
+                    "content": (
+                        "<role>\n"
+                        "You are a characterization editor for an interactive "
+                        "fiction engine.\n"
+                        "</role>\n\n"
+                        "<instructions>\n"
+                        "Distill a character's personality into a single prose "
+                        "block for engine-side use. Cover three things in one "
+                        "paragraph (or a few): how they speak, how they carry "
+                        "themselves, and how to play them under pressure. Base "
+                        "your write-up on the character's authored identity and "
+                        "their prior rolling conversation if any. No bullet "
+                        "points. No commentary outside the JSON.\n"
+                        "</instructions>\n\n"
+                        "<output_schema>\n"
+                        'Respond with ONLY valid JSON: {"personality": "<prose>"}\n'
+                        "</output_schema>"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "<character_context>\n"
+                        f"Character: {target.name} ({character_id})\n"
+                        f"Role: {target.public_sheet.role}\n"
+                        f"Appearance: {target.public_sheet.appearance}\n"
+                        f"Faction: {target.public_sheet.faction}\n"
+                        f"Backstory: {target.backstory}\n"
+                        f"Known context: {target.known_context}\n"
+                        f"Goals: {', '.join(target.private_state.goals)}\n"
+                        "</character_context>\n\n"
+                        "<recent_conversation>\n"
+                        f"{history_block}\n"
+                        "</recent_conversation>\n\n"
+                        "<task>\n"
+                        "Write the personality JSON now.\n"
+                        "</task>"
+                    ),
+                },
             ]
             response = await self.client.complete(
                 role="narrator",
@@ -1226,7 +1213,8 @@ class EngineBridge:
             self.checkpoint_mgr.save(ckpt)
             logger.info(
                 "Synthesized personality for %s (%d chars)",
-                character_id, len(target.personality),
+                character_id,
+                len(target.personality),
             )
             return ckpt
 
@@ -1244,8 +1232,7 @@ class EngineBridge:
         playable = [
             character
             for character in ckpt.characters
-            if character.is_playable
-            and character.status != CharacterStatus.culled
+            if character.is_playable and character.status != CharacterStatus.culled
         ]
         claimed = ckpt.session.character_bindings
         return OpeningLobbyView(
@@ -1314,15 +1301,15 @@ class EngineBridge:
             else:
                 waiting_names = tuple(
                     characters[character_id].name
-                    for character_id, entry
-                    in ckpt.session.active_act_slots.items()
+                    for character_id, entry in ckpt.session.active_act_slots.items()
                     if entry.reason != "initiator" and character_id in characters
                 )
                 if waiting_names:
                     state = "Waiting on " + ", ".join(waiting_names) + "."
                 elif requested_names:
                     state = (
-                        "Requested next: " + ", ".join(requested_names)
+                        "Requested next: "
+                        + ", ".join(requested_names)
                         + " (advisory; any joined player may act)."
                     )
                 else:
@@ -1431,9 +1418,7 @@ class EngineBridge:
         Keep this as the single filter used by Discord and CLI entrypoints so
         the interactive picker and text-mode roster do not drift apart.
         """
-        return joinable_character_summaries(
-            self.list_session_characters(session_id)
-        )
+        return joinable_character_summaries(self.list_session_characters(session_id))
 
     def list_story_characters(self, story_id: str) -> list[CharacterSummary]:
         """Spoiler-free roster from the story seed (no session needed)."""
@@ -1470,9 +1455,7 @@ class EngineBridge:
             user_id=user_id,
             character_id=character_id,
         )
-        target = next(
-            (c for c in ckpt.characters if c.character_id == target_id), None
-        )
+        target = next((c for c in ckpt.characters if c.character_id == target_id), None)
         if target is None:
             raise ValueError(f"No character '{target_id}' in this session.")
         return target
@@ -1489,9 +1472,7 @@ class EngineBridge:
             user_id=user_id,
             character_id=character_id,
         )
-        target = next(
-            (c for c in ckpt.characters if c.character_id == target_id), None
-        )
+        target = next((c for c in ckpt.characters if c.character_id == target_id), None)
         if target is None:
             raise ValueError(f"No character '{target_id}' in this session.")
         inventory = dnd_inventory.inventory_view(target)
@@ -1499,7 +1480,8 @@ class EngineBridge:
             character_id=target.character_id,
             character_name=target.name,
             items=[
-                item for item in (inventory.get("items") or [])
+                item
+                for item in (inventory.get("items") or [])
                 if isinstance(item, dict)
             ],
             currency=inventory.get("currency") or {},
@@ -1547,9 +1529,7 @@ class EngineBridge:
     ) -> list[DndExperienceAwardResult]:
         bridge_lock = await self._lock_for(session_id)
         async with bridge_lock:
-            orchestrator_lock = await self.orchestrator.session_locks.get(
-                session_id
-            )
+            orchestrator_lock = await self.orchestrator.session_locks.get(session_id)
             async with orchestrator_lock:
                 return self.award_dnd_experience(
                     session_id,
@@ -1587,9 +1567,7 @@ class EngineBridge:
     ) -> DndLootClaimResult:
         lock = await self._lock_for(session_id)
         async with lock:
-            orchestrator_lock = await self.orchestrator.session_locks.get(
-                session_id
-            )
+            orchestrator_lock = await self.orchestrator.session_locks.get(session_id)
             async with orchestrator_lock:
                 ckpt = self.checkpoint_mgr.load_latest(session_id)
                 target_id = self._bound_character_id_for_user(
@@ -1637,9 +1615,7 @@ class EngineBridge:
     ) -> DndLootClaimResult:
         lock = await self._lock_for(session_id)
         async with lock:
-            orchestrator_lock = await self.orchestrator.session_locks.get(
-                session_id
-            )
+            orchestrator_lock = await self.orchestrator.session_locks.get(session_id)
             async with orchestrator_lock:
                 ckpt = self.checkpoint_mgr.load_latest(session_id)
                 target_id = self._bound_character_id_for_user(
@@ -1684,9 +1660,7 @@ class EngineBridge:
     ) -> DndLootClaimResult:
         lock = await self._lock_for(session_id)
         async with lock:
-            orchestrator_lock = await self.orchestrator.session_locks.get(
-                session_id
-            )
+            orchestrator_lock = await self.orchestrator.session_locks.get(session_id)
             async with orchestrator_lock:
                 ckpt = self.checkpoint_mgr.load_latest(session_id)
                 target_id = self._bound_character_id_for_user(
@@ -1787,7 +1761,10 @@ class EngineBridge:
             self.checkpoint_mgr.save(ckpt)
             logger.info(
                 "Attached D&D sheet in %s for user %s: %s <- %s",
-                session_id, user_id, target.character_id, imported,
+                session_id,
+                user_id,
+                target.character_id,
+                imported,
             )
             return summary
 
@@ -1800,7 +1777,8 @@ class EngineBridge:
     ) -> str:
         uid = str(user_id)
         bound_ids = [
-            cid for cid, bound in (ckpt.session.character_bindings or {}).items()
+            cid
+            for cid, bound in (ckpt.session.character_bindings or {}).items()
             if bound == uid
         ]
         if not bound_ids:
@@ -1810,8 +1788,7 @@ class EngineBridge:
         if requested:
             if requested not in bound_ids:
                 raise ValueError(
-                    "You can only use this with a character you currently "
-                    "control."
+                    "You can only use this with a character you currently control."
                 )
             return requested
 
@@ -1833,9 +1810,7 @@ class EngineBridge:
         wanted_uid = str(user_id) if user_id is not None else ""
         prompts: list[PendingRollPrompt] = []
         for transaction in ckpt.session.cat_ii_roll_transactions:
-            for record in pending_player_rolls(
-                ckpt, event_id=transaction.event_id
-            ):
+            for record in pending_player_rolls(ckpt, event_id=transaction.event_id):
                 bound_uid = bindings.get(record.actor_id, "")
                 if not bound_uid:
                     continue
@@ -1910,13 +1885,14 @@ class EngineBridge:
                     "status to see the current state."
                 )
             if source != "combat" and not any(
-                evt.event_id == event_id
-                for evt in ckpt.session.open_cat_ii_events
+                evt.event_id == event_id for evt in ckpt.session.open_cat_ii_events
             ):
                 raise ValueError("That contested action is no longer open.")
 
             pending_for_actor = pending_player_rolls(
-                ckpt, event_id=event_id, actor_id=actor_id,
+                ckpt,
+                event_id=event_id,
+                actor_id=actor_id,
             )
             record = next(
                 (r for r in pending_for_actor if r.roll_id == roll_id),
@@ -1951,7 +1927,8 @@ class EngineBridge:
         result = completed.result or {}
         transaction = next(
             (
-                txn for txn in ckpt.session.cat_ii_roll_transactions
+                txn
+                for txn in ckpt.session.cat_ii_roll_transactions
                 if txn.event_id == event_id
                 and any(r.roll_id == completed.roll_id for r in txn.rolls)
             ),
@@ -1959,7 +1936,8 @@ class EngineBridge:
         )
         display = (
             dice_roll_display_for_record(ckpt, transaction, completed)
-            if transaction is not None else None
+            if transaction is not None
+            else None
         )
         return CompletedPendingRoll(
             session_id=session_id,
@@ -2051,9 +2029,7 @@ class EngineBridge:
             (c for c in ckpt.characters if c.character_id == character_id), None
         )
         if target is None:
-            raise ValueError(
-                f"No character '{character_id}' in this session."
-            )
+            raise ValueError(f"No character '{character_id}' in this session.")
         if target.status.value == "culled":
             raise ValueError(
                 f"Character '{target.name}' is no longer in the story (culled)."
@@ -2066,8 +2042,11 @@ class EngineBridge:
             )
 
         existing_for_user = next(
-            (cid for cid, bound in ckpt.session.character_bindings.items()
-             if bound == uid and cid != character_id),
+            (
+                cid
+                for cid, bound in ckpt.session.character_bindings.items()
+                if bound == uid and cid != character_id
+            ),
             None,
         )
         if existing_for_user:
@@ -2106,9 +2085,7 @@ class EngineBridge:
                 None,
             )
             if target is None:
-                raise ValueError(
-                    f"No character '{character_id}' in this session."
-                )
+                raise ValueError(f"No character '{character_id}' in this session.")
             if not target.is_playable:
                 raise ValueError(
                     f"Character '{target.name}' is not an available player seat."
@@ -2272,7 +2249,8 @@ class EngineBridge:
         """
         ckpt = self._bind_user_locked(session_id, user_id, character_id)
         target = next(
-            (c for c in ckpt.characters if c.character_id == character_id), None,
+            (c for c in ckpt.characters if c.character_id == character_id),
+            None,
         )
         if target is None:
             raise ValueError(f"No character '{character_id}' in this session.")
@@ -2281,7 +2259,9 @@ class EngineBridge:
                 "takeover: %s (%s) was not marked is_playable=true in the "
                 "story seed, but user %s bound to them anyway. Binding stands; "
                 "the seed probably should have flagged them playable.",
-                target.name, character_id, user_id,
+                target.name,
+                character_id,
+                user_id,
             )
         return ckpt
 
@@ -2296,7 +2276,9 @@ class EngineBridge:
         /act) so the spawn+binding cannot be clobbered by a concurrent turn."""
         async with await self._lock_for(session_id):
             return await self._create_custom_character_locked(
-                session_id, user_id, description,
+                session_id,
+                user_id,
+                description,
             )
 
     async def _create_custom_character_locked(
@@ -2358,7 +2340,9 @@ class EngineBridge:
         self.checkpoint_mgr.save(ckpt)
         logger.info(
             "Custom character spawned in %s: %s (%s)",
-            session_id, new_char.name, new_char.character_id,
+            session_id,
+            new_char.name,
+            new_char.character_id,
         )
         return new_char
 
@@ -2375,8 +2359,11 @@ class EngineBridge:
         lock so the spawn+binding cannot be clobbered by a concurrent /act."""
         async with await self._lock_for(session_id):
             return self._create_player_character_simple_locked(
-                session_id, user_id,
-                name=name, appearance=appearance, backstory=backstory,
+                session_id,
+                user_id,
+                name=name,
+                appearance=appearance,
+                backstory=backstory,
             )
 
     def _create_player_character_simple_locked(
@@ -2446,14 +2433,16 @@ class EngineBridge:
             "as in-fiction observable_facts to the characters who would know"
         )
         ckpt.session.pending_engine_state_updates.append(
-            f"Existing character ready for arrival: {new_id} — "
-            f"{'; '.join(bits)}."
+            f"Existing character ready for arrival: {new_id} — {'; '.join(bits)}."
         )
 
         self.checkpoint_mgr.save(ckpt)
         logger.info(
-            "Custom player character (LLM-free) spawned in %s by user %s: "
-            "%s (%s)", session_id, user_id, name, new_id,
+            "Custom player character (LLM-free) spawned in %s by user %s: %s (%s)",
+            session_id,
+            user_id,
+            name,
+            new_id,
         )
         return new_char
 
@@ -2504,7 +2493,10 @@ class EngineBridge:
         per-session lock (held across the takeover LLM call, like /act)."""
         async with await self._lock_for(session_id):
             return await self._replace_with_custom_locked(
-                session_id, user_id, target_character_id, description,
+                session_id,
+                user_id,
+                target_character_id,
+                description,
             )
 
     async def _replace_with_custom_locked(
@@ -2531,14 +2523,10 @@ class EngineBridge:
             None,
         )
         if target is None:
-            raise ValueError(
-                f"No character '{target_character_id}' in this session."
-            )
+            raise ValueError(f"No character '{target_character_id}' in this session.")
         claimed_by = ckpt.session.character_bindings.get(target_character_id)
         if claimed_by and claimed_by != str(user_id):
-            raise ValueError(
-                f"'{target.name}' is already bound to another player."
-            )
+            raise ValueError(f"'{target.name}' is already bound to another player.")
 
         out: TakeoverAuthoredOutput = await self._call_takeover(
             ckpt,
@@ -2624,7 +2612,9 @@ class EngineBridge:
         self.checkpoint_mgr.save(ckpt)
         logger.info(
             "Character replaced in %s: %s grafted onto %s",
-            session_id, target.name, target_character_id,
+            session_id,
+            target.name,
+            target_character_id,
         )
         return target
 
@@ -2658,7 +2648,9 @@ class EngineBridge:
             raise ValueError("mode='replace' requires picked_target")
 
         context = _build_takeover_context(
-            ckpt, description, picked_target,
+            ckpt,
+            description,
+            picked_target,
             invoking_user_id=invoking_user_id,
         )
 
@@ -2728,10 +2720,7 @@ class EngineBridge:
             lines.append("\n".join(sheet_bits))
 
         if char.player_guidance:
-            lines.append(
-                "## Your Control & Perspective\n"
-                f"{char.player_guidance}"
-            )
+            lines.append(f"## Your Control & Perspective\n{char.player_guidance}")
         if char.backstory:
             lines.append(f"## Your Backstory\n{char.backstory}")
         if char.known_context:
@@ -2739,9 +2728,7 @@ class EngineBridge:
 
         ps = char.private_state
         if ps.goals:
-            lines.append(
-                "## What Drives You\n" + "\n".join(f"- {g}" for g in ps.goals)
-            )
+            lines.append("## What Drives You\n" + "\n".join(f"- {g}" for g in ps.goals))
         if ps.current_objectives:
             lines.append(
                 "## What You're Working On\n"
@@ -2829,15 +2816,14 @@ class EngineBridge:
         is just the active bound characters.
         """
         active_by_id = {
-            c.character_id: c for c in ckpt.characters
-            if c.status.value == "active"
+            c.character_id: c for c in ckpt.characters if c.status.value == "active"
         }
         bound_ids = [
-            cid for cid in ckpt.session.character_bindings
-            if cid in active_by_id
+            cid for cid in ckpt.session.character_bindings if cid in active_by_id
         ]
         locations = {
-            active_by_id[cid].location for cid in bound_ids
+            active_by_id[cid].location
+            for cid in bound_ids
             if active_by_id[cid].location
         }
         selected: list[str] = []
@@ -2871,7 +2857,8 @@ class EngineBridge:
                 continue
             ref_slug = _participant_ref_slug(ref)
             matches = [
-                character for character in ckpt.characters
+                character
+                for character in ckpt.characters
                 if _combat_participant_ref_matches(character, ref_slug)
             ]
             if len(matches) == 1:
@@ -2971,7 +2958,9 @@ class EngineBridge:
                     detail_parts.append(
                         str(
                             self._combat_get(
-                                effect, "duration_text", default="",
+                                effect,
+                                "duration_text",
+                                default="",
                             )
                         ).strip()
                     )
@@ -3003,9 +2992,7 @@ class EngineBridge:
                 default="",
             )
         )
-        character_id = str(
-            self._combat_get(raw, "character_id", default=cid) or cid
-        )
+        character_id = str(self._combat_get(raw, "character_id", default=cid) or cid)
         char = characters.get(character_id)
         mechanics = char.mechanics if char else {}
         hp = mechanics.get("hit_points") if isinstance(mechanics, dict) else {}
@@ -3015,19 +3002,20 @@ class EngineBridge:
         if isinstance(raw_hp, dict):
             hp = {**hp, **raw_hp}
         raw_initiative = self._combat_get(
-            raw, "initiative", "initiative_total", default=None,
+            raw,
+            "initiative",
+            "initiative_total",
+            default=None,
         )
         if isinstance(raw_initiative, dict):
             raw_initiative = raw_initiative.get("total")
         name = str(
-            self._combat_get(raw, "name", default="")
-            or (char.name if char else cid)
+            self._combat_get(raw, "name", default="") or (char.name if char else cid)
         )
         conditions = self._combat_get(raw, "conditions", default=None)
         if conditions is None:
             conditions = (
-                mechanics.get("conditions", [])
-                if isinstance(mechanics, dict) else []
+                mechanics.get("conditions", []) if isinstance(mechanics, dict) else []
             )
         active_effects = self._combat_get(raw, "active_effects", default=None)
         if active_effects is None and isinstance(mechanics, dict):
@@ -3050,19 +3038,28 @@ class EngineBridge:
             initiative=self._optional_int(raw_initiative),
             hp_current=self._optional_int(
                 self._combat_get(
-                    raw, "hp_current", "current_hp", "hit_points_current",
+                    raw,
+                    "hp_current",
+                    "current_hp",
+                    "hit_points_current",
                     default=hp.get("current"),
                 )
             ),
             hp_max=self._optional_int(
                 self._combat_get(
-                    raw, "hp_max", "max_hp", "hit_points_max",
+                    raw,
+                    "hp_max",
+                    "max_hp",
+                    "hit_points_max",
                     default=hp.get("max"),
                 )
             ),
             hp_temporary=int(
                 self._combat_get(
-                    raw, "hp_temporary", "temp_hp", "hit_points_temporary",
+                    raw,
+                    "hp_temporary",
+                    "temp_hp",
+                    "hit_points_temporary",
                     default=hp.get("temporary", 0),
                 )
                 or 0
@@ -3074,7 +3071,8 @@ class EngineBridge:
                     "ac",
                     default=(
                         mechanics.get("armor_class")
-                        if isinstance(mechanics, dict) else None
+                        if isinstance(mechanics, dict)
+                        else None
                     ),
                 )
             ),
@@ -3098,8 +3096,7 @@ class EngineBridge:
             )
             or 0,
             pending_initiating_action=str(
-                self._combat_get(raw, "pending_initiating_action", default="")
-                or ""
+                self._combat_get(raw, "pending_initiating_action", default="") or ""
             ),
         )
 
@@ -3124,30 +3121,55 @@ class EngineBridge:
                 message="No active combat.",
             )
         characters = {c.character_id: c for c in ckpt.characters}
-        current_id = str(self._combat_get(
-            source, "current_participant_id", "current_character_id",
-            "active_participant_id", default="",
-        ) or "")
+        current_id = str(
+            self._combat_get(
+                source,
+                "current_participant_id",
+                "current_character_id",
+                "active_participant_id",
+                default="",
+            )
+            or ""
+        )
         current_raw = self._combat_get(source, "current", default=None)
         if current_raw is not None and not current_id:
-            current_id = str(self._combat_get(
-                current_raw, "combatant_id", "character_id", default="",
-            ) or "")
-        raw_participants = self._combat_get(
-            source, "participants", "turn_order", "combatants", default=[],
-        ) or []
-        turn_index = self._optional_int(
-            self._combat_get(source, "turn_index", default=0)
-        ) or 0
+            current_id = str(
+                self._combat_get(
+                    current_raw,
+                    "combatant_id",
+                    "character_id",
+                    default="",
+                )
+                or ""
+            )
+        raw_participants = (
+            self._combat_get(
+                source,
+                "participants",
+                "turn_order",
+                "combatants",
+                default=[],
+            )
+            or []
+        )
+        turn_index = (
+            self._optional_int(self._combat_get(source, "turn_index", default=0)) or 0
+        )
         if (
             not current_id
             and raw_participants
             and 0 <= turn_index < len(raw_participants)
         ):
             current_raw = raw_participants[turn_index]
-            current_id = str(self._combat_get(
-                current_raw, "combatant_id", "character_id", default="",
-            ) or "")
+            current_id = str(
+                self._combat_get(
+                    current_raw,
+                    "combatant_id",
+                    "character_id",
+                    default="",
+                )
+                or ""
+            )
         participants = tuple(
             self._combat_participant_view(raw, characters, current_id)
             for raw in raw_participants
@@ -3161,20 +3183,22 @@ class EngineBridge:
             parsed_turn_index = self._optional_int(raw_turn_index)
             turn_number = (
                 parsed_turn_index + 1
-                if parsed_turn_index is not None and raw_participants else 0
+                if parsed_turn_index is not None and raw_participants
+                else 0
             )
         else:
             turn_number = self._optional_int(raw_turn_number) or 0
-        active = bool(
-            self._combat_get(source, "active", "is_active", default=True)
-        )
+        active = bool(self._combat_get(source, "active", "is_active", default=True))
         return DndCombatView(
             session_id=ckpt.session.session_id,
             active=active,
             round_number=(
                 self._optional_int(
                     self._combat_get(
-                        source, "round_number", "round", default=0,
+                        source,
+                        "round_number",
+                        "round",
+                        default=0,
                     )
                 )
                 or 0
@@ -3193,9 +3217,7 @@ class EngineBridge:
     ) -> DndCombatView:
         module = self._dnd_combat_module()
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        participants = (
-            participant_ids or self._default_combat_participant_ids(ckpt)
-        )
+        participants = participant_ids or self._default_combat_participant_ids(ckpt)
         if not participants:
             raise ValueError("No active combat participants found.")
         participants = self._resolve_combat_participant_refs(ckpt, participants)
@@ -3246,11 +3268,13 @@ class EngineBridge:
             )
             if not cid or cid in seen:
                 continue
-            observers.append(ObserverEntry(
-                character_id=cid,
-                observation_level="d",
-                routing_role="observe_only",
-            ))
+            observers.append(
+                ObserverEntry(
+                    character_id=cid,
+                    observation_level="d",
+                    routing_role="observe_only",
+                )
+            )
             seen.add(cid)
         pending_facts = []
         if combat is not None:
@@ -3259,32 +3283,33 @@ class EngineBridge:
         module.end_combat(ckpt.session, characters=ckpt.characters)
         if observers:
             observable_facts = [
-                ObservableFact.all(fact)
-                for fact in pending_facts
-                if str(fact).strip()
+                ObservableFact.all(fact) for fact in pending_facts if str(fact).strip()
             ]
             observable_facts.append(ObservableFact.all("D&D combat ends."))
-            broadcast_event(ckpt, EventRouterOutput(
-                event_id="",
-                effective_at_s=0,
-                duration_s=0,
-                decision_rationale="manual combat end",
-                canonical_event=CanonicalEvent(
-                    world_adjudication=WorldAdjudication(feasible=True),
-                    observable_facts=observable_facts,
+            broadcast_event(
+                ckpt,
+                EventRouterOutput(
+                    event_id="",
+                    effective_at_s=0,
+                    duration_s=0,
+                    decision_rationale="manual combat end",
+                    canonical_event=CanonicalEvent(
+                        world_adjudication=WorldAdjudication(feasible=True),
+                        observable_facts=observable_facts,
+                    ),
+                    event_kind="state_change",
+                    requires_responders=False,
+                    required_responders=[],
+                    observers=observers,
+                    spawn=[],
+                    dormant=[],
+                    cull=[],
+                    commitment_open=empty_commitment_open_signal(),
+                    commitment_resolutions=[],
+                    commitment_interrupts=[],
+                    location_updates=[],
                 ),
-                event_kind="state_change",
-                requires_responders=False,
-                required_responders=[],
-                observers=observers,
-                spawn=[],
-                dormant=[],
-                cull=[],
-                commitment_open=empty_commitment_open_signal(),
-                commitment_resolutions=[],
-                commitment_interrupts=[],
-                location_updates=[],
-            ))
+            )
         self.checkpoint_mgr.save(ckpt)
         return DndCombatView(
             session_id=ckpt.session.session_id,
@@ -3434,9 +3459,7 @@ class EngineBridge:
     ) -> DndCombatView:
         bridge_lock = await self._lock_for(session_id)
         async with bridge_lock:
-            orchestrator_lock = await self.orchestrator.session_locks.get(
-                session_id
-            )
+            orchestrator_lock = await self.orchestrator.session_locks.get(session_id)
             async with orchestrator_lock:
                 return mutate()
 
@@ -3513,12 +3536,14 @@ class EngineBridge:
         if swept:
             logger.info(
                 "v11 sweep: auto-resolved %d Cat II event(s) pre-turn: %s",
-                len(swept), swept,
+                len(swept),
+                swept,
             )
         if released:
             logger.info(
                 "AFK sweep: auto-passed %d combat-reaction pin(s) pre-turn: %s",
-                len(released), released,
+                len(released),
+                released,
             )
         return swept
 
@@ -3566,8 +3591,7 @@ class EngineBridge:
                         checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
                         turn_index=ckpt.session.turn_index,
                         output_text=(
-                            "No failed narrator render is pending for this "
-                            "session."
+                            "No failed narrator render is pending for this session."
                         ),
                         per_player_renders={},
                         beat_ended_reason="no_pending_render",
@@ -3578,9 +3602,7 @@ class EngineBridge:
             actor_user_id = str(
                 (ckpt.session.character_bindings or {}).get(actor_id, "")
             )
-            response = await self.orchestrator.retry_pending_narrator_render(
-                session_id
-            )
+            response = await self.orchestrator.retry_pending_narrator_render(session_id)
             return RetryRenderResult(
                 response=response,
                 actor_character_id=actor_id,
@@ -3610,7 +3632,8 @@ class EngineBridge:
         async with lock:
             logger.info(
                 "run_arrival_turn: session=%s actor=%s directive=(arrive)",
-                session_id, acting_character_id,
+                session_id,
+                acting_character_id,
             )
             return await self._run_turn_locked(
                 session_id=session_id,
@@ -3686,7 +3709,9 @@ class EngineBridge:
             )
             logger.info(
                 "run_begin_turn: session=%s actor=%s bound=%s",
-                session_id, actor_id, bound_ids,
+                session_id,
+                actor_id,
+                bound_ids,
             )
             return await self._run_turn_locked(
                 session_id=session_id,
@@ -3705,7 +3730,8 @@ class EngineBridge:
         except Exception:
             # Best-effort — never let an AFK sweep error crash a turn.
             logger.exception(
-                "v11 sweep_stale_pins failed for %s", session_id,
+                "v11 sweep_stale_pins failed for %s",
+                session_id,
             )
             event_ids = []
 
@@ -3723,14 +3749,16 @@ class EngineBridge:
         for event_id in event_ids:
             try:
                 resp = await self.orchestrator.resolve_cat_ii(
-                    session_id, event_id,
+                    session_id,
+                    event_id,
                 )
                 if resp.per_player_renders:
                     pre_turn.append(resp)
             except Exception:
                 logger.exception(
                     "resolve_cat_ii failed for session=%s event=%s",
-                    session_id, event_id,
+                    session_id,
+                    event_id,
                 )
         return pre_turn
 
@@ -3745,11 +3773,13 @@ class EngineBridge:
 
         pre_turn = await self._resolve_swept_events_locked(session_id)
 
-        response = await self.orchestrator.process_turn(TurnRequest(
-            session_id=session_id,
-            user_input=user_input,
-            acting_character_id=acting_character_id,
-        ))
+        response = await self.orchestrator.process_turn(
+            TurnRequest(
+                session_id=session_id,
+                user_input=user_input,
+                acting_character_id=acting_character_id,
+            )
+        )
         response.pre_turn_resolutions = [
             *pre_turn,
             *(response.pre_turn_resolutions or []),
@@ -3792,7 +3822,8 @@ class EngineBridge:
 
 
 def _pick_unused_character_id(
-    ckpt: CheckpointFile, name: str,
+    ckpt: CheckpointFile,
+    name: str,
 ) -> str:
     """Slugify `name` into a snake_case character_id; disambiguate with
     a numeric suffix if the slug is already in use."""
@@ -3822,10 +3853,7 @@ def _combat_participant_ref_matches(
     name_slug = _participant_ref_slug(name)
     if ref_slug in {id_slug, name_slug}:
         return True
-    return (
-        ref_slug in id_slug.split("_")
-        or ref_slug in name_slug.split("_")
-    )
+    return ref_slug in id_slug.split("_") or ref_slug in name_slug.split("_")
 
 
 def _combat_participant_choice_text(character: CharacterRecord) -> str:
@@ -3839,13 +3867,11 @@ def _combat_participant_options_text(
     characters: Iterable[CharacterRecord],
 ) -> str:
     active = [
-        character for character in characters
+        character
+        for character in characters
         if str(getattr(character.status, "value", character.status)) == "active"
     ]
-    choices = [
-        _combat_participant_choice_text(character)
-        for character in active[:12]
-    ]
+    choices = [_combat_participant_choice_text(character) for character in active[:12]]
     suffix = "" if len(active) <= 12 else ", ..."
     return ", ".join(choices) + suffix
 
@@ -3870,6 +3896,7 @@ def _build_takeover_context(
         build_world_rules,
         pov_location_for_user,
     )
+
     setting_summary = build_setting_summary(ckpt)
     world_lore = ckpt.world_state.lore or "No detailed lore."
     hidden_lore = ckpt.world_state.hidden_lore or "(none)"
@@ -3918,9 +3945,7 @@ def _build_takeover_context(
         if (text := _narrator_history_message_text(message.content))
     ][-6:]
     recent_session_summary = (
-        "\n\n".join(recent_bits)
-        if recent_bits
-        else "(no POV-safe turns available yet)"
+        "\n\n".join(recent_bits) if recent_bits else "(no POV-safe turns available yet)"
     )
 
     if picked_target is not None:
@@ -3956,10 +3981,12 @@ def _append_session_note(ckpt: CheckpointFile, note: str) -> None:
 
     if not note.strip():
         return
-    ckpt.session_conversation.append(ConversationMessage(
-        role="assistant",
-        content=f'{{"takeover_note": {json.dumps(note)}}}',
-    ))
+    ckpt.session_conversation.append(
+        ConversationMessage(
+            role="assistant",
+            content=f'{{"takeover_note": {json.dumps(note)}}}',
+        )
+    )
 
 
 def _dnd_attachment_summary(
@@ -4050,9 +4077,7 @@ def _dnd_experience_target_ids(
     characters = {c.character_id: c for c in ckpt.characters}
     if normalized.lower() in {"all", "party", "players"}:
         target_ids = [
-            cid
-            for cid in (ckpt.session.character_bindings or {})
-            if cid in characters
+            cid for cid in (ckpt.session.character_bindings or {}) if cid in characters
         ]
         if not target_ids:
             raise ValueError("No bound player characters are available for XP.")
@@ -4178,18 +4203,20 @@ def _summaries_from_checkpoint(ckpt: CheckpointFile) -> list[CharacterSummary]:
     bindings = ckpt.session.character_bindings or {}
     summaries: list[CharacterSummary] = []
     for char in ckpt.characters:
-        summaries.append(CharacterSummary(
-            character_id=char.character_id,
-            name=char.name,
-            role=char.public_sheet.role or "",
-            faction=char.public_sheet.faction or "",
-            appearance=char.public_sheet.appearance or "",
-            status=char.status.value,
-            is_playable=char.is_playable,
-            bound_user_id=bindings.get(char.character_id, ""),
-            player_slot_kind=char.player_slot_kind.value,
-            player_guidance=char.player_guidance,
-        ))
+        summaries.append(
+            CharacterSummary(
+                character_id=char.character_id,
+                name=char.name,
+                role=char.public_sheet.role or "",
+                faction=char.public_sheet.faction or "",
+                appearance=char.public_sheet.appearance or "",
+                status=char.status.value,
+                is_playable=char.is_playable,
+                bound_user_id=bindings.get(char.character_id, ""),
+                player_slot_kind=char.player_slot_kind.value,
+                player_guidance=char.player_guidance,
+            )
+        )
     return summaries
 
 
@@ -4197,7 +4224,8 @@ def joinable_character_summaries(
     summaries: Iterable[CharacterSummary],
 ) -> list[CharacterSummary]:
     return [
-        summary for summary in summaries
+        summary
+        for summary in summaries
         if summary.is_playable
         and summary.status != "culled"
         and not summary.bound_user_id

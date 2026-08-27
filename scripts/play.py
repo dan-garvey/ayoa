@@ -230,16 +230,18 @@ def _command_completions() -> tuple[str, ...]:
             and not parts[1].startswith("<")
         ):
             commands.add(f"{parts[0]} {parts[1]}")
-    commands.update({
-        "/combat add",
-        "/combat damage",
-        "/combat end",
-        "/combat heal",
-        "/combat next",
-        "/loot decline",
-        "/loot split-coins",
-        "/loot take",
-    })
+    commands.update(
+        {
+            "/combat add",
+            "/combat damage",
+            "/combat end",
+            "/combat heal",
+            "/combat next",
+            "/loot decline",
+            "/loot split-coins",
+            "/loot take",
+        }
+    )
     return tuple(sorted(commands))
 
 
@@ -260,7 +262,8 @@ class _ConsoleInput:
         self._readline = readline_module
         self._interactive = (
             sys.stdin.isatty() and sys.stdout.isatty()
-            if interactive is None else interactive
+            if interactive is None
+            else interactive
         )
         self._installed = False
         self._atexit_registered = False
@@ -372,16 +375,10 @@ def _signed_modifier(value: int) -> str:
 
 def _roll_heading(roll: Any) -> str:
     actor = (
-        getattr(roll, "actor_name", "")
-        or getattr(roll, "actor_id", "")
-        or "Unknown"
+        getattr(roll, "actor_name", "") or getattr(roll, "actor_id", "") or "Unknown"
     )
     label = getattr(roll, "label", "") or "Roll"
-    target = (
-        getattr(roll, "target_name", "")
-        or getattr(roll, "target_id", "")
-        or ""
-    )
+    target = getattr(roll, "target_name", "") or getattr(roll, "target_id", "") or ""
     heading = f"{actor}: {label}" if actor else label
     return f"{heading} vs {target}" if target else heading
 
@@ -453,11 +450,7 @@ def _plain_roll_detail(text: str) -> str:
 
 
 def _damage_roll_line(roll: Any) -> str:
-    total = int(
-        getattr(roll, "damage_total", 0)
-        or getattr(roll, "total", 0)
-        or 0
-    )
+    total = int(getattr(roll, "damage_total", 0) or getattr(roll, "total", 0) or 0)
     raw_total = int(getattr(roll, "damage_raw_total", 0) or 0)
     damage_type = str(getattr(roll, "damage_type", "") or "")
     suffix = f" {damage_type}" if damage_type else ""
@@ -490,16 +483,12 @@ def _damage_target_status_line(roll: Any) -> str:
     if not any((maximum, before, after, temp_before, temp_after)):
         return ""
     target = (
-        getattr(roll, "target_name", "")
-        or getattr(roll, "target_id", "")
-        or "Target"
+        getattr(roll, "target_name", "") or getattr(roll, "target_id", "") or "Target"
     )
     before_text = _hp_text(before, maximum, temp_before)
     after_text = _hp_text(after, maximum, temp_after)
     state = str(getattr(roll, "target_defeat_state", "") or "")
-    state_text = (
-        f"; {state}" if state and state not in {"active", "unknown"} else ""
-    )
+    state_text = f"; {state}" if state and state not in {"active", "unknown"} else ""
     return f"Target HP: {target} {before_text} -> {after_text}{state_text}"
 
 
@@ -587,20 +576,21 @@ def _print_dice_roll_displays(rolls: list[Any]) -> None:
 
 
 def _experience_award_line(award: Any) -> str:
-    name = (
-        str(getattr(award, "character_name", "") or "")
-        or str(getattr(award, "character_id", "") or "Character")
+    name = str(getattr(award, "character_name", "") or "") or str(
+        getattr(award, "character_id", "") or "Character"
     )
     amount = int(getattr(award, "amount", 0) or 0)
     source = str(getattr(award, "source", "") or "").strip()
-    progress = dnd_experience.format_experience_progress({
-        "experience_points": getattr(award, "experience_points", 0),
-        "total_level": getattr(award, "total_level", 0),
-        "eligible_level": getattr(award, "eligible_level", 0),
-        "level_available": bool(getattr(award, "eligible_level", 0)),
-        "next_level": getattr(award, "next_level", 0),
-        "xp_to_next_level": getattr(award, "xp_to_next_level", 0),
-    })
+    progress = dnd_experience.format_experience_progress(
+        {
+            "experience_points": getattr(award, "experience_points", 0),
+            "total_level": getattr(award, "total_level", 0),
+            "eligible_level": getattr(award, "eligible_level", 0),
+            "level_available": bool(getattr(award, "eligible_level", 0)),
+            "next_level": getattr(award, "next_level", 0),
+            "xp_to_next_level": getattr(award, "xp_to_next_level", 0),
+        }
+    )
     source_text = f" — {source}" if source else ""
     return f"{name}: +{amount:,} XP{source_text}. {progress}"
 
@@ -782,10 +772,7 @@ def _sheet_overview_lines(
     initiative = defenses.get("initiative") or {}
     skills = statblock.get("skills") or {}
     perception = skills.get("perception") or {}
-    hp_text = (
-        f"{_safe_int(hp.get('current'), 0)}/"
-        f"{_safe_int(hp.get('max'), 0)}"
-    )
+    hp_text = f"{_safe_int(hp.get('current'), 0)}/{_safe_int(hp.get('max'), 0)}"
     temp_hp = _safe_int(hp.get("temporary"), 0)
     if temp_hp:
         hp_text += f" (+{temp_hp} temp)"
@@ -820,7 +807,8 @@ def _sheet_overview_lines(
         lines.extend(f"  {line}" for line in defense_lines)
     source = sheet.get("source") or {}
     source_line = " · ".join(
-        bit for bit in (
+        bit
+        for bit in (
             str(sheet.get("ruleset_id") or ""),
             str(source.get("type") or ""),
         )
@@ -863,7 +851,8 @@ def _sheet_ability_lines(statblock: dict[str, Any]) -> list[str]:
 
 def _sheet_action_lines(statblock: dict[str, Any]) -> list[str]:
     actions = [
-        action for action in (statblock.get("actions") or [])
+        action
+        for action in (statblock.get("actions") or [])
         if isinstance(action, dict)
     ]
     if not actions:
@@ -904,8 +893,7 @@ def _sheet_spell_lines(statblock: dict[str, Any]) -> list[str]:
         lines.append(f"Slots: {slots}")
 
     spells = [
-        spell for spell in (spellcasting.get("spells") or [])
-        if isinstance(spell, dict)
+        spell for spell in (spellcasting.get("spells") or []) if isinstance(spell, dict)
     ]
     if not spells:
         return lines or ["No spells imported."]
@@ -926,10 +914,7 @@ def _sheet_spell_lines(statblock: dict[str, Any]) -> list[str]:
 
 
 def _sheet_inventory_lines(inventory: dict[str, Any]) -> list[str]:
-    items = [
-        item for item in (inventory.get("items") or [])
-        if isinstance(item, dict)
-    ]
+    items = [item for item in (inventory.get("items") or []) if isinstance(item, dict)]
     equipped = [item for item in items if item.get("equipped")]
     carried = [item for item in items if not item.get("equipped")]
     currency_line = _coin_line(inventory.get("currency") or {})
@@ -949,7 +934,8 @@ def _sheet_inventory_lines(inventory: dict[str, Any]) -> list[str]:
 
 def _sheet_feature_lines(statblock: dict[str, Any]) -> list[str]:
     features = [
-        feature for feature in (statblock.get("features") or [])
+        feature
+        for feature in (statblock.get("features") or [])
         if isinstance(feature, dict)
     ]
     proficiencies = statblock.get("proficiencies") or {}
@@ -1144,13 +1130,10 @@ def _parse_attach_args(
     try:
         tokens = shlex.split(arg)
     except ValueError as e:
-        print(
-            "usage: /attach <json_path> [character_id] "
-            f"[--name \"Name\"] ({e})"
-        )
+        print(f'usage: /attach <json_path> [character_id] [--name "Name"] ({e})')
         return None
     if not tokens:
-        print("usage: /attach <json_path> [character_id] [--name \"Name\"]")
+        print('usage: /attach <json_path> [character_id] [--name "Name"]')
         return None
 
     path = Path(tokens[0]).expanduser()
@@ -1161,10 +1144,7 @@ def _parse_attach_args(
         token = tokens[i]
         if token in {"--name", "--name-override"}:
             if i + 1 >= len(tokens):
-                print(
-                    "usage: /attach <json_path> [character_id] "
-                    "[--name \"Name\"]"
-                )
+                print('usage: /attach <json_path> [character_id] [--name "Name"]')
                 return None
             name_override = tokens[i + 1].strip() or None
             i += 2
@@ -1175,18 +1155,12 @@ def _parse_attach_args(
             continue
         if token in {"--character", "--character-id"}:
             if i + 1 >= len(tokens):
-                print(
-                    "usage: /attach <json_path> [character_id] "
-                    "[--name \"Name\"]"
-                )
+                print('usage: /attach <json_path> [character_id] [--name "Name"]')
                 return None
             character_id = tokens[i + 1].strip() or None
             i += 2
             continue
-        if (
-            token.startswith("--character=")
-            or token.startswith("--character-id=")
-        ):
+        if token.startswith("--character=") or token.startswith("--character-id="):
             character_id = token.split("=", 1)[1].strip() or None
             i += 1
             continue
@@ -1197,7 +1171,7 @@ def _parse_attach_args(
             character_id = token
             i += 1
             continue
-        print("usage: /attach <json_path> [character_id] [--name \"Name\"]")
+        print('usage: /attach <json_path> [character_id] [--name "Name"]')
         return None
 
     return path, character_id, name_override
@@ -1220,10 +1194,7 @@ def _parse_join_args(raw: str) -> tuple[str, str, str] | None:
     while index < len(tokens):
         flag = tokens[index]
         if flag not in {"--name", "--appearance"}:
-            print(
-                "usage: /join <name|#> "
-                "[--name \"Name\"] [--appearance \"Description\"]"
-            )
+            print('usage: /join <name|#> [--name "Name"] [--appearance "Description"]')
             return None
         if index + 1 >= len(tokens):
             print(f"error: {flag} requires a value")
@@ -1250,10 +1221,7 @@ def _parse_describe_args(raw: str) -> tuple[str, str] | None:
     while index < len(tokens):
         flag = tokens[index]
         if flag not in {"--name", "--appearance"}:
-            print(
-                "usage: /describe [--name \"Name\"] "
-                "[--appearance \"Description\"]"
-            )
+            print('usage: /describe [--name "Name"] [--appearance "Description"]')
             return None
         if index + 1 >= len(tokens):
             print(f"error: {flag} requires a value")
@@ -1274,7 +1242,9 @@ def _print_loot_help() -> None:
     print("  /loot all                     Claim all open offers")
     print("  /loot split-coins <offer>     Split offer coins")
     print("  /loot decline <offer>         Decline an offer")
-    print("Use offer numbers from /loot, item ids from the offer details, or full offer ids.")
+    print(
+        "Use offer numbers from /loot, item ids from the offer details, or full offer ids."
+    )
 
 
 def _print_loot_offers(offers) -> None:
@@ -1364,8 +1334,7 @@ def _parse_master_synthesis_args(arg: str) -> tuple[str, tuple[str, ...]]:
     match = re.fullmatch(r"\s*(.+?)\s+from\s+(.+?)\s*", arg, flags=re.IGNORECASE)
     if match is None:
         raise ValueError(
-            "usage: /master synthesis <target> from "
-            "<source>[, <source>...]"
+            "usage: /master synthesis <target> from <source>[, <source>...]"
         )
     target_ref = match.group(1).strip()
     source_refs = tuple(
@@ -1373,15 +1342,15 @@ def _parse_master_synthesis_args(arg: str) -> tuple[str, tuple[str, ...]]:
     )
     if not target_ref or not source_refs:
         raise ValueError(
-            "usage: /master synthesis <target> from "
-            "<source>[, <source>...]"
+            "usage: /master synthesis <target> from <source>[, <source>...]"
         )
     return target_ref, source_refs
 
 
 def _joinable_character_line(summary: CharacterSummary) -> str:
     bits = [
-        bit for bit in (
+        bit
+        for bit in (
             summary.role,
             summary.faction,
         )
@@ -1408,9 +1377,7 @@ def _resolve_enum_ref(
         index = int(token)
         if 1 <= index <= len(choices):
             return choices[index - 1]
-        raise ValueError(
-            f"No {label} numbered {index}. Run the list command again."
-        )
+        raise ValueError(f"No {label} numbered {index}. Run the list command again.")
     if token in choices:
         return token
     raise ValueError(f"Unknown {label} '{token}'. Run the list command again.")
@@ -1647,9 +1614,7 @@ class CLIState:
         return next(
             (
                 summary.name
-                for summary in self.engine.list_session_characters(
-                    self.session_id
-                )
+                for summary in self.engine.list_session_characters(self.session_id)
                 if summary.character_id == character_id
             ),
             character_id,
@@ -1763,10 +1728,7 @@ class CLIState:
                 f"{summary.playable_seat_count} playable "
                 f"seat{'s' if summary.playable_seat_count != 1 else ''}"
             )
-            print(
-                f"{index}: {summary.title} (`{summary.story_id}`) · "
-                f"{seats}{marker}"
-            )
+            print(f"{index}: {summary.title} (`{summary.story_id}`) · {seats}{marker}")
 
     def cmd_story_info(self, arg: str) -> None:
         story_ref = arg.strip() or self.story_id
@@ -1805,9 +1767,7 @@ class CLIState:
         if seats:
             print("\nSeats:")
             for index, seat in enumerate(seats, start=1):
-                details = " - ".join(
-                    part for part in (seat.name, seat.role) if part
-                )
+                details = " - ".join(part for part in (seat.name, seat.role) if part)
                 print(f"  {index}: {details}")
                 if seat.player_guidance:
                     print(f"     {seat.player_guidance}")
@@ -1913,7 +1873,8 @@ class CLIState:
             (
                 "Claimed by another player",
                 [
-                    seat for seat in playable
+                    seat
+                    for seat in playable
                     if seat.bound_user_id and seat.character_id not in self.claims
                 ],
             ),
@@ -1927,7 +1888,9 @@ class CLIState:
                 continue
             for seat in seats:
                 index = playable.index(seat) + 1
-                marker = "  <- acting" if seat.character_id == self.current_actor else ""
+                marker = (
+                    "  <- acting" if seat.character_id == self.current_actor else ""
+                )
                 line = " - ".join(part for part in (seat.name, seat.role) if part)
                 print(f"  {index}: {line}{marker}")
                 if seat.player_guidance:
@@ -1950,7 +1913,8 @@ class CLIState:
             return
         try:
             dossier = self.engine.build_character_dossier(
-                self.session_id, char_id,
+                self.session_id,
+                char_id,
             )
         except ValueError:
             print(f"no character: {char_id}")
@@ -2002,9 +1966,7 @@ class CLIState:
             return
         if command == "synthesis":
             try:
-                target_ref, source_refs = _parse_master_synthesis_args(
-                    hero_ref
-                )
+                target_ref, source_refs = _parse_master_synthesis_args(hero_ref)
                 async with _progress("resolving"):
                     response = await self.engine.run_one_star_synthesis_command(
                         self.session_id,
@@ -2065,10 +2027,14 @@ class CLIState:
                 return
             try:
                 answer = (
-                    await self.console.prompt(
-                        "Begin with exactly these claimed seats? [y/N] "
+                    (
+                        await self.console.prompt(
+                            "Begin with exactly these claimed seats? [y/N] "
+                        )
                     )
-                ).strip().casefold()
+                    .strip()
+                    .casefold()
+                )
             except (EOFError, KeyboardInterrupt):
                 print("\n(cancelled)")
                 return
@@ -2301,7 +2267,8 @@ class CLIState:
                 f"No loot offer numbered {index}. Run /loot to see open offers."
             )
         exact = [
-            offer for offer in offers
+            offer
+            for offer in offers
             if str(getattr(offer, "offer_id", "") or "") == wanted
         ]
         if exact:
@@ -2379,8 +2346,7 @@ class CLIState:
                 take_all_available = True
             else:
                 item_ids = [
-                    part.strip() for part in item_spec.split(",")
-                    if part.strip()
+                    part.strip() for part in item_spec.split(",") if part.strip()
                 ]
                 take_all_available = False
             result = await self.engine.claim_loot(
@@ -2517,9 +2483,7 @@ class CLIState:
         char_ref, chosen_name, chosen_appearance = parsed
         if not char_ref:
             try:
-                summaries = self.engine.list_session_characters(
-                    self.session_id
-                )
+                summaries = self.engine.list_session_characters(self.session_id)
             except Exception as e:
                 print(f"error: {type(e).__name__}: {e}")
                 return
@@ -2533,17 +2497,12 @@ class CLIState:
             return
         if char_id in self.claims:
             display_name = self._character_name(char_id)
-            print(
-                f"already claimed: {display_name}. "
-                f"/as {display_name} to switch."
-            )
+            print(f"already claimed: {display_name}. /as {display_name} to switch.")
             return
         try:
             summary = next(
                 item
-                for item in self.engine.list_session_characters(
-                    self.session_id
-                )
+                for item in self.engine.list_session_characters(self.session_id)
                 if item.character_id == char_id
             )
         except StopIteration:
@@ -2557,7 +2516,7 @@ class CLIState:
             if self.one_shot_mode:
                 print(
                     "this player-authored seat requires both identity fields:\n"
-                    f"  /join {char_id} --name \"Your name\" "
+                    f'  /join {char_id} --name "Your name" '
                     '--appearance "Your visible appearance"'
                 )
                 return
@@ -2570,9 +2529,7 @@ class CLIState:
                     ).strip()
                 if not chosen_appearance:
                     chosen_appearance = (
-                        await self.console.prompt(
-                            "appearance (required): "
-                        )
+                        await self.console.prompt("appearance (required): ")
                     ).strip()
             except (EOFError, KeyboardInterrupt):
                 print("\n(cancelled — character was not claimed)")
@@ -2596,7 +2553,8 @@ class CLIState:
 
         try:
             dossier = self.engine.build_character_dossier(
-                self.session_id, char_id,
+                self.session_id,
+                char_id,
             )
         except Exception as e:
             dossier = f"(dossier unavailable: {e})"
@@ -2677,7 +2635,8 @@ class CLIState:
             self.current_actor = new_char.character_id
         try:
             dossier = self.engine.build_character_dossier(
-                self.session_id, new_char.character_id,
+                self.session_id,
+                new_char.character_id,
             )
         except Exception as e:
             dossier = f"(dossier unavailable: {e})"
@@ -2729,7 +2688,8 @@ class CLIState:
             self.current_actor = next(iter(self.claims), None)
         actor_note = (
             f" — now acting as {self._character_name(self.current_actor)}"
-            if self.current_actor else " — no current actor"
+            if self.current_actor
+            else " — no current actor"
         )
         print(f"released {display_name}{actor_note}")
 
@@ -2766,19 +2726,14 @@ class CLIState:
         name, appearance = parsed
         if not arg.strip():
             if self.one_shot_mode:
-                print(
-                    "usage: /describe [--name \"Name\"] "
-                    "[--appearance \"Description\"]"
-                )
+                print('usage: /describe [--name "Name"] [--appearance "Description"]')
                 return
             try:
                 name = (
                     await self.console.prompt("name (blank to keep existing): ")
                 ).strip()
                 appearance = (
-                    await self.console.prompt(
-                        "appearance (blank to keep existing): "
-                    )
+                    await self.console.prompt("appearance (blank to keep existing): ")
                 ).strip()
             except (EOFError, KeyboardInterrupt):
                 print("\n(cancelled)")
@@ -2788,8 +2743,10 @@ class CLIState:
             return
         try:
             await self.engine.set_character_identity(
-                self.session_id, self.current_actor,
-                name=name or None, appearance=appearance or None,
+                self.session_id,
+                self.current_actor,
+                name=name or None,
+                appearance=appearance or None,
             )
         except Exception as e:
             print(f"error: {e}")
@@ -2837,10 +2794,7 @@ class CLIState:
             return
         parts = arg.split(maxsplit=1) if arg.strip() else []
         if not parts:
-            print(
-                "usage: /combat "
-                "[begin|status|next|end|damage|heal|add|remove] ..."
-            )
+            print("usage: /combat [begin|status|next|end|damage|heal|add|remove] ...")
             return
         sub = parts[0].lower()
         rest = parts[1] if len(parts) > 1 else ""
@@ -3004,7 +2958,8 @@ class CLIState:
             )
             if not prompts:
                 joined_prompts = [
-                    p for p in self._joined_pending_roll_prompts()
+                    p
+                    for p in self._joined_pending_roll_prompts()
                     if p.actor_id != self.current_actor
                 ]
                 if joined_prompts:
@@ -3126,8 +3081,7 @@ class CLIState:
 
         if not arg.strip():
             print(
-                f"available turns: {turns[0]}..{turns[-1]} "
-                f"({len(turns)} checkpoints)"
+                f"available turns: {turns[0]}..{turns[-1]} ({len(turns)} checkpoints)"
             )
             print(f"current latest: turn {turns[-1]}")
             print("usage: /rewind <N>  (where N < latest)")
@@ -3153,9 +3107,7 @@ class CLIState:
         print("This permanently deletes the listed checkpoints. There is no undo.")
         expected = f"rewind {preview.target_turn}"
         try:
-            confirmation = await self.console.prompt(
-                f"Type {expected!r} to confirm: "
-            )
+            confirmation = await self.console.prompt(f"Type {expected!r} to confirm: ")
         except (EOFError, KeyboardInterrupt):
             print()
             print("rewind cancelled; nothing was deleted")
@@ -3166,7 +3118,8 @@ class CLIState:
 
         try:
             result = await self.engine.rewind_session(
-                self.session_id, target,
+                self.session_id,
+                target,
             )
         except (ValueError, FileNotFoundError) as e:
             print(f"error: {e}")
@@ -3367,9 +3320,7 @@ class CLIState:
             response,
         ]
         for item in responses:
-            visual_renders = (
-                getattr(item, "per_player_visual_novel_renders", {}) or {}
-            )
+            visual_renders = getattr(item, "per_player_visual_novel_renders", {}) or {}
             renders = {
                 cid: render
                 for cid, render in visual_renders.items()
@@ -3409,11 +3360,9 @@ class CLIState:
         # Print pre-turn resolutions first so in-CLI ordering matches
         # story time. These can come from stale Cat II closure or from
         # resumed automated combat after a rewind.
-        for pre_resp in (response.pre_turn_resolutions or []):
+        for pre_resp in response.pre_turn_resolutions or []:
             _print_dice_roll_displays(getattr(pre_resp, "dice_rolls", []) or [])
-            _print_experience_awards(
-                getattr(pre_resp, "experience_awards", []) or []
-            )
+            _print_experience_awards(getattr(pre_resp, "experience_awards", []) or [])
             for cid, prose in (pre_resp.per_player_renders or {}).items():
                 if not prose or cid not in self._pov_claims():
                     continue
@@ -3447,7 +3396,9 @@ class CLIState:
                     f"{actor_name} (partial) ---"
                 )
                 await self._print_story_render(
-                    response, actor_id, actor_render,
+                    response,
+                    actor_id,
+                    actor_render,
                 )
             print()
         elif response.beat_ended_reason == "combat_start_blocked":
@@ -3459,8 +3410,7 @@ class CLIState:
             )
             print()
             print(
-                f"--- Story update {response.turn_index} · viewed as "
-                f"{actor_name} ---"
+                f"--- Story update {response.turn_index} · viewed as {actor_name} ---"
             )
             await self._print_story_render(
                 response,
@@ -3471,8 +3421,7 @@ class CLIState:
         else:
             print()
             print(
-                f"--- Story update {response.turn_index} · viewed as "
-                f"{actor_name} ---"
+                f"--- Story update {response.turn_index} · viewed as {actor_name} ---"
             )
             await self._print_story_render(
                 response,
@@ -3490,10 +3439,7 @@ class CLIState:
         for cid, prose in per_player.items():
             if cid == actor_id or not prose or cid not in joined:
                 continue
-            print(
-                "--- Same story update · viewed as "
-                f"{self._character_name(cid)} ---"
-            )
+            print(f"--- Same story update · viewed as {self._character_name(cid)} ---")
             await self._print_story_render(response, cid, prose)
             print()
 
@@ -3514,9 +3460,7 @@ class CLIState:
         character_id: str,
         prose_fallback: str,
     ) -> None:
-        visual_renders = (
-            getattr(response, "per_player_visual_novel_renders", {}) or {}
-        )
+        visual_renders = getattr(response, "per_player_visual_novel_renders", {}) or {}
         visual_render = visual_renders.get(character_id)
         if visual_render is None:
             print(prose_fallback)
@@ -3524,6 +3468,7 @@ class CLIState:
         try:
             deck = await self.engine.prepare_visual_novel_deck(
                 session_id=self.session_id,
+                checkpoint_id=response.checkpoint_id,
                 pov_character_id=character_id,
                 render=visual_render,
             )
@@ -3570,11 +3515,14 @@ class CLIState:
                     return
                 continue
             command = (
-                await self.console.prompt(
-                    f"[page {index + 1}/{len(deck.cards)} · "
-                    "Enter/next, p, t, q] "
+                (
+                    await self.console.prompt(
+                        f"[page {index + 1}/{len(deck.cards)} · Enter/next, p, t, q] "
+                    )
                 )
-            ).strip().lower()
+                .strip()
+                .lower()
+            )
             if command in {"q", "quit", "done"}:
                 return
             if command in {"t", "transcript"}:
@@ -3595,10 +3543,8 @@ class CLIState:
         instructions: str,
     ) -> bool:
         if (
-            str(getattr(job.request, "session_id", "") or "")
-            != self.session_id
-            or str(getattr(delivery, "session_id", "") or "")
-            != self.session_id
+            str(getattr(job.request, "session_id", "") or "") != self.session_id
+            or str(getattr(delivery, "session_id", "") or "") != self.session_id
         ):
             return False
         actor_id = str(delivery.pov_character_id or "")
@@ -3610,8 +3556,7 @@ class CLIState:
                 session_id=self.session_id,
                 pov_character_id=actor_id,
                 cache_root=(
-                    self.engine.image_generation.config.runtime_root
-                    / "cli_cache"
+                    self.engine.image_generation.config.runtime_root / "cli_cache"
                 ),
             )
             title = str(getattr(job.request, "title", "") or "AI Illustration")
@@ -3692,8 +3637,7 @@ class CLIState:
                 )
                 return
             print(
-                f"(beat paused — waiting on {label}. Type their response "
-                "to continue.)"
+                f"(beat paused — waiting on {label}. Type their response to continue.)"
             )
             return
 
@@ -3723,7 +3667,8 @@ class CLIState:
             parts.append(f"Initiative: {initiative}.")
         current = next(
             (
-                participant for participant in view.participants
+                participant
+                for participant in view.participants
                 if (
                     participant.current
                     or participant.character_id == view.current_participant_id
@@ -3763,7 +3708,9 @@ class CLIState:
                 if str(getattr(offer, "offer_id", "") or "") not in wanted:
                     continue
                 label = getattr(offer, "source_label", "") or getattr(
-                    offer, "source_kind", "loot",
+                    offer,
+                    "source_kind",
+                    "loot",
                 )
                 print(f"offer {index}: {label}")
                 shown += 1
@@ -3810,9 +3757,7 @@ class CLIState:
             slot = ckpt.session.active_act_slots.get(cid)
             if slot is None or slot.reason != "combat_reaction":
                 continue
-            open_slots.append(
-                (cid, slot.trigger_event_id or slot.cat_ii_event_id)
-            )
+            open_slots.append((cid, slot.trigger_event_id or slot.cat_ii_event_id))
         if not open_slots:
             return
         print("reactions:")
@@ -3905,11 +3850,7 @@ def _format_missing_llm_credentials(
 def _stored_session_ids(sessions_dir: Path = Path("app/storage/sessions")) -> list[str]:
     if not sessions_dir.exists():
         return []
-    return sorted(
-        path.name
-        for path in sessions_dir.iterdir()
-        if path.is_dir()
-    )
+    return sorted(path.name for path in sessions_dir.iterdir() if path.is_dir())
 
 
 @contextlib.contextmanager
@@ -3954,8 +3895,13 @@ def _command_requires_session_lock(line: str) -> bool:
     command = parts[0].lower() if parts else ""
     arguments = [part.lower() for part in parts[1:]]
     if command in {
-        "help", "status", "history", "characters", "character",
-        "sheet", "inventory",
+        "help",
+        "status",
+        "history",
+        "characters",
+        "character",
+        "sheet",
+        "inventory",
     }:
         return False
     if command == "story":
@@ -3966,8 +3912,7 @@ def _command_requires_session_lock(line: str) -> bool:
         return not arguments or arguments[0] != "status"
     if command == "loot":
         return bool(
-            arguments
-            and arguments[0] in {"all", "take", "split-coins", "decline"}
+            arguments and arguments[0] in {"all", "take", "split-coins", "decline"}
         )
     if command == "settings":
         return len(arguments) > 1
@@ -4003,7 +3948,8 @@ async def run_oneshot_commands(
     needs_lock = any(_command_requires_session_lock(command) for command in commands)
     lock_context = (
         _session_command_lock(sessions_dir, session_id)
-        if needs_lock else contextlib.nullcontext()
+        if needs_lock
+        else contextlib.nullcontext()
     )
     with lock_context:
         state.refresh_from_checkpoint()
@@ -4015,8 +3961,7 @@ async def run_oneshot_commands(
                 return 2
             if resolved_actor not in state.claims:
                 bound_names = [
-                    state._character_name(character_id)
-                    for character_id in state.claims
+                    state._character_name(character_id) for character_id in state.claims
                 ]
                 print(
                     f"--as {act_as}: not bound in session '{session_id}'. "
@@ -4028,8 +3973,7 @@ async def run_oneshot_commands(
             state.pov_filter = resolved_actor
         elif len(state.claims) > 1:
             print(
-                "--as is required because this session has multiple claimed "
-                "seats.",
+                "--as is required because this session has multiple claimed seats.",
                 file=sys.stderr,
             )
             return 2
@@ -4057,9 +4001,10 @@ def _prepare_session_story(
             story_id = ckpt.session.story_id or ""
             resumed_existing = True
             if announce:
-                print(f"resumed session `{session_id}`" + (
-                    f" · story `{story_id}`" if story_id else " (no story loaded)"
-                ))
+                print(
+                    f"resumed session `{session_id}`"
+                    + (f" · story `{story_id}`" if story_id else " (no story loaded)")
+                )
         except FileNotFoundError:
             engine.create_empty_session(session_id)
             if announce:
@@ -4085,9 +4030,7 @@ def _prepare_session_story(
                 engine.load_story_into_session(session_id, selected_story)
                 story_id = selected_story
                 if announce:
-                    print(
-                        f"loaded story `{story_id}` into session `{session_id}`"
-                    )
+                    print(f"loaded story `{story_id}` into session `{session_id}`")
         return story_id, resumed_existing
 
 
@@ -4108,9 +4051,7 @@ async def main_async(args: argparse.Namespace) -> int:
         return 2
 
     llm_config = LLMConfig.from_env()
-    missing_credentials = llm_config.missing_credentials(
-        live_play_required_roles()
-    )
+    missing_credentials = llm_config.missing_credentials(live_play_required_roles())
     if missing_credentials:
         print(_format_missing_llm_credentials(missing_credentials), file=sys.stderr)
         return 2
@@ -4163,8 +4104,7 @@ async def main_async(args: argparse.Namespace) -> int:
                 return 2
             if resolved_actor not in state.claims:
                 bound_names = [
-                    state._character_name(character_id)
-                    for character_id in state.claims
+                    state._character_name(character_id) for character_id in state.claims
                 ]
                 print(
                     f"--as {args.act_as}: not bound in session "
@@ -4222,7 +4162,7 @@ def main() -> None:
     parser.add_argument(
         "--session",
         help="Session name (directory under sessions/). Created empty if "
-             "new, resumed if existing.",
+        "new, resumed if existing.",
     )
     parser.add_argument(
         "--story",
@@ -4233,7 +4173,9 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "-v", "--verbose", action="store_true",
+        "-v",
+        "--verbose",
+        action="store_true",
         help="Log engine INFO and WARNING messages to stderr.",
     )
     parser.add_argument(
@@ -4241,7 +4183,7 @@ def main() -> None:
         dest="act_as",
         metavar="CHARACTER_ID",
         help="Act as an already-bound character. Sets the default actor for "
-             "--command mode and for the interactive REPL.",
+        "--command mode and for the interactive REPL.",
     )
     parser.add_argument(
         "--command",
@@ -4249,9 +4191,9 @@ def main() -> None:
         dest="commands",
         metavar="LINE",
         help="Run one REPL command line non-interactively, then exit. "
-             "Repeatable; lines run in order. A line without a leading '/' is "
-             "an in-character action. Enables separate-terminal multiplayer: "
-             "each terminal/agent drives one bound character per invocation.",
+        "Repeatable; lines run in order. A line without a leading '/' is "
+        "an in-character action. Enables separate-terminal multiplayer: "
+        "each terminal/agent drives one bound character per invocation.",
     )
     parser.add_argument(
         "--show-image-cache-paths",

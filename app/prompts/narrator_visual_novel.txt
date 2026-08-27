@@ -34,11 +34,12 @@ Page contract:
 - Keep each page focused on one readable semantic beat. End every authored page after a complete sentence or short utterance; never split one sentence between pages. Create additional pages only at sentence, utterance, speaker, or action boundaries rather than by counting characters or crowding unrelated beats together.
 - Preserve the visible sequence exactly. Do not group lines by speaker if that changes their order.
 - Do not add menu options, numbered choices, status text, page numbers, stage directions, or interface labels.
+- Preserve the established kind of an interface display. An authorized inspection, record, or readout is not a preview, confirmation screen, queue status, or new operation unless the visible details call it that.
 
 Sprite cue contract:
 - `sprites` is presentation metadata, not narration, and describes the complete character foreground for that page. Select zero, one, or two characters only from the supplied sprite roster.
 - When a dialogue speaker is in the supplied roster, copy that exact roster label into `speaker` and put the same character first in `sprites`; put at most one directly present interlocutor second. If the speaker is not in the supplied roster, use a short established player-safe label and leave `sprites` empty for that page. During adjacent pages of the same exchange, keep rostered central participants displayed while they remain present; do not make them vanish between a spoken line and its immediately surrounding visible action.
-- On a narration page, include the one or two roster characters whose visible action is central to that page. Use an empty list only when no roster character belongs in the foreground.
+- On a narration page, include the one or two roster characters whose visible presence, framing, or action is central to that page. If the visible result explicitly frames or centers roster characters in the viewpoint's camera or view, those characters are the foreground even when they stand still. Use an empty list only for a page with no roster character in the foreground.
 - Choose an expression only when the authoritative visible result directly supports it: `happy`, `concerned`, `tense`, `skeptical`, `angry`, `sad`, or `surprised`. Use `neutral` when the visible evidence is ambiguous or merely conversational.
 - A pose-expression cue must not add a gesture, emotional state, reaction, or relationship that the visible result did not establish. Omit a character rather than guessing.
 - During an exchange, prefer the current speaker and one directly present interlocutor when both matter. Do not crowd a page with bystanders.

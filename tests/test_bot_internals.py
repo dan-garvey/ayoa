@@ -127,12 +127,22 @@ class TestNumberedReferenceHelpers:
     def test_numbered_ref_resolves_index_or_raw_id(self):
         choices = ["alpha", "beta"]
 
-        assert bot_commands._resolve_numbered_ref(
-            "2", choices, label="story",
-        ) == "beta"
-        assert bot_commands._resolve_numbered_ref(
-            "alpha", choices, label="story",
-        ) == "alpha"
+        assert (
+            bot_commands._resolve_numbered_ref(
+                "2",
+                choices,
+                label="story",
+            )
+            == "beta"
+        )
+        assert (
+            bot_commands._resolve_numbered_ref(
+                "alpha",
+                choices,
+                label="story",
+            )
+            == "alpha"
+        )
         with pytest.raises(ValueError, match="numbered 3"):
             bot_commands._resolve_numbered_ref("3", choices, label="story")
 
@@ -246,28 +256,34 @@ class TestEngineBridgeVisualNovelPresentation:
             session=SessionState(session_id="session"),
             world_state=WorldState(setting=StorySetting()),
         )
-        mock_bridge.load_latest = MagicMock(return_value=checkpoint)
-        mock_bridge.image_generation.ensure_visual_novel_sprite_prewarm = (
-            AsyncMock(side_effect=RuntimeError("candidate generation failed"))
+        mock_bridge.load_checkpoint = MagicMock(return_value=checkpoint)
+        mock_bridge.image_generation.ensure_visual_novel_sprite_prewarm = AsyncMock(
+            side_effect=RuntimeError("candidate generation failed")
         )
-        render = VisualNovelRender(segments=[
-            VisualNovelRenderSegment(
-                pages=[VisualNovelPage(
-                    kind="dialogue",
-                    speaker="Iselle",
-                    text=" ".join(["Stay on the first stage."] * 45),
-                )],
-                rendered_event_ids=["evt_first", "evt_shared"],
-            ),
-            VisualNovelRenderSegment(
-                pages=[VisualNovelPage(
-                    kind="dialogue",
-                    speaker="Wren",
-                    text="Now the scene has changed.",
-                )],
-                rendered_event_ids=["evt_shared", "evt_second"],
-            ),
-        ])
+        render = VisualNovelRender(
+            segments=[
+                VisualNovelRenderSegment(
+                    pages=[
+                        VisualNovelPage(
+                            kind="dialogue",
+                            speaker="Iselle",
+                            text=" ".join(["Stay on the first stage."] * 45),
+                        )
+                    ],
+                    rendered_event_ids=["evt_first", "evt_shared"],
+                ),
+                VisualNovelRenderSegment(
+                    pages=[
+                        VisualNovelPage(
+                            kind="dialogue",
+                            speaker="Wren",
+                            text="Now the scene has changed.",
+                        )
+                    ],
+                    rendered_event_ids=["evt_shared", "evt_second"],
+                ),
+            ]
+        )
         mock_bridge.image_sidecar.wait_for_stage_discovery = AsyncMock()
         mock_bridge.image_generation.wait_for_render_images = AsyncMock(
             return_value=True
@@ -293,16 +309,23 @@ class TestEngineBridgeVisualNovelPresentation:
             ]
         )
 
-        deck = asyncio.run(mock_bridge.prepare_visual_novel_deck(
-            session_id="session",
-            pov_character_id="alice",
-            render=render,
-        ))
+        deck = asyncio.run(
+            mock_bridge.prepare_visual_novel_deck(
+                session_id="session",
+                checkpoint_id="ckpt_0007",
+                pov_character_id="alice",
+                render=render,
+            )
+        )
 
-        mock_bridge.load_latest.assert_called_once_with("session")
+        mock_bridge.load_checkpoint.assert_called_once_with(
+            "session",
+            "ckpt_0007",
+        )
         (
-            mock_bridge.image_generation.ensure_visual_novel_sprite_prewarm
-            .assert_awaited_once_with(checkpoint)
+            mock_bridge.image_generation.ensure_visual_novel_sprite_prewarm.assert_awaited_once_with(
+                checkpoint
+            )
         )
         mock_bridge.image_sidecar.wait_for_stage_discovery.assert_awaited_once_with(
             "session"
@@ -316,24 +339,19 @@ class TestEngineBridgeVisualNovelPresentation:
         assert [
             invocation.kwargs["rendered_event_ids"]
             for invocation in (
-                mock_bridge.image_generation.resolve_visual_novel_stage
-                .call_args_list
+                mock_bridge.image_generation.resolve_visual_novel_stage.call_args_list
             )
         ] == [
             ["evt_first", "evt_shared"],
             ["evt_shared", "evt_second"],
         ]
-        iselle_cards = [
-            card for card in deck.cards if card.speaker == "Iselle"
-        ]
+        iselle_cards = [card for card in deck.cards if card.speaker == "Iselle"]
         wren_cards = [card for card in deck.cards if card.speaker == "Wren"]
         assert len(iselle_cards) > 1
         assert len(wren_cards) == 1
         for card in iselle_cards:
             with Image.open(card.image_path) as image:
-                assert image.convert("RGB").getpixel((5, 5)) == (
-                    221, 37, 73
-                )
+                assert image.convert("RGB").getpixel((5, 5)) == (221, 37, 73)
         with Image.open(wren_cards[0].image_path) as image:
             assert image.convert("RGB").getpixel((5, 5)) == (17, 199, 101)
 
@@ -350,11 +368,13 @@ class TestEngineBridgeQuery:
         )
         mock_bridge.run_turn = AsyncMock(return_value=response)
 
-        result = asyncio.run(mock_bridge.run_query(
-            session_id="s",
-            character_id="alice",
-            question=" what does Pip look like? ",
-        ))
+        result = asyncio.run(
+            mock_bridge.run_query(
+                session_id="s",
+                character_id="alice",
+                question=" what does Pip look like? ",
+            )
+        )
 
         mock_bridge.run_turn.assert_awaited_once_with(
             session_id="s",
@@ -366,7 +386,8 @@ class TestEngineBridgeQuery:
 
 class TestEngineBridgeRetry:
     def test_retry_failed_render_resumes_without_submitting_new_act(
-        self, mock_bridge: EngineBridge,
+        self,
+        mock_bridge: EngineBridge,
     ):
         ckpt = CheckpointFile(
             session=SessionState(
@@ -398,9 +419,7 @@ class TestEngineBridgeRetry:
         )
         mock_bridge.orchestrator.process_turn = AsyncMock()
 
-        result = asyncio.run(
-            mock_bridge.retry_failed_render(session_id="session")
-        )
+        result = asyncio.run(mock_bridge.retry_failed_render(session_id="session"))
 
         assert result.response is response
         assert result.actor_character_id == "alice"
@@ -411,7 +430,8 @@ class TestEngineBridgeRetry:
         retry.assert_awaited_once_with("session")
 
     def test_retry_failed_render_noops_when_no_pending_render(
-        self, mock_bridge: EngineBridge,
+        self,
+        mock_bridge: EngineBridge,
     ):
         ckpt = CheckpointFile(
             session=SessionState(session_id="session", turn_index=3),
@@ -422,9 +442,7 @@ class TestEngineBridgeRetry:
         mock_bridge.orchestrator.retry_pending_narrator_render = AsyncMock()
         mock_bridge.orchestrator.process_turn = AsyncMock()
 
-        result = asyncio.run(
-            mock_bridge.retry_failed_render(session_id="session")
-        )
+        result = asyncio.run(mock_bridge.retry_failed_render(session_id="session"))
 
         assert result.actor_character_id == ""
         assert result.actor_user_id == ""
@@ -480,7 +498,9 @@ class TestRetryCommandDelivery:
             captured.update(kwargs)
 
         monkeypatch.setattr(
-            bot_commands, "_deliver_turn_response_to_povs", _fake_deliver,
+            bot_commands,
+            "_deliver_turn_response_to_povs",
+            _fake_deliver,
         )
 
         tree = FakeTree()
@@ -545,7 +565,9 @@ class TestRetryCommandDelivery:
         )
         deliver = AsyncMock()
         monkeypatch.setattr(
-            bot_commands, "_deliver_turn_response_to_povs", deliver,
+            bot_commands,
+            "_deliver_turn_response_to_povs",
+            deliver,
         )
 
         tree = FakeTree()
@@ -599,40 +621,44 @@ class TestLootRouterSync:
                 ),
             ],
         )
-        ckpt.session.dnd_inventory_offers.append(DndLootOffer(
-            offer_id="loot_evt_chest",
-            source_event_id="evt_chest",
-            source_kind="container",
-            source_label="iron chest",
-            eligible_character_ids=["alice"],
-            items=[
-                {
-                    "item_id": "healing_potion",
-                    "name": "Potion of Healing",
-                    "kind": "consumable",
-                    "quantity": 1,
-                    "identified": True,
-                    "requires_identification": False,
-                    "requires_attunement": False,
-                    "consumable": True,
-                    "value_gp": 50,
-                    "weight": 0.5,
-                    "notes": "",
-                },
-            ],
-            currency={"sp": 8},
-        ))
+        ckpt.session.dnd_inventory_offers.append(
+            DndLootOffer(
+                offer_id="loot_evt_chest",
+                source_event_id="evt_chest",
+                source_kind="container",
+                source_label="iron chest",
+                eligible_character_ids=["alice"],
+                items=[
+                    {
+                        "item_id": "healing_potion",
+                        "name": "Potion of Healing",
+                        "kind": "consumable",
+                        "quantity": 1,
+                        "identified": True,
+                        "requires_identification": False,
+                        "requires_attunement": False,
+                        "consumable": True,
+                        "value_gp": 50,
+                        "weight": 0.5,
+                        "notes": "",
+                    },
+                ],
+                currency={"sp": 8},
+            )
+        )
         mock_bridge.checkpoint_mgr.save(ckpt)
 
-        result = asyncio.run(mock_bridge.claim_loot(
-            session_id="loot_sync",
-            user_id=42,
-            character_id="alice",
-            offer_id="loot_evt_chest",
-            item_ids=[],
-            take_currency=True,
-            take_all_available=True,
-        ))
+        result = asyncio.run(
+            mock_bridge.claim_loot(
+                session_id="loot_sync",
+                user_id=42,
+                character_id="alice",
+                offer_id="loot_evt_chest",
+                item_ids=[],
+                take_currency=True,
+                take_all_available=True,
+            )
+        )
 
         assert result.message.startswith("Claimed Potion of Healing.")
         reloaded = mock_bridge.load_latest("loot_sync")
@@ -661,22 +687,26 @@ class TestLootRouterSync:
                 ),
             ],
         )
-        ckpt.session.dnd_inventory_offers.append(DndLootOffer(
-            offer_id="loot_evt_chest",
-            source_event_id="evt_chest",
-            source_kind="container",
-            source_label="iron chest",
-            eligible_character_ids=["alice"],
-            currency={"sp": 8},
-        ))
+        ckpt.session.dnd_inventory_offers.append(
+            DndLootOffer(
+                offer_id="loot_evt_chest",
+                source_event_id="evt_chest",
+                source_kind="container",
+                source_label="iron chest",
+                eligible_character_ids=["alice"],
+                currency={"sp": 8},
+            )
+        )
         mock_bridge.checkpoint_mgr.save(ckpt)
 
-        result = asyncio.run(mock_bridge.decline_loot(
-            session_id="loot_decline",
-            user_id=42,
-            character_id="alice",
-            offer_id="loot_evt_chest",
-        ))
+        result = asyncio.run(
+            mock_bridge.decline_loot(
+                session_id="loot_decline",
+                user_id=42,
+                character_id="alice",
+                offer_id="loot_evt_chest",
+            )
+        )
 
         assert result.message.startswith("Declined the loot offer")
         reloaded = mock_bridge.load_latest("loot_decline")
@@ -759,7 +789,9 @@ class TestQueryCommandDelivery:
             captured.update(kwargs)
 
         monkeypatch.setattr(
-            bot_commands, "_deliver_turn_response_to_povs", _fake_deliver,
+            bot_commands,
+            "_deliver_turn_response_to_povs",
+            _fake_deliver,
         )
 
         tree = FakeTree()
@@ -869,9 +901,11 @@ class TestQueryCommandDelivery:
         engine = MagicMock()
         engine.list_session_ids.return_value = ["s"]
         engine.load_latest.return_value = ckpt
-        engine.turn_history.return_value = [SimpleNamespace(
-            entry=SimpleNamespace(assistant="Alice's private history."),
-        )]
+        engine.turn_history.return_value = [
+            SimpleNamespace(
+                entry=SimpleNamespace(assistant="Alice's private history."),
+            )
+        ]
         smap = MagicMock()
         smap.get = AsyncMock(return_value=None)
         smap.upsert = AsyncMock()
@@ -890,6 +924,7 @@ class TestQueryCommandDelivery:
         content = inter.response.send_message.await_args.args[0]
         assert "Alice's private history" in content
         assert inter.response.send_message.await_args.kwargs["ephemeral"] is True
+
 
 class TestXpAwardCommandPermissions:
     def test_session_owner_cannot_award_xp_without_admin_env(self, monkeypatch):
@@ -971,10 +1006,12 @@ class TestOneStarMasterCommands:
             "HP 17/53",
         )
         smap = MagicMock()
-        smap.get = AsyncMock(return_value=SimpleNamespace(
-            session_id="s",
-            story_id="one_star",
-        ))
+        smap.get = AsyncMock(
+            return_value=SimpleNamespace(
+                session_id="s",
+                story_id="one_star",
+            )
+        )
         tree = FakeTree()
         bot_commands.register(tree, engine, smap, None)
         master = tree.groups["master"]
@@ -1013,9 +1050,7 @@ class TestOneStarMasterCommands:
             per_player_renders={"owner": "The selection opens."},
             beat_ended_reason="cat_ii_pending",
         )
-        engine.run_one_star_synthesis_command = AsyncMock(
-            return_value=response
-        )
+        engine.run_one_star_synthesis_command = AsyncMock(return_value=response)
         deliver = AsyncMock()
         monkeypatch.setattr(
             bot_commands,
@@ -1031,11 +1066,13 @@ class TestOneStarMasterCommands:
         synthesis_inter.response.defer = AsyncMock()
         synthesis_inter.followup.send = AsyncMock()
 
-        asyncio.run(synthesis_command.callback(
-            synthesis_inter,
-            "Tired Baker",
-            "Edric, Pip the Younger",
-        ))
+        asyncio.run(
+            synthesis_command.callback(
+                synthesis_inter,
+                "Tired Baker",
+                "Edric, Pip the Younger",
+            )
+        )
 
         engine.run_one_star_synthesis_command.assert_awaited_once_with(
             "s",
@@ -1086,23 +1123,29 @@ class TestTurnResponseDelivery:
         clear = AsyncMock()
         public_fallback = AsyncMock()
         monkeypatch.setattr(
-            bot_commands, "_post_actor_render", _fake_post_actor_render,
+            bot_commands,
+            "_post_actor_render",
+            _fake_post_actor_render,
         )
         monkeypatch.setattr(bot_commands, "_clear_interaction_response", clear)
         monkeypatch.setattr(
-            bot_commands, "_send_public_turn_render", public_fallback,
+            bot_commands,
+            "_send_public_turn_render",
+            public_fallback,
         )
 
-        asyncio.run(bot_commands._deliver_turn_response_to_povs(
-            inter=inter,
-            smap=smap,
-            engine=engine,
-            session_id="s",
-            story_id="story",
-            actor_character_id="alice",
-            actor_user=inter.user,
-            response=response,
-        ))
+        asyncio.run(
+            bot_commands._deliver_turn_response_to_povs(
+                inter=inter,
+                smap=smap,
+                engine=engine,
+                session_id="s",
+                story_id="story",
+                actor_character_id="alice",
+                actor_user=inter.user,
+                response=response,
+            )
+        )
 
         assert captured["character_id"] == "alice"
         assert captured["char_name"] == "Alice"
@@ -1114,7 +1157,8 @@ class TestTurnResponseDelivery:
         inter.followup.send.assert_not_awaited()
 
     def test_actor_private_delivery_failure_never_publishes_prose(
-        self, monkeypatch,
+        self,
+        monkeypatch,
     ):
         response = TurnResponse(
             session_id="s",
@@ -1145,16 +1189,18 @@ class TestTurnResponseDelivery:
             public_render,
         )
 
-        asyncio.run(bot_commands._deliver_turn_response_to_povs(
-            inter=inter,
-            smap=MagicMock(),
-            engine=engine,
-            session_id="s",
-            story_id="story",
-            actor_character_id="alice",
-            actor_user=inter.user,
-            response=response,
-        ))
+        asyncio.run(
+            bot_commands._deliver_turn_response_to_povs(
+                inter=inter,
+                smap=MagicMock(),
+                engine=engine,
+                session_id="s",
+                story_id="story",
+                actor_character_id="alice",
+                actor_user=inter.user,
+                response=response,
+            )
+        )
 
         public_render.assert_not_awaited()
         inter.followup.send.assert_awaited_once()
@@ -1164,7 +1210,8 @@ class TestTurnResponseDelivery:
         assert kwargs["ephemeral"] is True
 
     def test_begin_private_delivery_failure_remains_fail_closed(
-        self, monkeypatch,
+        self,
+        monkeypatch,
     ):
         class FakeTree:
             def __init__(self):
@@ -1201,10 +1248,12 @@ class TestTurnResponseDelivery:
             session=SimpleNamespace(character_bindings={"alice": "42"}),
         )
         smap = MagicMock()
-        smap.get = AsyncMock(return_value=SimpleNamespace(
-            session_id="s",
-            story_id="story",
-        ))
+        smap.get = AsyncMock(
+            return_value=SimpleNamespace(
+                session_id="s",
+                story_id="story",
+            )
+        )
         tree = FakeTree()
         bot_commands.register(tree, engine, smap, None)
         inter = MagicMock()
@@ -1234,7 +1283,8 @@ class TestTurnResponseDelivery:
         assert all("Alice's private opening" not in text for text in followups)
 
     def test_actor_asset_failure_does_not_trigger_public_render(
-        self, monkeypatch,
+        self,
+        monkeypatch,
     ):
         response = TurnResponse(
             session_id="s",
@@ -1273,34 +1323,40 @@ class TestTurnResponseDelivery:
             events.append("assets")
             assert kwargs["user_id"] == 42
             assert kwargs["character_id"] == "alice"
-            assert kwargs["asset_reveals"] == response.per_player_asset_reveals[
-                "alice"
-            ]
+            assert kwargs["asset_reveals"] == response.per_player_asset_reveals["alice"]
             return False
 
         clear = AsyncMock()
         public_fallback = AsyncMock()
         monkeypatch.setattr(
-            bot_commands, "_post_actor_render", _fake_post_actor_render,
+            bot_commands,
+            "_post_actor_render",
+            _fake_post_actor_render,
         )
         monkeypatch.setattr(
-            bot_commands, "_post_assets_to_pov", _fake_post_assets_to_pov,
+            bot_commands,
+            "_post_assets_to_pov",
+            _fake_post_assets_to_pov,
         )
         monkeypatch.setattr(bot_commands, "_clear_interaction_response", clear)
         monkeypatch.setattr(
-            bot_commands, "_send_public_turn_render", public_fallback,
+            bot_commands,
+            "_send_public_turn_render",
+            public_fallback,
         )
 
-        asyncio.run(bot_commands._deliver_turn_response_to_povs(
-            inter=inter,
-            smap=smap,
-            engine=engine,
-            session_id="s",
-            story_id="story",
-            actor_character_id="alice",
-            actor_user=inter.user,
-            response=response,
-        ))
+        asyncio.run(
+            bot_commands._deliver_turn_response_to_povs(
+                inter=inter,
+                smap=smap,
+                engine=engine,
+                session_id="s",
+                story_id="story",
+                actor_character_id="alice",
+                actor_user=inter.user,
+                response=response,
+            )
+        )
 
         assert events == ["render", "assets"]
         clear.assert_awaited_once_with(inter)
@@ -1362,25 +1418,33 @@ class TestTurnResponseDelivery:
             return ("thread", thread)
 
         monkeypatch.setattr(
-            bot_commands, "_post_roll_displays_to_pov", _fake_rolls,
+            bot_commands,
+            "_post_roll_displays_to_pov",
+            _fake_rolls,
         )
         monkeypatch.setattr(
-            bot_commands, "_post_actor_render", _fake_post_actor_render,
+            bot_commands,
+            "_post_actor_render",
+            _fake_post_actor_render,
         )
         monkeypatch.setattr(
-            bot_commands, "_clear_interaction_response", AsyncMock(),
+            bot_commands,
+            "_clear_interaction_response",
+            AsyncMock(),
         )
 
-        asyncio.run(bot_commands._deliver_turn_response_to_povs(
-            inter=inter,
-            smap=smap,
-            engine=engine,
-            session_id="s",
-            story_id="story",
-            actor_character_id="alice",
-            actor_user=inter.user,
-            response=response,
-        ))
+        asyncio.run(
+            bot_commands._deliver_turn_response_to_povs(
+                inter=inter,
+                smap=smap,
+                engine=engine,
+                session_id="s",
+                story_id="story",
+                actor_character_id="alice",
+                actor_user=inter.user,
+                response=response,
+            )
+        )
 
         assert events == ["rolls", "render"]
 
@@ -1419,22 +1483,28 @@ class TestTurnResponseDelivery:
             return ("thread", thread)
 
         monkeypatch.setattr(
-            bot_commands, "_post_actor_render", _fake_post_actor_render,
+            bot_commands,
+            "_post_actor_render",
+            _fake_post_actor_render,
         )
         monkeypatch.setattr(
-            bot_commands, "_clear_interaction_response", AsyncMock(),
+            bot_commands,
+            "_clear_interaction_response",
+            AsyncMock(),
         )
 
-        asyncio.run(bot_commands._deliver_turn_response_to_povs(
-            inter=inter,
-            smap=smap,
-            engine=engine,
-            session_id="s",
-            story_id="story",
-            actor_character_id="bob",
-            actor_user=inter.user,
-            response=response,
-        ))
+        asyncio.run(
+            bot_commands._deliver_turn_response_to_povs(
+                inter=inter,
+                smap=smap,
+                engine=engine,
+                session_id="s",
+                story_id="story",
+                actor_character_id="bob",
+                actor_user=inter.user,
+                response=response,
+            )
+        )
 
         assert isinstance(captured["view"], bot_commands._CombatReactionView)
         assert captured["view"].character_id == "bob"
@@ -1475,22 +1545,28 @@ class TestTurnResponseDelivery:
             return ("thread", thread)
 
         monkeypatch.setattr(
-            bot_commands, "_post_actor_render", _fake_post_actor_render,
+            bot_commands,
+            "_post_actor_render",
+            _fake_post_actor_render,
         )
         monkeypatch.setattr(
-            bot_commands, "_clear_interaction_response", AsyncMock(),
+            bot_commands,
+            "_clear_interaction_response",
+            AsyncMock(),
         )
 
-        asyncio.run(bot_commands._deliver_turn_response_to_povs(
-            inter=inter,
-            smap=smap,
-            engine=engine,
-            session_id="s",
-            story_id="story",
-            actor_character_id="alice",
-            actor_user=inter.user,
-            response=response,
-        ))
+        asyncio.run(
+            bot_commands._deliver_turn_response_to_povs(
+                inter=inter,
+                smap=smap,
+                engine=engine,
+                session_id="s",
+                story_id="story",
+                actor_character_id="alice",
+                actor_user=inter.user,
+                response=response,
+            )
+        )
 
         assert "ongoing activity was interrupted" in captured["intro_content"]
         assert "/act (continue)" in captured["intro_content"]
@@ -1529,9 +1605,7 @@ class TestEngineBridgeSweepHook:
             initiator_intention="punch",
             required_responders=["alice"],
         )
-        evt.opened_at = (
-            datetime.now(timezone.utc) - timedelta(seconds=10)
-        ).isoformat()
+        evt.opened_at = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
         ckpt.session.open_cat_ii_events.append(evt)
 
         mock_bridge.checkpoint_mgr.save(ckpt)
@@ -1541,8 +1615,7 @@ class TestEngineBridgeSweepHook:
 
         reloaded = mock_bridge.load_latest(session_id)
         evt_live = next(
-            e for e in reloaded.session.open_cat_ii_events
-            if e.event_id == "evt_a"
+            e for e in reloaded.session.open_cat_ii_events if e.event_id == "evt_a"
         )
         assert "alice" in evt_live.swept_responders
 
@@ -1620,8 +1693,7 @@ class TestPurgeOnUnbind:
         assert "bob" not in reloaded.session.active_act_slots
         # Bob removed from the open event's required_responders.
         assert not any(
-            "bob" in e.required_responders
-            for e in reloaded.session.open_cat_ii_events
+            "bob" in e.required_responders for e in reloaded.session.open_cat_ii_events
         )
         # Render buffer swept.
         assert "bob" not in reloaded.session.render_buffers
@@ -1664,8 +1736,7 @@ class TestApplyRosterUpdatesPurgesCulled:
         mgr.apply_roster_updates(ckpt, routed)
         # Event initiated by the culled character is abandoned.
         assert not any(
-            e.initiator_id == "villain"
-            for e in ckpt.session.open_cat_ii_events
+            e.initiator_id == "villain" for e in ckpt.session.open_cat_ii_events
         )
 
 
@@ -1679,7 +1750,8 @@ class TestSweepDrivesReadjudication:
     open and every subsequent /act bounces off the pin."""
 
     def test_sweep_returns_event_ids_triggers_resolve_cat_ii(
-        self, mock_bridge,
+        self,
+        mock_bridge,
     ):
         """When sweep_stale_pins returns event ids, run_turn awaits
         orchestrator.resolve_cat_ii(session_id, event_id) for each
@@ -1714,7 +1786,8 @@ class TestSweepDrivesReadjudication:
 
         # resolve_cat_ii was awaited exactly once with the swept event id.
         mock_bridge.orchestrator.resolve_cat_ii.assert_awaited_once_with(
-            "session", "evt_x",
+            "session",
+            "evt_x",
         )
         # process_turn still ran after the re-adjudication completed;
         # the caller's /act should never be silently dropped.
@@ -1723,7 +1796,8 @@ class TestSweepDrivesReadjudication:
         assert result.beat_ended_reason == "response_requested"
 
     def test_resolve_cat_ii_failure_does_not_block_current_act(
-        self, mock_bridge,
+        self,
+        mock_bridge,
     ):
         """If resolve_cat_ii raises, the /act still proceeds — one
         wedged stale event should never permanently block the session."""
@@ -1753,7 +1827,8 @@ class TestSweepDrivesReadjudication:
         assert result.beat_ended_reason == "response_requested"
 
     def test_process_turn_pre_resolutions_are_preserved(
-        self, mock_bridge,
+        self,
+        mock_bridge,
     ):
         """Orchestrator-level pre-turn work, such as resumed NPC combat,
         must survive the bridge's stale-pin pre-turn handling."""
@@ -1818,7 +1893,8 @@ class TestRunArrivalTurnDirective:
         mock_bridge.sweep_stale_pins = MagicMock(return_value=[])
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
-                session_id="session", beat_ended_reason="response_requested",
+                session_id="session",
+                beat_ended_reason="response_requested",
             )
         )
 
@@ -1834,7 +1910,8 @@ class TestRunArrivalTurnDirective:
 
         async def run():
             return await mock_bridge.run_arrival_turn(
-                session_id="session", acting_character_id="alice",
+                session_id="session",
+                acting_character_id="alice",
             )
 
         response = asyncio.run(run())
@@ -1844,7 +1921,8 @@ class TestRunArrivalTurnDirective:
         assert response.beat_ended_reason == "response_requested"
 
     def test_session_with_prior_narrator_history_fires_arrive(
-        self, mock_bridge,
+        self,
+        mock_bridge,
     ):
         """A session whose narrator history is populated (story
         already opened) fires `(arrive)` — same as the empty case.
@@ -1857,7 +1935,8 @@ class TestRunArrivalTurnDirective:
                 "first_player": [
                     ConversationMessage(role="user", content="(begin)"),
                     ConversationMessage(
-                        role="assistant", content="The story opens…",
+                        role="assistant",
+                        content="The story opens…",
                     ),
                 ],
             },
@@ -1866,7 +1945,8 @@ class TestRunArrivalTurnDirective:
 
         async def run():
             return await mock_bridge.run_arrival_turn(
-                session_id="session", acting_character_id="alice",
+                session_id="session",
+                acting_character_id="alice",
             )
 
         asyncio.run(run())
@@ -1906,10 +1986,12 @@ class TestRunArrivalTurnDirective:
         async def run():
             return await asyncio.gather(
                 mock_bridge.run_arrival_turn(
-                    session_id="session", acting_character_id="alice",
+                    session_id="session",
+                    acting_character_id="alice",
                 ),
                 mock_bridge.run_arrival_turn(
-                    session_id="session", acting_character_id="bob",
+                    session_id="session",
+                    acting_character_id="bob",
                 ),
             )
 
@@ -1925,14 +2007,18 @@ class TestRunBeginTurn:
     on the same actor before the lock decides which one wins)."""
 
     def _seed_session(
-        self, mock_bridge, *, bindings: dict[str, str],
+        self,
+        mock_bridge,
+        *,
+        bindings: dict[str, str],
         narrator_conversations: dict | None = None,
     ):
         """Build a checkpoint with the given bindings + narrator
         history and stub load_latest to return it."""
         ckpt = CheckpointFile(
             session=SessionState(
-                session_id="session", character_bindings=bindings,
+                session_id="session",
+                character_bindings=bindings,
             ),
             world_state=WorldState(),
             narrator_conversations=narrator_conversations or {},
@@ -1946,7 +2032,8 @@ class TestRunBeginTurn:
         mock_bridge.sweep_stale_pins = MagicMock(return_value=[])
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
-                session_id="session", beat_ended_reason="state_change",
+                session_id="session",
+                beat_ended_reason="state_change",
             )
         )
 
@@ -1998,7 +2085,8 @@ class TestRunBeginTurn:
                 "alice": [
                     ConversationMessage(role="user", content="(begin)"),
                     ConversationMessage(
-                        role="assistant", content="The story opens…",
+                        role="assistant",
+                        content="The story opens…",
                     ),
                 ],
             },
@@ -2007,7 +2095,8 @@ class TestRunBeginTurn:
 
         async def run():
             return await mock_bridge.run_begin_turn(
-                session_id="session", triggering_character_id="alice",
+                session_id="session",
+                triggering_character_id="alice",
             )
 
         with pytest.raises(ValueError, match="already started"):
@@ -2015,7 +2104,8 @@ class TestRunBeginTurn:
         mock_bridge.orchestrator.process_turn.assert_not_called()
 
     def test_unbound_triggering_id_falls_back_deterministically(
-        self, mock_bridge,
+        self,
+        mock_bridge,
     ):
         """If the triggering character_id isn't actually bound (admin
         firing /begin without a binding, or the player /leave'd
@@ -2051,7 +2141,8 @@ class TestRunBeginTurn:
 
         async def run():
             return await mock_bridge.run_begin_turn(
-                session_id="session", triggering_character_id="alice",
+                session_id="session",
+                triggering_character_id="alice",
             )
 
         asyncio.run(run())
@@ -2170,6 +2261,7 @@ class TestBriefingCopy:
 
     def test_briefing_does_not_mention_describe(self):
         from app.bot.embed import render_briefing
+
         ckpt = self._ckpt_with_primer(
             "You wake up in a sun-drenched villa. You don't remember "
             "the cameras or the roses. You suspect both are imminent."
@@ -2185,6 +2277,7 @@ class TestBriefingCopy:
         """Pre-v8 / hand-built checkpoints with no primer also must not
         leak a /describe mention via the fallback copy."""
         from app.bot.embed import render_briefing
+
         ckpt = CheckpointFile(
             session=SessionState(session_id="briefing_fallback"),
             world_state=WorldState(),
@@ -2197,13 +2290,13 @@ class TestBriefingCopy:
 
     def test_briefing_title_is_discord_safe_for_long_genre(self):
         from app.bot.embed import MAX_TITLE, render_briefing
+
         ckpt = CheckpointFile(
             session=SessionState(session_id="briefing_long_title"),
             world_state=WorldState(
                 setting=StorySetting(
                     genre="Mature isekai dark fantasy with romance, "
-                    "political intrigue, and a three-layer hidden conspiracy. "
-                    * 8,
+                    "political intrigue, and a three-layer hidden conspiracy. " * 8,
                 ),
             ),
             player_primer="You wake up somewhere strange after the truck.",
@@ -2228,8 +2321,12 @@ class TestPostActorRenderCascade:
     full discord.py harness."""
 
     def _make_env(
-        self, monkeypatch, tmp_path: Path,
-        *, thread_send_behavior, dm_succeeds: bool,
+        self,
+        monkeypatch,
+        tmp_path: Path,
+        *,
+        thread_send_behavior,
+        dm_succeeds: bool,
     ):
         """Patch the two discord-touching helpers used by
         `_post_actor_render` and return (inter, user, smap, embeds,
@@ -2243,7 +2340,8 @@ class TestPostActorRenderCascade:
         from app.bot import commands as bot_commands
 
         monkeypatch.setattr(
-            bot_commands, "_session_text_channel",
+            bot_commands,
+            "_session_text_channel",
             lambda inter: object(),  # non-None sentinel
         )
 
@@ -2254,8 +2352,10 @@ class TestPostActorRenderCascade:
             thread_obj.id = 999
             thread_obj.mention = "<#999>"
             if thread_send_behavior == "ok":
+
                 async def _thread_send(*args, **kwargs):
                     captured["thread_sends"].append((args, kwargs))
+
                 thread_obj.send = AsyncMock(side_effect=_thread_send)
             elif thread_send_behavior == "raise":
                 thread_obj.send = AsyncMock(
@@ -2270,7 +2370,9 @@ class TestPostActorRenderCascade:
             return thread_obj
 
         monkeypatch.setattr(
-            bot_commands, "_ensure_pov_thread", _ensure,
+            bot_commands,
+            "_ensure_pov_thread",
+            _ensure,
         )
 
         async def _user_send(*args, **kwargs):
@@ -2293,25 +2395,36 @@ class TestPostActorRenderCascade:
         smap.record_turn_message = AsyncMock()
 
         import discord as _discord
+
         embeds = [MagicMock(spec=_discord.Embed)]
         return inter, user, smap, embeds, captured, thread_obj
 
     def test_thread_success_returns_thread_and_skips_dm(
-        self, monkeypatch, tmp_path: Path,
+        self,
+        monkeypatch,
+        tmp_path: Path,
     ):
         """Happy path — thread.send works; DM is never attempted."""
         from app.bot.commands import _post_actor_render
 
         inter, user, smap, embeds, captured, thread = self._make_env(
-            monkeypatch, tmp_path,
-            thread_send_behavior="ok", dm_succeeds=True,
+            monkeypatch,
+            tmp_path,
+            thread_send_behavior="ok",
+            dm_succeeds=True,
         )
 
-        venue, returned_thread = asyncio.run(_post_actor_render(
-            inter=inter, smap=smap, user=user,
-            character_id="alice", char_name="Alice",
-            embeds=embeds, intro_content="**Alice** acted.",
-        ))
+        venue, returned_thread = asyncio.run(
+            _post_actor_render(
+                inter=inter,
+                smap=smap,
+                user=user,
+                character_id="alice",
+                char_name="Alice",
+                embeds=embeds,
+                intro_content="**Alice** acted.",
+            )
+        )
         assert venue == "thread"
         assert returned_thread is thread
         assert len(captured["thread_sends"]) == 1
@@ -2321,59 +2434,87 @@ class TestPostActorRenderCascade:
         assert kwargs.get("embeds") is embeds
 
     def test_thread_send_failure_falls_back_to_dm(
-        self, monkeypatch, tmp_path: Path,
+        self,
+        monkeypatch,
+        tmp_path: Path,
     ):
         """thread.send raising → cached id is cleared and DM is tried."""
         from app.bot.commands import _post_actor_render
 
         inter, user, smap, embeds, captured, _ = self._make_env(
-            monkeypatch, tmp_path,
-            thread_send_behavior="raise", dm_succeeds=True,
+            monkeypatch,
+            tmp_path,
+            thread_send_behavior="raise",
+            dm_succeeds=True,
         )
 
-        venue, returned_thread = asyncio.run(_post_actor_render(
-            inter=inter, smap=smap, user=user,
-            character_id="alice", char_name="Alice",
-            embeds=embeds, intro_content="x",
-        ))
+        venue, returned_thread = asyncio.run(
+            _post_actor_render(
+                inter=inter,
+                smap=smap,
+                user=user,
+                character_id="alice",
+                char_name="Alice",
+                embeds=embeds,
+                intro_content="x",
+            )
+        )
         assert venue == "dm"
         assert returned_thread is None
         assert len(captured["dm_sends"]) == 1
 
     def test_no_thread_available_uses_dm(
-        self, monkeypatch, tmp_path: Path,
+        self,
+        monkeypatch,
+        tmp_path: Path,
     ):
         """`_ensure_pov_thread` returning None (no perms etc.) → DM only."""
         from app.bot.commands import _post_actor_render
 
         inter, user, smap, embeds, captured, _ = self._make_env(
-            monkeypatch, tmp_path,
-            thread_send_behavior=None, dm_succeeds=True,
+            monkeypatch,
+            tmp_path,
+            thread_send_behavior=None,
+            dm_succeeds=True,
         )
-        venue, returned_thread = asyncio.run(_post_actor_render(
-            inter=inter, smap=smap, user=user,
-            character_id="alice", char_name="Alice",
-            embeds=embeds,
-        ))
+        venue, returned_thread = asyncio.run(
+            _post_actor_render(
+                inter=inter,
+                smap=smap,
+                user=user,
+                character_id="alice",
+                char_name="Alice",
+                embeds=embeds,
+            )
+        )
         assert venue == "dm"
         assert returned_thread is None
         assert len(captured["dm_sends"]) == 1
 
     def test_both_paths_fail_returns_none(
-        self, monkeypatch, tmp_path: Path,
+        self,
+        monkeypatch,
+        tmp_path: Path,
     ):
         """Neither thread nor DM works → caller must fall back to public."""
         from app.bot.commands import _post_actor_render
 
         inter, user, smap, embeds, captured, _ = self._make_env(
-            monkeypatch, tmp_path,
-            thread_send_behavior=None, dm_succeeds=False,
+            monkeypatch,
+            tmp_path,
+            thread_send_behavior=None,
+            dm_succeeds=False,
         )
-        venue, returned_thread = asyncio.run(_post_actor_render(
-            inter=inter, smap=smap, user=user,
-            character_id="alice", char_name="Alice",
-            embeds=embeds,
-        ))
+        venue, returned_thread = asyncio.run(
+            _post_actor_render(
+                inter=inter,
+                smap=smap,
+                user=user,
+                character_id="alice",
+                char_name="Alice",
+                embeds=embeds,
+            )
+        )
         assert venue == "none"
         assert returned_thread is None
 
@@ -2382,21 +2523,26 @@ class TestVisualNovelDiscordDeck:
     def _deck(self, tmp_path: Path):
         renderer = VisualNovelCardRenderer(tmp_path / "vn")
         return renderer.render_deck(
-            [VisualNovelDeckSection(pages=(
-                VisualNovelPage(
-                    kind="narration",
-                    text="The terrace opens beneath a clear turquoise sky.",
-                ),
-                VisualNovelPage(
-                    kind="dialogue",
-                    speaker="Iselle",
-                    text="You made it. Wren was beginning to worry.",
-                ),
-            ))],
+            [
+                VisualNovelDeckSection(
+                    pages=(
+                        VisualNovelPage(
+                            kind="narration",
+                            text="The terrace opens beneath a clear turquoise sky.",
+                        ),
+                        VisualNovelPage(
+                            kind="dialogue",
+                            speaker="Iselle",
+                            text="You made it. Wren was beginning to worry.",
+                        ),
+                    )
+                )
+            ],
         )
 
     def test_restart_safe_controls_encode_complete_navigation_state(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ):
         deck = self._deck(tmp_path)
         view = bot_commands._VisualNovelView(
@@ -2437,8 +2583,7 @@ class TestVisualNovelDiscordDeck:
         ]
         assert len(custom_ids) == 3
         assert all(
-            custom_id.startswith(f"avn:{'a' * 64}:42:1000:")
-            for custom_id in custom_ids
+            custom_id.startswith(f"avn:{'a' * 64}:42:1000:") for custom_id in custom_ids
         )
 
     def test_restart_safe_view_uses_exact_discord_id_budget(self):
@@ -2490,7 +2635,8 @@ class TestVisualNovelDiscordDeck:
             )
 
     def test_next_control_reloads_deck_and_edits_one_attachment(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ):
         deck = self._deck(tmp_path)
         engine = SimpleNamespace(
@@ -2525,8 +2671,7 @@ class TestVisualNovelDiscordDeck:
         )
         assert isinstance(kwargs["view"], bot_commands._VisualNovelView)
         assert any(
-            isinstance(child, bot_commands._VisualNovelControl)
-            and child.index == 1
+            isinstance(child, bot_commands._VisualNovelControl) and child.index == 1
             for child in kwargs["view"].children
         )
         kwargs["attachments"][0].close()
@@ -2536,16 +2681,10 @@ class TestVisualNovelDiscordDeck:
         tmp_path: Path,
     ):
         deck = self._deck(tmp_path)
-        loaded = VisualNovelCardRenderer(tmp_path / "vn").load_deck(
-            deck.deck_id
-        )
+        loaded = VisualNovelCardRenderer(tmp_path / "vn").load_deck(deck.deck_id)
         assert loaded is not None
-        manifest = json.loads(
-            loaded.manifest_path.read_text(encoding="utf-8")
-        )
-        Image.new("RGB", (1024, 576), (190, 12, 51)).save(
-            loaded.cards[0].image_path
-        )
+        manifest = json.loads(loaded.manifest_path.read_text(encoding="utf-8"))
+        Image.new("RGB", (1024, 576), (190, 12, 51)).save(loaded.cards[0].image_path)
 
         delivered = bot_commands._visual_novel_discord_file(loaded, 0)
         try:
@@ -2555,8 +2694,9 @@ class TestVisualNovelDiscordDeck:
             delivered.close()
 
         assert delivered_bytes == loaded.cards[0].image_bytes
-        assert hashlib.sha256(delivered_bytes).hexdigest() == (
-            manifest["cards"][0]["sha256"]
+        assert (
+            hashlib.sha256(delivered_bytes).hexdigest()
+            == (manifest["cards"][0]["sha256"])
         )
         assert delivered_bytes != loaded.cards[0].image_path.read_bytes()
 
@@ -2629,12 +2769,18 @@ class TestVisualNovelDiscordDeck:
             channel=object(),
             channel_id=777,
         )
-        render = VisualNovelRender(segments=[VisualNovelRenderSegment(
-            pages=[VisualNovelPage(
-                kind="dialogue", speaker="Iselle", text="Hello."
-            )],
-            rendered_event_ids=["evt_1"],
-        )])
+        render = VisualNovelRender(
+            segments=[
+                VisualNovelRenderSegment(
+                    pages=[
+                        VisualNovelPage(
+                            kind="dialogue", speaker="Iselle", text="Hello."
+                        )
+                    ],
+                    rendered_event_ids=["evt_1"],
+                )
+            ]
+        )
 
         venue, returned_thread = asyncio.run(
             bot_commands._post_visual_novel_render(
@@ -2655,6 +2801,7 @@ class TestVisualNovelDiscordDeck:
         assert returned_thread is thread
         engine.prepare_visual_novel_deck.assert_awaited_once_with(
             session_id="session",
+            checkpoint_id="ckpt_0003",
             pov_character_id="iselle",
             render=render,
         )
@@ -2729,12 +2876,18 @@ class TestVisualNovelDiscordDeck:
         )
         user = SimpleNamespace(id=42, send=AsyncMock())
         interaction = SimpleNamespace(channel_id=777, channel=object())
-        render = VisualNovelRender(segments=[VisualNovelRenderSegment(
-            pages=[VisualNovelPage(
-                kind="dialogue", speaker="Iselle", text="Hello."
-            )],
-            rendered_event_ids=["evt_1"],
-        )])
+        render = VisualNovelRender(
+            segments=[
+                VisualNovelRenderSegment(
+                    pages=[
+                        VisualNovelPage(
+                            kind="dialogue", speaker="Iselle", text="Hello."
+                        )
+                    ],
+                    rendered_event_ids=["evt_1"],
+                )
+            ]
+        )
 
         with caplog.at_level(logging.ERROR):
             venue, returned_thread = asyncio.run(
@@ -2789,12 +2942,18 @@ class TestVisualNovelDiscordDeck:
             send=AsyncMock(return_value=sent_message),
         )
         interaction = SimpleNamespace(channel_id=777, channel=object())
-        render = VisualNovelRender(segments=[VisualNovelRenderSegment(
-            pages=[VisualNovelPage(
-                kind="dialogue", speaker="Iselle", text="Hello."
-            )],
-            rendered_event_ids=["evt_1"],
-        )])
+        render = VisualNovelRender(
+            segments=[
+                VisualNovelRenderSegment(
+                    pages=[
+                        VisualNovelPage(
+                            kind="dialogue", speaker="Iselle", text="Hello."
+                        )
+                    ],
+                    rendered_event_ids=["evt_1"],
+                )
+            ]
+        )
 
         with caplog.at_level(logging.ERROR):
             venue, returned_thread = asyncio.run(
@@ -2821,12 +2980,14 @@ class TestVisualNovelDiscordDeck:
         user.send.await_args.kwargs["file"].close()
 
     def test_history_projection_reads_structured_pages(self):
-        content = json.dumps({
-            "pages": [
-                {"kind": "narration", "speaker": "", "text": "Wind stirs."},
-                {"kind": "dialogue", "speaker": "Wren", "text": "Ready?"},
-            ],
-        })
+        content = json.dumps(
+            {
+                "pages": [
+                    {"kind": "narration", "speaker": "", "text": "Wind stirs."},
+                    {"kind": "dialogue", "speaker": "Wren", "text": "Ready?"},
+                ],
+            }
+        )
 
         assert _narrator_history_message_text(content) == (
             "Wind stirs.\n\nWren: Ready?"
@@ -2852,20 +3013,32 @@ class TestVisualNovelJoinArrival:
             def add_command(self, *_args, **_kwargs):
                 return None
 
-        actor_render = VisualNovelRender(segments=[VisualNovelRenderSegment(
-            pages=[VisualNovelPage(
-                kind="narration",
-                text="Alice steps into the lantern light.",
-            )],
-            rendered_event_ids=["evt_arrive"],
-        )])
-        bystander_render = VisualNovelRender(segments=[VisualNovelRenderSegment(
-            pages=[VisualNovelPage(
-                kind="narration",
-                text="Bob sees Alice arrive.",
-            )],
-            rendered_event_ids=["evt_arrive"],
-        )])
+        actor_render = VisualNovelRender(
+            segments=[
+                VisualNovelRenderSegment(
+                    pages=[
+                        VisualNovelPage(
+                            kind="narration",
+                            text="Alice steps into the lantern light.",
+                        )
+                    ],
+                    rendered_event_ids=["evt_arrive"],
+                )
+            ]
+        )
+        bystander_render = VisualNovelRender(
+            segments=[
+                VisualNovelRenderSegment(
+                    pages=[
+                        VisualNovelPage(
+                            kind="narration",
+                            text="Bob sees Alice arrive.",
+                        )
+                    ],
+                    rendered_event_ids=["evt_arrive"],
+                )
+            ]
+        )
         response = TurnResponse(
             session_id="s",
             checkpoint_id="ckpt_0004",
@@ -2882,21 +3055,25 @@ class TestVisualNovelJoinArrival:
         )
         engine = MagicMock()
         engine.get_user_binding.return_value = None
-        engine.list_joinable_characters.return_value = [CharacterSummary(
-            character_id="alice",
-            name="Alice",
-            role="traveler",
-            faction="",
-            appearance="dusty coat",
-            status="active",
-            is_playable=True,
-        )]
-        engine.join_player_character = AsyncMock(return_value=PlayerJoinResult(
-            character_id="alice",
-            character_name="Alice",
-            pre_play=False,
-            response=response,
-        ))
+        engine.list_joinable_characters.return_value = [
+            CharacterSummary(
+                character_id="alice",
+                name="Alice",
+                role="traveler",
+                faction="",
+                appearance="dusty coat",
+                status="active",
+                is_playable=True,
+            )
+        ]
+        engine.join_player_character = AsyncMock(
+            return_value=PlayerJoinResult(
+                character_id="alice",
+                character_name="Alice",
+                pre_play=False,
+                response=response,
+            )
+        )
         engine.load_latest.return_value = SimpleNamespace(
             session=SimpleNamespace(
                 character_bindings={"alice": "42", "bob": "99"},
@@ -2907,15 +3084,19 @@ class TestVisualNovelJoinArrival:
             ],
         )
         smap = MagicMock()
-        smap.get = AsyncMock(return_value=SimpleNamespace(
-            session_id="s",
-            story_id="story",
-        ))
+        smap.get = AsyncMock(
+            return_value=SimpleNamespace(
+                session_id="s",
+                story_id="story",
+            )
+        )
         visual_post = AsyncMock(side_effect=RuntimeError("card failed"))
-        actor_post = AsyncMock(return_value=(
-            "thread",
-            SimpleNamespace(mention="#alice-pov"),
-        ))
+        actor_post = AsyncMock(
+            return_value=(
+                "thread",
+                SimpleNamespace(mention="#alice-pov"),
+            )
+        )
         prose_fanout = AsyncMock(return_value=True)
         monkeypatch.setattr(
             bot_commands,
@@ -2969,9 +3150,7 @@ class TestVisualNovelJoinArrival:
         )
         prose_fanout.assert_awaited_once()
         assert prose_fanout.await_args.kwargs["user_id"] == 99
-        assert prose_fanout.await_args.kwargs["text"] == (
-            "Bob sees Alice arrive."
-        )
+        assert prose_fanout.await_args.kwargs["text"] == ("Bob sees Alice arrive.")
         modal_inter.channel.send.assert_not_called()
 
 
@@ -3059,19 +3238,21 @@ class TestPostAssetsToPov:
             lambda *_args, **_kwargs: self._resolved_asset(),
         )
 
-        ok = asyncio.run(bot_commands._post_assets_to_pov(
-            inter=inter,
-            smap=smap,
-            user_id=42,
-            character_id="alice",
-            char_name="Alice",
-            asset_reveals=[_asset_payload()],
-            bot=bot,
-            engine=engine,
-            session_id="s",
-            turn_index=7,
-            catalog={},
-        ))
+        ok = asyncio.run(
+            bot_commands._post_assets_to_pov(
+                inter=inter,
+                smap=smap,
+                user_id=42,
+                character_id="alice",
+                char_name="Alice",
+                asset_reveals=[_asset_payload()],
+                bot=bot,
+                engine=engine,
+                session_id="s",
+                turn_index=7,
+                catalog={},
+            )
+        )
 
         assert ok is True
         thread.send.assert_awaited_once()
@@ -3091,18 +3272,22 @@ class TestPostAssetsToPov:
         assert record_kwargs["recipient_user_id"] == 42
 
     def test_private_asset_failure_logs_no_asset_source_sentinels(
-        self, monkeypatch, caplog,
+        self,
+        monkeypatch,
+        caplog,
     ):
         inter, channel, user, bot, smap, engine = self._env(monkeypatch)
         thread = MagicMock()
         thread.id = 999
-        thread.send = AsyncMock(side_effect=RuntimeError(
-            "upload failed /private/table/source-map.png "
-            "delivery_ref=asset://synthetic/hidden-map"
-        ))
-        user.send = AsyncMock(side_effect=RuntimeError(
-            "dm failed raw_ocr=PROTECTED_SOURCE_EXCERPT"
-        ))
+        thread.send = AsyncMock(
+            side_effect=RuntimeError(
+                "upload failed /private/table/source-map.png "
+                "delivery_ref=asset://synthetic/hidden-map"
+            )
+        )
+        user.send = AsyncMock(
+            side_effect=RuntimeError("dm failed raw_ocr=PROTECTED_SOURCE_EXCERPT")
+        )
 
         async def _ensure(**_kwargs):
             return thread
@@ -3115,24 +3300,28 @@ class TestPostAssetsToPov:
         )
 
         with caplog.at_level("WARNING", logger="app.bot.commands"):
-            ok = asyncio.run(bot_commands._post_assets_to_pov(
-                inter=inter,
-                smap=smap,
-                user_id=42,
-                character_id="alice",
-                char_name="Alice",
-                asset_reveals=[_asset_payload(
-                    caption="Spoiler-safe but still private.",
-                    title="Private title",
-                    asset_id="hidden-map",
-                    delivery_ref="asset://synthetic/hidden-map",
-                )],
-                bot=bot,
-                engine=engine,
-                session_id="s",
-                turn_index=8,
-                catalog={},
-            ))
+            ok = asyncio.run(
+                bot_commands._post_assets_to_pov(
+                    inter=inter,
+                    smap=smap,
+                    user_id=42,
+                    character_id="alice",
+                    char_name="Alice",
+                    asset_reveals=[
+                        _asset_payload(
+                            caption="Spoiler-safe but still private.",
+                            title="Private title",
+                            asset_id="hidden-map",
+                            delivery_ref="asset://synthetic/hidden-map",
+                        )
+                    ],
+                    bot=bot,
+                    engine=engine,
+                    session_id="s",
+                    turn_index=8,
+                    catalog={},
+                )
+            )
 
         assert ok is False
         for sentinel in (
@@ -3154,7 +3343,8 @@ class TestPostAssetsToPov:
         assert "Spoiler-safe" not in notice_text
 
     def test_generated_media_uses_private_delivery_and_rewind_tracking(
-        self, monkeypatch,
+        self,
+        monkeypatch,
     ):
         from app.bot.media_delivery import deliver_player_media
         from app.engine.player_media import ResolvedPlayerMedia
@@ -3174,23 +3364,25 @@ class TestPostAssetsToPov:
             height=1024,
         )
 
-        delivered = asyncio.run(deliver_player_media(
-            client=bot,
-            smap=smap,
-            session_channel_id=777,
-            user_id=42,
-            character_id="alice",
-            char_name="Alice",
-            media=media,
-            caption="AI-generated, noncanonical illustration · Turn 8",
-            alt_text="A noncanonical illustration.",
-            session_id="s",
-            turn_index=8,
-            parent_channel=channel,
-            delivery_label="generated_image",
-            preferred_thread=thread,
-            resolve_thread=False,
-        ))
+        delivered = asyncio.run(
+            deliver_player_media(
+                client=bot,
+                smap=smap,
+                session_channel_id=777,
+                user_id=42,
+                character_id="alice",
+                char_name="Alice",
+                media=media,
+                caption="AI-generated, noncanonical illustration · Turn 8",
+                alt_text="A noncanonical illustration.",
+                session_id="s",
+                turn_index=8,
+                parent_channel=channel,
+                delivery_label="generated_image",
+                preferred_thread=thread,
+                resolve_thread=False,
+            )
+        )
 
         assert delivered is True
         thread.send.assert_awaited_once()
@@ -3201,7 +3393,8 @@ class TestPostAssetsToPov:
         channel.send.assert_not_awaited()
 
     def test_generated_media_removes_attachment_if_rewind_wins_send_race(
-        self, monkeypatch,
+        self,
+        monkeypatch,
     ):
         from app.bot.media_delivery import deliver_player_media
         from app.engine.player_media import ResolvedPlayerMedia
@@ -3219,32 +3412,34 @@ class TestPostAssetsToPov:
         async def _is_current():
             return next(checks)
 
-        delivered = asyncio.run(deliver_player_media(
-            client=bot,
-            smap=smap,
-            session_channel_id=777,
-            user_id=42,
-            character_id="alice",
-            char_name="Alice",
-            media=ResolvedPlayerMedia(
-                filename="illustration.webp",
-                mime_type="image/webp",
-                data=b"generated",
-                sha256="a" * 64,
-                byte_count=9,
-                width=1024,
-                height=1024,
-            ),
-            caption="Noncanonical illustration.",
-            alt_text="Noncanonical illustration.",
-            session_id="s",
-            turn_index=8,
-            parent_channel=channel,
-            delivery_label="generated_image",
-            preferred_thread=thread,
-            resolve_thread=False,
-            delivery_is_current=_is_current,
-        ))
+        delivered = asyncio.run(
+            deliver_player_media(
+                client=bot,
+                smap=smap,
+                session_channel_id=777,
+                user_id=42,
+                character_id="alice",
+                char_name="Alice",
+                media=ResolvedPlayerMedia(
+                    filename="illustration.webp",
+                    mime_type="image/webp",
+                    data=b"generated",
+                    sha256="a" * 64,
+                    byte_count=9,
+                    width=1024,
+                    height=1024,
+                ),
+                caption="Noncanonical illustration.",
+                alt_text="Noncanonical illustration.",
+                session_id="s",
+                turn_index=8,
+                parent_channel=channel,
+                delivery_label="generated_image",
+                preferred_thread=thread,
+                resolve_thread=False,
+                delivery_is_current=_is_current,
+            )
+        )
 
         assert delivered is False
         message.delete.assert_awaited_once()
@@ -3419,7 +3614,8 @@ class _FakeTurnMessageStore:
     ):
         turn_set = {int(t) for t in turns}
         refs = [
-            ref for ref in self._refs
+            ref
+            for ref in self._refs
             if ref.channel_id == channel_id
             and ref.session_id == session_id
             and ref.turn_index in turn_set
@@ -3427,26 +3623,36 @@ class _FakeTurnMessageStore:
         return sorted(
             refs,
             key=lambda r: (
-                r.turn_index, r.created_at,
-                r.discord_channel_id, r.message_id,
+                r.turn_index,
+                r.created_at,
+                r.discord_channel_id,
+                r.message_id,
             ),
         )
 
     async def forget_turn_messages(self, refs):
         targets = {
             (
-                ref.channel_id, ref.session_id, ref.turn_index,
-                ref.discord_channel_id, ref.message_id,
+                ref.channel_id,
+                ref.session_id,
+                ref.turn_index,
+                ref.discord_channel_id,
+                ref.message_id,
             )
             for ref in refs
         }
         before = len(self._refs)
         self._refs = [
-            ref for ref in self._refs
+            ref
+            for ref in self._refs
             if (
-                ref.channel_id, ref.session_id, ref.turn_index,
-                ref.discord_channel_id, ref.message_id,
-            ) not in targets
+                ref.channel_id,
+                ref.session_id,
+                ref.turn_index,
+                ref.discord_channel_id,
+                ref.message_id,
+            )
+            not in targets
         ]
         return before - len(self._refs)
 
@@ -3456,7 +3662,8 @@ class TestRewindDiscordCleanup:
         return _FakeTurnMessageStore()
 
     def test_deletes_only_messages_from_rewound_turns(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ):
         smap = self._smap()
         turn_3_msg = _FakeDiscordMessage(3000)
@@ -3497,9 +3704,13 @@ class TestRewindDiscordCleanup:
         assert turn_3_msg.deleted is False
         assert turn_4_msg.deleted is True
         assert turn_5_msg.deleted is True
-        remaining = asyncio.run(smap.list_turn_messages(
-            channel_id=10, session_id="sess", turns=[3, 4, 5],
-        ))
+        remaining = asyncio.run(
+            smap.list_turn_messages(
+                channel_id=10,
+                session_id="sess",
+                turns=[3, 4, 5],
+            )
+        )
         assert [r.message_id for r in remaining] == [3000]
 
     def test_edits_message_when_delete_fails(self, tmp_path: Path):
@@ -3532,13 +3743,19 @@ class TestRewindDiscordCleanup:
         assert msg.edited_content == "_Rewound turn hidden._"
         assert msg.edited_embeds == []
         assert msg.edited_attachments == []
-        remaining = asyncio.run(smap.list_turn_messages(
-            channel_id=10, session_id="sess", turns=[4],
-        ))
+        remaining = asyncio.run(
+            smap.list_turn_messages(
+                channel_id=10,
+                session_id="sess",
+                turns=[4],
+            )
+        )
         assert remaining == []
 
     def test_asset_edit_fallback_clears_attachment_without_private_logs(
-        self, tmp_path: Path, caplog,
+        self,
+        tmp_path: Path,
+        caplog,
     ):
         smap = self._smap()
         msg = _FakeDiscordMessage(
@@ -3581,7 +3798,8 @@ class TestRewindDiscordCleanup:
         assert "asset://synthetic/hidden-map" not in caplog.text
 
     def test_edit_fallback_hides_when_attachment_clear_is_unsupported(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ):
         smap = self._smap()
         msg = _FakeDiscordMessage(

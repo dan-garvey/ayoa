@@ -237,9 +237,7 @@ def _checkpoint(
             active_master_feed_id="feed-7",
             guide_character_ids=["guide"],
             system_observer_ids=["hero"] if system_observer else [],
-            research_levels={
-                "hero_reaction": research_level
-            } if research_level else {},
+            research_levels={"hero_reaction": research_level} if research_level else {},
             tutorial_deliveries={"summoning": ["owner"]},
             pending_operation=OneStarPendingOperation(
                 operation_id="op-1",
@@ -303,9 +301,7 @@ def _checkpoint(
     ckpt = CheckpointFile(
         session=SessionState(
             session_id="projection",
-            config=SessionConfig(
-                settings=SessionSettings(ruleset_id=ruleset_id)
-            ),
+            config=SessionConfig(settings=SessionSettings(ruleset_id=ruleset_id)),
         ),
         characters=[owner, hero, guide],
     )
@@ -423,11 +419,13 @@ def test_master_status_projects_weekly_funds_without_mutating_the_ledger() -> No
     checkpoint, owner, _, _ = _checkpoint()
     checkpoint.session.leading_at_s = 604_800
 
-    status_text = "\n".join(one_star_master_command_lines(
-        checkpoint,
-        owner.character_id,
-        "status",
-    ))
+    status_text = "\n".join(
+        one_star_master_command_lines(
+            checkpoint,
+            owner.character_id,
+            "status",
+        )
+    )
 
     assert "Discretionary funds: $300" in status_text
     assert "income $100 every 604800s" in status_text
@@ -581,13 +579,15 @@ def test_synthesis_after_first_resolution_omits_character_contributions() -> Non
     account.state.pending_operation = None
     account.state.synthesis_resolution_count = 1
     owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
-    checkpoint.characters.append(CharacterRecord(
-        character_id="donor",
-        name="Edric",
-        public_sheet=PublicSheet(role="guard"),
-        private_state=PrivateState(),
-        mechanics={ONE_STAR_HERO_KEY: _hero_state().model_dump(mode="json")},
-    ))
+    checkpoint.characters.append(
+        CharacterRecord(
+            character_id="donor",
+            name="Edric",
+            public_sheet=PublicSheet(role="guard"),
+            private_state=PrivateState(),
+            mechanics={ONE_STAR_HERO_KEY: _hero_state().model_dump(mode="json")},
+        )
+    )
 
     plan = one_star_synthesis_authoritative_plan(
         checkpoint,
@@ -659,6 +659,12 @@ def test_guide_gets_management_channel_without_tactical_or_hero_omniscience() ->
     assert "Gold 37" in block
     assert "synthesis" in block
     assert "summoning" in block
+    assert "1-star level 10, 2-star level 20" in block
+    assert "exactly one star rank" in block
+    assert "no resources" in block
+    assert "promotion_room" in block
+    assert "Selecting a promotion spends nothing" in block
+    assert "retained experience" in block
     assert "Active mission:" not in block
     assert "feed-7" not in block
     assert "HP 5/10" not in block

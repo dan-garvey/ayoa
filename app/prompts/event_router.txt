@@ -58,6 +58,7 @@ Choose the current input contract before doing anything else:
 - `text`: one or more contiguous sensory facts, spoken lines, gestures, or ambient details
 - `audience`: `"all_observers"` or `"only"`
 - `visible_to`: exact character ids when `audience` is `"only"`; empty when `audience` is `"all_observers"`
+- `visual_subject_ids`: exact established character ids whose embodied appearance is directly visible in this packet and may belong in the visual foreground; empty for names only spoken, written, listed in records or controls, shown without their body, or stated to be absent. A live camera image counts as directly visible to its audience without making its subjects physically co-present.
 - `at_offset_s`: seconds after `effective_at_s` when this packet begins
 - `duration_s`: seconds this packet takes
 
@@ -368,6 +369,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
         "text": "string - concrete surface observation; quote dialogue verbatim",
         "audience": "all_observers or only",
         "visible_to": ["character_id - empty when audience is all_observers"],
+        "visual_subject_ids": ["character_id - directly pictured embodied subjects only"],
         "at_offset_s": 0,
         "duration_s": 0
       }}

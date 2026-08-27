@@ -31,6 +31,7 @@ from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import (
     OneStarAccountEnvelope,
+    OneStarCost,
     OneStarEquipmentEntry,
     OneStarHeroState,
     OneStarMissionState,
@@ -40,9 +41,7 @@ from app.schemas.one_star import (
 
 
 def _ruleset_id(checkpoint: CheckpointFile) -> str:
-    settings = getattr(
-        getattr(checkpoint.session, "config", None), "settings", None
-    )
+    settings = getattr(getattr(checkpoint.session, "config", None), "settings", None)
     return str(getattr(settings, "ruleset_id", "") or "")
 
 
@@ -68,10 +67,7 @@ def _belongs_to_account(
     hero: OneStarHeroState,
     envelope: OneStarAccountEnvelope,
 ) -> bool:
-    return bool(
-        hero.owner_lobby_id
-        and hero.owner_lobby_id == envelope.config.lobby_id
-    )
+    return bool(hero.owner_lobby_id and hero.owner_lobby_id == envelope.config.lobby_id)
 
 
 def _join_values(values: Iterable[str], *, empty: str = "none") -> str:
@@ -99,10 +95,7 @@ def _equipment_line(hero: OneStarHeroState, *, exact: bool) -> str:
         if item.quantity != 1:
             label += f" x{item.quantity}"
         if exact and item.durability_max:
-            label += (
-                f" durability {item.durability_current}/"
-                f"{item.durability_max}"
-            )
+            label += f" durability {item.durability_current}/{item.durability_max}"
         parts.append(label)
     return _join_values(parts)
 
@@ -147,10 +140,7 @@ def _experience_progress_line(
     current_cap = config.star_level_caps[hero.current_stars]
     if hero.level < current_cap:
         next_threshold = experience_to_reach_level(hero.level + 1, config)
-        return (
-            f"XP {hero.experience_points}/{next_threshold} "
-            f"to level {hero.level + 1}"
-        )
+        return f"XP {hero.experience_points}/{next_threshold} to level {hero.level + 1}"
     cap_threshold = experience_to_reach_level(current_cap, config)
     bank_limit = (
         experience_to_reach_level(
@@ -243,6 +233,52 @@ def _pending_operation_lines(
     ]
 
 
+def _cost_text(cost: OneStarCost) -> str:
+    amounts = [
+        f"{cost.gold} Gold" if cost.gold else "",
+        f"{cost.gems} Gems" if cost.gems else "",
+        (
+            f"{cost.building_resources} Building Resources"
+            if cost.building_resources
+            else ""
+        ),
+        *(
+            f"{quantity} {material_id.replace('_', ' ')}"
+            for material_id, quantity in sorted(cost.materials.items())
+            if quantity
+        ),
+    ]
+    return _join_values(amounts, empty="no resources")
+
+
+def _promotion_authority_lines(
+    envelope: OneStarAccountEnvelope,
+) -> list[str]:
+    """Project sanctioned promotion rules to an account guide."""
+
+    config = envelope.config
+    requirement = config.operation_requirements["promotion"]
+    caps = _join_values(
+        f"{stars}-star level {cap}"
+        for stars, cap in sorted(config.star_level_caps.items())
+    )
+    return [
+        "Promotion authority:",
+        f"Level caps: {caps}.",
+        "A Hero is eligible at the exact level cap for their current star "
+        "rank; completion advances them exactly one star rank.",
+        f"Completion costs {_cost_text(config.promotion_cost)} and requires "
+        f"the operational {requirement.facility_id.replace('_', ' ')} at "
+        f"{requirement.required_location}.",
+        "Selecting a promotion spends nothing. The selected Hero must "
+        "physically enter before completion; an open selection can instead "
+        "be cancelled.",
+        "On completion, retained experience is applied against the new "
+        "rank's level cap and any authored memory tier for the new star rank "
+        "is restored.",
+    ]
+
+
 def _management_lines(
     envelope: OneStarAccountEnvelope,
     *,
@@ -258,10 +294,7 @@ def _management_lines(
         (f"{key} x{value}" for key, value in sorted(state.inventory.items()))
     )
     materials = _join_values(
-        (
-            f"{key} x{value}"
-            for key, value in sorted(state.resources.materials.items())
-        )
+        (f"{key} x{value}" for key, value in sorted(state.resources.materials.items()))
     )
     summon_pools = _join_values(
         (
@@ -274,10 +307,7 @@ def _management_lines(
         )
     )
     research = _join_values(
-        (
-            f"{key} {level}"
-            for key, level in sorted(state.research_levels.items())
-        )
+        (f"{key} {level}" for key, level in sorted(state.research_levels.items()))
     )
     stamina_current, stamina_anchor = effective_one_star_stamina(
         state,
@@ -357,9 +387,7 @@ def _public_roster_lines(
         hero_lines = _exact_hero_lines(character.name, hero, envelope)
         summary = hero_lines[0]
         terminal = (
-            f"; terminal cause {hero.terminal_cause}"
-            if hero.terminal_cause
-            else ""
+            f"; terminal cause {hero.terminal_cause}" if hero.terminal_cause else ""
         )
         lines.append(
             f"- {summary}; lifecycle {lifecycle}; "
@@ -438,14 +466,13 @@ def _resolve_owned_hero(
         index = int(numbered)
         if 1 <= index <= len(records):
             return records[index - 1]
-        raise ValueError(
-            f"Hero number must be between 1 and {len(records)}."
-        )
+        raise ValueError(f"Hero number must be between 1 and {len(records)}.")
     folded = token.casefold()
     matches = [
         record
         for record in records
-        if folded in {
+        if folded
+        in {
             record[0].character_id.casefold(),
             record[0].name.strip().casefold(),
         }
@@ -477,10 +504,7 @@ def _master_hero_lines(
     )
     lines = [f"{character.name} [{character.character_id}]"]
     lines.extend(_exact_hero_lines(character.name, hero, envelope))
-    lines.append(
-        f"Lifecycle: {lifecycle}; location "
-        f"{character.location or 'unknown'}"
-    )
+    lines.append(f"Lifecycle: {lifecycle}; location {character.location or 'unknown'}")
     if hero.terminal_cause:
         lines.append(f"Terminal cause: {hero.terminal_cause}")
     return tuple(lines)
@@ -493,9 +517,7 @@ def _has_exact_own_sheet(
 ) -> bool:
     research_key = envelope.config.hero_system_visibility_research_key
     research_level = (
-        envelope.state.research_levels.get(research_key, 0)
-        if research_key
-        else 0
+        envelope.state.research_levels.get(research_key, 0) if research_key else 0
     )
     return bool(
         hero.innate_system_sight
@@ -509,8 +531,7 @@ def _combatant_authority_lines(character: CharacterRecord) -> list[str]:
     if combatant is None:
         return []
     stats = _join_values(
-        f"{stat_id} {value}"
-        for stat_id, value in sorted(combatant.stats.items())
+        f"{stat_id} {value}" for stat_id, value in sorted(combatant.stats.items())
     )
     return [
         "Your exact non-Hero combat authority:",
@@ -531,12 +552,14 @@ def one_star_agent_state_block(
     lines: list[str] = []
     if character.character_id == owner.character_id:
         lines = ["## Current System Account State"]
-        lines.extend(_management_lines(
-            envelope,
-            include_active_feed=True,
-            include_stored_equipment=True,
-            canonical_now_s=checkpoint.session.leading_at_s,
-        ))
+        lines.extend(
+            _management_lines(
+                envelope,
+                include_active_feed=True,
+                include_stored_equipment=True,
+                canonical_now_s=checkpoint.session.leading_at_s,
+            )
+        )
         lines.extend(_mission_lines(state.active_mission))
         lines.extend(_public_roster_lines(checkpoint, envelope))
         lines.extend(_pending_operation_lines(state.pending_operation))
@@ -545,17 +568,20 @@ def one_star_agent_state_block(
             "## Authored System Channel",
             "Lobby management and tutorial state:",
         ]
-        lines.extend(_management_lines(
-            envelope,
-            include_active_feed=False,
-            canonical_now_s=checkpoint.session.leading_at_s,
-        ))
+        lines.extend(
+            _management_lines(
+                envelope,
+                include_active_feed=False,
+                canonical_now_s=checkpoint.session.leading_at_s,
+            )
+        )
         lines.extend(_pending_operation_lines(state.pending_operation))
+        lines.extend(_promotion_authority_lines(envelope))
         lines.append(
-            "Tutorial deliveries: " + _join_values(
+            "Tutorial deliveries: "
+            + _join_values(
                 f"{tutorial}: {_join_values(recipients)}"
-                for tutorial, recipients
-                in sorted(state.tutorial_deliveries.items())
+                for tutorial, recipients in sorted(state.tutorial_deliveries.items())
             )
         )
         lines.extend(_combatant_authority_lines(character))
@@ -573,12 +599,14 @@ def one_star_agent_state_block(
             else hero.innate_system_sight
         )
         lines = ["## Your Current Mechanics"]
-        lines.extend(_own_hero_lines(
-            character,
-            hero,
-            envelope,
-            exact=exact,
-        ))
+        lines.extend(
+            _own_hero_lines(
+                character,
+                hero,
+                envelope,
+                exact=exact,
+            )
+        )
     return "\n".join(lines)
 
 
@@ -587,10 +615,7 @@ def one_star_status_lines(
     viewpoint_character_id: str,
 ) -> tuple[str, ...]:
     """Return shared CLI/Discord status lines for the selected fictional POV."""
-    if (
-        _ruleset_id(checkpoint) != ONE_STAR_RULESET_ID
-        or not viewpoint_character_id
-    ):
+    if _ruleset_id(checkpoint) != ONE_STAR_RULESET_ID or not viewpoint_character_id:
         return ()
     character = next(
         (
@@ -623,8 +648,7 @@ def one_star_master_command_lines(
     loaded = _account(checkpoint)
     if loaded is None:
         raise ValueError(
-            "Master commands are available only in a One-Star Ascension "
-            "session."
+            "Master commands are available only in a One-Star Ascension session."
         )
     owner, envelope = loaded
     if viewpoint_character_id != owner.character_id:
@@ -658,8 +682,7 @@ def one_star_synthesis_authoritative_plan(
     loaded = _account(checkpoint)
     if loaded is None:
         raise ValueError(
-            "Synthesis commands are available only in a One-Star Ascension "
-            "session."
+            "Synthesis commands are available only in a One-Star Ascension session."
         )
     owner, envelope = loaded
     if viewpoint_character_id != owner.character_id:
@@ -697,8 +720,7 @@ def one_star_synthesis_authoritative_plan(
 
     target_character, _target = _resolve_owned_hero(records, target_ref)
     resolved_sources = [
-        _resolve_owned_hero(records, source_ref)
-        for source_ref in clean_source_refs
+        _resolve_owned_hero(records, source_ref) for source_ref in clean_source_refs
     ]
     source_characters = [character for character, _hero in resolved_sources]
     source_ids = [character.character_id for character in source_characters]
@@ -722,8 +744,7 @@ def one_star_synthesis_authoritative_plan(
         guide = characters.get(guide_id)
         if guide is None or guide.status != CharacterStatus.active:
             raise ValueError(
-                "The configured lobby guide is unavailable to carry out "
-                "synthesis."
+                "The configured lobby guide is unavailable to carry out synthesis."
             )
         guide_characters.append(guide)
     if not guide_characters:
@@ -737,11 +758,15 @@ def one_star_synthesis_authoritative_plan(
     )
     destination = requirement.required_location
     guide_ids = [character.character_id for character in guide_characters]
-    location_ids = list(dict.fromkeys([
-        *source_ids,
-        target_character.character_id,
-        *guide_ids,
-    ]))
+    location_ids = list(
+        dict.fromkeys(
+            [
+                *source_ids,
+                target_character.character_id,
+                *guide_ids,
+            ]
+        )
+    )
     state_updates = (
         {
             "kind": "pending_open",

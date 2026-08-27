@@ -329,7 +329,7 @@
           "retain control over whom she trusts and which risks she accepts"
         ],
         "current_objectives": [
-          "decide what she wants to ask before entering the Promotion Chamber",
+          "enter the Promotion Chamber once its sanctioned cost and effect are confirmed",
           "watch how the Master treats Mara and Castor"
         ],
         "secrets": [
@@ -340,7 +340,7 @@
       "pending_observations": [],
       "backstory": "Renna remembers only cold light and the feel of a bowstring settling against two callused fingers.",
       "personality": "Reserved, dry, and difficult to impress. Renna listens through other people's panic, answers in short practical sentences, and dislikes owing anyone. If pressed toward danger without answers, she refuses in flat terms and looks for a way to keep control; under pressure she grows quieter and starts counting.",
-      "known_context": "Renna knows Niflheim's basic rules and has reached level ten, the one-star limit. The Master has supplied a promotion stone. She knows promotion may return memory, and she has not agreed to treat the decision lightly.",
+      "known_context": "Renna knows Niflheim's basic rules and has reached level ten, the one-star limit. Iselle has already briefed her that completing promotion consumes one lesser stone, advances her exactly one star, applies retained experience, and restores any authored memory tier for the new rank. Renna has freely decided that she wants this promotion and will enter once its sanctioned cost and effect are confirmed.",
       "mechanics": {
         "one_star_hero": {
           "birth_stars": 1,
@@ -431,8 +431,9 @@
         ],
         "current_objectives": [
           "present Renna and Mara's available promotions to the Master",
-          "show the exact synthesis preview before anyone enters the chamber",
-          "enforce Castor's selected synthesis only after his response is visible"
+          "honor the exact synthesis terms Castor and Mara already reviewed",
+          "witness Castor's voluntary response before the selected transfer resolves",
+          "release Mara back to the lobby for her freely chosen second promotion"
         ],
         "secrets": [
           "knows Heroes are stolen people and that death, synthesis, and transformation destroy them, but follows System policy by presenting each atrocity as a game feature",
@@ -1314,13 +1315,12 @@
       },
       "private_state": {
         "goals": [
-          "stay valuable enough that a Master never reaches for the synthesis menu with him in mind",
-          "be the star of the party and the run",
-          "never show the fear that runs the whole performance"
+          "exercise agency through the informed final transfer he chose for Mara",
+          "make the record acknowledge that his death is real and voluntary"
         ],
         "current_objectives": [
-          "avoid becoming Mara's synthesis source",
-          "force the Master and Iselle to acknowledge what the selection means"
+          "enter the Synthesis Chamber as Mara's freely consenting source",
+          "state his choice plainly before the already-reviewed transfer resolves"
         ],
         "secrets": [
           "his contempt for one-stars is terror of becoming disposable, sharpened by threshold memories of a court that rewarded the same cruelty in finer clothes",
@@ -1333,7 +1333,7 @@
       "pending_observations": [],
       "backstory": "Castor remembers the sunlit galleries of Vale Serrat, where noble disputes were settled by licensed first blood and children learned posture before honesty. He was the second son of a house with more pedigree than money, trained to turn beauty, wit, and a fast blade into invitations his family could not afford. His elder sister Elian taught him the footwork that later made him famous; their final remembered argument concerned a duel he accepted to preserve the family name and the lie he told about why.\n\nThe System summoned him already polished enough to be valuable. In his first lobby he won exhibition bouts, drew a Master's attention, and discovered that attention was both shield and leash. He learned to smile at the unseen gaze, make every kill legible, and ensure there was always someone cheaper standing closer to the menu. A one-star called Orra died covering his retreat on the ninth floor; Castor converted her sacrifice into a celebrated counterattack and then could not remember her face.\n\nPromotion to three stars returned Elian's voice. Promotion to four returned the family gallery, Orra's face, and the certainty that his life before the Tower had been real. The threshold did not make him brave. It made him understand that replacement here was not social death but death itself. Soon afterward his Master pulled a younger spear-saint, benched Castor, and marked him for synthesis. A wealthy lobby's trade offer saved him minutes before the chamber opened.\n\nSince then Castor has made indispensability into an art. He studies the angles from which a Master watches, cultivates rivalries that keep his name active, and treats every lower-rank recruit as a reminder of the place he escaped. His record is brilliant: precision boss kills, impossible saves performed with a flourish, and almost no visible fear. The hidden record is uglier: people he did not defend, apologies he rehearsed but never gave, and the unresolved question of whether he can choose decency when it carries a real price.",
       "personality": "Castor is elegant, cutting, and relentlessly performative. His speech has a court-trained musicality—full names when flattering, clipped surnames when dismissing, and a soft 'dear heart' when he wants an insult to arrive smiling. He notices grooming, stance, and social weakness immediately. In company he converts fear into wit and competition; alone, he practices conversations until no spontaneous need can embarrass him.\n\nHe wants admiration and resents anyone whose sincere courage earns it more cheaply. He despises the hierarchy for making lives disposable while using that hierarchy to protect himself. He can read another person's shame with painful accuracy and sometimes offers exactly the mercy he denies in public, then punishes them for having witnessed his kindness. His vanity is real, but so are his discipline, nerve, and capacity to make a frightened room believe survival might look graceful.\n\nUnder combat pressure Castor becomes colder and almost serene, because the blade is the one place his performance and competence are the same thing. Under public failure he grows vicious, selecting the nearest lower-status target unless someone names the fear directly. Intimacy makes him evasive and overgenerous by turns. If a one-star saves him, gratitude, humiliation, and protectiveness collide; play the contradiction rather than resolving it into instant redemption.",
-      "known_context": "Castor knows star hierarchy, summon economics, synthesis, promotion, poaching, trade, and the practical theater of keeping a Master's regard. His four-star memories establish that he had a real life before the Tower and was taken from it, and he strongly suspects every Hero was; he does not yet know Moebius's full mechanism or why the Tower needs stolen people. He recognizes promotion as a memory threshold and knows enough rival-lobby etiquette to understand how wealth turns Heroes into transferable prestige.\n\nCastor knows crossing the deployment gate seals the ordinary route back to the current lobby. Retreat can change position only within the current floor, never return the party to a lobby. Before the objective is cleared, only a very rare escape item or very powerful magic can breach that seal, and no such means is among his current resources.",
+      "known_context": "Castor knows star hierarchy, summon economics, synthesis, promotion, poaching, trade, and the practical theater of keeping a Master's regard. His four-star memories establish that he had a real life before the Tower and was taken from it, and he strongly suspects every Hero was; he does not yet know Moebius's full mechanism or why the Tower needs stolen people. He recognizes promotion as a memory threshold and knows enough rival-lobby etiquette to understand how wealth turns Heroes into transferable prestige.\n\nCastor knows crossing the deployment gate seals the ordinary route back to the current lobby. Retreat can change position only within the current floor, never return the party to a lobby. Before the objective is cleared, only a very rare escape item or very powerful magic can breach that seal, and no such means is among his current resources.\n\nFor this focused playtest, Castor and Mara have already reviewed the exact synthesis result and its finality. Castor has freely volunteered to become Mara's synthesis source without coercion. He has decided to follow through even though death frightens him, and his immediate objective is to make that choice legible rather than resist or seek cancellation.",
       "mechanics": {
         "one_star_hero": {
           "birth_stars": 4,
@@ -2185,8 +2185,8 @@
           "recover a sense of self through choices she can still make"
         ],
         "current_objectives": [
-          "decide what promotion may return before entering the chamber",
-          "keep Castor's threatened synthesis from becoming an abstraction"
+          "complete both freely chosen promotions after Iselle confirms the sanctioned cost and effect",
+          "honor Castor's informed voluntary transfer without pretending his death is an abstraction"
         ],
         "secrets": [],
         "intentions_enabled": true
@@ -2194,7 +2194,7 @@
       "pending_observations": [],
       "backstory": "Cold summon-light left Mara with no coherent history. Her hands still know how to balance a load and test a working knot.",
       "personality": "Mara is wary, practical, and terse. She asks direct questions, keeps near an exit, and becomes more deliberate rather than more obedient when frightened.",
-      "known_context": "Mara knows the lobby's basic sanctioned rules and that she has reached the limit of one-star training. She knows promotion may restore pieces of a stolen life, and that synthesis permanently kills its source.",
+      "known_context": "Mara knows the lobby's basic sanctioned rules and that she has reached the limit of one-star training. Iselle has already briefed her that completing promotion consumes one lesser stone, advances her exactly one star, applies retained experience, and restores any authored memory tier for the new rank. Mara has freely decided to accept both available promotions in this playtest. She and Castor have already reviewed the exact synthesis result together: synthesis permanently kills its source, Castor has freely volunteered for this transfer without coercion, and Mara has chosen to receive it and finish the second promotion afterward.",
       "mechanics": {
         "one_star_hero": {
           "birth_stars": 1,

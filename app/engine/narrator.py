@@ -81,15 +81,21 @@ def _visual_novel_sprite_roster(
     resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
 ) -> tuple[tuple[str, ...], str]:
     texts: list[str] = []
+    present_ids: set[str] = set()
     for entry, event in resolved:
         if entry.observation_level != "direct":
             continue
-        texts.extend(visible_fact_texts(
-            event.canonical_event.observable_facts,
-            viewer_id,
-            include_all_observers=True,
-        ))
-    present_ids = visually_staged_character_ids(ckpt, texts)
+        for fact in event.canonical_event.observable_facts:
+            if fact.is_visible_to(viewer_id):
+                present_ids.update(fact.visual_subject_ids)
+        texts.extend(
+            visible_fact_texts(
+                event.canonical_event.observable_facts,
+                viewer_id,
+                include_all_observers=True,
+            )
+        )
+    present_ids.update(visually_staged_character_ids(ckpt, texts))
     labels: list[str] = []
     for character in ckpt.characters:
         if (
@@ -101,14 +107,10 @@ def _visual_novel_sprite_roster(
         if label:
             labels.append(label)
     unique_labels = tuple(
-        label
-        for label in dict.fromkeys(labels)
-        if labels.count(label) == 1
+        label for label in dict.fromkeys(labels) if labels.count(label) == 1
     )
     block = (
-        "\n".join(f"- {label}" for label in unique_labels)
-        if unique_labels
-        else "None."
+        "\n".join(f"- {label}" for label in unique_labels) if unique_labels else "None."
     )
     return unique_labels, block
 
@@ -195,8 +197,7 @@ def _assert_visual_novel_correction_preserves_contract(
     ):
         if after.kind != before.kind:
             raise ValueError(
-                "visual-novel correction changed page kind/order "
-                f"at page {index}"
+                f"visual-novel correction changed page kind/order at page {index}"
             )
         before_sprite_contract_safe = _visual_novel_page_sprite_cues_are_valid(
             before,
@@ -262,8 +263,7 @@ def _resolve_buffered_events(
     if missing_event_ids:
         missing = ", ".join(dict.fromkeys(missing_event_ids))
         raise RuntimeError(
-            "Narrator render buffer references missing canonical event(s): "
-            f"{missing}"
+            f"Narrator render buffer references missing canonical event(s): {missing}"
         )
 
     resolved: list[tuple[RenderBufferEntry, EventRouterOutput]] = []
@@ -327,10 +327,7 @@ def _format_visible_events_block(
             )
         ]
         if ckpt is not None:
-            facts = [
-                replace_character_ids_for_narrator(fact, ckpt)
-                for fact in facts
-            ]
+            facts = [replace_character_ids_for_narrator(fact, ckpt) for fact in facts]
         if pov_character_id and not facts:
             # No fact visible to this POV means the event must not
             # surface in their render at all.
@@ -400,9 +397,8 @@ async def compose_pov_render(
     pov_name = pov_char.name if pov_char else pov_character_id
 
     from app.engine.context_builder import build_setting_summary
-    setting_summary = _safe_narrator_prompt_context(
-        build_setting_summary(ckpt)
-    )
+
+    setting_summary = _safe_narrator_prompt_context(build_setting_summary(ckpt))
     narrative_rules = (
         _safe_narrator_prompt_context(ckpt.session.config.narrative_rules)
         or "No specific narrative rules."
@@ -411,7 +407,9 @@ async def compose_pov_render(
         ckpt, pov_character_id
     )
     visible_events_block = _format_visible_events_block(
-        resolved, pov_character_id, ckpt,
+        resolved,
+        pov_character_id,
+        ckpt,
     )
     visual_intro_plan = plan_render_visual_introductions(
         ckpt,
@@ -435,9 +433,7 @@ async def compose_pov_render(
     pov_history = ckpt.narrator_conversations.get(pov_character_id, [])
 
     render_t0 = time.monotonic()
-    visual_novel = (
-        ckpt.session.config.settings.presentation_mode == "visual_novel"
-    )
+    visual_novel = ckpt.session.config.settings.presentation_mode == "visual_novel"
     messages = prompt_mgr.render_conversation(
         "narrator_visual_novel" if visual_novel else "narrator_phase2",
         history=pov_history,
@@ -458,13 +454,14 @@ async def compose_pov_render(
     logger.info(
         "compose_pov_render: pov=%s events=%d partial=%s history=%d msgs "
         "(prompt_render_ms=%.1f)",
-        pov_character_id, len(resolved), partial_mode, len(pov_history),
+        pov_character_id,
+        len(resolved),
+        partial_mode,
+        len(pov_history),
         render_ms,
     )
 
-    response_model = (
-        VisualNovelNarratorOutput if visual_novel else NarratorFinalOutput
-    )
+    response_model = VisualNovelNarratorOutput if visual_novel else NarratorFinalOutput
     result: NarratorOutput | None = None
     rejected_result: VisualNovelNarratorOutput | None = None
     roster_source_ids = _checkpoint_roster_source_ids(ckpt)
@@ -537,10 +534,12 @@ async def compose_pov_render(
     final_text = narrator_plain_text(result)
     logger.info(
         "compose_pov_render: pov=%s rendered %d chars",
-        pov_character_id, len(final_text),
+        pov_character_id,
+        len(final_text),
     )
     transcript_entry = TranscriptEntry(
-        user=user_input, assistant=final_text,
+        user=user_input,
+        assistant=final_text,
     )
     return result, transcript_entry
 
@@ -583,14 +582,18 @@ def commit_pov_render(
         }
     else:
         history_payload = {"final_text": result.final_text}
-    history.append(ConversationMessage(
-        role="assistant",
-        content=[{
-            "type": "text",
-            "text": json.dumps(
-                history_payload,
-                ensure_ascii=True,
-                separators=(",", ":"),
-            ),
-        }],
-    ))
+    history.append(
+        ConversationMessage(
+            role="assistant",
+            content=[
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        history_payload,
+                        ensure_ascii=True,
+                        separators=(",", ":"),
+                    ),
+                }
+            ],
+        )
+    )

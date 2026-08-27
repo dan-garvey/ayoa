@@ -167,10 +167,12 @@ def _render_one_star_router(
     )
     roster_record = context.pop("initial_roster_block")
     if roster_record:
-        checkpoint.session_conversation.append(ConversationMessage(
-            role="assistant",
-            content=roster_record,
-        ))
+        checkpoint.session_conversation.append(
+            ConversationMessage(
+                role="assistant",
+                content=roster_record,
+            )
+        )
     router_input_block = _build_router_input_block(
         _build_opening_context_block(checkpoint, intention, actor_id),
         context.pop("engine_state_updates_block"),
@@ -189,9 +191,7 @@ def _render_one_star_router(
         router_input_block=router_input_block,
     )
     system_messages = [
-        message["content"]
-        for message in messages
-        if message.get("role") == "system"
+        message["content"] for message in messages if message.get("role") == "system"
     ]
     assert len(system_messages) == 1
     assert isinstance(system_messages[0], str)
@@ -231,13 +231,9 @@ def test_router_ruleset_addon_defaults_but_drops_in_nonfresh_dnd(prompt_mgr):
 
     assert "Category II" in default_vars["router_ruleset_addon"]
     assert "dnd_combat_start" not in default_vars["router_ruleset_addon"]
-    assert "D&D Exploration Spawn Authority" not in default_vars[
-        "router_ruleset_addon"
-    ]
+    assert "D&D Exploration Spawn Authority" not in default_vars["router_ruleset_addon"]
     assert "dnd_combat_start" in dnd_fresh_vars["router_ruleset_addon"]
-    assert "D&D Exploration Spawn Authority" in dnd_fresh_vars[
-        "router_ruleset_addon"
-    ]
+    assert "D&D Exploration Spawn Authority" in dnd_fresh_vars["router_ruleset_addon"]
     assert "Category II examples" not in dnd_fresh_vars["router_ruleset_addon"]
     assert dnd_nonfresh_vars["router_ruleset_addon"] == ""
 
@@ -260,7 +256,8 @@ def _queue_content_signal(
         pack_id="pack",
         ref_id=ref_id,
         content_hash=content_hash,
-        metadata=metadata or {
+        metadata=metadata
+        or {
             "kind": kind,
             "visibility": "hidden",
             "summary": "Entry chamber context.",
@@ -453,11 +450,13 @@ class TestRouterContext:
     def test_fictional_roster_is_invariant_under_binding_permutations(self):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         next(
-            character for character in ckpt.characters
+            character
+            for character in ckpt.characters
             if character.character_id == "alice"
         ).public_sheet.role = "investigator"
         next(
-            character for character in ckpt.characters
+            character
+            for character in ckpt.characters
             if character.character_id == "pip"
         ).public_sheet.role = "bell keeper"
         bound_context = _build_router_context(ckpt, "alice")
@@ -474,13 +473,15 @@ class TestRouterContext:
 
     def test_active_hazard_gets_one_semantic_kind_marker(self):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.characters.append(CharacterRecord(
-            character_id="clockwork_gate",
-            name="the Clockwork Gate",
-            entity_kind=FictionalEntityKind.hazard,
-            location="gatehouse",
-            public_sheet=PublicSheet(role="a repeating blade mechanism"),
-        ))
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="clockwork_gate",
+                name="the Clockwork Gate",
+                entity_kind=FictionalEntityKind.hazard,
+                location="gatehouse",
+                public_sheet=PublicSheet(role="a repeating blade mechanism"),
+            )
+        )
 
         roster = _build_router_context(ckpt, "alice")["initial_roster_block"]
         alice_entry = roster.split("- alice", 1)[1].split("\n\n-", 1)[0]
@@ -564,9 +565,7 @@ class TestRouterContext:
             if character.character_id == "one_star_newcomer"
         )
         authored_newcomer.name = "Mara Vale"
-        authored_newcomer.public_sheet.appearance = (
-            "a scarlet coat and iron-gray braid"
-        )
+        authored_newcomer.public_sheet.appearance = "a scarlet coat and iron-gray braid"
 
         master_system, master_user = _render_one_star_begin(
             prompt_mgr,
@@ -601,13 +600,15 @@ class TestRouterContext:
             checkpoint,
             actor_id="the_master",
         )
-        checkpoint.session_conversation.append(ConversationMessage(
-            role="assistant",
-            content=(
-                "prior_event evt_open @0+1 source=the_master mode=intention\n"
-                "fact[all@0+1] Summon-light fades in Niflheim."
-            ),
-        ))
+        checkpoint.session_conversation.append(
+            ConversationMessage(
+                role="assistant",
+                content=(
+                    "prior_event evt_open @0+1 source=the_master mode=intention\n"
+                    "fact[all@0+1] Summon-light fades in Niflheim."
+                ),
+            )
+        )
 
         second_system, second_user = _render_one_star_router(
             prompt_mgr,
@@ -669,15 +670,17 @@ class TestRouterContext:
 
     def test_unclaimed_player_authored_slot_is_absent_from_router_context(self):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.characters.append(CharacterRecord(
-            character_id="blank_arrival",
-            name="the Newcomer",
-            status="dormant",
-            location="not_yet_fictional",
-            is_playable=True,
-            player_slot_kind=PlayerSlotKind.player_authored,
-            public_sheet=PublicSheet(role="new arrival"),
-        ))
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="blank_arrival",
+                name="the Newcomer",
+                status="dormant",
+                location="not_yet_fictional",
+                is_playable=True,
+                player_slot_kind=PlayerSlotKind.player_authored,
+                public_sheet=PublicSheet(role="new arrival"),
+            )
+        )
 
         ctx = _build_router_context(ckpt, "alice")
 
@@ -686,18 +689,20 @@ class TestRouterContext:
 
     def test_selected_dormant_character_appears_only_as_opening_participant(self):
         ckpt = _ckpt(bindings={"blank_arrival": "discord_1"})
-        ckpt.characters.append(CharacterRecord(
-            character_id="blank_arrival",
-            name="Mara Vale",
-            status="dormant",
-            location="not_yet_fictional",
-            is_playable=True,
-            player_slot_kind=PlayerSlotKind.player_authored,
-            public_sheet=PublicSheet(
-                role="new arrival",
-                appearance="scarlet coat and iron-gray braid",
-            ),
-        ))
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="blank_arrival",
+                name="Mara Vale",
+                status="dormant",
+                location="not_yet_fictional",
+                is_playable=True,
+                player_slot_kind=PlayerSlotKind.player_authored,
+                public_sheet=PublicSheet(
+                    role="new arrival",
+                    appearance="scarlet coat and iron-gray braid",
+                ),
+            )
+        )
 
         ctx = _build_router_context(ckpt, "blank_arrival")
         opening = _build_opening_context_block(
@@ -718,38 +723,40 @@ class TestRouterContext:
     def test_arrive_carries_existing_dormant_character_identity(self):
         ckpt = _ckpt(bindings={"blank_arrival": "discord_1"})
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
-        ckpt.characters.append(CharacterRecord(
-            character_id="blank_arrival",
-            name="Mara Vale",
-            status="dormant",
-            location="not_yet_fictional",
-            is_playable=True,
-            player_slot_kind=PlayerSlotKind.player_authored,
-            public_sheet=PublicSheet(
-                role="new arrival",
-                appearance="scarlet coat and iron-gray braid",
-            ),
-            mechanics={
-                "dnd5e_sheet": {
-                    "identity": {
-                        "species": "Wood Elf",
-                        "classes": [{"name": "Ranger", "level": 2}],
-                    },
-                    "statblock": {
-                        "inventory": {
-                            "items": [
-                                {
-                                    "id": "longbow",
-                                    "name": "Longbow",
-                                    "quantity": 1,
-                                    "equipped": True,
-                                }
-                            ]
-                        }
-                    },
-                }
-            },
-        ))
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="blank_arrival",
+                name="Mara Vale",
+                status="dormant",
+                location="not_yet_fictional",
+                is_playable=True,
+                player_slot_kind=PlayerSlotKind.player_authored,
+                public_sheet=PublicSheet(
+                    role="new arrival",
+                    appearance="scarlet coat and iron-gray braid",
+                ),
+                mechanics={
+                    "dnd5e_sheet": {
+                        "identity": {
+                            "species": "Wood Elf",
+                            "classes": [{"name": "Ranger", "level": 2}],
+                        },
+                        "statblock": {
+                            "inventory": {
+                                "items": [
+                                    {
+                                        "id": "longbow",
+                                        "name": "Longbow",
+                                        "quantity": 1,
+                                        "equipped": True,
+                                    }
+                                ]
+                            }
+                        },
+                    }
+                },
+            )
+        )
 
         arrival = _build_opening_context_block(
             ckpt,
@@ -766,9 +773,12 @@ class TestRouterContext:
         assert "D&D equipment: currently has equipped Longbow." in arrival
         assert "New-character spawn requests" not in arrival
 
+
 class TestRouteIntention:
     def test_authoritative_result_accepts_observer_scoped_canonicalization(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _one_star_checkpoint(bindings={"the_master": "discord_1"})
         routed = ClosedEventRouterOutput.model_validate(
@@ -776,9 +786,17 @@ class TestRouteIntention:
                 event_kind="state_change",
                 observer_ids=["the_master", "iselle_the_guide"],
                 agent_ids=["iselle_the_guide"],
-                facts=[ObservableFact.all(
-                    "LAST_WORDS_SENTINEL before SYSTEM_RESULT_SENTINEL"
-                )],
+                location_updates=[
+                    {
+                        "character_id": "iselle_the_guide",
+                        "location_label": "niflheim_synthesis_chamber",
+                    }
+                ],
+                facts=[
+                    ObservableFact.all(
+                        "LAST_WORDS_SENTINEL before SYSTEM_RESULT_SENTINEL"
+                    )
+                ],
             ).model_dump(mode="python")
         )
         mock_client.complete.return_value = _llm_response(routed)
@@ -788,9 +806,7 @@ class TestRouteIntention:
             ruleset_actor_id="the_master",
             viewpoint_character_id="the_master",
             submitted_command="/master synthesis target from source",
-            location_updates=(
-                ("iselle_the_guide", "niflheim_synthesis_chamber"),
-            ),
+            location_updates=(("iselle_the_guide", "niflheim_synthesis_chamber"),),
             state_updates=(
                 {
                     "kind": "pending_resolve",
@@ -837,35 +853,82 @@ class TestRouteIntention:
         assert result.requires_responders is False
         assert result.required_responders == []
         assert all(
-            observer.routing_role == "observe_only"
-            for observer in result.observers
+            observer.routing_role == "observe_only" for observer in result.observers
         )
         assert result.location_updates[0].character_id == "iselle_the_guide"
         assert result.state_updates[0].target_id == "synth_sentinel"
         assert "mode=authoritative_result" in ckpt.session_conversation[-1].content
 
-    def test_authoritative_result_omits_empty_contribution_section(self):
-        block = format_authoritative_result_block(AuthoritativeResultPlan(
+    def test_authoritative_result_rejects_unfixed_location_side_effect(
+        self,
+        prompt_mgr,
+        mock_client,
+    ):
+        ckpt = _one_star_checkpoint(bindings={"the_master": "discord_1"})
+        routed = ClosedEventRouterOutput.model_validate(
+            router_output(
+                event_kind="state_change",
+                observer_ids=["the_master", "iselle_the_guide"],
+                location_updates=[
+                    {
+                        "character_id": "iselle_the_guide",
+                        "location_label": "invented_location",
+                    }
+                ],
+                facts=[ObservableFact.all("The fixed result is visible.")],
+            ).model_dump(mode="python")
+        )
+        mock_client.complete.return_value = _llm_response(routed)
+        plan = AuthoritativeResultPlan(
             authority_label="System",
             result_text="The fixed result occurs.",
-            ruleset_actor_id="owner",
-            viewpoint_character_id="owner",
+            ruleset_actor_id="the_master",
+            viewpoint_character_id="the_master",
             submitted_command="/fixed",
-        ))
+            location_updates=(("iselle_the_guide", "niflheim_synthesis_chamber"),),
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="attempted to author fixed side effects",
+        ):
+            asyncio.run(
+                LLMDispatcher(mock_client, prompt_mgr).route_authoritative_result(
+                    ckpt=ckpt,
+                    plan=plan,
+                )
+            )
+
+        assert ckpt.session_conversation == []
+
+    def test_authoritative_result_omits_empty_contribution_section(self):
+        block = format_authoritative_result_block(
+            AuthoritativeResultPlan(
+                authority_label="System",
+                result_text="The fixed result occurs.",
+                ruleset_actor_id="owner",
+                viewpoint_character_id="owner",
+                submitted_command="/fixed",
+            )
+        )
 
         assert "character_contributions" not in block
 
     def test_direct_actor_submission_uses_origin_neutral_envelope(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="examine the lock",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="examine the lock",
+            )
+        )
 
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
@@ -939,11 +1002,13 @@ class TestRouteIntention:
             _llm_response(_dnd_router_output()),
         ]
         for ckpt in (bound, rebound):
-            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-                ckpt=ckpt,
-                actor_id="alice",
-                intention="I inspect the threshold.",
-            ))
+            asyncio.run(
+                LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                    ckpt=ckpt,
+                    actor_id="alice",
+                    intention="I inspect the threshold.",
+                )
+            )
 
         first_messages = mock_client.complete.await_args_list[0].kwargs["messages"]
         rebound_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
@@ -971,26 +1036,31 @@ class TestRouteIntention:
         )
         routed = router_output(
             event_id="evt_facility",
-            facts=[ObservableFact.only(
-                "The Synthesis Chamber construction state changes.",
-                ["the_master", "iselle_the_guide"],
-            )],
+            facts=[
+                ObservableFact.only(
+                    "The Synthesis Chamber construction state changes.",
+                    ["the_master", "iselle_the_guide"],
+                )
+            ],
             observer_ids=["the_master", "iselle_the_guide"],
         )
         mock_client.complete.return_value = _llm_response(routed)
 
-        result = asyncio.run(LLMDispatcher(
-            mock_client,
-            prompt_mgr,
-        ).route_intention(
-            ckpt=checkpoint,
-            actor_id="the_master",
-            intention="Build the Synthesis Chamber.",
-        ))
+        result = asyncio.run(
+            LLMDispatcher(
+                mock_client,
+                prompt_mgr,
+            ).route_intention(
+                ckpt=checkpoint,
+                actor_id="the_master",
+                intention="Build the Synthesis Chamber.",
+            )
+        )
 
-        assert {
-            observer.character_id for observer in result.observers
-        } == {"the_master", "iselle_the_guide"}
+        assert {observer.character_id for observer in result.observers} == {
+            "the_master",
+            "iselle_the_guide",
+        }
         messages = mock_client.complete.await_args.kwargs["messages"]
         user_content = _last_user_content(messages)
         assert "Build the Synthesis Chamber." in user_content
@@ -1002,7 +1072,9 @@ class TestRouteIntention:
         )
 
     def test_pending_inventory_update_precedes_next_intention(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.pending_engine_state_updates = [
@@ -1010,11 +1082,13 @@ class TestRouteIntention:
         ]
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I leave the shop.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I leave the shop.",
+            )
+        )
 
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
@@ -1027,16 +1101,20 @@ class TestRouteIntention:
         assert ckpt.session.pending_engine_state_updates == []
 
     def test_unbound_actor_submission_uses_same_open_router_contract(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="pip",
-            intention="polishes the bell",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="pip",
+                intention="polishes the bell",
+            )
+        )
 
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
@@ -1049,7 +1127,9 @@ class TestRouteIntention:
         )
 
     def test_actor_submission_time_is_not_before_session_edge(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
@@ -1070,7 +1150,9 @@ class TestRouteIntention:
         assert result.effective_at_s == 30
 
     def test_router_input_omits_derived_commitment_context(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.open_commitments = [
@@ -1082,11 +1164,13 @@ class TestRouteIntention:
         ]
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="check the hinges",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="check the hinges",
+            )
+        )
 
         live_user = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
@@ -1108,7 +1192,9 @@ class TestRouteIntention:
         assert "check the hinges" not in stored_text
 
     def test_router_history_stores_compact_facts_without_user_message(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         result = _router_output()
@@ -1133,11 +1219,13 @@ class TestRouteIntention:
         ]
         mock_client.complete.return_value = _llm_response(result)
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I check whether the hinge is loose.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I check whether the hinge is loose.",
+            )
+        )
 
         assert len(ckpt.session_conversation) == 2
         assert ckpt.session_conversation[0].content.startswith("roster_seed\n")
@@ -1154,7 +1242,9 @@ class TestRouteIntention:
         assert '"canonical_event"' not in record.content
 
     def test_router_history_carries_only_latest_private_mission_status(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         first = _router_output()
@@ -1185,11 +1275,13 @@ class TestRouteIntention:
             _llm_response(second),
         ]
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I make the case for opening the refuge.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I make the case for opening the refuge.",
+            )
+        )
 
         first_record = ckpt.session_conversation[-1].content
         assert "mission_status id=council_vote; state=active" in first_record
@@ -1200,11 +1292,13 @@ class TestRouteIntention:
             for fact in first.canonical_event.observable_facts
         )
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I answer the remaining objection.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I answer the remaining objection.",
+            )
+        )
 
         replayed_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
         system_content = replayed_messages[0]["content"]
@@ -1232,7 +1326,9 @@ class TestRouteIntention:
         )
 
     def test_materialized_spawn_name_stays_in_compact_router_history(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         spawned_event = _router_output()
@@ -1254,11 +1350,13 @@ class TestRouteIntention:
             _llm_response(_router_output()),
         ]
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I call for a guide.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I call for a guide.",
+            )
+        )
         generated = character_record(
             "sera_01",
             name="Sera Vale",
@@ -1277,11 +1375,13 @@ class TestRouteIntention:
         assert "spawn sera_01 name=Sera Vale role=cartographer" in compact
         assert "forbidden private ledger" not in compact
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I deploy Sera Vale.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I deploy Sera Vale.",
+            )
+        )
         next_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
         assert any(
             message.get("role") == "assistant"
@@ -1290,18 +1390,22 @@ class TestRouteIntention:
         )
 
     def test_router_history_preserves_defer_user_prompt(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         result = _router_output()
         result.event_id = "evt_defer_continue"
         mock_client.complete.return_value = _llm_response(result)
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="  (defer)  ",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="  (defer)  ",
+            )
+        )
 
         assert [m.role for m in ckpt.session_conversation] == [
             "assistant",
@@ -1315,17 +1419,21 @@ class TestRouteIntention:
         )
 
     def test_route_intention_adds_pending_content_as_prior_history_only(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         _queue_content_signal(ckpt)
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I inspect the threshold.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I inspect the threshold.",
+            )
+        )
 
         messages = mock_client.complete.await_args.kwargs["messages"]
         system_content = messages[0]["content"]
@@ -1361,7 +1469,10 @@ class TestRouteIntention:
         ]
 
     def test_route_intention_runs_lookup_preflight_before_router(
-        self, prompt_mgr, mock_client, tmp_path,
+        self,
+        prompt_mgr,
+        mock_client,
+        tmp_path,
     ):
         db_path = _content_pack_db(
             tmp_path,
@@ -1388,11 +1499,13 @@ class TestRouteIntention:
         }
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I inspect the threshold.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I inspect the threshold.",
+            )
+        )
 
         messages = mock_client.complete.await_args.kwargs["messages"]
         system_content = messages[0]["content"]
@@ -1410,7 +1523,10 @@ class TestRouteIntention:
         assert ckpt.session_conversation[-1].content.startswith("prior_event ")
 
     def test_lookup_preflight_missing_content_aborts_before_router_call(
-        self, prompt_mgr, mock_client, tmp_path,
+        self,
+        prompt_mgr,
+        mock_client,
+        tmp_path,
     ):
         db_path = _content_pack_db(tmp_path, [])
         ckpt = _ckpt(bindings={"alice": "discord_1"})
@@ -1426,18 +1542,23 @@ class TestRouteIntention:
         before_content = ckpt.session.content_state["pack"].model_dump()
 
         with pytest.raises(MissingContentError):
-            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-                ckpt=ckpt,
-                actor_id="alice",
-                intention="I search for the secret door.",
-            ))
+            asyncio.run(
+                LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                    ckpt=ckpt,
+                    actor_id="alice",
+                    intention="I search for the secret door.",
+                )
+            )
 
         mock_client.complete.assert_not_awaited()
         assert ckpt.session.content_state["pack"].model_dump() == before_content
         assert ckpt.session_conversation == []
 
     def test_route_intention_runs_bounded_lookup_model_before_router(
-        self, prompt_mgr, mock_client, tmp_path,
+        self,
+        prompt_mgr,
+        mock_client,
+        tmp_path,
     ):
         db_path = _content_pack_db(
             tmp_path,
@@ -1468,11 +1589,13 @@ class TestRouteIntention:
             _llm_response(_router_output()),
         ]
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I investigate the odd draft in the wall.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I investigate the odd draft in the wall.",
+            )
+        )
 
         assert mock_client.complete.await_count == 2
         lookup_call = mock_client.complete.await_args_list[0].kwargs
@@ -1492,14 +1615,19 @@ class TestRouteIntention:
             for message in router_messages
         )
         assert "location_card ref=room/secret" not in router_messages[0]["content"]
-        assert "location_card ref=room/secret" not in _last_user_content(router_messages)
+        assert "location_card ref=room/secret" not in _last_user_content(
+            router_messages
+        )
         assert ckpt.session_conversation[0].content.startswith(
             "location_card ref=room/secret "
         )
         assert ckpt.session_conversation[-1].content.startswith("prior_event ")
 
     def test_content_manager_preflight_projects_only_router_packet(
-        self, prompt_mgr, mock_client, tmp_path,
+        self,
+        prompt_mgr,
+        mock_client,
+        tmp_path,
     ):
         db_path = _content_pack_db(
             tmp_path,
@@ -1567,9 +1695,7 @@ class TestRouteIntention:
             )
         }
         ckpt.canonical_events = [
-            router_output(
-                facts=[ObservableFact.all("Alice notices a cold draft.")]
-            )
+            router_output(facts=[ObservableFact.all("Alice notices a cold draft.")])
         ]
         mock_client.complete.side_effect = [
             _llm_response(
@@ -1604,11 +1730,13 @@ class TestRouteIntention:
             _llm_response(_router_output()),
         ]
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I investigate the odd draft in the wall.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I investigate the odd draft in the wall.",
+            )
+        )
 
         assert mock_client.complete.await_count == 2
         content_call = mock_client.complete.await_args_list[0].kwargs
@@ -1627,11 +1755,13 @@ class TestRouteIntention:
         assert "pack=pack entity=pip" not in content_text
 
         router_text = "\n".join(
-            str(message.get("content", ""))
-            for message in router_call["messages"]
+            str(message.get("content", "")) for message in router_call["messages"]
         )
         assert "location_card ref=room/secret" in router_text
-        assert "turn_hint scope=attention_hint character=pip priority=medium" in router_text
+        assert (
+            "turn_hint scope=attention_hint character=pip priority=medium"
+            in router_text
+        )
         assert "engine_knowledge_map" not in router_text
         assert "pack=pack entity=pip" not in router_text
         assert "suspected=pack:front/old@hash-old" not in router_text
@@ -1642,7 +1772,10 @@ class TestRouteIntention:
         assert ckpt.session_conversation[-1].content.startswith("prior_event ")
 
     def test_content_manager_preflight_throttles_between_cycles(
-        self, prompt_mgr, mock_client, tmp_path,
+        self,
+        prompt_mgr,
+        mock_client,
+        tmp_path,
     ):
         db_path = _content_pack_db(
             tmp_path,
@@ -1662,9 +1795,7 @@ class TestRouteIntention:
         ckpt.session.content_state = {
             "pack": ContentPackState(
                 pack_id="pack",
-                knowledge_map={
-                    "pip": ContentKnowledgeEntityState(entity_id="pip")
-                },
+                knowledge_map={"pip": ContentKnowledgeEntityState(entity_id="pip")},
                 metadata=_content_pack_metadata(
                     db_path,
                     router_knowledge_index=[
@@ -1699,9 +1830,7 @@ class TestRouteIntention:
             )
         }
         ckpt.canonical_events = [
-            router_output(
-                facts=[ObservableFact.all("Alice spots old wolf tracks.")]
-            )
+            router_output(facts=[ObservableFact.all("Alice spots old wolf tracks.")])
         ]
         mock_client.complete.side_effect = [
             _llm_response(
@@ -1722,36 +1851,37 @@ class TestRouteIntention:
         ]
 
         dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        asyncio.run(dispatcher.route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I check the tracks.",
-        ))
-        asyncio.run(dispatcher.route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I keep moving carefully.",
-        ))
+        asyncio.run(
+            dispatcher.route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I check the tracks.",
+            )
+        )
+        asyncio.run(
+            dispatcher.route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I keep moving carefully.",
+            )
+        )
 
-        roles = [
-            call.kwargs["role"]
-            for call in mock_client.complete.await_args_list
-        ]
+        roles = [call.kwargs["role"] for call in mock_client.complete.await_args_list]
         assert roles == ["content_manager", "event_router", "event_router"]
         assert ckpt.session.content_manager_preflight_cycle == 2
         assert ckpt.session.content_manager_last_run_cycle == 0
 
     def test_content_manager_throttle_still_drains_pending_content(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.config.settings.content_manager_refresh_interval = 3
         ckpt.session.content_manager_preflight_cycle = 1
         ckpt.session.content_manager_last_run_cycle = 0
         ckpt.canonical_events = [
-            router_output(
-                facts=[ObservableFact.all("Alice hears stone scrape.")]
-            )
+            router_output(facts=[ObservableFact.all("Alice hears stone scrape.")])
         ]
         _queue_content_signal(ckpt)
         ckpt.session.content_state["pack"].metadata = {
@@ -1789,18 +1919,19 @@ class TestRouteIntention:
         }
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I push the entry door open.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I push the entry door open.",
+            )
+        )
 
         assert mock_client.complete.await_count == 1
         router_call = mock_client.complete.await_args_list[0].kwargs
         assert router_call["role"] == "event_router"
         router_text = "\n".join(
-            str(message.get("content", ""))
-            for message in router_call["messages"]
+            str(message.get("content", "")) for message in router_call["messages"]
         )
         assert "location_card ref=room/entry" in router_text
         assert ckpt.session.content_state["pack"].pending_signals == {}
@@ -1808,7 +1939,10 @@ class TestRouteIntention:
         assert ckpt.session.content_manager_last_run_cycle == 0
 
     def test_content_manager_throttle_counter_rolls_back_on_failure(
-        self, prompt_mgr, mock_client, tmp_path,
+        self,
+        prompt_mgr,
+        mock_client,
+        tmp_path,
     ):
         db_path = _content_pack_db(
             tmp_path,
@@ -1827,31 +1961,31 @@ class TestRouteIntention:
         ckpt.session.content_state = {
             "pack": ContentPackState(
                 pack_id="pack",
-                knowledge_map={
-                    "pip": ContentKnowledgeEntityState(entity_id="pip")
-                },
+                knowledge_map={"pip": ContentKnowledgeEntityState(entity_id="pip")},
                 metadata=_content_pack_metadata(db_path),
             )
         }
         ckpt.canonical_events = [
-            router_output(
-                facts=[ObservableFact.all("Alice spots old wolf tracks.")]
-            )
+            router_output(facts=[ObservableFact.all("Alice spots old wolf tracks.")])
         ]
         mock_client.complete.side_effect = RuntimeError("content lookup failed")
 
         with pytest.raises(RuntimeError, match="content lookup failed"):
-            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-                ckpt=ckpt,
-                actor_id="alice",
-                intention="I check the tracks.",
-            ))
+            asyncio.run(
+                LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                    ckpt=ckpt,
+                    actor_id="alice",
+                    intention="I check the tracks.",
+                )
+            )
 
         assert ckpt.session.content_manager_preflight_cycle == 0
         assert ckpt.session.content_manager_last_run_cycle == -1
 
     def test_dnd_cat_ii_packet_receives_pending_content_context(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         _enable_dnd(ckpt)
@@ -1868,20 +2002,24 @@ class TestRouteIntention:
             },
         )
         mock_client.complete.side_effect = [
-            _llm_response(RollPlan(
-                needs_rolls=False,
-                roll_requests=[],
-                no_roll_reason="The contest resolves without dice.",
-            )),
+            _llm_response(
+                RollPlan(
+                    needs_rolls=False,
+                    roll_requests=[],
+                    no_roll_reason="The contest resolves without dice.",
+                )
+            ),
             _llm_response(_rules_adjudication("Pip gives ground.")),
         ]
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I press Pip back.",
-            cat_ii_event=_open_cat_ii_event(),
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I press Pip back.",
+                cat_ii_event=_open_cat_ii_event(),
+            )
+        )
 
         plan_messages = mock_client.complete.await_args_list[0].kwargs["messages"]
         plan_user_content = _last_user_content(plan_messages)
@@ -1896,17 +2034,21 @@ class TestRouteIntention:
         mock_client.complete.side_effect = None
         mock_client.complete.return_value = _llm_response(_dnd_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I inspect the latch again.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I inspect the latch again.",
+            )
+        )
 
         assert _pending_content_record_count(ckpt, "location_card ref=room/entry") == 1
         assert _pending_content_record_count(ckpt, "content_known ref=trap/needle") == 1
 
     def test_router_history_replays_prior_defer_to_next_call(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         first = _router_output()
@@ -1919,21 +2061,24 @@ class TestRouteIntention:
         ]
 
         dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        asyncio.run(dispatcher.route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="(defer)",
-        ))
-        asyncio.run(dispatcher.route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="look around",
-        ))
+        asyncio.run(
+            dispatcher.route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="(defer)",
+            )
+        )
+        asyncio.run(
+            dispatcher.route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="look around",
+            )
+        )
 
         second_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
         prior_user_messages = [
-            m for m in second_messages[:-1]
-            if m.get("role") == "user"
+            m for m in second_messages[:-1] if m.get("role") == "user"
         ]
         assert any(m["content"] == "(defer)" for m in prior_user_messages)
         assert [m.role for m in ckpt.session_conversation] == [
@@ -1944,17 +2089,21 @@ class TestRouteIntention:
         ]
 
     def test_dnd_fresh_intention_uses_dnd_router_contract(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         mock_client.complete.return_value = _llm_response(_dnd_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="draw steel",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="draw steel",
+            )
+        )
 
         call = mock_client.complete.await_args.kwargs
         assert call["response_model"] is DndEventRouterOutput
@@ -1965,24 +2114,30 @@ class TestRouteIntention:
         assert "Category II examples" not in system_content
 
     def test_dnd_autonomous_actor_submission_uses_same_open_contract(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         mock_client.complete.return_value = _llm_response(_dnd_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="pip",
-            intention="I reach for Alice's letter.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="pip",
+                intention="I reach for Alice's letter.",
+            )
+        )
 
         call = mock_client.complete.await_args.kwargs
         assert call["response_model"] is DndEventRouterOutput
         assert "submitted_actor_id: pip" in _last_user_content(call["messages"])
 
     def test_dnd_loot_offer_is_not_replayed_in_router_history(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
@@ -2012,15 +2167,15 @@ class TestRouteIntention:
             "currency": {"gp": 5},
             "notes": "under the false bottom",
         }
-        mock_client.complete.return_value = _llm_response(
-            DndEventRouterOutput(**data)
-        )
+        mock_client.complete.return_value = _llm_response(DndEventRouterOutput(**data))
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="open the chest",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="open the chest",
+            )
+        )
 
         stored = ckpt.session_conversation[-1].content
         assert "loot_offer" not in stored
@@ -2031,16 +2186,20 @@ class TestRouteIntention:
         assert "under the false bottom" not in stored
 
     def test_narrative_fresh_intention_keeps_generic_router_contract(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="draw steel",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="draw steel",
+            )
+        )
 
         call = mock_client.complete.await_args.kwargs
         assert call["response_model"] is EventRouterOutput
@@ -2049,7 +2208,9 @@ class TestRouteIntention:
         assert '"interaction_mode"' not in system_content
 
     def test_cat_ii_resolution_formats_collected_intentions(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         mock_client.complete.return_value = _llm_response(_router_output())
@@ -2065,12 +2226,14 @@ class TestRouteIntention:
             swept_responders=["bob"],
         )
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="pip",
-            intention="throws a punch at Alice",
-            cat_ii_event=evt,
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="pip",
+                intention="throws a punch at Alice",
+                cat_ii_event=evt,
+            )
+        )
 
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
@@ -2084,24 +2247,30 @@ class TestRouteIntention:
         assert "attempts:" not in user_content
 
     def test_cat_ii_dnd_mode_appends_compact_router_history(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         mock_client.complete.side_effect = [
-            _llm_response(RollPlan(
-                needs_rolls=False,
-                roll_requests=[],
-                no_roll_reason="Pip yields.",
-            )),
-            _llm_response(RulesAdjudication(
-                feasible=True,
-                mechanical_summary="Pip yields before contact.",
-                visible_outcome_facts=["Pip steps aside before Alice hits him."],
-                state_deltas=[],
-                rules_notes=[],
-                fallback_reason="",
-            )),
+            _llm_response(
+                RollPlan(
+                    needs_rolls=False,
+                    roll_requests=[],
+                    no_roll_reason="Pip yields.",
+                )
+            ),
+            _llm_response(
+                RulesAdjudication(
+                    feasible=True,
+                    mechanical_summary="Pip yields before contact.",
+                    visible_outcome_facts=["Pip steps aside before Alice hits him."],
+                    state_deltas=[],
+                    rules_notes=[],
+                    fallback_reason="",
+                )
+            ),
         ]
         evt = OpenCatIIEvent(
             event_id="evt_abc123",
@@ -2113,12 +2282,14 @@ class TestRouteIntention:
             opening_observable_facts=["Alice drives toward Pip."],
         )
 
-        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I shove Pip",
-            cat_ii_event=evt,
-        ))
+        out = asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I shove Pip",
+                cat_ii_event=evt,
+            )
+        )
 
         assert out.event_kind == "cat_ii_resolution"
         assert out.canonical_event.observable_facts[0].text == (
@@ -2137,7 +2308,10 @@ class TestRouteIntention:
         )
 
     def test_dnd_combat_action_skips_router_history_while_active(
-        self, prompt_mgr, mock_client, monkeypatch,
+        self,
+        prompt_mgr,
+        mock_client,
+        monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.active_combat = DndCombatState(combat_id="combat")
@@ -2158,17 +2332,22 @@ class TestRouteIntention:
         dispatcher = LLMDispatcher(mock_client, prompt_mgr)
         dispatcher._dnd_combat = FakeCombatResolver()
 
-        out = asyncio.run(dispatcher.route_combat_action(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I strike Pip.",
-        ))
+        out = asyncio.run(
+            dispatcher.route_combat_action(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I strike Pip.",
+            )
+        )
 
         assert out is result
         assert ckpt.session_conversation == []
 
     def test_dnd_combat_end_appends_compact_router_history(
-        self, prompt_mgr, mock_client, monkeypatch,
+        self,
+        prompt_mgr,
+        mock_client,
+        monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.active_combat = DndCombatState(combat_id="combat")
@@ -2191,11 +2370,13 @@ class TestRouteIntention:
         dispatcher = LLMDispatcher(mock_client, prompt_mgr)
         dispatcher._dnd_combat = FakeCombatResolver()
 
-        out = asyncio.run(dispatcher.route_combat_action(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I accept Pip's surrender.",
-        ))
+        out = asyncio.run(
+            dispatcher.route_combat_action(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I accept Pip's surrender.",
+            )
+        )
 
         assert out is result
         assert len(ckpt.session_conversation) == 1
@@ -2205,7 +2386,10 @@ class TestRouteIntention:
         )
 
     def test_session_conversation_passed_as_history(
-        self, prompt_mgr, mock_client, monkeypatch,
+        self,
+        prompt_mgr,
+        mock_client,
+        monkeypatch,
     ):
         from app.schemas.conversation import ConversationMessage
 
@@ -2226,11 +2410,13 @@ class TestRouteIntention:
 
         monkeypatch.setattr(prompt_mgr, "render_conversation", _spy)
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="examine the lock",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="examine the lock",
+            )
+        )
 
         assert captured["template"] == "event_router"
         assert captured["history"] is ckpt.session_conversation
@@ -2239,19 +2425,23 @@ class TestRouteIntention:
         assert "prior_event" in ckpt.session_conversation[-1].content
 
     def test_route_continuation_uses_continuation_block_not_intention(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         prior = _router_output()
         prior.decision_rationale = "The visible motion has not settled."
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_continuation(
-            ckpt=ckpt,
-            actor_id="alice",
-            prior_result=prior,
-            original_action="I wait for the door to open.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_continuation(
+                ckpt=ckpt,
+                actor_id="alice",
+                prior_result=prior,
+                original_action="I wait for the door to open.",
+            )
+        )
 
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
@@ -2274,18 +2464,22 @@ class TestRouteIntention:
         )
 
     def test_route_continuation_adds_pending_content_before_recovery_call(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         _queue_content_signal(ckpt, ref_id="front/villain", kind="front_signal")
         prior = _router_output()
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_continuation(
-            ckpt=ckpt,
-            actor_id="alice",
-            prior_result=prior,
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_continuation(
+                ckpt=ckpt,
+                actor_id="alice",
+                prior_result=prior,
+            )
+        )
 
         messages = mock_client.complete.await_args.kwargs["messages"]
         user_content = _last_user_content(messages)
@@ -2298,7 +2492,9 @@ class TestRouteIntention:
         )
 
     def test_failed_router_call_restores_engine_state_updates(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.pending_engine_state_updates = [
@@ -2308,17 +2504,21 @@ class TestRouteIntention:
         mock_client.complete.side_effect = RuntimeError("transient API failure")
 
         with pytest.raises(RuntimeError):
-            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-                ckpt=ckpt,
-                actor_id="alice",
-                intention="examine the lock",
-            ))
+            asyncio.run(
+                LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                    ckpt=ckpt,
+                    actor_id="alice",
+                    intention="examine the lock",
+                )
+            )
 
         assert ckpt.session.pending_engine_state_updates == before_updates
         assert ckpt.session_conversation == []
 
     def test_failed_router_call_restores_pending_content_state(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         _queue_content_signal(ckpt)
@@ -2326,11 +2526,13 @@ class TestRouteIntention:
         mock_client.complete.side_effect = RuntimeError("transient API failure")
 
         with pytest.raises(RuntimeError):
-            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-                ckpt=ckpt,
-                actor_id="alice",
-                intention="examine the threshold",
-            ))
+            asyncio.run(
+                LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                    ckpt=ckpt,
+                    actor_id="alice",
+                    intention="examine the threshold",
+                )
+            )
 
         assert ckpt.session.content_state["pack"].model_dump() == before_content
         assert ckpt.session_conversation == []
@@ -2338,7 +2540,9 @@ class TestRouteIntention:
 
 class TestDndCombatContentContext:
     def test_active_combat_packet_receives_pending_front_context(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         _enable_dnd(ckpt)
@@ -2361,33 +2565,43 @@ class TestDndCombatContentContext:
             _llm_response(_rules_adjudication("Alice holds position.")),
         ]
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_combat_action(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I hold the doorway.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_combat_action(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I hold the doorway.",
+            )
+        )
 
         plan_messages = mock_client.complete.await_args_list[0].kwargs["messages"]
         plan_user_content = _last_user_content(plan_messages)
         assert '"content_context":[' in plan_user_content
         assert "front_signal ref=front/vampire" in plan_user_content
         assert ckpt.session.content_state["pack"].pending_signals == {}
-        assert _pending_content_record_count(ckpt, "front_signal ref=front/vampire") == 1
+        assert (
+            _pending_content_record_count(ckpt, "front_signal ref=front/vampire") == 1
+        )
 
         mock_client.complete.reset_mock()
         mock_client.complete.side_effect = None
         mock_client.complete.return_value = _llm_response(_dnd_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I glance back at Pip.",
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I glance back at Pip.",
+            )
+        )
 
-        assert _pending_content_record_count(ckpt, "front_signal ref=front/vampire") == 1
+        assert (
+            _pending_content_record_count(ckpt, "front_signal ref=front/vampire") == 1
+        )
 
     def test_combat_continuation_merges_pending_content_into_transaction_packet(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         _enable_dnd(ckpt)
@@ -2436,8 +2650,8 @@ class TestDndCombatContentContext:
         final_user_content = _last_user_content(final_messages)
         assert "content_known ref=trap/needle" in final_user_content
         assert transaction.context["content_context"] == [
-            'content_known ref=trap/needle scope=router visibility=hidden '
-            'hash=hash-trap kind=trap_card pack=pack '
+            "content_known ref=trap/needle scope=router visibility=hidden "
+            "hash=hash-trap kind=trap_card pack=pack "
             'summary="Needle trap under the door latch."'
         ]
         assert ckpt.session.content_state["pack"].pending_signals == {}
@@ -2448,8 +2662,12 @@ class TestAgentIntend:
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
         async def _fake_turn(
-            self, *, character, checkpoint,
-            frame="foreground", local_context="",
+            self,
+            *,
+            character,
+            checkpoint,
+            frame="foreground",
+            local_context="",
         ):
             return CharacterAgentOutput(
                 character_id=character.character_id,
@@ -2462,21 +2680,30 @@ class TestAgentIntend:
             _fake_turn,
         )
 
-        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).agent_intend(
-            ckpt=ckpt,
-            character_id="pip",
-        ))
+        out = asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).agent_intend(
+                ckpt=ckpt,
+                character_id="pip",
+            )
+        )
         assert "Hold there." in out
         assert "Cover the threshold" not in out
 
     def test_silent_beat_returns_sentinel_when_intent_present(
-        self, prompt_mgr, mock_client, monkeypatch,
+        self,
+        prompt_mgr,
+        mock_client,
+        monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
         async def _silent_turn(
-            self, *, character, checkpoint,
-            frame="foreground", local_context="",
+            self,
+            *,
+            character,
+            checkpoint,
+            frame="foreground",
+            local_context="",
         ):
             return CharacterAgentOutput(
                 character_id=character.character_id,
@@ -2489,23 +2716,30 @@ class TestAgentIntend:
             _silent_turn,
         )
 
-        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).agent_intend(
-            ckpt=ckpt,
-            character_id="pip",
-        ))
+        out = asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).agent_intend(
+                ckpt=ckpt,
+                character_id="pip",
+            )
+        )
         assert out == "(remains silent)"
         assert "notices" not in out
 
     def test_unclaimed_player_authored_slot_never_reaches_agent(
-        self, prompt_mgr, mock_client, monkeypatch,
+        self,
+        prompt_mgr,
+        mock_client,
+        monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.characters.append(CharacterRecord(
-            character_id="blank_arrival",
-            name="the Newcomer",
-            is_playable=True,
-            player_slot_kind=PlayerSlotKind.player_authored,
-        ))
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="blank_arrival",
+                name="the Newcomer",
+                is_playable=True,
+                player_slot_kind=PlayerSlotKind.player_authored,
+            )
+        )
         turn = AsyncMock()
         monkeypatch.setattr(
             "app.engine.character_agent.CharacterAgent.turn",
@@ -2513,25 +2747,32 @@ class TestAgentIntend:
         )
 
         with pytest.raises(RuntimeError, match="unclaimed player-authored"):
-            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).agent_intend(
-                ckpt=ckpt,
-                character_id="blank_arrival",
-            ))
+            asyncio.run(
+                LLMDispatcher(mock_client, prompt_mgr).agent_intend(
+                    ckpt=ckpt,
+                    character_id="blank_arrival",
+                )
+            )
 
         turn.assert_not_awaited()
 
 
 class TestHarvestPerceptions:
     def test_returns_fragments_in_input_order(
-        self, prompt_mgr, mock_client, monkeypatch,
+        self,
+        prompt_mgr,
+        mock_client,
+        monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.characters.append(CharacterRecord(
-            character_id="vex",
-            name="Vex",
-            public_sheet=PublicSheet(role="npc"),
-            location="gatehouse",
-        ))
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="vex",
+                name="Vex",
+                public_sheet=PublicSheet(role="npc"),
+                location="gatehouse",
+            )
+        )
         loadouts = {
             "pip": "Pip in patched leather.",
             "vex": "Vex in midnight silk.",
@@ -2545,32 +2786,43 @@ class TestHarvestPerceptions:
             _fake_perceive,
         )
 
-        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
-            ckpt=ckpt,
-            character_ids=["vex", "pip"],
-        ))
+        out = asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
+                ckpt=ckpt,
+                character_ids=["vex", "pip"],
+            )
+        )
         assert out == [loadouts["vex"], loadouts["pip"]]
 
     def test_unknown_id_returns_empty_without_crash(
-        self, prompt_mgr, mock_client,
+        self,
+        prompt_mgr,
+        mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
-            ckpt=ckpt,
-            character_ids=["never_existed"],
-        ))
+        out = asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
+                ckpt=ckpt,
+                character_ids=["never_existed"],
+            )
+        )
         assert out == [""]
 
     def test_unclaimed_player_authored_slot_never_reaches_perception_agent(
-        self, prompt_mgr, mock_client, monkeypatch,
+        self,
+        prompt_mgr,
+        mock_client,
+        monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.characters.append(CharacterRecord(
-            character_id="blank_arrival",
-            name="the Newcomer",
-            is_playable=True,
-            player_slot_kind=PlayerSlotKind.player_authored,
-        ))
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="blank_arrival",
+                name="the Newcomer",
+                is_playable=True,
+                player_slot_kind=PlayerSlotKind.player_authored,
+            )
+        )
         perceive = AsyncMock()
         monkeypatch.setattr(
             "app.engine.character_agent.CharacterAgent.perceive",
@@ -2578,23 +2830,30 @@ class TestHarvestPerceptions:
         )
 
         with pytest.raises(RuntimeError, match="unclaimed player-authored"):
-            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
-                ckpt=ckpt,
-                character_ids=["blank_arrival"],
-            ))
+            asyncio.run(
+                LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
+                    ckpt=ckpt,
+                    character_ids=["blank_arrival"],
+                )
+            )
 
         perceive.assert_not_awaited()
 
     def test_per_character_exception_absorbed_into_empty(
-        self, prompt_mgr, mock_client, monkeypatch,
+        self,
+        prompt_mgr,
+        mock_client,
+        monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.characters.append(CharacterRecord(
-            character_id="vex",
-            name="Vex",
-            public_sheet=PublicSheet(role="npc"),
-            location="gatehouse",
-        ))
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="vex",
+                name="Vex",
+                public_sheet=PublicSheet(role="npc"),
+                location="gatehouse",
+            )
+        )
 
         async def _flaky_perceive(self, character, checkpoint):
             if character.character_id == "vex":
@@ -2606,24 +2865,36 @@ class TestHarvestPerceptions:
             _flaky_perceive,
         )
 
-        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
-            ckpt=ckpt,
-            character_ids=["pip", "vex"],
-        ))
+        out = asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
+                ckpt=ckpt,
+                character_ids=["pip", "vex"],
+            )
+        )
         assert out == ["Pip's loadout", ""]
 
 
 class TestNarratorCompose:
     def test_partial_mode_true_when_pinned_as_cat_ii_responder(
-        self, prompt_mgr, mock_client, monkeypatch,
+        self,
+        prompt_mgr,
+        mock_client,
+        monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         pin_cat_ii_responder(ckpt, "alice", "evt_abc")
         recorded: dict = {}
 
         async def _fake_compose_pov_render(
-            *, client, prompt_mgr, ckpt, pov_character_id,
-            buffered_events, partial_mode, user_input="", **_kwargs,
+            *,
+            client,
+            prompt_mgr,
+            ckpt,
+            pov_character_id,
+            buffered_events,
+            partial_mode,
+            user_input="",
+            **_kwargs,
         ):
             recorded["partial_mode"] = partial_mode
             recorded["pov"] = pov_character_id
@@ -2643,11 +2914,13 @@ class TestNarratorCompose:
             raising=False,
         )
 
-        out, _entry = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).narrator_compose(
-            ckpt=ckpt,
-            character_id="alice",
-            buffered_events=[RenderBufferEntry(event_id="e1")],
-        ))
+        out, _entry = asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).narrator_compose(
+                ckpt=ckpt,
+                character_id="alice",
+                buffered_events=[RenderBufferEntry(event_id="e1")],
+            )
+        )
         assert out.final_text == "RENDERED"
         assert recorded["partial_mode"] is True
         assert recorded["pov"] == "alice"
@@ -2657,8 +2930,15 @@ class TestNarratorCompose:
         recorded: dict = {}
 
         async def _fake_compose_pov_render(
-            *, client, prompt_mgr, ckpt, pov_character_id,
-            buffered_events, partial_mode, user_input="", **_kwargs,
+            *,
+            client,
+            prompt_mgr,
+            ckpt,
+            pov_character_id,
+            buffered_events,
+            partial_mode,
+            user_input="",
+            **_kwargs,
         ):
             recorded["partial_mode"] = partial_mode
             return (
@@ -2677,10 +2957,12 @@ class TestNarratorCompose:
             raising=False,
         )
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).narrator_compose(
-            ckpt=ckpt,
-            character_id="alice",
-            buffered_events=[RenderBufferEntry(event_id="e1")],
-            partial_mode_override=True,
-        ))
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).narrator_compose(
+                ckpt=ckpt,
+                character_id="alice",
+                buffered_events=[RenderBufferEntry(event_id="e1")],
+                partial_mode_override=True,
+            )
+        )
         assert recorded["partial_mode"] is True

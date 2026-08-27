@@ -146,9 +146,9 @@ class TestComposePovRender:
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = presentation_mode
-        next(c for c in ckpt.characters if c.character_id == "pip").visuals = (
-            CharacterVisuals(default_loadout="Patched red coat.")
-        )
+        next(
+            c for c in ckpt.characters if c.character_id == "pip"
+        ).visuals = CharacterVisuals(default_loadout="Patched red coat.")
         result = (
             VisualNovelNarratorOutput(
                 handoff="continue",
@@ -186,27 +186,31 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_visual_novel_mode_uses_structured_pages_and_plain_history(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
-        mock_client.complete = AsyncMock(return_value=llm_response(
-            VisualNovelNarratorOutput(
-                handoff="render",
-                handoff_reason="Pip's question returns control.",
-                pages=[
-                    VisualNovelPage(
-                        kind="narration",
-                        text="Rain beads on the weathered arch.",
-                    ),
-                    VisualNovelPage(
-                        kind="dialogue",
-                        speaker="Pip",
-                        text="Are you coming?",
-                    ),
-                ],
+        mock_client.complete = AsyncMock(
+            return_value=llm_response(
+                VisualNovelNarratorOutput(
+                    handoff="render",
+                    handoff_reason="Pip's question returns control.",
+                    pages=[
+                        VisualNovelPage(
+                            kind="narration",
+                            text="Rain beads on the weathered arch.",
+                        ),
+                        VisualNovelPage(
+                            kind="dialogue",
+                            speaker="Pip",
+                            text="Are you coming?",
+                        ),
+                    ],
+                )
             )
-        ))
+        )
         buffered = [
             RenderBufferEntry(event_id="evt_alpha", observation_level="direct"),
         ]
@@ -236,9 +240,7 @@ class TestComposePovRender:
             result=result,
             user_input=entry.user,
         )
-        stored = json.loads(
-            ckpt.narrator_conversations["alice"][-1].content[0]["text"]
-        )
+        stored = json.loads(ckpt.narrator_conversations["alice"][-1].content[0]["text"])
         assert "final_text" not in stored
         assert stored["pages"][1] == {
             "kind": "dialogue",
@@ -248,22 +250,28 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_visual_novel_sprite_roster_is_volatile_and_cues_are_transient(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
         result = VisualNovelNarratorOutput(
             handoff="render",
             handoff_reason="Pip's reply returns control.",
-            pages=[VisualNovelPage(
-                kind="dialogue",
-                speaker="Pip",
-                text="I am listening.",
-                sprites=[VisualNovelSpriteCue(
-                    character="Pip",
-                    expression="neutral",
-                )],
-            )],
+            pages=[
+                VisualNovelPage(
+                    kind="dialogue",
+                    speaker="Pip",
+                    text="I am listening.",
+                    sprites=[
+                        VisualNovelSpriteCue(
+                            character="Pip",
+                            expression="neutral",
+                        )
+                    ],
+                )
+            ],
         )
         mock_client.complete = AsyncMock(return_value=llm_response(result))
         buffered = [
@@ -282,8 +290,7 @@ class TestComposePovRender:
         messages = mock_client.complete.await_args.kwargs["messages"]
         assert "- Pip" not in messages[0]["content"]
         assert (
-            "Characters directly present and available for optional sprite "
-            "cues:\n- Pip"
+            "Characters directly present and available for optional sprite cues:\n- Pip"
         ) in messages[-1]["content"]
         assert composed.pages[0].sprites == result.pages[0].sprites
         commit_pov_render(
@@ -297,84 +304,161 @@ class TestComposePovRender:
         assert "sprites" not in stored
 
     @pytest.mark.asyncio
+    async def test_visual_novel_sprite_roster_uses_structured_visual_subjects(
+        self,
+        mock_client,
+        prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        beta_event = next(
+            event for event in ckpt.canonical_events if event.event_id == "evt_beta"
+        )
+        beta_event.canonical_event.observable_facts = [
+            ObservableFact.all(
+                "The active lobby feed settles into a steady frame.",
+                visual_subject_ids=["pip"],
+            ),
+        ]
+        result = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="The visible reaction returns control.",
+            pages=[
+                VisualNovelPage(
+                    kind="dialogue",
+                    speaker="Pip",
+                    text="I am still here.",
+                    sprites=[
+                        VisualNovelSpriteCue(
+                            character="Pip",
+                            expression="neutral",
+                        )
+                    ],
+                )
+            ],
+        )
+        mock_client.complete = AsyncMock(return_value=llm_response(result))
+
+        composed, _entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(
+                    event_id="evt_beta",
+                    observation_level="direct",
+                )
+            ],
+            partial_mode=False,
+        )
+
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        assert "- Pip" not in messages[0]["content"]
+        assert (
+            "Characters directly present and available for optional sprite cues:\n- Pip"
+        ) in messages[-1]["content"]
+        assert composed.pages[0].sprites[0].character == "Pip"
+
+    @pytest.mark.asyncio
     async def test_visual_novel_missing_available_speaker_cue_gets_one_correction(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
         missing = VisualNovelNarratorOutput(
             handoff="render",
             handoff_reason="Pip's reply returns control.",
-            pages=[VisualNovelPage(
-                kind="dialogue",
-                speaker="Pip",
-                text="I am listening.",
-            )],
+            pages=[
+                VisualNovelPage(
+                    kind="dialogue",
+                    speaker="Pip",
+                    text="I am listening.",
+                )
+            ],
         )
         corrected = missing.model_copy(deep=True)
-        corrected.pages[0].sprites = [VisualNovelSpriteCue(
-            character="Pip",
-            expression="neutral",
-        )]
-        mock_client.complete = AsyncMock(side_effect=[
-            llm_response(missing),
-            llm_response(corrected),
-        ])
+        corrected.pages[0].sprites = [
+            VisualNovelSpriteCue(
+                character="Pip",
+                expression="neutral",
+            )
+        ]
+        mock_client.complete = AsyncMock(
+            side_effect=[
+                llm_response(missing),
+                llm_response(corrected),
+            ]
+        )
 
         result, _entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
             ckpt=ckpt,
             pov_character_id="alice",
-            buffered_events=[RenderBufferEntry(
-                event_id="evt_beta",
-                observation_level="direct",
-            )],
+            buffered_events=[
+                RenderBufferEntry(
+                    event_id="evt_beta",
+                    observation_level="direct",
+                )
+            ],
             partial_mode=False,
         )
 
         assert mock_client.complete.await_count == 2
         assert result == corrected
-        correction = mock_client.complete.await_args_list[1].kwargs[
-            "messages"
-        ][-1]["content"]
+        correction = mock_client.complete.await_args_list[1].kwargs["messages"][-1][
+            "content"
+        ]
         assert "current speaker first" in correction
 
     @pytest.mark.asyncio
     async def test_visual_novel_descriptor_for_rostered_speaker_gets_exact_name(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
         mislabeled = VisualNovelNarratorOutput(
             handoff="render",
             handoff_reason="Pip's reply returns control.",
-            pages=[VisualNovelPage(
-                kind="dialogue",
-                speaker="The small courier beneath the arch",
-                text="I am listening.",
-                sprites=[VisualNovelSpriteCue(
-                    character="Pip",
-                    expression="neutral",
-                )],
-            )],
+            pages=[
+                VisualNovelPage(
+                    kind="dialogue",
+                    speaker="The small courier beneath the arch",
+                    text="I am listening.",
+                    sprites=[
+                        VisualNovelSpriteCue(
+                            character="Pip",
+                            expression="neutral",
+                        )
+                    ],
+                )
+            ],
         )
         corrected = mislabeled.model_copy(deep=True)
         corrected.pages[0].speaker = "Pip"
-        mock_client.complete = AsyncMock(side_effect=[
-            llm_response(mislabeled),
-            llm_response(corrected),
-        ])
+        mock_client.complete = AsyncMock(
+            side_effect=[
+                llm_response(mislabeled),
+                llm_response(corrected),
+            ]
+        )
 
         result, _entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
             ckpt=ckpt,
             pov_character_id="alice",
-            buffered_events=[RenderBufferEntry(
-                event_id="evt_beta",
-                observation_level="direct",
-            )],
+            buffered_events=[
+                RenderBufferEntry(
+                    event_id="evt_beta",
+                    observation_level="direct",
+                )
+            ],
             partial_mode=False,
         )
 
@@ -384,7 +468,9 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_visual_novel_source_identifier_gets_one_transient_correction(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
@@ -427,9 +513,7 @@ class TestComposePovRender:
         )
 
         assert mock_client.complete.await_count == 2
-        correction_messages = mock_client.complete.await_args_list[1].kwargs[
-            "messages"
-        ]
+        correction_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
         assert correction_messages[-2] == {
             "role": "assistant",
             "content": unsafe.model_dump_json(),
@@ -453,7 +537,9 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_visual_novel_correction_may_change_only_the_unsafe_text_field(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
@@ -476,10 +562,12 @@ class TestComposePovRender:
                     kind="dialogue",
                     speaker="Pip",
                     text="The courier waits beneath the arch.",
-                    sprites=[VisualNovelSpriteCue(
-                        character="Pip",
-                        expression="neutral",
-                    )],
+                    sprites=[
+                        VisualNovelSpriteCue(
+                            character="Pip",
+                            expression="neutral",
+                        )
+                    ],
                 ),
             ],
         )
@@ -580,15 +668,19 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_visual_novel_exact_id_check_includes_culled_roster_records(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
-        ckpt.characters.append(CharacterRecord(
-            character_id="retiredguard",
-            name="Old Guard",
-            status=CharacterStatus.culled,
-        ))
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="retiredguard",
+                name="Old Guard",
+                status=CharacterStatus.culled,
+            )
+        )
         unsafe = VisualNovelNarratorOutput(
             handoff="render",
             handoff_reason="The reply returns control.",
@@ -621,13 +713,15 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_visual_novel_second_identifier_failure_rolls_back_state(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
-        next(c for c in ckpt.characters if c.character_id == "pip").visuals = (
-            CharacterVisuals(default_loadout="Patched red coat.")
-        )
+        next(
+            c for c in ckpt.characters if c.character_id == "pip"
+        ).visuals = CharacterVisuals(default_loadout="Patched red coat.")
         first = VisualNovelNarratorOutput(
             handoff="render",
             handoff_reason="The reply returns control.",
@@ -670,9 +764,9 @@ class TestComposePovRender:
         self,
     ):
         ckpt = _ckpt()
-        next(c for c in ckpt.characters if c.character_id == "pip").visuals = (
-            CharacterVisuals(default_loadout="Patched red coat.")
-        )
+        next(
+            c for c in ckpt.characters if c.character_id == "pip"
+        ).visuals = CharacterVisuals(default_loadout="Patched red coat.")
         unsafe = VisualNovelNarratorOutput(
             handoff="render",
             handoff_reason="The reply returns control.",
@@ -698,7 +792,9 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_basic_render_commits_history_only_when_accepted(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         buffered = [
@@ -741,7 +837,8 @@ class TestComposePovRender:
         call_kwargs = mock_client.complete.call_args.kwargs
         assert call_kwargs["max_tokens"] == 8000
         flat = "\n".join(
-            m["content"] for m in call_kwargs["messages"]
+            m["content"]
+            for m in call_kwargs["messages"]
             if isinstance(m.get("content"), str)
         )
         assert "evt_alpha" not in flat
@@ -755,13 +852,15 @@ class TestComposePovRender:
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], str)
         assert PARTIAL_MODE_MARKER not in user_msg["content"]
-        assert user_msg["content"].index("I look around.") < user_msg[
-            "content"
-        ].index("The arch is weathered")
+        assert user_msg["content"].index("I look around.") < user_msg["content"].index(
+            "The arch is weathered"
+        )
 
     @pytest.mark.asyncio
     async def test_accepted_player_submission_is_replayed_on_next_render(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         buffered = [
@@ -796,7 +895,10 @@ class TestComposePovRender:
 
         messages = mock_client.complete.await_args.kwargs["messages"]
         assert [message["role"] for message in messages] == [
-            "system", "user", "assistant", "user",
+            "system",
+            "user",
+            "assistant",
+            "user",
         ]
         assert messages[1]["content"] == (
             "I wait until the bell rings, then open the gate."
@@ -805,7 +907,9 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_dnd_player_species_reaches_narrator_user_context(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
@@ -841,7 +945,9 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_imported_asset_source_sentinels_do_not_reach_prompt(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         sentinels = [
@@ -887,11 +993,15 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_render_strips_unmatched_trailing_brace_from_final_text(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
-        mock_client.complete = AsyncMock(return_value=_llm_response(
-            "She says, 'entirely human?'}",
-        ))
+        mock_client.complete = AsyncMock(
+            return_value=_llm_response(
+                "She says, 'entirely human?'}",
+            )
+        )
         ckpt = _ckpt()
 
         result, entry = await compose_pov_render(
@@ -913,7 +1023,8 @@ class TestComposePovRender:
             pov_character_id="alice",
             buffered_events=[
                 RenderBufferEntry(
-                    event_id="evt_alpha", observation_level="direct",
+                    event_id="evt_alpha",
+                    observation_level="direct",
                 ),
             ],
             result=result,
@@ -927,41 +1038,49 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_new_character_context_is_user_tail_only(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         ckpt.session.character_bindings["sora_kageyama"] = "2"
-        ckpt.characters.append(CharacterRecord(
-            character_id="sora_kageyama",
-            name="Sora Kageyama",
-            public_sheet=PublicSheet(
-                role="Hero of the Realm; private authorial role should not leak",
-                appearance=(
-                    "Japanese, tall, quick posture. Wears the Crown's "
-                    "blue Hero livery over a close-fitting white shirt."
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="sora_kageyama",
+                name="Sora Kageyama",
+                public_sheet=PublicSheet(
+                    role="Hero of the Realm; private authorial role should not leak",
+                    appearance=(
+                        "Japanese, tall, quick posture. Wears the Crown's "
+                        "blue Hero livery over a close-fitting white shirt."
+                    ),
                 ),
-            ),
-            descriptions=CharacterDescriptions(
-                public=(
-                    "Sora is the cohort's informal leader; his blue "
-                    "sun-crest tabard marks Crown Hero livery."
+                descriptions=CharacterDescriptions(
+                    public=(
+                        "Sora is the cohort's informal leader; his blue "
+                        "sun-crest tabard marks Crown Hero livery."
+                    ),
+                    private="Sora is also quietly watching the defective summon.",
                 ),
-                private="Sora is also quietly watching the defective summon.",
-            ),
-            visuals=CharacterVisuals(
-                default_loadout=(
-                    "LOADOUT ORDER SENTINEL: Blue sun-crest tabard, quick posture."
+                visuals=CharacterVisuals(
+                    default_loadout=(
+                        "LOADOUT ORDER SENTINEL: Blue sun-crest tabard, quick posture."
+                    ),
                 ),
-            ),
-            location="gatehouse",
-        ))
-        ckpt.canonical_events.append(_router_event(
-            "evt_sora",
-            [ObservableFact.all(
-                "VISIBLE RESULT ORDER SENTINEL: "
-                "sora_kageyama adjusts the blue tabard."
-            )],
-        ))
+                location="gatehouse",
+            )
+        )
+        ckpt.canonical_events.append(
+            _router_event(
+                "evt_sora",
+                [
+                    ObservableFact.all(
+                        "VISIBLE RESULT ORDER SENTINEL: "
+                        "sora_kageyama adjusts the blue tabard."
+                    )
+                ],
+            )
+        )
 
         result, _entry = await compose_pov_render(
             client=mock_client,
@@ -970,7 +1089,8 @@ class TestComposePovRender:
             pov_character_id="alice",
             buffered_events=[
                 RenderBufferEntry(
-                    event_id="evt_sora", observation_level="direct",
+                    event_id="evt_sora",
+                    observation_level="direct",
                 ),
             ],
             partial_mode=False,
@@ -981,8 +1101,7 @@ class TestComposePovRender:
         system_content = messages[0]["content"]
         user_content = messages[-1]["content"]
         flat = "\n".join(
-            m["content"] for m in messages
-            if isinstance(m.get("content"), str)
+            m["content"] for m in messages if isinstance(m.get("content"), str)
         )
 
         assert "Sora Kageyama: visible exterior" not in system_content
@@ -1025,21 +1144,24 @@ class TestComposePovRender:
             "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         )
         beta_event = next(
-            event for event in ckpt.canonical_events
-            if event.event_id == "evt_beta"
+            event for event in ckpt.canonical_events if event.event_id == "evt_beta"
         )
-        beta_event.canonical_event.observable_facts = [ObservableFact.all(
-            "Pip nods in a scarlet coat. actor.hidden "
-            "app/storage/stories/private/pip.png"
-        )]
-        next(c for c in ckpt.characters if c.character_id == "pip").visuals = (
-            CharacterVisuals(default_loadout=(
+        beta_event.canonical_event.observable_facts = [
+            ObservableFact.all(
+                "Pip nods in a scarlet coat. actor.hidden "
+                "app/storage/stories/private/pip.png"
+            )
+        ]
+        next(
+            c for c in ckpt.characters if c.character_id == "pip"
+        ).visuals = CharacterVisuals(
+            default_loadout=(
                 "Scarlet coat. source_path=/private/module/source-map.png "
                 "private_extractions/page-07.txt actor.hidden "
                 r"C:\Users\dan\ayoa\private\pip.png "
                 "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef "
                 "\x1b[31mbrass clasp\x1b[0m\x07"
-            ))
+            )
         )
         provider_result = (
             VisualNovelNarratorOutput(
@@ -1054,9 +1176,7 @@ class TestComposePovRender:
                 final_text="Pip arrives.",
             )
         )
-        mock_client.complete = AsyncMock(
-            return_value=llm_response(provider_result)
-        )
+        mock_client.complete = AsyncMock(return_value=llm_response(provider_result))
 
         await compose_pov_render(
             client=mock_client,
@@ -1107,16 +1227,14 @@ class TestComposePovRender:
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = presentation_mode
-        next(c for c in ckpt.characters if c.character_id == "pip").visuals = (
-            CharacterVisuals(default_loadout=(
-                "LATER MEETING EXTERIOR SENTINEL: patched red coat."
-            ))
+        next(
+            c for c in ckpt.characters if c.character_id == "pip"
+        ).visuals = CharacterVisuals(
+            default_loadout=("LATER MEETING EXTERIOR SENTINEL: patched red coat.")
         )
         remote_event = _router_event(
             "evt_remote_pip",
-            [ObservableFact.all(
-                "The radio crackles: 'Pip will arrive later.'"
-            )],
+            [ObservableFact.all("The radio crackles: 'Pip will arrive later.'")],
         )
         meeting_event = _router_event(
             "evt_meeting_pip",
@@ -1128,18 +1246,22 @@ class TestComposePovRender:
                 VisualNovelNarratorOutput(
                     handoff="render",
                     handoff_reason="The radio message is complete.",
-                    pages=[VisualNovelPage(
-                        kind="narration",
-                        text="A radio crackles.",
-                    )],
+                    pages=[
+                        VisualNovelPage(
+                            kind="narration",
+                            text="A radio crackles.",
+                        )
+                    ],
                 ),
                 VisualNovelNarratorOutput(
                     handoff="render",
                     handoff_reason="The arrival is visible.",
-                    pages=[VisualNovelPage(
-                        kind="narration",
-                        text="Pip steps into the room.",
-                    )],
+                    pages=[
+                        VisualNovelPage(
+                            kind="narration",
+                            text="Pip steps into the room.",
+                        )
+                    ],
                 ),
             ]
             if presentation_mode == "visual_novel"
@@ -1156,14 +1278,16 @@ class TestComposePovRender:
                 ),
             ]
         )
-        mock_client.complete = AsyncMock(side_effect=[
-            llm_response(result) for result in provider_results
-        ])
+        mock_client.complete = AsyncMock(
+            side_effect=[llm_response(result) for result in provider_results]
+        )
 
-        remote_buffer = [RenderBufferEntry(
-            event_id=remote_event.event_id,
-            observation_level="direct",
-        )]
+        remote_buffer = [
+            RenderBufferEntry(
+                event_id=remote_event.event_id,
+                observation_level="direct",
+            )
+        ]
         remote_result, remote_entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
@@ -1187,10 +1311,12 @@ class TestComposePovRender:
         )
         assert ckpt.session.visual_introductions == {}
 
-        meeting_buffer = [RenderBufferEntry(
-            event_id=meeting_event.event_id,
-            observation_level="direct",
-        )]
+        meeting_buffer = [
+            RenderBufferEntry(
+                event_id=meeting_event.event_id,
+                observation_level="direct",
+            )
+        ]
         meeting_result, meeting_entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
@@ -1200,12 +1326,8 @@ class TestComposePovRender:
             partial_mode=False,
         )
         meeting_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
-        assert "LATER MEETING EXTERIOR SENTINEL" not in (
-            meeting_messages[0]["content"]
-        )
-        assert "LATER MEETING EXTERIOR SENTINEL" in (
-            meeting_messages[-1]["content"]
-        )
+        assert "LATER MEETING EXTERIOR SENTINEL" not in (meeting_messages[0]["content"])
+        assert "LATER MEETING EXTERIOR SENTINEL" in (meeting_messages[-1]["content"])
         commit_pov_render(
             ckpt,
             pov_character_id="alice",
@@ -1218,30 +1340,35 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_public_context_does_not_use_raw_sheet_or_private_description(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
-        ckpt.characters.append(CharacterRecord(
-            character_id="korva_sahl",
-            name="Korva Sahl",
-            public_sheet=PublicSheet(
-                role="quartermaster; privately the demon heir",
-                appearance=(
-                    "Plain travel leathers. Hidden horns are tucked under "
-                    "her hair."
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="korva_sahl",
+                name="Korva Sahl",
+                public_sheet=PublicSheet(
+                    role="quartermaster; privately the demon heir",
+                    appearance=(
+                        "Plain travel leathers. Hidden horns are tucked under her hair."
+                    ),
+                    faction="Public Guild. Private demonic court.",
                 ),
-                faction="Public Guild. Private demonic court.",
-            ),
-            descriptions=CharacterDescriptions(
-                public="Korva is an S-rank Guild adventurer usually found near the contract board.",
-                private="Korva is the Demon Lord's daughter with hidden horns.",
-            ),
-            location="gatehouse",
-        ))
-        ckpt.canonical_events.append(_router_event(
-            "evt_korva",
-            [ObservableFact.all("korva_sahl stands near the notice board.")],
-        ))
+                descriptions=CharacterDescriptions(
+                    public="Korva is an S-rank Guild adventurer usually found near the contract board.",
+                    private="Korva is the Demon Lord's daughter with hidden horns.",
+                ),
+                location="gatehouse",
+            )
+        )
+        ckpt.canonical_events.append(
+            _router_event(
+                "evt_korva",
+                [ObservableFact.all("korva_sahl stands near the notice board.")],
+            )
+        )
 
         await compose_pov_render(
             client=mock_client,
@@ -1250,7 +1377,8 @@ class TestComposePovRender:
             pov_character_id="alice",
             buffered_events=[
                 RenderBufferEntry(
-                    event_id="evt_korva", observation_level="direct",
+                    event_id="evt_korva",
+                    observation_level="direct",
                 ),
             ],
             partial_mode=False,
@@ -1258,8 +1386,7 @@ class TestComposePovRender:
 
         messages = mock_client.complete.call_args.kwargs["messages"]
         flat = "\n".join(
-            m["content"] for m in messages
-            if isinstance(m.get("content"), str)
+            m["content"] for m in messages if isinstance(m.get("content"), str)
         )
         assert "Korva is an S-rank Guild adventurer" not in flat
         assert "quartermaster" not in flat
@@ -1271,7 +1398,9 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_partial_mode_includes_stop_instruction(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         buffered = [
@@ -1312,7 +1441,9 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_no_partial_marker_when_not_partial(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         buffered = [
@@ -1348,14 +1479,15 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_first_meeting_loadout_is_user_tail_only_and_marks_pair(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         pip.visuals = CharacterVisuals(
             default_loadout=(
-                "PIP LOADOUT SENTINEL: Patched red coat, brass buttons, "
-                "ink-dark braid."
+                "PIP LOADOUT SENTINEL: Patched red coat, brass buttons, ink-dark braid."
             ),
         )
 
@@ -1389,18 +1521,24 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_harvested_loadout_marks_without_default_duplicate(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         pip.visuals = CharacterVisuals(default_loadout="Default red coat.")
-        ckpt.canonical_events.append(_router_event(
-            "evt_query_loadout",
-            [ObservableFact.all(
-                "[loadout — Pip] Pip wears a blue cloak. actor.hidden "
-                "app/storage/stories/private/pip.png"
-            )],
-        ))
+        ckpt.canonical_events.append(
+            _router_event(
+                "evt_query_loadout",
+                [
+                    ObservableFact.all(
+                        "[loadout — Pip] Pip wears a blue cloak. actor.hidden "
+                        "app/storage/stories/private/pip.png"
+                    )
+                ],
+            )
+        )
 
         buffered = [
             RenderBufferEntry(
@@ -1435,7 +1573,9 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_missing_event_id_fails_before_narrator_call(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         buffered = [
@@ -1460,7 +1600,9 @@ class TestComposePovRender:
 
     @pytest.mark.asyncio
     async def test_missing_structured_result_fails_loudly(
-        self, mock_client, prompt_manager,
+        self,
+        mock_client,
+        prompt_manager,
     ):
         ckpt = _ckpt()
         response = _llm_response()
@@ -1491,8 +1633,12 @@ class TestFormatVisibleEventsBlock:
     Audit/framing fields are not part of the render input."""
 
     def _resolved(
-        self, *, event_id: str, facts: list[ObservableFact],
-        level: str = "direct", observers: list[str] | None = None,
+        self,
+        *,
+        event_id: str,
+        facts: list[ObservableFact],
+        level: str = "direct",
+        observers: list[str] | None = None,
         duration_s: int = 0,
     ):
         ev = _router_event(
@@ -1616,9 +1762,7 @@ class TestFormatVisibleEventsBlock:
 
         ckpt = _ckpt()
         ckpt.characters.append(character_record("bob", name="Bob", role="npc"))
-        fact = (
-            "Pip tells Alice, 'Edda [alice], show us [alice,bob] the door.'"
-        )
+        fact = "Pip tells Alice, 'Edda [alice], show us [alice,bob] the door.'"
         resolved = self._resolved(
             event_id="evt_group_anchor",
             facts=[ObservableFact.all(fact)],
@@ -1632,6 +1776,7 @@ class TestFormatVisibleEventsBlock:
 
     def test_scoped_facts_filter_by_pov_before_narrator_sees_them(self):
         from app.engine.narrator import _format_visible_events_block
+
         resolved = self._resolved(
             event_id="evt_private",
             facts=[
@@ -1720,6 +1865,8 @@ class TestFormatVisibleEventsBlock:
 
         out = _format_visible_events_block(resolved)
 
-        assert out.index("index and middle fingers") < out.index(
-            "only her middle finger"
-        ) < out.index("lowers his hand and waits")
+        assert (
+            out.index("index and middle fingers")
+            < out.index("only her middle finger")
+            < out.index("lowers his hand and waits")
+        )

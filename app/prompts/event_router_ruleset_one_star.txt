@@ -138,6 +138,14 @@ pending-operation selection metadata; it never spends, moves, culls, or changes
 rank. A later resolution either records the exact completed transition or
 leaves it unresolved or cancelled.
 
+A pending promotion has no separate preview, queue-status, or confirmation
+operation. Do not invent a promotion preview for the Master to open, treat its
+absence as a blocker, or canonicalize dialogue that claims cancellation is
+unavailable. An ordinary authorized read may show only information already in
+the supplied mechanics; it does not create another operation stage. Use the
+existing pending selection, resolution, or cancellation contracts while the
+Hero's embodied cooperation or resistance remains their own choice.
+
 For a synthesis selection, also include every active configured lobby guide in
 `required_responders`. The guide is the embodied warden who must choose and
 state their own enforcement intention after the selection becomes visible.
@@ -180,6 +188,13 @@ status, or change the active feed, but cannot use lobby catalogue controls or
 perform a standard summon or Gem purchase.
 Promotion requires the target to have reached the configured level cap for
 their current star rank before advancing exactly one star.
+
+A promotion resolution ends with the target inside the configured Promotion
+Chamber: pair that chamber location update with `pending_resolve` in the same
+event. Do not also return the promoted Hero to the lobby in that resolution.
+The chamber's later release and the Hero's lobby return are a separate visible
+event with their own location update. This preserves the sealed interior and
+keeps physical entry distinct from the result seen outside.
 
 On a completed transition, state the semantic operation and non-derivable
 changes: configured purchase or summon id, locations, mission party, or direct

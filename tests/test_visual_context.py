@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from app.engine.one_star_visuals import VEILED_FIRST_LOOK
 from app.engine.visual_context import (
     format_narrator_visual_introductions,
@@ -23,9 +25,7 @@ from app.schemas.state import RenderBufferEntry, SessionState
 from tests.support.factories import router_output
 
 
-ONE_STAR_CHECKPOINT = Path(
-    "app/storage/stories/one_star_ascension_s1/ckpt_0000.json"
-)
+ONE_STAR_CHECKPOINT = Path("app/storage/stories/one_star_ascension_s1/ckpt_0000.json")
 
 
 def _event(text: str) -> EventRouterOutput:
@@ -105,9 +105,7 @@ def test_presence_recognizes_common_vn_motion_without_remote_mentions():
     ) == {"iselle"}
     assert physically_present_character_ids(
         checkpoint,
-        [
-            "Mara Venn says, 'I will wait.' Mara Venn looks to Edda Brin."
-        ],
+        ["Mara Venn says, 'I will wait.' Mara Venn looks to Edda Brin."],
     ) == {"mara"}
     assert physically_present_character_ids(
         checkpoint,
@@ -127,9 +125,7 @@ def test_first_meeting_plan_caps_by_tier_and_leaves_overflow_unintroduced():
             _character("standard_b", "Standard B", CharacterAgentTier.standard),
         ],
     )
-    event = _event(
-        "Utility A, Standard A, Premium A, Utility B, and Standard B enter."
-    )
+    event = _event("Utility A, Standard A, Premium A, Utility B, and Standard B enter.")
     resolved = [(RenderBufferEntry(event_id=event.event_id), event)]
 
     first = plan_render_visual_introductions(
@@ -316,13 +312,15 @@ def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
         narrator_plan = plan_render_visual_introductions(
             ckpt,
             viewer_id="bob",
-            resolved=[(
-                RenderBufferEntry(
-                    event_id=event.event_id,
-                    observation_level="direct",
-                ),
-                event,
-            )],
+            resolved=[
+                (
+                    RenderBufferEntry(
+                        event_id=event.event_id,
+                        observation_level="direct",
+                    ),
+                    event,
+                )
+            ],
             max_loadouts=3,
         )
 
@@ -330,8 +328,7 @@ def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
             introduction.character_id for introduction in agent_plan.loadouts
         } == expected_ids
         assert {
-            introduction.character_id
-            for introduction in narrator_plan.loadouts
+            introduction.character_id for introduction in narrator_plan.loadouts
         } == expected_ids
 
 
@@ -415,13 +412,15 @@ def test_remote_references_preserve_later_physical_introduction():
                 remote = plan_render_visual_introductions(
                     ckpt,
                     viewer_id="bob",
-                    resolved=[(
-                        RenderBufferEntry(
-                            event_id=remote_event.event_id,
-                            observation_level="direct",
-                        ),
-                        remote_event,
-                    )],
+                    resolved=[
+                        (
+                            RenderBufferEntry(
+                                event_id=remote_event.event_id,
+                                observation_level="direct",
+                            ),
+                            remote_event,
+                        )
+                    ],
                     max_loadouts=3,
                 )
             mark_visual_introductions(
@@ -446,13 +445,15 @@ def test_remote_references_preserve_later_physical_introduction():
                 meeting = plan_render_visual_introductions(
                     ckpt,
                     viewer_id="bob",
-                    resolved=[(
-                        RenderBufferEntry(
-                            event_id=meeting_event.event_id,
-                            observation_level="direct",
-                        ),
-                        meeting_event,
-                    )],
+                    resolved=[
+                        (
+                            RenderBufferEntry(
+                                event_id=meeting_event.event_id,
+                                observation_level="direct",
+                            ),
+                            meeting_event,
+                        )
+                    ],
                     max_loadouts=3,
                 )
 
@@ -515,13 +516,15 @@ def test_narrator_remote_references_do_not_consume_intro_before_copresence():
         plan = plan_render_visual_introductions(
             ckpt,
             viewer_id="alice",
-            resolved=[(
-                RenderBufferEntry(
-                    event_id=event.event_id,
-                    observation_level="direct",
-                ),
-                event,
-            )],
+            resolved=[
+                (
+                    RenderBufferEntry(
+                        event_id=event.event_id,
+                        observation_level="direct",
+                    ),
+                    event,
+                )
+            ],
             max_loadouts=3,
         )
         mark_visual_introductions(ckpt, "alice", plan.mark_character_ids)
@@ -533,13 +536,15 @@ def test_narrator_remote_references_do_not_consume_intro_before_copresence():
     plan = plan_render_visual_introductions(
         ckpt,
         viewer_id="alice",
-        resolved=[(
-            RenderBufferEntry(
-                event_id=meeting.event_id,
-                observation_level="direct",
-            ),
-            meeting,
-        )],
+        resolved=[
+            (
+                RenderBufferEntry(
+                    event_id=meeting.event_id,
+                    observation_level="direct",
+                ),
+                meeting,
+            )
+        ],
         max_loadouts=3,
     )
 
@@ -572,3 +577,76 @@ def test_agent_event_plan_ignores_plain_name_mentions():
         ckpt,
         ["Alice points toward Pip's empty chair."],
     ) == {"alice"}
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "The live Niflheim view holds Alice and Pip together in the lobby.",
+        "The lobby view holds Alice and Pip together before the chamber.",
+        "Your view holds Alice and Pip together beside the gate.",
+        "The Master's live lobby view holds Alice and Pip together beneath the idol.",
+        "The live lobby camera is held on Alice and Pip together near the doors.",
+        "The live lobby feed shifts to Alice and Pip together beside the doors.",
+        "The Master's lobby view centers on Alice and Pip together near the well.",
+    ],
+)
+def test_live_view_subjects_are_transient_sprite_foreground_only(fact: str):
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            CharacterRecord(character_id="master", name="Master"),
+            _character("alice", "Alice", CharacterAgentTier.standard),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+        ],
+    )
+    assert visually_staged_character_ids(ckpt, [fact]) == {"alice", "pip"}
+    assert physically_present_character_ids(ckpt, [fact]) == set()
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "The live view holds Alice's empty chair in the lobby.",
+        "The live view holds records for Alice and Pip in focus.",
+    ],
+)
+def test_live_view_non_subject_mentions_do_not_stage_sprites(fact: str):
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            _character("alice", "Alice", CharacterAgentTier.standard),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+        ],
+    )
+
+    assert visually_staged_character_ids(ckpt, [fact]) == set()
+
+
+def test_live_view_scene_stages_embodied_action_after_the_camera_subject():
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            _character("alice", "Alice", CharacterAgentTier.standard),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+        ],
+    )
+    fact = (
+        "The live lobby feed shows the chamber door open, and Alice steps "
+        "back into the lobby while Pip remains absent."
+    )
+
+    assert visually_staged_character_ids(ckpt, [fact]) == {"alice"}
+
+
+def test_live_view_shift_stages_only_the_new_camera_target():
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            _character("alice", "Alice", CharacterAgentTier.standard),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+        ],
+    )
+    fact = "The Master's active view shifts from Alice to Pip in the lobby frame."
+
+    assert visually_staged_character_ids(ckpt, [fact]) == {"pip"}

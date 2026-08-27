@@ -31,7 +31,7 @@ from app.schemas.narrator import (
 
 CARD_WIDTH = 1024
 CARD_HEIGHT = 576
-_RENDERER_VERSION = "classic-adv-v7-full-speaker-nameplate"
+_RENDERER_VERSION = "classic-adv-v8-distinct-sprite-subjects"
 _SPEAKER_NAME_MAX_WIDTH = 900
 _MANIFEST_VERSION = 2
 _SHA256_LENGTH = 64
@@ -43,12 +43,8 @@ _MAX_SPRITE_PIXELS = 40_000_000
 _MIN_SPRITE_SCALE_PERCENT = 25
 _MAX_SPRITE_SCALE_PERCENT = 150
 _MIN_SPRITE_BASELINE_Y = 396
-_OPAQUE_SPRITE_HANDLE_RE = re.compile(
-    r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
-)
-_SENTENCE_BOUNDARY_RE = re.compile(
-    r"[.!?…]+(?:[\"”’')\]]+)?(?=\s+|$)"
-)
+_OPAQUE_SPRITE_HANDLE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+_SENTENCE_BOUNDARY_RE = re.compile(r"[.!?…]+(?:[\"”’')\]]+)?(?=\s+|$)")
 _CLAUSE_BOUNDARY_RE = re.compile(r"(?<=[,;:—–])\s+")
 _COMMON_ABBREVIATIONS = {
     "dr.",
@@ -101,12 +97,8 @@ _CONTINUATION_FINAL_WORDS = {
     "with",
     "your",
 }
-_DEFAULT_REGULAR_FONT = Path(
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-)
-_DEFAULT_BOLD_FONT = Path(
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-)
+_DEFAULT_REGULAR_FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+_DEFAULT_BOLD_FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 
 
 @dataclass(frozen=True)
@@ -161,10 +153,14 @@ class VisualNovelSpritePlacement:
     The source canvas is anchored by its bottom-center point at ``anchor``.
     ``scale_percent`` normalizes the source canvas height against the card
     height before placement. ``source_facing`` describes the reviewed source;
-    the compositor mirrors it only when ``facing`` differs. Handles are opaque
-    provenance and are never player text or LLM input.
+    the compositor mirrors it only when ``facing`` differs.
+    ``subject_handle`` distinguishes the depicted character while
+    ``identity_handle`` identifies the sprite asset pack. Both are opaque
+    provenance and are never player text or LLM input. Distinct subjects may
+    deliberately share one generic asset pack.
     """
 
+    subject_handle: str
     identity_handle: str
     variant_handle: str
     media: PlayerMediaBytes
@@ -255,32 +251,28 @@ class VisualNovelCardRenderer:
             visual_novel_pages_contain_source_identifiers(section.pages)
             for section in sections
         ):
-            raise ValueError(
-                "visual-novel deck pages cannot expose source-shaped ids"
-            )
+            raise ValueError("visual-novel deck pages cannot expose source-shaped ids")
         fonts = self._fonts()
         resolved_sections: list[_ResolvedDeckSection] = []
         for section in sections:
             if not section.pages:
-                raise ValueError(
-                    "visual-novel deck sections require at least one page"
-                )
+                raise ValueError("visual-novel deck sections require at least one page")
             if section.stage_path is not None and section.stage_media is not None:
-                raise ValueError(
-                    "visual-novel deck sections accept one stage source"
-                )
+                raise ValueError("visual-novel deck sections accept one stage source")
             stage, stage_sha256, used_neutral = _load_stage(
                 section.stage_path,
                 stage_media=section.stage_media,
             )
             sprites = _resolve_sprite_placements(section.sprite_placements)
-            resolved_sections.append(_ResolvedDeckSection(
-                composed_stage=_compose_sprite_stage(stage, sprites),
-                stage_sha256=stage_sha256,
-                used_neutral_stage=used_neutral,
-                sprites=sprites,
-                pages=tuple(_paginate_pages(section.pages, fonts.body)),
-            ))
+            resolved_sections.append(
+                _ResolvedDeckSection(
+                    composed_stage=_compose_sprite_stage(stage, sprites),
+                    stage_sha256=stage_sha256,
+                    used_neutral_stage=used_neutral,
+                    sprites=sprites,
+                    pages=tuple(_paginate_pages(section.pages, fonts.body)),
+                )
+            )
         identity = {
             "renderer": _RENDERER_VERSION,
             "card_size": [CARD_WIDTH, CARD_HEIGHT],
@@ -292,9 +284,7 @@ class VisualNovelCardRenderer:
                 {
                     "stage_sha256": section.stage_sha256,
                     "used_neutral_stage": section.used_neutral_stage,
-                    "sprites": [
-                        sprite.identity for sprite in section.sprites
-                    ],
+                    "sprites": [sprite.identity for sprite in section.sprites],
                     "pages": [
                         page.model_dump(mode="json", exclude={"sprites"})
                         for page in section.pages
@@ -303,9 +293,7 @@ class VisualNovelCardRenderer:
                 for section in resolved_sections
             ],
         }
-        count = sum(
-            len(section.pages) for section in resolved_sections
-        )
+        count = sum(len(section.pages) for section in resolved_sections)
         rendered_cards: list[tuple[VisualNovelPage, bytes, str]] = []
         physical_pages: list[VisualNovelPage] = []
         index = 0
@@ -323,16 +311,16 @@ class VisualNovelCardRenderer:
                 encoded = BytesIO()
                 card_image.save(encoded, format="PNG", optimize=False)
                 image_bytes = encoded.getvalue()
-                rendered_cards.append((
-                    page,
-                    image_bytes,
-                    hashlib.sha256(image_bytes).hexdigest(),
-                ))
+                rendered_cards.append(
+                    (
+                        page,
+                        image_bytes,
+                        hashlib.sha256(image_bytes).hexdigest(),
+                    )
+                )
 
         transcript = _transcript(physical_pages)
-        used_neutral = any(
-            section.used_neutral_stage for section in resolved_sections
-        )
+        used_neutral = any(section.used_neutral_stage for section in resolved_sections)
         card_sha256s = [sha256 for _page, _data, sha256 in rendered_cards]
         deck_id = _deck_content_id(identity, card_sha256s)
         deck_dir = self.deck_root / deck_id
@@ -376,24 +364,28 @@ class VisualNovelCardRenderer:
                         filename,
                         image_bytes,
                     )
-                    cards.append(VisualNovelCard(
-                        index=card_index,
-                        count=count,
-                        kind=page.kind,
-                        speaker=page.speaker,
-                        text=page.text,
-                        image_path=deck_dir / filename,
-                        image_bytes=image_bytes,
-                    ))
-                    raw_card_manifest.append({
-                        "index": card_index,
-                        "count": count,
-                        "kind": page.kind,
-                        "speaker": page.speaker,
-                        "text": page.text,
-                        "filename": filename,
-                        "sha256": sha256,
-                    })
+                    cards.append(
+                        VisualNovelCard(
+                            index=card_index,
+                            count=count,
+                            kind=page.kind,
+                            speaker=page.speaker,
+                            text=page.text,
+                            image_path=deck_dir / filename,
+                            image_bytes=image_bytes,
+                        )
+                    )
+                    raw_card_manifest.append(
+                        {
+                            "index": card_index,
+                            "count": count,
+                            "kind": page.kind,
+                            "speaker": page.speaker,
+                            "text": page.text,
+                            "filename": filename,
+                            "sha256": sha256,
+                        }
+                    )
 
                 manifest = {
                     "version": _MANIFEST_VERSION,
@@ -409,7 +401,8 @@ class VisualNovelCardRenderer:
                         sort_keys=True,
                         indent=2,
                         ensure_ascii=False,
-                    ) + "\n"
+                    )
+                    + "\n"
                 ).encode("utf-8")
                 self._verify_pinned_deck_root()
                 _atomic_write_regular_file(
@@ -441,9 +434,8 @@ class VisualNovelCardRenderer:
         """
 
         clean_id = str(deck_id or "").strip().lower()
-        if (
-            len(clean_id) != _SHA256_LENGTH
-            or any(character not in "0123456789abcdef" for character in clean_id)
+        if len(clean_id) != _SHA256_LENGTH or any(
+            character not in "0123456789abcdef" for character in clean_id
         ):
             return None
         try:
@@ -546,20 +538,24 @@ class VisualNovelCardRenderer:
             ):
                 return None
             card_sha256s.append(expected_sha256)
-            cards.append(VisualNovelCard(
-                index=raw["index"],
-                count=raw["count"],
-                kind=raw["kind"],
-                speaker=raw["speaker"],
-                text=raw["text"],
-                image_path=deck_dir / filename,
-                image_bytes=image_bytes,
-            ))
-            pages.append(VisualNovelPage(
-                kind=raw["kind"],
-                speaker=raw["speaker"],
-                text=raw["text"],
-            ))
+            cards.append(
+                VisualNovelCard(
+                    index=raw["index"],
+                    count=raw["count"],
+                    kind=raw["kind"],
+                    speaker=raw["speaker"],
+                    text=raw["text"],
+                    image_path=deck_dir / filename,
+                    image_bytes=image_bytes,
+                )
+            )
+            pages.append(
+                VisualNovelPage(
+                    kind=raw["kind"],
+                    speaker=raw["speaker"],
+                    text=raw["text"],
+                )
+            )
 
         if payload["transcript"] != _transcript(pages):
             return None
@@ -684,12 +680,7 @@ class VisualNovelCardRenderer:
 
 
 def _directory_open_flags() -> int:
-    return (
-        os.O_RDONLY
-        | os.O_DIRECTORY
-        | os.O_NOFOLLOW
-        | os.O_CLOEXEC
-    )
+    return os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
 def _open_child_directory(parent_fd: int, name: str) -> int:
@@ -766,13 +757,9 @@ def _require_safe_regular_target(
     except FileNotFoundError:
         return
     except OSError as exc:
-        raise RuntimeError(
-            f"visual-novel {label} path is not a safe file"
-        ) from exc
+        raise RuntimeError(f"visual-novel {label} path is not a safe file") from exc
     if not stat.S_ISREG(metadata.st_mode):
-        raise RuntimeError(
-            f"visual-novel {label} path is not a safe file"
-        )
+        raise RuntimeError(f"visual-novel {label} path is not a safe file")
 
 
 def _atomic_write_regular_file(
@@ -829,10 +816,12 @@ def _deck_content_id(
     identity: object,
     card_sha256s: Sequence[str],
 ) -> str:
-    return _canonical_json_sha256({
-        "identity": identity,
-        "card_sha256s": list(card_sha256s),
-    })
+    return _canonical_json_sha256(
+        {
+            "identity": identity,
+            "card_sha256s": list(card_sha256s),
+        }
+    )
 
 
 def _file_sha256(path: Path) -> str:
@@ -908,6 +897,7 @@ def _valid_static_card_image(image: Image.Image) -> bool:
 
 def _valid_sprite_manifest_identity(value: object) -> bool:
     expected_keys = {
+        "subject_handle",
         "identity_handle",
         "variant_handle",
         "source_sha256",
@@ -921,6 +911,8 @@ def _valid_sprite_manifest_identity(value: object) -> bool:
         "scale_percent",
     }
     if type(value) is not dict or set(value) != expected_keys:
+        return False
+    if not _valid_opaque_sprite_handle(value["subject_handle"]):
         return False
     if not _valid_opaque_sprite_handle(value["identity_handle"]):
         return False
@@ -1017,18 +1009,15 @@ def _valid_v2_identity(
             type(raw_sprites) is not list
             or len(raw_sprites) > _MAX_SPRITES_PER_SECTION
             or not all(
-                _valid_sprite_manifest_identity(sprite)
-                for sprite in raw_sprites
+                _valid_sprite_manifest_identity(sprite) for sprite in raw_sprites
             )
         ):
             return False
         slots = [sprite["slot"] for sprite in raw_sprites]
-        identity_handles = [
-            sprite["identity_handle"] for sprite in raw_sprites
-        ]
+        subject_handles = [sprite["subject_handle"] for sprite in raw_sprites]
         if len(slots) != len(set(slots)):
             return False
-        if len(identity_handles) != len(set(identity_handles)):
+        if len(subject_handles) != len(set(subject_handles)):
             return False
         if len(raw_sprites) == 2 and set(slots) != {"left", "right"}:
             return False
@@ -1056,11 +1045,8 @@ def _valid_v2_identity(
     if any(neutral_sections) != used_neutral_stage:
         return False
     return [
-        page.model_dump(mode="json", exclude={"sprites"})
-        for page in identity_pages
-    ] == [
-        page.model_dump(mode="json", exclude={"sprites"}) for page in pages
-    ]
+        page.model_dump(mode="json", exclude={"sprites"}) for page in identity_pages
+    ] == [page.model_dump(mode="json", exclude={"sprites"}) for page in pages]
 
 
 @dataclass(frozen=True)
@@ -1080,17 +1066,17 @@ def _resolve_sprite_placements(
 
     resolved: list[_ResolvedSpritePlacement] = []
     slots: set[str] = set()
-    identity_handles: set[str] = set()
+    subject_handles: set[str] = set()
     for placement in placements:
         if type(placement) is not VisualNovelSpritePlacement:
             raise VisualNovelSpriteError("invalid_placement")
         resolved_placement = _resolve_sprite_placement(placement)
         if placement.slot in slots:
             raise VisualNovelSpriteError("duplicate_slot")
-        if placement.identity_handle in identity_handles:
-            raise VisualNovelSpriteError("duplicate_identity")
+        if placement.subject_handle in subject_handles:
+            raise VisualNovelSpriteError("duplicate_subject")
         slots.add(placement.slot)
-        identity_handles.add(placement.identity_handle)
+        subject_handles.add(placement.subject_handle)
         resolved.append(resolved_placement)
 
     if len(resolved) == 2 and slots != {"left", "right"}:
@@ -1101,6 +1087,8 @@ def _resolve_sprite_placements(
 def _resolve_sprite_placement(
     placement: VisualNovelSpritePlacement,
 ) -> _ResolvedSpritePlacement:
+    if not _valid_opaque_sprite_handle(placement.subject_handle):
+        raise VisualNovelSpriteError("invalid_subject_handle")
     if not _valid_opaque_sprite_handle(placement.identity_handle):
         raise VisualNovelSpriteError("invalid_identity_handle")
     if not _valid_opaque_sprite_handle(placement.variant_handle):
@@ -1138,10 +1126,7 @@ def _resolve_sprite_placement(
         raise VisualNovelSpriteError("invalid_media_hash")
     if hashlib.sha256(media.data).hexdigest() != media.sha256:
         raise VisualNovelSpriteError("media_hash_mismatch")
-    if (
-        type(media.byte_count) is not int
-        or media.byte_count != len(media.data)
-    ):
+    if type(media.byte_count) is not int or media.byte_count != len(media.data):
         raise VisualNovelSpriteError("media_byte_count_mismatch")
     if not _valid_sprite_dimensions(media.width, media.height):
         raise VisualNovelSpriteError("invalid_media_dimensions")
@@ -1161,6 +1146,7 @@ def _resolve_sprite_placement(
     return _ResolvedSpritePlacement(
         image=image,
         identity={
+            "subject_handle": placement.subject_handle,
             "identity_handle": placement.identity_handle,
             "variant_handle": placement.variant_handle,
             "source_sha256": media.sha256,
@@ -1219,10 +1205,7 @@ def _valid_static_sprite_image(
     expected_width: int,
     expected_height: int,
 ) -> bool:
-    has_alpha = (
-        "A" in image.getbands()
-        or "transparency" in image.info
-    )
+    has_alpha = "A" in image.getbands() or "transparency" in image.info
     return (
         image.format == "PNG"
         and image.size == (expected_width, expected_height)
@@ -1253,17 +1236,13 @@ def _scaled_sprite_size(
     )
     target_width = max(
         1,
-        (source_width * target_height + source_height // 2)
-        // source_height,
+        (source_width * target_height + source_height // 2) // source_height,
     )
     return target_width, target_height
 
 
 def _valid_opaque_sprite_handle(value: object) -> bool:
-    return (
-        type(value) is str
-        and _OPAQUE_SPRITE_HANDLE_RE.fullmatch(value) is not None
-    )
+    return type(value) is str and _OPAQUE_SPRITE_HANDLE_RE.fullmatch(value) is not None
 
 
 def _valid_sprite_transform(
@@ -1299,9 +1278,7 @@ def _valid_sprite_transform(
         return False
     return (
         type(scale_percent) is int
-        and _MIN_SPRITE_SCALE_PERCENT
-        <= scale_percent
-        <= _MAX_SPRITE_SCALE_PERCENT
+        and _MIN_SPRITE_SCALE_PERCENT <= scale_percent <= _MAX_SPRITE_SCALE_PERCENT
     )
 
 
@@ -1331,9 +1308,7 @@ def _compose_sprite_stage(
                 .convert("RGBA")
             )
         if sprite.identity["source_facing"] != sprite.identity["facing"]:
-            transformed = transformed.transpose(
-                Image.Transpose.FLIP_LEFT_RIGHT
-            )
+            transformed = transformed.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
         anchor_x, anchor_y = sprite.identity["anchor"]
         composed.alpha_composite(
             transformed,
@@ -1418,11 +1393,13 @@ def _paginate_pages(
     result: list[VisualNovelPage] = []
     for page in _coalesce_incomplete_pages(pages):
         for physical_text in _paginate_page_text(page.text, body_font):
-            result.append(VisualNovelPage(
-                kind=page.kind,
-                speaker=page.speaker,
-                text=physical_text,
-            ))
+            result.append(
+                VisualNovelPage(
+                    kind=page.kind,
+                    speaker=page.speaker,
+                    text=physical_text,
+                )
+            )
     return result
 
 
@@ -1438,10 +1415,7 @@ def _coalesce_incomplete_pages(
             coalesced.append(page)
             continue
         previous = coalesced[-1]
-        same_channel = (
-            previous.kind == page.kind
-            and previous.speaker == page.speaker
-        )
+        same_channel = previous.kind == page.kind and previous.speaker == page.speaker
         if not same_channel or not _continues_prior_page(
             previous.text,
             page.text,
@@ -1449,9 +1423,7 @@ def _coalesce_incomplete_pages(
             coalesced.append(page)
             continue
         separator = "" if previous.text.rstrip().endswith(("-", "—")) else " "
-        previous.text = (
-            previous.text.rstrip() + separator + page.text.lstrip()
-        )
+        previous.text = previous.text.rstrip() + separator + page.text.lstrip()
     return coalesced
 
 
@@ -1460,8 +1432,7 @@ def _ends_complete_sentence(text: str) -> bool:
     if not value:
         return False
     return any(
-        match.end() == len(value)
-        for match in _SENTENCE_BOUNDARY_RE.finditer(value)
+        match.end() == len(value) for match in _SENTENCE_BOUNDARY_RE.finditer(value)
     )
 
 
@@ -1495,8 +1466,7 @@ def _looks_like_abbreviation(sentence_prefix: str) -> bool:
     if token.casefold() in _COMMON_ABBREVIATIONS:
         return True
     return bool(
-        re.fullmatch(r"(?:[A-Z]\.){1,4}", token)
-        or re.fullmatch(r"[A-Z]\.", token)
+        re.fullmatch(r"(?:[A-Z]\.){1,4}", token) or re.fullmatch(r"[A-Z]\.", token)
     )
 
 
@@ -1564,18 +1534,14 @@ def _oversized_sentence_pages(
                 pending = clause
                 continue
             result.extend(
-                "\n".join(chunk)
-                for chunk in _chunks(clause_lines, _MAX_BODY_LINES)
+                "\n".join(chunk) for chunk in _chunks(clause_lines, _MAX_BODY_LINES)
             )
         if pending:
             result.append(_wrapped_page_text(pending, body_font))
         return result
 
     lines = _wrap_text(sentence, body_font, max_width=924)
-    return [
-        "\n".join(chunk)
-        for chunk in _chunks(lines, _MAX_BODY_LINES)
-    ]
+    return ["\n".join(chunk) for chunk in _chunks(lines, _MAX_BODY_LINES)]
 
 
 def _paginate_page_text(
@@ -1669,7 +1635,7 @@ def _text_width(
 
 def _chunks(values: Sequence[str], size: int) -> Iterable[list[str]]:
     for start in range(0, len(values), size):
-        yield list(values[start:start + size])
+        yield list(values[start : start + size])
 
 
 def _compose_card(

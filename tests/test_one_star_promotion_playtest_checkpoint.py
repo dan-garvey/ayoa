@@ -5,10 +5,14 @@ from __future__ import annotations
 import hashlib
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 from PIL import Image, ImageDraw
+import pytest
 
+from app.engine.prompt_manager import PromptManager
 from app.engine.one_star_adapter import (
+    OneStarTransactionError,
     load_one_star_account,
     load_one_star_hero,
     prepare_one_star_transaction,
@@ -25,21 +29,26 @@ from app.engine.reviewed_visual_references import (
 from app.engine.visual_novel_sprites import (
     resolve_visual_novel_sprite_placements,
 )
+from app.engine.turn_loop_dispatcher import LLMDispatcher
+from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.events import ObservableFact
 from app.schemas.narrator import VisualNovelPage, VisualNovelSpriteCue
-from app.schemas.one_star import OneStarTransaction
+from app.schemas.one_star import (
+    OneStarEventRouterOutput,
+    OneStarStateUpdateList,
+    OneStarTransaction,
+)
 from scripts.run_one_star_promotion_sprite_playtest import (
     _promotion_comparison_pages,
 )
+from tests.support.factories import llm_response, router_output
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SOURCE_STORY_DIR = (
-    REPO_ROOT / "app/storage/stories/one_star_ascension_s1"
-)
+SOURCE_STORY_DIR = REPO_ROOT / "app/storage/stories/one_star_ascension_s1"
 PLAYTEST_STORY_DIR = (
-    REPO_ROOT
-    / "app/storage/stories/one_star_ascension_s1_promotion_playtest"
+    REPO_ROOT / "app/storage/stories/one_star_ascension_s1_promotion_playtest"
 )
 FACELESS_ID = "promotion_playtest_faceless"
 
@@ -59,10 +68,12 @@ def _character(checkpoint: CheckpointFile, character_id: str):
 
 
 def _transaction(*operations: dict[str, object]) -> OneStarTransaction:
-    return OneStarTransaction.model_validate({
-        "present": True,
-        "operations": list(operations),
-    })
+    return OneStarTransaction.model_validate(
+        {
+            "present": True,
+            "operations": list(operations),
+        }
+    )
 
 
 def _promote(
@@ -74,27 +85,31 @@ def _promote(
     opened = prepare_one_star_transaction(
         checkpoint,
         event_id=f"{operation_id}_open",
-        transaction=_transaction({
-            "operation": "pending_open",
-            "pending": {
-                "operation_id": operation_id,
-                "kind": "promotion",
-                "participant_ids": [character_id],
-                "target_id": character_id,
-                "destination": "niflheim_promotion_chamber",
-                "opened_at_s": 0,
-            },
-        }),
+        transaction=_transaction(
+            {
+                "operation": "pending_open",
+                "pending": {
+                    "operation_id": operation_id,
+                    "kind": "promotion",
+                    "participant_ids": [character_id],
+                    "target_id": character_id,
+                    "destination": "niflheim_promotion_chamber",
+                    "opened_at_s": 0,
+                },
+            }
+        ),
         canonical_at_s=0,
         initiating_actor_id="the_master",
     )
     resolved = prepare_one_star_transaction(
         opened.after_checkpoint,
         event_id=f"{operation_id}_resolve",
-        transaction=_transaction({
-            "operation": "pending_resolve",
-            "operation_id": operation_id,
-        }),
+        transaction=_transaction(
+            {
+                "operation": "pending_resolve",
+                "operation_id": operation_id,
+            }
+        ),
         location_updates={character_id: "niflheim_promotion_chamber"},
         canonical_at_s=0,
         initiating_actor_id="the_master",
@@ -106,17 +121,19 @@ def _open_synthesis(checkpoint: CheckpointFile) -> CheckpointFile:
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id="mara_castor_synthesis_open",
-        transaction=_transaction({
-            "operation": "pending_open",
-            "pending": {
-                "operation_id": "mara_castor_synthesis",
-                "kind": "synthesis",
-                "participant_ids": ["castor_valebrand"],
-                "target_id": FACELESS_ID,
-                "destination": "niflheim_synthesis_chamber",
-                "opened_at_s": 0,
-            },
-        }),
+        transaction=_transaction(
+            {
+                "operation": "pending_open",
+                "pending": {
+                    "operation_id": "mara_castor_synthesis",
+                    "kind": "synthesis",
+                    "participant_ids": ["castor_valebrand"],
+                    "target_id": FACELESS_ID,
+                    "destination": "niflheim_synthesis_chamber",
+                    "opened_at_s": 0,
+                },
+            }
+        ),
         canonical_at_s=0,
         initiating_actor_id="the_master",
     )
@@ -127,10 +144,12 @@ def _resolve_synthesis(checkpoint: CheckpointFile) -> CheckpointFile:
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id="mara_castor_synthesis_resolve",
-        transaction=_transaction({
-            "operation": "pending_resolve",
-            "operation_id": "mara_castor_synthesis",
-        }),
+        transaction=_transaction(
+            {
+                "operation": "pending_resolve",
+                "operation_id": "mara_castor_synthesis",
+            }
+        ),
         location_updates={
             FACELESS_ID: "niflheim_synthesis_chamber",
             "castor_valebrand": "niflheim_synthesis_chamber",
@@ -161,6 +180,77 @@ def _generated_media() -> ResolvedPlayerMedia:
     )
 
 
+@pytest.mark.asyncio
+async def test_fixed_promotion_resolution_cannot_be_erased_by_state_repair():
+    checkpoint = _load()
+    opened = prepare_one_star_transaction(
+        checkpoint,
+        event_id="promotion_open",
+        transaction=_transaction(
+            {
+                "operation": "pending_open",
+                "pending": {
+                    "operation_id": "promotion_renna",
+                    "kind": "promotion",
+                    "participant_ids": ["renna_holt"],
+                    "target_id": "renna_holt",
+                    "destination": "niflheim_promotion_chamber",
+                    "opened_at_s": 0,
+                },
+            }
+        ),
+        canonical_at_s=0,
+        initiating_actor_id="the_master",
+    ).after_checkpoint
+    data = router_output(
+        event_id="promotion_resolution",
+        observer_ids=["the_master", "renna_holt", "iselle_the_guide"],
+        event_kind="cat_ii_resolution",
+        facts=[
+            ObservableFact.all("Renna enters and the promotion completes."),
+            ObservableFact.only(
+                "The System reports the completed promotion.",
+                ["iselle_the_guide"],
+            ),
+        ],
+        location_updates=[
+            {
+                "character_id": "renna_holt",
+                "location_label": "niflheim_lobby",
+            }
+        ],
+    ).model_dump(mode="json")
+    data["state_updates"] = [
+        {
+            "kind": "pending_resolve",
+            "target_id": "promotion_renna",
+            "value": "",
+            "details": [],
+        }
+    ]
+    event = OneStarEventRouterOutput.model_validate(data)
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(
+        return_value=llm_response(
+            OneStarStateUpdateList(state_updates=[]),
+        )
+    )
+    dispatcher = LLMDispatcher(client, PromptManager("app/prompts"))
+
+    with pytest.raises(
+        OneStarTransactionError,
+        match="repair cannot erase a pending resolution",
+    ):
+        await dispatcher.prepare_ruleset_event(
+            ckpt=opened,
+            result=event,
+            actor_id="the_master",
+        )
+
+    assert client.complete.await_count == 1
+    assert load_one_star_hero(_character(opened, "renna_holt")).current_stars == 1
+
+
 class _GeneratedSpriteResolver:
     def __init__(self, pack_id: str) -> None:
         self.pack_id = pack_id
@@ -181,16 +271,12 @@ def test_playtest_seed_is_a_valid_visual_novel_story_copy() -> None:
     checkpoint = _load()
     source = _load(SOURCE_STORY_DIR)
 
-    assert checkpoint.session.story_id == (
-        "one_star_ascension_s1_promotion_playtest"
-    )
+    assert checkpoint.session.story_id == ("one_star_ascension_s1_promotion_playtest")
     assert checkpoint.session.session_id == checkpoint.session.story_id
     assert checkpoint.session.config.settings.presentation_mode == "visual_novel"
     assert checkpoint.world_state.opening is not None
     assert checkpoint.world_state.opening.allow_spawns is False
-    assert "sealed promotion" not in (
-        checkpoint.session.config.narrative_rules.lower()
-    )
+    assert "sealed promotion" not in (checkpoint.session.config.narrative_rules.lower())
     assert source.session.config.settings.presentation_mode == "prose"
 
     _source_owner, source_account = load_one_star_account(source)
@@ -269,11 +355,14 @@ def test_fixture_reaches_authored_and_generated_reveal_contracts() -> None:
     mara_hero = load_one_star_hero(mara)
     assert mara_hero is not None
     assert (mara_hero.current_stars, mara_hero.level) == (2, 10)
-    assert sprite_set_id_for_viewer(
-        checkpoint,
-        viewer_character_id=master_id,
-        character=mara,
-    ) == "osa_vnset_veiled_feminine_v1"
+    assert (
+        sprite_set_id_for_viewer(
+            checkpoint,
+            viewer_character_id=master_id,
+            character=mara,
+        )
+        == "osa_vnset_veiled_feminine_v1"
+    )
     assert [
         character.character_id
         for character in characters_needing_generated_sprite_prewarm(checkpoint)
@@ -299,10 +388,13 @@ def test_fixture_reaches_authored_and_generated_reveal_contracts() -> None:
         mara_hero.level,
         mara_hero.experience_points,
     ) == (2, 20, 43_500)
-    assert _character(
-        checkpoint,
-        "castor_valebrand",
-    ).status.value == "culled"
+    assert (
+        _character(
+            checkpoint,
+            "castor_valebrand",
+        ).status.value
+        == "culled"
+    )
 
     checkpoint = _promote(
         checkpoint,
@@ -343,10 +435,12 @@ def test_fixture_reaches_authored_and_generated_reveal_contracts() -> None:
             kind="dialogue",
             speaker="Mara Venn",
             text="I remember enough to know this face is mine.",
-            sprites=[VisualNovelSpriteCue(
-                character="Mara Venn",
-                expression="neutral",
-            )],
+            sprites=[
+                VisualNovelSpriteCue(
+                    character="Mara Venn",
+                    expression="neutral",
+                )
+            ],
         ),
         generation=_GeneratedSpriteResolver(pack_id),  # type: ignore[arg-type]
     )

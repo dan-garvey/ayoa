@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Exercise the generated One-Star VN sprite reveal against a live worker.
+"""Build a deterministic One-Star promotion sprite diagnostic.
 
-This is a coding-time playtest. It advances the focused promotion fixture with
-the real One-Star transaction adapter, runs the production sprite prewarm
-coordinator, and renders the generated sprite into a deterministic VN card.
-No image bytes are sent to a runtime LLM.
+This is not an end-to-end player playtest. It advances focused checkpoint
+snapshots with the transaction adapter, runs the production sprite prewarm
+coordinator, and renders hand-authored comparison labels through the production
+compositor. Use ``run_one_star_promotion_vn_live_playtest.py`` for evidence from
+real player inputs and router/narrator turns. No image bytes are sent to a
+runtime LLM.
 """
 
 from __future__ import annotations
@@ -65,18 +67,19 @@ from scripts.export_vn_playtest_slideshow import (
 
 
 PLAYTEST_STORY = (
-    REPO_ROOT
-    / "app/storage/stories/one_star_ascension_s1_promotion_playtest"
+    REPO_ROOT / "app/storage/stories/one_star_ascension_s1_promotion_playtest"
 )
 FACELESS_ID = "promotion_playtest_faceless"
 MASTER_ID = "the_master"
 
 
 def _transaction(*operations: dict[str, object]) -> OneStarTransaction:
-    return OneStarTransaction.model_validate({
-        "present": True,
-        "operations": list(operations),
-    })
+    return OneStarTransaction.model_validate(
+        {
+            "present": True,
+            "operations": list(operations),
+        }
+    )
 
 
 def _promote(
@@ -88,27 +91,31 @@ def _promote(
     opened = prepare_one_star_transaction(
         checkpoint,
         event_id=f"{operation_id}_open",
-        transaction=_transaction({
-            "operation": "pending_open",
-            "pending": {
-                "operation_id": operation_id,
-                "kind": "promotion",
-                "participant_ids": [character_id],
-                "target_id": character_id,
-                "destination": "niflheim_promotion_chamber",
-                "opened_at_s": 0,
-            },
-        }),
+        transaction=_transaction(
+            {
+                "operation": "pending_open",
+                "pending": {
+                    "operation_id": operation_id,
+                    "kind": "promotion",
+                    "participant_ids": [character_id],
+                    "target_id": character_id,
+                    "destination": "niflheim_promotion_chamber",
+                    "opened_at_s": 0,
+                },
+            }
+        ),
         canonical_at_s=0,
         initiating_actor_id=MASTER_ID,
     )
     resolved = prepare_one_star_transaction(
         opened.after_checkpoint,
         event_id=f"{operation_id}_resolve",
-        transaction=_transaction({
-            "operation": "pending_resolve",
-            "operation_id": operation_id,
-        }),
+        transaction=_transaction(
+            {
+                "operation": "pending_resolve",
+                "operation_id": operation_id,
+            }
+        ),
         location_updates={character_id: "niflheim_promotion_chamber"},
         canonical_at_s=0,
         initiating_actor_id=MASTER_ID,
@@ -122,17 +129,19 @@ def _synthesize_castor_into_mara(
     opened = prepare_one_star_transaction(
         checkpoint,
         event_id="mara_castor_synthesis_open",
-        transaction=_transaction({
-            "operation": "pending_open",
-            "pending": {
-                "operation_id": "mara_castor_synthesis",
-                "kind": "synthesis",
-                "participant_ids": ["castor_valebrand"],
-                "target_id": FACELESS_ID,
-                "destination": "niflheim_synthesis_chamber",
-                "opened_at_s": 0,
-            },
-        }),
+        transaction=_transaction(
+            {
+                "operation": "pending_open",
+                "pending": {
+                    "operation_id": "mara_castor_synthesis",
+                    "kind": "synthesis",
+                    "participant_ids": ["castor_valebrand"],
+                    "target_id": FACELESS_ID,
+                    "destination": "niflheim_synthesis_chamber",
+                    "opened_at_s": 0,
+                },
+            }
+        ),
         canonical_at_s=0,
         initiating_actor_id=MASTER_ID,
     )
@@ -148,10 +157,12 @@ def _synthesize_castor_into_mara(
     resolved = prepare_one_star_transaction(
         opened.after_checkpoint,
         event_id="mara_castor_synthesis_resolve",
-        transaction=_transaction({
-            "operation": "pending_resolve",
-            "operation_id": "mara_castor_synthesis",
-        }),
+        transaction=_transaction(
+            {
+                "operation": "pending_resolve",
+                "operation_id": "mara_castor_synthesis",
+            }
+        ),
         location_updates={
             FACELESS_ID: "niflheim_synthesis_chamber",
             "castor_valebrand": "niflheim_synthesis_chamber",
@@ -202,7 +213,8 @@ def _write_checkpoint(
         checkpoint.model_dump_json(
             indent=2,
             context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
-        ) + "\n",
+        )
+        + "\n",
         encoding="utf-8",
     )
 
@@ -222,56 +234,52 @@ def _gateway_health() -> dict[str, Any]:
 
 
 def _promotion_comparison_pages() -> tuple[VisualNovelPage, ...]:
-    """Return the fixed visual evidence order for both reveal transitions."""
+    """Return hand-authored pages for the component-level visual diagnostic."""
 
     return (
         VisualNovelPage(
             kind="dialogue",
             speaker="Renna Holt",
-            text=(
-                "Before ascent · 1★ level 10 · generic veiled one-star "
-                "appearance."
-            ),
-            sprites=[VisualNovelSpriteCue(
-                character="Renna Holt",
-                expression="neutral",
-            )],
+            text=("Before ascent · 1★ level 10 · generic veiled one-star appearance."),
+            sprites=[
+                VisualNovelSpriteCue(
+                    character="Renna Holt",
+                    expression="neutral",
+                )
+            ],
         ),
         VisualNovelPage(
             kind="dialogue",
             speaker="Renna Holt",
-            text=(
-                "After ascent · 2★ level 10 · locked seeded identity "
-                "revealed."
-            ),
-            sprites=[VisualNovelSpriteCue(
-                character="Renna Holt",
-                expression="neutral",
-            )],
+            text=("After ascent · 2★ level 10 · locked seeded identity revealed."),
+            sprites=[
+                VisualNovelSpriteCue(
+                    character="Renna Holt",
+                    expression="neutral",
+                )
+            ],
         ),
         VisualNovelPage(
             kind="dialogue",
             speaker="Mara Venn",
-            text=(
-                "Before ascent · 1★ level 10 · generic veiled one-star "
-                "appearance."
-            ),
-            sprites=[VisualNovelSpriteCue(
-                character="Mara Venn",
-                expression="neutral",
-            )],
+            text=("Before ascent · 1★ level 10 · generic veiled one-star appearance."),
+            sprites=[
+                VisualNovelSpriteCue(
+                    character="Mara Venn",
+                    expression="neutral",
+                )
+            ],
         ),
         VisualNovelPage(
             kind="dialogue",
             speaker="Mara Venn",
-            text=(
-                "After ascent · 3★ level 30 · generated identity sprite "
-                "revealed."
-            ),
-            sprites=[VisualNovelSpriteCue(
-                character="Mara Venn",
-                expression="neutral",
-            )],
+            text=("After ascent · 3★ level 30 · generated identity sprite revealed."),
+            sprites=[
+                VisualNovelSpriteCue(
+                    character="Mara Venn",
+                    expression="neutral",
+                )
+            ],
         ),
     )
 
@@ -347,10 +355,9 @@ async def _wait_for_jobs(
 ) -> None:
     if not job_ids:
         return
-    await asyncio.gather(*(
-        coordinator.wait_for_terminal(job_id, timeout=timeout)
-        for job_id in job_ids
-    ))
+    await asyncio.gather(
+        *(coordinator.wait_for_terminal(job_id, timeout=timeout) for job_id in job_ids)
+    )
 
 
 async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
@@ -360,9 +367,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         if not (run_dir / "image-runtime/jobs.sqlite").is_file():
             raise RuntimeError("resume directory has no durable image store")
         prior_checkpoint = CheckpointFile.model_validate_json(
-            (run_dir / "checkpoints/02-mara-2star.json").read_text(
-                encoding="utf-8"
-            )
+            (run_dir / "checkpoints/02-mara-2star.json").read_text(encoding="utf-8")
         )
         checkpoint = CheckpointFile.model_validate_json(
             source_path.read_text(encoding="utf-8")
@@ -370,21 +375,25 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         checkpoint.session.session_id = prior_checkpoint.session.session_id
         checkpoint.session.turn_index = 1
         _write_checkpoint(checkpoint, run_dir / "checkpoints/00-start.json")
-        progression: list[dict[str, object]] = [{
-            "step": "start",
-            "renna": _hero_state(checkpoint, "renna_holt"),
-            "mara": _hero_state(checkpoint, FACELESS_ID),
-            "castor": _hero_state(checkpoint, "castor_valebrand"),
-        }]
+        progression: list[dict[str, object]] = [
+            {
+                "step": "start",
+                "renna": _hero_state(checkpoint, "renna_holt"),
+                "mara": _hero_state(checkpoint, FACELESS_ID),
+                "castor": _hero_state(checkpoint, "castor_valebrand"),
+            }
+        ]
         checkpoint = _promote(
             checkpoint,
             character_id="renna_holt",
             operation_id="renna_two_star",
         )
-        progression.append({
-            "step": "renna_promoted_to_two_star",
-            "renna": _hero_state(checkpoint, "renna_holt"),
-        })
+        progression.append(
+            {
+                "step": "renna_promoted_to_two_star",
+                "renna": _hero_state(checkpoint, "renna_holt"),
+            }
+        )
         _write_checkpoint(
             checkpoint,
             run_dir / "checkpoints/01-renna-2star.json",
@@ -394,10 +403,12 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             character_id=FACELESS_ID,
             operation_id="mara_two_star",
         )
-        progression.append({
-            "step": "mara_promoted_to_two_star_prewarm_boundary",
-            "mara": _hero_state(checkpoint, FACELESS_ID),
-        })
+        progression.append(
+            {
+                "step": "mara_promoted_to_two_star_prewarm_boundary",
+                "mara": _hero_state(checkpoint, FACELESS_ID),
+            }
+        )
         _write_checkpoint(
             checkpoint,
             run_dir / "checkpoints/02-mara-2star.json",
@@ -414,28 +425,30 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         checkpoint = CheckpointFile.model_validate_json(
             source_path.read_text(encoding="utf-8")
         )
-        checkpoint.session.session_id = (
-            f"one-star-promotion-sprite-{timestamp.lower()}"
-        )
+        checkpoint.session.session_id = f"one-star-promotion-sprite-{timestamp.lower()}"
         checkpoint.session.turn_index = 1
         _write_checkpoint(checkpoint, run_dir / "checkpoints/00-start.json")
 
-        progression = [{
-            "step": "start",
-            "renna": _hero_state(checkpoint, "renna_holt"),
-            "mara": _hero_state(checkpoint, FACELESS_ID),
-            "castor": _hero_state(checkpoint, "castor_valebrand"),
-        }]
+        progression = [
+            {
+                "step": "start",
+                "renna": _hero_state(checkpoint, "renna_holt"),
+                "mara": _hero_state(checkpoint, FACELESS_ID),
+                "castor": _hero_state(checkpoint, "castor_valebrand"),
+            }
+        ]
 
         checkpoint = _promote(
             checkpoint,
             character_id="renna_holt",
             operation_id="renna_two_star",
         )
-        progression.append({
-            "step": "renna_promoted_to_two_star",
-            "renna": _hero_state(checkpoint, "renna_holt"),
-        })
+        progression.append(
+            {
+                "step": "renna_promoted_to_two_star",
+                "renna": _hero_state(checkpoint, "renna_holt"),
+            }
+        )
         _write_checkpoint(
             checkpoint,
             run_dir / "checkpoints/01-renna-2star.json",
@@ -446,10 +459,12 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             character_id=FACELESS_ID,
             operation_id="mara_two_star",
         )
-        progression.append({
-            "step": "mara_promoted_to_two_star_prewarm_boundary",
-            "mara": _hero_state(checkpoint, FACELESS_ID),
-        })
+        progression.append(
+            {
+                "step": "mara_promoted_to_two_star_prewarm_boundary",
+                "mara": _hero_state(checkpoint, FACELESS_ID),
+            }
+        )
         _write_checkpoint(
             checkpoint,
             run_dir / "checkpoints/02-mara-2star.json",
@@ -568,28 +583,32 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                 expression=expression,
             )
             if resolved is None:
-                variant_records.append({
-                    "expression": expression,
-                    "resolved": False,
-                    "job_status": jobs[expression].status.value,
-                    "error_code": jobs[expression].error_code,
-                })
+                variant_records.append(
+                    {
+                        "expression": expression,
+                        "resolved": False,
+                        "job_status": jobs[expression].status.value,
+                        "error_code": jobs[expression].error_code,
+                    }
+                )
                 continue
             handle, media, source_facing = resolved
             sprite_path = run_dir / "sprites" / f"{expression}.png"
             sprite_path.write_bytes(media.data)
             resolved_variants.append((expression, media.data))
-            variant_records.append({
-                "expression": expression,
-                "resolved": True,
-                "job_status": jobs[expression].status.value,
-                "variant_handle": handle,
-                "source_facing": source_facing,
-                "sha256": media.sha256,
-                "width": media.width,
-                "height": media.height,
-                "relative_path": str(sprite_path.relative_to(run_dir)),
-            })
+            variant_records.append(
+                {
+                    "expression": expression,
+                    "resolved": True,
+                    "job_status": jobs[expression].status.value,
+                    "variant_handle": handle,
+                    "source_facing": source_facing,
+                    "sha256": media.sha256,
+                    "width": media.width,
+                    "height": media.height,
+                    "relative_path": str(sprite_path.relative_to(run_dir)),
+                }
+            )
         if not resolved_variants or resolved_variants[0][0] != "neutral":
             raise RuntimeError("generated neutral was not materialized")
 
@@ -597,12 +616,14 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         _contact_sheet(resolved_variants, sheet_path)
 
         checkpoint, preview = _synthesize_castor_into_mara(checkpoint)
-        progression.append({
-            "step": "castor_synthesized_into_mara",
-            "preview": preview,
-            "mara": _hero_state(checkpoint, FACELESS_ID),
-            "castor": _hero_state(checkpoint, "castor_valebrand"),
-        })
+        progression.append(
+            {
+                "step": "castor_synthesized_into_mara",
+                "preview": preview,
+                "mara": _hero_state(checkpoint, FACELESS_ID),
+                "castor": _hero_state(checkpoint, "castor_valebrand"),
+            }
+        )
         _write_checkpoint(
             checkpoint,
             run_dir / "checkpoints/03-mara-level20-after-synthesis.json",
@@ -614,10 +635,12 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             operation_id="mara_three_star",
         )
         final_mara = _hero_state(checkpoint, FACELESS_ID)
-        progression.append({
-            "step": "mara_promoted_to_three_star_generated_reveal",
-            "mara": final_mara,
-        })
+        progression.append(
+            {
+                "step": "mara_promoted_to_three_star_generated_reveal",
+                "mara": final_mara,
+            }
+        )
         _write_checkpoint(
             checkpoint,
             run_dir / "checkpoints/04-mara-3star-level30.json",
@@ -629,9 +652,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             (run_dir / "checkpoints/00-start.json").read_text(encoding="utf-8")
         )
         renna_after_checkpoint = CheckpointFile.model_validate_json(
-            (run_dir / "checkpoints/01-renna-2star.json").read_text(
-                encoding="utf-8"
-            )
+            (run_dir / "checkpoints/01-renna-2star.json").read_text(encoding="utf-8")
         )
         comparison_checkpoints = (
             start_checkpoint,
@@ -647,8 +668,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             pack_id,
         )
         stage_path = (
-            PLAYTEST_STORY
-            / "visual-references/locations/niflheim/"
+            PLAYTEST_STORY / "visual-references/locations/niflheim/"
             "lobby_1f_open_air_courtyard_v1.png"
         )
         sections: list[VisualNovelDeckSection] = []
@@ -669,11 +689,13 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                     f"comparison page did not resolve one sprite: {page.speaker}"
                 )
             resolved_sprite_sets.append(placements[0].identity_handle)
-            sections.append(VisualNovelDeckSection(
-                pages=(page,),
-                stage_path=stage_path,
-                sprite_placements=placements,
-            ))
+            sections.append(
+                VisualNovelDeckSection(
+                    pages=(page,),
+                    stage_path=stage_path,
+                    sprite_placements=placements,
+                )
+            )
 
         renderer = VisualNovelCardRenderer(run_dir / "presentation")
         deck = renderer.render_deck(sections)
@@ -772,9 +794,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                         "text": card.text,
                         "accessible_text": card.accessible_text,
                         "image_path": str(card.image_path.relative_to(run_dir)),
-                        "image_sha256": hashlib.sha256(
-                            card.image_bytes
-                        ).hexdigest(),
+                        "image_sha256": hashlib.sha256(card.image_bytes).hexdigest(),
                     }
                     for card in deck.cards
                 ],
@@ -785,9 +805,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             },
             "slideshow": {
                 "directory": str(slideshow_directory.relative_to(run_dir)),
-                "index": str(
-                    (slideshow_directory / "index.json").relative_to(run_dir)
-                ),
+                "index": str((slideshow_directory / "index.json").relative_to(run_dir)),
                 "card_count": len(slideshow_cards),
             },
         }
@@ -839,19 +857,24 @@ def main() -> int:
         args.windows_root.mkdir(parents=True, exist_ok=True)
         windows_copy = args.windows_root / run_dir.name
         shutil.copytree(run_dir, windows_copy)
-    print(json.dumps({
-        "run_dir": str(run_dir),
-        "windows_copy": str(windows_copy) if windows_copy else "",
-        "all_checks_passed": all(
-            value if isinstance(value, bool) else value >= 1
-            for value in report["checks"].values()
-        ),
-        "resolved_variants": report["checks"]["generated_variants_resolved"],
-        "generation_seconds": report["generation_seconds"],
-        "deck_id": report["comparison_deck"]["deck_id"],
-        "slideshow": str(slideshow_directory),
-        "slideshow_card_count": slideshow_card_count,
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "run_dir": str(run_dir),
+                "windows_copy": str(windows_copy) if windows_copy else "",
+                "all_checks_passed": all(
+                    value if isinstance(value, bool) else value >= 1
+                    for value in report["checks"].values()
+                ),
+                "resolved_variants": report["checks"]["generated_variants_resolved"],
+                "generation_seconds": report["generation_seconds"],
+                "deck_id": report["comparison_deck"]["deck_id"],
+                "slideshow": str(slideshow_directory),
+                "slideshow_card_count": slideshow_card_count,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

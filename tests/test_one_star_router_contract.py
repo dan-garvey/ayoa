@@ -75,12 +75,14 @@ def _pending_selection_output(
     details = ["participant=pip", "destination=tower_floor_1"]
     if target_id:
         details.append(f"target_id={target_id}")
-    data["state_updates"] = [{
-        "kind": "pending_open",
-        "target_id": "deployment_1",
-        "value": "deployment",
-        "details": details,
-    }]
+    data["state_updates"] = [
+        {
+            "kind": "pending_open",
+            "target_id": "deployment_1",
+            "value": "deployment",
+            "details": details,
+        }
+    ]
     return OneStarEventRouterOutput.model_validate(data)
 
 
@@ -103,7 +105,9 @@ def test_one_star_provider_schema_contains_only_closed_objects(response_model):
                 if node.get("additionalProperties") is not False:
                     invalid_objects.append(path)
                 properties = node.get("properties")
-                if isinstance(properties, dict) and node.get("required") != list(properties):
+                if isinstance(properties, dict) and node.get("required") != list(
+                    properties
+                ):
                     required_mismatches.append(path)
             for key, value in node.items():
                 walk(value, path + (str(key),))
@@ -140,20 +144,33 @@ def test_one_star_provider_schema_adds_only_one_compact_update_definition():
         assert adapter_private_type not in rendered
 
 
+def test_one_star_provider_schema_requires_structured_visual_subjects():
+    schema = _openai_strict_json_schema(OneStarEventRouterOutput)
+    observable_fact = schema["$defs"]["ObservableFact"]
+
+    assert observable_fact["properties"]["visual_subject_ids"] == {
+        "items": {"type": "string"},
+        "type": "array",
+    }
+    assert "visual_subject_ids" in observable_fact["required"]
+
+
 def _one_star_checkpoint():
-    ckpt = checkpoint(characters=[
-        character_record("alice", is_playable=True),
-        character_record("pip"),
-    ])
+    ckpt = checkpoint(
+        characters=[
+            character_record("alice", is_playable=True),
+            character_record("pip"),
+        ]
+    )
     ckpt.session.config.settings.ruleset_id = ONE_STAR_RULESET_ID
     return ckpt
 
 
 def _dispatcher(*responses):
     client = MagicMock(spec=LLMClient)
-    client.complete = AsyncMock(side_effect=[
-        llm_response(response, content="{}") for response in responses
-    ])
+    client.complete = AsyncMock(
+        side_effect=[llm_response(response, content="{}") for response in responses]
+    )
     return LLMDispatcher(client, PromptManager("app/prompts")), client
 
 
@@ -163,7 +180,8 @@ def _stub_one_star_router_context(monkeypatch):
     monkeypatch.setattr(
         one_star_router_context,
         "render_one_star_router_static_config",
-        lambda *_args, **_kwargs: "<one_star_rules_config>\nmax_batch=5\n</one_star_rules_config>",
+        lambda *_args,
+        **_kwargs: "<one_star_rules_config>\nmax_batch=5\n</one_star_rules_config>",
     )
     monkeypatch.setattr(
         one_star_router_context,
@@ -254,20 +272,22 @@ def test_compact_mission_update_derives_canonical_timestamps():
 
     transaction = one_star_state_updates_to_transaction(
         _one_star_checkpoint(),
-        [OneStarStateUpdate(
-            kind="mission_start",
-            target_id="floor_1_attempt",
-            value="1",
-            details=[
-                "pending_operation_id=deployment_1",
-                "party=pip",
-                "destination=tower_floor_1",
-                "completion=defeat four goblins",
-                "failure=no party member remains able to fight",
-                "duration_s=300",
-                "counter.goblins=0/4",
-            ],
-        )],
+        [
+            OneStarStateUpdate(
+                kind="mission_start",
+                target_id="floor_1_attempt",
+                value="1",
+                details=[
+                    "pending_operation_id=deployment_1",
+                    "party=pip",
+                    "destination=tower_floor_1",
+                    "completion=defeat four goblins",
+                    "failure=no party member remains able to fight",
+                    "duration_s=300",
+                    "counter.goblins=0/4",
+                ],
+            )
+        ],
         canonical_at_s=12,
     )
     mission = transaction.operations[0].mission
@@ -281,14 +301,18 @@ def test_one_star_router_schema_is_used_for_fresh_and_cat_ii_routes(monkeypatch)
     fresh = _one_star_output()
     dispatcher, client = _dispatcher(fresh)
 
-    result = asyncio.run(dispatcher.route_intention(
-        ckpt=_one_star_checkpoint(),
-        actor_id="alice",
-        intention="I ask Pip a question.",
-    ))
+    result = asyncio.run(
+        dispatcher.route_intention(
+            ckpt=_one_star_checkpoint(),
+            actor_id="alice",
+            intention="I ask Pip a question.",
+        )
+    )
 
     assert result is fresh
-    assert client.complete.await_args.kwargs["response_model"] is OneStarEventRouterOutput
+    assert (
+        client.complete.await_args.kwargs["response_model"] is OneStarEventRouterOutput
+    )
 
     cat_ii = OpenCatIIEvent(
         event_id="evt_open",
@@ -299,15 +323,19 @@ def test_one_star_router_schema_is_used_for_fresh_and_cat_ii_routes(monkeypatch)
     )
     closed = _one_star_output()
     dispatcher, client = _dispatcher(closed)
-    result = asyncio.run(dispatcher.route_intention(
-        ckpt=_one_star_checkpoint(),
-        actor_id="pip",
-        intention="I pull it away.",
-        cat_ii_event=cat_ii,
-    ))
+    result = asyncio.run(
+        dispatcher.route_intention(
+            ckpt=_one_star_checkpoint(),
+            actor_id="pip",
+            intention="I pull it away.",
+            cat_ii_event=cat_ii,
+        )
+    )
 
     assert result is closed
-    assert client.complete.await_args.kwargs["response_model"] is OneStarEventRouterOutput
+    assert (
+        client.complete.await_args.kwargs["response_model"] is OneStarEventRouterOutput
+    )
 
 
 def test_invalid_embodied_selection_is_retried_before_router_history(
@@ -326,11 +354,13 @@ def test_invalid_embodied_selection_is_retried_before_router_history(
     )
     dispatcher, client = _dispatcher(invalid, corrected)
 
-    result = asyncio.run(dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="alice",
-        intention="Send Pip through the Tower gate.",
-    ))
+    result = asyncio.run(
+        dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="Send Pip through the Tower gate.",
+        )
+    )
 
     assert result is corrected
     assert client.complete.await_count == 2
@@ -340,8 +370,8 @@ def test_invalid_embodied_selection_is_retried_before_router_history(
         "content": invalid.model_dump_json(),
     }
     assert "must open Cat II" in correction_messages[-1]["content"]
-    assert "read-only System or status inspection" in (
-        correction_messages[-1]["content"]
+    assert (
+        "read-only System or status inspection" in (correction_messages[-1]["content"])
     )
     assert "Send Pip through the Tower gate." in correction_messages[-3]["content"]
     stored_history = "\n".join(
@@ -371,18 +401,23 @@ def test_invalid_deployment_target_is_corrected_before_cat_ii_history(
     )
     dispatcher, client = _dispatcher(invalid, repaired_updates)
 
-    result = asyncio.run(dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="alice",
-        intention="Deploy Pip to Floor 1.",
-    ))
+    result = asyncio.run(
+        dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="Deploy Pip to Floor 1.",
+        )
+    )
 
     assert result is invalid
     assert result.state_updates == corrected.state_updates
     assert client.complete.await_count == 2
     correction = client.complete.await_args_list[1].kwargs["messages"][-1]
     assert "deployment has no separate target Hero" in correction["content"]
-    assert client.complete.await_args_list[1].kwargs["response_model"] is OneStarStateUpdateList
+    assert (
+        client.complete.await_args_list[1].kwargs["response_model"]
+        is OneStarStateUpdateList
+    )
     stored_history = "\n".join(
         str(message.content) for message in ckpt.session_conversation
     )
@@ -408,11 +443,13 @@ def test_repeated_invalid_embodied_selection_restores_router_snapshot(
     before = ckpt.model_dump(mode="json")
 
     with pytest.raises(ValueError, match="remained invalid after one correction"):
-        asyncio.run(dispatcher.route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="Send Pip through the Tower gate.",
-        ))
+        asyncio.run(
+            dispatcher.route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="Send Pip through the Tower gate.",
+            )
+        )
 
     assert client.complete.await_count == 2
     assert ckpt.model_dump(mode="json") == before
@@ -424,11 +461,13 @@ def test_one_star_continuation_uses_the_closed_schema(monkeypatch):
     continuation = _closed_one_star_output()
     dispatcher, client = _dispatcher(continuation)
 
-    result = asyncio.run(dispatcher.route_continuation(
-        ckpt=_one_star_checkpoint(),
-        actor_id="alice",
-        prior_result=prior,
-    ))
+    result = asyncio.run(
+        dispatcher.route_continuation(
+            ckpt=_one_star_checkpoint(),
+            actor_id="alice",
+            prior_result=prior,
+        )
+    )
 
     assert result is continuation
     assert (
@@ -442,12 +481,14 @@ def test_one_star_repair_accepts_only_the_state_update_shape(monkeypatch):
     repaired_updates = OneStarStateUpdateList(state_updates=[])
     dispatcher, client = _dispatcher(repaired_updates)
 
-    repaired = asyncio.run(dispatcher._repair_one_star_transaction(
-        ckpt=_one_star_checkpoint(),
-        result=_one_star_output(),
-        actor_id="alice",
-        validation_error="insufficient Gold",
-    ))
+    repaired = asyncio.run(
+        dispatcher._repair_one_star_transaction(
+            ckpt=_one_star_checkpoint(),
+            result=_one_star_output(),
+            actor_id="alice",
+            validation_error="insufficient Gold",
+        )
+    )
 
     assert repaired is repaired_updates
     assert client.complete.await_args.kwargs["response_model"] is OneStarStateUpdateList
@@ -465,12 +506,14 @@ def test_one_star_repair_accepts_only_the_state_update_shape(monkeypatch):
 
 def test_invalid_compact_value_bounds_enter_the_one_star_repair_contract():
     result = _one_star_output()
-    result.state_updates = [OneStarStateUpdate(
-        kind="hero_delta",
-        target_id="pip",
-        value="",
-        details=["hp_current=-3"],
-    )]
+    result.state_updates = [
+        OneStarStateUpdate(
+            kind="hero_delta",
+            target_id="pip",
+            value="",
+            details=["hp_current=-3"],
+        )
+    ]
 
     with pytest.raises(
         OneStarTransactionError,
@@ -495,25 +538,32 @@ def test_invalid_hp_uses_narrow_conflict_repair_without_rewriting_fiction(
         ),
     )
     invalid = _one_star_output()
-    invalid.state_updates = [OneStarStateUpdate(
-        kind="hero_delta",
-        target_id="pip",
-        value="",
-        details=["hp_current=-3"],
-    )]
+    invalid.state_updates = [
+        OneStarStateUpdate(
+            kind="hero_delta",
+            target_id="pip",
+            value="",
+            details=["hp_current=-3"],
+        )
+    ]
     repaired = OneStarStateUpdateList(state_updates=[])
     dispatcher, client = _dispatcher(invalid, repaired)
 
-    result = asyncio.run(dispatcher.route_intention(
-        ckpt=_one_star_checkpoint(),
-        actor_id="alice",
-        intention="Pip is hurt.",
-    ))
+    result = asyncio.run(
+        dispatcher.route_intention(
+            ckpt=_one_star_checkpoint(),
+            actor_id="alice",
+            intention="Pip is hurt.",
+        )
+    )
 
     assert result is invalid
     assert result.state_updates == []
     assert client.complete.await_count == 2
-    assert client.complete.await_args_list[1].kwargs["response_model"] is OneStarStateUpdateList
+    assert (
+        client.complete.await_args_list[1].kwargs["response_model"]
+        is OneStarStateUpdateList
+    )
     repair_packet = client.complete.await_args_list[1].kwargs["messages"][-1]["content"]
     assert "hp_current=-3" in repair_packet
     assert "hero pip: hp=2/2" in repair_packet
@@ -522,30 +572,36 @@ def test_invalid_hp_uses_narrow_conflict_repair_without_rewriting_fiction(
 
 def test_one_star_spawn_activation_overlap_fails_before_materialization():
     data = _one_star_output().model_dump(mode="json")
-    data["spawn"] = [{
-        "character_id": "new_hero",
-        "seed": {
-            "role": "baker",
-            "reason": "cold light deposits a stranger",
-            "location": "niflheim_lobby",
-            "objectives": ["find an exit"],
-            "knowledge_tier": 1,
-        },
-    }]
-    data["activate"] = [{
-        "character_id": "new_hero",
-        "location_label": "niflheim_lobby",
-    }]
+    data["spawn"] = [
+        {
+            "character_id": "new_hero",
+            "seed": {
+                "role": "baker",
+                "reason": "cold light deposits a stranger",
+                "location": "niflheim_lobby",
+                "objectives": ["find an exit"],
+                "knowledge_tier": 1,
+            },
+        }
+    ]
+    data["activate"] = [
+        {
+            "character_id": "new_hero",
+            "location_label": "niflheim_lobby",
+        }
+    ]
     result = OneStarEventRouterOutput.model_validate(data)
     dispatcher, _client = _dispatcher()
     dispatcher.materialize_spawns = AsyncMock()
 
     with pytest.raises(OneStarTransactionError, match="both spawn and activate"):
-        asyncio.run(dispatcher.prepare_ruleset_event(
-            ckpt=_one_star_checkpoint(),
-            result=result,
-            actor_id="alice",
-        ))
+        asyncio.run(
+            dispatcher.prepare_ruleset_event(
+                ckpt=_one_star_checkpoint(),
+                result=result,
+                actor_id="alice",
+            )
+        )
 
     dispatcher.materialize_spawns.assert_not_awaited()
 
@@ -624,12 +680,14 @@ def test_account_owner_lobby_mutation_requires_scoped_guide_delivery(monkeypatch
     ckpt = _one_star_checkpoint()
     ckpt.characters.append(character_record("iselle", location="niflheim_lobby"))
     result = _one_star_output()
-    result.state_updates = [OneStarStateUpdate(
-        kind="inventory_delta",
-        target_id="receipt",
-        value="1",
-        details=[],
-    )]
+    result.state_updates = [
+        OneStarStateUpdate(
+            kind="inventory_delta",
+            target_id="receipt",
+            value="1",
+            details=[],
+        )
+    ]
     monkeypatch.setattr(
         one_star_adapter,
         "load_one_star_account",
@@ -649,15 +707,19 @@ def test_account_owner_lobby_mutation_requires_scoped_guide_delivery(monkeypatch
     with pytest.raises(ValueError, match="mediated observer"):
         _validate_one_star_guide_routing(ckpt, actor_id="alice", result=result)
 
-    result.observers.append(ObserverEntry(
-        character_id="iselle",
-        observation_level="d",
-        routing_role="observe_only",
-    ))
-    result.canonical_event.observable_facts.append(ObservableFact.only(
-        "A System receipt records the lobby action.",
-        ["iselle"],
-    ))
+    result.observers.append(
+        ObserverEntry(
+            character_id="iselle",
+            observation_level="d",
+            routing_role="observe_only",
+        )
+    )
+    result.canonical_event.observable_facts.append(
+        ObservableFact.only(
+            "A System receipt records the lobby action.",
+            ["iselle"],
+        )
+    )
 
     _validate_one_star_guide_routing(ckpt, actor_id="alice", result=result)
 
@@ -670,7 +732,9 @@ def test_account_owner_local_hero_lifecycle_reaches_guide(
     from app.engine import one_star_adapter
 
     ckpt = _one_star_checkpoint()
-    pip = next(character for character in ckpt.characters if character.character_id == "pip")
+    pip = next(
+        character for character in ckpt.characters if character.character_id == "pip"
+    )
     pip.location = "niflheim_lobby"
     ckpt.characters.append(character_record("iselle", location="niflheim_lobby"))
     base = router_output(
@@ -715,15 +779,19 @@ def test_account_owner_local_hero_lifecycle_reaches_guide(
             result=result,
         )
 
-    result.observers.append(ObserverEntry(
-        character_id="iselle",
-        observation_level="d",
-        routing_role="observe_only",
-    ))
-    result.canonical_event.observable_facts.append(ObservableFact.only(
-        "The System reports the roster change.",
-        ["iselle"],
-    ))
+    result.observers.append(
+        ObserverEntry(
+            character_id="iselle",
+            observation_level="d",
+            routing_role="observe_only",
+        )
+    )
+    result.canonical_event.observable_facts.append(
+        ObservableFact.only(
+            "The System reports the roster change.",
+            ["iselle"],
+        )
+    )
     _validate_one_star_guide_routing(
         ckpt,
         actor_id="alice",
@@ -777,17 +845,19 @@ def test_embodied_selection_requires_cat_ii_from_every_affected_hero(
         agent_ids=["bob"],
         observer_ids=["alice", "pip", "bob"],
     ).model_dump(mode="json")
-    data["state_updates"] = [{
-        "kind": "pending_open",
-        "target_id": "synthesis_1",
-        "value": "synthesis",
-        "details": [
-            "participant=pip",
-            "participant=bob",
-            "target_id=alice",
-            "destination=synthesis_room",
-        ],
-    }]
+    data["state_updates"] = [
+        {
+            "kind": "pending_open",
+            "target_id": "synthesis_1",
+            "value": "synthesis",
+            "details": [
+                "participant=pip",
+                "participant=bob",
+                "target_id=alice",
+                "destination=synthesis_room",
+            ],
+        }
+    ]
     result = OneStarEventRouterOutput.model_validate(data)
     monkeypatch.setattr(
         one_star_adapter,
@@ -837,16 +907,18 @@ def test_synthesis_selection_collects_configured_guide_intention(monkeypatch):
         required_responders=["pip"],
         observer_ids=["alice", "pip", "guide"],
     ).model_dump(mode="json")
-    data["state_updates"] = [{
-        "kind": "pending_open",
-        "target_id": "synthesis_1",
-        "value": "synthesis",
-        "details": [
-            "participant=pip",
-            "target_id=alice",
-            "destination=synthesis_room",
-        ],
-    }]
+    data["state_updates"] = [
+        {
+            "kind": "pending_open",
+            "target_id": "synthesis_1",
+            "value": "synthesis",
+            "details": [
+                "participant=pip",
+                "target_id=alice",
+                "destination=synthesis_room",
+            ],
+        }
+    ]
     result = OneStarEventRouterOutput.model_validate(data)
     monkeypatch.setattr(
         one_star_adapter,
@@ -879,12 +951,14 @@ def test_tutorial_delivery_requires_direct_visible_observation():
         observer_ids=["pip"],
         facts=[ObservableFact.only("Iselle explains the gate.", ["pip"])],
     ).model_dump(mode="json")
-    data["state_updates"] = [{
-        "kind": "tutorial_delivery",
-        "target_id": "tower_gate",
-        "value": "",
-        "details": ["recipient=pip"],
-    }]
+    data["state_updates"] = [
+        {
+            "kind": "tutorial_delivery",
+            "target_id": "tower_gate",
+            "value": "",
+            "details": ["recipient=pip"],
+        }
+    ]
     result = OneStarEventRouterOutput.model_validate(data)
     _validate_one_star_tutorial_routing(ckpt, result)
 
@@ -1059,7 +1133,9 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
     )
     ckpt = _one_star_checkpoint()
     ckpt.session.leading_at_s = 60
-    monkeypatch.setattr(one_star_router_context, "is_one_star_checkpoint", lambda _: True)
+    monkeypatch.setattr(
+        one_star_router_context, "is_one_star_checkpoint", lambda _: True
+    )
     monkeypatch.setattr(
         one_star_router_context,
         "load_one_star_account",
@@ -1073,41 +1149,47 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
     static = one_star_router_context.render_one_star_router_static_config(ckpt)
     hp_evidence = one_star_router_context.render_one_star_repair_evidence(
         ckpt,
-        state_updates=[OneStarStateUpdate(
-            kind="hero_delta",
-            target_id="pip",
-            value="",
-            details=["hp_current=-3"],
-        )],
+        state_updates=[
+            OneStarStateUpdate(
+                kind="hero_delta",
+                target_id="pip",
+                value="",
+                details=["hp_current=-3"],
+            )
+        ],
     )
     purchase_evidence = one_star_router_context.render_one_star_repair_evidence(
         ckpt,
-        state_updates=[OneStarStateUpdate(
-            kind="catalogue_apply",
-            target_id="synthesis_chamber_i",
-            value="1",
-            details=[],
-        )],
+        state_updates=[
+            OneStarStateUpdate(
+                kind="catalogue_apply",
+                target_id="synthesis_chamber_i",
+                value="1",
+                details=[],
+            )
+        ],
     )
-    gem_purchase_evidence = (
-        one_star_router_context.render_one_star_repair_evidence(
-            ckpt,
-            state_updates=[OneStarStateUpdate(
+    gem_purchase_evidence = one_star_router_context.render_one_star_repair_evidence(
+        ckpt,
+        state_updates=[
+            OneStarStateUpdate(
                 kind="gem_purchase",
                 target_id="gems",
                 value="60",
                 details=[],
-            )],
-        )
+            )
+        ],
     )
     equipment_evidence = one_star_router_context.render_one_star_repair_evidence(
         ckpt,
-        state_updates=[OneStarStateUpdate(
-            kind="equipment_move",
-            target_id="stored_hidden_ledger_item",
-            value="pip",
-            details=[],
-        )],
+        state_updates=[
+            OneStarStateUpdate(
+                kind="equipment_move",
+                target_id="stored_hidden_ledger_item",
+                value="pip",
+                details=[],
+            )
+        ],
     )
     state.pending_operation = SimpleNamespace(
         operation_id="op_synthesis",
@@ -1129,12 +1211,14 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
     )
     pending_evidence = one_star_router_context.render_one_star_repair_evidence(
         ckpt,
-        state_updates=[OneStarStateUpdate(
-            kind="pending_resolve",
-            target_id="op_synthesis",
-            value="",
-            details=[],
-        )],
+        state_updates=[
+            OneStarStateUpdate(
+                kind="pending_resolve",
+                target_id="op_synthesis",
+                value="",
+                details=[],
+            )
+        ],
     )
 
     assert "synthesis_chamber_i" in static
@@ -1194,13 +1278,13 @@ def test_local_hero_cull_is_rejected_from_generic_lifecycle(monkeypatch):
             lobby_id="niflheim",
             lobby_location_label="niflheim_lobby",
         ),
-            state=SimpleNamespace(
-                applied_event_fingerprints={},
-                active_mission=None,
-                pending_operation=None,
-                active_master_feed_id="",
-                stored_equipment=[],
-            ),
+        state=SimpleNamespace(
+            applied_event_fingerprints={},
+            active_mission=None,
+            pending_operation=None,
+            active_master_feed_id="",
+            stored_equipment=[],
+        ),
     )
     monkeypatch.setattr(one_star_adapter, "is_one_star_checkpoint", lambda _: True)
     monkeypatch.setattr(
@@ -1213,7 +1297,8 @@ def test_local_hero_cull_is_rejected_from_generic_lifecycle(monkeypatch):
         "load_one_star_hero",
         lambda character: (
             SimpleNamespace(owner_lobby_id="niflheim", equipment=[])
-            if character.character_id == "pip" else None
+            if character.character_id == "pip"
+            else None
         ),
     )
     monkeypatch.setattr(
@@ -1246,10 +1331,12 @@ def test_one_star_history_omits_legacy_mission_status_only_for_one_star():
     )
     closed_one_star_record = _router_history_record(
         acting_character_id="alice",
-        result=ClosedOneStarEventRouterOutput.model_validate({
-            **_closed_one_star_output().model_dump(),
-            "decision_rationale": rationale,
-        }),
+        result=ClosedOneStarEventRouterOutput.model_validate(
+            {
+                **_closed_one_star_output().model_dump(),
+                "decision_rationale": rationale,
+            }
+        ),
     )
     generic_record = _router_history_record(
         acting_character_id="alice",
@@ -1265,12 +1352,14 @@ def test_one_star_history_omits_legacy_mission_status_only_for_one_star():
 
 def test_one_star_history_preserves_router_updates_and_one_time_authority_state():
     result = _one_star_output()
-    result.state_updates = [OneStarStateUpdate(
-        kind="hero_delta",
-        target_id="pip",
-        value="",
-        details=["hp_current=2", "condition=bleeding"],
-    )]
+    result.state_updates = [
+        OneStarStateUpdate(
+            kind="hero_delta",
+            target_id="pip",
+            value="",
+            details=["hp_current=2", "condition=bleeding"],
+        )
+    ]
     hero = character_record("new_hero", name="Edric")
     hero.mechanics = {
         "one_star_hero": {
@@ -1281,24 +1370,28 @@ def test_one_star_history_preserves_router_updates_and_one_time_authority_state(
             "hp_current": 7,
             "hp_max": 7,
             "stats": {"strength": 3},
-            "equipment": [{
-                "item_id": "bent_knife",
-                "name": "Bent knife",
-                "slot": "hand",
-                "quantity": 1,
-                "durability_current": 2,
-                "durability_max": 3,
-                "tags": ["blade"],
-                "visible": True,
-            }],
-            "skills": [{
-                "skill_id": "knead_dough",
-                "name": "Knead Dough",
-                "rank": 1,
-                "capability": "works dough by hand",
-                "tags": ["craft"],
-                "visible": True,
-            }],
+            "equipment": [
+                {
+                    "item_id": "bent_knife",
+                    "name": "Bent knife",
+                    "slot": "hand",
+                    "quantity": 1,
+                    "durability_current": 2,
+                    "durability_max": 3,
+                    "tags": ["blade"],
+                    "visible": True,
+                }
+            ],
+            "skills": [
+                {
+                    "skill_id": "knead_dough",
+                    "name": "Knead Dough",
+                    "rank": 1,
+                    "capability": "works dough by hand",
+                    "tags": ["craft"],
+                    "visible": True,
+                }
+            ],
             "owner_lobby_id": "niflheim",
             "acquisition_event_id": result.event_id,
             "hidden_capabilities": {"potential": "unknown"},
@@ -1310,13 +1403,15 @@ def test_one_star_history_preserves_router_updates_and_one_time_authority_state(
         },
     }
 
-    conversation = [ConversationMessage(
-        role="assistant",
-        content=_router_history_record(
-            acting_character_id="the_master",
-            result=result,
-        ),
-    )]
+    conversation = [
+        ConversationMessage(
+            role="assistant",
+            content=_router_history_record(
+                acting_character_id="the_master",
+                result=result,
+            ),
+        )
+    ]
     assert refresh_router_history_record(
         conversation,
         result=result,
@@ -1362,7 +1457,9 @@ def test_human_and_agent_submissions_share_the_same_router_envelope():
 
 
 def test_one_star_prompt_addon_does_not_leak_runtime_implementation_terms():
-    addon = (PromptManager("app/prompts").prompts_dir / "event_router_ruleset_one_star.txt").read_text()
+    addon = (
+        PromptManager("app/prompts").prompts_dir / "event_router_ruleset_one_star.txt"
+    ).read_text()
 
     for forbidden in ("engine", "pipeline", "dispatcher", "SDK", "API", "Python"):
         assert forbidden not in addon

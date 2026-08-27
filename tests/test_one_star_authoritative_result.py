@@ -15,7 +15,12 @@ from app.engine.one_star_projection import one_star_synthesis_authoritative_plan
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, CharacterStatus, PrivateState, PublicSheet
+from app.schemas.characters import (
+    CharacterRecord,
+    CharacterStatus,
+    PrivateState,
+    PublicSheet,
+)
 from app.schemas.event_router import ClosedEventRouterOutput
 from app.schemas.events import ObservableFact
 from app.schemas.one_star import (
@@ -57,22 +62,31 @@ def _command_checkpoint():
 
 
 def _closed_router_result(*, event_id: str = "system_synthesis"):
-    return ClosedEventRouterOutput.model_validate(router_output(
-        event_id=event_id,
-        event_kind="state_change",
-        observer_ids=["owner", "hero", "guide", "donor"],
-        facts=[
-            ObservableFact.all(
-                "donor says, 'I will not disappear.' The transparent barrier "
-                "holds donor in the synthesis chamber."
-            ),
-            ObservableFact.all(
-                "The System irreversibly synthesizes donor into hero while "
-                "owner watches through the live chamber camera."
-            ),
-        ],
-        duration_s=2,
-    ).model_dump(mode="python"))
+    return ClosedEventRouterOutput.model_validate(
+        router_output(
+            event_id=event_id,
+            event_kind="state_change",
+            observer_ids=["owner", "hero", "guide", "donor"],
+            location_updates=[
+                {
+                    "character_id": character_id,
+                    "location_label": "synthesis_room",
+                }
+                for character_id in ("donor", "hero", "guide")
+            ],
+            facts=[
+                ObservableFact.all(
+                    "donor says, 'I will not disappear.' The transparent barrier "
+                    "holds donor in the synthesis chamber."
+                ),
+                ObservableFact.all(
+                    "The System irreversibly synthesizes donor into hero while "
+                    "owner watches through the live chamber camera."
+                ),
+            ],
+            duration_s=2,
+        ).model_dump(mode="python")
+    )
 
 
 def _orchestrator(tmp_path, checkpoint, responses):
@@ -127,13 +141,18 @@ async def test_first_synthesis_collects_last_words_then_commits_fixed_result(
     assert account.state.synthesis_resolution_count == 1
     assert saved_by_id[donor.character_id].status is CharacterStatus.culled
     assert saved_by_id[target.character_id].status is CharacterStatus.active
-    assert load_one_star_hero(saved_by_id[donor.character_id]).terminal_event_id == event.event_id
+    assert (
+        load_one_star_hero(saved_by_id[donor.character_id]).terminal_event_id
+        == event.event_id
+    )
     assert "one_star_update" in saved.session_conversation[-1].content
     assistant_content = saved.character_conversations[donor.character_id][-1].content
-    assert assistant_content == [{
-        "type": "text",
-        "text": "I will not disappear. (Edric is terrified.)",
-    }]
+    assert assistant_content == [
+        {
+            "type": "text",
+            "text": "I will not disappear. (Edric is terrified.)",
+        }
+    ]
     agent_messages = client.complete.await_args_list[0].kwargs["messages"]
     agent_user = next(
         message["content"]

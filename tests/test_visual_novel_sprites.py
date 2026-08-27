@@ -32,8 +32,9 @@ from app.schemas.narrator import VisualNovelPage, VisualNovelSpriteCue
 from app.schemas.one_star import OneStarTransaction
 
 
-STORY_CHECKPOINT = Path(
-    "app/storage/stories/one_star_ascension_s1/ckpt_0000.json"
+STORY_CHECKPOINT = Path("app/storage/stories/one_star_ascension_s1/ckpt_0000.json")
+PROMOTION_PLAYTEST_CHECKPOINT = Path(
+    "app/storage/stories/one_star_ascension_s1_promotion_playtest/ckpt_0000.json"
 )
 
 
@@ -158,9 +159,7 @@ def test_connected_magenta_matte_preserves_red_and_skin(tmp_path: Path) -> None:
         rgba = image.convert("RGBA")
         assert rgba.size == (1100, 1500)
         assert rgba.getpixel((0, 0))[3] == 0
-        opaque = [
-            pixel for pixel in rgba.getdata() if pixel[3] >= 250
-        ]
+        opaque = [pixel for pixel in rgba.getdata() if pixel[3] >= 250]
         assert any(red > 140 and green < 70 for red, green, _blue, _a in opaque)
         assert any(
             red > 170 and 80 < green < 170 and blue < 140
@@ -198,7 +197,7 @@ def test_master_uses_veil_until_seeded_reveal_and_missing_mood_uses_neutral(
     tmp_path: Path,
 ) -> None:
     checkpoint = CheckpointFile.model_validate_json(
-        STORY_CHECKPOINT.read_text()
+        PROMOTION_PLAYTEST_CHECKPOINT.read_text()
     )
     checkpoint.session.session_id = "sprite-resolver-test"
     sprite_path = tmp_path / "artifacts" / "reviewed.png"
@@ -225,10 +224,12 @@ def test_master_uses_veil_until_seeded_reveal_and_missing_mood_uses_neutral(
         kind="dialogue",
         speaker="Renna Holt",
         text="I am listening.",
-        sprites=[VisualNovelSpriteCue(
-            character="Renna Holt",
-            expression="concerned",
-        )],
+        sprites=[
+            VisualNovelSpriteCue(
+                character="Renna Holt",
+                expression="concerned",
+            )
+        ],
     )
 
     veiled = resolve_visual_novel_sprite_placements(
@@ -240,6 +241,31 @@ def test_master_uses_veil_until_seeded_reveal_and_missing_mood_uses_neutral(
     assert len(veiled) == 1
     assert veiled[0].identity_handle == "osa_vnset_veiled_feminine_v1"
     assert "_neutral_" in veiled[0].variant_handle
+
+    paired_veils = resolve_visual_novel_sprite_placements(
+        checkpoint=checkpoint,
+        viewer_character_id="the_master",
+        page=VisualNovelPage(
+            kind="narration",
+            text="Renna and Mara wait together.",
+            sprites=[
+                VisualNovelSpriteCue(
+                    character="Renna Holt",
+                    expression="neutral",
+                ),
+                VisualNovelSpriteCue(
+                    character="Mara Venn",
+                    expression="neutral",
+                ),
+            ],
+        ),
+        generation=generation,
+    )
+    assert len(paired_veils) == 2
+    assert len({item.subject_handle for item in paired_veils}) == 2
+    assert {item.identity_handle for item in paired_veils} == {
+        "osa_vnset_veiled_feminine_v1",
+    }
 
     renna = next(
         character
@@ -261,9 +287,7 @@ def test_master_uses_veil_until_seeded_reveal_and_missing_mood_uses_neutral(
 async def test_generated_pack_builds_neutral_then_parallelizable_sweep(
     tmp_path: Path,
 ) -> None:
-    checkpoint = CheckpointFile.model_validate_json(
-        STORY_CHECKPOINT.read_text()
-    )
+    checkpoint = CheckpointFile.model_validate_json(STORY_CHECKPOINT.read_text())
     checkpoint.session.session_id = "sprite-prewarm-test"
     checkpoint.session.turn_index = 4
     checkpoint.session.config.settings.presentation_mode = "visual_novel"
@@ -290,9 +314,7 @@ async def test_generated_pack_builds_neutral_then_parallelizable_sweep(
     )
     await coordinator.start()
     try:
-        admitted = await coordinator.ensure_visual_novel_sprite_prewarm(
-            checkpoint
-        )
+        admitted = await coordinator.ensure_visual_novel_sprite_prewarm(checkpoint)
         assert len(admitted) == 1
         await coordinator.wait_for_terminal(admitted[0], timeout=20)
 
@@ -303,9 +325,9 @@ async def test_generated_pack_builds_neutral_then_parallelizable_sweep(
                 for job in coordinator.store.all_jobs()
                 if job.request.sprite_pack_id
             ]
-            if len(jobs) == 8 and all(job.status.value in {
-                "succeeded", "failed", "cancelled"
-            } for job in jobs):
+            if len(jobs) == 8 and all(
+                job.status.value in {"succeeded", "failed", "cancelled"} for job in jobs
+            ):
                 break
             if asyncio.get_running_loop().time() >= deadline:
                 raise TimeoutError("generated sprite sweep did not finish")

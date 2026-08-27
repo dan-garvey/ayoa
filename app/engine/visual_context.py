@@ -24,9 +24,7 @@ _SPEECH_VERB_RE = (
     r"announces|announced|announcing|mentions|mentioned|mentioning|"
     r"states|stated|stating|describes|described|describing"
 )
-_QUOTED_SPAN_RE = re.compile(
-    r'"[^"\n]*"|“[^”\n]*”|\'[^\'\n]*\'|‘[^’\n]*’'
-)
+_QUOTED_SPAN_RE = re.compile(r'"[^"\n]*"|“[^”\n]*”|\'[^\'\n]*\'|‘[^’\n]*’')
 _EMBODIED_POSSESSIVE_RE = re.compile(
     r"\s*[’']s\s+(?:smile|eyes?|face|head|brows?|mouth|ears?|"
     r"hands?|arms?|shoulders?|legs?|feet|wings?|tail|stance|posture)\b",
@@ -116,6 +114,12 @@ _NON_CURRENT_PRESENCE_RE = re.compile(
     r"intends?|intended|expects?|expected|scheduled|due)\b",
     re.IGNORECASE,
 )
+_ABSENT_PRESENCE_RE = re.compile(
+    r"^\s*(?:am|is|are|was|were|remain(?:s|ed|ing)?)\s+"
+    r"(?:still\s+)?(?:absent|missing|gone|nowhere|not\s+(?:here|there|"
+    r"present|visible|nearby|inside|outside))\b",
+    re.IGNORECASE,
+)
 _FUTURE_TIME_RE = re.compile(
     r"\b(?:later|tomorrow|eventually|next\s+(?:day|week|month|year))\b",
     re.IGNORECASE,
@@ -167,9 +171,7 @@ def _tier_rank(character: CharacterRecord) -> int:
 
 def _default_loadout(character: CharacterRecord) -> str:
     visuals = getattr(character, "visuals", None)
-    return _safe_visual_context(
-        getattr(visuals, "default_loadout", "") or ""
-    )
+    return _safe_visual_context(getattr(visuals, "default_loadout", "") or "")
 
 
 def _public_context(character: CharacterRecord) -> str:
@@ -193,12 +195,12 @@ def _is_redundant_context(loadout: str, public_context: str) -> bool:
 
 def _active_roster_characters(ckpt: CheckpointFile) -> list[CharacterRecord]:
     return [
-        character for character in ckpt.characters
+        character
+        for character in ckpt.characters
         if _character_status_value(character) != "culled"
         and not (
             is_player_authored_slot(character)
-            and character.character_id
-            not in (ckpt.session.character_bindings or {})
+            and character.character_id not in (ckpt.session.character_bindings or {})
             and character.character_id != ckpt.session.player_character_id
         )
     ]
@@ -216,8 +218,7 @@ def _character_presence_probes(
         first_name = name_parts[0]
         first_folded = first_name.casefold()
         if (
-            first_folded
-            not in {"a", "an", "the", "lady", "lord", "sir", "dame"}
+            first_folded not in {"a", "an", "the", "lady", "lord", "sir", "dame"}
             and re.fullmatch(r"[A-Za-z][A-Za-z'’\-]*", first_name)
             and sum(
                 1
@@ -228,11 +229,13 @@ def _character_presence_probes(
             == 1
         ):
             probes.append(first_name)
-    return tuple(sorted(
-        dict.fromkeys(probe for probe in probes if probe),
-        key=len,
-        reverse=True,
-    ))
+    return tuple(
+        sorted(
+            dict.fromkeys(probe for probe in probes if probe),
+            key=len,
+            reverse=True,
+        )
+    )
 
 
 def _character_maps(
@@ -273,11 +276,13 @@ def _presence_gap_is_bounded_subject_context(
             if count and character.character_id != character_id:
                 contains_other_character = True
 
-    has_coordination = bool(re.search(
-        r",|\b(?:and|or)\b",
-        cleaned,
-        re.IGNORECASE,
-    ))
+    has_coordination = bool(
+        re.search(
+            r",|\b(?:and|or)\b",
+            cleaned,
+            re.IGNORECASE,
+        )
+    )
     if contains_other_character != has_coordination:
         return False
     cleaned = re.sub(
@@ -319,14 +324,13 @@ def _subject_scope_start(
         clause_start,
         subject_start,
     ):
-        prior_predicate = sentence[scope_start:coordinator.start()]
-        if (
-            _PHYSICAL_PRESENCE_VERB_RE.search(prior_predicate)
-            or _COPRESENCE_PREDICATE_RE.search(prior_predicate)
-        ):
+        prior_predicate = sentence[scope_start : coordinator.start()]
+        if _PHYSICAL_PRESENCE_VERB_RE.search(
+            prior_predicate
+        ) or _COPRESENCE_PREDICATE_RE.search(prior_predicate):
             report = _PRIOR_REPORTING_RE.search(prior_predicate)
             reported_text = (
-                prior_predicate[report.end():] if report is not None else ""
+                prior_predicate[report.end() :] if report is not None else ""
             )
             reported_roster_subject = any(
                 re.search(
@@ -376,12 +380,10 @@ def _presence_evidence_for_match(
 ) -> _PresenceEvidence | None:
     possessive = re.match(
         r"\s*[’']s\b",
-        sentence[subject_match.end():],
+        sentence[subject_match.end() :],
         re.IGNORECASE,
     )
-    embodied_possessive = _EMBODIED_POSSESSIVE_RE.match(
-        sentence[subject_match.end():]
-    )
+    embodied_possessive = _EMBODIED_POSSESSIVE_RE.match(sentence[subject_match.end() :])
     if possessive is not None and embodied_possessive is None:
         return None
     subject_end = subject_match.end() + (
@@ -397,6 +399,8 @@ def _presence_evidence_for_match(
     )
     bounded_end = min(clause_end, subject_end + 180)
     suffix = sentence[subject_end:bounded_end]
+    if _ABSENT_PRESENCE_RE.match(suffix):
+        return None
     evidence_matches = _presence_evidence_matches(
         suffix,
         include_generic_actions=include_generic_actions,
@@ -404,7 +408,7 @@ def _presence_evidence_for_match(
     if not evidence_matches:
         return None
 
-    subject_prefix = sentence[subject_scope_start:subject_match.start()]
+    subject_prefix = sentence[subject_scope_start : subject_match.start()]
     if _MEDIATED_SUBJECT_PREFIX_RE.search(subject_prefix):
         return None
     if _PRIOR_REPORTING_RE.search(subject_prefix):
@@ -421,11 +425,13 @@ def _presence_evidence_for_match(
         predicate_start = subject_end
         if index:
             previous_end = absolute_matches[index - 1][1]
-            coordinators = list(_PREDICATE_COORDINATOR_RE.finditer(
-                sentence,
-                previous_end,
-                evidence_start,
-            ))
+            coordinators = list(
+                _PREDICATE_COORDINATOR_RE.finditer(
+                    sentence,
+                    previous_end,
+                    evidence_start,
+                )
+            )
             if coordinators:
                 predicate_start = coordinators[-1].end()
 
@@ -448,29 +454,23 @@ def _presence_evidence_for_match(
         ):
             continue
         predicate_lead = sentence[subject_end:evidence_start]
-        if (
-            _NON_CURRENT_PRESENCE_RE.search(predicate_lead)
-            or _NON_CURRENT_PRESENCE_RE.search(
-                sentence[evidence_start:evidence_end]
-            )
-        ):
+        if _NON_CURRENT_PRESENCE_RE.search(
+            predicate_lead
+        ) or _NON_CURRENT_PRESENCE_RE.search(sentence[evidence_start:evidence_end]):
             continue
-        future_tail = sentence[
-            evidence_end:min(predicate_end, evidence_end + 32)
-        ]
+        future_tail = sentence[evidence_end : min(predicate_end, evidence_end + 32)]
         if (
             _FUTURE_TIME_RE.search(
-                sentence[subject_scope_start:subject_match.start()]
+                sentence[subject_scope_start : subject_match.start()]
             )
             or _FUTURE_TIME_RE.search(predicate_lead)
             or _FUTURE_TIME_RE.search(future_tail)
         ):
             continue
         predicate = sentence[predicate_start:predicate_end]
-        if (
-            _MEDIATED_CHANNEL_BINDING_RE.search(predicate)
-            or _MEDIATED_REPORT_BINDING_RE.search(predicate)
-        ):
+        if _MEDIATED_CHANNEL_BINDING_RE.search(
+            predicate
+        ) or _MEDIATED_REPORT_BINDING_RE.search(predicate):
             continue
         return _PresenceEvidence(
             character_id=character_id,
@@ -518,18 +518,18 @@ def _copresent_object_ids(
                     ):
                         if re.match(
                             r"\s*[’']s\b",
-                            sentence[match.end():],
+                            sentence[match.end() :],
                             re.IGNORECASE,
                         ):
                             continue
                         if not _presence_gap_is_bounded_subject_context(
                             ckpt,
                             character_id=character.character_id,
-                            gap=sentence[relation.end():match.start()],
+                            gap=sentence[relation.end() : match.start()],
                         ):
                             continue
                         if _MEDIATED_SUBJECT_PREFIX_RE.search(
-                            sentence[evidence.clause_start:match.start()]
+                            sentence[evidence.clause_start : match.start()]
                         ):
                             continue
                         object_ids.add(character.character_id)
@@ -554,8 +554,7 @@ def _physically_present_character_ids(
         unquoted = _QUOTED_SPAN_RE.sub(
             lambda match: (
                 match.group(0)[-2]
-                if len(match.group(0)) >= 2
-                and match.group(0)[-2] in ".!?…"
+                if len(match.group(0)) >= 2 and match.group(0)[-2] in ".!?…"
                 else " "
             ),
             text,
@@ -589,11 +588,13 @@ def _physically_present_character_ids(
                             break
                     if found_for_sentence:
                         break
-            physical.update(_copresent_object_ids(
-                ckpt,
-                sentence=sentence,
-                evidence_records=evidence_records,
-            ))
+            physical.update(
+                _copresent_object_ids(
+                    ckpt,
+                    sentence=sentence,
+                    evidence_records=evidence_records,
+                )
+            )
     return physical
 
 
@@ -612,6 +613,76 @@ def physically_present_character_ids(
     return _physically_present_character_ids(ckpt, visible_texts)
 
 
+_LIVE_VIEW_FOREGROUND_RE = re.compile(
+    r"\b(?:(?:the|your)\s+)?(?:[A-Za-z0-9'_-]+\s+){0,4}"
+    r"(?:view|feed|camera)\s+(?:holds?|frames?|shows?|tracks?|follows?|"
+    r"(?:centers?|focuses?|rests?|settles?)(?:\s+on)?|"
+    r"(?:is\s+)?held\s+on|"
+    r"shifts?\s+(?:from\s+[^.;]{1,120}?\s+)?to)\s+"
+    r"(?P<subjects>.+?)"
+    r"(?=\s+(?:together\s+)?(?:in|at|beside|before|behind|beneath|under|"
+    r"near|inside|outside|within|against|with)\b|[.;]|$)",
+    re.IGNORECASE,
+)
+
+_LIVE_VIEW_SCENE_RE = re.compile(
+    r"\b(?:(?:the|your)\s+)?(?:[A-Za-z0-9'_-]+\s+){0,4}"
+    r"(?:view|feed|camera)\s+(?:shows?|captures?)\s+"
+    r"(?P<scene>[^.;]+)",
+    re.IGNORECASE,
+)
+
+
+def _live_view_foreground_character_ids(
+    ckpt: CheckpointFile,
+    visible_texts: Iterable[str],
+) -> set[str]:
+    """Resolve a roster-only subject list explicitly framed by a view."""
+
+    staged: set[str] = set()
+    for text in visible_texts:
+        for scene_match in _LIVE_VIEW_SCENE_RE.finditer(text or ""):
+            staged.update(
+                _physically_present_character_ids(
+                    ckpt,
+                    [scene_match.group("scene")],
+                    include_generic_actions=True,
+                )
+            )
+        for view_match in _LIVE_VIEW_FOREGROUND_RE.finditer(text or ""):
+            subject_text = view_match.group("subjects")
+            cleaned = subject_text
+            matched_ids: set[str] = set()
+            probes = sorted(
+                (
+                    (probe, character.character_id)
+                    for character in _active_roster_characters(ckpt)
+                    for probe in _character_presence_probes(ckpt, character)
+                    if probe
+                ),
+                key=lambda item: len(item[0]),
+                reverse=True,
+            )
+            for probe, character_id in probes:
+                pattern = re.compile(
+                    rf"(?<![A-Za-z0-9_]){re.escape(probe)}"
+                    rf"(?![A-Za-z0-9_])",
+                    re.IGNORECASE,
+                )
+                cleaned, count = pattern.subn(" ", cleaned)
+                if count:
+                    matched_ids.add(character_id)
+            cleaned = re.sub(
+                r"\b(?:and|or|both|all|each|together)\b|[,/&+]",
+                " ",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
+            if matched_ids and not re.search(r"[A-Za-z0-9_]", cleaned):
+                staged.update(matched_ids)
+    return staged
+
+
 def visually_staged_character_ids(
     ckpt: CheckpointFile,
     visible_texts: Iterable[str],
@@ -625,11 +696,14 @@ def visually_staged_character_ids(
     character as visually introduced.
     """
 
-    return _physically_present_character_ids(
+    visible_text_list = list(visible_texts)
+    staged = _physically_present_character_ids(
         ckpt,
-        visible_texts,
+        visible_text_list,
         include_generic_actions=True,
     )
+    staged.update(_live_view_foreground_character_ids(ckpt, visible_text_list))
+    return staged
 
 
 def _loadout_tag_character_ids(
@@ -712,9 +786,7 @@ def _plan_visual_introductions(
     introduced = _introduced_ids(ckpt, viewer_id)
     tagged_ids = _loadout_tag_character_ids(ckpt, texts)
     priority_ids = [cid for cid in priority_target_ids if cid]
-    priority_index = {
-        cid: index for index, cid in enumerate(priority_ids)
-    }
+    priority_index = {cid: index for index, cid in enumerate(priority_ids)}
     candidate_set = (
         set(candidate_ids)
         if candidate_ids is not None
@@ -725,8 +797,7 @@ def _plan_visual_introductions(
     mark_ids: list[str] = []
     loadout_candidates: list[tuple[tuple[int, int, int], VisualIntroduction]] = []
     roster_index = {
-        character.character_id: index
-        for index, character in enumerate(ckpt.characters)
+        character.character_id: index for index, character in enumerate(ckpt.characters)
     }
     for character_id in candidate_set:
         character = by_id.get(character_id)
@@ -755,15 +826,17 @@ def _plan_visual_introductions(
             _tier_rank(character),
             roster_index.get(character_id, 10_000),
         )
-        loadout_candidates.append((
-            sort_key,
-            VisualIntroduction(
-                character_id=character_id,
-                name=character.name or character_id,
-                default_loadout=loadout,
-                public_context=public_context,
-            ),
-        ))
+        loadout_candidates.append(
+            (
+                sort_key,
+                VisualIntroduction(
+                    character_id=character_id,
+                    name=character.name or character_id,
+                    default_loadout=loadout,
+                    public_context=public_context,
+                ),
+            )
+        )
 
     loadouts = [
         introduction
