@@ -450,8 +450,12 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
                 row is not None
                 and row["status"] == "succeeded"
                 and row["materialized_at"] is not None
-                and row["output_json"]
-                == '{"stage_action":"clear","requests":[]}'
+                and ImageDirectorOutput.model_validate_json(
+                    row["output_json"]
+                ) == ImageDirectorOutput(
+                    stage_action="clear",
+                    requests=[],
+                )
             )
 
         deadline = asyncio.get_running_loop().time() + 2

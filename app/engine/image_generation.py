@@ -33,6 +33,10 @@ from app.engine.player_media import (
     finalize_generated_webp,
     resolve_generated_media,
 )
+from app.engine.reviewed_visual_references import (
+    ReviewedVisualReferenceError,
+    resolve_frozen_visual_reference_media,
+)
 from app.schemas.image_director import ImageDirection, ImageGenerationMode
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.image_generation import (
@@ -147,7 +151,7 @@ class ImageGenerationConfig:
 
 
 class ImageGenerationCoordinator:
-    """Durable render-owned diffusion and independent delivery workers."""
+    """Durable reviewed-stage, diffusion, and delivery coordination."""
 
     def __init__(
         self,
@@ -216,6 +220,14 @@ class ImageGenerationCoordinator:
         """Whether the worker can produce a stage without raw delivery."""
 
         return bool(self.available and self._preflight_ready)
+
+    def can_direct_visual_novel_stage(self, session_id: str) -> bool:
+        """Whether direction can lead to a reviewed plate or generation."""
+
+        return bool(
+            self.can_generate_render()
+            or self.active_reviewed_location_labels(session_id)
+        )
 
     async def start(self) -> None:
         if self._started:
@@ -607,9 +619,19 @@ class ImageGenerationCoordinator:
             pov_character_id=pov_character_id,
             rendered_event_ids=rendered_event_ids,
         )
-        if resolution.artifact is None:
+        if resolution.artifact is None and resolution.stage_reference is None:
             return resolution, None
         try:
+            if resolution.stage_reference is not None:
+                return (
+                    resolution,
+                    resolve_frozen_visual_reference_media(
+                        resolution.stage_reference,
+                        runtime_root=self.config.runtime_root,
+                    ),
+                )
+            if resolution.artifact is None:
+                raise RuntimeError("resolved stage source is unavailable")
             return (
                 resolution,
                 resolve_generated_media(
@@ -617,17 +639,19 @@ class ImageGenerationCoordinator:
                     runtime_root=self.config.runtime_root,
                 ),
             )
-        except PlayerMediaError as exc:
+        except (PlayerMediaError, ReviewedVisualReferenceError) as exc:
+            code = getattr(exc, "code", "stage_source_invalid")
             logger.warning(
                 "visual-novel stage validation failed session=%s pov=%s code=%s",
                 session_id,
                 pov_character_id,
-                exc.code,
+                code,
             )
             return (
                 VisualNovelStageResolution(
                     action=resolution.action,
                     artifact=None,
+                    stage_reference=None,
                     source_run_id=resolution.source_run_id,
                     fallback_reason="stage_artifact_invalid",
                 ),

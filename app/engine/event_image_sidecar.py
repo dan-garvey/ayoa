@@ -104,14 +104,14 @@ class EventImageSidecar:
         if (
             checkpoint.session.config.settings.presentation_mode
             != "visual_novel"
-            or self.generation.config.max_requests <= 0
         ):
             return None
         session_id = checkpoint.session.session_id
         eligible_viewer_ids = {
             viewer_id
             for viewer_id, entries in buffered_events_by_pov.items()
-            if entries and self.generation.can_generate_render()
+            if entries
+            and self.generation.can_direct_visual_novel_stage(session_id)
         }
         if not eligible_viewer_ids:
             return None
@@ -335,8 +335,18 @@ class EventImageSidecar:
         output: ImageDirectorOutput,
     ) -> None:
         admitted_job_ids: list[str] = []
+        stage_reference = None
         try:
-            if not self.generation.can_generate_render():
+            if output.stage_reference_id:
+                stage_reference = self.generation.store.reviewed_reference(
+                    session_id=projection.session_id,
+                    reference_id=output.stage_reference_id,
+                )
+                if stage_reference is None:
+                    raise RuntimeError(
+                        "selected reviewed stage reference is unavailable"
+                    )
+            elif output.requests and not self.generation.can_generate_render():
                 logger.warning(
                     "image director produced requests but diffusion is unavailable"
                 )
@@ -375,6 +385,7 @@ class EventImageSidecar:
                 attempt=attempt,
                 projection=projection,
                 admitted_job_ids=admitted_job_ids,
+                stage_reference=stage_reference,
             )
         except asyncio.CancelledError:
             await self._fail_materialization(

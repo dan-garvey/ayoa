@@ -52,7 +52,7 @@ class ImageDirection(BaseModel):
 
 
 class ImageDirectorOutput(BaseModel):
-    """Strict provider-facing contract; an empty list means no illustration."""
+    """Strict provider-facing contract for stage selection or generation."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -60,4 +60,14 @@ class ImageDirectorOutput(BaseModel):
     # not a story stage. Visual-novel render direction must choose one of the
     # other three transitions.
     stage_action: ImageStageAction = "independent"
+    # A visual-novel replacement may select one reviewed environment plate as
+    # the exact stage instead of requesting generation.  This remains an
+    # opaque, text-only handle in model context; private bytes and provenance
+    # are resolved only after output validation.
+    stage_reference_id: str = ""
     requests: list[ImageDirection]
+
+    @model_validator(mode="after")
+    def _clean(self) -> "ImageDirectorOutput":
+        self.stage_reference_id = self.stage_reference_id.strip()
+        return self

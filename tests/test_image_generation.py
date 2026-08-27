@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import sqlite3
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from PIL import Image
 
 from app.engine.image_director import (
     ImageDirector,
@@ -31,6 +33,10 @@ from app.engine.image_generation import (
 from app.engine.image_worker_client import ImageWorkerError
 from app.engine.image_job_store import ImageJobStore
 from app.engine.prompt_manager import PromptManager
+from app.engine.visual_novel_presentation import (
+    VisualNovelCardRenderer,
+    VisualNovelDeckSection,
+)
 from app.schemas.characters import (
     CharacterRecord,
     CharacterVisuals,
@@ -50,6 +56,8 @@ from app.schemas.image_generation import (
     ImageGenerationStatus,
     ImageWorkerResult,
 )
+from app.schemas.narrator import VisualNovelPage
+from app.schemas.visual_references import ReviewedVisualReference
 from app.schemas.state import (
     RenderBufferEntry,
     SessionState,
@@ -395,6 +403,33 @@ def _fake_webp(width: int, height: int) -> bytes:
     chunk = b"VP8L" + len(payload).to_bytes(4, "little") + payload + b"\x00"
     body = b"WEBP" + chunk
     return b"RIFF" + len(body).to_bytes(4, "little") + body
+
+
+def _frozen_reviewed_stage(
+    runtime_root: Path,
+    *,
+    reference_id: str = "authored.station.open",
+) -> tuple[FrozenReferenceInput, bytes]:
+    relative_path = Path("artifacts/references/approved-stage.png")
+    path = runtime_root / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image = Image.new("RGB", (1664, 936), (31, 97, 143))
+    image.putpixel((40, 40), (229, 71, 53))
+    image.save(path, format="PNG")
+    data = path.read_bytes()
+    return (
+        FrozenReferenceInput(
+            reference_id=reference_id,
+            sha256=hashlib.sha256(data).hexdigest(),
+            mime_type="image/png",
+            width=1664,
+            height=936,
+            byte_count=len(data),
+            relative_path=relative_path.as_posix(),
+            allowed_root="artifacts",
+        ),
+        data,
+    )
 
 
 def test_projection_groups_equivalent_viewers_and_respects_fact_visibility():
@@ -899,6 +934,47 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
     assert REDACTED_IMPORT_SENTINEL in rendered
 
 
+@pytest.mark.asyncio
+async def test_visual_novel_director_sees_only_stage_handle_and_authored_hint():
+    projection = replace(
+        _projection(presentation_mode="visual_novel"),
+        reference_options=(SelectableVisualReference(
+            reference_id="authored.station.open",
+            scope="location",
+            scope_id="station",
+            selection_hint="Use for the ordinary open station courtyard.",
+            stage_eligible=True,
+        ),),
+        engine_location_label="private/runtime/station",
+        has_location_reference=True,
+    )
+    client = FakeDirectorClient(ImageDirectorOutput(
+        stage_action="replace",
+        stage_reference_id="authored.station.open",
+        requests=[],
+    ))
+
+    output = await ImageDirector(
+        client,
+        PromptManager("app/prompts"),
+    ).decide(projection)
+
+    assert output.stage_reference_id == "authored.station.open"
+    rendered = "\n".join(
+        str(message.get("content", "")) for message in client.messages
+    )
+    assert "id=authored.station.open" in rendered
+    assert "exact_stage=yes" in rendered
+    assert "Use for the ordinary open station courtyard." in rendered
+    assert "private/runtime/station" not in rendered
+    assert "relative_path" not in rendered
+    assert "sha256" not in rendered
+    assert not any(
+        isinstance(message.get("content"), bytes)
+        for message in client.messages
+    )
+
+
 def test_projection_includes_creator_player_without_binding():
     ckpt = _checkpoint()
     ckpt.session.character_bindings = {"bob": "22"}
@@ -1242,19 +1318,28 @@ def test_visual_novel_reference_budget_includes_unselected_subject_identities():
         )
 
 
-def test_visual_novel_replace_selects_one_location_and_edit_keeps_it_first():
+def test_visual_novel_replace_selects_direct_location_or_generated_fallback():
     options = (
         SelectableVisualReference(
             reference_id="authored.station.open",
             scope="location",
             scope_id="station",
             selection_hint="Open platform default.",
+            stage_eligible=True,
         ),
         SelectableVisualReference(
             reference_id="authored.station.shelter",
             scope="location",
             scope_id="station",
             selection_hint="Covered platform shelter.",
+            stage_eligible=True,
+        ),
+        SelectableVisualReference(
+            reference_id="authored.station.palette",
+            scope="location",
+            scope_id="station",
+            selection_hint="Palette guide only.",
+            stage_eligible=False,
         ),
         SelectableVisualReference(
             reference_id="authored.alice.face",
@@ -1294,8 +1379,43 @@ def test_visual_novel_replace_selects_one_location_and_edit_keeps_it_first():
             ],
         )
 
-    with pytest.raises(ValueError, match="exactly one authored location"):
-        director.validate_output(projection, output([]))
+    # The model may decline the supplied pool and request a new image.
+    director.validate_output(projection, output([]))
+    director.validate_output(
+        projection,
+        ImageDirectorOutput(
+            stage_action="replace",
+            stage_reference_id="authored.station.shelter",
+            requests=[],
+        ),
+    )
+    with pytest.raises(ValueError, match="unavailable authored location"):
+        director.validate_output(
+            projection,
+            ImageDirectorOutput(
+                stage_action="replace",
+                stage_reference_id="authored.station.unknown",
+                requests=[],
+            ),
+        )
+    with pytest.raises(ValueError, match="unavailable authored location"):
+        director.validate_output(
+            projection,
+            ImageDirectorOutput(
+                stage_action="replace",
+                stage_reference_id="authored.station.palette",
+                requests=[],
+            ),
+        )
+    with pytest.raises(ValueError, match="exactly one reviewed stage"):
+        director.validate_output(
+            projection,
+            ImageDirectorOutput(
+                stage_action="replace",
+                stage_reference_id="authored.station.open",
+                requests=output([]).requests,
+            ),
+        )
     with pytest.raises(ValueError, match="cannot blend multiple"):
         director.validate_output(
             projection,
@@ -1562,7 +1682,7 @@ def test_one_star_story_has_reviewed_style_and_omits_unseen_master():
     assert master.visuals.depiction_policy == "omit"
 
 
-def test_v1_actor_cadence_store_is_retired_in_direct_v10_migration(tmp_path):
+def test_v1_actor_cadence_store_is_retired_in_direct_v11_migration(tmp_path):
     db_path = tmp_path / "jobs.sqlite"
     with sqlite3.connect(db_path) as db:
         db.execute(
@@ -1589,11 +1709,11 @@ def test_v1_actor_cadence_store_is_retired_in_direct_v10_migration(tmp_path):
             WHERE type = 'table' AND name = 'image_eligible_beats'
             """
         ).fetchone()
-    assert version == "10"
+    assert version == "11"
     assert old_table is None
 
 
-def test_v7_prose_gate_store_is_retired_before_foreign_key_parent(tmp_path):
+def test_v7_prose_gate_store_is_retired_before_v11_foreign_key_parent(tmp_path):
     db_path = tmp_path / "jobs.sqlite"
     with sqlite3.connect(db_path) as db:
         db.execute("PRAGMA foreign_keys = ON")
@@ -1652,7 +1772,7 @@ def test_v7_prose_gate_store_is_retired_before_foreign_key_parent(tmp_path):
         transaction_count = db.execute(
             "SELECT COUNT(*) AS count FROM image_transactions"
         ).fetchone()["count"]
-    assert version == "10"
+    assert version == "11"
     assert retired == set()
     assert transaction_count == 0
 
@@ -2647,6 +2767,99 @@ async def test_failed_preflight_finalizes_persisted_run_with_zero_jobs(tmp_path)
 
 
 @pytest.mark.asyncio
+async def test_failed_preflight_still_discovers_reviewed_vn_stage(tmp_path):
+    worker = FailedPreflightWorker()
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=worker,
+    )
+    reference, _ = _frozen_reviewed_stage(coordinator.config.runtime_root)
+    coordinator.store.replace_reviewed_references(
+        session_id="image_test",
+        references={
+            reference.reference_id: (
+                reference,
+                "environment",
+                "location",
+            )
+        },
+        identity_bindings={},
+        location_bindings={"station": [reference.reference_id]},
+    )
+    checkpoint = _checkpoint()
+    checkpoint.session.config.settings.presentation_mode = "visual_novel"
+    checkpoint.characters[0].location = "station"
+    checkpoint.reviewed_visual_references = [ReviewedVisualReference(
+        reference_id=reference.reference_id,
+        storage_ref="locations/station.png",
+        mime_type=reference.mime_type,
+        width=reference.width,
+        height=reference.height,
+        byte_count=reference.byte_count,
+        sha256=reference.sha256,
+        purpose="environment",
+        scope="location",
+        scope_id="station",
+        selection_hint="Ordinary open station courtyard.",
+        diffusion_authorized=True,
+    )]
+    checkpoint.location_visual_reference_ids = {
+        "station": [reference.reference_id]
+    }
+    event = router_output(
+        event_id="evt_reviewed_without_worker",
+        observer_ids=["alice"],
+        facts=[ObservableFact.all("Alice waits in the open station courtyard.")],
+    )
+    checkpoint.canonical_events = [event]
+    sidecar = EventImageSidecar(
+        director=SimpleNamespace(),  # type: ignore[arg-type]
+        generation=coordinator,
+        spawn_authoring=SimpleNamespace(),  # type: ignore[arg-type]
+    )
+
+    await coordinator.start()
+    try:
+        assert coordinator.can_generate_render() is False
+        assert coordinator.can_direct_visual_novel_stage("image_test") is True
+        transaction_id = await sidecar.start_render_candidate(
+            checkpoint=checkpoint,
+            buffered_events_by_pov={
+                "alice": [RenderBufferEntry(
+                    event_id=event.event_id,
+                    event_sequence=1,
+                )]
+            },
+            source_turn_index=1,
+            source_checkpoint_sha256="a" * 64,
+            spawn_keys_by_event_id={},
+            actor_ids_by_event_id={event.event_id: "alice"},
+        )
+        assert transaction_id is not None
+        await sidecar.wait_for_stage_discovery("image_test")
+        with coordinator.store._connect() as db:
+            projection_json = db.execute(
+                """
+                SELECT projection_json FROM image_director_runs
+                WHERE transaction_id = ?
+                """,
+                (transaction_id,),
+            ).fetchone()["projection_json"]
+        stored_projection = VisibleEventProjection.from_storage_dict(
+            json.loads(projection_json)
+        )
+        assert [
+            option.reference_id for option in stored_projection.reference_options
+        ] == [reference.reference_id]
+        assert worker.calls == 0
+        await sidecar.cancel_transaction(transaction_id)
+    finally:
+        await sidecar.close()
+        await coordinator.close()
+
+
+@pytest.mark.asyncio
 async def test_failed_preflight_restart_settles_finalized_job_without_owner(
     tmp_path,
 ):
@@ -3117,6 +3330,230 @@ async def test_split_private_pov_readiness_waits_for_its_own_finalization(
     )
     assert bob_stage.artifact is None
     assert bob_stage.fallback_reason == "replacement_failed"
+
+
+@pytest.mark.asyncio
+async def test_reviewed_stage_bypasses_diffusion_reuses_and_survives_restart(
+    tmp_path,
+):
+    worker = FakeImageWorker()
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=worker,
+    )
+    reference, source_bytes = _frozen_reviewed_stage(
+        coordinator.config.runtime_root
+    )
+    coordinator.store.replace_reviewed_references(
+        session_id="image_test",
+        references={
+            reference.reference_id: (
+                reference,
+                "environment",
+                "location",
+            )
+        },
+        identity_bindings={},
+        location_bindings={"station": [reference.reference_id]},
+    )
+    projection = replace(
+        _projection(
+            transaction_id="tx_reviewed_stage",
+            event_id="evt_reviewed_stage",
+            event_sequence=1,
+            viewers=("alice",),
+            presentation_mode="visual_novel",
+        ),
+        reference_options=(SelectableVisualReference(
+            reference_id=reference.reference_id,
+            scope="location",
+            scope_id="station",
+            selection_hint="Ordinary open station courtyard.",
+            stage_eligible=True,
+        ),),
+        engine_location_label="station",
+        has_location_reference=True,
+    )
+    _begin(coordinator, projection.transaction_id)
+    queued = coordinator.store.enqueue_director_run(projection)
+
+    class ReviewedStageDirector:
+        async def decide(self, received, *, stage_context=()):
+            assert received == projection
+            assert stage_context == []
+            return ImageDirectorOutput(
+                stage_action="replace",
+                stage_reference_id=reference.reference_id,
+                requests=[],
+            )
+
+    sidecar = EventImageSidecar(
+        director=ReviewedStageDirector(),  # type: ignore[arg-type]
+        generation=coordinator,
+        spawn_authoring=SimpleNamespace(),  # type: ignore[arg-type]
+    )
+
+    def direct_stage_finalized() -> bool:
+        with coordinator.store._connect() as db:
+            row = db.execute(
+                """
+                SELECT status, materialized_at FROM image_director_runs
+                WHERE run_id = ?
+                """,
+                (queued.run_id,),
+            ).fetchone()
+        return bool(
+            row is not None
+            and row["status"] == "succeeded"
+            and row["materialized_at"] is not None
+        )
+
+    await sidecar.start()
+    try:
+        await _wait_until(direct_stage_finalized)
+    finally:
+        await sidecar.close()
+
+    assert worker.calls == 0
+    assert coordinator.store.all_jobs() == []
+    assert coordinator.store.commit_transaction(
+        projection.transaction_id,
+        target_checkpoint_sha256="c" * 64,
+    )
+    with coordinator.store._connect() as db:
+        durable = db.execute(
+            """
+            SELECT output_json, stage_reference_json
+            FROM image_director_runs WHERE run_id = ?
+            """,
+            (queued.run_id,),
+        ).fetchone()
+    assert durable is not None
+    assert reference.relative_path not in durable["output_json"]
+    assert reference.sha256 not in durable["output_json"]
+    assert reference.sha256 in durable["stage_reference_json"]
+
+    resolution, media = coordinator.resolve_visual_novel_stage(
+        session_id="image_test",
+        pov_character_id="alice",
+        rendered_event_ids=[projection.event_id],
+    )
+    assert resolution.action == "replace"
+    assert resolution.artifact is None
+    assert resolution.stage_reference == reference
+    assert resolution.fallback_reason == ""
+    assert media is not None
+    assert media.data == source_bytes
+    assert media.sha256 == reference.sha256
+
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    deck = renderer.render_deck([VisualNovelDeckSection(
+        pages=(VisualNovelPage(
+            kind="narration",
+            text="Rain moves across the open station courtyard.",
+        ),),
+        stage_media=media,
+    )])
+    manifest = json.loads(deck.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["identity"]["sections"][0]["stage_sha256"] == (
+        reference.sha256
+    )
+    assert deck.used_neutral_stage is False
+
+    coordinator.begin_transaction(
+        transaction_id="tx_reviewed_reuse",
+        session_id="image_test",
+        source_turn_index=2,
+        source_checkpoint_sha256="a" * 64,
+    )
+    reuse_projection = replace(
+        projection,
+        transaction_id="tx_reviewed_reuse",
+        event_id="evt_reviewed_reuse",
+        event_sequence=2,
+        source_turn_index=2,
+    )
+    reuse_run = coordinator.store.enqueue_director_run(reuse_projection)
+    context = coordinator.store.visual_novel_stage_context_before_run(
+        reuse_run.run_id
+    )
+    assert context == [
+        "current_stage=active; source=reviewed; "
+        "stage_reference_id=authored.station.open; "
+        "use=Ordinary open station courtyard."
+    ]
+    claimed = coordinator.store.claim_next_director_run()
+    assert claimed is not None and claimed.run_id == reuse_run.run_id
+    coordinator.store.complete_director_run(
+        reuse_run.run_id,
+        ImageDirectorOutput(
+            stage_action="reuse",
+            stage_reference_id="",
+            requests=[],
+        ),
+        attempt=claimed.attempts,
+    )
+    coordinator.store.finalize_director_materialization(
+        reuse_run.run_id,
+        attempt=claimed.attempts,
+        projection=reuse_projection,
+        admitted_job_ids=[],
+    )
+    assert coordinator.store.commit_transaction(
+        reuse_projection.transaction_id,
+        target_checkpoint_sha256="d" * 64,
+    )
+
+    reused = coordinator.store.resolve_visual_novel_stage(
+        session_id="image_test",
+        pov_character_id="alice",
+        rendered_event_ids=[reuse_projection.event_id],
+    )
+    assert reused.action == "reuse"
+    assert reused.stage_reference == reference
+
+    # The run owns an immutable provenance snapshot, not a live lookup into
+    # whichever plates happen to remain in the current supplied pool.
+    coordinator.store.replace_reviewed_references(
+        session_id="image_test",
+        references={},
+        identity_bindings={},
+        location_bindings={},
+    )
+    restarted_worker = FailedPreflightWorker()
+    restarted = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=restarted_worker,
+    )
+    await restarted.start()
+    try:
+        restarted_resolution, restarted_media = (
+            restarted.resolve_visual_novel_stage(
+                session_id="image_test",
+                pov_character_id="alice",
+                rendered_event_ids=[reuse_projection.event_id],
+            )
+        )
+        assert restarted_resolution.stage_reference == reference
+        assert restarted_media is not None
+        assert restarted_media.data == source_bytes
+        assert restarted_worker.calls == 0
+
+        (restarted.config.runtime_root / reference.relative_path).write_bytes(
+            b"tampered"
+        )
+        invalid, invalid_media = restarted.resolve_visual_novel_stage(
+            session_id="image_test",
+            pov_character_id="alice",
+            rendered_event_ids=[reuse_projection.event_id],
+        )
+        assert invalid_media is None
+        assert invalid.stage_reference is None
+        assert invalid.fallback_reason == "stage_artifact_invalid"
+    finally:
+        await restarted.close()
 
 
 @pytest.mark.asyncio

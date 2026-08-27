@@ -16,7 +16,7 @@ _SUPPORTED_MIME_TYPES = frozenset(("image/jpeg", "image/png", "image/webp"))
 
 
 class ReviewedVisualReference(BaseModel):
-    """Authored metadata for one human-reviewed, diffusion-only image."""
+    """Authored metadata for one human-reviewed runtime visual input."""
 
     model_config = ConfigDict(extra="forbid")
 

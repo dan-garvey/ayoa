@@ -35,6 +35,8 @@ Write `scene_prompt` as concise, concrete, affirmative visual language. Describe
 <output_schema>
 Respond with only JSON in this exact shape:
 {{
+  "stage_action": "independent",
+  "stage_reference_id": "",
   "requests": [
     {{
       "kind": "portrait | group_portrait | action | establishing | detail",
@@ -47,7 +49,7 @@ Respond with only JSON in this exact shape:
   ]
 }}
 
-Every field is required. Use `{{"requests":[]}}` when no illustration is warranted.
+Every field is required. This non-stage mode always uses `stage_action="independent"` and an empty `stage_reference_id`. Use an empty `requests` list when no illustration is warranted.
 </output_schema>
 
 <<<USER>>>

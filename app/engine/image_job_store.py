@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS image_director_runs (
     projection_json     TEXT NOT NULL,
     status              TEXT NOT NULL,
     output_json         TEXT NOT NULL DEFAULT '',
+    stage_reference_json TEXT NOT NULL DEFAULT '',
     materialized_at     REAL,
     error_code          TEXT NOT NULL DEFAULT '',
     attempts            INTEGER NOT NULL DEFAULT 0,
@@ -211,6 +212,7 @@ CREATE TABLE IF NOT EXISTS image_identity_policies (
 class VisualNovelStageResolution:
     action: str
     artifact: GeneratedImageArtifact | None
+    stage_reference: FrozenReferenceInput | None = None
     source_run_id: str = ""
     fallback_reason: str = ""
 
@@ -226,6 +228,7 @@ _CURRENT_SCHEMA_COLUMNS = {
         "source_event_fingerprint",
         "projection_json",
         "output_json",
+        "stage_reference_json",
         "materialized_at",
     },
     "image_director_run_jobs": {
@@ -852,7 +855,8 @@ class ImageJobStore:
                 """
                 UPDATE image_director_runs
                 SET status = 'materializing', output_json = ?,
-                    materialized_at = NULL, error_code = '', updated_at = ?
+                    stage_reference_json = '', materialized_at = NULL,
+                    error_code = '', updated_at = ?
                 WHERE run_id = ? AND attempts = ? AND status = 'running'
                 """,
                 (output.model_dump_json(), time.time(), run_id, attempt),
@@ -874,12 +878,13 @@ class ImageJobStore:
         attempt: int,
         projection: VisibleEventProjection,
         admitted_job_ids: Sequence[str],
+        stage_reference: FrozenReferenceInput | None = None,
     ) -> DurableDirectorRun:
-        """Atomically bind one director run to its admitted generation jobs.
+        """Atomically bind one director run to its exact replacement source.
 
-        A materializing director run exists before request admission finishes.
-        The nullable ``materialized_at`` boundary distinguishes that in-progress
-        interval from a completed materialization which admitted zero jobs.
+        A materializing director run exists before reviewed-stage selection or
+        generation admission finishes. The nullable ``materialized_at``
+        boundary distinguishes that interval from a finalized source.
         """
         job_ids = [str(job_id).strip() for job_id in admitted_job_ids]
         if any(not job_id for job_id in job_ids):
@@ -927,6 +932,10 @@ class ImageJobStore:
                     raise RuntimeError(
                         "director materialization was already finalized differently"
                     )
+                if run.stage_reference != stage_reference:
+                    raise RuntimeError(
+                        "director stage reference was already finalized differently"
+                    )
                 db.commit()
                 return run
             if run.status != "materializing" or run.output is None:
@@ -937,6 +946,80 @@ class ImageJobStore:
                 raise RuntimeError(
                     "materializing director run has finalized image jobs"
                 )
+            selected_stage_id = run.output.stage_reference_id
+            if run.projection.presentation_mode == "visual_novel":
+                if run.output.stage_action in {"reuse", "clear"} and (
+                    run.output.requests or selected_stage_id
+                ):
+                    raise ValueError(
+                        "non-replacement stage materialization has a source"
+                    )
+                if (
+                    run.output.stage_action == "replace"
+                    and not selected_stage_id
+                    and len(run.output.requests) != 1
+                ):
+                    raise ValueError(
+                        "generated stage materialization requires one request"
+                    )
+            if bool(selected_stage_id) != bool(stage_reference):
+                raise ValueError(
+                    "director materialization stage selection is incomplete"
+                )
+            if stage_reference is not None:
+                if run.output.stage_action != "replace" or run.output.requests:
+                    raise ValueError(
+                        "reviewed stage materialization requires a direct "
+                        "replacement with no generation requests"
+                    )
+                if stage_reference.reference_id != selected_stage_id:
+                    raise ValueError(
+                        "director materialization stage reference id mismatch"
+                    )
+                selected_option = next(
+                    (
+                        option
+                        for option in run.projection.reference_options
+                        if option.reference_id == selected_stage_id
+                    ),
+                    None,
+                )
+                if (
+                    selected_option is None
+                    or selected_option.scope != "location"
+                    or not selected_option.stage_eligible
+                ):
+                    raise ValueError(
+                        "director materialization stage reference was not an "
+                        "offered location"
+                    )
+                reviewed_row = db.execute(
+                    """
+                    SELECT frozen_json, purpose, scope
+                    FROM image_reviewed_references
+                    WHERE session_id = ? AND reference_id = ?
+                    """,
+                    (
+                        run.projection.session_id,
+                        selected_stage_id,
+                    ),
+                ).fetchone()
+                if (
+                    reviewed_row is None
+                    or reviewed_row["purpose"] != "environment"
+                    or reviewed_row["scope"] != "location"
+                    or FrozenReferenceInput.model_validate_json(
+                        reviewed_row["frozen_json"]
+                    ) != stage_reference
+                ):
+                    raise ValueError(
+                        "director materialization stage reference is not the "
+                        "current reviewed environment"
+                    )
+                if job_ids:
+                    raise ValueError(
+                        "reviewed stage materialization cannot bind diffusion jobs"
+                    )
             provisional_job_ids = [
                 str(item["job_id"]) for item in existing_rows
             ]
@@ -973,12 +1056,23 @@ class ImageJobStore:
             cursor = db.execute(
                 """
                 UPDATE image_director_runs
-                SET status = 'succeeded', materialized_at = ?, updated_at = ?
+                SET status = 'succeeded', stage_reference_json = ?,
+                    materialized_at = ?, updated_at = ?
                 WHERE run_id = ? AND attempts = ?
                   AND status = 'materializing'
                   AND materialized_at IS NULL
                 """,
-                (now, now, run_id, attempt),
+                (
+                    (
+                        stage_reference.model_dump_json()
+                        if stage_reference is not None
+                        else ""
+                    ),
+                    now,
+                    now,
+                    run_id,
+                    attempt,
+                ),
             )
             if cursor.rowcount != 1:
                 raise RuntimeError("director materialization finalization raced")
@@ -1152,7 +1246,8 @@ class ImageJobStore:
                     """
                     UPDATE image_director_runs
                     SET status = 'queued', output_json = '',
-                        materialized_at = NULL, error_code = '', updated_at = ?
+                        stage_reference_json = '', materialized_at = NULL,
+                        error_code = '', updated_at = ?
                     WHERE run_id = ? AND attempts = ?
                       AND status IN ('running', 'materializing')
                       AND updated_at < ?
@@ -2088,10 +2183,22 @@ class ImageJobStore:
                     continue
                 if action != "replace":
                     return "neutral", "", None, inherited
+                if run.stage_reference is not None:
+                    return (
+                        "active",
+                        "reviewed:" + run.stage_reference.sha256,
+                        _recent_reviewed_stage_summary(run),
+                        inherited,
+                    )
                 job = self._visual_novel_job_for_run(run)
                 if job is None:
                     return "neutral", "", None, inherited
-                return "active", job.job_id, job, inherited
+                return (
+                    "active",
+                    "generated:" + job.job_id,
+                    _recent_illustration_summary(job.request),
+                    inherited,
+                )
             return "missing", "", None, inherited
 
         effective = [_effective_stage(viewer) for viewer in sorted(viewers)]
@@ -2099,17 +2206,15 @@ class ImageJobStore:
             return []
         if any(state != "active" for state, *_ in effective):
             return ["current_stage=neutral; reason=no shared compatible stage"]
-        job_ids = {job_id for _, job_id, _, _ in effective}
-        if len(job_ids) != 1:
+        stage_keys = {stage_key for _, stage_key, _, _ in effective}
+        if len(stage_keys) != 1:
             return ["current_stage=neutral; reason=no shared compatible stage"]
-        job = effective[0][2]
-        if job is None:
+        summary = effective[0][2]
+        if summary is None:
             return ["current_stage=neutral; reason=no shared compatible stage"]
         inherited = any(item[3] for item in effective)
         state = "reused" if inherited else "active"
-        return [
-            f"current_stage={state}; {_recent_illustration_summary(job.request)}"
-        ]
+        return [f"current_stage={state}; {summary}"]
 
     def rendered_event_image_status(
         self,
@@ -2292,12 +2397,19 @@ class ImageJobStore:
                 fallback_reason="stage_cleared",
             )
         if action == "replace":
-            artifact = self._visual_novel_artifact_for_run(current)
+            artifact, stage_reference = self._visual_novel_sources_for_run(
+                current
+            )
             return VisualNovelStageResolution(
                 action=action,
                 artifact=artifact,
+                stage_reference=stage_reference,
                 source_run_id=current.run_id,
-                fallback_reason=("" if artifact is not None else "replacement_failed"),
+                fallback_reason=(
+                    ""
+                    if artifact is not None or stage_reference is not None
+                    else "replacement_failed"
+                ),
             )
         if action != "reuse":
             return VisualNovelStageResolution(
@@ -2330,13 +2442,18 @@ class ImageJobStore:
                     fallback_reason="reused_stage_was_cleared",
                 )
             if prior_action == "replace":
-                artifact = self._visual_novel_artifact_for_run(prior)
+                artifact, stage_reference = self._visual_novel_sources_for_run(
+                    prior
+                )
                 return VisualNovelStageResolution(
                     action="reuse",
                     artifact=artifact,
+                    stage_reference=stage_reference,
                     source_run_id=current.run_id,
                     fallback_reason=(
-                        "" if artifact is not None else "reused_replacement_failed"
+                        ""
+                        if artifact is not None or stage_reference is not None
+                        else "reused_replacement_failed"
                     ),
                 )
         return VisualNovelStageResolution(
@@ -2346,12 +2463,18 @@ class ImageJobStore:
             fallback_reason="no_prior_stage",
         )
 
-    def _visual_novel_artifact_for_run(
+    def _visual_novel_sources_for_run(
         self,
         run: DurableDirectorRun,
-    ) -> GeneratedImageArtifact | None:
+    ) -> tuple[GeneratedImageArtifact | None, FrozenReferenceInput | None]:
+        if run.stage_reference is not None:
+            if self._visual_novel_job_for_run(run) is not None:
+                raise RuntimeError(
+                    "visual-novel run binds both reviewed and generated stages"
+                )
+            return None, run.stage_reference
         job = self._visual_novel_job_for_run(run)
-        return job.artifact if job is not None else None
+        return (job.artifact if job is not None else None), None
 
     def _visual_novel_job_for_run(
         self,
@@ -3224,9 +3347,9 @@ class ImageJobStore:
             and self._schema_layout_is_current(db, existing)
         ):
             return
-        # Pre-RC direct retirement: generated image request contracts are
-        # disposable runtime queue state and are not migrated across hard
-        # storage boundaries.
+        # Pre-RC direct retirement: image presentation contracts are
+        # disposable runtime state and are not migrated across hard storage
+        # boundaries.
         for table in (
             "image_director_run_jobs",
             "image_deliveries",
@@ -3268,6 +3391,27 @@ class ImageJobStore:
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys = ON")
         return db
+
+
+def _recent_reviewed_stage_summary(run: DurableDirectorRun) -> str:
+    if run.output is None or run.stage_reference is None:
+        raise RuntimeError("reviewed stage summary requires a materialized stage")
+    reference_id = run.output.stage_reference_id
+    option = next(
+        (
+            item
+            for item in run.projection.reference_options
+            if item.reference_id == reference_id and item.scope == "location"
+        ),
+        None,
+    )
+    if option is None:
+        raise RuntimeError("reviewed stage summary reference was not offered")
+    hint = " ".join(option.selection_hint.split())[:500].rstrip()
+    return (
+        f"source=reviewed; stage_reference_id={reference_id}; "
+        f"use={hint or '(unspecified)'}"
+    )
 
 
 def _recent_illustration_summary(
@@ -3417,6 +3561,7 @@ def _candidate_from_row(row: sqlite3.Row) -> IdentityReferenceCandidate:
 
 def _director_run_from_row(row: sqlite3.Row) -> DurableDirectorRun:
     output_json = str(row["output_json"] or "")
+    stage_reference_json = str(row["stage_reference_json"] or "")
     return DurableDirectorRun(
         run_id=str(row["run_id"]),
         projection=VisibleEventProjection.from_storage_dict(
@@ -3435,6 +3580,11 @@ def _director_run_from_row(row: sqlite3.Row) -> DurableDirectorRun:
         materialized_at=(
             float(row["materialized_at"])
             if row["materialized_at"] is not None
+            else None
+        ),
+        stage_reference=(
+            FrozenReferenceInput.model_validate_json(stage_reference_json)
+            if stage_reference_json
             else None
         ),
     )

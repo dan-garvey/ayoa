@@ -7,18 +7,20 @@ Base the decision only on the visible facts, public visual metadata, authored re
 
 Choose exactly one stage transition:
 - `reuse`: the most recent compatible visual-novel scene remains a safe, coherent plate for this passage. Prefer reuse for continuing dialogue, small expression or pose changes, minor movement, and unchanged location/cast. Return no requests.
-- `replace`: no compatible scene is established, or location, visible cast, time, or composition changed enough that the prior scene would be misleading, and one safe full-scene image can be authored. This may be a truthful environment-only scene when visible people cannot safely be depicted. Return exactly one non-portrait request.
+- `replace`: no compatible scene is established, or location, visible cast, time, or composition changed enough that the prior scene would be misleading. Choose either one suitable reviewed environment plate or one safe generated full-scene image. A generated replacement may be a truthful environment-only scene when visible people cannot safely be depicted.
 - `clear`: a safe coherent replacement cannot be made from the supplied public information. Return no requests. Privacy, missing identity anchors, indirect perception, and a failed visual premise are reasons to clear rather than guess; the mere absence of a prior scene is not.
 
 `reuse` is never a generic fallback. Use it only when the current-stage summary identifies a compatible prior full scene. If no compatible scene exists, replace it whenever the visible facts and supplied references support a safe scene; clear only when they do not.
 
-For `replace`, compose one stable 16:9 in-world scene suitable for repeated dialogue pages. Use a medium or medium-wide camera at character eye level, with readable character separation and modest headroom. Characters may angle slightly toward each other when visible facts support their interaction. Keep pose and expression natural and restrained. Do not request multiple moments, sequential panels, sprite sheets, cutouts, or expression variants.
+For `replace`, first consider the listed location references marked `exact_stage=yes`. If one human-authored `use` clearly fits the visible physical environment, put that location id in `stage_reference_id` and return no requests. This selects that reviewed environment as the exact unobstructed stage; judge it by location, facility, architectural tier, lighting, and stated applicability. Visible characters do not need to appear in an environment plate. If none fits, leave `stage_reference_id` empty and return exactly one generated, non-portrait scene request. Do not force a plausible-but-wrong plate merely because a location reference is available. A reference marked `exact_stage=no` may guide generation when its `use` applies but may not be selected as the direct stage.
+
+For a generated replacement, compose one stable 16:9 in-world scene suitable for repeated dialogue pages. Use a medium or medium-wide camera at character eye level, with readable character separation and modest headroom. Characters may angle slightly toward each other when visible facts support their interaction. Keep pose and expression natural and restrained. Do not request multiple moments, sequential panels, sprite sheets, cutouts, or expression variants.
 
 Use only listed character ids in `subject_character_ids`. Every named roster character described in `scene_prompt` must also appear in that subject list. Omit and anonymous depiction policies remain binding. Every listed subject must show `has_identity_reference=yes`; otherwise clear the stage or compose only a truthful environment without that person.
 
 Choose `compose` for a fresh full-scene composition guided by selected identity, environment, or style references. Choose `edit` only when preserving and transforming the first selected reference's composition is the main job. The first selected reference is the edit composition guide. Select only reference ids whose authored `use` applies, and keep character references attached to their own subjects.
 
-When `has_location_reference=yes` and you choose `replace`, select exactly one listed location reference whose authored `use` best matches the current visible physical scene. Never blend two location plates. When `edit` is available and the complete location-plus-subject reference set fits its three-reference limit, prefer `edit` and put the selected location reference first so the reviewed plate remains the composition base. Use `compose` when preserving that base is not possible within the available modes or reference limit. If the facts do not distinguish a specific facility or covered threshold, choose the location option whose authored `use` identifies it as the general default.
+Never blend two location plates. For a generated request, a listed location id is only an optional visual guide; omit it when its authored `use` does not fit. When `edit` is available and a selected location-plus-subject reference set fits its three-reference limit, put the selected location reference first. Use `compose` when the complete reference set cannot fit edit's limit. If the facts do not distinguish a specific facility or covered threshold, the location option whose authored `use` identifies it as the general default is the best reviewed-stage candidate.
 
 Budget references for the complete scene, not only the selected guides. Every selected id counts. Each listed subject not covered by a selected character reference also requires one identity reference. The complete set must contain no more than {max_references} references, and `edit` must fit its 1-3 reference limit. Prefer fewer optional guides, fewer truthful subjects, `compose`, or `clear` when the complete set cannot fit.
 
@@ -31,6 +33,7 @@ Never request readable words, letters, glyphs, logos, watermarks, dialogue boxes
 Respond only with JSON in this exact shape:
 {{
   "stage_action": "reuse | replace | clear",
+  "stage_reference_id": "listed_location_reference_id_or_empty",
   "requests": [
     {{
       "kind": "group_portrait | action | establishing | detail",
@@ -43,7 +46,7 @@ Respond only with JSON in this exact shape:
   ]
 }}
 
-For `replace`, `requests` contains exactly one item. For `reuse` or `clear`, it is empty.
+For `replace`, choose exactly one source: a nonempty `stage_reference_id` with an empty `requests` list, or an empty `stage_reference_id` with exactly one generated request. For `reuse` or `clear`, `stage_reference_id` and `requests` are both empty.
 </output_schema>
 
 <<<USER>>>

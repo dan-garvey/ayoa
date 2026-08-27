@@ -258,24 +258,33 @@ or `clear`. Only `reuse` can inherit a prior successful stage. A failed
 replacement and `clear` both resolve to the deterministic neutral stage rather
 than silently showing stale fiction.
 
-When the optional local image worker is installed, the event-driven visual-
-novel sidecar projects only router-authored visible facts and public character
-metadata for equivalent human observers. A dedicated image-director role may
-reuse the current plate or request exactly one new 16:9 scene plate. Direction
-and generation may overlap narration, but the stage transition becomes
-eligible only with the accepted, committed POV render. Raw generated scene
-images are never delivered independently; the shared deterministic compositor
-adds the classic ADV text box after generation. Explicit portrait identity
-review remains a separate raw-image workflow.
+The event-driven visual-novel sidecar projects only router-authored visible
+facts, public character metadata, and opaque reviewed-reference handles with
+authored applicability hints for equivalent human observers. A dedicated
+image-director role may reuse the current plate, select one suitable reviewed
+environment plate as the exact stage, request exactly one new 16:9 scene plate
+when the supplied pool does not fit, or clear the stage. Reviewed selection is
+a preferred fast path, not a closed set. It remains available when the optional
+local image worker is unavailable; only the generated fallback requires that
+worker. Direction and generation may overlap narration, but the stage
+transition becomes eligible only with the accepted, committed POV render. Raw
+generated scene images are never delivered independently; the shared
+deterministic compositor cover-crops the selected immutable plate and adds the
+classic ADV text box. Explicit portrait identity review remains a separate
+raw-image workflow.
 
-Every materialized director run records the exact set of diffusion jobs it
-admitted. Stage readiness, prior-stage context, and final plate resolution use
-that run-to-job association rather than matching only on event or transaction
-metadata. A run moves through an explicit `materializing` state until admission
-is finalized; only then does it become `succeeded`. A finalized replacement
-with no admitted job resolves to the neutral stage, while a partial admission
-error fails the run and cancels its otherwise-unowned jobs. This keeps sibling
-private POV projections from observing or waiting on one another's artifacts.
+Every materialized director run records exactly one replacement source: a
+hash-pinned snapshot of the selected reviewed plate, or the exact set of
+diffusion jobs it admitted. Stage readiness, prior-stage context, and final
+plate resolution use that run-owned provenance rather than matching only on
+event, transaction, or the location pool's current bindings. A run moves
+through an explicit `materializing` state until selection or admission is
+finalized; only then does it become `succeeded`. A direct reviewed replacement
+admits no diffusion job. A generated replacement with no admitted job resolves
+to the neutral stage, while a partial admission error fails the run and cancels
+its otherwise-unowned jobs. This keeps sibling private POV projections from
+observing or waiting on one another's artifacts and preserves exact reuse after
+restart or later pool changes.
 Admissions are provisional and attempt-scoped before diffusion begins. Every
 heartbeat, completion, finalization, failure, cleanup, and active-worker abort
 is fenced by the claimed attempt, so an expired worker cannot mutate a reclaimed
@@ -292,9 +301,11 @@ starts generation.
 
 Generated illustrations are noncanonical output artifacts and are never
 evidence for story state. Imported images retain their manual review and
-spoiler/privacy gate. Generated images and frozen diffusion references use
+spoiler/privacy gate. Generated images and frozen reviewed references use
 separate runtime provenance with byte, format, dimension, root, and hash
-validation. The image director may receive opaque reviewed-reference handles
+validation. Direct reviewed stages are revalidated when their bytes are
+resolved for composition. The image director may receive opaque reviewed-
+reference handles
 with human-authored, public selection hints so it can choose useful views, but
 never receives the image, storage path, hash, dimensions, or runtime-derived
 analysis. Image bytes, embeddings, captions derived from images, job
@@ -311,22 +322,27 @@ content-privacy policy for narrator, character, and image-director inputs.
 Ordinary public HTTP(S) references are preserved rather than mistaken for
 filesystem paths.
 
-A visual-novel replacement may list only normal, currently identity-anchored
-subjects, and every named roster character in its scene description must be in
-that subject list. Director-selected handles are ordered optional guides, not a
-replacement for identity coverage: materialization preserves those guides,
-then deterministically adds one live owner-validated identity reference for
-each uncovered subject. The complete ordered union must satisfy the configured
-count and byte limits and the edit mode's three-reference ceiling. Live binding,
-file, byte-count, or hash failure admits no diffusion job, so the replacement
-resolves through the ordinary neutral-stage failure contract.
+A generated visual-novel replacement may list only normal, currently identity-
+anchored subjects, and every named roster character in its scene description
+must be in that subject list. Director-selected generation handles are ordered
+optional guides, not a replacement for identity coverage: materialization
+preserves those guides, then deterministically adds one live owner-validated
+identity reference for each uncovered subject. The complete ordered union must
+satisfy the configured count and byte limits and the edit mode's three-
+reference ceiling. Live binding, file, byte-count, or hash failure admits no
+diffusion job, so the generated replacement resolves through the ordinary
+neutral-stage failure contract.
 
 When an authored location has reviewed environment plates, a visual-novel
-replacement selects exactly one plate whose human-authored applicability fits
-the current visible scene. Multiple plates are choices, never a blend. An edit
-keeps the chosen location first as its composition base; compose remains
-available when the complete reference set cannot fit edit's three-reference
-ceiling. Location selection is engine-routed from canonical physical presence:
+replacement first considers the exact plate whose human-authored applicability
+fits the current visible scene. Multiple plates are choices, never a blend. If
+none fits, the director leaves the direct-stage handle empty and uses the
+ordinary generated replacement path; a location handle may still be an
+optional generation guide when its authored use genuinely applies. An edit
+keeps any selected location guide first as its composition base; compose
+remains available when the complete reference set cannot fit edit's three-
+reference ceiling. Location selection is engine-routed from canonical physical
+presence:
 a directly observed embodied cast may establish the depicted location for an
 omit-policy or remote-interface viewer, while indirect reports and mediated
 name mentions stay anchored to the viewer's own location. A render batch offers
@@ -381,7 +397,8 @@ takeover, leave, settings, query, and rewind. It also owns the optional local
 `VisualNovelCardRenderer`. Each finalized event is copied into immutable
 observer projections without awaiting presentation work. The sidecar groups
 equivalent projections, queues durable image-director runs, and materializes a
-replacement direction as an event-provenance diffusion job. Checkpoint save
+replacement direction as either a run-owned reviewed stage snapshot or an
+event-provenance diffusion job. Checkpoint save
 commits the speculative stage transaction; turn failure or rewind cancels stale
 work. GPU inference runs in an isolated subprocess. CLI and Discord both load
 the same content-addressed card deck; Discord navigation state lives in
