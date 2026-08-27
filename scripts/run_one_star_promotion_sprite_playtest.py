@@ -56,6 +56,9 @@ from app.schemas.image_generation import ImageGenerationStatus
 from app.schemas.narrator import VisualNovelPage, VisualNovelSpriteCue
 from app.schemas.one_star import OneStarTransaction
 from app.schemas.visual_references import VISUAL_NOVEL_SPRITE_EXPRESSIONS
+from scripts.export_vn_playtest_slideshow import (
+    export_vn_playtest_slideshow,
+)
 
 
 PLAYTEST_STORY = (
@@ -714,6 +717,18 @@ def main() -> int:
     load_dotenv()
     args = _parser().parse_args()
     run_dir, report = asyncio.run(_run(args))
+    slideshow_directory, slideshow_cards = export_vn_playtest_slideshow(run_dir)
+    report["slideshow"] = {
+        "directory": str(slideshow_directory.relative_to(run_dir)),
+        "index": str(
+            (slideshow_directory / "index.json").relative_to(run_dir)
+        ),
+        "card_count": len(slideshow_cards),
+    }
+    (run_dir / "report.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     windows_copy = None
     if args.windows_root is not None:
         args.windows_root.mkdir(parents=True, exist_ok=True)
@@ -729,6 +744,8 @@ def main() -> int:
         "resolved_variants": report["checks"]["generated_variants_resolved"],
         "generation_seconds": report["generation_seconds"],
         "deck_id": report["card"]["deck_id"],
+        "slideshow": str(slideshow_directory),
+        "slideshow_card_count": len(slideshow_cards),
     }, indent=2))
     return 0
 
