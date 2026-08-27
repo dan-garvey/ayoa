@@ -273,6 +273,21 @@ deterministic compositor cover-crops the selected immutable plate and adds the
 classic ADV text box. Explicit portrait identity review remains a separate
 raw-image workflow.
 
+The same compositor has one optional, rules-neutral foreground layer between
+the immutable stage and the ADV text box. A deck section may carry zero, one,
+or two already-resolved transparent PNG sprites as an ordered placement list.
+Each placement binds opaque identity and variant provenance, the exact source
+hash and dimensions, a left/center/right slot, source and target facing,
+bottom-center anchor, and integer scale. Two-character sections use distinct
+left and right slots; a later page changes pose or expression by starting a new
+section against the same stage with another resolved variant. The compositor
+never accepts a source path, looks at an image through an LLM, chooses a
+character or expression, or generates an asset. It validates immutable bytes,
+alpha-composites the placements in order, then draws the dialogue UI last.
+Sprite provenance and transforms participate in the content-addressed deck
+identity, while CLI and Discord continue to transport only the same
+manifest-verified final card bytes.
+
 Every materialized director run records exactly one replacement source: a
 hash-pinned snapshot of the selected reviewed plate, or the exact set of
 diffusion jobs it admitted. Stage readiness, prior-stage context, and final

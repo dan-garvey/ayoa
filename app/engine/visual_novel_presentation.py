@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable, Iterator, Sequence
+from typing import Iterable, Iterator, Literal, Sequence
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -31,10 +31,20 @@ from app.schemas.narrator import (
 
 CARD_WIDTH = 1024
 CARD_HEIGHT = 576
-_RENDERER_VERSION = "classic-adv-v5-semantic-pagination"
+_RENDERER_VERSION = "classic-adv-v6-deterministic-sprites"
 _MANIFEST_VERSION = 2
 _SHA256_LENGTH = 64
 _MAX_BODY_LINES = 4
+_MAX_SPRITES_PER_SECTION = 2
+_MAX_SPRITE_BYTES = 20_000_000
+_MAX_SPRITE_EDGE = 8_192
+_MAX_SPRITE_PIXELS = 40_000_000
+_MIN_SPRITE_SCALE_PERCENT = 25
+_MAX_SPRITE_SCALE_PERCENT = 150
+_MIN_SPRITE_BASELINE_Y = 396
+_OPAQUE_SPRITE_HANDLE_RE = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+)
 _SENTENCE_BOUNDARY_RE = re.compile(
     r"[.!?…]+(?:[\"”’')\]]+)?(?=\s+|$)"
 )
@@ -135,13 +145,64 @@ class VisualNovelDeck:
     used_neutral_stage: bool
 
 
+class VisualNovelSpriteError(ValueError):
+    """A resolved sprite violated the deterministic compositor contract."""
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(f"visual-novel sprite validation failed ({code})")
+
+
+@dataclass(frozen=True)
+class VisualNovelSpritePlacement:
+    """One resolved transparent cutout and its deterministic card transform.
+
+    The source canvas is anchored by its bottom-center point at ``anchor``.
+    ``scale_percent`` normalizes the source canvas height against the card
+    height before placement. ``source_facing`` describes the reviewed source;
+    the compositor mirrors it only when ``facing`` differs. Handles are opaque
+    provenance and are never player text or LLM input.
+    """
+
+    identity_handle: str
+    variant_handle: str
+    media: PlayerMediaBytes
+    slot: Literal["left", "center", "right"]
+    source_facing: Literal["left", "right"]
+    facing: Literal["left", "right"]
+    anchor: tuple[int, int]
+    scale_percent: int = 100
+
+
 @dataclass(frozen=True)
 class VisualNovelDeckSection:
-    """Ordered semantic pages resolved against one immutable stage plate."""
+    """Ordered semantic pages resolved against one immutable stage plate.
+
+    Every physical page produced from this section inherits the same ordered
+    sprite placements. A caller changes a pose or expression on a later page
+    by starting another section against the same stage with different resolved
+    variant provenance.
+    """
 
     pages: tuple[VisualNovelPage, ...]
     stage_path: str | Path | None = None
     stage_media: PlayerMediaBytes | None = None
+    sprite_placements: tuple[VisualNovelSpritePlacement, ...] = ()
+
+
+@dataclass(frozen=True)
+class _ResolvedSpritePlacement:
+    image: Image.Image = field(repr=False)
+    identity: dict[str, object]
+
+
+@dataclass(frozen=True)
+class _ResolvedDeckSection:
+    composed_stage: Image.Image = field(repr=False)
+    stage_sha256: str
+    used_neutral_stage: bool
+    sprites: tuple[_ResolvedSpritePlacement, ...]
+    pages: tuple[VisualNovelPage, ...]
 
 
 class VisualNovelCardRenderer:
@@ -197,9 +258,7 @@ class VisualNovelCardRenderer:
                 "visual-novel deck pages cannot expose source-shaped ids"
             )
         fonts = self._fonts()
-        resolved_sections: list[
-            tuple[Image.Image, str, bool, list[VisualNovelPage]]
-        ] = []
+        resolved_sections: list[_ResolvedDeckSection] = []
         for section in sections:
             if not section.pages:
                 raise ValueError(
@@ -213,11 +272,13 @@ class VisualNovelCardRenderer:
                 section.stage_path,
                 stage_media=section.stage_media,
             )
-            resolved_sections.append((
-                stage,
-                stage_sha256,
-                used_neutral,
-                _paginate_pages(section.pages, fonts.body),
+            sprites = _resolve_sprite_placements(section.sprite_placements)
+            resolved_sections.append(_ResolvedDeckSection(
+                composed_stage=_compose_sprite_stage(stage, sprites),
+                stage_sha256=stage_sha256,
+                used_neutral_stage=used_neutral,
+                sprites=sprites,
+                pages=tuple(_paginate_pages(section.pages, fonts.body)),
             ))
         identity = {
             "renderer": _RENDERER_VERSION,
@@ -228,30 +289,30 @@ class VisualNovelCardRenderer:
             },
             "sections": [
                 {
-                    "stage_sha256": stage_sha256,
-                    "used_neutral_stage": used_neutral,
+                    "stage_sha256": section.stage_sha256,
+                    "used_neutral_stage": section.used_neutral_stage,
+                    "sprites": [
+                        sprite.identity for sprite in section.sprites
+                    ],
                     "pages": [
-                        page.model_dump(mode="json") for page in physical_pages
+                        page.model_dump(mode="json") for page in section.pages
                     ],
                 }
-                for _stage, stage_sha256, used_neutral, physical_pages
-                in resolved_sections
+                for section in resolved_sections
             ],
         }
         count = sum(
-            len(physical_pages)
-            for _stage, _sha256, _used_neutral, physical_pages
-            in resolved_sections
+            len(section.pages) for section in resolved_sections
         )
         rendered_cards: list[tuple[VisualNovelPage, bytes, str]] = []
         physical_pages: list[VisualNovelPage] = []
         index = 0
-        for stage, _stage_sha256, _used_neutral, section_pages in resolved_sections:
-            for page in section_pages:
+        for section in resolved_sections:
+            for page in section.pages:
                 index += 1
                 physical_pages.append(page)
                 card_image = _compose_card(
-                    stage,
+                    section.composed_stage,
                     page,
                     index=index,
                     count=count,
@@ -268,9 +329,7 @@ class VisualNovelCardRenderer:
 
         transcript = _transcript(physical_pages)
         used_neutral = any(
-            section_used_neutral
-            for _stage, _sha256, section_used_neutral, _pages
-            in resolved_sections
+            section.used_neutral_stage for section in resolved_sections
         )
         card_sha256s = [sha256 for _page, _data, sha256 in rendered_cards]
         deck_id = _deck_content_id(identity, card_sha256s)
@@ -371,11 +430,12 @@ class VisualNovelCardRenderer:
         """Load one fail-closed persisted deck.
 
         Only version 2 is accepted. It requires this renderer contract,
-        binds the ordered card digests into the deck id, verifies and snapshots
-        every card's exact bytes, and rejects source-shaped identifiers in
-        player-visible fields. Its font digests identify the historical render
-        inputs; they need not match fonts installed after a restart. Older
-        versions and unknown renderers are not migrated or guessed.
+        binds stage and ordered sprite provenance plus the ordered card digests
+        into the deck id, verifies and snapshots every card's exact bytes, and
+        rejects source-shaped identifiers in player-visible fields. Its font
+        digests identify the historical render inputs; they need not match
+        fonts installed after a restart. Older versions and unknown renderers
+        are not migrated or guessed.
         """
 
         clean_id = str(deck_id or "").strip().lower()
@@ -844,6 +904,61 @@ def _valid_static_card_image(image: Image.Image) -> bool:
     )
 
 
+def _valid_sprite_manifest_identity(value: object) -> bool:
+    expected_keys = {
+        "identity_handle",
+        "variant_handle",
+        "source_sha256",
+        "source_mime_type",
+        "source_byte_count",
+        "source_size",
+        "slot",
+        "source_facing",
+        "facing",
+        "anchor",
+        "scale_percent",
+    }
+    if type(value) is not dict or set(value) != expected_keys:
+        return False
+    if not _valid_opaque_sprite_handle(value["identity_handle"]):
+        return False
+    if not _valid_opaque_sprite_handle(value["variant_handle"]):
+        return False
+    if not _is_sha256(value["source_sha256"]):
+        return False
+    if value["source_mime_type"] != "image/png":
+        return False
+    if (
+        type(value["source_byte_count"]) is not int
+        or not 0 < value["source_byte_count"] <= _MAX_SPRITE_BYTES
+    ):
+        return False
+    source_size = value["source_size"]
+    if (
+        type(source_size) is not list
+        or len(source_size) != 2
+        or not _valid_sprite_dimensions(source_size[0], source_size[1])
+    ):
+        return False
+    anchor = value["anchor"]
+    if type(anchor) is not list:
+        return False
+    if not _valid_sprite_transform(
+        slot=value["slot"],
+        source_facing=value["source_facing"],
+        facing=value["facing"],
+        anchor=anchor,
+        scale_percent=value["scale_percent"],
+    ):
+        return False
+    target_width, _target_height = _scaled_sprite_size(
+        source_size[0],
+        source_size[1],
+        value["scale_percent"],
+    )
+    return target_width <= CARD_WIDTH * 2
+
+
 def _valid_v2_identity(
     identity: object,
     *,
@@ -887,12 +1002,33 @@ def _valid_v2_identity(
         if type(section) is not dict or set(section) != {
             "stage_sha256",
             "used_neutral_stage",
+            "sprites",
             "pages",
         }:
             return False
         if not _is_sha256(section["stage_sha256"]):
             return False
         if type(section["used_neutral_stage"]) is not bool:
+            return False
+        raw_sprites = section["sprites"]
+        if (
+            type(raw_sprites) is not list
+            or len(raw_sprites) > _MAX_SPRITES_PER_SECTION
+            or not all(
+                _valid_sprite_manifest_identity(sprite)
+                for sprite in raw_sprites
+            )
+        ):
+            return False
+        slots = [sprite["slot"] for sprite in raw_sprites]
+        identity_handles = [
+            sprite["identity_handle"] for sprite in raw_sprites
+        ]
+        if len(slots) != len(set(slots)):
+            return False
+        if len(identity_handles) != len(set(identity_handles)):
+            return False
+        if len(raw_sprites) == 2 and set(slots) != {"left", "right"}:
             return False
         raw_pages = section["pages"]
         if type(raw_pages) is not list or not raw_pages:
@@ -927,6 +1063,281 @@ class _CardFonts:
     body: ImageFont.FreeTypeFont
     speaker: ImageFont.FreeTypeFont
     counter: ImageFont.FreeTypeFont
+
+
+def _resolve_sprite_placements(
+    placements: tuple[VisualNovelSpritePlacement, ...],
+) -> tuple[_ResolvedSpritePlacement, ...]:
+    if type(placements) is not tuple:
+        raise VisualNovelSpriteError("placements_not_tuple")
+    if len(placements) > _MAX_SPRITES_PER_SECTION:
+        raise VisualNovelSpriteError("too_many_placements")
+
+    resolved: list[_ResolvedSpritePlacement] = []
+    slots: set[str] = set()
+    identity_handles: set[str] = set()
+    for placement in placements:
+        if type(placement) is not VisualNovelSpritePlacement:
+            raise VisualNovelSpriteError("invalid_placement")
+        resolved_placement = _resolve_sprite_placement(placement)
+        if placement.slot in slots:
+            raise VisualNovelSpriteError("duplicate_slot")
+        if placement.identity_handle in identity_handles:
+            raise VisualNovelSpriteError("duplicate_identity")
+        slots.add(placement.slot)
+        identity_handles.add(placement.identity_handle)
+        resolved.append(resolved_placement)
+
+    if len(resolved) == 2 and slots != {"left", "right"}:
+        raise VisualNovelSpriteError("two_sprite_slots_must_be_left_right")
+    return tuple(resolved)
+
+
+def _resolve_sprite_placement(
+    placement: VisualNovelSpritePlacement,
+) -> _ResolvedSpritePlacement:
+    if not _valid_opaque_sprite_handle(placement.identity_handle):
+        raise VisualNovelSpriteError("invalid_identity_handle")
+    if not _valid_opaque_sprite_handle(placement.variant_handle):
+        raise VisualNovelSpriteError("invalid_variant_handle")
+    if not _valid_sprite_transform(
+        slot=placement.slot,
+        source_facing=placement.source_facing,
+        facing=placement.facing,
+        anchor=placement.anchor,
+        scale_percent=placement.scale_percent,
+    ):
+        raise VisualNovelSpriteError("invalid_transform")
+
+    media = placement.media
+    if not isinstance(media, PlayerMediaBytes):
+        # Deliberately accept bytes only. Paths, including symlinks, must be
+        # resolved and validated by the private asset owner before this layer.
+        raise VisualNovelSpriteError("unresolved_media")
+    if (
+        type(media.filename) is not str
+        or not media.filename
+        or len(media.filename) > 255
+        or "/" in media.filename
+        or "\\" in media.filename
+        or not media.filename.lower().endswith(".png")
+    ):
+        raise VisualNovelSpriteError("unsafe_media_filename")
+    if type(media.mime_type) is not str or media.mime_type != "image/png":
+        raise VisualNovelSpriteError("invalid_media_type")
+    if type(media.data) is not bytes or not media.data:
+        raise VisualNovelSpriteError("invalid_media_bytes")
+    if len(media.data) > _MAX_SPRITE_BYTES:
+        raise VisualNovelSpriteError("media_too_large")
+    if not _is_sha256(media.sha256):
+        raise VisualNovelSpriteError("invalid_media_hash")
+    if hashlib.sha256(media.data).hexdigest() != media.sha256:
+        raise VisualNovelSpriteError("media_hash_mismatch")
+    if (
+        type(media.byte_count) is not int
+        or media.byte_count != len(media.data)
+    ):
+        raise VisualNovelSpriteError("media_byte_count_mismatch")
+    if not _valid_sprite_dimensions(media.width, media.height):
+        raise VisualNovelSpriteError("invalid_media_dimensions")
+    target_width, _target_height = _scaled_sprite_size(
+        media.width,
+        media.height,
+        placement.scale_percent,
+    )
+    if target_width > CARD_WIDTH * 2:
+        raise VisualNovelSpriteError("rendered_sprite_too_wide")
+
+    image = _decode_sprite_png(
+        media.data,
+        expected_width=media.width,
+        expected_height=media.height,
+    )
+    return _ResolvedSpritePlacement(
+        image=image,
+        identity={
+            "identity_handle": placement.identity_handle,
+            "variant_handle": placement.variant_handle,
+            "source_sha256": media.sha256,
+            "source_mime_type": media.mime_type,
+            "source_byte_count": media.byte_count,
+            "source_size": [media.width, media.height],
+            "slot": placement.slot,
+            "source_facing": placement.source_facing,
+            "facing": placement.facing,
+            "anchor": list(placement.anchor),
+            "scale_percent": placement.scale_percent,
+        },
+    )
+
+
+def _decode_sprite_png(
+    data: bytes,
+    *,
+    expected_width: int,
+    expected_height: int,
+) -> Image.Image:
+    try:
+        with Image.open(BytesIO(data)) as opened:
+            if not _valid_static_sprite_image(
+                opened,
+                expected_width=expected_width,
+                expected_height=expected_height,
+            ):
+                raise VisualNovelSpriteError("invalid_png")
+            opened.verify()
+        with Image.open(BytesIO(data)) as opened:
+            if not _valid_static_sprite_image(
+                opened,
+                expected_width=expected_width,
+                expected_height=expected_height,
+            ):
+                raise VisualNovelSpriteError("invalid_png")
+            image = opened.convert("RGBA")
+            image.load()
+    except VisualNovelSpriteError:
+        raise
+    except Exception as exc:
+        raise VisualNovelSpriteError("invalid_png") from exc
+
+    alpha_minimum, alpha_maximum = image.getchannel("A").getextrema()
+    if alpha_minimum == 255:
+        raise VisualNovelSpriteError("opaque_png")
+    if alpha_maximum == 0:
+        raise VisualNovelSpriteError("empty_png")
+    return image
+
+
+def _valid_static_sprite_image(
+    image: Image.Image,
+    *,
+    expected_width: int,
+    expected_height: int,
+) -> bool:
+    has_alpha = (
+        "A" in image.getbands()
+        or "transparency" in image.info
+    )
+    return (
+        image.format == "PNG"
+        and image.size == (expected_width, expected_height)
+        and has_alpha
+        and not bool(getattr(image, "is_animated", False))
+        and int(getattr(image, "n_frames", 1)) == 1
+    )
+
+
+def _valid_sprite_dimensions(width: object, height: object) -> bool:
+    return (
+        type(width) is int
+        and type(height) is int
+        and 0 < width <= _MAX_SPRITE_EDGE
+        and 0 < height <= _MAX_SPRITE_EDGE
+        and width * height <= _MAX_SPRITE_PIXELS
+    )
+
+
+def _scaled_sprite_size(
+    source_width: int,
+    source_height: int,
+    scale_percent: int,
+) -> tuple[int, int]:
+    target_height = max(
+        1,
+        (CARD_HEIGHT * scale_percent + 50) // 100,
+    )
+    target_width = max(
+        1,
+        (source_width * target_height + source_height // 2)
+        // source_height,
+    )
+    return target_width, target_height
+
+
+def _valid_opaque_sprite_handle(value: object) -> bool:
+    return (
+        type(value) is str
+        and _OPAQUE_SPRITE_HANDLE_RE.fullmatch(value) is not None
+    )
+
+
+def _valid_sprite_transform(
+    *,
+    slot: object,
+    source_facing: object,
+    facing: object,
+    anchor: object,
+    scale_percent: object,
+) -> bool:
+    if type(slot) is not str or slot not in {"left", "center", "right"}:
+        return False
+    if type(source_facing) is not str or source_facing not in {"left", "right"}:
+        return False
+    if type(facing) is not str or facing not in {"left", "right"}:
+        return False
+    if (
+        type(anchor) not in {tuple, list}
+        or len(anchor) != 2
+        or any(type(value) is not int for value in anchor)
+    ):
+        return False
+    anchor_x, anchor_y = anchor
+    if not 0 <= anchor_x <= CARD_WIDTH:
+        return False
+    if not _MIN_SPRITE_BASELINE_Y <= anchor_y <= CARD_HEIGHT:
+        return False
+    if slot == "left" and anchor_x > CARD_WIDTH // 2:
+        return False
+    if slot == "right" and anchor_x < CARD_WIDTH // 2:
+        return False
+    if slot == "center" and not CARD_WIDTH // 4 <= anchor_x <= 3 * CARD_WIDTH // 4:
+        return False
+    return (
+        type(scale_percent) is int
+        and _MIN_SPRITE_SCALE_PERCENT
+        <= scale_percent
+        <= _MAX_SPRITE_SCALE_PERCENT
+    )
+
+
+def _compose_sprite_stage(
+    stage: Image.Image,
+    sprites: Sequence[_ResolvedSpritePlacement],
+) -> Image.Image:
+    composed = stage.copy().convert("RGBA")
+    for sprite in sprites:
+        source_width, source_height = sprite.identity["source_size"]
+        scale_percent = sprite.identity["scale_percent"]
+        target_width, target_height = _scaled_sprite_size(
+            source_width,
+            source_height,
+            scale_percent,
+        )
+        transformed = sprite.image
+        if transformed.size != (target_width, target_height):
+            # Resample premultiplied channels so transparent canvas pixels do
+            # not introduce a dark fringe around antialiased cutout edges.
+            transformed = (
+                transformed.convert("RGBa")
+                .resize(
+                    (target_width, target_height),
+                    Image.Resampling.LANCZOS,
+                )
+                .convert("RGBA")
+            )
+        if sprite.identity["source_facing"] != sprite.identity["facing"]:
+            transformed = transformed.transpose(
+                Image.Transpose.FLIP_LEFT_RIGHT
+            )
+        anchor_x, anchor_y = sprite.identity["anchor"]
+        composed.alpha_composite(
+            transformed,
+            dest=(
+                anchor_x - target_width // 2,
+                anchor_y - target_height,
+            ),
+        )
+    return composed.convert("RGB")
 
 
 def _load_stage(

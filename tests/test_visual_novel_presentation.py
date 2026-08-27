@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import hashlib
+from io import BytesIO
 import json
 from pathlib import Path
 import shutil
@@ -13,7 +15,10 @@ from app.engine.visual_novel_presentation import (
     CARD_WIDTH,
     VisualNovelCardRenderer,
     VisualNovelDeckSection,
+    VisualNovelSpriteError,
+    VisualNovelSpritePlacement,
 )
+from app.engine.player_media import ResolvedPlayerMedia
 from app.schemas.narrator import VisualNovelPage
 
 
@@ -22,6 +27,65 @@ def _stage(path: Path) -> Path:
     image.putpixel((5, 5), (201, 37, 59))
     image.save(path)
     return path
+
+
+def _sprite_media(
+    *,
+    color: tuple[int, int, int, int] = (219, 43, 61, 255),
+    marker_color: tuple[int, int, int, int] = (247, 239, 91, 255),
+    width: int = 80,
+    height: int = CARD_HEIGHT,
+    edge_alpha: int = 128,
+) -> ResolvedPlayerMedia:
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    body_top = 80
+    for y in range(body_top, height):
+        for x in range(8, width - 8):
+            alpha = edge_alpha if x == 8 else color[3]
+            image.putpixel((x, y), (*color[:3], alpha))
+    for y in range(100, 125):
+        for x in range(12, 18):
+            image.putpixel((x, y), marker_color)
+    return _resolved_png(image)
+
+
+def _resolved_png(image: Image.Image) -> ResolvedPlayerMedia:
+    encoded = BytesIO()
+    image.save(encoded, format="PNG", optimize=False)
+    data = encoded.getvalue()
+    sha256 = hashlib.sha256(data).hexdigest()
+    return ResolvedPlayerMedia(
+        filename=f"sprite-{sha256[:16]}.png",
+        mime_type="image/png",
+        data=data,
+        sha256=sha256,
+        byte_count=len(data),
+        width=image.width,
+        height=image.height,
+    )
+
+
+def _placement(
+    *,
+    identity_handle: str = "identity.alpha",
+    variant_handle: str = "variant.neutral",
+    media: object | None = None,
+    slot: str = "left",
+    source_facing: str = "right",
+    facing: str = "right",
+    anchor: tuple[int, int] = (240, CARD_HEIGHT),
+    scale_percent: int = 100,
+) -> VisualNovelSpritePlacement:
+    return VisualNovelSpritePlacement(
+        identity_handle=identity_handle,
+        variant_handle=variant_handle,
+        media=media if media is not None else _sprite_media(),  # type: ignore[arg-type]
+        slot=slot,  # type: ignore[arg-type]
+        source_facing=source_facing,  # type: ignore[arg-type]
+        facing=facing,  # type: ignore[arg-type]
+        anchor=anchor,
+        scale_percent=scale_percent,
+    )
 
 
 def _manifest(deck) -> dict:
@@ -95,6 +159,244 @@ def test_classic_adv_renderer_preserves_stage_above_overlay(tmp_path: Path):
         red, green, blue = card.convert("RGB").getpixel((24, 400))
         assert blue > red
         assert blue > green
+
+
+def test_sprite_alpha_composites_after_exact_stage_and_before_dialogue_ui(
+    tmp_path: Path,
+):
+    stage_path = _stage(tmp_path / "stage.png")
+    original_stage_bytes = stage_path.read_bytes()
+    sprite = _sprite_media()
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(
+                kind="dialogue",
+                speaker="Mirelle",
+                text="Stay behind me.",
+            ),),
+            stage_path=stage_path,
+            sprite_placements=(_placement(media=sprite),),
+        )
+    ])
+
+    assert stage_path.read_bytes() == original_stage_bytes
+    assert deck.cards[0].accessible_text == "Mirelle: Stay behind me."
+    with Image.open(deck.cards[0].image_path) as card:
+        pixels = card.convert("RGB")
+        # Nothing touched by either foreground or UI remains the exact plate.
+        assert pixels.getpixel((5, 5)) == (201, 37, 59)
+        # The half-alpha sprite edge blends with, rather than replaces, stage.
+        expected_edge = Image.alpha_composite(
+            Image.new("RGBA", (1, 1), (41, 83, 127, 255)),
+            Image.new("RGBA", (1, 1), (219, 43, 61, 128)),
+        ).convert("RGB").getpixel((0, 0))
+        assert pixels.getpixel((208, 150)) == expected_edge
+        assert pixels.getpixel((240, 150)) == (219, 43, 61)
+        # The ADV panel is composited last and safely occludes the lower body.
+        assert pixels.getpixel((240, 450)) != (219, 43, 61)
+
+    manifest = _manifest(deck)
+    assert manifest["identity"]["sections"][0]["stage_sha256"] == (
+        hashlib.sha256(original_stage_bytes).hexdigest()
+    )
+
+
+def test_two_sprite_slots_face_inward_without_transferring_identity(
+    tmp_path: Path,
+):
+    left_media = _sprite_media(
+        color=(211, 45, 64, 255),
+        marker_color=(250, 238, 82, 255),
+    )
+    right_media = _sprite_media(
+        color=(38, 97, 221, 255),
+        marker_color=(69, 232, 139, 255),
+    )
+    left = _placement(
+        identity_handle="identity.left",
+        variant_handle="variant.left.tense",
+        media=left_media,
+        slot="left",
+        source_facing="right",
+        facing="right",
+        anchor=(240, CARD_HEIGHT),
+    )
+    right = _placement(
+        identity_handle="identity.right",
+        variant_handle="variant.right.skeptical",
+        media=right_media,
+        slot="right",
+        source_facing="right",
+        facing="left",
+        anchor=(784, CARD_HEIGHT),
+    )
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(
+                kind="narration",
+                text="They measure one another across the court.",
+            ),),
+            stage_path=_stage(tmp_path / "stage.png"),
+            sprite_placements=(left, right),
+        )
+    ])
+
+    with Image.open(deck.cards[0].image_path) as card:
+        pixels = card.convert("RGB")
+        assert pixels.getpixel((240, 150)) == (211, 45, 64)
+        assert pixels.getpixel((784, 150)) == (38, 97, 221)
+        # The left source remains right-facing; the right source is mirrored.
+        assert pixels.getpixel((214, 110)) == (250, 238, 82)
+        assert pixels.getpixel((808, 110)) == (69, 232, 139)
+
+    sprites = _manifest(deck)["identity"]["sections"][0]["sprites"]
+    assert [sprite["identity_handle"] for sprite in sprites] == [
+        "identity.left",
+        "identity.right",
+    ]
+    assert [(sprite["slot"], sprite["facing"]) for sprite in sprites] == [
+        ("left", "right"),
+        ("right", "left"),
+    ]
+
+
+def test_later_page_can_swap_resolved_variant_without_redrawing_stage(
+    tmp_path: Path,
+):
+    stage_path = _stage(tmp_path / "stage.png")
+    original_stage_bytes = stage_path.read_bytes()
+    neutral = _placement(
+        identity_handle="identity.mirelle",
+        variant_handle="variant.neutral",
+        media=_sprite_media(color=(205, 52, 67, 255)),
+    )
+    concerned = _placement(
+        identity_handle="identity.mirelle",
+        variant_handle="variant.concerned",
+        media=_sprite_media(color=(53, 186, 103, 255)),
+    )
+    sections = [
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(
+                kind="dialogue",
+                speaker="Mirelle",
+                text="I understand.",
+            ),),
+            stage_path=stage_path,
+            sprite_placements=(neutral,),
+        ),
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(
+                kind="dialogue",
+                speaker="Mirelle",
+                text="But that does not make it safe.",
+            ),),
+            stage_path=stage_path,
+            sprite_placements=(concerned,),
+        ),
+    ]
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+
+    first = renderer.render_deck(sections)
+    second = renderer.render_deck(sections)
+
+    assert first.deck_id == second.deck_id
+    assert [card.image_bytes for card in first.cards] == [
+        card.image_bytes for card in second.cards
+    ]
+    assert stage_path.read_bytes() == original_stage_bytes
+    with Image.open(first.cards[0].image_path) as card:
+        assert card.convert("RGB").getpixel((240, 150)) == (205, 52, 67)
+    with Image.open(first.cards[1].image_path) as card:
+        assert card.convert("RGB").getpixel((240, 150)) == (53, 186, 103)
+    assert [
+        section["sprites"][0]["variant_handle"]
+        for section in _manifest(first)["identity"]["sections"]
+    ] == ["variant.neutral", "variant.concerned"]
+    assert first.transcript == (
+        "Mirelle: I understand.\n\n"
+        "Mirelle: But that does not make it safe."
+    )
+
+
+def test_sprite_scale_and_bottom_center_anchor_are_deterministic(
+    tmp_path: Path,
+):
+    media = _sprite_media(color=(204, 55, 72, 255))
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    page = (VisualNovelPage(kind="narration", text="A measured shift."),)
+
+    small = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=page,
+            sprite_placements=(_placement(
+                media=media,
+                anchor=(240, 500),
+                scale_percent=50,
+            ),),
+        )
+    ])
+    large = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=page,
+            sprite_placements=(_placement(
+                media=media,
+                anchor=(240, 500),
+                scale_percent=75,
+            ),),
+        )
+    ])
+
+    with Image.open(small.cards[0].image_path) as small_card:
+        assert small_card.convert("RGB").getpixel((240, 150)) != (
+            204, 55, 72
+        )
+        assert small_card.convert("RGB").getpixel((240, 270)) == (
+            204, 55, 72
+        )
+    with Image.open(large.cards[0].image_path) as large_card:
+        assert large_card.convert("RGB").getpixel((240, 150)) == (
+            204, 55, 72
+        )
+    assert small.deck_id != large.deck_id
+    small_sprite = _manifest(small)["identity"]["sections"][0]["sprites"][0]
+    large_sprite = _manifest(large)["identity"]["sections"][0]["sprites"][0]
+    assert small_sprite["anchor"] == large_sprite["anchor"] == [240, 500]
+    assert (small_sprite["scale_percent"], large_sprite["scale_percent"]) == (
+        50,
+        75,
+    )
+
+
+def test_opaque_variant_provenance_is_part_of_deck_identity(tmp_path: Path):
+    media = _sprite_media()
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    page = (VisualNovelPage(kind="narration", text="She waits."),)
+    neutral = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=page,
+            sprite_placements=(_placement(
+                variant_handle="variant.neutral",
+                media=media,
+            ),),
+        )
+    ])
+    alias = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=page,
+            sprite_placements=(_placement(
+                variant_handle="variant.reviewed.alias",
+                media=media,
+            ),),
+        )
+    ])
+
+    assert neutral.cards[0].image_bytes == alias.cards[0].image_bytes
+    assert neutral.deck_id != alias.deck_id
 
 
 def test_long_semantic_page_splits_into_measured_cards(tmp_path: Path):
@@ -212,6 +514,54 @@ def test_content_addressed_deck_reloads_same_artifacts(tmp_path: Path):
     assert loaded == first
 
 
+def test_sprite_deck_restarts_from_manifest_verified_card_bytes(
+    tmp_path: Path,
+):
+    runtime_root = tmp_path / "presentations"
+    renderer = VisualNovelCardRenderer(runtime_root)
+    media = _sprite_media()
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(
+                kind="dialogue",
+                speaker="Rowan",
+                text="Not yet.",
+            ),),
+            stage_path=_stage(tmp_path / "stage.png"),
+            sprite_placements=(_placement(
+                identity_handle="identity.rowan",
+                variant_handle="variant.tense",
+                media=media,
+            ),),
+        )
+    ])
+    manifest = _manifest(deck)
+
+    loaded = VisualNovelCardRenderer(runtime_root).load_deck(deck.deck_id)
+
+    assert loaded == deck
+    assert loaded is not None
+    assert hashlib.sha256(loaded.cards[0].image_bytes).hexdigest() == (
+        manifest["cards"][0]["sha256"]
+    )
+    serialized = json.dumps(manifest, sort_keys=True)
+    assert media.filename not in serialized
+    assert str(tmp_path) not in serialized
+    assert manifest["identity"]["sections"][0]["sprites"] == [{
+        "identity_handle": "identity.rowan",
+        "variant_handle": "variant.tense",
+        "source_sha256": media.sha256,
+        "source_mime_type": "image/png",
+        "source_byte_count": media.byte_count,
+        "source_size": [media.width, media.height],
+        "slot": "left",
+        "source_facing": "right",
+        "facing": "right",
+        "anchor": [240, CARD_HEIGHT],
+        "scale_percent": 100,
+    }]
+
+
 def test_new_manifest_binds_v2_identity_and_card_hashes(tmp_path: Path):
     renderer, deck = _single_page_deck(tmp_path)
 
@@ -220,6 +570,7 @@ def test_new_manifest_binds_v2_identity_and_card_hashes(tmp_path: Path):
     assert payload["version"] == 2
     assert payload["identity"]["renderer"]
     assert payload["identity"]["card_size"] == [CARD_WIDTH, CARD_HEIGHT]
+    assert payload["identity"]["sections"][0]["sprites"] == []
     assert payload["identity"]["sections"][0]["pages"] == [{
         "kind": "narration",
         "speaker": "",
@@ -230,6 +581,76 @@ def test_new_manifest_binds_v2_identity_and_card_hashes(tmp_path: Path):
     ).hexdigest()
     assert payload["deck_id"] == _v2_deck_id(payload)
     assert renderer.load_deck(deck.deck_id) == deck
+
+
+def test_loader_rejects_tampered_sprite_provenance_under_original_deck_id(
+    tmp_path: Path,
+):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(kind="narration", text="She waits."),),
+            sprite_placements=(_placement(),),
+        )
+    ])
+    payload = _manifest(deck)
+    payload["identity"]["sections"][0]["sprites"][0][
+        "source_sha256"
+    ] = "0" * 64
+    _write_manifest(deck, payload)
+
+    assert renderer.load_deck(deck.deck_id) is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("anchor", [True, CARD_HEIGHT]),
+        ("anchor", [240.0, CARD_HEIGHT]),
+        ("scale_percent", True),
+        ("scale_percent", 151),
+        ("source_size", [80, 0]),
+        ("source_byte_count", 0),
+        ("slot", "foreground"),
+        ("facing", "camera"),
+    ),
+)
+def test_loader_rejects_self_consistent_malformed_sprite_identity(
+    tmp_path: Path,
+    field: str,
+    value: object,
+):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(kind="narration", text="She waits."),),
+            sprite_placements=(_placement(),),
+        )
+    ])
+    payload = _manifest(deck)
+    payload["identity"]["sections"][0]["sprites"][0][field] = value
+    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+
+    assert renderer.load_deck(new_deck_id) is None
+
+
+def test_loader_rejects_path_or_extra_fields_in_sprite_provenance(
+    tmp_path: Path,
+):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(kind="narration", text="She waits."),),
+            sprite_placements=(_placement(),),
+        )
+    ])
+    payload = _manifest(deck)
+    payload["identity"]["sections"][0]["sprites"][0]["source_path"] = (
+        str(tmp_path / "sprite-link.png")
+    )
+    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+
+    assert renderer.load_deck(new_deck_id) is None
 
 
 def test_loader_rejects_v1_manifest_instead_of_guessing_legacy_identity(
@@ -652,6 +1073,170 @@ def test_loader_rejects_noncanonical_png_even_with_matching_manifest_hash(
     new_deck_id = _rehome_v2_deck(renderer, deck, payload)
 
     assert renderer.load_deck(new_deck_id) is None
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_code"),
+    (
+        ("missing", "unresolved_media"),
+        ("hash", "media_hash_mismatch"),
+        ("byte_count", "media_byte_count_mismatch"),
+        ("dimensions", "invalid_png"),
+        ("mime", "invalid_media_type"),
+        ("malformed", "invalid_png"),
+        ("opaque", "opaque_png"),
+        ("empty", "empty_png"),
+    ),
+)
+def test_renderer_rejects_invalid_resolved_sprite_before_writing(
+    tmp_path: Path,
+    case: str,
+    expected_code: str,
+):
+    media = _sprite_media()
+    invalid: object
+    if case == "missing":
+        invalid = None
+    elif case == "hash":
+        invalid = replace(media, sha256="0" * 64)
+    elif case == "byte_count":
+        invalid = replace(media, byte_count=media.byte_count + 1)
+    elif case == "dimensions":
+        invalid = replace(media, width=media.width + 1)
+    elif case == "mime":
+        invalid = replace(media, mime_type="image/webp")
+    elif case == "malformed":
+        data = b"not a transparent png"
+        invalid = replace(
+            media,
+            data=data,
+            sha256=hashlib.sha256(data).hexdigest(),
+            byte_count=len(data),
+        )
+    elif case == "opaque":
+        invalid = _resolved_png(Image.new(
+            "RGBA", (80, CARD_HEIGHT), (211, 45, 64, 255)
+        ))
+    else:
+        invalid = _resolved_png(Image.new(
+            "RGBA", (80, CARD_HEIGHT), (0, 0, 0, 0)
+        ))
+    placement = replace(_placement(), media=invalid)  # type: ignore[arg-type]
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+
+    with pytest.raises(VisualNovelSpriteError) as raised:
+        renderer.render_deck([
+            VisualNovelDeckSection(
+                pages=(VisualNovelPage(
+                    kind="narration",
+                    text="She waits.",
+                ),),
+                sprite_placements=(placement,),
+            )
+        ])
+
+    assert raised.value.code == expected_code
+    assert list(renderer.deck_root.iterdir()) == []
+
+
+def test_renderer_does_not_accept_path_or_symlink_as_resolved_sprite_media(
+    tmp_path: Path,
+):
+    media = _sprite_media()
+    source = tmp_path / "source.png"
+    source.write_bytes(media.data)
+    link = tmp_path / "sprite-link.png"
+    link.symlink_to(source)
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    placement = replace(_placement(), media=link)  # type: ignore[arg-type]
+
+    with pytest.raises(VisualNovelSpriteError) as raised:
+        renderer.render_deck([
+            VisualNovelDeckSection(
+                pages=(VisualNovelPage(
+                    kind="narration",
+                    text="She waits.",
+                ),),
+                sprite_placements=(placement,),
+            )
+        ])
+
+    assert raised.value.code == "unresolved_media"
+    assert list(renderer.deck_root.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("placements", "expected_code"),
+    (
+        (
+            (
+                _placement(identity_handle="identity.one"),
+                _placement(identity_handle="identity.two"),
+            ),
+            "duplicate_slot",
+        ),
+        (
+            (
+                _placement(identity_handle="identity.same"),
+                _placement(
+                    identity_handle="identity.same",
+                    slot="right",
+                    facing="left",
+                    anchor=(784, CARD_HEIGHT),
+                ),
+            ),
+            "duplicate_identity",
+        ),
+        (
+            (
+                _placement(slot="center", anchor=(512, CARD_HEIGHT)),
+                _placement(
+                    identity_handle="identity.two",
+                    slot="right",
+                    facing="left",
+                    anchor=(784, CARD_HEIGHT),
+                ),
+            ),
+            "two_sprite_slots_must_be_left_right",
+        ),
+        (
+            (
+                _placement(identity_handle="identity.one"),
+                _placement(
+                    identity_handle="identity.two",
+                    slot="right",
+                    facing="left",
+                    anchor=(784, CARD_HEIGHT),
+                ),
+                _placement(
+                    identity_handle="identity.three",
+                    slot="center",
+                    anchor=(512, CARD_HEIGHT),
+                ),
+            ),
+            "too_many_placements",
+        ),
+    ),
+)
+def test_renderer_rejects_ambiguous_sprite_layouts(
+    tmp_path: Path,
+    placements: tuple[VisualNovelSpritePlacement, ...],
+    expected_code: str,
+):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+
+    with pytest.raises(VisualNovelSpriteError) as raised:
+        renderer.render_deck([
+            VisualNovelDeckSection(
+                pages=(VisualNovelPage(
+                    kind="narration",
+                    text="They wait.",
+                ),),
+                sprite_placements=placements,
+            )
+        ])
+
+    assert raised.value.code == expected_code
 
 
 def test_corrupt_stage_fails_safe_to_neutral_card(tmp_path: Path):
