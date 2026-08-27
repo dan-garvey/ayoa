@@ -526,6 +526,53 @@ def test_render_batch_keeps_private_povs_separate_and_anchors_latest_event():
     assert "hidden key" not in str(by_viewer["bob"].visible_facts)
 
 
+def test_visual_novel_action_staging_keeps_reviewed_location_available():
+    ckpt = _checkpoint()
+    ckpt.session.config.settings.presentation_mode = "visual_novel"
+    ckpt.characters[0].location = "station"
+    ckpt.characters[1].location = "elsewhere"
+    ckpt.reviewed_visual_references = [ReviewedVisualReference(
+        reference_id="authored.station.open",
+        storage_ref="locations/station.png",
+        mime_type="image/png",
+        width=1664,
+        height=936,
+        byte_count=100,
+        sha256="a" * 64,
+        purpose="environment",
+        scope="location",
+        scope_id="station",
+        selection_hint="Ordinary open station courtyard.",
+        diffusion_authorized=True,
+    )]
+    ckpt.location_visual_reference_ids = {
+        "station": ["authored.station.open"],
+    }
+    event = router_output(
+        event_id="evt_action_and_dialogue",
+        observer_ids=["alice"],
+        facts=[ObservableFact.all(
+            "Alice lifts her camera and says, 'Wait here.'"
+        )],
+    )
+
+    projection = build_projection_groups(
+        checkpoint=ckpt,
+        event=event,
+        event_sequence=0,
+        transaction_id="tx_action_and_dialogue",
+        source_turn_index=1,
+        actor_id="alice",
+        active_location_labels={"station"},
+    )[0]
+
+    assert projection.engine_location_label == "station"
+    assert projection.has_location_reference is True
+    assert [
+        reference.reference_id for reference in projection.reference_options
+    ] == ["authored.station.open"]
+
+
 def test_projection_snapshot_contains_no_private_story_or_character_state():
     source = _checkpoint()
     kept = router_output(event_id="evt_kept", observer_ids=["alice"])
@@ -902,15 +949,23 @@ async def test_director_redacts_private_paths_and_metadata_before_provider_input
     rendered = "\n".join(
         str(message.get("content", "")) for message in client.messages
     )
-    for safe_text in (
+    safe_texts = [
         "SAFE PREMISE SENTINEL",
         "SAFE EVENT SENTINEL",
-        "SAFE APPEARANCE SENTINEL",
-        "SAFE LOADOUT SENTINEL",
-        "SAFE REFERENCE SENTINEL",
         "SAFE STAGE SENTINEL",
-    ):
+    ]
+    if presentation_mode != "visual_novel":
+        safe_texts.extend((
+            "SAFE APPEARANCE SENTINEL",
+            "SAFE LOADOUT SENTINEL",
+            "SAFE REFERENCE SENTINEL",
+        ))
+    for safe_text in safe_texts:
         assert safe_text in rendered
+    if presentation_mode == "visual_novel":
+        assert "SAFE APPEARANCE SENTINEL" not in rendered
+        assert "SAFE LOADOUT SENTINEL" not in rendered
+        assert "SAFE REFERENCE SENTINEL" not in rendered
     assert "https://example.com/public/story-guide.png" in rendered
     for private_text in (
         "actor.hidden",
@@ -1187,7 +1242,7 @@ def test_director_validates_generation_mode_and_reference_selection():
         director.validate_output(projection, valid)
 
 
-def test_visual_novel_replace_requires_anchored_listed_named_subjects():
+def test_visual_novel_replace_requires_an_unoccupied_environment():
     projection = replace(
         _projection(presentation_mode="visual_novel"),
         characters=tuple(
@@ -1200,7 +1255,7 @@ def test_visual_novel_replace_requires_anchored_listed_named_subjects():
         PromptManager("app/prompts"),
     )
 
-    with pytest.raises(ValueError, match="not listed subjects.*bob"):
+    with pytest.raises(ValueError, match="unoccupied environment"):
         director.validate_output(
             projection,
             ImageDirectorOutput(
@@ -1216,34 +1271,9 @@ def test_visual_novel_replace_requires_anchored_listed_named_subjects():
             ),
         )
 
-    unanchored = replace(
-        projection,
-        characters=tuple(
-            replace(
-                character,
-                has_identity_reference=(character.character_id == "alice"),
-            )
-            for character in projection.characters
-        ),
-    )
-    with pytest.raises(ValueError, match="active identity references.*bob"):
-        director.validate_output(
-            unanchored,
-            ImageDirectorOutput(
-                stage_action="replace",
-                requests=[
-                    ImageDirection(
-                        kind="action",
-                        title="Bob In Rain",
-                        subject_character_ids=["bob"],
-                        scene_prompt="Bob pauses alone in the rain.",
-                    )
-                ],
-            ),
-        )
 
 
-def test_visual_novel_reference_budget_includes_unselected_subject_identities():
+def test_visual_novel_generated_stage_rejects_character_references():
     options = (
         SelectableVisualReference(
             reference_id="authored.station.front",
@@ -1264,24 +1294,8 @@ def test_visual_novel_reference_budget_includes_unselected_subject_identities():
             selection_hint="Bob face identity.",
         ),
     )
-    base_characters = tuple(
-        replace(character, has_identity_reference=True)
-        for character in _projection().characters
-    )
     projection = replace(
         _projection(presentation_mode="visual_novel"),
-        characters=(
-            *base_characters,
-            PublicCharacterVisual(
-                character_id="carol",
-                name="Carol",
-                appearance="long auburn hair",
-                default_loadout="green wool coat",
-                depiction_policy="normal",
-                is_new_character=False,
-                has_identity_reference=True,
-            ),
-        ),
         reference_options=options,
         engine_location_label="station",
         has_location_reference=True,
@@ -1293,25 +1307,22 @@ def test_visual_novel_reference_budget_includes_unselected_subject_identities():
         generation_modes=("compose", "edit"),
     )
 
-    with pytest.raises(ValueError, match="3-reference limit"):
+    with pytest.raises(ValueError, match="unavailable visual reference"):
         director.validate_output(
             projection,
             ImageDirectorOutput(
                 stage_action="replace",
                 requests=[
                     ImageDirection(
-                        kind="group_portrait",
-                        title="Rainy Meeting",
-                        subject_character_ids=["alice", "bob", "carol"],
-                        generation_mode="edit",
-                        reference_ids=[
-                            "authored.station.front",
-                            "authored.alice.face",
-                            "authored.bob.face",
-                        ],
-                        scene_prompt=(
-                            "Alice, Bob, and Carol meet in the rainy courtyard."
-                        ),
+                            kind="establishing",
+                            title="Rainy Courtyard",
+                            subject_character_ids=[],
+                            generation_mode="edit",
+                            reference_ids=[
+                                "authored.station.front",
+                                "authored.alice.face",
+                            ],
+                            scene_prompt="An unoccupied rainy courtyard.",
                     )
                 ],
             ),
@@ -1369,12 +1380,12 @@ def test_visual_novel_replace_selects_direct_location_or_generated_fallback():
             stage_action="replace",
             requests=[
                 ImageDirection(
-                    kind="action",
-                    title="Rainy Turn",
-                    subject_character_ids=["alice"],
+                    kind="establishing",
+                    title="Rainy Platform",
+                    subject_character_ids=[],
                     generation_mode=generation_mode,
                     reference_ids=reference_ids,
-                    scene_prompt="Alice turns on the rainy platform.",
+                    scene_prompt="An unoccupied rainy platform.",
                 )
             ],
         )
@@ -1421,7 +1432,7 @@ def test_visual_novel_replace_selects_direct_location_or_generated_fallback():
             projection,
             output(["authored.station.open", "authored.station.shelter"]),
         )
-    with pytest.raises(ValueError, match="location guide first"):
+    with pytest.raises(ValueError, match="unavailable visual reference"):
         director.validate_output(
             projection,
             output(
@@ -1432,15 +1443,12 @@ def test_visual_novel_replace_selects_direct_location_or_generated_fallback():
 
     director.validate_output(
         projection,
-        output(
-            ["authored.station.shelter", "authored.alice.face"],
-            generation_mode="edit",
-        ),
+        output(["authored.station.shelter"], generation_mode="edit"),
     )
 
 
 @pytest.mark.asyncio
-async def test_visual_novel_director_corrects_invalid_named_subject_once():
+async def test_visual_novel_director_corrects_character_subject_once():
     projection = replace(
         _projection(presentation_mode="visual_novel"),
         characters=tuple(
@@ -1472,7 +1480,7 @@ async def test_visual_novel_director_corrects_invalid_named_subject_once():
     assert client.calls == 2
 
     failing_client = FakeDirectorClient([invalid, invalid])
-    with pytest.raises(ValueError, match="not listed subjects"):
+    with pytest.raises(ValueError, match="unoccupied environment"):
         await ImageDirector(
             failing_client,
             PromptManager("app/prompts"),
@@ -1709,7 +1717,7 @@ def test_v1_actor_cadence_store_is_retired_in_direct_v11_migration(tmp_path):
             WHERE type = 'table' AND name = 'image_eligible_beats'
             """
         ).fetchone()
-    assert version == "11"
+    assert version == "12"
     assert old_table is None
 
 
@@ -1772,7 +1780,7 @@ def test_v7_prose_gate_store_is_retired_before_v11_foreign_key_parent(tmp_path):
         transaction_count = db.execute(
             "SELECT COUNT(*) AS count FROM image_transactions"
         ).fetchone()["count"]
-    assert version == "11"
+    assert version == "12"
     assert retired == set()
     assert transaction_count == 0
 

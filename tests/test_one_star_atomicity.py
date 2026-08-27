@@ -708,6 +708,18 @@ def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge(
             agent_tier=CharacterAgentTier.premium,
         )],
     )
+    account = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]
+    account["config"]["visual_novel_presentation"] = {
+        "veiled_sprite_set_ids": {
+            "masculine": "veiled-masculine",
+            "feminine": "veiled-feminine",
+        },
+        "seeded_birth_one_reveal_stars": 2,
+        "generated_birth_one_reveal_stars": 3,
+    }
+    checkpoint.session.visual_introductions = {
+        "account_owner": ["hero"],
+    }
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id="promotion",
@@ -724,6 +736,13 @@ def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge(
     assert promoted.agent_tier is expected_tier
     assert "a buried memory" in promoted.known_context
     assert "the gate's truth" in promoted.known_context
+    assert (
+        "hero"
+        in prepared.after_checkpoint.session.visual_introductions.get(
+            "account_owner",
+            [],
+        )
+    ) is generated_for_summon
 
 
 def test_pending_open_is_the_only_operation_and_cannot_change_its_heroes() -> None:

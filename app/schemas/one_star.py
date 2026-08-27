@@ -260,6 +260,42 @@ class OneStarGemPurchaseConfig(BaseModel):
         return self
 
 
+class OneStarVisualNovelPresentationConfig(BaseModel):
+    """Story-authored reveal policy expressed only in opaque sprite sets."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    veiled_sprite_set_ids: dict[
+        Literal["masculine", "feminine"],
+        str,
+    ]
+    seeded_birth_one_reveal_stars: int = Field(default=2, ge=2)
+    generated_birth_one_reveal_stars: int = Field(default=3, ge=2)
+
+    @model_validator(mode="after")
+    def _clean(self) -> "OneStarVisualNovelPresentationConfig":
+        self.veiled_sprite_set_ids = {
+            presentation: value.strip()
+            for presentation, value in self.veiled_sprite_set_ids.items()
+            if value.strip()
+        }
+        if set(self.veiled_sprite_set_ids) != {"masculine", "feminine"}:
+            raise ValueError(
+                "One-Star VN presentation requires masculine and feminine "
+                "veiled sprite sets"
+            )
+        if len(set(self.veiled_sprite_set_ids.values())) != 2:
+            raise ValueError("One-Star veiled sprite sets must be distinct")
+        if (
+            self.generated_birth_one_reveal_stars
+            < self.seeded_birth_one_reveal_stars
+        ):
+            raise ValueError(
+                "generated one-star identities cannot reveal before seeded ones"
+            )
+        return self
+
+
 class OneStarRulesConfig(BaseModel):
     """The complete seed-authored fixed ledger configuration for one story."""
 
@@ -287,6 +323,7 @@ class OneStarRulesConfig(BaseModel):
         OneStarEmbodiedOperationKind, OneStarOperationRequirement
     ]
     gem_purchase: OneStarGemPurchaseConfig | None = None
+    visual_novel_presentation: OneStarVisualNovelPresentationConfig | None = None
     lobby_return_healing: bool
     hero_system_visibility_research_key: str = ""
 

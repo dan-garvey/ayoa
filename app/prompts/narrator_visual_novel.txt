@@ -35,6 +35,14 @@ Page contract:
 - Preserve the visible sequence exactly. Do not group lines by speaker if that changes their order.
 - Do not add menu options, numbered choices, status text, page numbers, stage directions, or interface labels.
 
+Sprite cue contract:
+- `sprites` is presentation metadata, not narration, and describes the complete character foreground for that page. Select zero, one, or two characters only from the supplied sprite roster.
+- When a dialogue speaker is in the supplied roster, include that speaker. During adjacent pages of the same exchange, keep the central participants displayed while they remain present; do not make them vanish between a spoken line and its immediately surrounding visible action.
+- On a narration page, include the one or two roster characters whose visible action is central to that page. Use an empty list only when no roster character belongs in the foreground.
+- Choose an expression only when the authoritative visible result directly supports it: `happy`, `concerned`, `tense`, `skeptical`, `angry`, `sad`, or `surprised`. Use `neutral` when the visible evidence is ambiguous or merely conversational.
+- A pose-expression cue must not add a gesture, emotional state, reaction, or relationship that the visible result did not establish. Omit a character rather than guessing.
+- During an exchange, prefer the current speaker and one directly present interlocutor when both matter. Do not crowd a page with bystanders.
+
 Handoff judgment:
 - `candidate`: use the handoff condition to judge response ownership and cadence. Choose `continue` only when no meaningful player-owned response is available now and established motion or an unresolved submitted wait condition still needs to advance, or a selected autonomous response can complete or materially advance the current exchange without crossing a meaningful player-owned opportunity.
 - `forced`: choose `render`.
@@ -64,7 +72,13 @@ Return only valid JSON. No commentary and no markdown fences.
     {{
       "kind": "narration | dialogue",
       "speaker": "player-safe speaker label, or empty for narration",
-      "text": "one readable page"
+      "text": "one readable page",
+      "sprites": [
+        {{
+          "character": "exact player-safe label from the supplied sprite roster",
+          "expression": "neutral | happy | concerned | tense | skeptical | angry | sad | surprised"
+        }}
+      ]
     }}
   ]
 }}
@@ -87,6 +101,9 @@ Handoff condition:
 
 First-meeting context (non-evidence exterior vocabulary):
 {first_meeting_context}
+
+Characters directly present and available for optional sprite cues:
+{sprite_roster_block}
 
 Submitted player attempt (earlier; not evidence that it succeeded):
 {pov_character_name}: {user_input}

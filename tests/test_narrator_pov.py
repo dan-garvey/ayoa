@@ -34,6 +34,7 @@ from app.schemas.narrator import (
     NarratorFinalOutput,
     VisualNovelNarratorOutput,
     VisualNovelPage,
+    VisualNovelSpriteCue,
 )
 from app.schemas.state import (
     RenderBufferEntry,
@@ -246,6 +247,100 @@ class TestComposePovRender:
         }
 
     @pytest.mark.asyncio
+    async def test_visual_novel_sprite_roster_is_volatile_and_cues_are_transient(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        result = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="Pip's reply returns control.",
+            pages=[VisualNovelPage(
+                kind="dialogue",
+                speaker="Pip",
+                text="I am listening.",
+                sprites=[VisualNovelSpriteCue(
+                    character="Pip",
+                    expression="neutral",
+                )],
+            )],
+        )
+        mock_client.complete = AsyncMock(return_value=llm_response(result))
+        buffered = [
+            RenderBufferEntry(event_id="evt_beta", observation_level="direct"),
+        ]
+
+        composed, entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            partial_mode=False,
+        )
+
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        assert "- Pip" not in messages[0]["content"]
+        assert (
+            "Characters directly present and available for optional sprite "
+            "cues:\n- Pip"
+        ) in messages[-1]["content"]
+        assert composed.pages[0].sprites == result.pages[0].sprites
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=composed,
+            user_input=entry.user,
+        )
+        stored = ckpt.narrator_conversations["alice"][-1].content[0]["text"]
+        assert "sprites" not in stored
+
+    @pytest.mark.asyncio
+    async def test_visual_novel_missing_available_speaker_cue_gets_one_correction(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        missing = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="Pip's reply returns control.",
+            pages=[VisualNovelPage(
+                kind="dialogue",
+                speaker="Pip",
+                text="I am listening.",
+            )],
+        )
+        corrected = missing.model_copy(deep=True)
+        corrected.pages[0].sprites = [VisualNovelSpriteCue(
+            character="Pip",
+            expression="neutral",
+        )]
+        mock_client.complete = AsyncMock(side_effect=[
+            llm_response(missing),
+            llm_response(corrected),
+        ])
+
+        result, _entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[RenderBufferEntry(
+                event_id="evt_beta",
+                observation_level="direct",
+            )],
+            partial_mode=False,
+        )
+
+        assert mock_client.complete.await_count == 2
+        assert result == corrected
+        correction = mock_client.complete.await_args_list[1].kwargs[
+            "messages"
+        ][-1]["content"]
+        assert "omits an available current dialogue speaker" in correction
+
+    @pytest.mark.asyncio
     async def test_visual_novel_source_identifier_gets_one_transient_correction(
         self, mock_client, prompt_manager,
     ):
@@ -339,6 +434,10 @@ class TestComposePovRender:
                     kind="dialogue",
                     speaker="Pip",
                     text="The courier waits beneath the arch.",
+                    sprites=[VisualNovelSpriteCue(
+                        character="Pip",
+                        expression="neutral",
+                    )],
                 ),
             ],
         )
@@ -1454,6 +1553,40 @@ class TestFormatVisibleEventsBlock:
         assert "I cannot offer you another route" in narrator_surface
         assert "but you may inspect the hall" in narrator_surface
         assert "I saw you arrive" in narrator_surface
+
+    def test_quoted_contracted_pronoun_anchor_is_not_visible(self):
+        from app.engine.narrator import _format_visible_events_block
+
+        ckpt = _ckpt()
+        fact = "Pip tells Alice, 'You’re [alice] already inside.'"
+        resolved = self._resolved(
+            event_id="evt_contracted_anchor",
+            facts=[ObservableFact.all(fact)],
+        )
+
+        narrator_surface = _format_visible_events_block(resolved, ckpt=ckpt)
+
+        assert "You’re already inside" in narrator_surface
+        assert "[Alice]" not in narrator_surface
+
+    def test_quoted_name_and_group_anchors_are_not_visible(self):
+        from app.engine.narrator import _format_visible_events_block
+
+        ckpt = _ckpt()
+        ckpt.characters.append(character_record("bob", name="Bob", role="npc"))
+        fact = (
+            "Pip tells Alice, 'Edda [alice], show us [alice,bob] the door.'"
+        )
+        resolved = self._resolved(
+            event_id="evt_group_anchor",
+            facts=[ObservableFact.all(fact)],
+        )
+
+        narrator_surface = _format_visible_events_block(resolved, ckpt=ckpt)
+
+        assert "Edda, show us the door" in narrator_surface
+        assert "[Alice" not in narrator_surface
+        assert "Bob]" not in narrator_surface
 
     def test_scoped_facts_filter_by_pov_before_narrator_sees_them(self):
         from app.engine.narrator import _format_visible_events_block

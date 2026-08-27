@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.image_director import ImageDirectionKind, ImageGenerationMode
+from app.schemas.visual_references import VisualNovelSpriteExpression
 
 
-IMAGE_JOB_SCHEMA_VERSION = "11"
+IMAGE_JOB_SCHEMA_VERSION = "12"
 
 
 class ImageGenerationStatus(str, Enum):
@@ -113,6 +114,11 @@ class ImageGenerationRequest(BaseModel):
     dedupe_key: str
     reference_inputs: list[FrozenReferenceInput] = Field(default_factory=list)
     reroll_of_reference_id: str = ""
+    sprite_pack_id: str = ""
+    sprite_expression: VisualNovelSpriteExpression | Literal[""] = ""
+    sprite_character_description: str = ""
+    sprite_visual_style: str = ""
+    sprite_source_facing: Literal["", "left", "right"] = ""
 
     @model_validator(mode="after")
     def _validate_request(self) -> "ImageGenerationRequest":
@@ -150,6 +156,36 @@ class ImageGenerationRequest(BaseModel):
             if character_id.strip()
         ]
         self.reroll_of_reference_id = self.reroll_of_reference_id.strip()
+        self.sprite_pack_id = self.sprite_pack_id.strip()
+        self.sprite_character_description = (
+            " ".join(self.sprite_character_description.split()).strip()
+        )
+        self.sprite_visual_style = " ".join(
+            self.sprite_visual_style.split()
+        ).strip()
+        sprite_fields = (
+            bool(self.sprite_pack_id),
+            bool(self.sprite_expression),
+            bool(self.sprite_character_description),
+            bool(self.sprite_source_facing),
+        )
+        if any(sprite_fields) != all(sprite_fields):
+            raise ValueError("sprite generation metadata must be all-or-none")
+        if self.sprite_pack_id:
+            if (
+                self.kind != "portrait"
+                or self.generation_mode != "compose"
+                or len(self.subject_character_ids) != 1
+                or (self.width, self.height) != (1024, 1536)
+                or self.reroll_of_reference_id
+            ):
+                raise ValueError(
+                    "sprite generation requires one-subject 1024x1536 compose"
+                )
+            if len(self.sprite_character_description) > 3_000:
+                raise ValueError("sprite character description exceeds limit")
+            if len(self.sprite_visual_style) > 800:
+                raise ValueError("sprite visual style exceeds limit")
         if self.source_event_sequence < 0 or self.source_turn_index < 0:
             raise ValueError("source sequence and turn must be non-negative")
         if self.request_ordinal < 0:

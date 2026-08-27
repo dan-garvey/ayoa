@@ -7,8 +7,29 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
-VisualReferencePurpose = Literal["identity", "environment", "style"]
-VisualReferenceScope = Literal["character", "location"]
+VisualReferencePurpose = Literal["identity", "environment", "style", "sprite"]
+VisualReferenceScope = Literal["character", "location", "presentation"]
+VisualNovelSpriteExpression = Literal[
+    "neutral",
+    "happy",
+    "concerned",
+    "tense",
+    "skeptical",
+    "angry",
+    "sad",
+    "surprised",
+]
+
+VISUAL_NOVEL_SPRITE_EXPRESSIONS: tuple[VisualNovelSpriteExpression, ...] = (
+    "neutral",
+    "happy",
+    "concerned",
+    "tense",
+    "skeptical",
+    "angry",
+    "sad",
+    "surprised",
+)
 
 _REFERENCE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$")
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
@@ -79,10 +100,56 @@ class ReviewedVisualReference(BaseModel):
             raise ValueError("identity references require character scope")
         if self.purpose in {"environment", "style"} and self.scope != "location":
             raise ValueError("environment and style references require location scope")
+        if self.purpose == "sprite" and self.scope not in {
+            "character",
+            "presentation",
+        }:
+            raise ValueError(
+                "sprite references require character or presentation scope"
+            )
         if not self.scope_id or len(self.scope_id) > 200:
             raise ValueError("reviewed visual scope_id must be a bounded identifier")
         if not self.selection_hint or len(self.selection_hint) > 500:
             raise ValueError(
                 "reviewed visual selection_hint must be 1-500 characters"
             )
+        return self
+
+
+class ReviewedVisualNovelSpriteSet(BaseModel):
+    """Hash-bound authored variants for one deterministic VN cutout.
+
+    Character-owned sets preserve a recurring identity. Presentation-owned
+    sets are reusable non-identifying templates such as a veiled silhouette.
+    The referenced bytes remain private runtime inputs and are never model
+    context.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    sprite_set_id: str
+    owner_character_id: str = ""
+    variant_reference_ids: dict[VisualNovelSpriteExpression, str]
+    source_facing: Literal["left", "right"] = "right"
+
+    @model_validator(mode="after")
+    def _validate_sprite_set(self) -> "ReviewedVisualNovelSpriteSet":
+        self.sprite_set_id = self.sprite_set_id.strip()
+        self.owner_character_id = self.owner_character_id.strip()
+        if not _REFERENCE_ID_RE.fullmatch(self.sprite_set_id):
+            raise ValueError("sprite_set_id must be an opaque identifier")
+        if self.sprite_set_id.startswith("imgspritepack_"):
+            raise ValueError(
+                "reviewed sprite_set_id uses reserved generated prefix"
+            )
+        cleaned = {
+            expression: str(reference_id or "").strip()
+            for expression, reference_id in self.variant_reference_ids.items()
+            if str(reference_id or "").strip()
+        }
+        if "neutral" not in cleaned:
+            raise ValueError("reviewed sprite sets require a neutral variant")
+        if len(set(cleaned.values())) != len(cleaned):
+            raise ValueError("reviewed sprite variants must use unique references")
+        self.variant_reference_ids = cleaned
         return self

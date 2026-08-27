@@ -31,6 +31,7 @@ from app.schemas.characters import (
     CharacterStatus,
 )
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.event_router import SpawnRequest, WakeSignal
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
@@ -114,7 +115,9 @@ def validate_one_star_pending_operation_shape(pending: object) -> None:
 def _durable_checkpoint_copy(checkpoint: CheckpointFile) -> CheckpointFile:
     """Copy durable checkpoint fields without traversing live runtime objects."""
 
-    return CheckpointFile.model_validate_json(checkpoint.model_dump_json())
+    return CheckpointFile.model_validate_json(checkpoint.model_dump_json(
+        context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
+    ))
 
 
 @dataclass(frozen=True, slots=True)
@@ -2908,7 +2911,8 @@ def _apply_pending_resolve(
             raise OneStarTransactionError(
                 "promotion target has not physically entered the chamber"
             )
-        next_stars = target.current_stars + 1
+        previous_stars = target.current_stars
+        next_stars = previous_stars + 1
         if next_stars not in config.star_level_caps:
             raise OneStarTransactionError("promotion target has no configured star cap")
         if target.level != config.star_level_caps[target.current_stars]:
@@ -2917,6 +2921,28 @@ def _apply_pending_resolve(
             )
         _spend_resources(state.resources, config.promotion_cost)
         target.current_stars = next_stars
+        visual_novel_presentation = config.visual_novel_presentation
+        if visual_novel_presentation is not None:
+            reveal_stars = (
+                visual_novel_presentation.generated_birth_one_reveal_stars
+                if target.generated_for_summon
+                else visual_novel_presentation.seeded_birth_one_reveal_stars
+            )
+            if (
+                target.birth_stars == 1
+                and previous_stars < reveal_stars <= next_stars
+            ):
+                introduced = checkpoint.session.visual_introductions.get(
+                    owner_character_id,
+                    [],
+                )
+                checkpoint.session.visual_introductions[
+                    owner_character_id
+                ] = [
+                    character_id
+                    for character_id in introduced
+                    if character_id != target_character.character_id
+                ]
         try:
             report = apply_promotion_banked_experience(hero=target, config=config)
         except ValueError as exc:

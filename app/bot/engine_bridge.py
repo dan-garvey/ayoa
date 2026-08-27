@@ -89,6 +89,9 @@ from app.engine.visual_novel_presentation import (
     VisualNovelDeck,
     VisualNovelDeckSection,
 )
+from app.engine.visual_novel_sprites import (
+    resolve_visual_novel_sprite_placements,
+)
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import (
@@ -343,6 +346,11 @@ class EngineBridge:
     ) -> VisualNovelDeck:
         """Build one ordered deck while preserving each beat's stage plate."""
 
+        checkpoint = self.load_latest(session_id)
+        await self._prewarm_visual_novel_sprites(
+            session_id=session_id,
+            checkpoint=checkpoint,
+        )
         await self.wait_for_visual_novel_stage_work(
             session_id=session_id,
             renders_by_pov={pov_character_id: render},
@@ -365,11 +373,39 @@ class EngineBridge:
                     segment_index,
                     resolution.fallback_reason,
                 )
-            sections.append(VisualNovelDeckSection(
-                pages=tuple(segment.pages),
-                stage_media=stage_media,
-            ))
+            for page in segment.pages:
+                sections.append(VisualNovelDeckSection(
+                    pages=(page,),
+                    stage_media=stage_media,
+                    sprite_placements=(
+                        resolve_visual_novel_sprite_placements(
+                            checkpoint=checkpoint,
+                            viewer_character_id=pov_character_id,
+                            page=page,
+                            generation=self.image_generation,
+                        )
+                    ),
+                ))
         return self.visual_novel_renderer.render_deck(sections)
+
+    async def _prewarm_visual_novel_sprites(
+        self,
+        *,
+        session_id: str,
+        checkpoint: CheckpointFile | None = None,
+    ) -> None:
+        """Start optional candidates without making presentation depend on them."""
+
+        try:
+            source = checkpoint or self.checkpoint_mgr.load_latest(session_id)
+            await self.image_generation.ensure_visual_novel_sprite_prewarm(
+                source
+            )
+        except Exception:
+            logger.exception(
+                "visual-novel sprite prewarm failed session=%s",
+                session_id,
+            )
 
     async def wait_for_visual_novel_stage_work(
         self,
@@ -452,6 +488,10 @@ class EngineBridge:
                 for character in checkpoint.characters
             ],
             "locations": checkpoint.location_visual_reference_ids,
+            "sprite_sets": [
+                sprite_set.model_dump(mode="json")
+                for sprite_set in checkpoint.reviewed_visual_novel_sprite_sets
+            ],
         }
         return hashlib.sha256(
             json.dumps(
@@ -3714,6 +3754,7 @@ class EngineBridge:
             *pre_turn,
             *(response.pre_turn_resolutions or []),
         ]
+        await self._prewarm_visual_novel_sprites(session_id=session_id)
         return response
 
     async def run_query(

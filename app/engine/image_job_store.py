@@ -161,6 +161,24 @@ CREATE TABLE IF NOT EXISTS image_identity_candidates (
 CREATE INDEX IF NOT EXISTS image_identity_active_idx
 ON image_identity_candidates(session_id, character_id, active);
 
+CREATE TABLE IF NOT EXISTS image_sprite_variants (
+    session_id          TEXT NOT NULL,
+    character_id        TEXT NOT NULL,
+    sprite_pack_id      TEXT NOT NULL,
+    expression          TEXT NOT NULL,
+    job_id              TEXT NOT NULL UNIQUE,
+    frozen_json         TEXT NOT NULL,
+    source_facing       TEXT NOT NULL,
+    created_at          REAL NOT NULL,
+    updated_at          REAL NOT NULL,
+    PRIMARY KEY (session_id, sprite_pack_id, expression),
+    FOREIGN KEY(job_id) REFERENCES image_jobs(job_id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS image_sprite_variants_character_idx
+ON image_sprite_variants(session_id, character_id, sprite_pack_id);
+
 CREATE TABLE IF NOT EXISTS image_reviewed_references (
     session_id          TEXT NOT NULL,
     reference_id        TEXT NOT NULL,
@@ -255,6 +273,14 @@ _CURRENT_SCHEMA_COLUMNS = {
         "active",
         "reminder_required",
         "reroll_of_reference_id",
+    },
+    "image_sprite_variants": {
+        "character_id",
+        "sprite_pack_id",
+        "expression",
+        "job_id",
+        "frozen_json",
+        "source_facing",
     },
     "image_identity_policies": {
         "minimum_source_turn",
@@ -2813,6 +2839,88 @@ class ImageJobStore:
             else None
         )
 
+    def save_sprite_variant(
+        self,
+        *,
+        job_id: str,
+        frozen: FrozenReferenceInput,
+    ) -> None:
+        """Bind one successful processed cutout to its private sprite pack."""
+
+        now = time.time()
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """
+                SELECT session_id, status, request_json
+                FROM image_jobs WHERE job_id = ?
+                """,
+                (job_id,),
+            ).fetchone()
+            if row is None or row["status"] != ImageGenerationStatus.succeeded.value:
+                raise RuntimeError("sprite variant requires a successful image job")
+            request = ImageGenerationRequest.model_validate_json(
+                row["request_json"]
+            )
+            if (
+                not request.sprite_pack_id
+                or not request.sprite_expression
+                or len(request.subject_character_ids) != 1
+            ):
+                raise ValueError("image job is not a sprite variant")
+            db.execute(
+                """
+                INSERT INTO image_sprite_variants (
+                    session_id, character_id, sprite_pack_id, expression,
+                    job_id, frozen_json, source_facing, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(session_id, sprite_pack_id, expression) DO UPDATE SET
+                    character_id = excluded.character_id,
+                    job_id = excluded.job_id,
+                    frozen_json = excluded.frozen_json,
+                    source_facing = excluded.source_facing,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    request.session_id,
+                    request.subject_character_ids[0],
+                    request.sprite_pack_id,
+                    request.sprite_expression,
+                    job_id,
+                    frozen.model_dump_json(),
+                    request.sprite_source_facing,
+                    now,
+                    now,
+                ),
+            )
+            db.commit()
+
+    def sprite_variant(
+        self,
+        *,
+        session_id: str,
+        character_id: str,
+        sprite_pack_id: str,
+        expression: str,
+    ) -> tuple[str, FrozenReferenceInput, str] | None:
+        with self._connect() as db:
+            row = db.execute(
+                """
+                SELECT job_id, frozen_json, source_facing
+                FROM image_sprite_variants
+                WHERE session_id = ? AND character_id = ?
+                  AND sprite_pack_id = ? AND expression = ?
+                """,
+                (session_id, character_id, sprite_pack_id, expression),
+            ).fetchone()
+        if row is None:
+            return None
+        return (
+            f"{sprite_pack_id}:{expression}",
+            FrozenReferenceInput.model_validate_json(row["frozen_json"]),
+            str(row["source_facing"]),
+        )
+
     def suppress_reviewed_identity_binding(
         self,
         *,
@@ -3358,6 +3466,7 @@ class ImageJobStore:
             "image_reviewed_identity_bindings",
             "image_reviewed_location_bindings",
             "image_reviewed_references",
+            "image_sprite_variants",
             "image_identity_candidates",
             "image_identity_policies",
             "image_jobs",

@@ -16,7 +16,10 @@ from app.schemas.content_privacy import should_include_private_runtime_metadata
 from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
 from app.schemas.one_star import OneStarEventRouterOutput
 from app.schemas.state import SessionState, WorldState
-from app.schemas.visual_references import ReviewedVisualReference
+from app.schemas.visual_references import (
+    ReviewedVisualNovelSpriteSet,
+    ReviewedVisualReference,
+)
 
 
 CURRENT_SCHEMA_VERSION = "5.0"
@@ -49,6 +52,9 @@ class CheckpointFile(BaseModel):
     # are durable. Default serialization redacts both fields so generic prompt
     # snapshots cannot accidentally carry paths, hashes, or reference handles.
     reviewed_visual_references: list[ReviewedVisualReference] = Field(
+        default_factory=list
+    )
+    reviewed_visual_novel_sprite_sets: list[ReviewedVisualNovelSpriteSet] = Field(
         default_factory=list
     )
     location_visual_reference_ids: dict[str, list[str]] = Field(
@@ -184,6 +190,66 @@ class CheckpointFile(BaseModel):
                     f"by both {prior_owner!r} and {character.character_id!r}"
                 )
             identity_owners[reference_id] = character.character_id
+
+        sprite_sets: dict[str, ReviewedVisualNovelSpriteSet] = {}
+        sprite_reference_owners: dict[str, str] = {}
+        for sprite_set in self.reviewed_visual_novel_sprite_sets:
+            if sprite_set.sprite_set_id in sprite_sets:
+                raise ValueError("reviewed sprite set ids must be unique")
+            sprite_sets[sprite_set.sprite_set_id] = sprite_set
+            owner_id = sprite_set.owner_character_id
+            if owner_id and owner_id not in character_ids:
+                raise ValueError(
+                    f"reviewed sprite set {sprite_set.sprite_set_id!r} "
+                    f"targets unknown character {owner_id!r}"
+                )
+            expected_scope = "character" if owner_id else "presentation"
+            expected_scope_id = owner_id or sprite_set.sprite_set_id
+            for reference_id in sprite_set.variant_reference_ids.values():
+                reference = references.get(reference_id)
+                if reference is None:
+                    raise ValueError(
+                        f"reviewed sprite set {sprite_set.sprite_set_id!r} "
+                        f"selects unknown reference {reference_id!r}"
+                    )
+                if (
+                    reference.purpose != "sprite"
+                    or reference.scope != expected_scope
+                    or reference.scope_id != expected_scope_id
+                ):
+                    raise ValueError(
+                        f"reviewed sprite set {sprite_set.sprite_set_id!r} "
+                        f"selects invalid sprite reference {reference_id!r}"
+                    )
+                if reference.diffusion_authorized:
+                    raise ValueError(
+                        "reviewed sprite references cannot be offered to "
+                        "runtime diffusion direction"
+                    )
+                prior_set = sprite_reference_owners.get(reference_id)
+                if prior_set is not None:
+                    raise ValueError(
+                        f"reviewed sprite reference {reference_id!r} is used "
+                        f"by both {prior_set!r} and {sprite_set.sprite_set_id!r}"
+                    )
+                sprite_reference_owners[reference_id] = sprite_set.sprite_set_id
+
+        for character in self.characters:
+            sprite_set_id = character.visuals.sprite_set_id.strip()
+            character.visuals.sprite_set_id = sprite_set_id
+            if not sprite_set_id:
+                continue
+            sprite_set = sprite_sets.get(sprite_set_id)
+            if sprite_set is None:
+                raise ValueError(
+                    f"character {character.character_id!r} selects unknown "
+                    f"sprite set {sprite_set_id!r}"
+                )
+            if sprite_set.owner_character_id != character.character_id:
+                raise ValueError(
+                    f"character {character.character_id!r} selects sprite set "
+                    f"owned by {sprite_set.owner_character_id or 'presentation'}"
+                )
         return self
 
     @field_serializer("reviewed_visual_references")
@@ -205,3 +271,13 @@ class CheckpointFile(BaseModel):
         if should_include_private_runtime_metadata(info.context):
             return value
         return {}
+
+    @field_serializer("reviewed_visual_novel_sprite_sets")
+    def _serialize_reviewed_visual_novel_sprite_sets(
+        self,
+        value: list[ReviewedVisualNovelSpriteSet],
+        info: SerializationInfo,
+    ) -> list[ReviewedVisualNovelSpriteSet]:
+        if should_include_private_runtime_metadata(info.context):
+            return value
+        return []

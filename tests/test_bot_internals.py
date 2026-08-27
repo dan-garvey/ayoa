@@ -238,10 +238,18 @@ def _visual_novel_stage_media(
 
 
 class TestEngineBridgeVisualNovelPresentation:
-    def test_segments_resolve_ordered_stages_and_wait_for_stable_union(
+    def test_segments_resolve_stages_when_optional_sprite_prewarm_fails(
         self,
         mock_bridge: EngineBridge,
     ):
+        checkpoint = CheckpointFile(
+            session=SessionState(session_id="session"),
+            world_state=WorldState(setting=StorySetting()),
+        )
+        mock_bridge.load_latest = MagicMock(return_value=checkpoint)
+        mock_bridge.image_generation.ensure_visual_novel_sprite_prewarm = (
+            AsyncMock(side_effect=RuntimeError("candidate generation failed"))
+        )
         render = VisualNovelRender(segments=[
             VisualNovelRenderSegment(
                 pages=[VisualNovelPage(
@@ -291,6 +299,11 @@ class TestEngineBridgeVisualNovelPresentation:
             render=render,
         ))
 
+        mock_bridge.load_latest.assert_called_once_with("session")
+        (
+            mock_bridge.image_generation.ensure_visual_novel_sprite_prewarm
+            .assert_awaited_once_with(checkpoint)
+        )
         mock_bridge.image_sidecar.wait_for_stage_discovery.assert_awaited_once_with(
             "session"
         )

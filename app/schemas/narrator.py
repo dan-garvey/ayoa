@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.visual_references import VisualNovelSpriteExpression
+
 
 class TranscriptEntry(BaseModel):
     user: str
@@ -33,6 +35,15 @@ class NarratorFinalOutput(BaseModel):
         return self
 
 
+class VisualNovelSpriteCue(BaseModel):
+    """Player-safe character label plus one bounded visible expression cue."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    character: str = Field(min_length=1, max_length=80)
+    expression: VisualNovelSpriteExpression = "neutral"
+
+
 class VisualNovelPage(BaseModel):
     """One player-visible ADV page authored by the narrator.
 
@@ -45,6 +56,7 @@ class VisualNovelPage(BaseModel):
     kind: Literal["narration", "dialogue"]
     speaker: str = Field(default="", max_length=80)
     text: str = Field(min_length=1, max_length=4_000)
+    sprites: list[VisualNovelSpriteCue] = Field(default_factory=list, max_length=2)
 
     @model_validator(mode="after")
     def _validate_speaker(self) -> "VisualNovelPage":
@@ -52,6 +64,9 @@ class VisualNovelPage(BaseModel):
             raise ValueError("dialogue pages require a speaker label")
         if self.kind == "narration":
             self.speaker = ""
+        labels = [cue.character for cue in self.sprites]
+        if len(set(labels)) != len(labels):
+            raise ValueError("visual-novel sprite cues cannot repeat a character")
         return self
 
 
@@ -114,7 +129,11 @@ def visual_novel_pages_contain_source_identifiers(
     """
 
     for page in pages:
-        for value in (page.speaker, page.text):
+        for value in (
+            page.speaker,
+            page.text,
+            *(cue.character for cue in page.sprites),
+        ):
             if visual_novel_text_contains_source_identifiers(
                 value,
                 source_ids=source_ids,

@@ -7,6 +7,7 @@ from typing import Sequence
 from app.engine.character_manager import CharacterManager
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.event_router import EventRouterOutput, SpawnRequest
 
 
@@ -86,7 +87,9 @@ class SpawnAuthoringCoordinator:
         # checkpoint fields and gives the authoring task a genuinely immutable
         # snapshot.
         immutable_checkpoint = CheckpointFile.model_validate_json(
-            checkpoint.model_dump_json()
+            checkpoint.model_dump_json(
+                context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
+            )
         )
         immutable_requests = [
             request.model_copy(deep=True) for request in event.spawn

@@ -40,9 +40,11 @@ def _seed_checkpoint() -> CheckpointFile:
     # fixture self-contained instead of copying the story's frozen image store
     # into every temporary EngineBridge runtime.
     checkpoint.reviewed_visual_references = []
+    checkpoint.reviewed_visual_novel_sprite_sets = []
     checkpoint.location_visual_reference_ids = {}
     for character in checkpoint.characters:
         character.visuals.identity_reference_id = ""
+        character.visuals.sprite_set_id = ""
     return checkpoint
 
 

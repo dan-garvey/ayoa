@@ -26,11 +26,13 @@ from app.engine.visual_context import (
     format_narrator_visual_introductions,
     mark_visual_introductions,
     plan_render_visual_introductions,
+    visually_staged_character_ids,
 )
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput
+from app.schemas.events import visible_fact_texts
 from app.schemas.narrator import (
     NarratorFinalOutput,
     NarratorOutput,
@@ -72,6 +74,91 @@ def _assert_visual_novel_output_is_player_safe(
         )
 
 
+def _visual_novel_sprite_roster(
+    ckpt: CheckpointFile,
+    *,
+    viewer_id: str,
+    resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
+) -> tuple[tuple[str, ...], str]:
+    texts: list[str] = []
+    for entry, event in resolved:
+        if entry.observation_level != "direct":
+            continue
+        texts.extend(visible_fact_texts(
+            event.canonical_event.observable_facts,
+            viewer_id,
+            include_all_observers=True,
+        ))
+    present_ids = visually_staged_character_ids(ckpt, texts)
+    labels: list[str] = []
+    for character in ckpt.characters:
+        if (
+            character.character_id not in present_ids
+            or character.character_id == viewer_id
+        ):
+            continue
+        label = " ".join((character.name or "").split()).strip()
+        if label:
+            labels.append(label)
+    unique_labels = tuple(
+        label
+        for label in dict.fromkeys(labels)
+        if labels.count(label) == 1
+    )
+    block = (
+        "\n".join(f"- {label}" for label in unique_labels)
+        if unique_labels
+        else "None."
+    )
+    return unique_labels, block
+
+
+def _assert_visual_novel_sprite_cues(
+    result: VisualNovelNarratorOutput,
+    *,
+    allowed_labels: tuple[str, ...],
+) -> None:
+    allowed = set(allowed_labels)
+    for page in result.pages:
+        if any(cue.character not in allowed for cue in page.sprites):
+            raise ValueError(
+                "visual-novel narrator selected an unavailable sprite character"
+            )
+        if (
+            page.kind == "dialogue"
+            and page.speaker in allowed
+            and page.speaker not in {cue.character for cue in page.sprites}
+        ):
+            raise ValueError(
+                "visual-novel narrator omitted the available dialogue speaker"
+            )
+
+
+def _visual_novel_page_sprite_cues_are_valid(
+    page: object,
+    *,
+    allowed_sprite_labels: tuple[str, ...],
+    source_ids: tuple[str, ...],
+) -> bool:
+    allowed = set(allowed_sprite_labels)
+    sprites = getattr(page, "sprites", ())
+    if any(
+        cue.character not in allowed
+        or visual_novel_text_contains_source_identifiers(
+            cue.character,
+            source_ids=source_ids,
+        )
+        for cue in sprites
+    ):
+        return False
+    return not (
+        getattr(page, "kind", "") == "dialogue"
+        and getattr(page, "speaker", "") in allowed
+        and getattr(page, "speaker", "")
+        not in {cue.character for cue in sprites}
+    )
+
+
 def assert_narrator_handoff_policy(
     result: NarratorOutput,
     *,
@@ -90,6 +177,7 @@ def _assert_visual_novel_correction_preserves_contract(
     corrected: VisualNovelNarratorOutput,
     *,
     source_ids: tuple[str, ...],
+    allowed_sprite_labels: tuple[str, ...],
 ) -> None:
     """Allow one correction to change only fields that exposed source ids."""
 
@@ -117,6 +205,16 @@ def _assert_visual_novel_correction_preserves_contract(
                     "visual-novel correction changed an already-safe "
                     f"{field_name} field at page {index}"
                 )
+        before_sprites_safe = _visual_novel_page_sprite_cues_are_valid(
+            before,
+            allowed_sprite_labels=allowed_sprite_labels,
+            source_ids=source_ids,
+        )
+        if before_sprites_safe and after.sprites != before.sprites:
+            raise ValueError(
+                "visual-novel correction changed already-safe sprite cues "
+                f"at page {index}"
+            )
 
 
 def _strip_unmatched_trailing_closers(text: str) -> str:
@@ -316,6 +414,11 @@ async def compose_pov_render(
     visual_intro_block = format_narrator_visual_introductions(
         visual_intro_plan.loadouts,
     )
+    sprite_labels, sprite_roster_block = _visual_novel_sprite_roster(
+        ckpt,
+        viewer_id=pov_character_id,
+        resolved=resolved,
+    )
     rendering_note = (
         PARTIAL_MODE_MARKER
         if partial_mode
@@ -341,6 +444,7 @@ async def compose_pov_render(
         rendering_note=rendering_note,
         handoff_policy=handoff_policy,
         handoff_context=(handoff_context or "No unresolved handoff condition."),
+        sprite_roster_block=sprite_roster_block,
     )
     render_ms = (time.monotonic() - render_t0) * 1000
 
@@ -377,11 +481,16 @@ async def compose_pov_render(
         if isinstance(result, VisualNovelNarratorOutput):
             try:
                 _assert_visual_novel_output_is_player_safe(ckpt, result)
+                _assert_visual_novel_sprite_cues(
+                    result,
+                    allowed_labels=sprite_labels,
+                )
                 if rejected_result is not None:
                     _assert_visual_novel_correction_preserves_contract(
                         rejected_result,
                         result,
                         source_ids=roster_source_ids,
+                        allowed_sprite_labels=sprite_labels,
                     )
             except ValueError:
                 if attempt:
@@ -399,8 +508,11 @@ async def compose_pov_render(
                             "Return corrected JSON only. Keep the handoff, page "
                             "count, page kinds, and page order unchanged. Change "
                             "only speaker or text fields that contain a source "
-                            "identifier; preserve every other speaker and text "
-                            "field exactly. Remove every source identifier. Do "
+                            "identifier, or a sprite cue list that names a "
+                            "character outside the supplied sprite roster or "
+                            "omits an available current dialogue speaker; "
+                            "preserve every other field exactly. Remove every "
+                            "source identifier. Do "
                             "not transform one into a guessed proper name. Use "
                             "an already established viewpoint-known name when "
                             "the context supplies one; otherwise use a short "
@@ -454,7 +566,13 @@ def commit_pov_render(
         history.append(ConversationMessage(role="user", content=user_input))
     if isinstance(result, VisualNovelNarratorOutput):
         history_payload = {
-            "pages": [page.model_dump(mode="json") for page in result.pages]
+            # Sprite cues are transient presentation metadata. Replaying them
+            # would spend narrator context on prior layout rather than story
+            # continuity, so durable history keeps only the semantic pages.
+            "pages": [
+                page.model_dump(mode="json", exclude={"sprites"})
+                for page in result.pages
+            ]
         }
     else:
         history_payload = {"final_text": result.final_text}

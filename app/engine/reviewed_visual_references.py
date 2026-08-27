@@ -16,7 +16,7 @@ from app.schemas.visual_references import ReviewedVisualReference
 
 
 STORY_VISUAL_REFERENCE_DIR = "visual-references"
-MAX_REVIEWED_REFERENCE_COUNT = 128
+MAX_REVIEWED_REFERENCE_COUNT = 256
 MAX_REVIEWED_REFERENCE_BYTES = 20_000_000
 MAX_REVIEWED_REFERENCE_TOTAL_BYTES = 256_000_000
 MAX_REVIEWED_REFERENCE_EDGE = 8_192
@@ -320,6 +320,29 @@ def _selected_reviewed_reference_ids(
                 reference_id=reference_id,
             )
         selected.append(reference_id)
+
+    by_sprite_set_id = {
+        sprite_set.sprite_set_id: sprite_set
+        for sprite_set in checkpoint.reviewed_visual_novel_sprite_sets
+    }
+    selected_sprite_set_ids = {
+        character.visuals.sprite_set_id
+        for character in checkpoint.characters
+        if character.visuals.sprite_set_id
+    }
+    selected_sprite_set_ids.update(
+        sprite_set_id
+        for sprite_set_id, sprite_set in by_sprite_set_id.items()
+        if not sprite_set.owner_character_id
+    )
+    for sprite_set_id in selected_sprite_set_ids:
+        sprite_set = by_sprite_set_id.get(sprite_set_id)
+        if sprite_set is None:
+            raise ReviewedVisualReferenceError(
+                "selected_sprite_set_missing",
+                reference_id=sprite_set_id,
+            )
+        selected.extend(sprite_set.variant_reference_ids.values())
 
     for reference_ids in checkpoint.location_visual_reference_ids.values():
         for reference_id in reference_ids:

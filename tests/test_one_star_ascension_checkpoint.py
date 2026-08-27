@@ -473,11 +473,12 @@ def test_reviewed_identity_bindings_match_human_selection() -> None:
             reference
             for reference in checkpoint.reviewed_visual_references
             if reference.scope_id == character_id
+            and reference.purpose == "identity"
         ]
         for character_id in BOUND_IDENTITY_REFERENCE_IDS
     }
     assert sum(
-        reference.scope == "character"
+        reference.scope == "character" and reference.purpose == "identity"
         for reference in checkpoint.reviewed_visual_references
     ) == 61
     assert len(grouped["soren_ironvow"]) == 5

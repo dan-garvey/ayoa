@@ -149,25 +149,18 @@ def replace_character_ids_with_names(
     return out
 
 
-_QUOTED_CHARACTER_PRONOUN_RE = (
-    r"you|your|yours|yourself|yourselves|"
-    r"he|him|his|himself|she|her|hers|herself|"
-    r"they|them|their|theirs|themself|themselves"
-)
-
-
 def replace_character_ids_for_narrator(
     text: str,
     checkpoint: CheckpointFile,
 ) -> str:
     """Project identity-anchored quoted pronouns into natural narrator prose.
 
-    Canonical quoted dialogue retains the spoken pronoun and appends a silent
-    ``[character_id]`` anchor so routing and character observations keep an
+    Canonical quoted dialogue retains the spoken surface and may append a
+    silent ``[character_id,...]`` anchor after a pronoun, contracted pronoun,
+    name, or group reference so routing and character observations keep an
     unambiguous referent. The narrator needs the spoken surface, not that
-    anchor. Strip only a roster-owned anchor immediately following a character
-    pronoun, then apply the ordinary player-safe name projection everywhere
-    else.
+    anchor. Strip only a bracket whose complete contents are roster-owned ids,
+    then apply the ordinary player-safe name projection everywhere else.
     """
 
     if not text:
@@ -187,12 +180,11 @@ def replace_character_ids_for_narrator(
             re.escape(character_id) for character_id in character_ids
         )
         pattern = re.compile(
-            rf"(?P<pronoun>\b(?:{_QUOTED_CHARACTER_PRONOUN_RE})\b)"
-            rf"\s+\[(?:{character_id_pattern})"
+            rf"\s*\[(?:{character_id_pattern})"
             rf"(?:\s*,\s*(?:{character_id_pattern}))*\]",
             re.IGNORECASE,
         )
-        out = pattern.sub(lambda match: match.group("pronoun"), out)
+        out = pattern.sub("", out)
     return replace_character_ids_with_names(out, checkpoint)
 
 

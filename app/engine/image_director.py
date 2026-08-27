@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from app.engine.text_safety import strip_terminal_control
-from app.engine.visual_context import physically_present_character_ids
+from app.engine.visual_context import (
+    physically_present_character_ids,
+    visually_staged_character_ids,
+)
 from app.llm.client import LLMClient
 from app.schemas.characters import (
     CharacterRecord,
@@ -475,7 +478,13 @@ def build_projection_groups(
             new_ids=new_ids,
             active_identity_character_ids=active_references,
         )
-        directly_present_ids = physically_present_character_ids(
+        presence_classifier = (
+            visually_staged_character_ids
+            if checkpoint.session.config.settings.presentation_mode
+            == "visual_novel"
+            else physically_present_character_ids
+        )
+        directly_present_ids = presence_classifier(
             checkpoint,
             (text for text, _offset, _duration in facts),
         )
@@ -698,6 +707,12 @@ class ImageDirector:
         stage_context: Sequence[str] = (),
     ) -> ImageDirectorOutput:
         visual_novel = projection.presentation_mode == "visual_novel"
+        director_characters = () if visual_novel else projection.characters
+        director_references = tuple(
+            reference
+            for reference in projection.reference_options
+            if not visual_novel or reference.scope == "location"
+        )
         messages = self.prompt_manager.render_messages(
             "image_director_visual_novel" if visual_novel else "image_director",
             story_block=_story_block(projection),
@@ -706,14 +721,14 @@ class ImageDirector:
             public_characters_block=(
                 "\n".join(
                     character.prompt_line()
-                    for character in projection.characters
+                    for character in director_characters
                 )
-                or "No named character has usable public visual metadata."
+                or "None."
             ),
             visual_references_block=(
                 "\n".join(
                     reference.prompt_line()
-                    for reference in projection.reference_options
+                    for reference in director_references
                 )
                 or "None."
             ),
@@ -736,11 +751,9 @@ class ImageDirector:
             "For a visual-novel stage, use reuse or clear with no request, "
             "or replace in exactly one of two ways: select one listed "
             "location marked exact_stage=yes in stage_reference_id with no "
-            "request, or leave "
-            "stage_reference_id empty and return exactly one non-portrait "
-            "generation request whose subjects already have identity "
-            "references. A generated edit puts any selected location guide "
-            "first."
+            "request, or leave stage_reference_id empty and return exactly "
+            "one non-portrait environment request with no character subjects. "
+            "A generated edit puts its selected location guide first."
             if visual_novel
             else (
                 "New named characters without identity references need "
@@ -810,14 +823,16 @@ class ImageDirector:
                 f"image director returned {len(output.requests)} requests; "
                 f"maximum is {self.max_requests}"
             )
+        visual_novel = projection.presentation_mode == "visual_novel"
         allowed = {
             character.character_id: character
             for character in projection.characters
-            if character.depiction_policy == "normal"
+            if not visual_novel and character.depiction_policy == "normal"
         }
         allowed_references = {
             reference.reference_id: reference
             for reference in projection.reference_options
+            if not visual_novel or reference.scope == "location"
         }
         if output.stage_reference_id:
             selected_stage = allowed_references.get(output.stage_reference_id)
@@ -859,7 +874,7 @@ class ImageDirector:
             if character.depiction_policy != "normal"
         ]
         visual_novel_replace = (
-            projection.presentation_mode == "visual_novel"
+            visual_novel
             and output.stage_action == "replace"
             and not output.stage_reference_id
         )
@@ -916,6 +931,24 @@ class ImageDirector:
                     f"character ids: {', '.join(unknown)}"
                 )
             if visual_novel_replace:
+                if request.subject_character_ids:
+                    raise ValueError(
+                        "visual-novel environment requests cannot have "
+                        "character subjects"
+                    )
+                named_characters = [
+                    character.character_id
+                    for character in projection.characters
+                    if text_names_public_character(
+                        request.scene_prompt,
+                        character,
+                    )
+                ]
+                if named_characters:
+                    raise ValueError(
+                        "visual-novel environment request names roster "
+                        "characters: " + ", ".join(named_characters)
+                    )
                 selected_location_ids = [
                     reference_id
                     for reference_id in request.reference_ids
@@ -934,55 +967,6 @@ class ImageDirector:
                     raise ValueError(
                         "visual-novel edit must put the authored location "
                         "guide first so it remains the composition base"
-                    )
-                omitted_named_subjects = [
-                    character.character_id
-                    for character in allowed.values()
-                    if character.character_id
-                    not in request.subject_character_ids
-                    and text_names_public_character(
-                        request.scene_prompt,
-                        character,
-                    )
-                ]
-                if omitted_named_subjects:
-                    raise ValueError(
-                        "visual-novel scene_prompt names roster characters "
-                        "that are not listed subjects: "
-                        + ", ".join(omitted_named_subjects)
-                    )
-                unanchored_subjects = [
-                    character_id
-                    for character_id in request.subject_character_ids
-                    if not allowed[character_id].has_identity_reference
-                ]
-                if unanchored_subjects:
-                    raise ValueError(
-                        "visual-novel replacement subjects require active "
-                        "identity references: "
-                        + ", ".join(unanchored_subjects)
-                    )
-                selected_character_ids = {
-                    allowed_references[reference_id].scope_id
-                    for reference_id in request.reference_ids
-                    if allowed_references[reference_id].scope == "character"
-                }
-                required_reference_count = len(request.reference_ids) + sum(
-                    character_id not in selected_character_ids
-                    for character_id in request.subject_character_ids
-                )
-                if required_reference_count > self.max_references:
-                    raise ValueError(
-                        "visual-novel selected guides plus required identity "
-                        "references exceed the configured limit"
-                    )
-                if (
-                    request.generation_mode == "edit"
-                    and required_reference_count > 3
-                ):
-                    raise ValueError(
-                        "visual-novel edit selected guides plus required "
-                        "identity references exceed the 3-reference limit"
                     )
             named_restricted = [
                 character.character_id
@@ -1055,6 +1039,11 @@ class ImageDirector:
             )
         if output.requests[0].kind == "portrait":
             raise ValueError("visual-novel stage replacements cannot be portraits")
+        if output.requests[0].subject_character_ids:
+            raise ValueError(
+                "visual-novel stage replacements must be unoccupied "
+                "environment requests"
+            )
 
 
 def _selectable_reference_options(

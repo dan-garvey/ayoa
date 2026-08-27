@@ -1,9 +1,13 @@
+from pathlib import Path
+
+from app.engine.one_star_visuals import VEILED_FIRST_LOOK
 from app.engine.visual_context import (
     format_narrator_visual_introductions,
     mark_visual_introductions,
     physically_present_character_ids,
     plan_event_visual_introductions,
     plan_render_visual_introductions,
+    visually_staged_character_ids,
 )
 from app.schemas.characters import (
     CharacterAgentTier,
@@ -17,6 +21,11 @@ from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import ObservableFact
 from app.schemas.state import RenderBufferEntry, SessionState
 from tests.support.factories import router_output
+
+
+ONE_STAR_CHECKPOINT = Path(
+    "app/storage/stories/one_star_ascension_s1/ckpt_0000.json"
+)
 
 
 def _event(text: str) -> EventRouterOutput:
@@ -70,6 +79,40 @@ def test_presence_excludes_unbound_player_authored_slot_until_claimed():
         "guide",
         "newcomer",
     }
+
+
+def test_presence_recognizes_common_vn_motion_without_remote_mentions():
+    checkpoint = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            CharacterRecord(character_id="iselle", name="Iselle"),
+            CharacterRecord(character_id="mara", name="Mara Venn"),
+            CharacterRecord(character_id="edda", name="Edda Brin"),
+        ],
+    )
+
+    assert physically_present_character_ids(
+        checkpoint,
+        ["Iselle flits up before Mara Venn and Edda Brin."],
+    ) == {"iselle", "mara", "edda"}
+    assert physically_present_character_ids(
+        checkpoint,
+        ["Mara Venn shifts closer to Edda Brin."],
+    ) == {"mara", "edda"}
+    assert physically_present_character_ids(
+        checkpoint,
+        ["Iselle tilts her head while a radio report mentions Mara Venn."],
+    ) == {"iselle"}
+    assert physically_present_character_ids(
+        checkpoint,
+        [
+            "Mara Venn says, 'I will wait.' Mara Venn looks to Edda Brin."
+        ],
+    ) == {"mara"}
+    assert physically_present_character_ids(
+        checkpoint,
+        ["Iselle’s smile holds while Mara Venn's empty chair stays vacant."],
+    ) == {"iselle"}
 
 
 def test_first_meeting_plan_caps_by_tier_and_leaves_overflow_unintroduced():
@@ -145,6 +188,35 @@ def test_first_meeting_plan_uses_explicit_loadout_not_raw_appearance():
 
     assert plan.loadouts == []
     assert plan.mark_character_ids == []
+
+
+def test_one_star_master_first_look_is_veiled_until_reveal_threshold():
+    ckpt = CheckpointFile.model_validate_json(ONE_STAR_CHECKPOINT.read_text())
+    renna = next(
+        character
+        for character in ckpt.characters
+        if character.character_id == "renna_holt"
+    )
+    renna.status = "active"
+    event = _event("Renna Holt steps into the lobby courtyard.")
+    resolved = [(RenderBufferEntry(event_id=event.event_id), event)]
+
+    veiled = plan_render_visual_introductions(
+        ckpt,
+        viewer_id="the_master",
+        resolved=resolved,
+    )
+    assert veiled.loadouts[0].default_loadout == VEILED_FIRST_LOOK
+    assert veiled.loadouts[0].public_context == ""
+    assert renna.visuals.default_loadout not in VEILED_FIRST_LOOK
+
+    renna.mechanics["one_star_hero"]["current_stars"] = 2
+    revealed = plan_render_visual_introductions(
+        ckpt,
+        viewer_id="the_master",
+        resolved=resolved,
+    )
+    assert revealed.loadouts[0].default_loadout == renna.visuals.default_loadout
 
 
 def test_narrator_first_meeting_excludes_public_bio_without_exterior():
@@ -496,3 +568,7 @@ def test_agent_event_plan_ignores_plain_name_mentions():
 
     assert plan.loadouts == []
     assert plan.mark_character_ids == []
+    assert visually_staged_character_ids(
+        ckpt,
+        ["Alice points toward Pip's empty chair."],
+    ) == {"alice"}

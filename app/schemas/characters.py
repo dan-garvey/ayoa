@@ -97,9 +97,23 @@ class CharacterVisuals(BaseModel):
     # candidate or a reviewed authored reference. The image and opaque handle
     # are presentation-only and never enter runtime LLM input.
     identity_reference_id: str = ""
+    # Engine-owned reviewed visual-novel cutout set. The set and its variant
+    # handles are presentation provenance, not character knowledge or player
+    # text, and therefore serialize only in private checkpoint contexts.
+    sprite_set_id: str = ""
 
     @field_serializer("identity_reference_id")
     def _serialize_identity_reference_id(
+        self,
+        value: str,
+        info: SerializationInfo,
+    ) -> str:
+        if should_include_private_runtime_metadata(info.context):
+            return value
+        return ""
+
+    @field_serializer("sprite_set_id")
+    def _serialize_sprite_set_id(
         self,
         value: str,
         info: SerializationInfo,

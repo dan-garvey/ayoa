@@ -288,6 +288,43 @@ Sprite provenance and transforms participate in the content-addressed deck
 identity, while CLI and Discord continue to transport only the same
 manifest-verified final card bytes.
 
+The narrator may attach zero, one, or two bounded expression cues to an
+individual page, choosing only directly present characters from its supplied
+safe-name roster. Those cues are semantic requests, not image references. A
+private resolver maps them to immutable reviewed variants or already-generated
+runtime variants, validates the selected PNG bytes and hash, and supplies only
+the resolved opaque provenance and bytes to the compositor. Missing requested
+expressions fall back to that character's neutral variant without delaying the
+story. The stage director remains solely responsible for the unoccupied
+environment layer; it never receives character appearances or references and
+cannot paint a second copy of the cast into the background.
+
+Generated sprite packs follow the same resolver contract as reviewed packs.
+The runtime first generates and hash-locks one full-body neutral identity on a
+saturated magenta screen. It deterministically removes the border-connected
+key plus bounded near-exact screen islands enclosed by arms, hair, capes, or
+props, using combined red-and-blue dominance and physical unmixing at
+partial-alpha edges so red clothing and skin are preserved. It then normalizes
+the transparent subject to the shared 1100x1500 frame and baseline and rejects
+a candidate if a material amount of visible key color remains.
+The remaining seven universal expressions are independent compose requests
+that use that immutable neutral PNG as their sole identity reference. Their
+prompts require one stable body, outfit, hairstyle, and complete prop set while
+allowing a distinct pose and expression. This path does not use image editing
+or runtime image understanding; bytes are processed and validated by code, and
+failed variants simply remain unavailable.
+
+One-Star's promotion reveal is an adapter-owned projection over this generic
+contract. From the disembodied Master's viewpoint, birth-one-star Heroes use a
+stable authored masculine or feminine veiled set at one star. Seeded Heroes
+with reviewed identities reveal that exact set at two stars; generated Heroes
+remain veiled until three stars and begin warming their generated pack one
+promotion earlier. Other viewpoints retain their ordinary textual identity.
+While veiled, Master-facing first-look context is generic and cannot disclose
+the hidden face or loadout; crossing the reveal threshold reopens the exact
+first-look ledger. These rank rules never enter the generic narrator,
+compositor, or image-generation schema.
+
 Every materialized director run records exactly one replacement source: a
 hash-pinned snapshot of the selected reviewed plate, or the exact set of
 diffusion jobs it admitted. Stage readiness, prior-stage context, and final
@@ -337,32 +374,29 @@ content-privacy policy for narrator, character, and image-director inputs.
 Ordinary public HTTP(S) references are preserved rather than mistaken for
 filesystem paths.
 
-A generated visual-novel replacement may list only normal, currently identity-
-anchored subjects, and every named roster character in its scene description
-must be in that subject list. Director-selected generation handles are ordered
-optional guides, not a replacement for identity coverage: materialization
-preserves those guides, then deterministically adds one live owner-validated
-identity reference for each uncovered subject. The complete ordered union must
-satisfy the configured count and byte limits and the edit mode's three-
-reference ceiling. Live binding, file, byte-count, or hash failure admits no
-diffusion job, so the generated replacement resolves through the ordinary
-neutral-stage failure contract.
+A generated visual-novel replacement is an unoccupied 16:9 environment plate.
+Its subject list is empty, its prompt may not name a roster character, and it
+may use only applicable reviewed location references. Character appearances,
+identity references, poses, silhouettes, crowds, and body parts are forbidden
+from both the director input and the diffusion request. Live binding, file,
+byte-count, or hash failure admits no diffusion job, so the generated
+replacement resolves through the ordinary neutral-stage failure contract.
 
 When an authored location has reviewed environment plates, a visual-novel
 replacement first considers the exact plate whose human-authored applicability
 fits the current visible scene. Multiple plates are choices, never a blend. If
 none fits, the director leaves the direct-stage handle empty and uses the
 ordinary generated replacement path; a location handle may still be an
-optional generation guide when its authored use genuinely applies. An edit
-keeps any selected location guide first as its composition base; compose
-remains available when the complete reference set cannot fit edit's three-
-reference ceiling. Location selection is engine-routed from canonical physical
-presence:
-a directly observed embodied cast may establish the depicted location for an
-omit-policy or remote-interface viewer, while indirect reports and mediated
-name mentions stay anchored to the viewer's own location. A render batch offers
-only its final scene's location choices. Higher-tier authored plates may remain
-validated but unbound until story progression activates them.
+optional generation guide when its authored use genuinely applies. Location
+selection is engine-routed from canonical embodied staging: a directly
+observed cast may establish the depicted location for an omit-policy or
+remote-interface viewer, while indirect reports, media depictions, future
+arrivals, and mediated name mentions stay anchored to the viewer's own
+location. Visual-novel projection admits bounded generic visible actions for
+this transient location decision; it does not weaken the stricter physical
+classifier that persists first-meeting state. A render batch offers only its
+final scene's location choices. Higher-tier authored plates may remain validated
+but unbound until story progression activates them.
 
 ## 5. Runtime Components
 

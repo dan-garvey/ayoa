@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from app.engine.text_safety import strip_terminal_control
+from app.engine.one_star_visuals import first_look_override_for_viewer
 from app.schemas.characters import CharacterRecord, is_player_authored_slot
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_content_metadata_text
@@ -25,6 +26,11 @@ _SPEECH_VERB_RE = (
 )
 _QUOTED_SPAN_RE = re.compile(
     r'"[^"\n]*"|“[^”\n]*”|\'[^\'\n]*\'|‘[^’\n]*’'
+)
+_EMBODIED_POSSESSIVE_RE = re.compile(
+    r"\s*[’']s\s+(?:smile|eyes?|face|head|brows?|mouth|ears?|"
+    r"hands?|arms?|shoulders?|legs?|feet|wings?|tail|stance|posture)\b",
+    re.IGNORECASE,
 )
 _MEDIATED_CHANNEL_NOUNS = (
     r"radio|intercom|telephone|phone|voicemail|recording|broadcast|screen|"
@@ -82,14 +88,20 @@ _PHYSICAL_PRESENCE_VERB_RE = re.compile(
     r"crouch(?:es|ed|ing)?|depart(?:s|ed|ing)?|duck(?:s|ed|ing)?|"
     r"emerg(?:e|es|ed|ing)|enter(?:s|ed|ing)?|exit(?:s|ed|ing)?|"
     r"face(?:s|d|ing)?|follow(?:s|ed|ing)?|gesture(?:s|d|ing)?|"
+    r"flit(?:s|ted|ting)?|"
     r"grip(?:s|ped|ping)?|hold(?:s|ing)?|held|kneel(?:s|ed|ing)?|"
     r"lean(?:s|ed|ing)?|look(?:s|ed|ing)?|move(?:s|d|ing)?|"
     r"nod(?:s|ded|ding)?|pass(?:es|ed|ing)?|reach(?:es|ed|ing)?|"
     r"rise(?:s|n)?|rose|run(?:s|ning)?|ran|sit(?:s|ting)?|sat|"
-    r"smil(?:e|es|ed|ing)|stand(?:s|ing)?|stood|step(?:s|ped|ping)?|"
-    r"stop(?:s|ped|ping)?|turn(?:s|ed|ing)?|wait(?:s|ed|ing)?|"
+    r"shift(?:s|ed|ing)?|smil(?:e|es|ed|ing)|stand(?:s|ing)?|stood|"
+    r"step(?:s|ped|ping)?|stop(?:s|ped|ping)?|tilt(?:s|ed|ing)?|"
+    r"turn(?:s|ed|ing)?|wait(?:s|ed|ing)?|"
     r"walk(?:s|ed|ing)?|wave(?:s|d|ing)?|wear(?:s|ing)?|wore"
     r")\b",
+    re.IGNORECASE,
+)
+_GENERIC_VISIBLE_ACTION_RE = re.compile(
+    r"\b(?:[A-Za-z][A-Za-z'’\-]{1,}(?:s|ed|ing))\b",
     re.IGNORECASE,
 )
 _COPRESENCE_PREDICATE_RE = re.compile(
@@ -109,7 +121,8 @@ _FUTURE_TIME_RE = re.compile(
     re.IGNORECASE,
 )
 _COPRESENCE_RELATION_RE = re.compile(
-    r"\b(?:alongside|beside|near|with|among|by|behind|before|next\s+to)\b",
+    r"\b(?:alongside|beside|near|with|among|by|behind|before|closer\s+to|"
+    r"next\s+to)\b",
     re.IGNORECASE,
 )
 
@@ -191,6 +204,37 @@ def _active_roster_characters(ckpt: CheckpointFile) -> list[CharacterRecord]:
     ]
 
 
+def _character_presence_probes(
+    ckpt: CheckpointFile,
+    character: CharacterRecord,
+) -> tuple[str, ...]:
+    """Return exact identity probes plus an unambiguous spoken first name."""
+
+    probes = [character.character_id, character.name]
+    name_parts = (character.name or "").split()
+    if len(name_parts) > 1:
+        first_name = name_parts[0]
+        first_folded = first_name.casefold()
+        if (
+            first_folded
+            not in {"a", "an", "the", "lady", "lord", "sir", "dame"}
+            and re.fullmatch(r"[A-Za-z][A-Za-z'’\-]*", first_name)
+            and sum(
+                1
+                for candidate in _active_roster_characters(ckpt)
+                if (candidate.name or "").split()
+                and candidate.name.split()[0].casefold() == first_folded
+            )
+            == 1
+        ):
+            probes.append(first_name)
+    return tuple(sorted(
+        dict.fromkeys(probe for probe in probes if probe),
+        key=len,
+        reverse=True,
+    ))
+
+
 def _character_maps(
     ckpt: CheckpointFile,
 ) -> tuple[dict[str, CharacterRecord], dict[str, str]]:
@@ -218,7 +262,7 @@ def _presence_gap_is_bounded_subject_context(
     cleaned = gap
     contains_other_character = False
     for character in _active_roster_characters(ckpt):
-        for probe in (character.character_id, character.name):
+        for probe in _character_presence_probes(ckpt, character):
             if not probe:
                 continue
             pattern = re.compile(
@@ -229,7 +273,11 @@ def _presence_gap_is_bounded_subject_context(
             if count and character.character_id != character_id:
                 contains_other_character = True
 
-    has_coordination = bool(re.search(r"\b(?:and|or)\b", cleaned, re.IGNORECASE))
+    has_coordination = bool(re.search(
+        r",|\b(?:and|or)\b",
+        cleaned,
+        re.IGNORECASE,
+    ))
     if contains_other_character != has_coordination:
         return False
     cleaned = re.sub(
@@ -288,7 +336,7 @@ def _subject_scope_start(
                     re.IGNORECASE,
                 )
                 for character in _active_roster_characters(ckpt)
-                for probe in (character.character_id, character.name)
+                for probe in _character_presence_probes(ckpt, character)
                 if probe
             )
             if (
@@ -300,12 +348,19 @@ def _subject_scope_start(
     return scope_start
 
 
-def _presence_evidence_matches(suffix: str) -> list[re.Match[str]]:
+def _presence_evidence_matches(
+    suffix: str,
+    *,
+    include_generic_actions: bool,
+) -> list[re.Match[str]]:
     matches: dict[tuple[int, int], re.Match[str]] = {}
-    for matcher in (
+    matchers = [
         _PHYSICAL_PRESENCE_VERB_RE,
         _COPRESENCE_PREDICATE_RE,
-    ):
+    ]
+    if include_generic_actions:
+        matchers.append(_GENERIC_VISIBLE_ACTION_RE)
+    for matcher in matchers:
         for match in matcher.finditer(suffix):
             matches.setdefault((match.start(), match.end()), match)
     return sorted(matches.values(), key=lambda item: (item.start(), item.end()))
@@ -317,13 +372,21 @@ def _presence_evidence_for_match(
     sentence: str,
     character_id: str,
     subject_match: re.Match[str],
+    include_generic_actions: bool,
 ) -> _PresenceEvidence | None:
-    if re.match(
+    possessive = re.match(
         r"\s*[’']s\b",
         sentence[subject_match.end():],
         re.IGNORECASE,
-    ):
+    )
+    embodied_possessive = _EMBODIED_POSSESSIVE_RE.match(
+        sentence[subject_match.end():]
+    )
+    if possessive is not None and embodied_possessive is None:
         return None
+    subject_end = subject_match.end() + (
+        embodied_possessive.end() if embodied_possessive is not None else 0
+    )
 
     clause_start, clause_end = _clause_bounds(sentence, subject_match.start())
     subject_scope_start = _subject_scope_start(
@@ -332,9 +395,12 @@ def _presence_evidence_for_match(
         clause_start=clause_start,
         subject_start=subject_match.start(),
     )
-    bounded_end = min(clause_end, subject_match.end() + 180)
-    suffix = sentence[subject_match.end():bounded_end]
-    evidence_matches = _presence_evidence_matches(suffix)
+    bounded_end = min(clause_end, subject_end + 180)
+    suffix = sentence[subject_end:bounded_end]
+    evidence_matches = _presence_evidence_matches(
+        suffix,
+        include_generic_actions=include_generic_actions,
+    )
     if not evidence_matches:
         return None
 
@@ -346,13 +412,13 @@ def _presence_evidence_for_match(
 
     absolute_matches = [
         (
-            subject_match.end() + match.start(),
-            subject_match.end() + match.end(),
+            subject_end + match.start(),
+            subject_end + match.end(),
         )
         for match in evidence_matches
     ]
     for index, (evidence_start, evidence_end) in enumerate(absolute_matches):
-        predicate_start = subject_match.end()
+        predicate_start = subject_end
         if index:
             previous_end = absolute_matches[index - 1][1]
             coordinators = list(_PREDICATE_COORDINATOR_RE.finditer(
@@ -381,8 +447,13 @@ def _presence_evidence_for_match(
             gap=gap,
         ):
             continue
-        predicate_lead = sentence[subject_match.end():evidence_start]
-        if _NON_CURRENT_PRESENCE_RE.search(predicate_lead):
+        predicate_lead = sentence[subject_end:evidence_start]
+        if (
+            _NON_CURRENT_PRESENCE_RE.search(predicate_lead)
+            or _NON_CURRENT_PRESENCE_RE.search(
+                sentence[evidence_start:evidence_end]
+            )
+        ):
             continue
         future_tail = sentence[
             evidence_end:min(predicate_end, evidence_end + 32)
@@ -431,7 +502,7 @@ def _copresent_object_ids(
                 if character.character_id == evidence.character_id:
                     continue
                 seen_probes: set[str] = set()
-                for probe in (character.character_id, character.name):
+                for probe in _character_presence_probes(ckpt, character):
                     if not probe or probe.casefold() in seen_probes:
                         continue
                     seen_probes.add(probe.casefold())
@@ -471,6 +542,8 @@ def _copresent_object_ids(
 def _physically_present_character_ids(
     ckpt: CheckpointFile,
     visible_texts: Iterable[str],
+    *,
+    include_generic_actions: bool = False,
 ) -> set[str]:
     texts = [text for text in visible_texts if text and text.strip()]
     if not texts:
@@ -478,13 +551,21 @@ def _physically_present_character_ids(
     physical: set[str] = set()
     roster = _active_roster_characters(ckpt)
     for text in texts:
-        unquoted = _QUOTED_SPAN_RE.sub(" ", text)
+        unquoted = _QUOTED_SPAN_RE.sub(
+            lambda match: (
+                match.group(0)[-2]
+                if len(match.group(0)) >= 2
+                and match.group(0)[-2] in ".!?…"
+                else " "
+            ),
+            text,
+        )
         for sentence in re.split(r"(?<=[.!?])\s+|\n+", unquoted):
             evidence_records: list[_PresenceEvidence] = []
             for character in roster:
                 seen_probes: set[str] = set()
                 found_for_sentence = False
-                for probe in (character.character_id, character.name):
+                for probe in _character_presence_probes(ckpt, character):
                     if not probe or probe.casefold() in seen_probes:
                         continue
                     seen_probes.add(probe.casefold())
@@ -499,6 +580,7 @@ def _physically_present_character_ids(
                             sentence=sentence,
                             character_id=character.character_id,
                             subject_match=match,
+                            include_generic_actions=include_generic_actions,
                         )
                         if evidence is not None:
                             evidence_records.append(evidence)
@@ -528,6 +610,26 @@ def physically_present_character_ids(
     """
 
     return _physically_present_character_ids(ckpt, visible_texts)
+
+
+def visually_staged_character_ids(
+    ckpt: CheckpointFile,
+    visible_texts: Iterable[str],
+) -> set[str]:
+    """Return embodied subjects suitable for transient VN foreground cues.
+
+    Unlike the persistent first-meeting ledger, a page foreground must handle
+    arbitrary visible action verbs authored by the router. The same mediated,
+    reported, future, possessive, and quoted-content guards still apply; the
+    broader predicate matcher changes only transient staging and never marks a
+    character as visually introduced.
+    """
+
+    return _physically_present_character_ids(
+        ckpt,
+        visible_texts,
+        include_generic_actions=True,
+    )
 
 
 def _loadout_tag_character_ids(
@@ -633,9 +735,16 @@ def _plan_visual_introductions(
         if character_id in tagged_ids:
             mark_ids.append(character_id)
             continue
-        loadout = _default_loadout(character)
+        first_look_override = first_look_override_for_viewer(
+            ckpt,
+            viewer_character_id=viewer_id,
+            character=character,
+        )
+        loadout = first_look_override or _default_loadout(character)
         public_context = (
-            _public_context(character) if include_public_context else ""
+            _public_context(character)
+            if include_public_context and first_look_override is None
+            else ""
         )
         if _is_redundant_context(loadout, public_context):
             public_context = ""

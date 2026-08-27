@@ -295,7 +295,8 @@ class VisualNovelCardRenderer:
                         sprite.identity for sprite in section.sprites
                     ],
                     "pages": [
-                        page.model_dump(mode="json") for page in section.pages
+                        page.model_dump(mode="json", exclude={"sprites"})
+                        for page in section.pages
                     ],
                 }
                 for section in resolved_sections
@@ -1053,8 +1054,11 @@ def _valid_v2_identity(
         return False
     if any(neutral_sections) != used_neutral_stage:
         return False
-    return [page.model_dump(mode="json") for page in identity_pages] == [
-        page.model_dump(mode="json") for page in pages
+    return [
+        page.model_dump(mode="json", exclude={"sprites"})
+        for page in identity_pages
+    ] == [
+        page.model_dump(mode="json", exclude={"sprites"}) for page in pages
     ]
 
 

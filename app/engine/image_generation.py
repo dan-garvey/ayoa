@@ -22,6 +22,10 @@ from app.engine.image_director import (
 )
 from app.engine.image_job_store import ImageJobStore
 from app.engine.image_job_store import VisualNovelStageResolution
+from app.engine.one_star_visuals import (
+    characters_needing_generated_sprite_prewarm,
+    generated_sprite_pack_id,
+)
 from app.engine.image_worker_client import (
     ImageWorkerClient,
     ImageWorkerConfig,
@@ -37,8 +41,14 @@ from app.engine.reviewed_visual_references import (
     ReviewedVisualReferenceError,
     resolve_frozen_visual_reference_media,
 )
+from app.engine.text_safety import strip_terminal_control
+from app.engine.visual_novel_sprite_processing import (
+    materialize_visual_novel_sprite,
+)
 from app.schemas.image_director import ImageDirection, ImageGenerationMode
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.characters import CharacterRecord
+from app.schemas.content_privacy import redact_imported_content_metadata_text
 from app.schemas.image_generation import (
     FrozenReferenceInput,
     IdentityReferenceCandidate,
@@ -49,9 +59,24 @@ from app.schemas.image_generation import (
     ImageGenerationRequest,
     ImageGenerationStatus,
 )
+from app.schemas.visual_references import (
+    VISUAL_NOVEL_SPRITE_EXPRESSIONS,
+    VisualNovelSpriteExpression,
+)
 
 
 logger = logging.getLogger(__name__)
+
+_SPRITE_EXPRESSION_DIRECTION: dict[VisualNovelSpriteExpression, str] = {
+    "neutral": "relaxed attentive expression, balanced resting stance",
+    "happy": "genuine warm smile, open welcoming gesture",
+    "concerned": "worried eyes and brows, guarded reaching gesture",
+    "tense": "alert anxious expression, contracted defensive stance",
+    "skeptical": "narrowed appraising eyes, questioning reserved gesture",
+    "angry": "controlled anger, forceful confrontational stance",
+    "sad": "downcast sorrow, slumped or self-comforting posture",
+    "surprised": "wide-eyed surprise, startled recoiling gesture",
+}
 
 
 class ImageWorker(Protocol):
@@ -658,6 +683,252 @@ class ImageGenerationCoordinator:
                 None,
             )
 
+    def resolve_visual_novel_sprite_variant(
+        self,
+        *,
+        session_id: str,
+        character_id: str,
+        sprite_pack_id: str,
+        expression: VisualNovelSpriteExpression,
+    ) -> tuple[str, ResolvedPlayerMedia, str] | None:
+        stored = self.store.sprite_variant(
+            session_id=session_id,
+            character_id=character_id,
+            sprite_pack_id=sprite_pack_id,
+            expression=expression,
+        )
+        if stored is None:
+            return None
+        variant_handle, frozen, source_facing = stored
+        try:
+            media = resolve_frozen_visual_reference_media(
+                frozen,
+                runtime_root=self.config.runtime_root,
+            )
+        except ReviewedVisualReferenceError as exc:
+            logger.warning(
+                "generated VN sprite validation failed session=%s pack=%s "
+                "expression=%s code=%s",
+                session_id,
+                sprite_pack_id,
+                expression,
+                exc.code,
+            )
+            return None
+        return variant_handle, media, source_facing
+
+    async def ensure_visual_novel_sprite_prewarm(
+        self,
+        checkpoint: CheckpointFile,
+    ) -> tuple[str, ...]:
+        """Admit non-blocking generated sprite candidates for eligible Heroes."""
+
+        if (
+            checkpoint.session.config.settings.presentation_mode
+            != "visual_novel"
+            or not self.can_generate_render()
+        ):
+            return ()
+        admitted: list[str] = []
+        for character in characters_needing_generated_sprite_prewarm(checkpoint):
+            sprite_pack_id = generated_sprite_pack_id(checkpoint, character)
+            transaction_id = f"sprite_tx_{_stable_hash({
+                'session_id': checkpoint.session.session_id,
+                'sprite_pack_id': sprite_pack_id,
+            })[:32]}"
+            checkpoint_identity = _stable_hash({
+                "session_id": checkpoint.session.session_id,
+                "sprite_pack_id": sprite_pack_id,
+            })
+            self.begin_transaction(
+                transaction_id=transaction_id,
+                session_id=checkpoint.session.session_id,
+                source_turn_index=checkpoint.session.turn_index,
+                source_checkpoint_sha256=checkpoint_identity,
+                lineage_bound=False,
+            )
+            await self.commit_transaction(
+                transaction_id,
+                target_checkpoint_sha256=checkpoint_identity,
+            )
+            description = _sprite_character_description(checkpoint, character)
+            if not description:
+                continue
+            visual_style = _private_sprite_prompt_text(
+                checkpoint.world_state.setting.visual_style,
+                800,
+            )
+            jobs = {
+                job.request.sprite_expression: job
+                for job in self.store.all_jobs()
+                if job.request.session_id == checkpoint.session.session_id
+                and job.request.sprite_pack_id == sprite_pack_id
+            }
+            for job in tuple(jobs.values()):
+                if (
+                    job.status == ImageGenerationStatus.succeeded
+                    and job.artifact is not None
+                    and self.store.sprite_variant(
+                        session_id=checkpoint.session.session_id,
+                        character_id=character.character_id,
+                        sprite_pack_id=sprite_pack_id,
+                        expression=job.request.sprite_expression,
+                    )
+                    is None
+                ):
+                    try:
+                        frozen = materialize_visual_novel_sprite(
+                            self.resolve_job_media(job),
+                            runtime_root=self.config.runtime_root,
+                        )
+                        self.store.save_sprite_variant(
+                            job_id=job.job_id,
+                            frozen=frozen,
+                        )
+                    except (PlayerMediaError, ReviewedVisualReferenceError):
+                        logger.exception(
+                            "failed to recover generated VN sprite pack=%s "
+                            "expression=%s",
+                            sprite_pack_id,
+                            job.request.sprite_expression,
+                        )
+
+            neutral = self.store.sprite_variant(
+                session_id=checkpoint.session.session_id,
+                character_id=character.character_id,
+                sprite_pack_id=sprite_pack_id,
+                expression="neutral",
+            )
+            if neutral is None:
+                job = await self._enqueue_sprite_request(
+                    session_id=checkpoint.session.session_id,
+                    transaction_id=transaction_id,
+                    source_turn_index=checkpoint.session.turn_index,
+                    character_id=character.character_id,
+                    sprite_pack_id=sprite_pack_id,
+                    expression="neutral",
+                    description=description,
+                    visual_style=visual_style,
+                    reference_inputs=(),
+                )
+                if job is not None:
+                    admitted.append(job.job_id)
+                continue
+            _neutral_handle, neutral_reference, _source_facing = neutral
+            for expression in VISUAL_NOVEL_SPRITE_EXPRESSIONS[1:]:
+                if expression in jobs:
+                    continue
+                job = await self._enqueue_sprite_request(
+                    session_id=checkpoint.session.session_id,
+                    transaction_id=transaction_id,
+                    source_turn_index=checkpoint.session.turn_index,
+                    character_id=character.character_id,
+                    sprite_pack_id=sprite_pack_id,
+                    expression=expression,
+                    description=description,
+                    visual_style=visual_style,
+                    reference_inputs=(neutral_reference,),
+                )
+                if job is not None:
+                    admitted.append(job.job_id)
+        return tuple(dict.fromkeys(admitted))
+
+    async def _enqueue_sprite_request(
+        self,
+        *,
+        session_id: str,
+        transaction_id: str,
+        source_turn_index: int,
+        character_id: str,
+        sprite_pack_id: str,
+        expression: VisualNovelSpriteExpression,
+        description: str,
+        visual_style: str,
+        reference_inputs: Sequence[FrozenReferenceInput],
+    ) -> ImageGenerationJob | None:
+        prompt = _sprite_generation_prompt(
+            expression=expression,
+            description=description,
+            visual_style=visual_style,
+            style_trigger=self._worker_style_trigger(),
+            has_neutral_reference=bool(reference_inputs),
+        )
+        prompt_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        source_event_fingerprint = _stable_hash({
+            "session_id": session_id,
+            "sprite_pack_id": sprite_pack_id,
+            "expression": expression,
+        })
+        ordinal = VISUAL_NOVEL_SPRITE_EXPRESSIONS.index(expression)
+        dedupe_key = _stable_hash({
+            "sprite_pack_id": sprite_pack_id,
+            "expression": expression,
+            "prompt_sha256": prompt_sha256,
+            "references": [
+                (reference.reference_id, reference.sha256)
+                for reference in reference_inputs
+            ],
+            "model_id": self._worker_model_id("compose"),
+            "model_revision": self._worker_model_revision("compose"),
+        })
+        request = ImageGenerationRequest(
+            session_id=session_id,
+            transaction_id=transaction_id,
+            source_event_id=f"sprite_{source_event_fingerprint[:32]}",
+            source_event_fingerprint=source_event_fingerprint,
+            source_event_sequence=max(0, source_turn_index),
+            source_turn_index=max(0, source_turn_index),
+            request_ordinal=ordinal,
+            kind="portrait",
+            generation_mode="compose",
+            title=f"VN sprite {expression}",
+            subject_character_ids=[character_id],
+            prompt=prompt,
+            prompt_sha256=prompt_sha256,
+            model_id=self._worker_model_id("compose"),
+            model_revision=self._worker_model_revision("compose"),
+            width=1024,
+            height=1536,
+            steps=self.config.steps,
+            guidance=self.config.guidance,
+            seed=int(source_event_fingerprint[:16], 16) & ((1 << 63) - 1),
+            dedupe_key=dedupe_key,
+            reference_inputs=list(reference_inputs),
+            sprite_pack_id=sprite_pack_id,
+            sprite_expression=expression,
+            sprite_character_description=description,
+            sprite_visual_style=visual_style,
+            sprite_source_facing="right",
+        )
+        existing = self.store.get(f"img_{dedupe_key[:32]}")
+        retrying = bool(
+            existing is not None
+            and existing.status == ImageGenerationStatus.failed
+            and existing.attempts < 2
+        )
+        if existing is None or retrying:
+            if self.store.active_count() >= self.config.queue_limit:
+                return None
+            session_active = sum(
+                queued.request.session_id == session_id
+                and queued.status in {
+                    ImageGenerationStatus.queued,
+                    ImageGenerationStatus.running,
+                }
+                for queued in self.store.all_jobs()
+            )
+            if session_active >= self.config.per_session_queue_limit:
+                return None
+        if existing is None:
+            job = self.store.enqueue(request)
+        elif retrying:
+            job = self.store.requeue_retryable(existing.job_id) or existing
+        else:
+            job = existing
+        self._wake.set()
+        await self._notify_changed()
+        return job
+
     def delivery_is_current(self, delivery_id: str) -> bool:
         return (
             self.store.delivery_is_current(delivery_id)
@@ -1052,12 +1323,32 @@ class ImageGenerationCoordinator:
                 expected_width=job.request.width,
                 expected_height=job.request.height,
             )
+            sprite_reference: FrozenReferenceInput | None = None
+            if job.request.sprite_pack_id:
+                sprite_reference = materialize_visual_novel_sprite(
+                    resolve_generated_media(
+                        artifact,
+                        runtime_root=self.config.runtime_root,
+                    ),
+                    runtime_root=self.config.runtime_root,
+                )
             completed = self.store.mark_succeeded(job.job_id, artifact)
             if (
                 completed is not None
                 and completed.status == ImageGenerationStatus.succeeded
             ):
-                self._establish_identity_if_applicable(completed)
+                if sprite_reference is not None:
+                    self.store.save_sprite_variant(
+                        job_id=completed.job_id,
+                        frozen=sprite_reference,
+                    )
+                    if completed.request.sprite_expression == "neutral":
+                        await self._expand_sprite_variants(
+                            completed.request,
+                            sprite_reference,
+                        )
+                else:
+                    self._establish_identity_if_applicable(completed)
                 logger.info(
                     "illustration succeeded job=%s bytes=%d",
                     completed.job_id,
@@ -1092,6 +1383,32 @@ class ImageGenerationCoordinator:
                 job.job_id,
             )
             await self._notify_changed()
+
+    async def _expand_sprite_variants(
+        self,
+        neutral_request: ImageGenerationRequest,
+        neutral_reference: FrozenReferenceInput,
+    ) -> None:
+        existing_expressions = {
+            job.request.sprite_expression
+            for job in self.store.all_jobs()
+            if job.request.session_id == neutral_request.session_id
+            and job.request.sprite_pack_id == neutral_request.sprite_pack_id
+        }
+        for expression in VISUAL_NOVEL_SPRITE_EXPRESSIONS[1:]:
+            if expression in existing_expressions:
+                continue
+            await self._enqueue_sprite_request(
+                session_id=neutral_request.session_id,
+                transaction_id=neutral_request.transaction_id,
+                source_turn_index=neutral_request.source_turn_index,
+                character_id=neutral_request.subject_character_ids[0],
+                sprite_pack_id=neutral_request.sprite_pack_id,
+                expression=expression,
+                description=neutral_request.sprite_character_description,
+                visual_style=neutral_request.sprite_visual_style,
+                reference_inputs=(neutral_reference,),
+            )
 
     async def _generate_with_cancellation(
         self,
@@ -1724,6 +2041,83 @@ class ImageGenerationCoordinator:
             self._changed.notify_all()
 
 
+def _private_sprite_prompt_text(value: object, limit: int) -> str:
+    return _bounded_text(
+        redact_imported_content_metadata_text(
+            strip_terminal_control(str(value or ""))
+        ),
+        limit,
+    )
+
+
+def _sprite_character_description(
+    checkpoint: CheckpointFile,
+    character: CharacterRecord,
+) -> str:
+    pieces = (
+        _private_sprite_prompt_text(character.public_sheet.appearance, 1_200),
+        _private_sprite_prompt_text(
+            image_loadout_for_character(checkpoint, character),
+            900,
+        ),
+        _private_sprite_prompt_text(character.public_sheet.role, 500),
+    )
+    return "; ".join(piece for piece in pieces if piece)[:3_000].rstrip()
+
+
+def _sprite_generation_prompt(
+    *,
+    expression: VisualNovelSpriteExpression,
+    description: str,
+    visual_style: str,
+    style_trigger: str,
+    has_neutral_reference: bool,
+) -> str:
+    identity_rule = (
+        "Use the supplied neutral cutout as the exact recurring character "
+        "identity: preserve face, hair, body proportions, outfit, materials, "
+        "color palette, and canonical prop design while changing the pose and "
+        "visible expression."
+        if has_neutral_reference
+        else (
+            "Create one coherent recurring character design from the authored "
+            "description."
+        )
+    )
+    style = " ".join(
+        value for value in (style_trigger.strip(), visual_style.strip()) if value
+    )
+    pose_rule = (
+        "Use this balanced natural resting pose as the pack's neutral baseline. "
+        if expression == "neutral"
+        else (
+            "Make both the body language and visible expression distinct from "
+            "the neutral baseline. "
+        )
+    )
+    return "\n".join((
+        style,
+        "Full-body visual-novel character cutout, one complete subject.",
+        identity_rule,
+        f"Authored visible design: {description}",
+        f"Pose and expression: {_SPRITE_EXPRESSION_DIRECTION[expression]}.",
+        (
+            pose_rule
+            + "Preserve established face, body, clothing, hair or head design, "
+            "materials, colors, and canonical props. Keep the complete body "
+            "and every visible limb and prop in frame. One subject, one "
+            "coherent anatomy, no accidental extra limbs, no duplicated or "
+            "redesigned props."
+        ),
+        (
+            "Solid evenly lit saturated magenta chroma-key background, clean "
+            "high-contrast silhouette, no floor shadow, no scenery, no other "
+            "people or creatures. No words, letters, symbols, logos, watermark, "
+            "interface, dialogue box, panel, border, sprite sheet, or collage."
+        ),
+    )).strip()
+
+
 def build_diffusion_prompt(
     *,
     projection: VisibleEventProjection,
@@ -1800,6 +2194,12 @@ def build_diffusion_prompt(
     if continuity:
         parts.append("Identity: " + " ".join(continuity))
     parts.append(f"Style and composition: {style_direction}; {composition}.")
+    if projection.presentation_mode == "visual_novel":
+        parts.append(
+            "Unoccupied environment plate with open foreground staging space; "
+            "no people, humanoids, characters, silhouettes, crowds, creatures, "
+            "or body parts."
+        )
     parts.append(
         "Purely pictorial in-world image, no readable text, letters, labels, "
         "UI, HUD, buttons, minimap, dialogue box, card frame, or watermark; "
