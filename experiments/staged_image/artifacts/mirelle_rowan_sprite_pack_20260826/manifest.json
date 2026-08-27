@@ -1,0 +1,1298 @@
+{
+  "alpha_candidates": [
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          41,
+          59,
+          1037,
+          1439
+        ],
+        "coverage_fraction_alpha_gte_64": 0.293346,
+        "fully_transparent_pixels": 1108154,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 450691,
+        "partially_transparent_pixels": 14383,
+        "significant_component_areas": [
+          461500
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 963795,
+      "height": 1454,
+      "mode": "RGBA",
+      "path": "candidates/mirelle_voss/angry.png",
+      "sha256": "9c64b7913d7b6e72fdfad292a62da9b08c8560538300a2f7b175ce987fbd0cd9",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          277,
+          18,
+          848,
+          1435
+        ],
+        "coverage_fraction_alpha_gte_64": 0.225764,
+        "fully_transparent_pixels": 1215037,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 345832,
+        "partially_transparent_pixels": 12359,
+        "significant_component_areas": [
+          355178
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 738788,
+      "height": 1454,
+      "mode": "RGBA",
+      "path": "candidates/mirelle_voss/concerned.png",
+      "sha256": "eb0ea99d969f17e41ee6de2ad16fb8843069574e26ca89d87eeb4ac63eb859f6",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          217,
+          25,
+          863,
+          1420
+        ],
+        "coverage_fraction_alpha_gte_64": 0.25707,
+        "fully_transparent_pixels": 1164041,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 394319,
+        "partially_transparent_pixels": 14495,
+        "significant_component_areas": [
+          404334
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 788427,
+      "height": 1455,
+      "mode": "RGBA",
+      "path": "candidates/mirelle_voss/happy.png",
+      "sha256": "bef8a44ba166bbfed251da1e23a192287e530cd148cc81e12544b643be6135a8",
+      "width": 1081
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          283,
+          27,
+          850,
+          1426
+        ],
+        "coverage_fraction_alpha_gte_64": 0.22905,
+        "fully_transparent_pixels": 1209253,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 351439,
+        "partially_transparent_pixels": 12536,
+        "significant_component_areas": [
+          360348
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 736888,
+      "height": 1454,
+      "mode": "RGBA",
+      "path": "candidates/mirelle_voss/neutral.png",
+      "sha256": "fb2b1f8b3921a5aebcb4b20129eee3eeacbcdea0bc7781565eb5eb0e892def10",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          358,
+          12,
+          792,
+          1420
+        ],
+        "coverage_fraction_alpha_gte_64": 0.207123,
+        "fully_transparent_pixels": 1244536,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 317818,
+        "partially_transparent_pixels": 10874,
+        "significant_component_areas": [
+          325852
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 619357,
+      "height": 1454,
+      "mode": "RGBA",
+      "path": "candidates/mirelle_voss/sad.png",
+      "sha256": "558b0da789347a6e0a9baf607a66c5f42a1c4b37d1868e5bfd870eca1bad04f0",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          248,
+          53,
+          811,
+          1417
+        ],
+        "coverage_fraction_alpha_gte_64": 0.219859,
+        "fully_transparent_pixels": 1223631,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 334260,
+        "partially_transparent_pixels": 15337,
+        "significant_component_areas": [
+          345888
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 691100,
+      "height": 1454,
+      "mode": "RGBA",
+      "path": "candidates/mirelle_voss/skeptical.png",
+      "sha256": "b7bc509b4c21ceeb83b2dd135f1806252a9af1502016bdd79763023be9c1865b",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          50,
+          45,
+          927,
+          1421
+        ],
+        "coverage_fraction_alpha_gte_64": 0.260409,
+        "fully_transparent_pixels": 1158142,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 397780,
+        "partially_transparent_pixels": 16224,
+        "significant_component_areas": [
+          409401
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 808843,
+      "height": 1453,
+      "mode": "RGBA",
+      "path": "candidates/mirelle_voss/surprised.png",
+      "sha256": "fce8d235e18303f0cd419071df8c2480bf296ae86107fd5ec1dfb1eddd7a197b",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          26,
+          47,
+          1055,
+          1423
+        ],
+        "coverage_fraction_alpha_gte_64": 0.273942,
+        "fully_transparent_pixels": 1138508,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 421338,
+        "partially_transparent_pixels": 13382,
+        "significant_component_areas": [
+          430974
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 910488,
+      "height": 1454,
+      "mode": "RGBA",
+      "path": "candidates/mirelle_voss/tense.png",
+      "sha256": "73900c08d7f877b9abb6d1142b1001917c08841e2a00219b4d011ac722942391",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          110,
+          57,
+          1003,
+          1422
+        ],
+        "coverage_fraction_alpha_gte_64": 0.296459,
+        "fully_transparent_pixels": 1104488,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 457316,
+        "partially_transparent_pixels": 11424,
+        "significant_component_areas": [
+          466397
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 907875,
+      "height": 1454,
+      "mode": "RGBA",
+      "path": "candidates/rowan_kest/angry.png",
+      "sha256": "9ebeaa6857141d538f39eadbddb874b0ddc771eeb7e3d05cd7640a6468fe5285",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          191,
+          40,
+          869,
+          1423
+        ],
+        "coverage_fraction_alpha_gte_64": 0.265811,
+        "fully_transparent_pixels": 1152395,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 410808,
+        "partially_transparent_pixels": 9652,
+        "significant_component_areas": [
+          418082
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 850286,
+      "height": 1455,
+      "mode": "RGBA",
+      "path": "candidates/rowan_kest/concerned.png",
+      "sha256": "accc0555dcefaed80778b26a92fe89d9ddcf161dd801d9062b077faaa0e1e437",
+      "width": 1081
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          142,
+          36,
+          858,
+          1436
+        ],
+        "coverage_fraction_alpha_gte_64": 0.269846,
+        "fully_transparent_pixels": 1146025,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 416302,
+        "partially_transparent_pixels": 10557,
+        "significant_component_areas": [
+          424437
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 829811,
+      "height": 1451,
+      "mode": "RGBA",
+      "path": "candidates/rowan_kest/happy.png",
+      "sha256": "d9ae3aaf77ec8e6f8fd7cbd9847ed4a60cba7f34694cfc794e9de3f849d9ea95",
+      "width": 1084
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          338,
+          37,
+          867,
+          1433
+        ],
+        "coverage_fraction_alpha_gte_64": 0.249936,
+        "fully_transparent_pixels": 1177781,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 386132,
+        "partially_transparent_pixels": 9315,
+        "significant_component_areas": [
+          393207
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 732218,
+      "height": 1454,
+      "mode": "RGBA",
+      "path": "candidates/rowan_kest/neutral.png",
+      "sha256": "321d649aa049da2a899e4825ae64c88c7f21f227f38641b884aab84c1f101eeb",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          344,
+          55,
+          842,
+          1449
+        ],
+        "coverage_fraction_alpha_gte_64": 0.243513,
+        "fully_transparent_pixels": 1187496,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 377276,
+        "partially_transparent_pixels": 7708,
+        "significant_component_areas": [
+          382919
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 638311,
+      "height": 1456,
+      "mode": "RGBA",
+      "path": "candidates/rowan_kest/sad.png",
+      "sha256": "8f8712459255ba0e0fb700fcf8d67c3f6073646b9b19b53779c9c1edc23e5eab",
+      "width": 1080
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          123,
+          34,
+          878,
+          1439
+        ],
+        "coverage_fraction_alpha_gte_64": 0.264962,
+        "fully_transparent_pixels": 1153449,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 409317,
+        "partially_transparent_pixels": 9380,
+        "significant_component_areas": [
+          416559
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 740082,
+      "height": 1453,
+      "mode": "RGBA",
+      "path": "candidates/rowan_kest/skeptical.png",
+      "sha256": "6fdfbe8a40b17a7caa11d9cf0b665451fabbe9c8eef8c5601131921a2b359e86",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          233,
+          40,
+          835,
+          1438
+        ],
+        "coverage_fraction_alpha_gte_64": 0.257719,
+        "fully_transparent_pixels": 1165242,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 397791,
+        "partially_transparent_pixels": 10195,
+        "significant_component_areas": [
+          405450
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 757003,
+      "height": 1454,
+      "mode": "RGBA",
+      "path": "candidates/rowan_kest/surprised.png",
+      "sha256": "2431da1f92a442a2163a3ff1bbf494f3cad0bcaea6fa5c71eea33b5e54d6a272",
+      "width": 1082
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          152,
+          27,
+          920,
+          1419
+        ],
+        "coverage_fraction_alpha_gte_64": 0.276597,
+        "fully_transparent_pixels": 1135338,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 427263,
+        "partially_transparent_pixels": 10254,
+        "significant_component_areas": [
+          435047
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 891590,
+      "height": 1455,
+      "mode": "RGBA",
+      "path": "candidates/rowan_kest/tense.png",
+      "sha256": "37868d55e2ba615135aa76d5429a103cee63ac29455f30474608c34969ad5b0b",
+      "width": 1081
+    }
+  ],
+  "checkpoint_changes": false,
+  "contact_sheets": [
+    {
+      "byte_count": 1060076,
+      "height": 1300,
+      "mode": "RGB",
+      "path": "contact_sheets/mirelle_voss_complete_sweep.png",
+      "sha256": "6b7fd0c5de2a46e07b613397410c371d158a727fd78c01c41f5fd40ec80f225b",
+      "width": 1920
+    },
+    {
+      "byte_count": 1001647,
+      "height": 1300,
+      "mode": "RGB",
+      "path": "contact_sheets/rowan_kest_complete_sweep.png",
+      "sha256": "d4cf7bbfb9eabd9788c5b9d128b8c262febdaecaa69bfe2f36f792524f74a975",
+      "width": 1920
+    }
+  ],
+  "core_variants": [
+    "neutral",
+    "happy",
+    "concerned",
+    "tense",
+    "skeptical",
+    "angry",
+    "sad",
+    "surprised"
+  ],
+  "execution": {
+    "alpha_extraction": {
+      "arguments": [
+        "--auto-key",
+        "border",
+        "--soft-matte",
+        "--transparent-threshold",
+        "12",
+        "--opaque-threshold",
+        "72",
+        "--despill"
+      ],
+      "normalization": {
+        "alpha_noise_cutoff": 48,
+        "canvas": [
+          1100,
+          1500
+        ],
+        "raw_canvas_bottom_y": 1480,
+        "resampled": false
+      },
+      "script": "imagegen skill scripts/remove_chroma_key.py"
+    },
+    "generation_model": "not exposed by the built-in interface",
+    "generation_tool": "built-in image_gen",
+    "one_generation_call_per_nonpilot_variant": true,
+    "pilot_variants": {
+      "mirelle_voss": "angry",
+      "rowan_kest": "skeptical"
+    }
+  },
+  "final_sprites": [
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          50,
+          85,
+          1046,
+          1465
+        ],
+        "coverage_fraction_alpha_gte_64": 0.279697,
+        "fully_transparent_pixels": 1187547,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 450691,
+        "partially_transparent_pixels": 11762,
+        "significant_component_areas": [
+          461500
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 956010,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/mirelle_voss/angry.png",
+      "sha256": "c42e37b5a93620766890fb0cb4422d72959d3c94041e9cf562a77b326a2d3918",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          286,
+          44,
+          857,
+          1461
+        ],
+        "coverage_fraction_alpha_gte_64": 0.215259,
+        "fully_transparent_pixels": 1293967,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 345832,
+        "partially_transparent_pixels": 10201,
+        "significant_component_areas": [
+          355178
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 733789,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/mirelle_voss/concerned.png",
+      "sha256": "0d8907122f95c698132392c0aa767e76f447b0779fd3b444acc24b255f8f7bd2",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          226,
+          50,
+          872,
+          1445
+        ],
+        "coverage_fraction_alpha_gte_64": 0.245051,
+        "fully_transparent_pixels": 1244775,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 394319,
+        "partially_transparent_pixels": 10906,
+        "significant_component_areas": [
+          404334
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 778579,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/mirelle_voss/happy.png",
+      "sha256": "e601c941d31c318a72c97a4a652b00f4212443e273f59536292fe13f749a14a7",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          292,
+          53,
+          859,
+          1452
+        ],
+        "coverage_fraction_alpha_gte_64": 0.218393,
+        "fully_transparent_pixels": 1288766,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 351439,
+        "partially_transparent_pixels": 9795,
+        "significant_component_areas": [
+          360348
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 731082,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/mirelle_voss/neutral.png",
+      "sha256": "d80318dfb74c41be0c3c1daa5e4bf45cfea176ccb147318177204d2194f99c94",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          367,
+          38,
+          801,
+          1446
+        ],
+        "coverage_fraction_alpha_gte_64": 0.197486,
+        "fully_transparent_pixels": 1323489,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 317818,
+        "partially_transparent_pixels": 8693,
+        "significant_component_areas": [
+          325852
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 614426,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/mirelle_voss/sad.png",
+      "sha256": "b30763847d8045761262984be2462404adb9e49195af9cc349dea506c45f25bf",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          257,
+          79,
+          820,
+          1443
+        ],
+        "coverage_fraction_alpha_gte_64": 0.209629,
+        "fully_transparent_pixels": 1303195,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 334260,
+        "partially_transparent_pixels": 12545,
+        "significant_component_areas": [
+          345888
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 684126,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/mirelle_voss/skeptical.png",
+      "sha256": "1b85bf973e86bde0e5eb805317a72611ed70f818c4bf65b04ff6e483f732943d",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          59,
+          72,
+          936,
+          1448
+        ],
+        "coverage_fraction_alpha_gte_64": 0.248122,
+        "fully_transparent_pixels": 1239507,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 397780,
+        "partially_transparent_pixels": 12713,
+        "significant_component_areas": [
+          409401
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 799471,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/mirelle_voss/surprised.png",
+      "sha256": "ba34e9390be340683bac3171094c27f4a8845921ada4b4dbfa731055a2f39dbf",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          35,
+          73,
+          1064,
+          1449
+        ],
+        "coverage_fraction_alpha_gte_64": 0.261196,
+        "fully_transparent_pixels": 1218138,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 421338,
+        "partially_transparent_pixels": 10524,
+        "significant_component_areas": [
+          430974
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 903423,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/mirelle_voss/tense.png",
+      "sha256": "b72375595b575a22efe5f13a2fcbf3f091422984710607f17ff8af8e4b516803",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          119,
+          83,
+          1012,
+          1448
+        ],
+        "coverage_fraction_alpha_gte_64": 0.282665,
+        "fully_transparent_pixels": 1182736,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 457316,
+        "partially_transparent_pixels": 9948,
+        "significant_component_areas": [
+          466397
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 904937,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/rowan_kest/angry.png",
+      "sha256": "c0620342bae19e4a59da216ffeaa7abd75d399295cffbace09053ac9d74f0f0d",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          200,
+          65,
+          878,
+          1448
+        ],
+        "coverage_fraction_alpha_gte_64": 0.253383,
+        "fully_transparent_pixels": 1231270,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 410808,
+        "partially_transparent_pixels": 7922,
+        "significant_component_areas": [
+          418082
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 846100,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/rowan_kest/concerned.png",
+      "sha256": "bfab8506454aa7abc33e9508fdf5ee062ede799e92f0b5a5687c40189bdddb2a",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          150,
+          65,
+          866,
+          1465
+        ],
+        "coverage_fraction_alpha_gte_64": 0.257235,
+        "fully_transparent_pixels": 1224810,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 416302,
+        "partially_transparent_pixels": 8888,
+        "significant_component_areas": [
+          424437
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 825969,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/rowan_kest/happy.png",
+      "sha256": "8c34722b16a6f117ec9b2baa58ae2d4a31d70fde5432c08f6a8a465c20581a12",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          347,
+          63,
+          876,
+          1459
+        ],
+        "coverage_fraction_alpha_gte_64": 0.238307,
+        "fully_transparent_pixels": 1256167,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 386132,
+        "partially_transparent_pixels": 7701,
+        "significant_component_areas": [
+          393207
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 728381,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/rowan_kest/neutral.png",
+      "sha256": "b608f0ad84e492db6e7026c0ac8bfead1aa4a90b7b5a234b7e42e285ecf5d969",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          354,
+          79,
+          852,
+          1473
+        ],
+        "coverage_fraction_alpha_gte_64": 0.232072,
+        "fully_transparent_pixels": 1266540,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 377276,
+        "partially_transparent_pixels": 6184,
+        "significant_component_areas": [
+          382919
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 634648,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/rowan_kest/sad.png",
+      "sha256": "de1e86d859e3242d7590419fa43e021e70e1692cee0b44c730028e67501219af",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          132,
+          61,
+          887,
+          1466
+        ],
+        "coverage_fraction_alpha_gte_64": 0.25246,
+        "fully_transparent_pixels": 1232720,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 409317,
+        "partially_transparent_pixels": 7963,
+        "significant_component_areas": [
+          416559
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 736751,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/rowan_kest/skeptical.png",
+      "sha256": "800ac157929ace0ab2eda1765dd269799ebe94a379a79ac45f7ced127e8edea8",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          242,
+          66,
+          844,
+          1464
+        ],
+        "coverage_fraction_alpha_gte_64": 0.245727,
+        "fully_transparent_pixels": 1243814,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 397791,
+        "partially_transparent_pixels": 8395,
+        "significant_component_areas": [
+          405450
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 752617,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/rowan_kest/surprised.png",
+      "sha256": "0921bd74a3ce49ebdd6cedecf1004f177db344db57140cf349b40160d9846cad",
+      "width": 1100
+    },
+    {
+      "alpha": {
+        "bbox_alpha_gte_64": [
+          161,
+          52,
+          929,
+          1444
+        ],
+        "coverage_fraction_alpha_gte_64": 0.263665,
+        "fully_transparent_pixels": 1214330,
+        "maximum": 255,
+        "minimum": 0,
+        "opaque_pixels": 427263,
+        "partially_transparent_pixels": 8407,
+        "significant_component_areas": [
+          435047
+        ],
+        "significant_component_count": 1
+      },
+      "byte_count": 886999,
+      "height": 1500,
+      "mode": "RGBA",
+      "path": "sprites/rowan_kest/tense.png",
+      "sha256": "579bbe7fc85eea145cc993b9e65a9a2ca65b84fac446c2663336cd244f0b567a",
+      "width": 1100
+    }
+  ],
+  "pack_id": "mirelle-rowan-pose-expression-20260826",
+  "production_bound": false,
+  "prompts": [
+    {
+      "byte_count": 910,
+      "path": "prompts/mirelle_voss/angry_alpha_edit_v2.txt",
+      "sha256": "f91074593116a03609aa13813ad25e9af9bb4f9327639327a28c42c70e0a26b5"
+    },
+    {
+      "byte_count": 853,
+      "path": "prompts/mirelle_voss/angry_chroma_edit_v3.txt",
+      "sha256": "c94f22bd0384dbcfa9e9a104f57a777bf128231713a9e8e5d7a6be4eb6cd4cdc"
+    },
+    {
+      "byte_count": 3309,
+      "path": "prompts/mirelle_voss/angry_pilot_v1.txt",
+      "sha256": "aa57ab856b4e3375e9333d7afc6f389622cd9173c06483a3945b97a695679953"
+    },
+    {
+      "byte_count": 3528,
+      "path": "prompts/mirelle_voss/concerned_v1.txt",
+      "sha256": "ec507982bee55e6aedd2dff5166eef09d816e41b5488a120a4b7db3ae7d4a551"
+    },
+    {
+      "byte_count": 3515,
+      "path": "prompts/mirelle_voss/happy_v1.txt",
+      "sha256": "709cd892dafba0e5209b9175e94f8914e5aefd4667324ce7a711c6e5104feb43"
+    },
+    {
+      "byte_count": 3499,
+      "path": "prompts/mirelle_voss/neutral_v1.txt",
+      "sha256": "b91fed3b211ca04bddf5a85ca3c0fd5d8ca86190722ea3cbef46ffdf6b7cc2df"
+    },
+    {
+      "byte_count": 3528,
+      "path": "prompts/mirelle_voss/sad_v1.txt",
+      "sha256": "fb1bf54d538e1510c71c143694bb1ccee77ad3343cb563fee4fab19245a9d9ec"
+    },
+    {
+      "byte_count": 3527,
+      "path": "prompts/mirelle_voss/skeptical_v1.txt",
+      "sha256": "87e86d6b0646c906564f6a8a1d3dd454aa2ab574f24b14a7156d9af62f5b09a4"
+    },
+    {
+      "byte_count": 3509,
+      "path": "prompts/mirelle_voss/surprised_v1.txt",
+      "sha256": "54d38ec9deb2418d341ce9102319db74deaf758c6ad29bc7eac55c053ebb781c"
+    },
+    {
+      "byte_count": 3514,
+      "path": "prompts/mirelle_voss/tense_v1.txt",
+      "sha256": "e4a7056e2508e09a790130f48dcf530a7c9cfd65af0597d947f44a7ce342bfcf"
+    },
+    {
+      "byte_count": 3554,
+      "path": "prompts/rowan_kest/angry_v1.txt",
+      "sha256": "2aa06732ca6d7ca652136ebead3d37f1e8bd06def9d67e45abf7945ae63d9b99"
+    },
+    {
+      "byte_count": 3550,
+      "path": "prompts/rowan_kest/concerned_v1.txt",
+      "sha256": "e969d6ed6b729a06f7f325f24e6dd188316242b19585ab9c426d50208a36dc41"
+    },
+    {
+      "byte_count": 3496,
+      "path": "prompts/rowan_kest/happy_v1.txt",
+      "sha256": "4134e8b4566dda868afaf45b7f73070b15aac902c05d2907a4599638a6a2e365"
+    },
+    {
+      "byte_count": 3536,
+      "path": "prompts/rowan_kest/neutral_v1.txt",
+      "sha256": "23e15e1ec1a1e56a1a2d92375db4371bee9cbdb7cfde5507e79c7ac90e03d420"
+    },
+    {
+      "byte_count": 3488,
+      "path": "prompts/rowan_kest/sad_v1.txt",
+      "sha256": "11cfa79d998a12ec6e55e107e67ab46c93c37edfe81bbe6428d33cac88d0678e"
+    },
+    {
+      "byte_count": 886,
+      "path": "prompts/rowan_kest/skeptical_alpha_edit_v2.txt",
+      "sha256": "24e0f52fa1db47a774e2b19ab21d3065616fb1f4851f1cf3c76ac668d5eb3db8"
+    },
+    {
+      "byte_count": 844,
+      "path": "prompts/rowan_kest/skeptical_chroma_edit_v3.txt",
+      "sha256": "5317b379e04eb6c18b1131b47ed0121f112999c8713100b7811caa339eee819b"
+    },
+    {
+      "byte_count": 3449,
+      "path": "prompts/rowan_kest/skeptical_pilot_v1.txt",
+      "sha256": "7a371d81e51bc64f4dbd6a958d71f3f2cd273394360d3aead9984e1f66cf7530"
+    },
+    {
+      "byte_count": 3513,
+      "path": "prompts/rowan_kest/surprised_v1.txt",
+      "sha256": "9124f26ba2e4f7ebffa8f99b475d162b6af3e2fec91025628da5e00fb38948eb"
+    },
+    {
+      "byte_count": 3564,
+      "path": "prompts/rowan_kest/tense_v1.txt",
+      "sha256": "14c2b67538c3bd24ba84b54a917857bfb17381bc2903a3c4bf0a96c256ba1f8c"
+    }
+  ],
+  "raw_outputs": [
+    {
+      "byte_count": 1573298,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "generation_raw/mirelle_voss/angry_chroma_v3.png",
+      "sha256": "d0beaaa7fd8ca02290f8c3d4fc64d7ab5685e1bd4915b884ea85d623e9050213",
+      "width": 1082
+    },
+    {
+      "byte_count": 1420475,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "generation_raw/mirelle_voss/concerned_chroma_v1.png",
+      "sha256": "f476ce32ef4b5720ae2d1f6baea1b48ccfcf5a9a61ff5bac4efab093057ae77a",
+      "width": 1082
+    },
+    {
+      "byte_count": 1422266,
+      "height": 1455,
+      "mode": "RGB",
+      "path": "generation_raw/mirelle_voss/happy_chroma_v1.png",
+      "sha256": "12d42a02f1ac49765c3034916937e73380dddd39560764fafee165b794f2cfb2",
+      "width": 1081
+    },
+    {
+      "byte_count": 1411299,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "generation_raw/mirelle_voss/neutral_chroma_v1.png",
+      "sha256": "7a52d35686265f1e3976fb41cbae25dd04ce29e02051835918c67e0f4dbeebb9",
+      "width": 1082
+    },
+    {
+      "byte_count": 1314238,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "generation_raw/mirelle_voss/sad_chroma_v1.png",
+      "sha256": "7c87432d582a188055384e2fa582cbd44bb2991a3e909c45d453e27ac07dbd6b",
+      "width": 1082
+    },
+    {
+      "byte_count": 1377563,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "generation_raw/mirelle_voss/skeptical_chroma_v1.png",
+      "sha256": "685c69a562995b4f760a5592f736dfadd33303ae35ec53049d2f4b6377431550",
+      "width": 1082
+    },
+    {
+      "byte_count": 1445745,
+      "height": 1453,
+      "mode": "RGB",
+      "path": "generation_raw/mirelle_voss/surprised_chroma_v1.png",
+      "sha256": "570a4afd9a4c2e6f6b6c9c1472006cbae740de47f13e8da33c6088d855958ddd",
+      "width": 1082
+    },
+    {
+      "byte_count": 1538547,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "generation_raw/mirelle_voss/tense_chroma_v1.png",
+      "sha256": "9ac44133e62e1c7ab57e604528b3b56695c984caa5d8bdae48fbbed8469f45f4",
+      "width": 1082
+    },
+    {
+      "byte_count": 1522747,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "generation_raw/rowan_kest/angry_chroma_v1.png",
+      "sha256": "26a90b5e00be3195ae1f62cef7b1266af4846288de56e3e35f2b3cfd597d559a",
+      "width": 1082
+    },
+    {
+      "byte_count": 1507792,
+      "height": 1455,
+      "mode": "RGB",
+      "path": "generation_raw/rowan_kest/concerned_chroma_v1.png",
+      "sha256": "66d73c8ee33d66766fa704edb3baae97153688d5775afd5c83ad237e84dd8e8f",
+      "width": 1081
+    },
+    {
+      "byte_count": 1466758,
+      "height": 1451,
+      "mode": "RGB",
+      "path": "generation_raw/rowan_kest/happy_chroma_v1.png",
+      "sha256": "f06ab3c1a57399c68d7486173bc33c74602665b61abcd494b153327d20dd0934",
+      "width": 1084
+    },
+    {
+      "byte_count": 1389245,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "generation_raw/rowan_kest/neutral_chroma_v1.png",
+      "sha256": "45b3bdcc28f816c08030c643dc0258fc04d53ee86427733712bbd38abdd1081f",
+      "width": 1082
+    },
+    {
+      "byte_count": 1294741,
+      "height": 1456,
+      "mode": "RGB",
+      "path": "generation_raw/rowan_kest/sad_chroma_v1.png",
+      "sha256": "633a6219fdf0417ad9fdf1420aa8328ea7fcfb36ed9fe10408100e58878bc57c",
+      "width": 1080
+    },
+    {
+      "byte_count": 1380803,
+      "height": 1453,
+      "mode": "RGB",
+      "path": "generation_raw/rowan_kest/skeptical_chroma_v3.png",
+      "sha256": "67943b74e704c1746810c4f10f46c37a8ff342e4d537aa3733157e5160774a92",
+      "width": 1082
+    },
+    {
+      "byte_count": 1405714,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "generation_raw/rowan_kest/surprised_chroma_v1.png",
+      "sha256": "e9193bceb76842255b3de5c05d1647df81bbb285ccdc9ba8b3438784f36549c4",
+      "width": 1082
+    },
+    {
+      "byte_count": 1535179,
+      "height": 1455,
+      "mode": "RGB",
+      "path": "generation_raw/rowan_kest/tense_chroma_v1.png",
+      "sha256": "cc97d93405f68ba6ece5a07358826736d52adeca8eb314e8cce6d308618c2dd4",
+      "width": 1081
+    }
+  ],
+  "reference_registry_changes": false,
+  "references": [
+    {
+      "actual_sha256": "6173f6066860c270b73bcbde7fc86336411758301cdc5c12341f0400a82266b6",
+      "byte_count": 851943,
+      "height": 1184,
+      "manually_inspected_before_generation": true,
+      "reference_id": "osa_mirelle_voss_locked_active_profile_v1",
+      "registry_sha256": "6173f6066860c270b73bcbde7fc86336411758301cdc5c12341f0400a82266b6",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "storage_ref": "locked/mirelle_voss/active_profile.png",
+      "width": 880
+    },
+    {
+      "actual_sha256": "a84842f3e16bd650a4b85c02cf67c20ea6d694966ba855c6c2fd5709b5e0aaec",
+      "byte_count": 858681,
+      "height": 1184,
+      "manually_inspected_before_generation": true,
+      "reference_id": "osa_mirelle_voss_locked_anatomy_v1",
+      "registry_sha256": "a84842f3e16bd650a4b85c02cf67c20ea6d694966ba855c6c2fd5709b5e0aaec",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "storage_ref": "locked/mirelle_voss/anatomy.png",
+      "width": 880
+    },
+    {
+      "actual_sha256": "88265bde530579df8f23c7be8538df82541736a946454b8df347762a87fa2480",
+      "byte_count": 895338,
+      "height": 1184,
+      "manually_inspected_before_generation": true,
+      "reference_id": "osa_mirelle_voss_locked_back_view_v1",
+      "registry_sha256": "88265bde530579df8f23c7be8538df82541736a946454b8df347762a87fa2480",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "storage_ref": "locked/mirelle_voss/back_view.png",
+      "width": 880
+    },
+    {
+      "actual_sha256": "abd349e761b82ba011e2c0434ea6b2fd8b4ed5eb90f6aed8e9c575833e8e9260",
+      "byte_count": 1179029,
+      "height": 1184,
+      "manually_inspected_before_generation": true,
+      "reference_id": "osa_mirelle_voss_locked_facial_zoom_v1",
+      "registry_sha256": "abd349e761b82ba011e2c0434ea6b2fd8b4ed5eb90f6aed8e9c575833e8e9260",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "storage_ref": "locked/mirelle_voss/facial_zoom.png",
+      "width": 880
+    },
+    {
+      "actual_sha256": "9d2ea44d6ed3c3ac806e1a232d245e3aaef09efc50e888c54352ca3baf1896f6",
+      "byte_count": 800434,
+      "height": 1184,
+      "manually_inspected_before_generation": true,
+      "reference_id": "osa_rowan_kest_locked_active_profile_v1",
+      "registry_sha256": "9d2ea44d6ed3c3ac806e1a232d245e3aaef09efc50e888c54352ca3baf1896f6",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "storage_ref": "locked/rowan_kest/active_profile.png",
+      "width": 880
+    },
+    {
+      "actual_sha256": "c323fd106f46e689b808b70b8a08590953c1fbc47a0192dfdca4644bcf52383f",
+      "byte_count": 686581,
+      "height": 1184,
+      "manually_inspected_before_generation": true,
+      "reference_id": "osa_rowan_kest_locked_anatomy_v1",
+      "registry_sha256": "c323fd106f46e689b808b70b8a08590953c1fbc47a0192dfdca4644bcf52383f",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "storage_ref": "locked/rowan_kest/anatomy.png",
+      "width": 880
+    },
+    {
+      "actual_sha256": "311424fe42907a706a8065fac7b6548ae806220e168325fdc5d3e6e9346cf6d1",
+      "byte_count": 940303,
+      "height": 1184,
+      "manually_inspected_before_generation": true,
+      "reference_id": "osa_rowan_kest_locked_back_view_v1",
+      "registry_sha256": "311424fe42907a706a8065fac7b6548ae806220e168325fdc5d3e6e9346cf6d1",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "storage_ref": "locked/rowan_kest/back_view.png",
+      "width": 880
+    },
+    {
+      "actual_sha256": "3b5fed61b95dff45d7f6d2ea615fe5b3be6738358dee7a86b0495e5e5edf0e91",
+      "byte_count": 1131040,
+      "height": 1184,
+      "manually_inspected_before_generation": true,
+      "reference_id": "osa_rowan_kest_locked_facial_zoom_v1",
+      "registry_sha256": "3b5fed61b95dff45d7f6d2ea615fe5b3be6738358dee7a86b0495e5e5edf0e91",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "storage_ref": "locked/rowan_kest/facial_zoom.png",
+      "width": 880
+    }
+  ],
+  "rejected_iterations": [
+    {
+      "byte_count": 1490429,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "rejected/mirelle_voss/angry_pilot_alpha_edit_v2.png",
+      "rejection_reasons": [
+        "transparency",
+        "targeted alpha-only edit still returned RGB with a checkerboard painted into pixels"
+      ],
+      "sha256": "c99b697fa1b78017303e725e48beb49141061a2f9a66354104d9c9e437dd9a4c",
+      "width": 1082
+    },
+    {
+      "byte_count": 1404118,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "rejected/mirelle_voss/angry_pilot_v1.png",
+      "rejection_reasons": [
+        "transparency",
+        "initial generation returned RGB with a checkerboard painted into pixels"
+      ],
+      "sha256": "9430fee972f974e8297f9116b8cc44ed1852bc874a4a0bee7b6c8ae485604954",
+      "width": 1082
+    },
+    {
+      "byte_count": 1313720,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "rejected/rowan_kest/skeptical_pilot_alpha_edit_v2.png",
+      "rejection_reasons": [
+        "transparency",
+        "targeted alpha-only edit still returned RGB with a checkerboard painted into pixels"
+      ],
+      "sha256": "8091aa71c11e673fe1f55074101bcf4a41d8d5352348a3f5c487d1be9f68b12f",
+      "width": 1082
+    },
+    {
+      "byte_count": 1295454,
+      "height": 1454,
+      "mode": "RGB",
+      "path": "rejected/rowan_kest/skeptical_pilot_v1.png",
+      "rejection_reasons": [
+        "transparency",
+        "initial generation returned RGB with a checkerboard painted into pixels"
+      ],
+      "sha256": "489c877ac26524d33b9576b80d2b387792640f7c97c60ad6aa15cc34c60c3b26",
+      "width": 1082
+    }
+  ],
+  "review_documents": [
+    {
+      "byte_count": 4225,
+      "path": "README.md",
+      "sha256": "f52d164a789ad677d9b0547191b97f59a1fc46383abdb75952c8f837a13aea80"
+    },
+    {
+      "byte_count": 3722,
+      "path": "manual_review.md",
+      "sha256": "f5cb5a086b8ffeb0138f1e3e1660c838581fd1240e0f3ccfea777fde605ef245"
+    },
+    {
+      "byte_count": 4405,
+      "path": "prompt_conflict_audit.md",
+      "sha256": "5c780c9f19ebc3418fdf09eb45a3845974d8e59a3c31c73911badb8fd7e66226"
+    },
+    {
+      "byte_count": 1489,
+      "path": "rejection_log.md",
+      "sha256": "f20d735ae35d9aa9588eceee37085eea056aefe72c5bdcf63cda1da48276dea2"
+    }
+  ],
+  "runtime_changes": false,
+  "schema_version": 1,
+  "status": "experimental_unlocked_pending_human_selection"
+}
