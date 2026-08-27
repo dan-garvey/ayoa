@@ -338,7 +338,49 @@ class TestComposePovRender:
         correction = mock_client.complete.await_args_list[1].kwargs[
             "messages"
         ][-1]["content"]
-        assert "omits an available current dialogue speaker" in correction
+        assert "current speaker first" in correction
+
+    @pytest.mark.asyncio
+    async def test_visual_novel_descriptor_for_rostered_speaker_gets_exact_name(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        mislabeled = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="Pip's reply returns control.",
+            pages=[VisualNovelPage(
+                kind="dialogue",
+                speaker="The small courier beneath the arch",
+                text="I am listening.",
+                sprites=[VisualNovelSpriteCue(
+                    character="Pip",
+                    expression="neutral",
+                )],
+            )],
+        )
+        corrected = mislabeled.model_copy(deep=True)
+        corrected.pages[0].speaker = "Pip"
+        mock_client.complete = AsyncMock(side_effect=[
+            llm_response(mislabeled),
+            llm_response(corrected),
+        ])
+
+        result, _entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[RenderBufferEntry(
+                event_id="evt_beta",
+                observation_level="direct",
+            )],
+            partial_mode=False,
+        )
+
+        assert mock_client.complete.await_count == 2
+        assert result.pages[0].speaker == "Pip"
+        assert result.pages[0].sprites[0].character == "Pip"
 
     @pytest.mark.asyncio
     async def test_visual_novel_source_identifier_gets_one_transient_correction(

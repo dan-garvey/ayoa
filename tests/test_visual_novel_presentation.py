@@ -7,12 +7,15 @@ import json
 from pathlib import Path
 import shutil
 
-from PIL import Image
+from PIL import Image, ImageDraw
 import pytest
 
 from app.engine.visual_novel_presentation import (
     CARD_HEIGHT,
     CARD_WIDTH,
+    _SPEAKER_NAME_MAX_WIDTH,
+    _ellipsize,
+    _text_width,
     VisualNovelCardRenderer,
     VisualNovelDeckSection,
     VisualNovelSpriteError,
@@ -159,6 +162,28 @@ def test_classic_adv_renderer_preserves_stage_above_overlay(tmp_path: Path):
         red, green, blue = card.convert("RGB").getpixel((24, 400))
         assert blue > red
         assert blue > green
+
+
+def test_speaker_nameplate_keeps_ordinary_long_character_name(
+    tmp_path: Path,
+):
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    fonts = renderer._fonts()
+    draw = ImageDraw.Draw(Image.new("RGB", (CARD_WIDTH, CARD_HEIGHT)))
+    name = "the Warden of the Eighth"
+
+    displayed = _ellipsize(
+        draw,
+        name,
+        fonts.speaker,
+        max_width=_SPEAKER_NAME_MAX_WIDTH,
+    )
+
+    assert displayed == name
+    assert _text_width(draw, displayed, fonts.speaker) > 332
+    assert _text_width(draw, displayed, fonts.speaker) <= (
+        _SPEAKER_NAME_MAX_WIDTH
+    )
 
 
 def test_sprite_alpha_composites_after_exact_stage_and_before_dialogue_ui(

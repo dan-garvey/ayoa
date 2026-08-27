@@ -182,7 +182,11 @@ class OneStarProgressionConfig(BaseModel):
     xp_threshold_factor: int = Field(ge=1)
     floor_xp_per_floor: int = Field(ge=0)
     overlevel_xp_percentages: list[int] = Field(min_length=7, max_length=7)
-    cap_bank_extra_levels: int = Field(ge=1, le=1)
+    # The campaign seed keeps this at one. A bounded larger value lets focused
+    # synthetic fixtures accelerate across a promotion threshold without
+    # changing the deterministic XP algorithm or granting levels before the
+    # promotion occurs.
+    cap_bank_extra_levels: int = Field(ge=1, le=10)
     synthesis_source_base_xp: int = Field(ge=0)
     synthesis_skill_chance_basis_points: int = Field(ge=0, le=10_000)
 

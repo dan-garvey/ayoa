@@ -31,7 +31,8 @@ from app.schemas.narrator import (
 
 CARD_WIDTH = 1024
 CARD_HEIGHT = 576
-_RENDERER_VERSION = "classic-adv-v6-deterministic-sprites"
+_RENDERER_VERSION = "classic-adv-v7-full-speaker-nameplate"
+_SPEAKER_NAME_MAX_WIDTH = 900
 _MANIFEST_VERSION = 2
 _SHA256_LENGTH = 64
 _MAX_BODY_LINES = 4
@@ -1699,10 +1700,10 @@ def _compose_card(
             draw,
             page.speaker,
             fonts.speaker,
-            max_width=332,
+            max_width=_SPEAKER_NAME_MAX_WIDTH,
         )
         speaker_width = min(
-            380,
+            950,
             max(188, _text_width(draw, display_speaker, fonts.speaker) + 48),
         )
         name_box = (34, 354, 34 + speaker_width, 408)

@@ -124,13 +124,18 @@ def _assert_visual_novel_sprite_cues(
             raise ValueError(
                 "visual-novel narrator selected an unavailable sprite character"
             )
-        if (
-            page.kind == "dialogue"
-            and page.speaker in allowed
-            and page.speaker not in {cue.character for cue in page.sprites}
-        ):
+        if page.kind != "dialogue":
+            continue
+        if page.speaker in allowed:
+            if not page.sprites or page.sprites[0].character != page.speaker:
+                raise ValueError(
+                    "visual-novel narrator must put the exact available "
+                    "dialogue speaker first in the sprite cues"
+                )
+        elif page.sprites:
             raise ValueError(
-                "visual-novel narrator omitted the available dialogue speaker"
+                "visual-novel narrator used a descriptive dialogue speaker "
+                "with rostered sprite cues"
             )
 
 
@@ -151,12 +156,12 @@ def _visual_novel_page_sprite_cues_are_valid(
         for cue in sprites
     ):
         return False
-    return not (
-        getattr(page, "kind", "") == "dialogue"
-        and getattr(page, "speaker", "") in allowed
-        and getattr(page, "speaker", "")
-        not in {cue.character for cue in sprites}
-    )
+    if getattr(page, "kind", "") != "dialogue":
+        return True
+    speaker = getattr(page, "speaker", "")
+    if speaker in allowed:
+        return bool(sprites) and sprites[0].character == speaker
+    return not sprites
 
 
 def assert_narrator_handoff_policy(
@@ -193,6 +198,11 @@ def _assert_visual_novel_correction_preserves_contract(
                 "visual-novel correction changed page kind/order "
                 f"at page {index}"
             )
+        before_sprite_contract_safe = _visual_novel_page_sprite_cues_are_valid(
+            before,
+            allowed_sprite_labels=allowed_sprite_labels,
+            source_ids=source_ids,
+        )
         for field_name in ("speaker", "text"):
             before_value = getattr(before, field_name)
             if visual_novel_text_contains_source_identifiers(
@@ -200,17 +210,14 @@ def _assert_visual_novel_correction_preserves_contract(
                 source_ids=source_ids,
             ):
                 continue
+            if field_name == "speaker" and not before_sprite_contract_safe:
+                continue
             if getattr(after, field_name) != before_value:
                 raise ValueError(
                     "visual-novel correction changed an already-safe "
                     f"{field_name} field at page {index}"
                 )
-        before_sprites_safe = _visual_novel_page_sprite_cues_are_valid(
-            before,
-            allowed_sprite_labels=allowed_sprite_labels,
-            source_ids=source_ids,
-        )
-        if before_sprites_safe and after.sprites != before.sprites:
+        if before_sprite_contract_safe and after.sprites != before.sprites:
             raise ValueError(
                 "visual-novel correction changed already-safe sprite cues "
                 f"at page {index}"
@@ -508,9 +515,9 @@ async def compose_pov_render(
                             "Return corrected JSON only. Keep the handoff, page "
                             "count, page kinds, and page order unchanged. Change "
                             "only speaker or text fields that contain a source "
-                            "identifier, or a sprite cue list that names a "
-                            "character outside the supplied sprite roster or "
-                            "omits an available current dialogue speaker; "
+                            "identifier, or a dialogue speaker and sprite cue "
+                            "list that do not use the exact supplied roster "
+                            "label with the current speaker first; "
                             "preserve every other field exactly. Remove every "
                             "source identifier. Do "
                             "not transform one into a guessed proper name. Use "

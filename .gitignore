@@ -27,6 +27,10 @@ app/storage/stories/*/visual-references/
 !app/storage/stories/spring_rain_second_chorus/ckpt_0000.json
 !app/storage/stories/one_star_ascension_s1/
 !app/storage/stories/one_star_ascension_s1/ckpt_0000.json
+!app/storage/stories/one_star_ascension_s1_promotion_playtest/
+!app/storage/stories/one_star_ascension_s1_promotion_playtest/ckpt_0000.json
+!app/storage/stories/one_star_ascension_s1_promotion_playtest/visual-references/
+!app/storage/stories/one_star_ascension_s1_promotion_playtest/visual-references/**
 !app/storage/stories/the_unblessed_summon/
 !app/storage/stories/the_unblessed_summon/ckpt_0000.json
 !app/storage/sessions/.gitkeep
