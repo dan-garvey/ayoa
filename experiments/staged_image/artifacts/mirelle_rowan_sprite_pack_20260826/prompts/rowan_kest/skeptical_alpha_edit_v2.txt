@@ -1,0 +1,5 @@
+Use case: background-extraction
+Asset type: experimental visual-novel character sprite
+Input images: Image 1 is the sole edit target.
+Primary request: Remove only the gray-and-white checkerboard background from Image 1 and replace it with genuine transparent alpha.
+Constraints: Keep Rowan's illustration exactly unchanged pixel-for-pixel wherever possible: same identity, face, skeptical expression, hair, scarf, clothing, pose, hands, paired sheathed knives, map case, colors, linework, shading, framing, scale, and canvas dimensions. Preserve every subject edge cleanly, including hair tips, fingers, scarf edges, knife hilts, case straps, and boots. Output RGBA with transparent pixels outside the character. No halo, fringe, scenery, floor, cast shadow, checkerboard, color field, text, logo, or watermark. Do not redraw, restyle, relight, crop, resize, or reposition the subject.

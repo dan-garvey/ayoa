@@ -1,0 +1,5 @@
+Use case: precise-object-edit
+Asset type: experimental visual-novel character sprite intermediate
+Input images: Image 1 is the sole edit target.
+Primary request: Replace only the gray-and-white checkerboard background with one perfectly flat, uniform, fully opaque pure magenta color (#FF00FF), edge to edge.
+Constraints: Change only the background. Keep Mirelle's illustration exactly unchanged: same identity, face, angry expression, hair, braid, clothing, pose, hands, one spear, spearhead, tassel, colors, linework, shading, framing, scale, and canvas dimensions. Preserve every subject edge cleanly. The magenta must not overlap any part of Mirelle or her spear. No gradient, texture, checkerboard, scenery, floor, cast shadow, halo, fringe, glow, text, logo, or watermark. Do not redraw, restyle, relight, crop, resize, or reposition the subject.
