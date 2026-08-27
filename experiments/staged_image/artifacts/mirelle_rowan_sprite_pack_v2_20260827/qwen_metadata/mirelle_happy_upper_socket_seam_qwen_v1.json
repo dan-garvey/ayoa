@@ -1,0 +1,111 @@
+{
+  "status": "pending_manual_review",
+  "selection": "approved deterministic happy v2 remains selected fallback",
+  "model_calls": 1,
+  "inputs": {
+    "primary": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/happy_upper_primary_metal_reference_graft_v2.png",
+      "sha256": "d84dc6d28c8864c3cb7e2dfb7190e5e6460e7b797d1b59dedb246341ca9f48a3"
+    },
+    "canonical_support": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+      "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+    },
+    "metal_patch_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_upper_canonical_metal_patch_mask_v2.png",
+      "sha256": "0720fdc9010552132a6668a65f77f94aa1aafb5a24f1b55cb3cdde1ffd8b33c9"
+    },
+    "pose_cloth_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_upper_pose_cloth_preserve_mask_v2.png",
+      "sha256": "433d5514577d1c725cef2db93729dd42095c1f01460be26dc56106fec5bd91a3"
+    },
+    "shaft_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_upper_shaft_preserve_mask_v2.png",
+      "sha256": "bf0bdfa5c2a8ffa80b8ac012f5bf0bdd86a31d6bb2c598906ee450436dd53721"
+    },
+    "lower_cap_boot_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_lower_butt_cap_boot_exact_mask_v2.png",
+      "sha256": "8c4f146a3bb3e62a20b3d301410859887a16b7025a08cd26fdda0be940861741"
+    }
+  },
+  "mask": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_upper_socket_background_seam_qwen_mask_v1.png",
+    "sha256": "e5984a18cd95239963eb91081de35c933c10c87c6594b159834d6267c52499ce",
+    "pixel_count": 126,
+    "bbox_xyxy": [
+      228,
+      119,
+      248,
+      129
+    ],
+    "blade_guard_tassel_shaft_character_overlap_pixels": 0,
+    "proof": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/mask_proofs/mirelle_happy_upper_socket_seam_qwen_mask_v1.png",
+      "sha256": "ba85d87521f39165d7a069987ac8658daf73ebc4f7c37624ddc3061222e74b1c"
+    },
+    "socket_material_pixels_inside": 73,
+    "background_seam_pixels_inside": 53
+  },
+  "request": {
+    "gateway": "http://127.0.0.1:8199",
+    "endpoint": "/prototype/edit/qwen/masked",
+    "seed": 260827333,
+    "steps": 24,
+    "cfg": 3.2,
+    "denoise": 0.2,
+    "prompt_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/qwen/mirelle_happy_upper_socket_seam_qwen_v1.txt",
+    "prompt_sha256": "0cf4806c3b0d1875db0b61ca6ed01c587fd5e77cd410b37b9419e4accad25bf3",
+    "exact_body_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_happy_upper_socket_seam_qwen_v1.json",
+    "exact_body_sha256": "7c38b7d076c85ca915683b2a10be448ce0b294473a31300a811540ec946b610f",
+    "exact_body_bytes": 1994898,
+    "preflight_health_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_happy_upper_socket_seam_qwen_v1_health.json",
+    "preflight_health_sha256": "500e1887101360f4652a84b7350d97764b866e9cf1218bf20ad58a81a26b6a0c",
+    "driver_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/run_mirelle_happy_upper_socket_seam_qwen_v1.py",
+    "driver_sha256": "736b4c84b6eef1ebed8c5aca2f6663568e929a0f59cd821cd19eaa5ab7e40555",
+    "shared_helper_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/run_mirelle_neutral_socket_seam_qwen_v1.py",
+    "shared_helper_sha256": "9303d43ceab0f7f4ac2d31c6f4f081651cb7fd9353befb1b7209c3c73e75e94a"
+  },
+  "response": {
+    "headers_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_headers/mirelle_happy_upper_socket_seam_qwen_v1.json",
+    "headers_sha256": "d4b76a1686bf8335b0c7f75506c385eefbcfeca3ed6eb77496654848a9429ec0",
+    "raw_model_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_raw/mirelle_voss/happy_upper_socket_seam_qwen_v1_model_output.png",
+    "raw_model_output_sha256": "e94f3a78af4ef2477a3a75a9061058378b7ae9961a398308afda40e95d2cde36",
+    "raw_model_output_dimensions": [
+      880,
+      1184
+    ],
+    "aligned_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_aligned/mirelle_voss/happy_upper_socket_seam_qwen_v1_aligned.png",
+    "aligned_output_sha256": "9a1b14763ff33d0e0a92fb83b3e81d47807cff37d98d167216a84ec6df8effd5",
+    "alignment": {
+      "method": "resize_to_primary_then_ecc_translation",
+      "fallback_to_resize_only": false,
+      "ecc_correlation": 0.999739989685237,
+      "warp_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0207829512655735
+        ],
+        [
+          0.0,
+          1.0,
+          -0.001865782542154193
+        ]
+      ],
+      "alignment_mask_pixels": 405496
+    },
+    "hard_composite_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/happy_upper_socket_seam_qwen_v1.png",
+    "hard_composite_sha256": "121caa48934bd4dd3acce8cc065305e9d9af36e472ea47517214f089b55ea999",
+    "hard_composite_dimensions": [
+      1081,
+      1455
+    ],
+    "changed_inside_mask_pixels": 126,
+    "changed_outside_mask_pixels": 0,
+    "mean_absolute_channel_delta_inside_mask": 36.32010582010582,
+    "comparison_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_happy_upper_socket_seam_qwen_v1_comparison.png",
+    "comparison_sha256": "6346f409fc80a522417ca11b17a508b3af5def7a8940b804337391b1f13cc1ab"
+  },
+  "pose": "happy",
+  "version": "upper_primary_metal_reference_graft_v2"
+}

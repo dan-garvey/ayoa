@@ -1,0 +1,149 @@
+{
+  "status": "experimental_unlocked_review_index",
+  "production_bound": false,
+  "layout": {
+    "columns": 4,
+    "rows": 4,
+    "cell_dimensions": [
+      780,
+      568
+    ],
+    "output_dimensions": [
+      3120,
+      2272
+    ],
+    "resampling": "Pillow LANCZOS for index only; source sheets unchanged"
+  },
+  "contact_sheets": [
+    {
+      "title": "Aveline Morcant",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/aveline_morcant_complete_sweep.png",
+      "sha256": "38efc18c7bf16261f857ac0f435f5daa904ec24f54a403fc7dc3db33caddc012",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Castor Valebrand",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/castor_valebrand_complete_sweep.png",
+      "sha256": "f1bc9290af2c491cecad3173fc496dcb8b75ba679717b8b660fe1df4a7dce2d1",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Halcyon of the Gilded March",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/halcyon_of_the_gilded_march_complete_sweep.png",
+      "sha256": "bd615f354f6d95326e918da757e677a7de1c7df0bb052d5806e1e3e7b817253f",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Iselle the Guide",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/iselle_the_guide_complete_sweep.png",
+      "sha256": "34db9ec9dff9b543f9d18d020a8231c98cd8c3c56eceb5b6ea9648e0c54ccac6",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Liora Fen",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/liora_fen_complete_sweep.png",
+      "sha256": "58dd15b859a3fbdbab9fea0a9816c1c10302f9224ef89a019ba9033c44f7182b",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Renna Holt",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/renna_holt_complete_sweep.png",
+      "sha256": "d0c9c3c77f5e8798812d3054341339e1873cfdca2a52284772c061b6ae9fc463",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Seris Nightglass",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/seris_nightglass_complete_sweep.png",
+      "sha256": "ee56ebadbb6413944fc24854c729a27939cdc34baaf9b68b628b56d036618107",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Soren Ironvow",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/soren_ironvow_complete_sweep.png",
+      "sha256": "ae21caf571a015b690fd9e41757973b3579716eb57c4f9ed255ee2af5113ab8d",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Veil the Unnumbered",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/veil_the_unnumbered_complete_sweep.png",
+      "sha256": "d19b5e743b53dd03e54ab44bf370fce09e20f036ab91a1a60bee209297e8b054",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Warden of the Eighth",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/warden_of_the_eighth_complete_sweep.png",
+      "sha256": "5162af312e903ff0319448c37751d22dcc191c212b043994e64fd9fc022a3748",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Wren",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/wren_complete_sweep.png",
+      "sha256": "3fe43ee242037d328b2d9906c0dc56709048a94d0ab5f2ec10ff46a3f2f47035",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Veiled one-star - masculine",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/veiled_masculine_complete_sweep.png",
+      "sha256": "952c636cd0ffebd6e7a2bf1326aca5065c9c2b2406db75f330361400e6a2e2f8",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    },
+    {
+      "title": "Veiled one-star - feminine",
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/veiled_feminine_complete_sweep.png",
+      "sha256": "472958b9324b3e6c695149d55aae45030697a2a017e2e2b908a24762f5a25dde",
+      "dimensions": [
+        1920,
+        1300
+      ]
+    }
+  ],
+  "output": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/complete_cast_pose_expression_overview.png",
+    "sha256": "39a5ac106bde5f5463ce5311c9bc448b6de0dc02fc21dd00ee8ca80627b62c51",
+    "dimensions": [
+      3120,
+      2272
+    ],
+    "mode": "RGB"
+  },
+  "script": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/build_complete_cast_overview.py",
+    "sha256": "fbfb9f2592de759e7953077ae1b67bd4f0c91a3c10d0281e63c2c48054698095"
+  }
+}

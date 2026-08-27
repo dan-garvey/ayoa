@@ -1,0 +1,92 @@
+{
+  "status": "rejected_after_manual_review",
+  "decision": "keep_approved_deterministic_v2",
+  "reason": "The one-call Qwen result is not clearly better than approved deterministic Happy v2. Within the tiny hard mask it replaces clean saturated key background and crisp neutral-silver socket pixels with burgundy and muddy mauve transition colors, softening the collar linework and creating a pasted tonal patch. The lower mean boundary contrast comes from color smearing rather than a semantically correct silver-to-magenta seam.",
+  "selected": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/happy_upper_primary_metal_reference_graft_v2.png",
+    "sha256": "d84dc6d28c8864c3cb7e2dfb7190e5e6460e7b797d1b59dedb246341ca9f48a3"
+  },
+  "rejected_composite": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/happy_upper_socket_seam_qwen_v1.png",
+    "sha256": "121caa48934bd4dd3acce8cc065305e9d9af36e472ea47517214f089b55ea999"
+  },
+  "review_evidence": {
+    "inspection": "original-resolution full frames plus nearest-neighbor close comparison",
+    "mask_pixels": 126,
+    "mask_bbox_xyxy": [228, 119, 248, 129],
+    "changed_inside_mask_pixels": 126,
+    "changed_outside_mask_pixels": 0,
+    "mean_absolute_channel_delta_inside_mask": 36.32010582010582,
+    "cross_mask_boundary_gradient": {
+      "deterministic_v2_mean": 48.23484848484848,
+      "qwen_composite_mean": 39.13257575757576,
+      "aligned_raw_mean": 16.416666666666668,
+      "deterministic_v2_median": 28.166666666666664,
+      "qwen_composite_median": 35.16666666666667,
+      "aligned_raw_median": 14.166666666666668,
+      "deterministic_v2_p90": 127.53333333333333,
+      "qwen_composite_p90": 74.1,
+      "aligned_raw_p90": 30.766666666666666,
+      "deterministic_v2_max": 146.33333333333334,
+      "qwen_composite_max": 111.33333333333333,
+      "aligned_raw_max": 49.666666666666664,
+      "interpretation": "Qwen lowers peak contrast by blurring silver, magenta, and burgundy together; this is not a color-correct edge improvement."
+    },
+    "mutually_exclusive_masked_pixel_classes": {
+      "deterministic_v2": {
+        "hot_magenta_background": 53,
+        "red_burgundy": 0,
+        "gray_metal": 73,
+        "dark": 0,
+        "mixed_other": 0
+      },
+      "qwen_composite": {
+        "hot_magenta_background": 15,
+        "red_burgundy": 32,
+        "gray_metal": 38,
+        "dark": 0,
+        "mixed_other": 41
+      }
+    },
+    "representative_regressions_xy": [
+      {
+        "xy": [241, 126],
+        "deterministic_v2_rgb": [250, 3, 246],
+        "qwen_composite_rgb": [120, 59, 107],
+        "finding": "clean saturated key background became a dark burgundy seam pixel"
+      },
+      {
+        "xy": [231, 125],
+        "deterministic_v2_rgb": [250, 3, 246],
+        "qwen_composite_rgb": [156, 87, 139],
+        "finding": "clean saturated key background became muddy mauve"
+      },
+      {
+        "xy": [245, 120],
+        "deterministic_v2_rgb": [57, 50, 44],
+        "qwen_composite_rgb": [188, 19, 188],
+        "finding": "dark neutral socket linework became bright purple-magenta"
+      },
+      {
+        "xy": [240, 121],
+        "deterministic_v2_rgb": [36, 30, 26],
+        "qwen_composite_rgb": [157, 65, 143],
+        "finding": "dark neutral socket linework became a mauve transition"
+      }
+    ]
+  },
+  "proof": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_happy_upper_socket_seam_qwen_v1_comparison.png",
+    "sha256": "6346f409fc80a522417ca11b17a508b3af5def7a8940b804337391b1f13cc1ab"
+  },
+  "response": {
+    "status": 200,
+    "worker": "http://127.0.0.1:8210",
+    "prompt_id": "881be0dd-0e4f-4bf0-bc50-7d063d7e4c7d",
+    "seed": 260827333,
+    "prototype": "masked-qwen",
+    "content_type": "image/png"
+  },
+  "model_calls": 1,
+  "followup_calls_authorized_or_made": 0
+}

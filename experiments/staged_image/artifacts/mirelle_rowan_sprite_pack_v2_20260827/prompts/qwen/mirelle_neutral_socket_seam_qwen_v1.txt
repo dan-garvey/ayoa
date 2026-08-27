@@ -1,0 +1,6 @@
+Use case: precise-object-edit
+Asset type: one-off masked seam experiment for a visual-novel character sprite
+Input roles: Image 1 is the approved deterministic edit target. Image 2 is Mirelle's locked canonical spear crop and is supporting evidence only for the silver collar/socket material and edge treatment.
+Primary request: Make the smallest possible cleanup only at the silver collar/socket-to-magenta-background junction inside the white mask. Remove any jagged magenta notch, fringe, or pasted edge there and make the cylindrical silver collar meet the existing red shaft cleanly. Preserve the supplied collar size, position, shading, and silhouette.
+Preservation contract: Change nothing outside the white mask. Do not redraw, move, resize, simplify, or restyle the central blade, lateral guards, socket, red shaft, or pose-specific red tassel. Do not copy Image 2's orientation, streamers, body, or background. Preserve Mirelle's face, hair, body, pose, hand, clothing, armor, boots, opposite lower cap, framing, and magenta screen exactly. Add no weapon parts, streamers, people, text, scenery, shadow, or texture.
+Mask semantics: White is the only eligible seam region. Black must remain unchanged.

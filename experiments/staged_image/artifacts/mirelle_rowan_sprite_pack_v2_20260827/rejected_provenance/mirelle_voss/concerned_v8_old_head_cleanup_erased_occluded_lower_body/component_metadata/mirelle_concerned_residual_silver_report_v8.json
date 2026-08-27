@@ -1,0 +1,25 @@
+{
+  "search_envelope_bbox": [
+    495,
+    1101,
+    707,
+    1446
+  ],
+  "silver_classifier": {
+    "hsv_saturation_max": 115,
+    "rgb_spread_max": 110,
+    "value_min": 24
+  },
+  "excluded_legitimate_regions": [
+    "new transformed rigid metal",
+    "exact upper cap/tassel/shaft/grip/collar",
+    "exact visible body/face/costume/greaves/boots"
+  ],
+  "tiny_noise_max_area_pixels": 6,
+  "residual_pixel_count": 0,
+  "component_count": 0,
+  "largest_component_area_pixels": 0,
+  "components": [],
+  "nontrivial_components": [],
+  "passes": true
+}

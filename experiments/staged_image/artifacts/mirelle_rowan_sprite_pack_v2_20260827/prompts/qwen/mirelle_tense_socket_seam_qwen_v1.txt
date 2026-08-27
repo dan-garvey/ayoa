@@ -1,0 +1,7 @@
+Use case: precise-object-edit
+Asset type: one-call visual-novel sprite seam experiment
+Input roles: Image 1 is the approved deterministic tense sprite and is the only edit target. Image 2 is Mirelle's locked canonical spear crop and is supporting evidence for the existing metal rendering only; do not copy its pose, body, ribbons, background, scale, or framing.
+Primary request: Harmonize only the existing silver collar/socket junction and its immediately adjacent uniform magenta-background seam inside the supplied white mask. Make the socket read as one clean connection between the already-present canonical metal head and the already-present red shaft. Remove only tiny magenta/edge slivers inside the mask, preserve the existing anime line weight and silver shading, and restore clean saturated magenta wherever the seam should reveal background.
+Hard prop invariants: Do not redraw, resize, rotate, simplify, replace, or restyle the spear. The long central blade and both lateral guards are deliberately outside the mask and must stay exact. Do not add, remove, lengthen, or move any blade, guard, shaft, tassel, ribbon, or streamer.
+Character invariants: Preserve Mirelle's face, tense expression, orange-red hair and braid, hands, body, pose, cream coat, burgundy garments, armor, boots, silhouette, framing, and background. Preserve the original red tassel/cloth and shaft exactly. Do not add a person, prop, text, logo, watermark, scenery, floor, shadow, or texture.
+Mask semantics: White is the only eligible edit region. Every black pixel must remain unchanged.

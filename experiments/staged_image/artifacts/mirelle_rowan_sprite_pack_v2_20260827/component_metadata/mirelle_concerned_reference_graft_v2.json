@@ -1,0 +1,109 @@
+{
+  "status": "pending_manual_review",
+  "reference": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+    "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+  },
+  "target": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/mirelle_voss/concerned_chroma_v2.png",
+    "sha256": "ac5d892873234388c83080cf42bc5885d8944666cb6315df07d0969206fbb517"
+  },
+  "extraction": {
+    "method": "manual prop-only polygon plus seeded GrabCut and near-key rejection; exact source RGB retained",
+    "near_key_rejection_distance": 8.0,
+    "background_key_rgb": [
+      199.0,
+      190.0,
+      174.0
+    ],
+    "background_distance": 30.0,
+    "manual_polygon": [
+      [
+        30,
+        420
+      ],
+      [
+        30,
+        175
+      ],
+      [
+        115,
+        135
+      ],
+      [
+        130,
+        85
+      ],
+      [
+        330,
+        85
+      ],
+      [
+        342,
+        105
+      ],
+      [
+        360,
+        125
+      ],
+      [
+        360,
+        220
+      ],
+      [
+        300,
+        285
+      ],
+      [
+        225,
+        420
+      ]
+    ],
+    "source_bbox": [
+      48,
+      85,
+      360,
+      399
+    ],
+    "mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/canonical_lower_spearhead_extraction_mask_v2.png",
+    "mask_sha256": "42fbc99e55a571cfe05a95471dd348922dde3f3a907970e3335bab177e68dc0e",
+    "component_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_lower_spearhead_streamers_rgba_v2.png",
+    "component_sha256": "6f69f6e0356f4a2672d44aa3fcfe2453764a7a32a6ee77ce67b644146d410cdb"
+  },
+  "transform": {
+    "source_socket_anchor": [
+      248.0,
+      174.0
+    ],
+    "target_socket_anchor": [
+      608.0,
+      1128.0
+    ],
+    "rotation_degrees": -39.0,
+    "uniform_scale": 1.02,
+    "nonuniform_deformation": false,
+    "resampling": "premultiplied RGBA Lanczos4"
+  },
+  "graft": {
+    "erase_mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_old_lower_spear_erase_mask_v2.png",
+    "erase_mask_sha256": "7ddaddc3164bf4a44c51876ef2934631bd24e4cae088cd714d8af689d4043d80",
+    "transformed_alpha_mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_reference_graft_alpha_mask_v2.png",
+    "transformed_alpha_mask_sha256": "353722d297ffdff2608f1fdef04ea3e1f95b519f7baab2515d8d1247c13e37b6",
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/concerned_lower_spear_reference_graft_v2.png",
+    "sha256": "c4df93f0671379bc0a220349833ac0f85023978750d31b0b5f5316a3f492f635",
+    "dimensions": [
+      1081,
+      1455
+    ]
+  },
+  "proofs": {
+    "extraction": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_canonical_lower_spear_extraction_v2.png",
+      "sha256": "ba815ba7f80fd903883f1d9ebf257c5a8e74fd5784f1a10824a8d7f50f9e44a6"
+    },
+    "graft": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_concerned_reference_graft_v2.png",
+      "sha256": "b529207967458b2648e8d6bbdfa69f4f090f44fb12c4fd86b5874532332e89cf"
+    }
+  }
+}

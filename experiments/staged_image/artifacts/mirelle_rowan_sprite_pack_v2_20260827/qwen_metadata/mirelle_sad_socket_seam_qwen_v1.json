@@ -1,0 +1,100 @@
+{
+  "status": "pending_manual_review",
+  "selection": "approved deterministic v1 remains selected fallback",
+  "model_calls": 1,
+  "inputs": {
+    "primary": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/sad_canonical_metal_repair_v1.png",
+      "sha256": "512d710eeba7f5accddd73e27dd2801afd4dd6ad2cab070acd763f11bed31ca6"
+    },
+    "canonical_support": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+      "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+    },
+    "metal_patch_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/sad_canonical_metal_component_patch_mask_v1.png",
+      "sha256": "93cb85aae149fc7fa86e7611b15d0b344a6a6691d24c4b579cbfb317a9eeae93"
+    },
+    "pose_tassel_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/sad_existing_pose_tassel_occlusion_mask_v1.png",
+      "sha256": "3122b37c0af8cb67fcf92ee7b1d8522ad1ac67c998ddfc213387fb1f4285502f"
+    }
+  },
+  "mask": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/sad_socket_background_seam_qwen_mask_v1.png",
+    "sha256": "ab39b113224d4db4f3ba14c8f3552a29e4356acecb23a05c8244070e5b823900",
+    "pixel_count": 232,
+    "bbox_xyxy": [
+      372,
+      135,
+      397,
+      158
+    ],
+    "blade_guard_tassel_shaft_character_overlap_pixels": 0,
+    "proof": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/mask_proofs/mirelle_sad_socket_seam_qwen_mask_v1.png",
+      "sha256": "c07c08b6dbd17f8f60b6a96c60f0bdfb1cb92e59536772fa69e47604436f4b10"
+    }
+  },
+  "request": {
+    "gateway": "http://127.0.0.1:8199",
+    "endpoint": "/prototype/edit/qwen/masked",
+    "seed": 260827332,
+    "steps": 24,
+    "cfg": 3.2,
+    "denoise": 0.2,
+    "prompt_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/qwen/mirelle_sad_socket_seam_qwen_v1.txt",
+    "prompt_sha256": "7c652427b8614f8d18e1f581e014c9f73147c2fee77134be0c3c0c0ac60f2911",
+    "exact_body_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_sad_socket_seam_qwen_v1.json",
+    "exact_body_sha256": "0aee82fd611676d658df33f6791d2642733f5e7bb0b598603fb3e54fca28fd92",
+    "exact_body_bytes": 1846430,
+    "preflight_health_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_sad_socket_seam_qwen_v1_health.json",
+    "preflight_health_sha256": "500e1887101360f4652a84b7350d97764b866e9cf1218bf20ad58a81a26b6a0c",
+    "driver_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/run_mirelle_sad_socket_seam_qwen_v1.py",
+    "driver_sha256": "6f3a44b6c7c218309908500f1f3bc26ec29b1ba5e8fb3ade8d863f0d71c9f110",
+    "shared_helper_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/run_mirelle_neutral_socket_seam_qwen_v1.py",
+    "shared_helper_sha256": "9303d43ceab0f7f4ac2d31c6f4f081651cb7fd9353befb1b7209c3c73e75e94a"
+  },
+  "response": {
+    "headers_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_headers/mirelle_sad_socket_seam_qwen_v1.json",
+    "headers_sha256": "ff15a0b264beddcb76b760bab70392460fcaa3d05eeb1caaac41e532f6f638e1",
+    "raw_model_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_raw/mirelle_voss/sad_socket_seam_qwen_v1_model_output.png",
+    "raw_model_output_sha256": "dd88dd8a0a57c297fa732a90c8bde5bb24908a7f9a170f76b18ab1b2f310a173",
+    "raw_model_output_dimensions": [
+      880,
+      1184
+    ],
+    "aligned_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_aligned/mirelle_voss/sad_socket_seam_qwen_v1_aligned.png",
+    "aligned_output_sha256": "f14724bb4274e8ba80c284729b04b1f647686832ae0ad5c802d558e50b6d0f3e",
+    "alignment": {
+      "method": "resize_to_primary_then_ecc_translation",
+      "fallback_to_resize_only": false,
+      "ecc_correlation": 0.9994511062191688,
+      "warp_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0078958198428154
+        ],
+        [
+          0.0,
+          1.0,
+          -0.031156381592154503
+        ]
+      ],
+      "alignment_mask_pixels": 325216
+    },
+    "hard_composite_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/sad_socket_seam_qwen_v1.png",
+    "hard_composite_sha256": "3af06ee7f89f3307db050fe89246780c053629d23b0261c040041ca7d531f76b",
+    "hard_composite_dimensions": [
+      1082,
+      1454
+    ],
+    "changed_inside_mask_pixels": 232,
+    "changed_outside_mask_pixels": 0,
+    "mean_absolute_channel_delta_inside_mask": 16.399425287356323,
+    "comparison_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_sad_socket_seam_qwen_v1_comparison.png",
+    "comparison_sha256": "3ced120db4974b0a58a4881db566f64f1cc65a233b242239fec5edc6cfd4bd13"
+  },
+  "pose": "sad"
+}

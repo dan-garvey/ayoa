@@ -1,0 +1,42 @@
+{
+  "status": 200,
+  "reason": "OK",
+  "headers": [
+    [
+      "date",
+      "Thu, 27 Aug 2026 07:42:18 GMT"
+    ],
+    [
+      "server",
+      "uvicorn"
+    ],
+    [
+      "x-ayoa-worker",
+      "http://127.0.0.1:8210"
+    ],
+    [
+      "x-ayoa-prompt-id",
+      "a30d8559-6c1a-4263-89a5-fd64ec7bd9a3"
+    ],
+    [
+      "x-ayoa-seed",
+      "260827332"
+    ],
+    [
+      "x-ayoa-prototype",
+      "masked-qwen"
+    ],
+    [
+      "content-length",
+      "878018"
+    ],
+    [
+      "content-type",
+      "image/png"
+    ],
+    [
+      "connection",
+      "close"
+    ]
+  ]
+}

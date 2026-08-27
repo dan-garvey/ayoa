@@ -1,0 +1,31 @@
+{
+  "status": "rejected_method_control",
+  "label": "neutral",
+  "reason": "Root method correction rejected rigid coupling of flexible red streamers to the silver component and rejected repairing the opposite lower cap. This diagnostic was never promoted and used no model call.",
+  "input_base": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/mirelle_voss/neutral_chroma_v1.png",
+    "sha256": "7a52d35686265f1e3976fb41cbae25dd04ce29e02051835918c67e0f4dbeebb9"
+  },
+  "input_full_component": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_lower_spearhead_streamers_rgba_v6.png",
+    "sha256": "1285db94cdfd24d346123563227b8627129bc50a26a888bce85f82099defed4e"
+  },
+  "rejected_transform": {
+    "target_end": "opposite lower cap",
+    "rotation_degrees": -50.95139991940806,
+    "uniform_scale": 0.7463077585851641,
+    "target_anchor_xy": [
+      333.177438151,
+      1215.0
+    ],
+    "rigidly_coupled_materials": [
+      "silver blade, guards, and socket",
+      "red flexible streamers"
+    ]
+  },
+  "proof": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_neutral_full_component_rigid_v0_wrong_streamer_coupling/mirelle_neutral_full_component_rigid_v0_close_proof.png",
+    "sha256": "dd60c96e4be2399b8d41f09f52ecdb44bf83d9b04c4bbb3b1c169e68cb322dac"
+  },
+  "model_calls": 0
+}

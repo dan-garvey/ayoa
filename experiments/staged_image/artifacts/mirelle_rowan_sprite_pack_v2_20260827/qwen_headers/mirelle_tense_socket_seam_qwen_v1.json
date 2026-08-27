@@ -1,0 +1,19 @@
+{
+  "status_code": 200,
+  "reason": "OK",
+  "url": "http://127.0.0.1:8199/prototype/edit/qwen/masked",
+  "headers": {
+    "date": "Thu, 27 Aug 2026 07:32:27 GMT",
+    "server": "uvicorn",
+    "x-ayoa-worker": "http://127.0.0.1:8211",
+    "x-ayoa-prompt-id": "57837d12-dc15-412b-a7c8-306d48b7c69d",
+    "x-ayoa-seed": "260827329",
+    "x-ayoa-prototype": "masked-qwen",
+    "content-length": "922986",
+    "content-type": "image/png",
+    "connection": "close"
+  },
+  "received_byte_count": 922986,
+  "raw_response_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_raw/mirelle_voss/tense_socket_seam_qwen_v1_model_output.png",
+  "raw_response_sha256": "451999f924fff190547aabcfd34857e8e40662fdebc4aa79f77e972d371bd572"
+}

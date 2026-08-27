@@ -1,0 +1,63 @@
+{
+  "status": "rejected_one_shot",
+  "selected": false,
+  "model_calls": 1,
+  "retry_permitted": false,
+  "metal_overlay_performed": false,
+  "reason": "The single masked Qwen response preserved the former-head magenta void instead of reconstructing the source-hidden lower body. At original resolution, both lower-leg continuations, missing greave surfaces, boot contours, and coat/cape edges remain absent. The sparse non-key pixels are only resampled boundary fringe, not coherent anatomy or garment reconstruction.",
+  "native_visual_findings": [
+    "The broad magenta hole remains visibly open across the space between and in front of both lower legs.",
+    "No coherent replacement trouser-leg, greave, boot, or cream coat/cape geometry appears inside the authorized mask.",
+    "The existing shaft, grip, upper body, face, and all other outside-mask pixels remain protected exactly.",
+    "Because the anatomy reconstruction failed, the deterministic v8 metal patch was not overlaid."
+  ],
+  "mask_statistics": {
+    "mask_pixels": 33668,
+    "bbox_xyxy_exclusive": [495, 1103, 707, 1441],
+    "exact_magenta_pixels": 42,
+    "key_like_pixels": 32566,
+    "key_like_fraction": 0.9672686230248307,
+    "non_key_pixels": 1102,
+    "key_like_definition": "R >= 240, G <= 24, B >= 240"
+  },
+  "validation": {
+    "changed_outside_mask_pixels": 0,
+    "source_hidden_lower_body_called_exact": false,
+    "only_source_visible_unaffected_pixels_outside_mask_called_exact": true
+  },
+  "artifacts": {
+    "mask": {
+      "path": "masks/mirelle_voss/concerned_former_head_missing_lower_body_inpaint_mask_v1.png",
+      "sha256": "f4467ba4f0f5150a2a2c12b2e987ea79befe72248beb99a3d54ad63d4508e8cb"
+    },
+    "request": {
+      "path": "qwen_requests/mirelle_concerned_lower_body_inpaint_v1_request.json",
+      "sha256": "4465bf87a91676f49d897f977f46734fbdf47fb7a212f3c051582b6519fd38cc"
+    },
+    "raw_model_output": {
+      "path": "qwen_raw/mirelle_voss/concerned_lower_body_inpaint_v1_model_output.png",
+      "sha256": "0c18fc31f7925bc7662e7fa8f36bc9cc267c6abf4e8f5f13676940620f42c6c3"
+    },
+    "aligned_model_output": {
+      "path": "qwen_aligned/mirelle_voss/concerned_lower_body_inpaint_v1_aligned.png",
+      "sha256": "87379ab055e41289d14290791bda99cc3876825af4cb7353f2d73b17c9c012a3"
+    },
+    "hard_composite": {
+      "path": "qwen_composited/mirelle_voss/concerned_lower_body_inpaint_v1.png",
+      "sha256": "e54eac6b0422ec6dd713e343d3b6fdbf6f79ad9e46cabf7f8be9781390d3756a"
+    },
+    "mask_proof": {
+      "path": "mask_proofs/mirelle_concerned_lower_body_inpaint_mask_v1.png",
+      "sha256": "e548ccb4d342d42df531c4cc2d069a9d10c5adaaf3be325e44bc6d6e81d7e408"
+    },
+    "result_proof": {
+      "path": "qwen_proofs/mirelle_concerned_lower_body_inpaint_v1.png",
+      "sha256": "3f019dd5dc96a071f83329d0a0bd52375bdcd5904bde2f7aa42a61e7a935d935"
+    },
+    "v8_rejection_archive_manifest": {
+      "path": "rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/rejection_manifest.json",
+      "sha256": "384d14d4557927ed9674c017123f9ce147e0d3e0c7e3a27aeca3e293926c7557"
+    }
+  },
+  "next_action": "Stop and report. Do not retry or generate a fresh candidate until root authorizes the fallback."
+}

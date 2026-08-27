@@ -1,0 +1,57 @@
+{
+  "status": "rejected_after_manual_review",
+  "decision": "keep_approved_deterministic_v1",
+  "reason": "The aligned raw Qwen image is globally coherent, but the required hard 300-pixel composite is not visibly better than deterministic v1. It introduces muddy gray-magenta transition pixels and increases discontinuity where the tiny mask meets exact v1 pixels.",
+  "selected": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/neutral_canonical_metal_repair_v1.png",
+    "sha256": "08fc7d8223ed162039d30d7789031748694ec60510921a4c714033adf650a407"
+  },
+  "rejected_composite": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/neutral_socket_seam_qwen_v1.png",
+    "sha256": "863fd22c74c6c23ce0aa1712482c7ce3093b60bc19a5ec67c543ec3947cb7637"
+  },
+  "review_evidence": {
+    "mask_pixels": 300,
+    "changed_inside_mask_pixels": 300,
+    "changed_outside_mask_pixels": 0,
+    "mean_absolute_channel_delta_inside_mask": 18.47,
+    "cross_mask_boundary_gradient": {
+      "deterministic_v1_mean": 13.584795321637426,
+      "qwen_composite_mean": 15.698830409356724,
+      "deterministic_v1_median": 0.3333333333333333,
+      "qwen_composite_median": 3.6666666666666665
+    },
+    "masked_pixel_classes": {
+      "deterministic_v1": {
+        "hot_magenta_background": 231,
+        "gray_metal": 63,
+        "mixed_other": 6
+      },
+      "qwen_composite": {
+        "hot_magenta_background": 200,
+        "gray_metal": 50,
+        "mixed_other": 50
+      }
+    },
+    "representative_regressions_xy": [
+      {
+        "xy": [301, 235],
+        "deterministic_v1_rgb": [248, 3, 244],
+        "qwen_composite_rgb": [97, 52, 90],
+        "finding": "clean chroma became a muddy dark seam pixel"
+      },
+      {
+        "xy": [319, 234],
+        "deterministic_v1_rgb": [114, 107, 98],
+        "qwen_composite_rgb": [235, 18, 226],
+        "finding": "neutral socket edge became a hot pink edge pixel"
+      }
+    ]
+  },
+  "proof": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_neutral_socket_seam_qwen_v1_comparison.png",
+    "sha256": "3357abfe81923d8cc8814d2bf092492d48bb4bf052ed0834160304802af73933"
+  },
+  "model_calls": 1,
+  "followup_calls_authorized_or_made": 0
+}

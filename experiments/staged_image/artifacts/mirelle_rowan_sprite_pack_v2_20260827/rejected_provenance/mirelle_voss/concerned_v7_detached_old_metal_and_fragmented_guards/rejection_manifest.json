@@ -1,0 +1,80 @@
+{
+  "status": "rejected_preserved",
+  "label": "concerned_v7",
+  "rejection_slug": "detached_old_metal_and_fragmented_guards",
+  "reason": "Root review found detached old lower-head silver outside the new canonical patch and judged the reduced/occluded lateral guards fragmented.",
+  "selected_for_runtime": false,
+  "model_calls": 0,
+  "files": [
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prepare_mirelle_concerned_lower_primary_metal_graft_v7.py",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/prepare_mirelle_concerned_lower_primary_metal_graft_v7.py",
+      "sha256": "5356167b07d4f2d586871c6d2370593bcabede08c9470955ff2d2dc7f22e1908"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/concerned_lower_primary_metal_reference_graft_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/concerned_lower_primary_metal_reference_graft_v7.png",
+      "sha256": "3b575a0389536d9f8674a04bcb6f5ef6de60c97ee5292a60c60252c9d5210d2c"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/concerned_old_lower_primary_cleaned_base_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/concerned_old_lower_primary_cleaned_base_v7.png",
+      "sha256": "f0d754772604fd7d75d145df172e8496842f6f77f61f024f426e6153cade8ff7"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_metadata/mirelle_concerned_lower_primary_metal_graft_v7.json",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/mirelle_concerned_lower_primary_metal_graft_v7.json",
+      "sha256": "a373099e4025478b9b5399004cde4bb8b3cddebd3bc0170ade245dcb024808ac"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_concerned_lower_primary_full_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/mirelle_concerned_lower_primary_full_v7.png",
+      "sha256": "d3830d9d7c11ca01015b2308ae734f2307cf920eb8dbfd90d45cf38ae99b0058"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_concerned_lower_primary_close_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/mirelle_concerned_lower_primary_close_v7.png",
+      "sha256": "67640ddca785a8e6c572d3efcc44c7b7bcd5b88d0ee717022bfd8a2d9c020279"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/mask_proofs/mirelle_concerned_lower_primary_masks_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/mirelle_concerned_lower_primary_masks_v7.png",
+      "sha256": "12442e9942c853fbb0ac74eea2dc636741c00255a82a6a1cbb4c52cfb8875886"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_old_lower_primary_cleanup_mask_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/concerned_old_lower_primary_cleanup_mask_v7.png",
+      "sha256": "734ae5940572f8ce040057b341ae14917fde80d6e1647b3fd125f20433474363"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_lower_canonical_metal_patch_mask_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/concerned_lower_canonical_metal_patch_mask_v7.png",
+      "sha256": "69db29bcc337bd779f620828f1e04c4d069f6a87d72f00d961bd57ca5e8e8fa5"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_upper_cap_tassel_shaft_grip_exact_mask_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/concerned_upper_cap_tassel_shaft_grip_exact_mask_v7.png",
+      "sha256": "a6737b0540ebb771edff1fbb2c44e34ab4b260fd15e4b395d43d43ec6b8b6618"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_body_face_costume_exact_mask_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/concerned_body_face_costume_exact_mask_v7.png",
+      "sha256": "b04050799acc1af62f969d090d974dbc235f1802be78b1e0acebcd611af24f4d"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_base_subject_occlusion_restore_mask_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/concerned_base_subject_occlusion_restore_mask_v7.png",
+      "sha256": "eb0971e65a30b454170c07bfbd5ed845b6a7b53006cdd3b35226fc224714c181"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_lower_primary_aggregate_saved_mask_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/concerned_lower_primary_aggregate_saved_mask_v7.png",
+      "sha256": "7331531d090617cdca4645c5e53ddfb023434abf15e6e65781318c8f3ed56807"
+    },
+    {
+      "source_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_lower_primary_changed_mask_v7.png",
+      "archive_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v7_detached_old_metal_and_fragmented_guards/concerned_lower_primary_changed_mask_v7.png",
+      "sha256": "499a8d990effa00eb7ca5381ea5fb22c4c44bc192c42924f42a7f4dd579b6334"
+    }
+  ]
+}

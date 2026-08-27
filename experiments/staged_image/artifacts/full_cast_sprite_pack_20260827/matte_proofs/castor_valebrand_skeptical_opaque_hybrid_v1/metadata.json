@@ -1,0 +1,238 @@
+{
+  "method": "castor_skeptical_opaque_hybrid_v1",
+  "parameters": {
+    "high_alpha_threshold": 200,
+    "high_alpha_fraction": 0.784314,
+    "edge_band_distance_native_pixels": 3.0,
+    "hot_magenta_saturation_u8": 112,
+    "hot_magenta_hue_degrees_inclusive": [
+      275,
+      335
+    ],
+    "hot_magenta_min_value_u8": 16
+  },
+  "invariants": {
+    "alpha_byte_identical_to_physical_v1": true,
+    "partial_boundary_pixel_count": 17176,
+    "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+    "fully_opaque_pixel_count": 353869,
+    "fully_opaque_rgb_byte_identical_to_raw": true,
+    "high_alpha_interior_raw_restored_pixels": 56734,
+    "visible_hot_magenta_pixels": {
+      "raw_rgb_v1_alpha": 16068,
+      "physical_unmix_v1": 0,
+      "connected_key_v3": 7174,
+      "opaque_hybrid_v1": 0
+    }
+  },
+  "color_regions": {
+    "coat_lining": {
+      "roi_xyxy": [
+        285,
+        650,
+        610,
+        1200
+      ],
+      "pixel_count": 40880,
+      "raw_median_rgb": [
+        58,
+        13,
+        23
+      ],
+      "raw_rgb_v1_alpha": {
+        "median_rgba": [
+          58,
+          13,
+          23,
+          226
+        ],
+        "raw_rgb_exact_pixels": 40880
+      },
+      "physical_unmix_v1": {
+        "median_rgba": [
+          33,
+          14,
+          0,
+          226
+        ],
+        "raw_rgb_exact_pixels": 0
+      },
+      "connected_key_v3": {
+        "median_rgba": [
+          58,
+          13,
+          23,
+          255
+        ],
+        "raw_rgb_exact_pixels": 40880
+      },
+      "opaque_hybrid_v1": {
+        "median_rgba": [
+          58,
+          13,
+          23,
+          226
+        ],
+        "raw_rgb_exact_pixels": 40769
+      }
+    },
+    "upper_guard_gem": {
+      "roi_xyxy": [
+        590,
+        720,
+        640,
+        775
+      ],
+      "pixel_count": 493,
+      "raw_median_rgb": [
+        67,
+        27,
+        37
+      ],
+      "raw_rgb_v1_alpha": {
+        "median_rgba": [
+          67,
+          27,
+          37,
+          230
+        ],
+        "raw_rgb_exact_pixels": 493
+      },
+      "physical_unmix_v1": {
+        "median_rgba": [
+          47,
+          30,
+          12,
+          230
+        ],
+        "raw_rgb_exact_pixels": 0
+      },
+      "connected_key_v3": {
+        "median_rgba": [
+          67,
+          27,
+          37,
+          255
+        ],
+        "raw_rgb_exact_pixels": 493
+      },
+      "opaque_hybrid_v1": {
+        "median_rgba": [
+          67,
+          27,
+          37,
+          230
+        ],
+        "raw_rgb_exact_pixels": 493
+      }
+    },
+    "lower_guard_gem": {
+      "roi_xyxy": [
+        695,
+        795,
+        745,
+        855
+      ],
+      "pixel_count": 508,
+      "raw_median_rgb": [
+        65,
+        25,
+        34
+      ],
+      "raw_rgb_v1_alpha": {
+        "median_rgba": [
+          65,
+          25,
+          34,
+          231
+        ],
+        "raw_rgb_exact_pixels": 508
+      },
+      "physical_unmix_v1": {
+        "median_rgba": [
+          44,
+          27,
+          11,
+          231
+        ],
+        "raw_rgb_exact_pixels": 0
+      },
+      "connected_key_v3": {
+        "median_rgba": [
+          65,
+          25,
+          34,
+          255
+        ],
+        "raw_rgb_exact_pixels": 508
+      },
+      "opaque_hybrid_v1": {
+        "median_rgba": [
+          64,
+          25,
+          34,
+          231
+        ],
+        "raw_rgb_exact_pixels": 493
+      }
+    }
+  },
+  "files": {
+    "source_raw": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/generation_raw/castor_valebrand/skeptical_chroma_v1.png",
+      "sha256": "95436faff0dc3f64c175a1243b4b9755f72d0b6457ab27e2c28a2f10d54046e8"
+    },
+    "source_physical_v1": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/castor_valebrand_physical_unmix_v1/candidates/skeptical.png",
+      "sha256": "2bbe449a24a15c1d58166c0e119463a3b214f77de6aec715cfd1b70c7c822225"
+    },
+    "source_connected_v3": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/castor_valebrand_connected_key_v3/candidates/skeptical.png",
+      "sha256": "e09c2e3278fce672a112c4257179e199431b6f1af35584a6f2275c243de95595"
+    },
+    "candidates": {
+      "raw_rgb_v1_alpha": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/candidates/raw_rgb_v1_alpha.png",
+        "sha256": "ec37b643625d9c4de108828da72607ae3779dd504ad01ec37639a123081f77c5"
+      },
+      "physical_unmix_v1": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/candidates/physical_unmix_v1.png",
+        "sha256": "2bbe449a24a15c1d58166c0e119463a3b214f77de6aec715cfd1b70c7c822225"
+      },
+      "connected_key_v3": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/candidates/connected_key_v3.png",
+        "sha256": "e09c2e3278fce672a112c4257179e199431b6f1af35584a6f2275c243de95595"
+      },
+      "opaque_hybrid_v1": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/candidates/opaque_hybrid_v1.png",
+        "sha256": "3d253abf1d7986b1327aa3a085ac180f91d4918779597e021f8f0c9e048510e9"
+      }
+    },
+    "sprites": {
+      "raw_rgb_v1_alpha": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/sprites/raw_rgb_v1_alpha.png",
+        "sha256": "9672b1ea8b02184d0ebf4c62e4ef6d60415d5a100f9982fd746973eb0622f8cb"
+      },
+      "physical_unmix_v1": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/sprites/physical_unmix_v1.png",
+        "sha256": "200280c92354499c5b60bc8ec7e254d9d787950ba2801a0b2e49beb8ca34897b"
+      },
+      "connected_key_v3": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/sprites/connected_key_v3.png",
+        "sha256": "d4dd6825d89fff85bcb5e8b977b4e4b702341e8755e0347055db1d505850979c"
+      },
+      "opaque_hybrid_v1": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/sprites/opaque_hybrid_v1.png",
+        "sha256": "066a8b77b199838b91db8a0b35274cc79e018beaa768c40f82059a6080d17780"
+      }
+    },
+    "full_proof": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/castor_skeptical_opaque_hybrid_comparison.png",
+      "sha256": "66fc629b50d735726fdcf219ddfcc036fad14390696531746729c87864a35c3b"
+    },
+    "detail_proof": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/castor_skeptical_opaque_hybrid_details.png",
+      "sha256": "3fe0b8f155de75441552867838ab2631a3bedf2a6df433402cfb581c13859acf"
+    }
+  }
+}

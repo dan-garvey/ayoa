@@ -1,0 +1,36 @@
+{
+  "status": "pending_root_review",
+  "method": "exact-RGB material partition; red fill plus bounded dark-edge expansion with socket metal guard",
+  "source": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_lower_spearhead_streamers_rgba_v6.png",
+    "sha256": "1285db94cdfd24d346123563227b8627129bc50a26a888bce85f82099defed4e"
+  },
+  "partition": {
+    "source_foreground_pixels": 21309,
+    "metal_pixels": 12289,
+    "streamer_pixels": 9020,
+    "overlap_pixels": 0,
+    "unassigned_pixels": 0,
+    "source_rgb_preserved_exactly": true
+  },
+  "metal": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_primary_metal_rgba_v1.png",
+    "sha256": "4f4b369d7f445b79a44673b33aee8bcc763f754eb37a0d7bfaee38213bf73b6f",
+    "mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/canonical_primary_metal_mask_v1.png",
+    "mask_sha256": "1029b0ae82094c462cd9c872520fcd0c961b9aa2c9bac5271e2967ab37731e78"
+  },
+  "streamers": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_primary_streamers_rgba_v1.png",
+    "sha256": "9d7ff6a32a4ad46ac491652b40f0fa5f0a2c8fb4f88cd67c1ebdb1a81e6970dd",
+    "mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/canonical_primary_streamer_mask_v1.png",
+    "mask_sha256": "ac27cb1f68a0cc0c24a9aac3eaaa47190945bcb1bf61611228d92638ae5f6533"
+  },
+  "proof": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_canonical_primary_material_split_v1.png",
+    "sha256": "d22b5e0bc779c4ec1718df490167fb7c8b7ae1f766e0e38089a0df2049ad1961"
+  },
+  "script": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prepare_mirelle_canonical_component_split.py",
+    "sha256": "5d288c3858677d7d9055076487185da3afa5bee8116b77ae2dd3067085b18575"
+  }
+}

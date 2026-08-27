@@ -1,0 +1,240 @@
+{
+  "status": "pending_root_review",
+  "label": "happy",
+  "method": "deterministic rigid-metal-only canonical repair; base pose cloth is preserved byte-exact and canonical streamers are deliberately deferred",
+  "model_call": false,
+  "inputs": {
+    "base": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/mirelle_voss/happy_chroma_v1.png",
+      "sha256": "12d42a02f1ac49765c3034916937e73380dddd39560764fafee165b794f2cfb2"
+    },
+    "locked_active_profile": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/app/storage/stories/one_star_ascension_s1/visual-references/locked/mirelle_voss/active_profile.png",
+      "sha256": "6173f6066860c270b73bcbde7fc86336411758301cdc5c12341f0400a82266b6"
+    },
+    "locked_exact_crop": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+      "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff",
+      "crop_box_in_locked_profile": [
+        0,
+        540,
+        410,
+        1045
+      ],
+      "pixel_delta_from_locked_profile_crop": 0
+    },
+    "source_v6": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_lower_spearhead_streamers_rgba_v6.png",
+      "sha256": "1285db94cdfd24d346123563227b8627129bc50a26a888bce85f82099defed4e"
+    },
+    "frozen_rigid_metal": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_primary_metal_rgba_v1.png",
+      "sha256": "4f4b369d7f445b79a44673b33aee8bcc763f754eb37a0d7bfaee38213bf73b6f"
+    },
+    "frozen_streamers_deferred_not_used": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_primary_streamers_rgba_v1.png",
+      "sha256": "9d7ff6a32a4ad46ac491652b40f0fa5f0a2c8fb4f88cd67c1ebdb1a81e6970dd"
+    },
+    "material_split_metadata": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_metadata/mirelle_canonical_primary_material_split_v1.json",
+      "sha256": "6729001c5d692c4d7a31087870c7b930c354284535dc05acf8e9c8f460e03d30"
+    },
+    "material_split_proof": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_canonical_primary_material_split_v1.png",
+      "sha256": "d22b5e0bc779c4ec1718df490167fb7c8b7ae1f766e0e38089a0df2049ad1961"
+    },
+    "script": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prepare_mirelle_happy_canonical_spear_metal_proof.py",
+      "sha256": "aa256036afc0b8d599642458c0bd8f9903b3cb600352976069f1322b26d1d010"
+    }
+  },
+  "transform": {
+    "source_socket": [
+      200.0,
+      89.0
+    ],
+    "source_shaft_point": [
+      289.0,
+      13.0
+    ],
+    "target_socket": [
+      279.9344442174106,
+      1304.0
+    ],
+    "target_shaft_point": [
+      275.59684357489704,
+      1184.0
+    ],
+    "shaft_centerline": {
+      "equation": "x = slope*y + intercept",
+      "slope": 0.036146672020946104,
+      "intercept": 232.79918390209687,
+      "fit_rows": 571,
+      "max_kept_row_residual_pixels": 1.795063964517169,
+      "fit_roi": [
+        220,
+        650,
+        301,
+        1221
+      ]
+    },
+    "rotation_degrees": -51.57505732073769,
+    "uniform_scale": 0.3664104881802468,
+    "matrix": [
+      [
+        0.22772004690694636,
+        0.2870543956904073,
+        208.8425936195751
+      ],
+      [
+        -0.2870543956904073,
+        0.22772004690694636,
+        1341.1437949633632
+      ]
+    ],
+    "nonuniform_deformation": false,
+    "base_metal_footprint_pixels": 109.02693989800753,
+    "source_metal_footprint_pixels": 297.5540914221166,
+    "scale_evidence": {
+      "base_upper_metal_mask_pixels": 2066,
+      "base_upper_metal_bbox": [
+        221,
+        27,
+        255,
+        136
+      ],
+      "base_socket": [
+        237.71513129694554,
+        136.0
+      ],
+      "base_positive_axial_extent_pixels": 109.02693989800753,
+      "source_positive_axial_extent_pixels": 297.5540914221166,
+      "scale_formula": "base_positive_axial_extent / source_positive_axial_extent"
+    },
+    "patch_bbox": [
+      267,
+      1296,
+      304,
+      1413
+    ]
+  },
+  "masks": {
+    "old_head_cleanup": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_canonical_spear_old_head_cleanup_mask.png",
+      "sha256": "afec47fdddb29f1ebbe2b90e7ba76cb0bb50841e2f64580d06b13d98866c1997",
+      "pixels": 1129,
+      "bbox": [
+        266,
+        1301,
+        294,
+        1357
+      ]
+    },
+    "rigid_metal_patch": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_canonical_spear_rigid_metal_patch_mask.png",
+      "sha256": "0217e64f4e12b5add34c8cacd060d59c4c62656dafcb5f92fba7c91d967022ca",
+      "pixels": 1693,
+      "bbox": [
+        267,
+        1296,
+        304,
+        1413
+      ]
+    },
+    "hand_body_garment_occlusion": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_canonical_spear_hand_body_garment_occlusion_mask.png",
+      "sha256": "1148d3a76e3254d9d32190a09f12d2962529c74c6105d1b4357c814d8067fa48",
+      "pixels": 217,
+      "bbox": [
+        278,
+        1323,
+        304,
+        1357
+      ]
+    },
+    "aggregate_saved": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_canonical_spear_aggregate_saved_mask.png",
+      "sha256": "f5ed08a220a21a382f234e01ef2ae8ce70a53c22e5e995dd72cda0998a2aa4d2",
+      "pixels": 2136,
+      "bbox": [
+        266,
+        1296,
+        304,
+        1413
+      ]
+    },
+    "actual_changed": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_canonical_spear_changed_mask.png",
+      "sha256": "4f20b8dfe472a2c90440478d28c00e95fb587265f934bce5df8cc6e4ec5ed532",
+      "pixels": 1919,
+      "bbox": [
+        266,
+        1296,
+        301,
+        1413
+      ]
+    }
+  },
+  "validation": {
+    "base_shape_hwc": [
+      1455,
+      1081,
+      3
+    ],
+    "output_mode": "RGB",
+    "output_size_wh": [
+      1081,
+      1455
+    ],
+    "background_fit_samples": 17775,
+    "cleanup_model_fit_samples": 17537,
+    "preserved_shaft_pixels_in_old_head_footprint": 133,
+    "outside_saved_mask_delta_pixels": 0,
+    "outside_prop_edit_scope_delta_pixels": 0,
+    "upper_pointed_cap_and_short_tassel_delta_pixels": 0,
+    "hand_body_garment_occlusion_delta_pixels": 0,
+    "hot_magenta_visible_prop_pixels": 0,
+    "pose_cloth_strategy": "retain the happy base's upper short tassel exactly; do not place the canonical long-streamer component in this proof"
+  },
+  "outputs": {
+    "repaired": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/happy_canonical_spear_metal_repair_proof.png",
+      "sha256": "d62dbfbf98877ddd94241748accd7c4c933124aca07a2c20d6a93675f0364343"
+    },
+    "cleaned_base_proof_stage": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/happy_old_head_cleaned_base_proof.png",
+      "sha256": "363b90de0412d2d0243ae06f21c342568efb71959e72865763f72671438a904c"
+    },
+    "close_proof": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_happy_canonical_spear_metal_close_proof.png",
+      "sha256": "9df1b85254fb0ac5e260f5b20e1c7df028960f38079d689cfd845d679a379f5f"
+    },
+    "mask_proof": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/mask_proofs/mirelle_happy_canonical_spear_metal_masks.png",
+      "sha256": "cb1ba4dda82eb1a7cc6cd5ea4741196db7fa2d04d3b9a6da35df1c8d4079e650"
+    }
+  },
+  "rejected_provenance": {
+    "full_component_rigid_preview": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_full_component_rigid_transform_preview/full_component_rigid_transform_preview.png",
+      "sha256": "b5990f5e629fe97d34df4e4b5518fd673b7f8734f299f02dc59c7690f05ce3d4"
+    },
+    "metadata": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_full_component_rigid_transform_preview/rejection.json",
+      "sha256": "d1e224ac6f32a6881d69cb7768fe74452f5910a91bd344407643d124bdeacf45"
+    },
+    "reason": "Full canonical metal plus cloth was subjected to one rigid transform. That incorrectly locked flexible streamers to blade rotation and gravity."
+  },
+  "acceptance": {
+    "automated": "pass",
+    "visual": "pass_original_resolution_manual_inspection",
+    "manual_notes": [
+      "one coherent lower metal head is aligned to the fitted shaft centerline",
+      "the canonical blade, guards, and socket remain legible at the derived scale",
+      "the visible boot/toe pixels occlude the replacement without anatomy loss",
+      "the removed butt-cap footprint has no detached slivers or cleanup seam",
+      "the upper pointed cap and short pose-specific tassel remain unchanged"
+    ],
+    "decision": "accept_as_deterministic_metal_only_proof_for_root_review"
+  }
+}

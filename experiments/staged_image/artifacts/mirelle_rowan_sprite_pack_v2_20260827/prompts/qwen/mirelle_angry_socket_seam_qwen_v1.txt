@@ -1,0 +1,6 @@
+Use case: precise-object-edit
+Asset type: one-off masked seam experiment for a visual-novel character sprite
+Input roles: Image 1 is the approved deterministic Angry-pose v1 edit target. Image 2 is Mirelle's locked canonical spear crop and is supporting evidence only for the existing silver socket material and clean anime edge treatment.
+Primary request: Make the smallest possible cleanup only at the existing silver socket/key-to-magenta-background junction inside the white mask. Remove any pasted-looking magenta notch, fringe, or jagged transition there. Preserve the supplied diagonal socket size, position, line weight, silver shading, silhouette, and connection to the existing red shaft.
+Preservation contract: Change nothing outside the white mask. Do not redraw, move, resize, simplify, or restyle the central blade, either lateral guard, exact red tassel, knot or cloth, red shaft, or opposite butt cap. Preserve both hands, Mirelle's angry face, orange-red hair and braid, body, combat pose, cream coat, burgundy costume, armor, framing, and flat saturated magenta screen exactly. Do not copy Image 2's orientation, streamers, body, or background. Add no weapon parts, streamers, people, text, scenery, shadow, or texture.
+Mask semantics: White is the only eligible socket/key seam region. Black must remain unchanged.

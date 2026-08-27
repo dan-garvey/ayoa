@@ -1,0 +1,108 @@
+{
+  "status": "pending_manual_review",
+  "reference": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+    "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+  },
+  "target": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/mirelle_voss/concerned_chroma_v2.png",
+    "sha256": "ac5d892873234388c83080cf42bc5885d8944666cb6315df07d0969206fbb517"
+  },
+  "extraction": {
+    "method": "manual prop-only polygon plus seeded GrabCut; exact source RGB retained",
+    "background_key_rgb": [
+      199.0,
+      190.0,
+      174.0
+    ],
+    "background_distance": 30.0,
+    "manual_polygon": [
+      [
+        30,
+        420
+      ],
+      [
+        30,
+        175
+      ],
+      [
+        115,
+        135
+      ],
+      [
+        130,
+        85
+      ],
+      [
+        330,
+        85
+      ],
+      [
+        342,
+        105
+      ],
+      [
+        360,
+        125
+      ],
+      [
+        360,
+        220
+      ],
+      [
+        300,
+        285
+      ],
+      [
+        225,
+        420
+      ]
+    ],
+    "source_bbox": [
+      48,
+      85,
+      360,
+      399
+    ],
+    "mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/canonical_lower_spearhead_extraction_mask_v1.png",
+    "mask_sha256": "0349bcf11e087693cf2e0aa2cef3d631afc01e776192983fcb8392d9b6c527e4",
+    "component_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_lower_spearhead_streamers_rgba_v1.png",
+    "component_sha256": "14167b35f500c0adb90fb9673c83c51946ae36a584b2546b14b164a1d63e28f6"
+  },
+  "transform": {
+    "source_socket_anchor": [
+      248.0,
+      174.0
+    ],
+    "target_socket_anchor": [
+      608.0,
+      1128.0
+    ],
+    "rotation_degrees": -39.0,
+    "uniform_scale": 1.02,
+    "nonuniform_deformation": false,
+    "resampling": "premultiplied RGBA Lanczos4"
+  },
+  "graft": {
+    "erase_mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_old_lower_spear_erase_mask_v1.png",
+    "erase_mask_sha256": "1c95bd533ff632e63f282950bec128133ebca483b46396d846139f10ae320eb8",
+    "transformed_alpha_mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_reference_graft_alpha_mask_v1.png",
+    "transformed_alpha_mask_sha256": "5e38116f0be76e716ac9be05330f2c4b9cedcc1b581ccbf1a026cb027db4cdfb",
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/concerned_lower_spear_reference_graft_v1.png",
+    "sha256": "f0aa4ab0898b9b739cc2e524578f3bcad63357d185bb45a0a110410d6e9fc3ae",
+    "dimensions": [
+      1081,
+      1455
+    ]
+  },
+  "proofs": {
+    "extraction": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_canonical_lower_spear_extraction_v1.png",
+      "sha256": "047b896618495ee39f9a29febb24ed5911462d9c76c74c82243619b4c200c7c7"
+    },
+    "graft": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_concerned_reference_graft_v1.png",
+      "sha256": "77797f1595eb718a3e78928eaab1850d0b33bbc8f1ab5d09f30300a9087d20b6"
+    }
+  }
+}

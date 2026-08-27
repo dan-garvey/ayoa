@@ -1,0 +1,85 @@
+{
+  "status": "rejected_after_manual_review",
+  "decision": "keep_approved_deterministic_v1",
+  "reason": "The aligned raw Qwen image is globally coherent, but the required hard 232-pixel composite is visibly worse than deterministic v1. It introduces a pink-gray vertical transition strip, converts clean key-background and neutral socket pixels into muddy mixed colors, and increases discontinuity where the tiny mask meets exact v1 pixels.",
+  "selected": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/sad_canonical_metal_repair_v1.png",
+    "sha256": "512d710eeba7f5accddd73e27dd2801afd4dd6ad2cab070acd763f11bed31ca6"
+  },
+  "rejected_composite": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/sad_socket_seam_qwen_v1.png",
+    "sha256": "3af06ee7f89f3307db050fe89246780c053629d23b0261c040041ca7d531f76b"
+  },
+  "review_evidence": {
+    "mask_pixels": 232,
+    "changed_inside_mask_pixels": 232,
+    "changed_outside_mask_pixels": 0,
+    "mean_absolute_channel_delta_inside_mask": 16.399425287356323,
+    "cross_mask_boundary_gradient": {
+      "deterministic_v1_mean": 14.215447154471542,
+      "qwen_composite_mean": 19.796747967479675,
+      "aligned_raw_mean": 12.64430894308943,
+      "deterministic_v1_median": 1.1666666666666665,
+      "qwen_composite_median": 8.333333333333334,
+      "aligned_raw_median": 6.666666666666667,
+      "deterministic_v1_p90": 49.16666666666667,
+      "qwen_composite_p90": 61.23333333333334,
+      "aligned_raw_p90": 35.9,
+      "deterministic_v1_max": 149.66666666666666,
+      "qwen_composite_max": 134.33333333333334,
+      "aligned_raw_max": 63.0
+    },
+    "masked_pixel_classes": {
+      "deterministic_v1": {
+        "hot_magenta_background": 138,
+        "gray_metal": 87,
+        "mixed_other": 7
+      },
+      "qwen_composite": {
+        "hot_magenta_background": 117,
+        "gray_metal": 80,
+        "mixed_other": 35
+      }
+    },
+    "representative_regressions_xy": [
+      {
+        "xy": [379, 147],
+        "deterministic_v1_rgb": [249, 4, 245],
+        "qwen_composite_rgb": [91, 54, 91],
+        "finding": "clean chroma became a dark muddy seam pixel"
+      },
+      {
+        "xy": [378, 138],
+        "deterministic_v1_rgb": [249, 4, 246],
+        "qwen_composite_rgb": [133, 43, 125],
+        "finding": "clean chroma became a dark mauve transition pixel"
+      },
+      {
+        "xy": [392, 148],
+        "deterministic_v1_rgb": [249, 4, 245],
+        "qwen_composite_rgb": [152, 60, 143],
+        "finding": "clean chroma became a pink-gray transition pixel"
+      },
+      {
+        "xy": [389, 142],
+        "deterministic_v1_rgb": [35, 27, 24],
+        "qwen_composite_rgb": [124, 41, 125],
+        "finding": "neutral dark socket edge became purple"
+      }
+    ]
+  },
+  "proof": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_sad_socket_seam_qwen_v1_comparison.png",
+    "sha256": "3ced120db4974b0a58a4881db566f64f1cc65a233b242239fec5edc6cfd4bd13"
+  },
+  "response": {
+    "status": 200,
+    "worker": "http://127.0.0.1:8210",
+    "prompt_id": "a30d8559-6c1a-4263-89a5-fd64ec7bd9a3",
+    "seed": 260827332,
+    "prototype": "masked-qwen",
+    "content_type": "image/png"
+  },
+  "model_calls": 1,
+  "followup_calls_authorized_or_made": 0
+}

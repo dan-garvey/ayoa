@@ -1,0 +1,119 @@
+{
+  "status": "pending_manual_review",
+  "selection": "approved deterministic skeptical v1 remains selected fallback",
+  "model_calls": 1,
+  "inputs": {
+    "primary": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/skeptical_primary_metal_reference_graft_v1.png",
+      "sha256": "7b827787a0dad57e5e937936559871beaddcfbd7919a9dfab63c1459fb850fb5"
+    },
+    "canonical_support": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+      "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+    },
+    "metal_patch_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/skeptical_canonical_metal_patch_mask_v1.png",
+      "sha256": "af1771920c639851689e314963d82d39a54fb0caa6da90054bf4c960d996c223"
+    },
+    "pose_tassel_cloth_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/skeptical_pose_tassel_cloth_preserve_mask_v1.png",
+      "sha256": "26d0393902d0753f91abf511de159dc4a2bb208591df1ed3776a1a73b3c4e436"
+    },
+    "shaft_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/skeptical_shaft_preserve_mask_v1.png",
+      "sha256": "ffccdd8d8fa56125298d8a680923eeea0456216ced0918bd530a63882cba09ee"
+    },
+    "pose_occlusion_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/skeptical_pose_occlusion_restore_mask_v1.png",
+      "sha256": "cbf2f4b4cfb8fb216f6dea2be4eae05e3a1b92fdec2c76956277be59da1951ef"
+    },
+    "character_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/skeptical_hands_body_face_costume_exact_mask_v1.png",
+      "sha256": "a65a32aff5c299c189b0173f6181993ff454bfb115cbb06f2952d2e92347adce"
+    },
+    "opposite_cap_boot_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/skeptical_opposite_butt_cap_boot_exact_mask_v1.png",
+      "sha256": "f9e70a2f291f7d5de38016e01bcb82e65716fedc3706c387fadf2b726ab99e81"
+    }
+  },
+  "mask": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/skeptical_socket_background_seam_qwen_mask_v1.png",
+    "sha256": "f2beaed94d9f039cfdca16d4ed04955b1031afe32f6c81e182243097bc11628b",
+    "pixel_count": 174,
+    "bbox_xyxy": [
+      288,
+      167,
+      313,
+      181
+    ],
+    "blade_guard_tassel_shaft_character_overlap_pixels": 0,
+    "proof": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/mask_proofs/mirelle_skeptical_socket_seam_qwen_mask_v1.png",
+      "sha256": "c31504a5186092fec772c60522a6a3b274f1f4727478c177619a98912bfbd22a"
+    },
+    "socket_material_pixels_inside": 91,
+    "background_seam_pixels_inside": 83
+  },
+  "request": {
+    "gateway": "http://127.0.0.1:8199",
+    "endpoint": "/prototype/edit/qwen/masked",
+    "seed": 260827334,
+    "steps": 24,
+    "cfg": 3.2,
+    "denoise": 0.2,
+    "prompt_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/qwen/mirelle_skeptical_socket_seam_qwen_v1.txt",
+    "prompt_sha256": "fd88f090d22dfca92e47dff03b9336459ae736bc0c7c3532d0d1a1cbf0c69765",
+    "exact_body_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_skeptical_socket_seam_qwen_v1.json",
+    "exact_body_sha256": "1ad61a090fef71929db8f6f8a3c5c90a65393125e9c10d7218193dfd34cfeca7",
+    "exact_body_bytes": 1931733,
+    "preflight_health_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_skeptical_socket_seam_qwen_v1_health.json",
+    "preflight_health_sha256": "500e1887101360f4652a84b7350d97764b866e9cf1218bf20ad58a81a26b6a0c",
+    "driver_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/run_mirelle_skeptical_socket_seam_qwen_v1.py",
+    "driver_sha256": "94def28e8636750421271b88a9c9e50598f01c91853548ad6dd0930390131db2",
+    "shared_helper_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/run_mirelle_neutral_socket_seam_qwen_v1.py",
+    "shared_helper_sha256": "9303d43ceab0f7f4ac2d31c6f4f081651cb7fd9353befb1b7209c3c73e75e94a"
+  },
+  "response": {
+    "headers_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_headers/mirelle_skeptical_socket_seam_qwen_v1.json",
+    "headers_sha256": "29038f6085f00ea8d9c46854fe3c43ce4d704965c483b3054df8bde7f34da73e",
+    "raw_model_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_raw/mirelle_voss/skeptical_socket_seam_qwen_v1_model_output.png",
+    "raw_model_output_sha256": "f21d8b6603a9a5a1b17ebce9240f0cf887ba4af43639b6037e64e954085cc3b8",
+    "raw_model_output_dimensions": [
+      880,
+      1184
+    ],
+    "aligned_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_aligned/mirelle_voss/skeptical_socket_seam_qwen_v1_aligned.png",
+    "aligned_output_sha256": "8618ae3a83577b03a6b413b7f2be2e56d8f12dfb73add79fe26d7a748e1fab77",
+    "alignment": {
+      "method": "resize_to_primary_then_ecc_translation",
+      "fallback_to_resize_only": false,
+      "ecc_correlation": 0.9992218357741564,
+      "warp_matrix": [
+        [
+          1.0,
+          0.0,
+          -0.01986090838909149
+        ],
+        [
+          0.0,
+          1.0,
+          -0.03412973880767822
+        ]
+      ],
+      "alignment_mask_pixels": 347992
+    },
+    "hard_composite_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/skeptical_socket_seam_qwen_v1.png",
+    "hard_composite_sha256": "c1e990dd50e73afdf483c8ef00446eda7574f6d07794dfa30b505c6f514cfdda",
+    "hard_composite_dimensions": [
+      1082,
+      1454
+    ],
+    "changed_inside_mask_pixels": 174,
+    "changed_outside_mask_pixels": 0,
+    "mean_absolute_channel_delta_inside_mask": 22.314176245210728,
+    "comparison_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_skeptical_socket_seam_qwen_v1_comparison.png",
+    "comparison_sha256": "bf392ba1b41e0a7496a507e2be27ad3d0df6a11814c601ca841a39462c15f9c1"
+  },
+  "pose": "skeptical",
+  "version": "primary_metal_reference_graft_v1"
+}

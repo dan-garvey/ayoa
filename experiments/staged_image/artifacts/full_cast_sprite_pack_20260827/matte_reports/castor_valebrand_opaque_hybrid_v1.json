@@ -1,0 +1,469 @@
+{
+  "method": "opaque_hybrid_v1",
+  "character": "castor_valebrand",
+  "parameters": {
+    "high_alpha_threshold": 200,
+    "high_alpha_fraction": 0.784314,
+    "edge_band_distance_native_pixels": 3.0,
+    "hot_magenta_saturation_u8": 112,
+    "hot_magenta_hue_degrees_inclusive": [
+      275,
+      335
+    ],
+    "hot_magenta_min_value_u8": 16
+  },
+  "variants": {
+    "neutral": {
+      "accepted_raw": {
+        "filename": "neutral_chroma_v1.png",
+        "sha256": "0200b16aafa0d13b78f1609eb7b4ecd09ab12bf7ff04761da6397c0da789bb5f"
+      },
+      "physical_v1_source_sha256": "a29cea0956a1c3c8ffcc08b9732c1009203fd768a46fee6f6142628aa7daeb8e",
+      "candidate_sha256": "1e5868e2be2a61f1627b951e613a2a219b02fa4b770a53333b0175d73fa054b6",
+      "sprite_sha256": "06508b103cedca0676c460057aefc0b66c093e25e3495efcd4a39204fa25fc10",
+      "normalize": {
+        "source_bbox": [
+          311,
+          57,
+          922,
+          1409
+        ],
+        "scale": 1.05029586,
+        "placement": [
+          229,
+          60,
+          642,
+          1420
+        ],
+        "sha256": "06508b103cedca0676c460057aefc0b66c093e25e3495efcd4a39204fa25fc10"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 15013,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 335622,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 57398,
+        "visible_hot_magenta_pixels": 0
+      },
+      "burgundy_evidence": {
+        "pixel_count": 48204,
+        "raw_median_rgb": [
+          61,
+          18,
+          27
+        ],
+        "physical_v1_median_rgba": [
+          38,
+          19,
+          0,
+          229
+        ],
+        "hybrid_median_rgba": [
+          61,
+          18,
+          27,
+          229
+        ],
+        "physical_v1_raw_rgb_exact_pixels": 416,
+        "hybrid_raw_rgb_exact_pixels": 47692
+      }
+    },
+    "happy": {
+      "accepted_raw": {
+        "filename": "happy_chroma_v1.png",
+        "sha256": "898ec5114d22d871b97215b40d98043db82f37cb668773b5b2a5ab6a7f5587f3"
+      },
+      "physical_v1_source_sha256": "6607057e6ad1680accff24268ad2c3b68085cd478d81440618c52a6cdfcdbbab",
+      "candidate_sha256": "5a8d78562e1a3db03a315d494069a8d9943c01b46791a90e64fa1a4d0e36d93b",
+      "sprite_sha256": "dac562c9110577cef5be0b998a83fba44986823499348adc3c0c8fafd6f500b5",
+      "normalize": {
+        "source_bbox": [
+          280,
+          60,
+          835,
+          1407
+        ],
+        "scale": 1.05419451,
+        "placement": [
+          257,
+          60,
+          585,
+          1420
+        ],
+        "sha256": "dac562c9110577cef5be0b998a83fba44986823499348adc3c0c8fafd6f500b5"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 17673,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 318665,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 73082,
+        "visible_hot_magenta_pixels": 0
+      },
+      "burgundy_evidence": {
+        "pixel_count": 61138,
+        "raw_median_rgb": [
+          57,
+          21,
+          28
+        ],
+        "physical_v1_median_rgba": [
+          38,
+          22,
+          5,
+          233
+        ],
+        "hybrid_median_rgba": [
+          57,
+          21,
+          28,
+          233
+        ],
+        "physical_v1_raw_rgb_exact_pixels": 164,
+        "hybrid_raw_rgb_exact_pixels": 60109
+      }
+    },
+    "concerned": {
+      "accepted_raw": {
+        "filename": "concerned_chroma_v2.png",
+        "sha256": "83da5d1695d2afc4b92f4383b7ed47148b572a3100803da3c91e1e07652ac4ee"
+      },
+      "physical_v1_source_sha256": "99585240c33825785c0f42254be8c47a8eddd974b03322e1ff11a483698b9f3b",
+      "candidate_sha256": "0a9e96557d7442ee94cf56a2f7e15b05025c572251a2c7a15cdfbc623d7e40be",
+      "sprite_sha256": "2d60052d741bae49f8670858bb0561d9da82857e9338fb86cb5388bac862971d",
+      "normalize": {
+        "source_bbox": [
+          193,
+          60,
+          1047,
+          1386
+        ],
+        "scale": 1.07088989,
+        "placement": [
+          92,
+          60,
+          915,
+          1420
+        ],
+        "sha256": "2d60052d741bae49f8670858bb0561d9da82857e9338fb86cb5388bac862971d"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 16249,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 348080,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 61477,
+        "visible_hot_magenta_pixels": 0
+      },
+      "burgundy_evidence": {
+        "pixel_count": 47338,
+        "raw_median_rgb": [
+          62,
+          18,
+          25
+        ],
+        "physical_v1_median_rgba": [
+          40,
+          19,
+          0,
+          229
+        ],
+        "hybrid_median_rgba": [
+          62,
+          18,
+          25,
+          229
+        ],
+        "physical_v1_raw_rgb_exact_pixels": 248,
+        "hybrid_raw_rgb_exact_pixels": 46813
+      }
+    },
+    "tense": {
+      "accepted_raw": {
+        "filename": "tense_chroma_v1.png",
+        "sha256": "bf7afdbaa3db5bed33cdc57e08b87772df6afa8aa083815c2ca5b90c218a61aa"
+      },
+      "physical_v1_source_sha256": "4d542595edfbf0c8207e50ff309c3d0585dc4d458d3496cc55d2bac1b00fde0c",
+      "candidate_sha256": "cdc9151d7c9a0dabfd9728883de89da88b6952be83e320f55c3f8cec3251a1e2",
+      "sprite_sha256": "4b6832730c1858e9a15084d8a318339cdb01fb9d16c7250e5d12e4ef201f2b59",
+      "normalize": {
+        "source_bbox": [
+          241,
+          62,
+          1044,
+          1406
+        ],
+        "scale": 1.05654762,
+        "placement": [
+          126,
+          60,
+          848,
+          1420
+        ],
+        "sha256": "4b6832730c1858e9a15084d8a318339cdb01fb9d16c7250e5d12e4ef201f2b59"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 15940,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 344962,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 74680,
+        "visible_hot_magenta_pixels": 0
+      },
+      "burgundy_evidence": {
+        "pixel_count": 61308,
+        "raw_median_rgb": [
+          58,
+          17,
+          27
+        ],
+        "physical_v1_median_rgba": [
+          35,
+          18,
+          2,
+          230
+        ],
+        "hybrid_median_rgba": [
+          57,
+          17,
+          27,
+          230
+        ],
+        "physical_v1_raw_rgb_exact_pixels": 182,
+        "hybrid_raw_rgb_exact_pixels": 59645
+      }
+    },
+    "skeptical": {
+      "accepted_raw": {
+        "filename": "skeptical_chroma_v1.png",
+        "sha256": "95436faff0dc3f64c175a1243b4b9755f72d0b6457ab27e2c28a2f10d54046e8"
+      },
+      "physical_v1_source_sha256": "2bbe449a24a15c1d58166c0e119463a3b214f77de6aec715cfd1b70c7c822225",
+      "candidate_sha256": "3d253abf1d7986b1327aa3a085ac180f91d4918779597e021f8f0c9e048510e9",
+      "sprite_sha256": "066a8b77b199838b91db8a0b35274cc79e018beaa768c40f82059a6080d17780",
+      "normalize": {
+        "source_bbox": [
+          158,
+          41,
+          1027,
+          1438
+        ],
+        "scale": 1.01646385,
+        "placement": [
+          108,
+          60,
+          883,
+          1420
+        ],
+        "sha256": "066a8b77b199838b91db8a0b35274cc79e018beaa768c40f82059a6080d17780"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 17176,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 353869,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 56734,
+        "visible_hot_magenta_pixels": 0
+      },
+      "burgundy_evidence": {
+        "pixel_count": 45670,
+        "raw_median_rgb": [
+          59,
+          13,
+          24
+        ],
+        "physical_v1_median_rgba": [
+          34,
+          14,
+          0,
+          227
+        ],
+        "hybrid_median_rgba": [
+          59,
+          13,
+          24,
+          227
+        ],
+        "physical_v1_raw_rgb_exact_pixels": 445,
+        "hybrid_raw_rgb_exact_pixels": 45172
+      }
+    },
+    "angry": {
+      "accepted_raw": {
+        "filename": "angry_chroma_v1.png",
+        "sha256": "35e69b56300cdb9d1b8abd33e4fc73a6c690b9f727285bce5c432d0974222988"
+      },
+      "physical_v1_source_sha256": "79c791e40b2815b5027aeb2c464468ed42eab6ddee1bb5d96229d1e5f17d0480",
+      "candidate_sha256": "e3b3f1b504c3b51a9c7885a14140b394f929af1500aea17929151c49d7f46568",
+      "sprite_sha256": "cf0198a2c19157128b9bcbe995a5ae30dcad55e4041af40ef19f1d76990a633d",
+      "normalize": {
+        "source_bbox": [
+          27,
+          31,
+          990,
+          1427
+        ],
+        "scale": 1.01719198,
+        "placement": [
+          60,
+          60,
+          980,
+          1420
+        ],
+        "sha256": "cf0198a2c19157128b9bcbe995a5ae30dcad55e4041af40ef19f1d76990a633d"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 21651,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 375994,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 116239,
+        "visible_hot_magenta_pixels": 0
+      },
+      "burgundy_evidence": {
+        "pixel_count": 99179,
+        "raw_median_rgb": [
+          61,
+          15,
+          28
+        ],
+        "physical_v1_median_rgba": [
+          35,
+          16,
+          0,
+          225
+        ],
+        "hybrid_median_rgba": [
+          61,
+          15,
+          28,
+          225
+        ],
+        "physical_v1_raw_rgb_exact_pixels": 121,
+        "hybrid_raw_rgb_exact_pixels": 98391
+      }
+    },
+    "sad": {
+      "accepted_raw": {
+        "filename": "sad_chroma_v1.png",
+        "sha256": "0be2cf633e5be5ca67ad0ca8fa2c753c0084edb692461d0096f9c9e99f1246a4"
+      },
+      "physical_v1_source_sha256": "334d5fac9233692230c6e1c220420f892865036901b927e264b3dff4dffbd3d5",
+      "candidate_sha256": "5a49293fb8b2346167287d981d9acb36de5f475ad14760a5c9ea6cba42366a60",
+      "sprite_sha256": "b1a7b6cb682ea2b0b41c5285a87a994a8138b0aa435df60bf0038ac446aae6c0",
+      "normalize": {
+        "source_bbox": [
+          372,
+          79,
+          762,
+          1406
+        ],
+        "scale": 1.07008289,
+        "placement": [
+          341,
+          60,
+          417,
+          1420
+        ],
+        "sha256": "b1a7b6cb682ea2b0b41c5285a87a994a8138b0aa435df60bf0038ac446aae6c0"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 11669,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 299960,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 44535,
+        "visible_hot_magenta_pixels": 0
+      },
+      "burgundy_evidence": {
+        "pixel_count": 35966,
+        "raw_median_rgb": [
+          69,
+          14,
+          28
+        ],
+        "physical_v1_median_rgba": [
+          37,
+          15,
+          0,
+          219
+        ],
+        "hybrid_median_rgba": [
+          69,
+          14,
+          27,
+          219
+        ],
+        "physical_v1_raw_rgb_exact_pixels": 151,
+        "hybrid_raw_rgb_exact_pixels": 34118
+      }
+    },
+    "surprised": {
+      "accepted_raw": {
+        "filename": "surprised_chroma_v1.png",
+        "sha256": "c1569fe3d065eeb7b868ce412459cee142c35f4e6ce1b5de4618f70e72af601b"
+      },
+      "physical_v1_source_sha256": "c653aca6bca6439e3f131ba332972f40a03f86af5cf245acc9012c50a614cda7",
+      "candidate_sha256": "bb28613cee9b153dc2c8e8478ab310e7c91f28636872ddc9faffd1d343018c6c",
+      "sprite_sha256": "7a6b6d1c784fbc3ab2de363dc08b9671f7357660aa594adca38f7578d062ac29",
+      "normalize": {
+        "source_bbox": [
+          128,
+          55,
+          1052,
+          1406
+        ],
+        "scale": 1.05107328,
+        "placement": [
+          64,
+          60,
+          971,
+          1420
+        ],
+        "sha256": "7a6b6d1c784fbc3ab2de363dc08b9671f7357660aa594adca38f7578d062ac29"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 18983,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 371848,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 105419,
+        "visible_hot_magenta_pixels": 0
+      },
+      "burgundy_evidence": {
+        "pixel_count": 90695,
+        "raw_median_rgb": [
+          62,
+          17,
+          28
+        ],
+        "physical_v1_median_rgba": [
+          37,
+          18,
+          0,
+          225
+        ],
+        "hybrid_median_rgba": [
+          62,
+          17,
+          28,
+          225
+        ],
+        "physical_v1_raw_rgb_exact_pixels": 235,
+        "hybrid_raw_rgb_exact_pixels": 89920
+      }
+    }
+  },
+  "contact_sheet": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/castor_valebrand_complete_sweep.png",
+    "sha256": "f1bc9290af2c491cecad3173fc496dcb8b75ba679717b8b660fe1df4a7dce2d1"
+  }
+}

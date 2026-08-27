@@ -1,0 +1,43 @@
+{
+  "status": "pending_manual_review",
+  "input_roles": {
+    "primary": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/mirelle_voss/concerned_chroma_v2.png",
+    "canonical_spear_support": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png"
+  },
+  "inputs": {
+    "primary_sha256": "ac5d892873234388c83080cf42bc5885d8944666cb6315df07d0969206fbb517",
+    "canonical_spear_support_sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff",
+    "source_broad_mask_sha256": "b69cc4a1b0439fd4be10bb5bab6874b7ee981705a4bec2e7d145e74b91c27f50",
+    "narrow_lower_mask_sha256": "41798cfef2179c5c85ae4e9119135024b7a018643fa8f7ef97ddefe84e548661"
+  },
+  "request": {
+    "endpoint": "/prototype/edit/qwen/masked",
+    "seed": 260827322,
+    "steps": 32,
+    "cfg": 4.0,
+    "denoise": 0.42,
+    "lower_cutoff_y": 1000,
+    "prompt_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/qwen/mirelle_concerned_lower_spearhead_masked_v2.txt",
+    "prompt_sha256": "cdf47c9b2677dce03421440ea2ad4dbb2efc3ae3c65f6ca6f16bef75a52ac14a",
+    "mask_pixel_count": 70485
+  },
+  "response": {
+    "headers": {
+      "x-ayoa-worker": "http://127.0.0.1:8210",
+      "x-ayoa-prompt-id": "1c8ea190-7918-4f6a-8c94-9d3cfc927475",
+      "x-ayoa-seed": "260827322",
+      "x-ayoa-prototype": "masked-qwen"
+    },
+    "model_output_dimensions": [
+      880,
+      1184
+    ],
+    "model_output_sha256": "0d7063cb75ec63e0a65586bb555f77356dfd25ffa925a00d7563be88e3b2a0d6",
+    "composite_dimensions": [
+      1081,
+      1455
+    ],
+    "composite_sha256": "a9108f94bd0bc5a7f612ecb2632b5001fb942acc5a5076f7c5cac52a5d263447",
+    "changed_outside_mask": 0
+  }
+}

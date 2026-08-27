@@ -1,0 +1,7 @@
+{
+  "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826",
+  "algorithm": "find <pack> -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum",
+  "baseline_sha256": "6c47390015a9cac61d285ece0bbff59bcda7ea21bb1c83758c013f5932370b33",
+  "current_sha256": "6c47390015a9cac61d285ece0bbff59bcda7ea21bb1c83758c013f5932370b33",
+  "byte_identical": true
+}

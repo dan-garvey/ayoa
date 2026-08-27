@@ -1,0 +1,139 @@
+{
+  "status": "pending_manual_review",
+  "selection": "approved deterministic angry v1 remains selected fallback",
+  "model_calls": 1,
+  "inputs": {
+    "primary": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/angry_primary_metal_reference_graft_v1.png",
+      "sha256": "82f3287b4358e6ca06f2dd70aa3c91193f826866415c303c5aacca97dae0d7e2"
+    },
+    "canonical_support": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+      "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+    },
+    "metal_patch_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/angry_canonical_metal_patch_mask_v1.png",
+      "sha256": "0bb357e072871254f23f648e5b9c49c04e0f5edce416d8c6169ff79624867e8c"
+    },
+    "frozen_metal_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_primary_metal_rgba_v1.png",
+      "sha256": "4f4b369d7f445b79a44673b33aee8bcc763f754eb37a0d7bfaee38213bf73b6f"
+    },
+    "graft_metadata_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_metadata/mirelle_angry_primary_metal_graft_v1.json",
+      "sha256": "3672a02f39dd4ca5d9e2684c89d26be63965b8dec20edea3b4bebe0c843c5b67"
+    },
+    "pose_tassel_cloth_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/angry_pose_tassel_cloth_preserve_mask_v1.png",
+      "sha256": "8e78c4597864206516e59ea1b8f331e768a5269408387c7b83809af7a0eee0ca"
+    },
+    "shaft_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/angry_shaft_preserve_mask_v1.png",
+      "sha256": "8004ce6bd08d9c4b1e351c9e3853eb7e738d633265343864baa0524599b1ec0d"
+    },
+    "pose_occlusion_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/angry_pose_occlusion_restore_mask_v1.png",
+      "sha256": "5b56fb251590e5e8f54530099cc517c36e793d7fe7ba543e8f57251e1cbfee6e"
+    },
+    "character_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/angry_hands_body_face_costume_exact_mask_v1.png",
+      "sha256": "7c933d7181f68d22648e59d752a616faca1f3fd034b6597eb32fe2b767be2eeb"
+    },
+    "opposite_cap_source": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/angry_opposite_butt_cap_shaft_hand_exact_mask_v1.png",
+      "sha256": "cdbd058b3e89f497b55bdd90428be53e852fc3a9cfe47d89041a5f2938cbbe00"
+    }
+  },
+  "mask": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/angry_socket_background_seam_qwen_mask_v1.png",
+    "sha256": "d7ee1e4837972c84ce9c190b1b31b0fc5eab55bf3b28bd739ae0c12c47f74979",
+    "pixel_count": 246,
+    "bbox_xyxy": [
+      823,
+      367,
+      848,
+      388
+    ],
+    "blade_guard_tassel_shaft_character_overlap_pixels": 0,
+    "proof": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/mask_proofs/mirelle_angry_socket_seam_qwen_mask_v1.png",
+      "sha256": "aa140eb07f177518c6f55f08ef427c84d4ba8d94925d5127eb35c02a2854a9cb"
+    },
+    "socket_material_pixels_inside": 120,
+    "background_seam_pixels_inside": 126,
+    "transform_matrix": [
+      [
+        -0.99098989565368,
+        0.10123794666348937,
+        1009.50363305062
+      ],
+      [
+        -0.10123794666348937,
+        -0.99098989565368,
+        480.4722726441168
+      ]
+    ]
+  },
+  "request": {
+    "gateway": "http://127.0.0.1:8199",
+    "endpoint": "/prototype/edit/qwen/masked",
+    "seed": 260827335,
+    "steps": 24,
+    "cfg": 3.2,
+    "denoise": 0.2,
+    "prompt_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/qwen/mirelle_angry_socket_seam_qwen_v1.txt",
+    "prompt_sha256": "d26de01dec1ba7d0ae9bac82c53e3082edb345fe900d43e6e478c6b718223c8e",
+    "exact_body_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_angry_socket_seam_qwen_v1.json",
+    "exact_body_sha256": "bcb8166b0476bf1e3d83a92195656715dd43ff7a33cf915815cba343befce2cc",
+    "exact_body_bytes": 2186463,
+    "preflight_health_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_angry_socket_seam_qwen_v1_health.json",
+    "preflight_health_sha256": "500e1887101360f4652a84b7350d97764b866e9cf1218bf20ad58a81a26b6a0c",
+    "driver_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/run_mirelle_angry_socket_seam_qwen_v1.py",
+    "driver_sha256": "110dab0282bd8bf6aec537eeab82289ad0d7ca3eb0621d2ce1e319baf88e6f1e",
+    "shared_helper_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/run_mirelle_neutral_socket_seam_qwen_v1.py",
+    "shared_helper_sha256": "9303d43ceab0f7f4ac2d31c6f4f081651cb7fd9353befb1b7209c3c73e75e94a"
+  },
+  "response": {
+    "headers_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_headers/mirelle_angry_socket_seam_qwen_v1.json",
+    "headers_sha256": "0fcf6251445409eb45b4cb3ddfc43aae878d07354947e73e6432fbcddfdf25e8",
+    "raw_model_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_raw/mirelle_voss/angry_socket_seam_qwen_v1_model_output.png",
+    "raw_model_output_sha256": "d6ba903ed871db84efec3bc59627d52617ac0ad998e375c391eacc7e0a824a2a",
+    "raw_model_output_dimensions": [
+      880,
+      1184
+    ],
+    "aligned_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_aligned/mirelle_voss/angry_socket_seam_qwen_v1_aligned.png",
+    "aligned_output_sha256": "3e41d04c658d5600f7f3b0a3173c2a2d6c459eba637c2bc4efc0e0426eb8b113",
+    "alignment": {
+      "method": "resize_to_primary_then_ecc_translation",
+      "fallback_to_resize_only": false,
+      "ecc_correlation": 0.9982967669763466,
+      "warp_matrix": [
+        [
+          1.0,
+          0.0,
+          -0.05777166783809662
+        ],
+        [
+          0.0,
+          1.0,
+          -0.06278675049543381
+        ]
+      ],
+      "alignment_mask_pixels": 462796
+    },
+    "hard_composite_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/angry_socket_seam_qwen_v1.png",
+    "hard_composite_sha256": "869cc10a30b360622f0b6407f6eb90dfc9a250c1d6b91bd6899c1d68f0616c25",
+    "hard_composite_dimensions": [
+      1082,
+      1454
+    ],
+    "changed_inside_mask_pixels": 246,
+    "changed_outside_mask_pixels": 0,
+    "mean_absolute_channel_delta_inside_mask": 18.63821138211382,
+    "comparison_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_angry_socket_seam_qwen_v1_comparison.png",
+    "comparison_sha256": "2e984747ade93ade8afd61f5086c6811731a5f0bedf0ee70f294f739d25619da"
+  },
+  "pose": "angry",
+  "version": "primary_metal_reference_graft_v1"
+}

@@ -1,0 +1,8 @@
+{
+  "status": "rejected",
+  "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_full_component_rigid_transform_preview/full_component_rigid_transform_preview.png",
+  "sha256": "b5990f5e629fe97d34df4e4b5518fd673b7f8734f299f02dc59c7690f05ce3d4",
+  "reason": "Full canonical metal plus cloth was subjected to one rigid transform. That incorrectly locked flexible streamers to blade rotation and gravity.",
+  "superseded_by": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/happy_canonical_spear_metal_repair_proof.png",
+  "model_call": false
+}

@@ -1,0 +1,1719 @@
+{
+  "schema_version": 2,
+  "pack_id": "mirelle-rowan-pose-expression-review-v2-20260827",
+  "status": "complete experimental review pack; not approved or locked for production",
+  "production_bound": false,
+  "runtime_changes": false,
+  "checkpoint_changes": false,
+  "reference_registry_changes": false,
+  "runtime_llm_image_reading": false,
+  "labels": [
+    "neutral",
+    "happy",
+    "concerned",
+    "tense",
+    "skeptical",
+    "angry",
+    "sad",
+    "surprised"
+  ],
+  "characters": {
+    "mirelle_voss": "Mirelle Voss",
+    "rowan_kest": "Rowan Kest"
+  },
+  "references": {
+    "mirelle_voss": [
+      {
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/mirelle_voss/active_profile.png",
+        "sha256": "6173f6066860c270b73bcbde7fc86336411758301cdc5c12341f0400a82266b6",
+        "bytes": 851943,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 880,
+        "height": 1184
+      },
+      {
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/mirelle_voss/facial_zoom.png",
+        "sha256": "abd349e761b82ba011e2c0434ea6b2fd8b4ed5eb90f6aed8e9c575833e8e9260",
+        "bytes": 1179029,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 880,
+        "height": 1184
+      },
+      {
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/mirelle_voss/anatomy.png",
+        "sha256": "a84842f3e16bd650a4b85c02cf67c20ea6d694966ba855c6c2fd5709b5e0aaec",
+        "bytes": 858681,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 880,
+        "height": 1184
+      },
+      {
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/mirelle_voss/back_view.png",
+        "sha256": "88265bde530579df8f23c7be8538df82541736a946454b8df347762a87fa2480",
+        "bytes": 895338,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 880,
+        "height": 1184
+      }
+    ],
+    "rowan_kest": [
+      {
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/rowan_kest/active_profile.png",
+        "sha256": "9d2ea44d6ed3c3ac806e1a232d245e3aaef09efc50e888c54352ca3baf1896f6",
+        "bytes": 800434,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 880,
+        "height": 1184
+      },
+      {
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/rowan_kest/facial_zoom.png",
+        "sha256": "3b5fed61b95dff45d7f6d2ea615fe5b3be6738358dee7a86b0495e5e5edf0e91",
+        "bytes": 1131040,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 880,
+        "height": 1184
+      },
+      {
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/rowan_kest/anatomy.png",
+        "sha256": "c323fd106f46e689b808b70b8a08590953c1fbc47a0192dfdca4644bcf52383f",
+        "bytes": 686581,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 880,
+        "height": 1184
+      },
+      {
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/rowan_kest/back_view.png",
+        "sha256": "311424fe42907a706a8065fac7b6548ae806220e168325fdc5d3e6e9346cf6d1",
+        "bytes": 940303,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 880,
+        "height": 1184
+      }
+    ]
+  },
+  "selected_variants": [
+    {
+      "character": "mirelle_voss",
+      "label": "neutral",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/mirelle_voss/neutral_chroma_v1.png",
+        "sha256": "7a52d35686265f1e3976fb41cbae25dd04ce29e02051835918c67e0f4dbeebb9",
+        "bytes": 1411299,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/mirelle_voss/neutral_v1.txt",
+        "sha256": "b91fed3b211ca04bddf5a85ca3c0fd5d8ca86190722ea3cbef46ffdf6b7cc2df",
+        "bytes": 3499,
+        "prompt_text_sha256": "b91fed3b211ca04bddf5a85ca3c0fd5d8ca86190722ea3cbef46ffdf6b7cc2df"
+      },
+      "selected_deterministic_repair": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/neutral_canonical_metal_repair_v1.png",
+        "sha256": "08fc7d8223ed162039d30d7789031748694ec60510921a4c714033adf650a407",
+        "bytes": 1313557,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/neutral_canonical_metal_repair_v1.png",
+        "sha256": "08fc7d8223ed162039d30d7789031748694ec60510921a4c714033adf650a407",
+        "bytes": 1313557,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/mirelle_voss/neutral.png",
+        "sha256": "50a2da2a7f003e1d30d5ec90d8d25022737fa817818fef3e43df0ec2438d611c",
+        "bytes": 787772,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1454,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1206148,
+          "partial": 180888,
+          "opaque": 186192
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            359922
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/mirelle_voss/neutral.png",
+        "sha256": "e0f70522d1adb64d7f938dd66064d26934619b493ece444047b6753b8dfdcf57",
+        "bytes": 833991,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1266958,
+          "partial": 198099,
+          "opaque": 184943
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            371011
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "mirelle_voss",
+      "label": "happy",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/mirelle_voss/happy_chroma_v1.png",
+        "sha256": "12d42a02f1ac49765c3034916937e73380dddd39560764fafee165b794f2cfb2",
+        "bytes": 1422266,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1081,
+        "height": 1455
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/mirelle_voss/happy_v1.txt",
+        "sha256": "709cd892dafba0e5209b9175e94f8914e5aefd4667324ce7a711c6e5104feb43",
+        "bytes": 3515,
+        "prompt_text_sha256": "709cd892dafba0e5209b9175e94f8914e5aefd4667324ce7a711c6e5104feb43"
+      },
+      "selected_deterministic_repair": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/happy_upper_primary_metal_reference_graft_v2.png",
+        "sha256": "d84dc6d28c8864c3cb7e2dfb7190e5e6460e7b797d1b59dedb246341ca9f48a3",
+        "bytes": 1323257,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1081,
+        "height": 1455
+      },
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/happy_upper_primary_metal_reference_graft_v2.png",
+        "sha256": "d84dc6d28c8864c3cb7e2dfb7190e5e6460e7b797d1b59dedb246341ca9f48a3",
+        "bytes": 1323257,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1081,
+        "height": 1455
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/mirelle_voss/happy.png",
+        "sha256": "e5c88f8cc50456d433b976faf6cd6847fffe3e42e0d8b993ae2678017ace1219",
+        "bytes": 849005,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1081,
+        "height": 1455,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1159358,
+          "partial": 212961,
+          "opaque": 200536
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            404939
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/mirelle_voss/happy.png",
+        "sha256": "ec82fcaa2e8a54285e9e23975fd91307fb9158bcf4232f7ba2dc5cee000c0238",
+        "bytes": 908573,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1215420,
+          "partial": 233603,
+          "opaque": 200977
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            420893
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "mirelle_voss",
+      "label": "concerned",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/mirelle_voss/concerned_chroma_v3.png",
+        "sha256": "7ca5fe3c5e1a21c0c3c5be7069eb9e690951921a51851ae81b8a187e68e84966",
+        "bytes": 1429052,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/imagegen/mirelle_concerned_chroma_v3.txt",
+        "sha256": "954fb013f128951a533a8eff06f7e758a32489947af8636fce7cef09689816ce",
+        "bytes": 3330,
+        "prompt_text_sha256": "954fb013f128951a533a8eff06f7e758a32489947af8636fce7cef09689816ce"
+      },
+      "selected_deterministic_repair": null,
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/mirelle_voss/concerned_chroma_v3.png",
+        "sha256": "7ca5fe3c5e1a21c0c3c5be7069eb9e690951921a51851ae81b8a187e68e84966",
+        "bytes": 1429052,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/mirelle_voss/concerned.png",
+        "sha256": "5f71bfdcb0137b8cbcec96d0131bcaae04a97faf8b60df29fe0b6f326e44c82d",
+        "bytes": 829407,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1454,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1195858,
+          "partial": 209576,
+          "opaque": 167794
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            366743
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/mirelle_voss/concerned.png",
+        "sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+        "bytes": 921901,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1232906,
+          "partial": 240939,
+          "opaque": 176155
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            400486
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "mirelle_voss",
+      "label": "tense",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/mirelle_voss/tense_chroma_v3.png",
+        "sha256": "f7985b3a80b61194bd57914b4ec6f4e5147b470cffab7dbdf8c0a756367f5782",
+        "bytes": 1374970,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1080,
+        "height": 1456
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/recovered_v2/mirelle_voss/tense_v3.txt",
+        "sha256": "ba784c334bdff958ccc378f7a29f8c0e10a4da28e82343173b36935ce96e734c",
+        "bytes": 1944,
+        "prompt_text_sha256": "ba784c334bdff958ccc378f7a29f8c0e10a4da28e82343173b36935ce96e734c"
+      },
+      "selected_deterministic_repair": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/tense_primary_metal_reference_graft_v2.png",
+        "sha256": "d1a623ef7fb95e28a890fe7c0c4e235f02da7a6cfbbe26c60f3e13c1cb5a54cc",
+        "bytes": 1281756,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1080,
+        "height": 1456
+      },
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/tense_primary_metal_reference_graft_v2.png",
+        "sha256": "d1a623ef7fb95e28a890fe7c0c4e235f02da7a6cfbbe26c60f3e13c1cb5a54cc",
+        "bytes": 1281756,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1080,
+        "height": 1456
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/mirelle_voss/tense.png",
+        "sha256": "47794b1e488428630ddb78f238bce6a872c830300ced5c7df4239884429a416e",
+        "bytes": 728731,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1080,
+        "height": 1456,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1218208,
+          "partial": 176434,
+          "opaque": 177838
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            349086
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/mirelle_voss/tense.png",
+        "sha256": "b76f677f0f682c491022d1e4036d78d04b3f5c5123e1a0ebcb95a43d45037166",
+        "bytes": 826065,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1252805,
+          "partial": 207394,
+          "opaque": 189801
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            387610
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "mirelle_voss",
+      "label": "skeptical",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/mirelle_voss/skeptical_chroma_v1.png",
+        "sha256": "685c69a562995b4f760a5592f736dfadd33303ae35ec53049d2f4b6377431550",
+        "bytes": 1377563,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/mirelle_voss/skeptical_v1.txt",
+        "sha256": "87e86d6b0646c906564f6a8a1d3dd454aa2ab574f24b14a7156d9af62f5b09a4",
+        "bytes": 3527,
+        "prompt_text_sha256": "87e86d6b0646c906564f6a8a1d3dd454aa2ab574f24b14a7156d9af62f5b09a4"
+      },
+      "selected_deterministic_repair": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/skeptical_primary_metal_reference_graft_v1.png",
+        "sha256": "7b827787a0dad57e5e937936559871beaddcfbd7919a9dfab63c1459fb850fb5",
+        "bytes": 1275843,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/skeptical_primary_metal_reference_graft_v1.png",
+        "sha256": "7b827787a0dad57e5e937936559871beaddcfbd7919a9dfab63c1459fb850fb5",
+        "bytes": 1275843,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/mirelle_voss/skeptical.png",
+        "sha256": "1ff48d79873797a3faca9dcc7c7bdf755f65f5f9dd6d5a8fd59cb4ce191be863",
+        "bytes": 743522,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1454,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1218138,
+          "partial": 186685,
+          "opaque": 168405
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            346489
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/mirelle_voss/skeptical.png",
+        "sha256": "8db054334b6d0e2de0c19f93190773a38f9c9262ff1f303dcd8fb0d8830b73ba",
+        "bytes": 817727,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1260902,
+          "partial": 213844,
+          "opaque": 175254
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            376546
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "mirelle_voss",
+      "label": "angry",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/mirelle_voss/angry_chroma_v3.png",
+        "sha256": "d0beaaa7fd8ca02290f8c3d4fc64d7ab5685e1bd4915b884ea85d623e9050213",
+        "bytes": 1573298,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/mirelle_voss/angry_chroma_edit_v3.txt",
+        "sha256": "c94f22bd0384dbcfa9e9a104f57a777bf128231713a9e8e5d7a6be4eb6cd4cdc",
+        "bytes": 853,
+        "prompt_text_sha256": "c94f22bd0384dbcfa9e9a104f57a777bf128231713a9e8e5d7a6be4eb6cd4cdc"
+      },
+      "selected_deterministic_repair": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/angry_primary_metal_reference_graft_v1.png",
+        "sha256": "82f3287b4358e6ca06f2dd70aa3c91193f826866415c303c5aacca97dae0d7e2",
+        "bytes": 1466863,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/angry_primary_metal_reference_graft_v1.png",
+        "sha256": "82f3287b4358e6ca06f2dd70aa3c91193f826866415c303c5aacca97dae0d7e2",
+        "bytes": 1466863,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/mirelle_voss/angry.png",
+        "sha256": "982f670ce3456dc4e006bd58c3463a1db313abaf722cb2d33c23108664494405",
+        "bytes": 1022674,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1454,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1104401,
+          "partial": 251850,
+          "opaque": 216977
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            462376
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/mirelle_voss/angry.png",
+        "sha256": "72c33dd0079439a28a9cdc2110412c65d6b5e69b66ea2c6032e98efe83e1696b",
+        "bytes": 1111710,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1146336,
+          "partial": 283153,
+          "opaque": 220511
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            489287
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "mirelle_voss",
+      "label": "sad",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/mirelle_voss/sad_chroma_v1.png",
+        "sha256": "7c87432d582a188055384e2fa582cbd44bb2991a3e909c45d453e27ac07dbd6b",
+        "bytes": 1314238,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/mirelle_voss/sad_v1.txt",
+        "sha256": "fb1bf54d538e1510c71c143694bb1ccee77ad3343cb563fee4fab19245a9d9ec",
+        "bytes": 3528,
+        "prompt_text_sha256": "fb1bf54d538e1510c71c143694bb1ccee77ad3343cb563fee4fab19245a9d9ec"
+      },
+      "selected_deterministic_repair": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/sad_canonical_metal_repair_v1.png",
+        "sha256": "512d710eeba7f5accddd73e27dd2801afd4dd6ad2cab070acd763f11bed31ca6",
+        "bytes": 1211904,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/sad_canonical_metal_repair_v1.png",
+        "sha256": "512d710eeba7f5accddd73e27dd2801afd4dd6ad2cab070acd763f11bed31ca6",
+        "bytes": 1211904,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/mirelle_voss/sad.png",
+        "sha256": "281d98fc5568c4cb8faf922816dcfa9639f1e06a6c2fc5ef3096b46c164f3702",
+        "bytes": 666758,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1454,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1241634,
+          "partial": 162245,
+          "opaque": 169349
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            325391
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/mirelle_voss/sad.png",
+        "sha256": "ec68ed7716f2eb76341b238942e3622b0ccee076f585f5c4fb39517b94cd174a",
+        "bytes": 699424,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1309380,
+          "partial": 173330,
+          "opaque": 167290
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            330603
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "mirelle_voss",
+      "label": "surprised",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/mirelle_voss/surprised_chroma_v1.png",
+        "sha256": "570a4afd9a4c2e6f6b6c9c1472006cbae740de47f13e8da33c6088d855958ddd",
+        "bytes": 1445745,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1453
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/mirelle_voss/surprised_v1.txt",
+        "sha256": "54d38ec9deb2418d341ce9102319db74deaf758c6ad29bc7eac55c053ebb781c",
+        "bytes": 3509,
+        "prompt_text_sha256": "54d38ec9deb2418d341ce9102319db74deaf758c6ad29bc7eac55c053ebb781c"
+      },
+      "selected_deterministic_repair": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/surprised_primary_metal_reference_graft_v1.png",
+        "sha256": "1a729f2df227282599fb09225dd71d14e666cd6eefb131366dea4dd462632a33",
+        "bytes": 1346532,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1453
+      },
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/surprised_primary_metal_reference_graft_v1.png",
+        "sha256": "1a729f2df227282599fb09225dd71d14e666cd6eefb131366dea4dd462632a33",
+        "bytes": 1346532,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1453
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/mirelle_voss/surprised.png",
+        "sha256": "ecc89e21154fd3a1b1f41786bac9296907fe7e2dc3c5c83175a569059a2c94d7",
+        "bytes": 868822,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1453,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1154849,
+          "partial": 216445,
+          "opaque": 200852
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            409015
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/mirelle_voss/surprised.png",
+        "sha256": "6f25ed98f2fc0bea0e7f2f2bc67ab3830ba9e18244d5b8bce664d5aaad62f11c",
+        "bytes": 957294,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1195866,
+          "partial": 245679,
+          "opaque": 208455
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            439559
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "rowan_kest",
+      "label": "neutral",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/neutral_chroma_v1.png",
+        "sha256": "45b3bdcc28f816c08030c643dc0258fc04d53ee86427733712bbd38abdd1081f",
+        "bytes": 1389245,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/rowan_kest/neutral_v1.txt",
+        "sha256": "23e15e1ec1a1e56a1a2d92375db4371bee9cbdb7cfde5507e79c7ac90e03d420",
+        "bytes": 3536,
+        "prompt_text_sha256": "23e15e1ec1a1e56a1a2d92375db4371bee9cbdb7cfde5507e79c7ac90e03d420"
+      },
+      "selected_deterministic_repair": null,
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/neutral_chroma_v1.png",
+        "sha256": "45b3bdcc28f816c08030c643dc0258fc04d53ee86427733712bbd38abdd1081f",
+        "bytes": 1389245,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/rowan_kest/neutral.png",
+        "sha256": "321d649aa049da2a899e4825ae64c88c7f21f227f38641b884aab84c1f101eeb",
+        "bytes": 732218,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1454,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1177781,
+          "partial": 9315,
+          "opaque": 386132
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            393207
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/rowan_kest/neutral.png",
+        "sha256": "b608f0ad84e492db6e7026c0ac8bfead1aa4a90b7b5a234b7e42e285ecf5d969",
+        "bytes": 728381,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1256167,
+          "partial": 7701,
+          "opaque": 386132
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            393207
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "rowan_kest",
+      "label": "happy",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/happy_chroma_v1.png",
+        "sha256": "f06ab3c1a57399c68d7486173bc33c74602665b61abcd494b153327d20dd0934",
+        "bytes": 1466758,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1084,
+        "height": 1451
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/rowan_kest/happy_v1.txt",
+        "sha256": "4134e8b4566dda868afaf45b7f73070b15aac902c05d2907a4599638a6a2e365",
+        "bytes": 3496,
+        "prompt_text_sha256": "4134e8b4566dda868afaf45b7f73070b15aac902c05d2907a4599638a6a2e365"
+      },
+      "selected_deterministic_repair": null,
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/happy_chroma_v1.png",
+        "sha256": "f06ab3c1a57399c68d7486173bc33c74602665b61abcd494b153327d20dd0934",
+        "bytes": 1466758,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1084,
+        "height": 1451
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/rowan_kest/happy.png",
+        "sha256": "d9ae3aaf77ec8e6f8fd7cbd9847ed4a60cba7f34694cfc794e9de3f849d9ea95",
+        "bytes": 829811,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1084,
+        "height": 1451,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1146025,
+          "partial": 10557,
+          "opaque": 416302
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            424437
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/rowan_kest/happy.png",
+        "sha256": "8c34722b16a6f117ec9b2baa58ae2d4a31d70fde5432c08f6a8a465c20581a12",
+        "bytes": 825969,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1224810,
+          "partial": 8888,
+          "opaque": 416302
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            424437
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "rowan_kest",
+      "label": "concerned",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/concerned_chroma_v1.png",
+        "sha256": "66d73c8ee33d66766fa704edb3baae97153688d5775afd5c83ad237e84dd8e8f",
+        "bytes": 1507792,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1081,
+        "height": 1455
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/rowan_kest/concerned_v1.txt",
+        "sha256": "e969d6ed6b729a06f7f325f24e6dd188316242b19585ab9c426d50208a36dc41",
+        "bytes": 3550,
+        "prompt_text_sha256": "e969d6ed6b729a06f7f325f24e6dd188316242b19585ab9c426d50208a36dc41"
+      },
+      "selected_deterministic_repair": null,
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/concerned_chroma_v1.png",
+        "sha256": "66d73c8ee33d66766fa704edb3baae97153688d5775afd5c83ad237e84dd8e8f",
+        "bytes": 1507792,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1081,
+        "height": 1455
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/rowan_kest/concerned.png",
+        "sha256": "accc0555dcefaed80778b26a92fe89d9ddcf161dd801d9062b077faaa0e1e437",
+        "bytes": 850286,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1081,
+        "height": 1455,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1152395,
+          "partial": 9652,
+          "opaque": 410808
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            418082
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/rowan_kest/concerned.png",
+        "sha256": "bfab8506454aa7abc33e9508fdf5ee062ede799e92f0b5a5687c40189bdddb2a",
+        "bytes": 846100,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1231270,
+          "partial": 7922,
+          "opaque": 410808
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            418082
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "rowan_kest",
+      "label": "tense",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/tense_chroma_v1.png",
+        "sha256": "cc97d93405f68ba6ece5a07358826736d52adeca8eb314e8cce6d308618c2dd4",
+        "bytes": 1535179,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1081,
+        "height": 1455
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/rowan_kest/tense_v1.txt",
+        "sha256": "14c2b67538c3bd24ba84b54a917857bfb17381bc2903a3c4bf0a96c256ba1f8c",
+        "bytes": 3564,
+        "prompt_text_sha256": "14c2b67538c3bd24ba84b54a917857bfb17381bc2903a3c4bf0a96c256ba1f8c"
+      },
+      "selected_deterministic_repair": null,
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/tense_chroma_v1.png",
+        "sha256": "cc97d93405f68ba6ece5a07358826736d52adeca8eb314e8cce6d308618c2dd4",
+        "bytes": 1535179,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1081,
+        "height": 1455
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/rowan_kest/tense.png",
+        "sha256": "37868d55e2ba615135aa76d5429a103cee63ac29455f30474608c34969ad5b0b",
+        "bytes": 891590,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1081,
+        "height": 1455,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1135338,
+          "partial": 10254,
+          "opaque": 427263
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            435047
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/rowan_kest/tense.png",
+        "sha256": "579bbe7fc85eea145cc993b9e65a9a2ca65b84fac446c2663336cd244f0b567a",
+        "bytes": 886999,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1214330,
+          "partial": 8407,
+          "opaque": 427263
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            435047
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "rowan_kest",
+      "label": "skeptical",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/skeptical_chroma_v3.png",
+        "sha256": "67943b74e704c1746810c4f10f46c37a8ff342e4d537aa3733157e5160774a92",
+        "bytes": 1380803,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1453
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/rowan_kest/skeptical_chroma_edit_v3.txt",
+        "sha256": "5317b379e04eb6c18b1131b47ed0121f112999c8713100b7811caa339eee819b",
+        "bytes": 844,
+        "prompt_text_sha256": "5317b379e04eb6c18b1131b47ed0121f112999c8713100b7811caa339eee819b"
+      },
+      "selected_deterministic_repair": null,
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/skeptical_chroma_v3.png",
+        "sha256": "67943b74e704c1746810c4f10f46c37a8ff342e4d537aa3733157e5160774a92",
+        "bytes": 1380803,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1453
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/rowan_kest/skeptical.png",
+        "sha256": "6fdfbe8a40b17a7caa11d9cf0b665451fabbe9c8eef8c5601131921a2b359e86",
+        "bytes": 740082,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1453,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1153449,
+          "partial": 9380,
+          "opaque": 409317
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            416559
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/rowan_kest/skeptical.png",
+        "sha256": "800ac157929ace0ab2eda1765dd269799ebe94a379a79ac45f7ced127e8edea8",
+        "bytes": 736751,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1232720,
+          "partial": 7963,
+          "opaque": 409317
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            416559
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "rowan_kest",
+      "label": "angry",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/angry_chroma_v1.png",
+        "sha256": "26a90b5e00be3195ae1f62cef7b1266af4846288de56e3e35f2b3cfd597d559a",
+        "bytes": 1522747,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/rowan_kest/angry_v1.txt",
+        "sha256": "2aa06732ca6d7ca652136ebead3d37f1e8bd06def9d67e45abf7945ae63d9b99",
+        "bytes": 3554,
+        "prompt_text_sha256": "2aa06732ca6d7ca652136ebead3d37f1e8bd06def9d67e45abf7945ae63d9b99"
+      },
+      "selected_deterministic_repair": null,
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/angry_chroma_v1.png",
+        "sha256": "26a90b5e00be3195ae1f62cef7b1266af4846288de56e3e35f2b3cfd597d559a",
+        "bytes": 1522747,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/rowan_kest/angry.png",
+        "sha256": "9ebeaa6857141d538f39eadbddb874b0ddc771eeb7e3d05cd7640a6468fe5285",
+        "bytes": 907875,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1454,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1104488,
+          "partial": 11424,
+          "opaque": 457316
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            466397
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/rowan_kest/angry.png",
+        "sha256": "c0620342bae19e4a59da216ffeaa7abd75d399295cffbace09053ac9d74f0f0d",
+        "bytes": 904937,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1182736,
+          "partial": 9948,
+          "opaque": 457316
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            466397
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "rowan_kest",
+      "label": "sad",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/rowan_kest/sad_chroma_v2.png",
+        "sha256": "bdcc9e5a6916cf23741eee245d28aa4525c945b228c45b06b4f66bbd81119a19",
+        "bytes": 1291107,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/recovered_v2/rowan_kest/sad_v2.txt",
+        "sha256": "dfe5e95bcff029d240d100efd23eb50806e7da1cd38386ed4fc23420819b3123",
+        "bytes": 1851,
+        "prompt_text_sha256": "dfe5e95bcff029d240d100efd23eb50806e7da1cd38386ed4fc23420819b3123"
+      },
+      "selected_deterministic_repair": null,
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/rowan_kest/sad_chroma_v2.png",
+        "sha256": "bdcc9e5a6916cf23741eee245d28aa4525c945b228c45b06b4f66bbd81119a19",
+        "bytes": 1291107,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/rowan_kest/sad.png",
+        "sha256": "e95b4ee35ff007bdb31f4ff48acb7dd03fe43a9bf41d0fe2349c96aef510f221",
+        "bytes": 630128,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1454,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1217872,
+          "partial": 37912,
+          "opaque": 317444
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            350579
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/rowan_kest/sad.png",
+        "sha256": "72af2f4cb5d8d8cd06cbef3652d8d0eb79db2be008f3cd1e5b56466faabf801f",
+        "bytes": 721496,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1232590,
+          "partial": 60151,
+          "opaque": 357259
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            408910
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    },
+    {
+      "character": "rowan_kest",
+      "label": "surprised",
+      "selected_raw": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/surprised_chroma_v1.png",
+        "sha256": "e9193bceb76842255b3de5c05d1647df81bbb285ccdc9ba8b3438784f36549c4",
+        "bytes": 1405714,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "selected_prompt": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/legacy_selected_bases/rowan_kest/surprised_v1.txt",
+        "sha256": "9124f26ba2e4f7ebffa8f99b475d162b6af3e2fec91025628da5e00fb38948eb",
+        "bytes": 3513,
+        "prompt_text_sha256": "9124f26ba2e4f7ebffa8f99b475d162b6af3e2fec91025628da5e00fb38948eb"
+      },
+      "selected_deterministic_repair": null,
+      "matte_input": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826/generation_raw/rowan_kest/surprised_chroma_v1.png",
+        "sha256": "e9193bceb76842255b3de5c05d1647df81bbb285ccdc9ba8b3438784f36549c4",
+        "bytes": 1405714,
+        "format": "PNG",
+        "mode": "RGB",
+        "width": 1082,
+        "height": 1454
+      },
+      "candidate": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/candidates/rowan_kest/surprised.png",
+        "sha256": "2431da1f92a442a2163a3ff1bbf494f3cad0bcaea6fa5c71eea33b5e54d6a272",
+        "bytes": 757003,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1082,
+        "height": 1454,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1165242,
+          "partial": 10195,
+          "opaque": 397791
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            405450
+          ]
+        }
+      },
+      "sprite": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/sprites/rowan_kest/surprised.png",
+        "sha256": "0921bd74a3ce49ebdd6cedecf1004f177db344db57140cf349b40160d9846cad",
+        "bytes": 752617,
+        "format": "PNG",
+        "mode": "RGBA",
+        "width": 1100,
+        "height": 1500,
+        "alpha": {
+          "minimum": 0,
+          "maximum": 255,
+          "transparent": 1243814,
+          "partial": 8395,
+          "opaque": 397791
+        },
+        "significant_alpha_components": {
+          "threshold": 64,
+          "minimum_area": 100,
+          "count": 1,
+          "areas": [
+            405450
+          ]
+        }
+      },
+      "manual_disposition": "accepted_experimental_review_candidate"
+    }
+  ],
+  "contact_sheets": [
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/contact_sheets/mirelle_voss_complete_sweep_v2.png",
+      "sha256": "aaf78f04af863c75c3e5c581d683d649efa92c66fe0e1fe063e2a15fa658359f",
+      "bytes": 1090799,
+      "format": "PNG",
+      "mode": "RGB",
+      "width": 1920,
+      "height": 1300
+    },
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/contact_sheets/rowan_kest_complete_sweep_v2.png",
+      "sha256": "beb3fb6aaa41e7a24c0a4c0039472504bad9f7486bad74a7e556046a6eb11f4d",
+      "bytes": 1001702,
+      "format": "PNG",
+      "mode": "RGB",
+      "width": 1920,
+      "height": 1300
+    },
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/contact_sheets/mirelle_rowan_v2_complete_overview.png",
+      "sha256": "0d5298d54b850f33ca4fe51bc2e918a87da20bf867d8013b9edbdef92606a546",
+      "bytes": 2096202,
+      "format": "PNG",
+      "mode": "RGB",
+      "width": 1920,
+      "height": 2688
+    }
+  ],
+  "processing_reports": [
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/matte_reports/mirelle_voss_v2_opaque_hybrid.json",
+      "sha256": "1f7d2032279fdfbe35890b3aa1fb8a62a28bd0e19721c4788c773f3ca896e81a",
+      "bytes": 22779
+    },
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/matte_reports/rowan_kest_v2.json",
+      "sha256": "2ef9ecdacfcf5e01d17c766f78d5a82bc321d643fb50afacd6422b8bc630b53f",
+      "bytes": 2726
+    }
+  ],
+  "recovered_generation_ledger": {
+    "record_count": 5,
+    "path": {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/exact_generation_prompt_ledger.jsonl",
+      "sha256": "f1f975ea66bc46bcde183d40d7173ac6cccbdbf4c0d7619fe295d3f2e04135d7",
+      "bytes": 36293
+    },
+    "all_source_destination_hashes_match": true
+  },
+  "qwen_masked_edit_experiments": [
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_angry_socket_seam_qwen_v1.json",
+        "sha256": "bcb8166b0476bf1e3d83a92195656715dd43ff7a33cf915815cba343befce2cc",
+        "bytes": 2186463
+      },
+      "review": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_reviews/mirelle_angry_socket_seam_qwen_v1.json",
+        "sha256": "d5853db0c68c2056e8e86d9e8cae6e9b1a03adc42c3121501984deef94bcba4f",
+        "bytes": 3944
+      },
+      "metadata": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_metadata/mirelle_angry_socket_seam_qwen_v1.json",
+        "sha256": "f653d28af476b2e295a6fcb2df826af35b194581bf08c3c3b66f3934180b2e0c",
+        "bytes": 8440
+      },
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    },
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_concerned_lower_body_inpaint_v1_request.json",
+        "sha256": "4465bf87a91676f49d897f977f46734fbdf47fb7a212f3c051582b6519fd38cc",
+        "bytes": 3973823
+      },
+      "review": null,
+      "metadata": null,
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    },
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_happy_upper_socket_seam_qwen_v1.json",
+        "sha256": "7c38b7d076c85ca915683b2a10be448ce0b294473a31300a811540ec946b610f",
+        "bytes": 1994898
+      },
+      "review": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_reviews/mirelle_happy_upper_socket_seam_qwen_v1.json",
+        "sha256": "af546a529a93ecc9159e2fe170393dfc8ee80f2ea419031cf83f0707fc476be9",
+        "bytes": 4146
+      },
+      "metadata": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_metadata/mirelle_happy_upper_socket_seam_qwen_v1.json",
+        "sha256": "3516459e4ad63d86522140fb8382540d3b796efcfa83e24d8905bf9ecdea9ea5",
+        "bytes": 6992
+      },
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    },
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_neutral_socket_seam_qwen_v1.json",
+        "sha256": "35febe1b9dc831fccc4246c013d747964d3e1728ddd0c14085e4accf06a32b93",
+        "bytes": 1982002
+      },
+      "review": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_reviews/mirelle_neutral_socket_seam_qwen_v1.json",
+        "sha256": "3050e625018bb71ad6ae86ed023d9521cd70cb5dc1a6f9df965f4ab4fd6eaf11",
+        "bytes": 2517
+      },
+      "metadata": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_metadata/mirelle_neutral_socket_seam_qwen_v1.json",
+        "sha256": "3161903726e3c94f99f4c4793702e1d82f2132a879d5a90beb11123d516b488e",
+        "bytes": 5243
+      },
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    },
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_sad_socket_seam_qwen_v1.json",
+        "sha256": "0aee82fd611676d658df33f6791d2642733f5e7bb0b598603fb3e54fca28fd92",
+        "bytes": 1846430
+      },
+      "review": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_reviews/mirelle_sad_socket_seam_qwen_v1.json",
+        "sha256": "426a4c26944247722a3e9924d28991f4421c2d0128a1f750df5e5a46e354ca67",
+        "bytes": 3567
+      },
+      "metadata": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_metadata/mirelle_sad_socket_seam_qwen_v1.json",
+        "sha256": "9da6c097071cedb427594e5a39129db69973488bab55b9620bd93565a98be9e1",
+        "bytes": 6116
+      },
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    },
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_skeptical_socket_seam_qwen_v1.json",
+        "sha256": "1ad61a090fef71929db8f6f8a3c5c90a65393125e9c10d7218193dfd34cfeca7",
+        "bytes": 1931733
+      },
+      "review": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_reviews/mirelle_skeptical_socket_seam_qwen_v1.json",
+        "sha256": "439c7803bd1cac7a72e871b14d53c122ff3fa81e7d09371e33ef1226c05ae225",
+        "bytes": 3864
+      },
+      "metadata": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_metadata/mirelle_skeptical_socket_seam_qwen_v1.json",
+        "sha256": "a36b4c9fc4814078abce362d687745ccbd2c752d6c93e42c0277f46da3e2a0e8",
+        "bytes": 7645
+      },
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    },
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_surprised_socket_seam_qwen_attempt_v1.json",
+        "sha256": "dd1b06083f4ebf01ec92735bbd07e46da41000ebbde25f6e8da0b6f742d5bb79",
+        "bytes": 984
+      },
+      "review": null,
+      "metadata": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_metadata/mirelle_surprised_socket_seam_qwen_v1.json",
+        "sha256": "0750456915e34c067e216267e2c5e89b69fb376ba936e53d007e3cdff3ddcee5",
+        "bytes": 7489
+      },
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    },
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_surprised_socket_seam_qwen_request_headers_v1.json",
+        "sha256": "ebf85734736f02457d4f2f28bc4aed2849389e245cf57819a53ed6628b3a6235",
+        "bytes": 41
+      },
+      "review": null,
+      "metadata": null,
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    },
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_surprised_socket_seam_qwen_v1.json",
+        "sha256": "44d1ddf7daee0a42b508757d979d8d960d24f3d50790cea118c4c614066bbc2b",
+        "bytes": 2026299
+      },
+      "review": null,
+      "metadata": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_metadata/mirelle_surprised_socket_seam_qwen_v1.json",
+        "sha256": "0750456915e34c067e216267e2c5e89b69fb376ba936e53d007e3cdff3ddcee5",
+        "bytes": 7489
+      },
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    },
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_tense_socket_seam_qwen_attempt_v1.json",
+        "sha256": "905d1544a33121e123a8ca442246bbe07c1298da49d9aafd2b2190852c131dce",
+        "bytes": 658
+      },
+      "review": null,
+      "metadata": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_metadata/mirelle_tense_socket_seam_qwen_v1.json",
+        "sha256": "3e64fdca79f136f2f2b72f9b69ec96abdfc1800914de13712cc62ea2e726e3c4",
+        "bytes": 6311
+      },
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    },
+    {
+      "request": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_tense_socket_seam_qwen_v1.json",
+        "sha256": "21b4c6ddb4abdaf3c64ec04ec3431a5b189881062690739944b26a044d205e2d",
+        "bytes": 1940032
+      },
+      "review": null,
+      "metadata": {
+        "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_metadata/mirelle_tense_socket_seam_qwen_v1.json",
+        "sha256": "3e64fdca79f136f2f2b72f9b69ec96abdfc1800914de13712cc62ea2e726e3c4",
+        "bytes": 6311
+      },
+      "selection": "rejected_or_superseded; deterministic repair retained"
+    }
+  ],
+  "frozen_components": [
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_primary_metal_rgba_v1.png",
+      "sha256": "4f4b369d7f445b79a44673b33aee8bcc763f754eb37a0d7bfaee38213bf73b6f",
+      "bytes": 35991,
+      "format": "PNG",
+      "mode": "RGBA",
+      "width": 312,
+      "height": 314,
+      "alpha": {
+        "minimum": 0,
+        "maximum": 255,
+        "transparent": 85679,
+        "partial": 0,
+        "opaque": 12289
+      },
+      "significant_alpha_components": {
+        "threshold": 64,
+        "minimum_area": 100,
+        "count": 1,
+        "areas": [
+          12289
+        ]
+      }
+    },
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_primary_streamers_rgba_v1.png",
+      "sha256": "9d7ff6a32a4ad46ac491652b40f0fa5f0a2c8fb4f88cd67c1ebdb1a81e6970dd",
+      "bytes": 25395,
+      "format": "PNG",
+      "mode": "RGBA",
+      "width": 312,
+      "height": 314,
+      "alpha": {
+        "minimum": 0,
+        "maximum": 255,
+        "transparent": 88948,
+        "partial": 0,
+        "opaque": 9020
+      },
+      "significant_alpha_components": {
+        "threshold": 64,
+        "minimum_area": 100,
+        "count": 3,
+        "areas": [
+          7775,
+          718,
+          527
+        ]
+      }
+    }
+  ],
+  "old_pack_integrity": {
+    "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_20260826",
+    "expected_aggregate_sha256": "6c47390015a9cac61d285ece0bbff59bcda7ea21bb1c83758c013f5932370b33",
+    "actual_aggregate_sha256": "6c47390015a9cac61d285ece0bbff59bcda7ea21bb1c83758c013f5932370b33",
+    "byte_identical": true
+  },
+  "review_documents": [
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/README.md",
+      "sha256": "434a344a94d2e43a6672f4af4cb129f70e4f679e58f86cdd783d4c0411f207ec",
+      "bytes": 4932
+    },
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/REVIEW_INDEX.md",
+      "sha256": "2871746f51da05399cfeb215d83d2d2bf2dc4806e163d0e63d8b019205a03715",
+      "bytes": 2607
+    },
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/manual_review.md",
+      "sha256": "174596731d1c27a50563a01cea03d56db7c15d45a4518e9797cafe760184a99c",
+      "bytes": 5419
+    },
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejection_log.md",
+      "sha256": "77cf5780e75408d24841c741164ba862d621bbc01afdc6cb6b26ccb9e70484db",
+      "bytes": 13132
+    },
+    {
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompt_conflict_audit.md",
+      "sha256": "42710f56e209972ee6b4691d0cdab05e2071faa0b3a152f6b513041b4426ef31",
+      "bytes": 5722
+    }
+  ],
+  "validation": {
+    "selected_label_count": 16,
+    "expected_selected_label_count": 16,
+    "all_sprites_rgba_1100x1500": true,
+    "all_sprites_have_transparent_partial_and_opaque_pixels": true,
+    "all_png_files_readable": true,
+    "old_pack_byte_identical": true
+  }
+}

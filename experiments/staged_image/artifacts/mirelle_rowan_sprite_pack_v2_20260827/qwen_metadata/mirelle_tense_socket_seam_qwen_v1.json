@@ -1,0 +1,113 @@
+{
+  "status": "qwen_rejected_deterministic_v2_selected",
+  "selection": {
+    "selected": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/tense_primary_metal_reference_graft_v2.png",
+    "selected_sha256": "d1a623ef7fb95e28a890fe7c0c4e235f02da7a6cfbbe26c60f3e13c1cb5a54cc",
+    "reason": "Qwen softened the collar linework and introduced a visible tonal patch at the hard mask boundary; approved deterministic v2 is cleaner"
+  },
+  "model_calls": 1,
+  "inputs": {
+    "approved_primary": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/tense_primary_metal_reference_graft_v2.png",
+      "sha256": "d1a623ef7fb95e28a890fe7c0c4e235f02da7a6cfbbe26c60f3e13c1cb5a54cc"
+    },
+    "locked_canonical_crop": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+      "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+    },
+    "frozen_metal_component": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_primary_metal_rgba_v1.png",
+      "sha256": "4f4b369d7f445b79a44673b33aee8bcc763f754eb37a0d7bfaee38213bf73b6f"
+    },
+    "mask": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/tense_socket_seam_qwen_mask_v1.png",
+      "pixel_count": 539,
+      "bbox_xyxy_exclusive": [
+        363,
+        277,
+        404,
+        317
+      ],
+      "socket_material_pixels_inside": 188,
+      "background_seam_pixels_inside": 352,
+      "blade_guard_protected_overlap": 0,
+      "cloth_shaft_protected_overlap": 0,
+      "body_protected_overlap": 0,
+      "sha256": "569d9e8b2b9bb5a3f81293db1e53043c0389801b37b64cd9e11d80ed9bbe63f3",
+      "proof_sha256": "978d9e27a2def2d215e0724ea5a5f6bb4701524da608b1fe5a7b6d4414ad4dee",
+      "transform_matrix": [
+        [
+          -0.3897932608183999,
+          -0.6756191336992751,
+          521.0887550629154
+        ],
+        [
+          0.6756191336992751,
+          -0.3897932608183999,
+          197.5677734729826
+        ]
+      ]
+    },
+    "prompt": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/qwen/mirelle_tense_socket_seam_qwen_v1.txt",
+      "sha256": "16fe50cf46e197b8cdbc243b0e1debfb7bbd383092ff0129fc63bbd6ea113828"
+    }
+  },
+  "exact_request": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_tense_socket_seam_qwen_v1.json",
+    "sha256": "21b4c6ddb4abdaf3c64ec04ec3431a5b189881062690739944b26a044d205e2d",
+    "byte_count": 1940032,
+    "endpoint": "/prototype/edit/qwen/masked",
+    "seed": 260827329,
+    "steps": 26,
+    "cfg": 3.5,
+    "denoise": 0.25
+  },
+  "exact_response": {
+    "headers_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_headers/mirelle_tense_socket_seam_qwen_v1.json",
+    "headers_sha256": "bccffe84593798418334c32f75e204e1f19021b2334c074723c9ce360a5f5c1c",
+    "raw_model_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_raw/mirelle_voss/tense_socket_seam_qwen_v1_model_output.png",
+    "raw_model_output_sha256": "451999f924fff190547aabcfd34857e8e40662fdebc4aa79f77e972d371bd572",
+    "raw_model_output_byte_count": 922986
+  },
+  "hard_composite": {
+    "raw_format": "PNG",
+    "raw_mode": "RGB",
+    "raw_dimensions": [
+      880,
+      1184
+    ],
+    "aligned_dimensions": [
+      1080,
+      1456
+    ],
+    "resampling": "Pillow LANCZOS from raw model dimensions to primary dimensions",
+    "composite_method": "hard binary replacement where saved mask >= 128",
+    "changed_inside_mask_pixels": 539,
+    "changed_outside_mask_pixels": 0,
+    "aligned_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_aligned/mirelle_voss/tense_socket_seam_qwen_v1_model_output_aligned.png",
+    "aligned_output_sha256": "7d214210185e04eaa1409ab6eb623959e55a2132c467658eb493db0a753a3450",
+    "composite_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/tense_socket_seam_qwen_v1.png",
+    "composite_sha256": "20e40841409358e915d19efa4f6ba6ef82af34a3c5d17bb78a12264140fc0b72"
+  },
+  "proof": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_proofs/mirelle_tense_socket_seam_qwen_v1.png",
+    "sha256": "c1b51b115a05496759278746ecaa1879bc4f4f25571a3da6bfe72182fdbfaee1"
+  },
+  "attempt": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_tense_socket_seam_qwen_attempt_v1.json",
+    "sha256": "905d1544a33121e123a8ca442246bbe07c1298da49d9aafd2b2190852c131dce"
+  },
+  "manual_review": {
+    "decision": "reject_qwen_keep_approved_deterministic_v2",
+    "inspection": "original resolution plus nearest-neighbor close proof",
+    "reasons": [
+      "Qwen softened and blurred the collar bands relative to the approved deterministic linework",
+      "the 539-pixel hard composite exposes a blocky tonal discontinuity against the adjacent silver and magenta pixels",
+      "the socket junction is not visibly cleaner than the approved fallback"
+    ],
+    "protected_regions_result": "pass: blade, guards, cloth, shaft, body, face, hair, hands, garments, and all other unmasked pixels remain exact",
+    "outside_mask_delta_pixels": 0,
+    "additional_model_calls_allowed_or_used": 0
+  }
+}

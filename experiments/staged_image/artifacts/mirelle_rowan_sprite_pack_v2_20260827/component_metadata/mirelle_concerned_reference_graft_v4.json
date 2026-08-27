@@ -1,0 +1,118 @@
+{
+  "status": "pending_manual_review",
+  "reference": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+    "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+  },
+  "target": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/mirelle_voss/concerned_chroma_v2.png",
+    "sha256": "ac5d892873234388c83080cf42bc5885d8944666cb6315df07d0969206fbb517"
+  },
+  "extraction": {
+    "method": "manual prop-only polygon plus seeded GrabCut and near-key rejection; exact source RGB retained",
+    "near_key_rejection_distance": 20.0,
+    "background_key_rgb": [
+      199.0,
+      190.0,
+      174.0
+    ],
+    "background_distance": 30.0,
+    "manual_polygon": [
+      [
+        30,
+        420
+      ],
+      [
+        30,
+        175
+      ],
+      [
+        115,
+        135
+      ],
+      [
+        130,
+        85
+      ],
+      [
+        330,
+        85
+      ],
+      [
+        342,
+        105
+      ],
+      [
+        360,
+        125
+      ],
+      [
+        360,
+        220
+      ],
+      [
+        300,
+        285
+      ],
+      [
+        225,
+        420
+      ]
+    ],
+    "source_bbox": [
+      48,
+      85,
+      360,
+      399
+    ],
+    "mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/canonical_lower_spearhead_extraction_mask_v4.png",
+    "mask_sha256": "85ad42fde671563f0e72bfda2d1aebcb1272ba3a4f8231b6e63403cc4aae7ef4",
+    "component_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_lower_spearhead_streamers_rgba_v4.png",
+    "component_sha256": "4a84ea3e881c877b02b1568a8ca6ccb126d860be7e3b7159f017d73797d03a79"
+  },
+  "transform": {
+    "source_socket_anchor": [
+      248.0,
+      174.0
+    ],
+    "target_socket_anchor": [
+      608.0,
+      1128.0
+    ],
+    "source_shaft_top": [
+      337.0,
+      98.0
+    ],
+    "target_shaft_top": [
+      631.0,
+      1010.0
+    ],
+    "rotation_degrees": -38.47537563962654,
+    "uniform_scale": 0.9,
+    "duplicate_reference_shaft_removed": true,
+    "nonuniform_deformation": false,
+    "resampling": "premultiplied RGBA Lanczos4"
+  },
+  "graft": {
+    "erase_mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_old_lower_spear_erase_mask_v4.png",
+    "erase_mask_sha256": "7ddaddc3164bf4a44c51876ef2934631bd24e4cae088cd714d8af689d4043d80",
+    "transformed_alpha_mask_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_reference_graft_alpha_mask_v4.png",
+    "transformed_alpha_mask_sha256": "a8f53585c6a41d8cf557d5842e3ff82e641857283c0497d26bc1aa63bcaad3ad",
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/concerned_lower_spear_reference_graft_v4.png",
+    "sha256": "852d9f4d2ff8303db1178cc9f51aee053a5ca7e020943fb836d6f7b4dec43cf5",
+    "dimensions": [
+      1081,
+      1455
+    ]
+  },
+  "proofs": {
+    "extraction": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_canonical_lower_spear_extraction_v4.png",
+      "sha256": "5f679927cfc0ea5d9161f2b91e400b56e283e76dae4d936bcad543d7b4af3111"
+    },
+    "graft": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_concerned_reference_graft_v4.png",
+      "sha256": "14dbdecd19e8e9cf8a43c492e1db41074c81cd6292857c83a56b746b2bc215af"
+    }
+  }
+}

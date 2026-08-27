@@ -1,0 +1,193 @@
+{
+  "status": "pending_root_review",
+  "method": "deterministic v5 boundary cleanup plus exact-original body occlusion; no model call",
+  "inputs": {
+    "v5_graft": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/concerned_lower_spear_reference_graft_v5.png",
+      "sha256": "81c7f954236225929b4489506835309991d6b47285fbdbb34327f8c2aa61bb9c"
+    },
+    "target_concerned_v2": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/mirelle_voss/concerned_chroma_v2.png",
+      "sha256": "ac5d892873234388c83080cf42bc5885d8944666cb6315df07d0969206fbb517"
+    },
+    "v5_script": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prepare_mirelle_concerned_reference_graft.py",
+      "sha256": "08b1ac5daf546727744a014839489ad3a91e86dd8fddb56b5661e868a694c051"
+    },
+    "v6_script": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prepare_mirelle_concerned_reference_graft_v6.py",
+      "sha256": "d73de0a45de3d93ea3142ffa8aaae0e08cc905d12904432264b1bd0159e189dd"
+    }
+  },
+  "component_cleanup": {
+    "source_bbox": [
+      48,
+      85,
+      360,
+      399
+    ],
+    "background_key_rgb": [
+      199.0,
+      190.0,
+      174.0
+    ],
+    "small_hole_max_area": 64,
+    "filled_hole_component_areas": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      3,
+      3,
+      4,
+      5,
+      7,
+      8,
+      8,
+      8,
+      18,
+      18,
+      20,
+      21,
+      52,
+      54
+    ],
+    "filled_hole_pixels": 322,
+    "boundary_width_source_pixels": 3.0,
+    "boundary_coverage_distance_low": 12.0,
+    "boundary_coverage_distance_high": 72.0,
+    "boundary_coverage_floor": 0.18,
+    "boundary_unmix_formula": "(observed - (1 - coverage) * beige_key) / coverage",
+    "boundary_decontam_pixels": 420,
+    "opaque_interior_rgb_byte_identical_to_reference": true,
+    "component_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_lower_spearhead_streamers_rgba_v6.png",
+    "component_sha256": "1285db94cdfd24d346123563227b8627129bc50a26a888bce85f82099defed4e",
+    "boundary_mask": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/canonical_lower_spearhead_boundary_decontam_mask_v6.png",
+      "sha256": "c56e193d4cb5a65d10438e74afcd93f4a9bb933d37b985577a1632d0495b6e71"
+    },
+    "hole_fill_mask": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/canonical_lower_spearhead_small_hole_fill_mask_v6.png",
+      "sha256": "fe8eb1432e30f38cac692c605e4a6fac217fc28fbe8fb1cc9caaf99bce9f5f5d"
+    }
+  },
+  "bounded_changes": {
+    "component_patch_pixels": 17719,
+    "transformed_boundary_hot_magenta_cleanup_pixels": 0,
+    "old_head_sliver_cleanup_pixels": 46,
+    "rear_streamer_occlusion_pixels": 4289,
+    "rear_streamer_candidate_pixels": 8064,
+    "changed_pixels": 9129,
+    "outside_saved_masks_delta_pixels": 0,
+    "occlusion_pixels_exact_from_target": true,
+    "hot_magenta_pixels_inside_component_patch": 0,
+    "component_patch_mask": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_reference_graft_component_patch_mask_v6.png",
+      "sha256": "13c2b333f8ee98d03cabd5bc9424dd72d5757a7b84aaf024a147909241e13f2d"
+    },
+    "transformed_boundary_magenta_cleanup_mask": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_component_boundary_magenta_cleanup_mask_v6.png",
+      "sha256": "e803715ec18b0ed7477e123370d59fa34c4e296fd66d35599dbe4a90a403a372"
+    },
+    "old_sliver_mask": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_old_head_sliver_cleanup_mask_v6.png",
+      "sha256": "31d889fc5fb27b3f426c4c3b2352a1097d0a4aa0c6ba60d62407d7e8e07677aa"
+    },
+    "body_occlusion_mask": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_rear_streamer_body_occlusion_mask_v6.png",
+      "sha256": "59b2999eec6dc37ec24b246bd484527e5ab332dd73f5c055749fc879326203ab"
+    },
+    "changed_mask": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_reference_graft_changed_mask_v6.png",
+      "sha256": "4feeec8b305d7deced736102a470e90c2dd83eee2115c0ef4d8e3c1a5367e605"
+    }
+  },
+  "output": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/concerned_lower_spear_reference_graft_v6.png",
+    "sha256": "83ba93aee746c73cb1f0da1c6eba18725bc5de55237320b98a4e31423b0c1c88",
+    "dimensions": [
+      1081,
+      1455
+    ]
+  },
+  "proofs": {
+    "full": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_concerned_reference_graft_v6.png",
+      "sha256": "404e3c0656c6f98ae051094a79ac96e5bc5c4f91131a2b15b07ec5006494fa99"
+    },
+    "masks": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/mask_proofs/mirelle_concerned_reference_graft_masks_v6.png",
+      "sha256": "2f873032f3b1655900c8161def895cf5c75d8a475d9c67a220d43b3dbe0f9fa9"
+    }
+  }
+}

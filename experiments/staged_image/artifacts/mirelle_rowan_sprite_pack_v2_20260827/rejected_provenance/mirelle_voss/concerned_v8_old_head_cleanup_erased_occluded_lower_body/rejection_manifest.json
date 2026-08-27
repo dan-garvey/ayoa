@@ -1,0 +1,93 @@
+{
+  "status": "rejected_preserved",
+  "rejection_slug": "old_head_cleanup_erased_occluded_lower_body",
+  "reason": "The deterministic old-head cleanup removed pixels where the obsolete source prop occluded the two lower legs, greaves, boots, and coat/cape edges. The resulting magenta holes are not acceptable body reconstruction.",
+  "validation_correction": {
+    "withdrawn_claim": "Source-hidden lower-body pixels were exact or preserved.",
+    "correct_contract": "Only source-visible unaffected pixels outside the former-head mask are exact. Pixels inside that mask have no source ground truth and require visually reviewed reconstruction.",
+    "legacy_body_mask_limit": "The archived v8 body mask excludes the cleanup region; it proves only unaffected visible source pixels and cannot validate geometry hidden by the old prop."
+  },
+  "selected": false,
+  "files": [
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prepare_mirelle_concerned_lower_primary_metal_graft_v8.py",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/prepare_mirelle_concerned_lower_primary_metal_graft_v8.py",
+      "sha256": "e387f1c9b1563a5e3f42ba386f988149f93e90c11d599992a0e5f5f23bcd49fc"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/concerned_lower_primary_metal_reference_graft_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/grafts/mirelle_voss/concerned_lower_primary_metal_reference_graft_v8.png",
+      "sha256": "07008f7348b27df98f98240447a7fd0033fe275d994af8abbeed57bfdb338e9e"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/concerned_old_lower_primary_cleaned_base_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/grafts/mirelle_voss/concerned_old_lower_primary_cleaned_base_v8.png",
+      "sha256": "2f94667a95e6ec02c500fb8f986a8769a76f8a2b76094e55f4db153219639830"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_metadata/mirelle_concerned_lower_primary_metal_graft_v8.json",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/component_metadata/mirelle_concerned_lower_primary_metal_graft_v8.json",
+      "sha256": "16670515d08d729a0b92a571937ea1a12a31779813fe2a9d2b603b08f5f1bf5f"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_metadata/mirelle_concerned_residual_silver_report_v8.json",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/component_metadata/mirelle_concerned_residual_silver_report_v8.json",
+      "sha256": "9e8bd4ff52c48ead549e519c96774170b3f832331586e014f47f155a5ca3cf21"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_concerned_lower_primary_full_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/component_proofs/mirelle_concerned_lower_primary_full_v8.png",
+      "sha256": "ebdd5741427650e073d6cf1e33f03f2451e53d59821c341e3086682f2c56d4e8"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_concerned_lower_primary_close_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/component_proofs/mirelle_concerned_lower_primary_close_v8.png",
+      "sha256": "32f3e141ec34dd0d147d83d54e54ab64031edae0eced602d365247138ae2254a"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_concerned_residual_silver_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/component_proofs/mirelle_concerned_residual_silver_v8.png",
+      "sha256": "53d24e2491d36ac1a6278939d63c39c4d5d29d881eda11445a849e8fd377f46c"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_concerned_metal_connectivity_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/component_proofs/mirelle_concerned_metal_connectivity_v8.png",
+      "sha256": "9c6824397d922b3867c4faa6fceea068a98efcaee2fea1f643897cbc3e65b70c"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/mask_proofs/mirelle_concerned_lower_primary_masks_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/mask_proofs/mirelle_concerned_lower_primary_masks_v8.png",
+      "sha256": "5b18cb64fe4029785d7fcb6cde0e244f129125aa315bfbc5c3db9c296137c697"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_old_lower_primary_cleanup_mask_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/masks/mirelle_voss/concerned_old_lower_primary_cleanup_mask_v8.png",
+      "sha256": "f4467ba4f0f5150a2a2c12b2e987ea79befe72248beb99a3d54ad63d4508e8cb"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_lower_canonical_metal_patch_mask_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/masks/mirelle_voss/concerned_lower_canonical_metal_patch_mask_v8.png",
+      "sha256": "d361af448fc9c94baae4826b556bb68f80e0fef0a60a656dbf0cd1bfe45fd401"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_upper_cap_tassel_shaft_grip_exact_mask_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/masks/mirelle_voss/concerned_upper_cap_tassel_shaft_grip_exact_mask_v8.png",
+      "sha256": "a6737b0540ebb771edff1fbb2c44e34ab4b260fd15e4b395d43d43ec6b8b6618"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_body_face_costume_exact_mask_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/masks/mirelle_voss/concerned_body_face_costume_exact_mask_v8.png",
+      "sha256": "acbdf36dc924441659ff5afd73ec686d1612fa4a312112bd778e3eaedf195f8d"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_lower_primary_aggregate_saved_mask_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/masks/mirelle_voss/concerned_lower_primary_aggregate_saved_mask_v8.png",
+      "sha256": "78c1f0d1aa11cdf2eec4c66915a931fa0715b184f7a2ab60b60c8d75dcf8cfe5"
+    },
+    {
+      "source": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_lower_primary_changed_mask_v8.png",
+      "archive": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected_provenance/mirelle_voss/concerned_v8_old_head_cleanup_erased_occluded_lower_body/masks/mirelle_voss/concerned_lower_primary_changed_mask_v8.png",
+      "sha256": "bee3bdaf8e0db336da2ef245f41a2c1f027d75020625f86e59eff3c6794688df"
+    }
+  ]
+}

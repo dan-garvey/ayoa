@@ -1,0 +1,16 @@
+Use case: illustration-story
+Asset type: raw full-body visual-novel character sprite on chroma key
+Input images:
+- Image 1 is Mirelle Voss's primary locked identity, costume, color, and canonical double-ended spear reference.
+- Image 2 is the locked facial identity reference.
+- Image 3 is the locked anatomy and body-proportion reference only; keep the armored costume from Image 1.
+- Image 4 is the locked rear costume, coat-tail, and braid construction reference.
+- Image 5 is a close supporting reference for the canonical primary spearhead and red cloth only.
+Primary request: Generate exactly one full-body Mirelle Voss in a clearly concerned, worried pose. Her torso leans slightly forward and her free LEFT hand reaches openly toward someone, palm visible with naturally separated fingers, as if asking them to stop or offering urgent reassurance. Coordinate the whole pose with a worried face: raised inward eyebrows, tense mouth, concerned amber-eyed gaze.
+Identity and costume: Preserve her adult athletic identity, warm fair skin, long orange-red braided ponytail, amber eyes, cream long coat with split tails, burgundy fitted layers and trousers, silver shoulder and lower-leg armor, dark burgundy bracers, and brown boots. No outfit redesign, no extra armor, no hairstyle change.
+Weapon layout: Exactly one complete canonical double-ended red-shaft spear, fully inside the image frame. Mirelle holds it only with her RIGHT hand. Place the entire weapon on the far RIGHT side of the canvas, vertically or on a mild diagonal, separated from her body silhouette except where her right hand grips the shaft. No shaft, blade, guard, cloth, cap, or tassel may cross or hide her face, torso, arms, legs, greaves, boots, or cream coat/cape tails.
+Canonical weapon construction: At the TOP/far primary end, show exactly one long silver leaf-shaped blade, one socket, exactly two small lateral silver guards, and red cloth/streamers tied at that same primary head. At the opposite BOTTOM end, show exactly one small pointed silver cap with one short red tassel. Both ends and the complete shaft must be visible with generous chroma space around them. No duplicate head, no extra blade, no fork, no halberd, no missing end, no clipped prop.
+Composition: one character only, full body from hair to both complete boots, both hands visible, all fingers clean, all limbs anatomically coherent. Three-quarter view facing slightly left. Keep generous margins around the character and every weapon endpoint. The primary spearhead must sit fully above and beside Mirelle, never over her body. Her feet stand naturally apart; the spear does not pass between or in front of her boots.
+Scene/backdrop: exact uniform flat saturated magenta chroma-key background, RGB 255,0,255 appearance, with no gradient, texture, shadow, floor, scenery, glow, halo, text, logo, border, or watermark.
+Style: polished clean anime/manhwa character art matching the locked references, crisp linework, consistent lighting and proportions.
+Hard constraints: exactly one Mirelle, exactly one complete spear, exactly two arms, exactly two hands, exactly two legs, exactly two boots. Preserve recognizable identity. Do not crop hair, braid, coat tails, boots, blade, guards, shaft, cap, tassel, or streamers. No body/prop overlap except the right gripping hand.

@@ -1,0 +1,294 @@
+{
+  "method": "opaque_hybrid_v1",
+  "character": "warden_of_the_eighth",
+  "physical_root": "experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/warden_of_the_eighth_physical_unmix_v2",
+  "parameters": {
+    "high_alpha_threshold": 200,
+    "high_alpha_fraction": 0.784314,
+    "edge_band_distance_native_pixels": 3.0,
+    "hot_magenta_saturation_u8": 112,
+    "hot_magenta_hue_degrees_inclusive": [
+      275,
+      335
+    ],
+    "hot_magenta_min_value_u8": 16
+  },
+  "variants": {
+    "neutral": {
+      "accepted_raw": {
+        "filename": "neutral_chroma_v1.png",
+        "sha256": "d97bd0e9ea599b430fe9e253e2d53cc4e0c7dab3d60a24ab647d4e8bd880f6f3"
+      },
+      "physical_v1_source_sha256": "b4d7938d34d97a91034e253ea04a731a6ab49aa20951da48983603fb50fb7146",
+      "candidate_sha256": "251438583c7d00d6714101280e6557f74618e2e1cd50ae2169c7490cd7566004",
+      "sprite_sha256": "7991595992b5dab4b6778d42cc9b7f4f4ee3c56b981bf023e590ddc459e1fb64",
+      "normalize": {
+        "source_bbox": [
+          121,
+          193,
+          1008,
+          1236
+        ],
+        "scale": 1.19503946,
+        "placement": [
+          20,
+          234,
+          1060,
+          1246
+        ],
+        "sha256": "7991595992b5dab4b6778d42cc9b7f4f4ee3c56b981bf023e590ddc459e1fb64"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 30494,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 283327,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 64004,
+        "visible_hot_magenta_pixels": 0
+      }
+    },
+    "happy": {
+      "accepted_raw": {
+        "filename": "happy_chroma_v1.png",
+        "sha256": "294ee60f9eeaa480ca0f183fc1bf6a7c9bed97c296cd7e81aa34aec00641e6de"
+      },
+      "physical_v1_source_sha256": "d58553fe306555d4aee8c696012b24d979c5d160643efbc1b54bb3936ec7734f",
+      "candidate_sha256": "1ba1dd9f2eb2dccc6bb9cdbf364cb45c3e3b38170b6b43ad77828cf9e757078f",
+      "sprite_sha256": "bcce81b93274d23fc6ab49ce9ca87c10876da8087c8c0a505c3c0316e70c6cf2",
+      "normalize": {
+        "source_bbox": [
+          36,
+          65,
+          1063,
+          1354
+        ],
+        "scale": 1.03213242,
+        "placement": [
+          20,
+          150,
+          1060,
+          1330
+        ],
+        "sha256": "bcce81b93274d23fc6ab49ce9ca87c10876da8087c8c0a505c3c0316e70c6cf2"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 37888,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 238968,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 191038,
+        "visible_hot_magenta_pixels": 0
+      }
+    },
+    "concerned": {
+      "accepted_raw": {
+        "filename": "concerned_chroma_v1.png",
+        "sha256": "507d1a8cd024429d7c8a40b525e53b557a2fcb1492bbbf95b971d82658dfa164"
+      },
+      "physical_v1_source_sha256": "973cb866aaf4081a251c9769001c2ff86636a023690cc6b8542ab04a14a2d9f6",
+      "candidate_sha256": "b10513a3b4002f338ed93e0e5e01fd03e0224f44196d8af766085f002dbcb05e",
+      "sprite_sha256": "54721f5fb14c9fd164a3db96198ceddb71ad065c4f07d654fcd37cb2d4eed098",
+      "normalize": {
+        "source_bbox": [
+          19,
+          138,
+          1041,
+          1261
+        ],
+        "scale": 1.037182,
+        "placement": [
+          20,
+          315,
+          1060,
+          1165
+        ],
+        "sha256": "54721f5fb14c9fd164a3db96198ceddb71ad065c4f07d654fcd37cb2d4eed098"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 28125,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 355791,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 101884,
+        "visible_hot_magenta_pixels": 0
+      }
+    },
+    "tense": {
+      "accepted_raw": {
+        "filename": "tense_chroma_v1.png",
+        "sha256": "3442842f44cc273e537ab768e54bc1077e35a812eec4c1a6d4c1e7e66f7653f7"
+      },
+      "physical_v1_source_sha256": "8b2c1e6f2b96c6881921d5af9e4234daf4fb8fe2887230f215e42d66a505f140",
+      "candidate_sha256": "486f29ec41a725247288bcc399aeafa608157e91eed79ecd792d56402081f816",
+      "sprite_sha256": "59dcb1cd87872e3b3dfeb11ecb8199789ff560f48c543d1046b16a7729521eb2",
+      "normalize": {
+        "source_bbox": [
+          85,
+          166,
+          1018,
+          1308
+        ],
+        "scale": 1.13612004,
+        "placement": [
+          20,
+          183,
+          1060,
+          1297
+        ],
+        "sha256": "59dcb1cd87872e3b3dfeb11ecb8199789ff560f48c543d1046b16a7729521eb2"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 21710,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 342369,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 128158,
+        "visible_hot_magenta_pixels": 0
+      }
+    },
+    "skeptical": {
+      "accepted_raw": {
+        "filename": "skeptical_chroma_v1.png",
+        "sha256": "737b9fe8bab95042f4c3f81eeacfb7571644a4bc5a19f04c27c3301727f15298"
+      },
+      "physical_v1_source_sha256": "dbfb5b7da1e9bddc3255461d7facf57feb1c10454ef13addd654ac2c2e1d7b7b",
+      "candidate_sha256": "50e0a26956f3bc772d69f4e92c6a2105c816b5fcde8fb188d838f176d094df47",
+      "sprite_sha256": "839748d5cae366c7004ed6c582ba8e1cd5f3a7f2172d60ff671ada9b76b5b206",
+      "normalize": {
+        "source_bbox": [
+          48,
+          202,
+          1052,
+          1284
+        ],
+        "scale": 1.05577689,
+        "placement": [
+          20,
+          338,
+          1060,
+          1142
+        ],
+        "sha256": "839748d5cae366c7004ed6c582ba8e1cd5f3a7f2172d60ff671ada9b76b5b206"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 27024,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 396033,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 90812,
+        "visible_hot_magenta_pixels": 0
+      }
+    },
+    "angry": {
+      "accepted_raw": {
+        "filename": "angry_chroma_v1.png",
+        "sha256": "aeb0b570c789689ce76cf6d381672807643fcd8c8e2b4e1e151fc63c45fb7994"
+      },
+      "physical_v1_source_sha256": "8d56180bcdad562a7b250744b2fd3dc0ade99d272b0388fd92b638c48aa89486",
+      "candidate_sha256": "b76068ac85b38dac069a45b57569ebe5a92f466f0f7a0c2fb233f0272682ef7b",
+      "sprite_sha256": "0783329b86a91dace62785053342ddab98206491e6489ad93a0e4a8d8cb6228f",
+      "normalize": {
+        "source_bbox": [
+          28,
+          129,
+          1076,
+          1269
+        ],
+        "scale": 1.01145038,
+        "placement": [
+          20,
+          327,
+          1060,
+          1153
+        ],
+        "sha256": "0783329b86a91dace62785053342ddab98206491e6489ad93a0e4a8d8cb6228f"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 28031,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 257006,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 170341,
+        "visible_hot_magenta_pixels": 0
+      }
+    },
+    "sad": {
+      "accepted_raw": {
+        "filename": "sad_chroma_v1.png",
+        "sha256": "86699c54a7f8485637de39545efad301037d0813e063c1455fd9d241f0b6a581"
+      },
+      "physical_v1_source_sha256": "1f4edec6f638cdfcdb92e3af26d27f685106697616e28a76210495b36c5a1f4b",
+      "candidate_sha256": "924f94c92a7ab811c7559fbaed49587173446501d54af76676ed282962f6926e",
+      "sprite_sha256": "57796d745066aaffc086017512503abf5e912646391454a5c36dcedf41c7d031",
+      "normalize": {
+        "source_bbox": [
+          148,
+          198,
+          953,
+          1273
+        ],
+        "scale": 1.31677019,
+        "placement": [
+          20,
+          64,
+          1060,
+          1416
+        ],
+        "sha256": "57796d745066aaffc086017512503abf5e912646391454a5c36dcedf41c7d031"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 18429,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 269170,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 132068,
+        "visible_hot_magenta_pixels": 0
+      }
+    },
+    "surprised": {
+      "accepted_raw": {
+        "filename": "surprised_chroma_v2.png",
+        "sha256": "70061db6e63af0ada6f6363e95c88efe9a2adcb65371ed1688440b66b2074286"
+      },
+      "physical_v1_source_sha256": "c64302c894a9aed7f8b76711ae5e39953aa17d8d1bb76f412c46027773afe8de",
+      "candidate_sha256": "19d3b47f0d04e7077239bc44a44c855ff276345bd16da6bdb75c44c996f6dadb",
+      "sprite_sha256": "69147018d91fddbe0670cb0321cded2b0f256662a8a1ceff73d4e5f7972e17bd",
+      "normalize": {
+        "source_bbox": [
+          25,
+          156,
+          1076,
+          1296
+        ],
+        "scale": 1.00856327,
+        "placement": [
+          20,
+          330,
+          1060,
+          1150
+        ],
+        "sha256": "69147018d91fddbe0670cb0321cded2b0f256662a8a1ceff73d4e5f7972e17bd"
+      },
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 34409,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 346345,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 138041,
+        "visible_hot_magenta_pixels": 0
+      }
+    }
+  },
+  "contact_sheet": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/warden_of_the_eighth_complete_sweep.png",
+    "sha256": "5162af312e903ff0319448c37751d22dcc191c212b043994e64fd9fc022a3748"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "character": "soren_ironvow",
+  "generation_reference_contract": "Only the four allowed locked references were passed to every imagegen call. Both prohibited sources were never passed to any generation or edit job.",
+  "allowed_references": [
+    {
+      "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/soren_ironvow/identity_base.png",
+      "sha256": "a6c523f47d3c9b6355b4bf4db37cd27f84d0767a927574f64bdeea11d16078cc"
+    },
+    {
+      "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/soren_ironvow/facial_zoom.png",
+      "sha256": "896336dd789f6592f37743b15281569437b752b5d44f9d60ddc45b48d119eac8"
+    },
+    {
+      "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/soren_ironvow/anatomy.png",
+      "sha256": "461eebb8c1a9873d3857c15d8b8faac633d464f6958d911640443e6b0114cc11"
+    },
+    {
+      "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/soren_ironvow/back_view.png",
+      "sha256": "c340c59281955835f3f7e46547fa4dc8f49d2d1041ddd48768c7da26ed3ba2a1"
+    }
+  ],
+  "prohibited_references": [
+    {
+      "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/soren_ironvow/active_profile.png",
+      "sha256": "0cb2c91dc2ec4524b95bf1cdb7830a777c7702679d8232680fee4815eaf5e7cb",
+      "passed_to_generation": false
+    },
+    {
+      "path": "app/storage/stories/one_star_ascension_s1/visual-references/soren_ironvow.webp",
+      "sha256": "f642b1427195ec3cc5bc941d85fafa58ea9241bdb3e1080f68d6b1ffccad00a5",
+      "passed_to_generation": false
+    }
+  ]
+}

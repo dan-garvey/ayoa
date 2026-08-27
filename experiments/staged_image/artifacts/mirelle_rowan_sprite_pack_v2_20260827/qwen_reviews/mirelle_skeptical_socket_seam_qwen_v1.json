@@ -1,0 +1,91 @@
+{
+  "status": "rejected_after_manual_review",
+  "decision": "keep_approved_deterministic_v1",
+  "reason": "The one-call Qwen composite is not clearly better than approved deterministic Skeptical v1. It replaces clean saturated key background and crisp neutral-silver socket pixels with purple, burgundy, and muddy mixed transitions. The hard mask creates a more discontinuous pasted patch at its boundary and visibly softens the socket linework.",
+  "selected": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/skeptical_primary_metal_reference_graft_v1.png",
+    "sha256": "7b827787a0dad57e5e937936559871beaddcfbd7919a9dfab63c1459fb850fb5"
+  },
+  "rejected_composite": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/skeptical_socket_seam_qwen_v1.png",
+    "sha256": "c1e990dd50e73afdf483c8ef00446eda7574f6d07794dfa30b505c6f514cfdda"
+  },
+  "review_evidence": {
+    "inspection": "original-resolution full frames plus nearest-neighbor close comparison",
+    "mask_pixels": 174,
+    "mask_bbox_xyxy": [288, 167, 313, 181],
+    "changed_inside_mask_pixels": 174,
+    "changed_outside_mask_pixels": 0,
+    "mean_absolute_channel_delta_inside_mask": 22.314176245210728,
+    "cross_mask_boundary_gradient": {
+      "deterministic_v1_mean": 14.451977401129945,
+      "qwen_composite_mean": 25.556497175141242,
+      "aligned_raw_mean": 12.646892655367228,
+      "deterministic_v1_median": 1.3333333333333333,
+      "qwen_composite_median": 20.666666666666668,
+      "aligned_raw_median": 8.5,
+      "deterministic_v1_p90": 38.93333333333331,
+      "qwen_composite_p90": 52.93333333333333,
+      "aligned_raw_p90": 27.433333333333334,
+      "deterministic_v1_max": 145.33333333333334,
+      "qwen_composite_max": 89.0,
+      "aligned_raw_max": 57.333333333333336
+    },
+    "mutually_exclusive_masked_pixel_classes": {
+      "deterministic_v1": {
+        "hot_magenta_background": 83,
+        "red_burgundy": 0,
+        "gray_metal": 91,
+        "dark": 0,
+        "mixed_other": 0
+      },
+      "qwen_composite": {
+        "hot_magenta_background": 59,
+        "red_burgundy": 10,
+        "gray_metal": 70,
+        "dark": 0,
+        "mixed_other": 35
+      }
+    },
+    "representative_regressions_xy": [
+      {
+        "xy": [304, 171],
+        "deterministic_v1_rgb": [92, 84, 72],
+        "qwen_composite_rgb": [218, 25, 208],
+        "finding": "neutral socket shading became bright purple-magenta"
+      },
+      {
+        "xy": [292, 174],
+        "deterministic_v1_rgb": [250, 3, 247],
+        "qwen_composite_rgb": [128, 59, 114],
+        "finding": "clean saturated key background became dark burgundy"
+      },
+      {
+        "xy": [304, 170],
+        "deterministic_v1_rgb": [113, 103, 91],
+        "qwen_composite_rgb": [219, 28, 207],
+        "finding": "neutral silver socket pixel became bright purple-magenta"
+      },
+      {
+        "xy": [303, 169],
+        "deterministic_v1_rgb": [39, 31, 27],
+        "qwen_composite_rgb": [161, 57, 155],
+        "finding": "dark socket linework became muddy mauve"
+      }
+    ]
+  },
+  "proof": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_skeptical_socket_seam_qwen_v1_comparison.png",
+    "sha256": "bf392ba1b41e0a7496a507e2be27ad3d0df6a11814c601ca841a39462c15f9c1"
+  },
+  "response": {
+    "status": 200,
+    "worker": "http://127.0.0.1:8210",
+    "prompt_id": "7bc9d7d8-ac3b-4430-9bba-c9b7766335d7",
+    "seed": 260827334,
+    "prototype": "masked-qwen",
+    "content_type": "image/png"
+  },
+  "model_calls": 1,
+  "followup_calls_authorized_or_made": 0
+}

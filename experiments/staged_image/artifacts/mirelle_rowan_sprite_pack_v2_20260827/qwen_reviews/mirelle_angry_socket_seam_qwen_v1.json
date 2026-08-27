@@ -1,0 +1,91 @@
+{
+  "status": "rejected_after_manual_review",
+  "decision": "keep_approved_deterministic_v1",
+  "reason": "The one-call Qwen composite is not clearly better than approved deterministic Angry v1. Inside the required tiny hard mask it replaces clean saturated key background and crisp neutral-silver socket pixels with dark burgundy, purple, and muddy gray transitions. It visibly softens the diagonal connector linework and more than doubles the mean discontinuity where the edited patch meets exact deterministic pixels.",
+  "selected": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/angry_primary_metal_reference_graft_v1.png",
+    "sha256": "82f3287b4358e6ca06f2dd70aa3c91193f826866415c303c5aacca97dae0d7e2"
+  },
+  "rejected_composite": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/angry_socket_seam_qwen_v1.png",
+    "sha256": "869cc10a30b360622f0b6407f6eb90dfc9a250c1d6b91bd6899c1d68f0616c25"
+  },
+  "review_evidence": {
+    "inspection": "original-resolution full frames plus nearest-neighbor close comparison",
+    "mask_pixels": 246,
+    "mask_bbox_xyxy": [823, 367, 848, 388],
+    "changed_inside_mask_pixels": 246,
+    "changed_outside_mask_pixels": 0,
+    "mean_absolute_channel_delta_inside_mask": 18.63821138211382,
+    "cross_mask_boundary_gradient": {
+      "deterministic_v1_mean": 13.744444444444445,
+      "qwen_composite_mean": 24.083333333333332,
+      "aligned_raw_mean": 18.25,
+      "deterministic_v1_median": 1.1666666666666665,
+      "qwen_composite_median": 8.333333333333332,
+      "aligned_raw_median": 9.833333333333332,
+      "deterministic_v1_p90": 41.333333333333336,
+      "qwen_composite_p90": 79.7,
+      "aligned_raw_p90": 53.333333333333336,
+      "deterministic_v1_max": 144.66666666666666,
+      "qwen_composite_max": 128.33333333333334,
+      "aligned_raw_max": 79.33333333333333
+    },
+    "mutually_exclusive_masked_pixel_classes": {
+      "deterministic_v1": {
+        "hot_magenta_background": 126,
+        "red_burgundy": 7,
+        "gray_metal": 112,
+        "dark": 1,
+        "mixed_other": 0
+      },
+      "qwen_composite": {
+        "hot_magenta_background": 104,
+        "red_burgundy": 13,
+        "gray_metal": 103,
+        "dark": 0,
+        "mixed_other": 26
+      }
+    },
+    "representative_regressions_xy": [
+      {
+        "xy": [836, 374],
+        "deterministic_v1_rgb": [245, 11, 240],
+        "qwen_composite_rgb": [118, 10, 101],
+        "finding": "clean saturated key background became dark burgundy-purple"
+      },
+      {
+        "xy": [832, 377],
+        "deterministic_v1_rgb": [156, 141, 132],
+        "qwen_composite_rgb": [97, 14, 93],
+        "finding": "neutral silver socket pixel became saturated purple"
+      },
+      {
+        "xy": [839, 371],
+        "deterministic_v1_rgb": [158, 150, 145],
+        "qwen_composite_rgb": [88, 62, 75],
+        "finding": "light neutral socket shading became dark muddy mauve"
+      },
+      {
+        "xy": [827, 380],
+        "deterministic_v1_rgb": [54, 44, 45],
+        "qwen_composite_rgb": [135, 133, 127],
+        "finding": "dark connector linework became flat bright gray"
+      }
+    ]
+  },
+  "proof": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_angry_socket_seam_qwen_v1_comparison.png",
+    "sha256": "2e984747ade93ade8afd61f5086c6811731a5f0bedf0ee70f294f739d25619da"
+  },
+  "response": {
+    "status": 200,
+    "worker": "http://127.0.0.1:8210",
+    "prompt_id": "6de0fa5e-10b4-484f-b141-1f7bd9b30daa",
+    "seed": 260827335,
+    "prototype": "masked-qwen",
+    "content_type": "image/png"
+  },
+  "model_calls": 1,
+  "followup_calls_authorized_or_made": 0
+}

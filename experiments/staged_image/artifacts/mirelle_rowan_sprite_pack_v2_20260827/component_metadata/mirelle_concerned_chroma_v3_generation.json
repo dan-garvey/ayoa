@@ -1,0 +1,78 @@
+{
+  "status": "root_accepted_experimental_candidate",
+  "label": "concerned",
+  "version": "concerned_chroma_v3",
+  "generation_mode": "built_in_imagegen_single_call",
+  "model_calls": 1,
+  "normalization_or_alpha_performed": false,
+  "prompt": {
+    "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/imagegen/mirelle_concerned_chroma_v3.txt",
+    "sha256": "954fb013f128951a533a8eff06f7e758a32489947af8636fce7cef09689816ce"
+  },
+  "input_roles": [
+    {
+      "index": 1,
+      "role": "primary locked identity, costume, color, and full canonical weapon reference",
+      "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/mirelle_voss/active_profile.png",
+      "sha256": "6173f6066860c270b73bcbde7fc86336411758301cdc5c12341f0400a82266b6"
+    },
+    {
+      "index": 2,
+      "role": "locked facial identity reference",
+      "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/mirelle_voss/facial_zoom.png",
+      "sha256": "abd349e761b82ba011e2c0434ea6b2fd8b4ed5eb90f6aed8e9c575833e8e9260"
+    },
+    {
+      "index": 3,
+      "role": "locked anatomy and body-proportion reference only",
+      "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/mirelle_voss/anatomy.png",
+      "sha256": "a84842f3e16bd650a4b85c02cf67c20ea6d694966ba855c6c2fd5709b5e0aaec"
+    },
+    {
+      "index": 4,
+      "role": "locked rear costume, coat-tail, and braid construction reference",
+      "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/mirelle_voss/back_view.png",
+      "sha256": "88265bde530579df8f23c7be8538df82541736a946454b8df347762a87fa2480"
+    },
+    {
+      "index": 5,
+      "role": "supporting canonical primary spearhead and red-cloth crop derived from the locked active profile",
+      "path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+      "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+    }
+  ],
+  "output": {
+    "built_in_original_path": "/home/dan/.codex/generated_images/01a04194-60d7-7c81-92cf-fb3654e8ba2d/exec-c6fcf552-a61c-43bb-a264-cc50023e573d.png",
+    "workspace_path": "experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/generation_raw/mirelle_voss/concerned_chroma_v3.png",
+    "sha256": "7ca5fe3c5e1a21c0c3c5be7069eb9e690951921a51851ae81b8a187e68e84966",
+    "format": "PNG",
+    "mode": "RGB",
+    "dimensions": [1082, 1454]
+  },
+  "native_visual_review": {
+    "disposition": "accepted_experimental_candidate",
+    "passes": [
+      "one recognizable Mirelle with complete unobstructed anatomy",
+      "clear worried expression coordinated with an open reaching left hand",
+      "both boots, greaves, legs, braid, and split cream coat tails are complete and unobstructed",
+      "exactly one full double-ended spear remains entirely to Mirelle's right except at the gripping hand",
+      "primary head is fully above and beside the body; opposite cap and tassel are fully inside frame",
+      "no weapon part crosses the body, cape, legs, or boots"
+    ],
+    "review_notes": [
+      "The primary head has one long silver blade, two lateral guards, and red cloth, but its guards are visually bolder/larger than the locked canonical crop and require root judgment.",
+      "The chroma field reads as flat saturated magenta but is not mathematically uniform in the untouched raw output; four 100x100 corner samples contain 283 RGB colors with median [251,4,248]. No chroma normalization has been performed."
+    ]
+  },
+  "provenance_constraints": {
+    "generated_outputs_used_as_identity_references": false,
+    "only_permitted_locked_mirelle_references_used": true,
+    "canonical_crop_used_as_fifth_supporting_reference": true,
+    "additional_model_calls": 0
+  },
+  "root_final_disposition": {
+    "selected": true,
+    "production_bound": false,
+    "reason": "Concerned v3 preserves the worried reaching semantics, complete unobstructed anatomy and garments, and one coherent off-body double-ended spear at a cross-pose-compatible scale. No further metal edit is selected."
+  }
+}

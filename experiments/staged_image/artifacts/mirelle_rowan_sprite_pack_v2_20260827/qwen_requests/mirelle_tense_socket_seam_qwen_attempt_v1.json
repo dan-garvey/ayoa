@@ -1,0 +1,11 @@
+{
+  "status": "single_authorized_call_completed",
+  "started_at": "2026-08-27T07:47:16.162850+00:00",
+  "gateway": "http://127.0.0.1:8199",
+  "endpoint": "/prototype/edit/qwen/masked",
+  "request_body_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_tense_socket_seam_qwen_v1.json",
+  "request_body_sha256": "21b4c6ddb4abdaf3c64ec04ec3431a5b189881062690739944b26a044d205e2d",
+  "second_call_permitted": false,
+  "finished_at": "2026-08-27T07:50:34.180557+00:00",
+  "response_sha256": "451999f924fff190547aabcfd34857e8e40662fdebc4aa79f77e972d371bd572"
+}

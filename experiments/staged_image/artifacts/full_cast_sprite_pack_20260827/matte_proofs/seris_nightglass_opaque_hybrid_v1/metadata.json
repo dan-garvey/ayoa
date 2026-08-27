@@ -1,0 +1,780 @@
+{
+  "method": "opaque_hybrid_v1",
+  "approved_proof": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/matte_proofs/castor_valebrand_skeptical_opaque_hybrid_v1/metadata.json",
+    "sha256": "e5d89246dd0a5f02b5d4cb8795f99c70c13116be92bd0e97c18e404e81b8637e"
+  },
+  "parameters": {
+    "high_alpha_threshold": 200,
+    "edge_band_distance_native_pixels": 3.0,
+    "hot_magenta_saturation_u8": 112,
+    "hot_magenta_hue_degrees_inclusive": [
+      275,
+      335
+    ],
+    "hot_magenta_min_value_u8": 16
+  },
+  "rejected_connected_key_v3": {
+    "reason": "root-observed neon contours on dark and light review backgrounds",
+    "files": {
+      "candidates": {
+        "neutral": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/candidates/neutral.png",
+          "sha256": "7a15923d41ace0aba1c7cd39fdeee33c060f18e8dac78ca1488549ab21ab2de2"
+        },
+        "happy": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/candidates/happy.png",
+          "sha256": "ff68f932934515df5c0ac748f1bcd48b1339dfe5b645329904bc1fbe91bf2662"
+        },
+        "concerned": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/candidates/concerned.png",
+          "sha256": "037614483be3dc6a297fb4006ccf5ad667dfb965e29ca07dd4f406a896bf8ec0"
+        },
+        "tense": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/candidates/tense.png",
+          "sha256": "d2204596e4761e5b6247145d61e7535b1313c73073ffa01de48fc12713a81dd3"
+        },
+        "skeptical": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/candidates/skeptical.png",
+          "sha256": "3be34e77e1054c22cf57f4d814eb20d0d12d141decffe1c0c85b52268b62e1df"
+        },
+        "angry": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/candidates/angry.png",
+          "sha256": "dec81c815832b95ffbb9b804ee80f287f363aee5e24e10fba22832c7caf1ebe4"
+        },
+        "sad": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/candidates/sad.png",
+          "sha256": "6e9b9ec3fbc7fe0c450aa9bc55a8e68a2e352d62ff87621d17490a94e451a5a8"
+        },
+        "surprised": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/candidates/surprised.png",
+          "sha256": "c606f7d8f1223f798bd816c929e412a31f5fb2c003b91f63ce10b6f77e903080"
+        }
+      },
+      "sprites": {
+        "neutral": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/sprites/neutral.png",
+          "sha256": "67d8f5f68a8ade565c1c1874322410c17dcec2b91d18e60466ddf3e07fb158c3"
+        },
+        "happy": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/sprites/happy.png",
+          "sha256": "4f7150edc6847710b73eab2238af867940307dd2cde38d2ef61fd6a7783b6c10"
+        },
+        "concerned": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/sprites/concerned.png",
+          "sha256": "5f72c520ccbcb7c92347d71824d27ea2929bb5ade66f550c36fc700310a4c174"
+        },
+        "tense": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/sprites/tense.png",
+          "sha256": "587014f8f080dc62c5214acdda21f1358055e98ef04b149ad2688f1ee1583233"
+        },
+        "skeptical": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/sprites/skeptical.png",
+          "sha256": "c7cc645d68e83018ed72dbe2d7a855f72a181e4b134ca3ff8f1d098cbdea3190"
+        },
+        "angry": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/sprites/angry.png",
+          "sha256": "b4ef337e98865b090337d5c7c0544352d51d7e9fb58887e5502fd12657ca958c"
+        },
+        "sad": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/sprites/sad.png",
+          "sha256": "b449487c0a7bb39c5fc52c0c1d1e98a2346e869e49e95edf628ab6e3dbbeb4b1"
+        },
+        "surprised": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_connected_key_v3/sprites/surprised.png",
+          "sha256": "d83757692b58eedc85d7d35342d0b21e306e40ffcd02614349e51ee09617c340"
+        }
+      },
+      "sheet": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/rejected/seris_nightglass_complete_sweep_connected_key_v3.png",
+        "sha256": "d2f319e9304adf206050bd5e6dcd091390eb93941873d658621585506f962012"
+      }
+    }
+  },
+  "variants": {
+    "neutral": {
+      "sources": {
+        "raw": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/generation_raw/seris_nightglass/neutral_chroma_v1.png",
+          "sha256": "a63398942b651f5c7b3c7bd2bd38448e67205c1798c2d74a95cfb33bb7003a18"
+        },
+        "physical_v1": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_physical_unmix_v1/candidates/neutral.png",
+          "sha256": "1dc2a099f43b7e1103847797f40282cf57c946d40bf3ea25347a3a42800adedc"
+        }
+      },
+      "native_size": [
+        1080,
+        1456
+      ],
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 20674,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 137863,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 303811,
+        "high_alpha_hot_magenta_excluded_pixels": 819,
+        "raw_rgb_exact_visible_pixels": 441674,
+        "visible_pixel_count": 463862,
+        "partial_boundary_visible_hot_magenta_pixels": 0,
+        "visible_hot_magenta_pixels": 0
+      },
+      "color_evidence": {
+        "purple_interior": {
+          "pixel_count": 272792,
+          "raw_median_rgb": [
+            38,
+            33,
+            45
+          ],
+          "hybrid_median_rgb": [
+            38,
+            33,
+            45
+          ],
+          "raw_rgb_exact_pixels": 272792,
+          "raw_rgb_exact_fraction": 1.0
+        },
+        "burgundy_interior": {
+          "pixel_count": 49661,
+          "raw_median_rgb": [
+            66,
+            19,
+            30
+          ],
+          "hybrid_median_rgb": [
+            65,
+            19,
+            30
+          ],
+          "raw_rgb_exact_pixels": 49549,
+          "raw_rgb_exact_fraction": 0.99774471
+        }
+      },
+      "candidate": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/candidates/seris_nightglass/neutral.png",
+        "sha256": "d36a85f99a0eb6270f2b34132265094bd80254f55db6d615b8e61d8a0189c717"
+      },
+      "sprite": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/sprites/seris_nightglass/neutral.png",
+        "sha256": "df919fa3bdd10a0104d5255b5d99945961bfc2f0e3267cbdce5b87a90072ba68",
+        "normalize": {
+          "source_bbox": [
+            144,
+            60,
+            895,
+            1425
+          ],
+          "scale": 1.04029304,
+          "placement": [
+            159,
+            60,
+            781,
+            1420
+          ],
+          "sha256": "df919fa3bdd10a0104d5255b5d99945961bfc2f0e3267cbdce5b87a90072ba68"
+        }
+      }
+    },
+    "happy": {
+      "sources": {
+        "raw": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/generation_raw/seris_nightglass/happy_chroma_v1.png",
+          "sha256": "9b8b17cee45f7e55d7383e0b79fa7964308432fd53ddeebf19d6855c60b793bd"
+        },
+        "physical_v1": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_physical_unmix_v1/candidates/happy.png",
+          "sha256": "f7b97cf28e9ceae06e32ed9c09348538e9cb478092606f1e55a8d31177b805f1"
+        }
+      },
+      "native_size": [
+        1082,
+        1454
+      ],
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 23218,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 134736,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 281563,
+        "high_alpha_hot_magenta_excluded_pixels": 561,
+        "raw_rgb_exact_visible_pixels": 416299,
+        "visible_pixel_count": 441213,
+        "partial_boundary_visible_hot_magenta_pixels": 0,
+        "visible_hot_magenta_pixels": 0
+      },
+      "color_evidence": {
+        "purple_interior": {
+          "pixel_count": 247867,
+          "raw_median_rgb": [
+            47,
+            40,
+            56
+          ],
+          "hybrid_median_rgb": [
+            47,
+            40,
+            56
+          ],
+          "raw_rgb_exact_pixels": 247867,
+          "raw_rgb_exact_fraction": 1.0
+        },
+        "burgundy_interior": {
+          "pixel_count": 42883,
+          "raw_median_rgb": [
+            79,
+            23,
+            37
+          ],
+          "hybrid_median_rgb": [
+            79,
+            23,
+            37
+          ],
+          "raw_rgb_exact_pixels": 42721,
+          "raw_rgb_exact_fraction": 0.99622228
+        }
+      },
+      "candidate": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/candidates/seris_nightglass/happy.png",
+        "sha256": "8dba4f247c30e15975f88e4fe0bab198ca11e0788728a5fe14b9b768416e2413"
+      },
+      "sprite": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/sprites/seris_nightglass/happy.png",
+        "sha256": "d1c39dddf3cf8072234a9839df4c6863449bf09c6356317ad5e72deb14e866ae",
+        "normalize": {
+          "source_bbox": [
+            55,
+            38,
+            929,
+            1419
+          ],
+          "scale": 1.02824041,
+          "placement": [
+            100,
+            60,
+            899,
+            1420
+          ],
+          "sha256": "d1c39dddf3cf8072234a9839df4c6863449bf09c6356317ad5e72deb14e866ae"
+        }
+      }
+    },
+    "concerned": {
+      "sources": {
+        "raw": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/generation_raw/seris_nightglass/concerned_chroma_v1.png",
+          "sha256": "81653b7b2162f43c5a2bc645d0aeb5f90f1cdbe1ba4e9093094fb4ec87835e92"
+        },
+        "physical_v1": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_physical_unmix_v1/candidates/concerned.png",
+          "sha256": "492918a0093017eac46e6b0710885ed59da694280b42bdf2382269e8c4f2602f"
+        }
+      },
+      "native_size": [
+        1082,
+        1454
+      ],
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 21655,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 144010,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 281884,
+        "high_alpha_hot_magenta_excluded_pixels": 719,
+        "raw_rgb_exact_visible_pixels": 425894,
+        "visible_pixel_count": 448592,
+        "partial_boundary_visible_hot_magenta_pixels": 0,
+        "visible_hot_magenta_pixels": 0
+      },
+      "color_evidence": {
+        "purple_interior": {
+          "pixel_count": 250608,
+          "raw_median_rgb": [
+            44,
+            38,
+            52
+          ],
+          "hybrid_median_rgb": [
+            44,
+            38,
+            52
+          ],
+          "raw_rgb_exact_pixels": 250608,
+          "raw_rgb_exact_fraction": 1.0
+        },
+        "burgundy_interior": {
+          "pixel_count": 51151,
+          "raw_median_rgb": [
+            71,
+            24,
+            36
+          ],
+          "hybrid_median_rgb": [
+            71,
+            24,
+            36
+          ],
+          "raw_rgb_exact_pixels": 51078,
+          "raw_rgb_exact_fraction": 0.99857285
+        }
+      },
+      "candidate": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/candidates/seris_nightglass/concerned.png",
+        "sha256": "eeb512dcec17834e22be2638694cdada8a78e4c83f92c9c13ffc84abd95956d4"
+      },
+      "sprite": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/sprites/seris_nightglass/concerned.png",
+        "sha256": "b5453fc34a403d2cb4f34bc019114d25e63c87e12ef0b6dcfa6e8b0ba8174732",
+        "normalize": {
+          "source_bbox": [
+            36,
+            80,
+            909,
+            1410
+          ],
+          "scale": 1.06766917,
+          "placement": [
+            84,
+            60,
+            932,
+            1420
+          ],
+          "sha256": "b5453fc34a403d2cb4f34bc019114d25e63c87e12ef0b6dcfa6e8b0ba8174732"
+        }
+      }
+    },
+    "tense": {
+      "sources": {
+        "raw": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/generation_raw/seris_nightglass/tense_chroma_v1.png",
+          "sha256": "2e23c5a3db84557aa5b3e485a3538146c336e83ecabdeeb518dd6cfa4b079522"
+        },
+        "physical_v1": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_physical_unmix_v1/candidates/tense.png",
+          "sha256": "f8635cf465712a2b0e6b813b183c1aacf3741bbf6fa6ebc1b7ddcb2b7c242957"
+        }
+      },
+      "native_size": [
+        1082,
+        1454
+      ],
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 21765,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 179545,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 265391,
+        "high_alpha_hot_magenta_excluded_pixels": 860,
+        "raw_rgb_exact_visible_pixels": 444936,
+        "visible_pixel_count": 467929,
+        "partial_boundary_visible_hot_magenta_pixels": 0,
+        "visible_hot_magenta_pixels": 0
+      },
+      "color_evidence": {
+        "purple_interior": {
+          "pixel_count": 237126,
+          "raw_median_rgb": [
+            42,
+            36,
+            50
+          ],
+          "hybrid_median_rgb": [
+            42,
+            36,
+            50
+          ],
+          "raw_rgb_exact_pixels": 237126,
+          "raw_rgb_exact_fraction": 1.0
+        },
+        "burgundy_interior": {
+          "pixel_count": 47421,
+          "raw_median_rgb": [
+            63,
+            18,
+            33
+          ],
+          "hybrid_median_rgb": [
+            63,
+            18,
+            33
+          ],
+          "raw_rgb_exact_pixels": 47144,
+          "raw_rgb_exact_fraction": 0.99415871
+        }
+      },
+      "candidate": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/candidates/seris_nightglass/tense.png",
+        "sha256": "45d036ceff0a0a9b3caf92a5c4fd4ab4319912ade2f868fb141e75012ccfbd0e"
+      },
+      "sprite": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/sprites/seris_nightglass/tense.png",
+        "sha256": "d11e3b3b6fd3a2d27cdd57c1a04a4995ec81f9456fffbc53ba4c6c68d11937d6",
+        "normalize": {
+          "source_bbox": [
+            24,
+            81,
+            935,
+            1413
+          ],
+          "scale": 1.06606607,
+          "placement": [
+            64,
+            60,
+            971,
+            1420
+          ],
+          "sha256": "d11e3b3b6fd3a2d27cdd57c1a04a4995ec81f9456fffbc53ba4c6c68d11937d6"
+        }
+      }
+    },
+    "skeptical": {
+      "sources": {
+        "raw": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/generation_raw/seris_nightglass/skeptical_chroma_v1.png",
+          "sha256": "e69658a28522304051ea757b34b35b25c166db5bc31a5dd644dfc0c85f4bb975"
+        },
+        "physical_v1": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_physical_unmix_v1/candidates/skeptical.png",
+          "sha256": "7403c25d211300547b77c002419a06d045637623c4027855f24665104a5ac5df"
+        }
+      },
+      "native_size": [
+        1082,
+        1454
+      ],
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 22367,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 146914,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 311499,
+        "high_alpha_hot_magenta_excluded_pixels": 1169,
+        "raw_rgb_exact_visible_pixels": 458413,
+        "visible_pixel_count": 482284,
+        "partial_boundary_visible_hot_magenta_pixels": 0,
+        "visible_hot_magenta_pixels": 0
+      },
+      "color_evidence": {
+        "purple_interior": {
+          "pixel_count": 289982,
+          "raw_median_rgb": [
+            42,
+            34,
+            51
+          ],
+          "hybrid_median_rgb": [
+            42,
+            34,
+            51
+          ],
+          "raw_rgb_exact_pixels": 289982,
+          "raw_rgb_exact_fraction": 1.0
+        },
+        "burgundy_interior": {
+          "pixel_count": 38784,
+          "raw_median_rgb": [
+            60,
+            20,
+            31
+          ],
+          "hybrid_median_rgb": [
+            60,
+            20,
+            31
+          ],
+          "raw_rgb_exact_pixels": 38691,
+          "raw_rgb_exact_fraction": 0.9976021
+        }
+      },
+      "candidate": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/candidates/seris_nightglass/skeptical.png",
+        "sha256": "5524a2a3342816f0b80a234d7df627c98d8eda97e1126fb20e3b77d09e480040"
+      },
+      "sprite": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/sprites/seris_nightglass/skeptical.png",
+        "sha256": "a6146edf35d07c39001cd62ba9e817b3b69eb1fdd68a34c2a0cb2b47be6aba02",
+        "normalize": {
+          "source_bbox": [
+            150,
+            74,
+            828,
+            1445
+          ],
+          "scale": 1.03574034,
+          "placement": [
+            199,
+            60,
+            702,
+            1420
+          ],
+          "sha256": "a6146edf35d07c39001cd62ba9e817b3b69eb1fdd68a34c2a0cb2b47be6aba02"
+        }
+      }
+    },
+    "angry": {
+      "sources": {
+        "raw": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/generation_raw/seris_nightglass/angry_chroma_v1.png",
+          "sha256": "71f3e32669c82f0cb77c8979c9106089bbdcf8dc661158b85e4f536cba44fcaa"
+        },
+        "physical_v1": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_physical_unmix_v1/candidates/angry.png",
+          "sha256": "90dea8c87a5e02ee6723b005fdff872430de3db25aa57fb519f22dca351a9033"
+        }
+      },
+      "native_size": [
+        1081,
+        1455
+      ],
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 29449,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 156417,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 340446,
+        "high_alpha_hot_magenta_excluded_pixels": 1933,
+        "raw_rgb_exact_visible_pixels": 496863,
+        "visible_pixel_count": 529011,
+        "partial_boundary_visible_hot_magenta_pixels": 0,
+        "visible_hot_magenta_pixels": 0
+      },
+      "color_evidence": {
+        "purple_interior": {
+          "pixel_count": 285047,
+          "raw_median_rgb": [
+            44,
+            36,
+            53
+          ],
+          "hybrid_median_rgb": [
+            44,
+            36,
+            53
+          ],
+          "raw_rgb_exact_pixels": 285047,
+          "raw_rgb_exact_fraction": 1.0
+        },
+        "burgundy_interior": {
+          "pixel_count": 67717,
+          "raw_median_rgb": [
+            65,
+            21,
+            35
+          ],
+          "hybrid_median_rgb": [
+            65,
+            21,
+            35
+          ],
+          "raw_rgb_exact_pixels": 67000,
+          "raw_rgb_exact_fraction": 0.98941182
+        }
+      },
+      "candidate": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/candidates/seris_nightglass/angry.png",
+        "sha256": "18bceff461962e54ca5fcf51efcbffac06a49a46cdf041ebdc0d33fff1d2494e"
+      },
+      "sprite": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/sprites/seris_nightglass/angry.png",
+        "sha256": "e4e12c146cb9cf0489d7b263af6c03ec648aa2eb81a4588b3a55718794b062fe",
+        "normalize": {
+          "source_bbox": [
+            16,
+            53,
+            968,
+            1424
+          ],
+          "scale": 1.03574034,
+          "placement": [
+            57,
+            60,
+            986,
+            1420
+          ],
+          "sha256": "e4e12c146cb9cf0489d7b263af6c03ec648aa2eb81a4588b3a55718794b062fe"
+        }
+      }
+    },
+    "sad": {
+      "sources": {
+        "raw": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/generation_raw/seris_nightglass/sad_chroma_v1.png",
+          "sha256": "84d81691ecdbf8367a85685284f73f4cf01af643d5c0bddc3f511a309e4e252b"
+        },
+        "physical_v1": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_physical_unmix_v1/candidates/sad.png",
+          "sha256": "90968622288545ac2cbfdecef496db9632d29f0880e08903b6371061dc1cc07f"
+        }
+      },
+      "native_size": [
+        1082,
+        1454
+      ],
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 16977,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 115564,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 235927,
+        "high_alpha_hot_magenta_excluded_pixels": 475,
+        "raw_rgb_exact_visible_pixels": 351491,
+        "visible_pixel_count": 369288,
+        "partial_boundary_visible_hot_magenta_pixels": 0,
+        "visible_hot_magenta_pixels": 0
+      },
+      "color_evidence": {
+        "purple_interior": {
+          "pixel_count": 234611,
+          "raw_median_rgb": [
+            43,
+            37,
+            49
+          ],
+          "hybrid_median_rgb": [
+            43,
+            37,
+            49
+          ],
+          "raw_rgb_exact_pixels": 234611,
+          "raw_rgb_exact_fraction": 1.0
+        },
+        "burgundy_interior": {
+          "pixel_count": 19464,
+          "raw_median_rgb": [
+            58,
+            23,
+            33
+          ],
+          "hybrid_median_rgb": [
+            58,
+            23,
+            32
+          ],
+          "raw_rgb_exact_pixels": 19351,
+          "raw_rgb_exact_fraction": 0.99419441
+        }
+      },
+      "candidate": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/candidates/seris_nightglass/sad.png",
+        "sha256": "5be69a84057037462b6d7b7d467073ea14b739ddcdb4d30c068996962da91a66"
+      },
+      "sprite": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/sprites/seris_nightglass/sad.png",
+        "sha256": "f3b2036215c3ba3ab146cb8eb2989828518fa31d9c073e2ac6245abd2d1fa798",
+        "normalize": {
+          "source_bbox": [
+            362,
+            80,
+            814,
+            1404
+          ],
+          "scale": 1.07250755,
+          "placement": [
+            307,
+            60,
+            485,
+            1420
+          ],
+          "sha256": "f3b2036215c3ba3ab146cb8eb2989828518fa31d9c073e2ac6245abd2d1fa798"
+        }
+      }
+    },
+    "surprised": {
+      "sources": {
+        "raw": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/generation_raw/seris_nightglass/surprised_chroma_v1.png",
+          "sha256": "e70a9b448fb13ee0551ce5ac214377ced44de56b5b3fdf9135c6bf6b7115dd1f"
+        },
+        "physical_v1": {
+          "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/rejected/seris_nightglass_physical_unmix_v1/candidates/surprised.png",
+          "sha256": "1824b8d83eb42f1a8ba33ea3991e73963203e309d0666611f886b41ae1299c36"
+        }
+      },
+      "native_size": [
+        1082,
+        1454
+      ],
+      "invariants": {
+        "alpha_byte_identical_to_physical_v1": true,
+        "partial_boundary_pixel_count": 27469,
+        "partial_boundary_rgb_byte_identical_to_physical_v1": true,
+        "fully_opaque_pixel_count": 99220,
+        "fully_opaque_rgb_byte_identical_to_raw": true,
+        "high_alpha_interior_raw_restored_pixels": 330206,
+        "high_alpha_hot_magenta_excluded_pixels": 1801,
+        "raw_rgb_exact_visible_pixels": 429426,
+        "visible_pixel_count": 459707,
+        "partial_boundary_visible_hot_magenta_pixels": 0,
+        "visible_hot_magenta_pixels": 0
+      },
+      "color_evidence": {
+        "purple_interior": {
+          "pixel_count": 263637,
+          "raw_median_rgb": [
+            50,
+            40,
+            56
+          ],
+          "hybrid_median_rgb": [
+            50,
+            40,
+            56
+          ],
+          "raw_rgb_exact_pixels": 263637,
+          "raw_rgb_exact_fraction": 1.0
+        },
+        "burgundy_interior": {
+          "pixel_count": 69344,
+          "raw_median_rgb": [
+            72,
+            21,
+            36
+          ],
+          "hybrid_median_rgb": [
+            72,
+            21,
+            36
+          ],
+          "raw_rgb_exact_pixels": 69127,
+          "raw_rgb_exact_fraction": 0.99687067
+        }
+      },
+      "candidate": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/candidates/seris_nightglass/surprised.png",
+        "sha256": "e94120724f730c255674f01bed9da4f1ded8e02b21035aa45da024e15b588a64"
+      },
+      "sprite": {
+        "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/sprites/seris_nightglass/surprised.png",
+        "sha256": "59642c6d1ddbca9af093376ab3c27e88197b0ffff0d6a2d91ed4588daf83eba2",
+        "normalize": {
+          "source_bbox": [
+            210,
+            90,
+            844,
+            1406
+          ],
+          "scale": 1.07902736,
+          "placement": [
+            208,
+            60,
+            684,
+            1420
+          ],
+          "sha256": "59642c6d1ddbca9af093376ab3c27e88197b0ffff0d6a2d91ed4588daf83eba2"
+        }
+      }
+    }
+  },
+  "contact_sheet": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/full_cast_sprite_pack_20260827/contact_sheets/seris_nightglass_complete_sweep.png",
+    "sha256": "ee56ebadbb6413944fc24854c729a27939cdc34baaf9b68b628b56d036618107"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "status": "pending_manual_review",
+  "primary_graft": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/concerned_lower_spear_reference_graft_v5.png",
+    "sha256": "81c7f954236225929b4489506835309991d6b47285fbdbb34327f8c2aa61bb9c"
+  },
+  "canonical_reference": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+    "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+  },
+  "mask": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/concerned_reference_graft_seam_mask_v2.png",
+    "sha256": "c40418b162069194be73fb43c45cac7aed285dc131205f51ccf958ecd96a0d2e",
+    "pixel_count": 21251
+  },
+  "request": {
+    "endpoint": "/prototype/edit/qwen/masked",
+    "seed": 260827325,
+    "steps": 26,
+    "cfg": 3.5,
+    "denoise": 0.25,
+    "prompt_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/qwen/mirelle_concerned_reference_graft_harmonize_v2.txt",
+    "prompt_sha256": "7c80a7346899ab1adad8d4c2fae7d13b58c0c4d4b55ad0aecae5b3a42254922f"
+  },
+  "response": {
+    "headers": {
+      "x-ayoa-worker": "http://127.0.0.1:8210",
+      "x-ayoa-prompt-id": "8e6ae5eb-3a02-43eb-822c-e53e379e5499",
+      "x-ayoa-seed": "260827325",
+      "x-ayoa-prototype": "masked-qwen"
+    },
+    "model_output_dimensions": [
+      880,
+      1184
+    ],
+    "model_output_sha256": "e2bcd325d27d99b1963f22285848de96cb0455bbc5c8772cc70ef5ab5a3767a3",
+    "composite_dimensions": [
+      1081,
+      1455
+    ],
+    "composite_sha256": "2cadd62fd5c93124b622f1e43f4b8e3d2c28af1a23d600257a990f2481008cd4",
+    "changed_outside_mask": 0
+  }
+}

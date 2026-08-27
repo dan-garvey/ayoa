@@ -1,0 +1,142 @@
+{
+  "status": "manual_review_complete_qwen_rejected",
+  "selection": {
+    "selected": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/surprised_primary_metal_reference_graft_v1.png",
+    "selected_sha256": "1a729f2df227282599fb09225dd71d14e666cd6eefb131366dea4dd462632a33",
+    "qwen_disposition": "reject",
+    "reason": "Original-resolution and nearest-neighbor proof show no visible seam improvement: Qwen introduces muddier green-gray socket pixels, while mean boundary RGB jump rises from 41.6494 to 47.8645 and median rises from 3.3708 to 24.6731. The root-approved deterministic v1 remains cleaner and selected.",
+    "reviewed_at_original_resolution": true
+  },
+  "model_calls": 1,
+  "second_call_permitted": false,
+  "inputs": {
+    "approved_primary": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/surprised_primary_metal_reference_graft_v1.png",
+      "sha256": "1a729f2df227282599fb09225dd71d14e666cd6eefb131366dea4dd462632a33"
+    },
+    "locked_canonical_crop": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/supporting_refs/mirelle_canonical_spearhead_crop_active_profile_x0_y540_x410_y1045.png",
+      "sha256": "e4e454f5b8f98546ae5c8fa2fd1fb28dc16f197d7494f7ad16a16c25a362afff"
+    },
+    "frozen_metal_component": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/components/mirelle_voss/canonical_primary_metal_rgba_v1.png",
+      "sha256": "4f4b369d7f445b79a44673b33aee8bcc763f754eb37a0d7bfaee38213bf73b6f"
+    },
+    "mask": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/surprised_socket_seam_qwen_mask_v1.png",
+      "pixel_count": 47,
+      "bbox_xyxy_exclusive": [
+        92,
+        151,
+        107,
+        160
+      ],
+      "socket_material_pixels_inside": 28,
+      "background_seam_pixels_inside": 19,
+      "blade_guard_protected_overlap": 0,
+      "cloth_shaft_protected_overlap": 0,
+      "grip_protected_overlap": 0,
+      "lower_protected_overlap": 0,
+      "body_protected_overlap": 0,
+      "sha256": "2638c511fc0c996e40a8539069b7f81b134e6730563affabb0c4229b52766c9e",
+      "proof_sha256": "94c53938fbdf63cafed57f96e68492eb74a91fd3d418d16fb63be90278b17156",
+      "transform_matrix": [
+        [
+          -0.1410641078702909,
+          -0.39586768848619897,
+          163.61995272322378
+        ],
+        [
+          0.39586768848619897,
+          -0.1410641078702909,
+          95.8404519533342
+        ]
+      ],
+      "construction": {
+        "socket_dilation_kernel": "7x7 ellipse",
+        "blade_guard_protection_dilation": "3x3 ellipse",
+        "cloth_shaft_protection_dilation": "5x5 ellipse",
+        "tiny_roi_xyxy_inclusive": [
+          72,
+          135,
+          120,
+          184
+        ]
+      }
+    },
+    "prompt": {
+      "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prompts/qwen/mirelle_surprised_socket_seam_qwen_v1.txt",
+      "sha256": "19f567d1146adb67e7a8b68e4a5226de5cea486deb642776b76ae5d5d9b145a4"
+    }
+  },
+  "exact_request": {
+    "body_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_surprised_socket_seam_qwen_v1.json",
+    "body_sha256": "44d1ddf7daee0a42b508757d979d8d960d24f3d50790cea118c4c614066bbc2b",
+    "body_byte_count": 2026299,
+    "headers_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_surprised_socket_seam_qwen_request_headers_v1.json",
+    "headers_sha256": "ebf85734736f02457d4f2f28bc4aed2849389e245cf57819a53ed6628b3a6235",
+    "endpoint": "/prototype/edit/qwen/masked",
+    "seed": 260827733,
+    "steps": 26,
+    "cfg": 3.5,
+    "denoise": 0.25
+  },
+  "exact_response": {
+    "headers_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_headers/mirelle_surprised_socket_seam_qwen_response_v1.json",
+    "headers_sha256": "941ec8de95e22dd08576d970552f4cf1ba9f5c80cb5c507a7d91601d238a4b48",
+    "raw_model_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_raw/mirelle_voss/surprised_socket_seam_qwen_v1_model_output.png",
+    "raw_model_output_sha256": "aac5c95a96e8a1064679a047db7a81ae1577f43ebb8ffaad4c99fbb8c09bf8c0",
+    "raw_model_output_byte_count": 969526
+  },
+  "hard_composite": {
+    "raw_format": "PNG",
+    "raw_mode": "RGB",
+    "raw_dimensions": [
+      880,
+      1184
+    ],
+    "aligned_dimensions": [
+      1082,
+      1453
+    ],
+    "resampling": "Pillow LANCZOS from raw model dimensions to primary dimensions",
+    "composite_method": "hard binary replacement where saved mask >= 128",
+    "changed_inside_mask_pixels": 47,
+    "changed_outside_mask_pixels": 0,
+    "protected_delta_pixels": {
+      "blade_and_guards": 0,
+      "knot_tassel_cloth_and_shaft": 0,
+      "gripping_hand": 0,
+      "lower_cap_cape_leg": 0,
+      "body_face_costume": 0
+    },
+    "boundary_jump_metrics": {
+      "four_connected_boundary_edge_count": 54,
+      "approved_deterministic": {
+        "mean_rgb_l2": 41.649383544921875,
+        "median_rgb_l2": 3.370828628540039,
+        "p95_rgb_l2": 212.53683471679688,
+        "max_rgb_l2": 313.31134033203125
+      },
+      "qwen_hard_composite": {
+        "mean_rgb_l2": 47.86445236206055,
+        "median_rgb_l2": 24.673131942749023,
+        "p95_rgb_l2": 201.29054260253906,
+        "max_rgb_l2": 236.7635955810547
+      },
+      "interpretation": "Lower cross-boundary RGB jumps can indicate a smoother seam, but visual inspection controls acceptance because legitimate linework also raises them."
+    },
+    "aligned_output_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_aligned/mirelle_voss/surprised_socket_seam_qwen_v1_model_output_aligned.png",
+    "aligned_output_sha256": "7051cb391bd1ae2b8219f2a0cdd581f9fd8b0feb9f36bbf26955403e68e77b31",
+    "composite_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_composited/mirelle_voss/surprised_socket_seam_qwen_v1.png",
+    "composite_sha256": "69c4e1d45921f73d10595438070cf32abba554691b6a929c764ed3f7a06b8d1b"
+  },
+  "proof": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_proofs/mirelle_surprised_socket_seam_qwen_v1.png",
+    "sha256": "8cf02646eb38801077f6676b146e9942a1042bc4d6f5cf1bda573ac4ec51b5db"
+  },
+  "attempt": {
+    "path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/qwen_requests/mirelle_surprised_socket_seam_qwen_attempt_v1.json",
+    "sha256": "dd1b06083f4ebf01ec92735bbd07e46da41000ebbde25f6e8da0b6f742d5bb79"
+  }
+}

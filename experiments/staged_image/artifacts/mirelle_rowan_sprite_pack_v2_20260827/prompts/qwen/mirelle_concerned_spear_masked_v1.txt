@@ -1,0 +1,6 @@
+Use case: precise-object-edit
+Asset type: experimental visual-novel character sprite prop normalization
+Input images: Image 1 is the primary edit target and must remain the base image; Image 2 is a supporting canonical spearhead crop only.
+Primary request: Replace only the complete spear in Image 1. Preserve its point-down screen orientation while normalizing it into one coherent red-shaft spear. Put exactly one canonical long silver leaf point with small wing guards at the LOWER end, matching Image 2's blade geometry, steel treatment, socket, red ties, and adjacent tassel. Put only a simple small metal butt cap at the UPPER end. Remove the exaggerated halberd-like lower geometry and remove the tassel incorrectly tied near the upper butt. Preserve the original shaft path and Mirelle's grip so the prop still fits the existing pose.
+Mask semantics: White pixels identify the only region eligible to change. The gripping hand is deliberately excluded and must remain exactly as in Image 1.
+Constraints: Change only spear pixels inside the supplied mask. Keep every non-spear pixel unchanged: exact face, worried expression, hair and braid, body, pose, hands, cream coat, burgundy layers, armor, boots, framing, scale, and pure magenta background. Do not add a second blade, second weapon, extra person, text, logo, watermark, scenery, floor, shadow, or texture.

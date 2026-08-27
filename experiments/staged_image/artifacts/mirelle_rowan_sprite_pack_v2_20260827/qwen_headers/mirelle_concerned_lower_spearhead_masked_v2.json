@@ -1,0 +1,6 @@
+{
+  "x-ayoa-worker": "http://127.0.0.1:8210",
+  "x-ayoa-prompt-id": "1c8ea190-7918-4f6a-8c94-9d3cfc927475",
+  "x-ayoa-seed": "260827322",
+  "x-ayoa-prototype": "masked-qwen"
+}

@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "model": "black-forest-labs/FLUX.2-dev",
+  "revision": "26afe3a78bb242c0a8bb181dcc8937bb16e5c66c",
+  "gpu_count": 4,
+  "model_loaded": false,
+  "pipelines": {
+    "compose": {
+      "available": true,
+      "model": "black-forest-labs/FLUX.2-dev",
+      "revision": "26afe3a78bb242c0a8bb181dcc8937bb16e5c66c",
+      "max_references": 4
+    },
+    "edit": {
+      "available": true,
+      "model": "Qwen/Qwen-Image-Edit-2511",
+      "revision": "qwen_image_edit_2511_fp8mixed.safetensors",
+      "max_references": 3
+    }
+  },
+  "mode": "qwen",
+  "active_qwen": 0,
+  "active_flux": false,
+  "flux": {
+    "ok": false,
+    "loaded": false
+  },
+  "comfy_master": "http://127.0.0.1:8194",
+  "workers": [
+    {
+      "base": "http://127.0.0.1:8210",
+      "ok": true,
+      "running": 0,
+      "pending": 0
+    },
+    {
+      "base": "http://127.0.0.1:8211",
+      "ok": true,
+      "running": 0,
+      "pending": 0
+    },
+    {
+      "base": "http://127.0.0.1:8212",
+      "ok": true,
+      "running": 0,
+      "pending": 0
+    },
+    {
+      "base": "http://127.0.0.1:8213",
+      "ok": true,
+      "running": 0,
+      "pending": 0
+    }
+  ]
+}

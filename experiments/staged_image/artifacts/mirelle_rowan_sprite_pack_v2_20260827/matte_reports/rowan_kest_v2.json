@@ -1,0 +1,71 @@
+{
+  "method": "seven_byte_identical_v1_sprites_plus_opaque_hybrid_sad_v2",
+  "parameters": {
+    "high_alpha_threshold": 200,
+    "edge_band_distance_native_pixels": 3.0,
+    "hot_magenta_saturation_u8": 112,
+    "hot_magenta_hue_degrees": [
+      275,
+      335
+    ],
+    "hot_magenta_min_value_u8": 16
+  },
+  "unchanged": {
+    "neutral": {
+      "candidates_sha256": "321d649aa049da2a899e4825ae64c88c7f21f227f38641b884aab84c1f101eeb",
+      "sprites_sha256": "b608f0ad84e492db6e7026c0ac8bfead1aa4a90b7b5a234b7e42e285ecf5d969"
+    },
+    "happy": {
+      "candidates_sha256": "d9ae3aaf77ec8e6f8fd7cbd9847ed4a60cba7f34694cfc794e9de3f849d9ea95",
+      "sprites_sha256": "8c34722b16a6f117ec9b2baa58ae2d4a31d70fde5432c08f6a8a465c20581a12"
+    },
+    "concerned": {
+      "candidates_sha256": "accc0555dcefaed80778b26a92fe89d9ddcf161dd801d9062b077faaa0e1e437",
+      "sprites_sha256": "bfab8506454aa7abc33e9508fdf5ee062ede799e92f0b5a5687c40189bdddb2a"
+    },
+    "tense": {
+      "candidates_sha256": "37868d55e2ba615135aa76d5429a103cee63ac29455f30474608c34969ad5b0b",
+      "sprites_sha256": "579bbe7fc85eea145cc993b9e65a9a2ca65b84fac446c2663336cd244f0b567a"
+    },
+    "skeptical": {
+      "candidates_sha256": "6fdfbe8a40b17a7caa11d9cf0b665451fabbe9c8eef8c5601131921a2b359e86",
+      "sprites_sha256": "800ac157929ace0ab2eda1765dd269799ebe94a379a79ac45f7ced127e8edea8"
+    },
+    "angry": {
+      "candidates_sha256": "9ebeaa6857141d538f39eadbddb874b0ddc771eeb7e3d05cd7640a6468fe5285",
+      "sprites_sha256": "c0620342bae19e4a59da216ffeaa7abd75d399295cffbace09053ac9d74f0f0d"
+    },
+    "surprised": {
+      "candidates_sha256": "2431da1f92a442a2163a3ff1bbf494f3cad0bcaea6fa5c71eea33b5e54d6a272",
+      "sprites_sha256": "0921bd74a3ce49ebdd6cedecf1004f177db344db57140cf349b40160d9846cad"
+    }
+  },
+  "sad_v2": {
+    "raw_sha256": "bdcc9e5a6916cf23741eee245d28aa4525c945b228c45b06b4f66bbd81119a19",
+    "physical_v1_sha256": "1be8f91744508fc05a332d1cf3c62543c2b492d54d23f46b9299e0f0c0795b9b",
+    "candidate_sha256": "e95b4ee35ff007bdb31f4ff48acb7dd03fe43a9bf41d0fe2349c96aef510f221",
+    "sprite_sha256": "72af2f4cb5d8d8cd06cbef3652d8d0eb79db2be008f3cd1e5b56466faabf801f",
+    "partial_boundary_pixels": 12772,
+    "visible_hot_magenta_pixels": 0,
+    "normalize": {
+      "source_bbox": [
+        378,
+        75,
+        829,
+        1389
+      ],
+      "scale": 1.08066971,
+      "placement": [
+        306,
+        60,
+        487,
+        1420
+      ],
+      "sha256": "72af2f4cb5d8d8cd06cbef3652d8d0eb79db2be008f3cd1e5b56466faabf801f"
+    }
+  },
+  "contact_sheet": {
+    "path": "contact_sheets/rowan_kest_complete_sweep_v2.png",
+    "sha256": "beb3fb6aaa41e7a24c0a4c0039472504bad9f7486bad74a7e556046a6eb11f4d"
+  }
+}

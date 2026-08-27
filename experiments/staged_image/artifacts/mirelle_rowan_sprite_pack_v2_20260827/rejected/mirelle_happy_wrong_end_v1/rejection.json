@@ -1,0 +1,64 @@
+{
+  "status": "rejected_by_root",
+  "label": "happy",
+  "version": "wrong_end_v1",
+  "reason": "The deterministic v1 placed Mirelle's canonical primary blade on the lower endpoint beside her boot. That endpoint is the opposite butt cap; the result therefore replaced the wrong end and created double-primary weapon semantics. The correct target is the upper blade beside the tassel.",
+  "model_calls": 0,
+  "files": [
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/prepare_mirelle_happy_canonical_spear_metal_proof.py",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/prepare_mirelle_happy_canonical_spear_metal_proof.py",
+      "sha256": "aa256036afc0b8d599642458c0bd8f9903b3cb600352976069f1322b26d1d010"
+    },
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/happy_canonical_spear_metal_repair_proof.png",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/grafts/mirelle_voss/happy_canonical_spear_metal_repair_proof.png",
+      "sha256": "d62dbfbf98877ddd94241748accd7c4c933124aca07a2c20d6a93675f0364343"
+    },
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/grafts/mirelle_voss/happy_old_head_cleaned_base_proof.png",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/grafts/mirelle_voss/happy_old_head_cleaned_base_proof.png",
+      "sha256": "363b90de0412d2d0243ae06f21c342568efb71959e72865763f72671438a904c"
+    },
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_canonical_spear_old_head_cleanup_mask.png",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/masks/mirelle_voss/happy_canonical_spear_old_head_cleanup_mask.png",
+      "sha256": "afec47fdddb29f1ebbe2b90e7ba76cb0bb50841e2f64580d06b13d98866c1997"
+    },
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_canonical_spear_rigid_metal_patch_mask.png",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/masks/mirelle_voss/happy_canonical_spear_rigid_metal_patch_mask.png",
+      "sha256": "0217e64f4e12b5add34c8cacd060d59c4c62656dafcb5f92fba7c91d967022ca"
+    },
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_canonical_spear_hand_body_garment_occlusion_mask.png",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/masks/mirelle_voss/happy_canonical_spear_hand_body_garment_occlusion_mask.png",
+      "sha256": "1148d3a76e3254d9d32190a09f12d2962529c74c6105d1b4357c814d8067fa48"
+    },
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_canonical_spear_aggregate_saved_mask.png",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/masks/mirelle_voss/happy_canonical_spear_aggregate_saved_mask.png",
+      "sha256": "f5ed08a220a21a382f234e01ef2ae8ce70a53c22e5e995dd72cda0998a2aa4d2"
+    },
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/masks/mirelle_voss/happy_canonical_spear_changed_mask.png",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/masks/mirelle_voss/happy_canonical_spear_changed_mask.png",
+      "sha256": "4f20b8dfe472a2c90440478d28c00e95fb587265f934bce5df8cc6e4ec5ed532"
+    },
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_proofs/mirelle_happy_canonical_spear_metal_close_proof.png",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/component_proofs/mirelle_happy_canonical_spear_metal_close_proof.png",
+      "sha256": "9df1b85254fb0ac5e260f5b20e1c7df028960f38079d689cfd845d679a379f5f"
+    },
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/mask_proofs/mirelle_happy_canonical_spear_metal_masks.png",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/mask_proofs/mirelle_happy_canonical_spear_metal_masks.png",
+      "sha256": "cb1ba4dda82eb1a7cc6cd5ea4741196db7fa2d04d3b9a6da35df1c8d4079e650"
+    },
+    {
+      "original_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/component_metadata/mirelle_happy_canonical_spear_metal_repair_proof.json",
+      "archived_path": "/home/dan/ayoa-worktrees/mirelle-rowan-sprite-pack/experiments/staged_image/artifacts/mirelle_rowan_sprite_pack_v2_20260827/rejected/mirelle_happy_wrong_end_v1/component_metadata/mirelle_happy_canonical_spear_metal_repair_proof.json",
+      "sha256": "160c76700b4e2e85089d2135c317f1b992199e1957536282fb7e66806b6c63c7"
+    }
+  ]
+}
