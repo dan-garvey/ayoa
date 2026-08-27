@@ -10,6 +10,7 @@ import re
 import shutil
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 
@@ -30,21 +31,36 @@ def _slug(value: str, *, fallback: str) -> str:
     return slug or fallback
 
 
-def _validated_cards(run_dir: Path) -> list[tuple[str, VisualNovelCard]]:
+def _validated_cards(
+    run_dir: Path,
+    *,
+    deck_manifest_paths: Sequence[str | Path] | None,
+) -> list[tuple[str, VisualNovelCard]]:
     manifests: list[tuple[Path, Path]] = []
-    for manifest in run_dir.rglob("manifest.json"):
+    candidates = (
+        tuple(Path(path).resolve(strict=True) for path in deck_manifest_paths)
+        if deck_manifest_paths is not None
+        else tuple(run_dir.rglob("manifest.json"))
+    )
+    for manifest in candidates:
         if manifest.parent.parent.name != "decks":
             continue
         runtime_root = manifest.parent.parent.parent
-        relative_root = runtime_root.relative_to(run_dir)
+        try:
+            relative_root = runtime_root.relative_to(run_dir)
+        except ValueError as exc:
+            raise RuntimeError(
+                "slideshow deck must belong to the playtest run"
+            ) from exc
         manifests.append((relative_root, manifest))
-    manifests.sort(
-        key=lambda item: (
-            len(item[0].parts),
-            item[0].as_posix(),
-            item[1].parent.name,
+    if deck_manifest_paths is None:
+        manifests.sort(
+            key=lambda item: (
+                len(item[0].parts),
+                item[0].as_posix(),
+                item[1].parent.name,
+            )
         )
-    )
 
     cards: list[tuple[str, VisualNovelCard]] = []
     for relative_root, manifest in manifests:
@@ -64,6 +80,8 @@ def _validated_cards(run_dir: Path) -> list[tuple[str, VisualNovelCard]]:
 
 def export_vn_playtest_slideshow(
     run_dir: str | Path,
+    *,
+    deck_manifest_paths: Sequence[str | Path] | None = None,
 ) -> tuple[Path, tuple[Path, ...]]:
     """Create a numbered slideshow without altering source decks."""
 
@@ -71,7 +89,10 @@ def export_vn_playtest_slideshow(
     if not run_root.is_dir():
         raise RuntimeError("playtest run root must be a directory")
 
-    cards = _validated_cards(run_root)
+    cards = _validated_cards(
+        run_root,
+        deck_manifest_paths=deck_manifest_paths,
+    )
     width = max(3, len(str(len(cards))))
     destination = run_root / DEFAULT_SLIDESHOW_DIRECTORY
     if destination.is_symlink():

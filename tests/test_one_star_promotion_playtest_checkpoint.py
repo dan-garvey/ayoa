@@ -28,6 +28,9 @@ from app.engine.visual_novel_sprites import (
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.narrator import VisualNovelPage, VisualNovelSpriteCue
 from app.schemas.one_star import OneStarTransaction
+from scripts.run_one_star_promotion_sprite_playtest import (
+    _promotion_comparison_pages,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -231,16 +234,18 @@ def test_fixture_reaches_authored_and_generated_reveal_contracts() -> None:
     renna = _character(checkpoint, "renna_holt")
     mara = _character(checkpoint, FACELESS_ID)
 
-    assert sprite_set_id_for_viewer(
+    renna_before_sprite_set = sprite_set_id_for_viewer(
         checkpoint,
         viewer_character_id=master_id,
         character=renna,
-    ) == "osa_vnset_veiled_feminine_v1"
-    assert sprite_set_id_for_viewer(
+    )
+    mara_before_sprite_set = sprite_set_id_for_viewer(
         checkpoint,
         viewer_character_id=master_id,
         character=mara,
-    ) == "osa_vnset_veiled_feminine_v1"
+    )
+    assert renna_before_sprite_set == "osa_vnset_veiled_feminine_v1"
+    assert mara_before_sprite_set == "osa_vnset_veiled_feminine_v1"
 
     checkpoint = _promote(
         checkpoint,
@@ -248,11 +253,12 @@ def test_fixture_reaches_authored_and_generated_reveal_contracts() -> None:
         operation_id="renna_two_star",
     )
     renna = _character(checkpoint, "renna_holt")
-    assert sprite_set_id_for_viewer(
+    renna_after_sprite_set = sprite_set_id_for_viewer(
         checkpoint,
         viewer_character_id=master_id,
         character=renna,
-    ) == "osa_vnset_renna_holt_v1"
+    )
+    assert renna_after_sprite_set == "osa_vnset_renna_holt_v1"
 
     checkpoint = _promote(
         checkpoint,
@@ -313,11 +319,23 @@ def test_fixture_reaches_authored_and_generated_reveal_contracts() -> None:
     ) == (3, 30, 43_500)
 
     pack_id = generated_sprite_pack_id(checkpoint, mara)
-    assert sprite_set_id_for_viewer(
+    mara_after_sprite_set = sprite_set_id_for_viewer(
         checkpoint,
         viewer_character_id=master_id,
         character=mara,
-    ) == pack_id
+    )
+    assert mara_after_sprite_set == pack_id
+    assert (
+        renna_before_sprite_set,
+        renna_after_sprite_set,
+        mara_before_sprite_set,
+        mara_after_sprite_set,
+    ) == (
+        "osa_vnset_veiled_feminine_v1",
+        "osa_vnset_renna_holt_v1",
+        "osa_vnset_veiled_feminine_v1",
+        pack_id,
+    )
     placements = resolve_visual_novel_sprite_placements(
         checkpoint=checkpoint,
         viewer_character_id=master_id,
@@ -340,3 +358,26 @@ def test_fixture_reaches_authored_and_generated_reveal_contracts() -> None:
     assert account.state.resources.materials == {
         "lesser_promotion_stone": 0,
     }
+
+
+def test_promotion_comparison_pages_name_and_order_both_transitions() -> None:
+    pages = _promotion_comparison_pages()
+
+    assert tuple(page.speaker for page in pages) == (
+        "Renna Holt",
+        "Renna Holt",
+        "Mara Venn",
+        "Mara Venn",
+    )
+    assert tuple(page.text.split(" · ", 1)[0] for page in pages) == (
+        "Before ascent",
+        "After ascent",
+        "Before ascent",
+        "After ascent",
+    )
+    assert tuple(page.sprites[0].character for page in pages) == (
+        "Renna Holt",
+        "Renna Holt",
+        "Mara Venn",
+        "Mara Venn",
+    )

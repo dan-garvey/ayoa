@@ -85,6 +85,16 @@ def test_export_vn_playtest_slideshow_flattens_validated_decks(
         "Mara Venn",
     ]
 
+    _directory, selected_cards = export_vn_playtest_slideshow(
+        run_dir,
+        deck_manifest_paths=(probe.manifest_path, primary.manifest_path),
+    )
+    assert [card.name for card in selected_cards] == [
+        "001__narrator-probe-presentation__narration__page-001.png",
+        "002__narrator-probe-presentation__mara-venn__page-002.png",
+        "003__presentation__mara-venn__page-001.png",
+    ]
+
 
 def test_export_vn_playtest_slideshow_replaces_stale_export(
     tmp_path: Path,

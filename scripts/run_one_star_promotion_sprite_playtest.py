@@ -43,6 +43,9 @@ from app.engine.one_star_visuals import (
     generated_sprite_pack_id,
     sprite_set_id_for_viewer,
 )
+from app.engine.reviewed_visual_references import (
+    freeze_story_visual_references,
+)
 from app.engine.visual_novel_presentation import (
     VisualNovelCardRenderer,
     VisualNovelDeckSection,
@@ -216,6 +219,61 @@ def _gateway_health() -> dict[str, Any]:
     url = "http://127.0.0.1:8199/health"
     with urllib.request.urlopen(url, timeout=10) as response:  # noqa: S310
         return json.loads(response.read().decode("utf-8"))
+
+
+def _promotion_comparison_pages() -> tuple[VisualNovelPage, ...]:
+    """Return the fixed visual evidence order for both reveal transitions."""
+
+    return (
+        VisualNovelPage(
+            kind="dialogue",
+            speaker="Renna Holt",
+            text=(
+                "Before ascent · 1★ level 10 · generic veiled one-star "
+                "appearance."
+            ),
+            sprites=[VisualNovelSpriteCue(
+                character="Renna Holt",
+                expression="neutral",
+            )],
+        ),
+        VisualNovelPage(
+            kind="dialogue",
+            speaker="Renna Holt",
+            text=(
+                "After ascent · 2★ level 10 · locked seeded identity "
+                "revealed."
+            ),
+            sprites=[VisualNovelSpriteCue(
+                character="Renna Holt",
+                expression="neutral",
+            )],
+        ),
+        VisualNovelPage(
+            kind="dialogue",
+            speaker="Mara Venn",
+            text=(
+                "Before ascent · 1★ level 10 · generic veiled one-star "
+                "appearance."
+            ),
+            sprites=[VisualNovelSpriteCue(
+                character="Mara Venn",
+                expression="neutral",
+            )],
+        ),
+        VisualNovelPage(
+            kind="dialogue",
+            speaker="Mara Venn",
+            text=(
+                "After ascent · 3★ level 30 · generated identity sprite "
+                "revealed."
+            ),
+            sprites=[VisualNovelSpriteCue(
+                character="Mara Venn",
+                expression="neutral",
+            )],
+        ),
+    )
 
 
 def _contact_sheet(
@@ -409,11 +467,19 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         repo_root=REPO_ROOT,
     )
     await coordinator.start()
-    if not coordinator.can_generate_render():
+    if not coordinator.can_generate_render() and args.resume_dir is None:
         await coordinator.close()
         raise RuntimeError("live image worker did not pass preflight")
 
     try:
+        coordinator.register_reviewed_visual_references(
+            checkpoint=checkpoint,
+            frozen_references=freeze_story_visual_references(
+                checkpoint,
+                story_dir=PLAYTEST_STORY,
+                runtime_root=runtime_root,
+            ),
+        )
         mara = _character(checkpoint, FACELESS_ID)
         pack_id = generated_sprite_pack_id(checkpoint, mara)
         existing_jobs = {
@@ -559,43 +625,67 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         if final_mara["master_sprite_set_id"] != pack_id:
             raise RuntimeError("three-star Mara did not select generated pack")
 
-        page = VisualNovelPage(
-            kind="dialogue",
-            speaker="Mara Venn",
-            text=(
-                "I remember enough to know this face is mine. Whatever the "
-                "System calls me now, it does not get to take that away."
-            ),
-            sprites=[VisualNovelSpriteCue(
-                character="Mara Venn",
-                expression="neutral",
-            )],
+        start_checkpoint = CheckpointFile.model_validate_json(
+            (run_dir / "checkpoints/00-start.json").read_text(encoding="utf-8")
         )
-        placements = resolve_visual_novel_sprite_placements(
-            checkpoint=checkpoint,
-            viewer_character_id=MASTER_ID,
-            page=page,
-            generation=coordinator,
+        renna_after_checkpoint = CheckpointFile.model_validate_json(
+            (run_dir / "checkpoints/01-renna-2star.json").read_text(
+                encoding="utf-8"
+            )
         )
-        if len(placements) != 1 or placements[0].identity_handle != pack_id:
-            raise RuntimeError("VN placement did not resolve generated Mara")
-
+        comparison_checkpoints = (
+            start_checkpoint,
+            renna_after_checkpoint,
+            start_checkpoint,
+            checkpoint,
+        )
+        comparison_pages = _promotion_comparison_pages()
+        expected_sprite_sets = (
+            "osa_vnset_veiled_feminine_v1",
+            "osa_vnset_renna_holt_v1",
+            "osa_vnset_veiled_feminine_v1",
+            pack_id,
+        )
         stage_path = (
             PLAYTEST_STORY
             / "visual-references/locations/niflheim/"
             "lobby_1f_open_air_courtyard_v1.png"
         )
-        renderer = VisualNovelCardRenderer(run_dir / "presentation")
-        deck = renderer.render_deck([
-            VisualNovelDeckSection(
+        sections: list[VisualNovelDeckSection] = []
+        resolved_sprite_sets: list[str] = []
+        for state_checkpoint, page in zip(
+            comparison_checkpoints,
+            comparison_pages,
+            strict=True,
+        ):
+            placements = resolve_visual_novel_sprite_placements(
+                checkpoint=state_checkpoint,
+                viewer_character_id=MASTER_ID,
+                page=page,
+                generation=coordinator,
+            )
+            if len(placements) != 1:
+                raise RuntimeError(
+                    f"comparison page did not resolve one sprite: {page.speaker}"
+                )
+            resolved_sprite_sets.append(placements[0].identity_handle)
+            sections.append(VisualNovelDeckSection(
                 pages=(page,),
                 stage_path=stage_path,
                 sprite_placements=placements,
-            )
-        ])
-        card = deck.cards[0]
+            ))
+
+        renderer = VisualNovelCardRenderer(run_dir / "presentation")
+        deck = renderer.render_deck(sections)
         manifest = json.loads(deck.manifest_path.read_text(encoding="utf-8"))
-        manifest_sprite = manifest["identity"]["sections"][0]["sprites"][0]
+        manifest_sprite_sets = tuple(
+            section["sprites"][0]["identity_handle"]
+            for section in manifest["identity"]["sections"]
+        )
+        slideshow_directory, slideshow_cards = export_vn_playtest_slideshow(
+            run_dir,
+            deck_manifest_paths=(deck.manifest_path,),
+        )
         checks = {
             "eight_jobs_admitted": len(ordered_jobs) == 8,
             "neutral_succeeded": jobs["neutral"].status
@@ -615,15 +705,23 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             "mara_uses_generated_pack_at_three_star": (
                 final_mara["master_sprite_set_id"] == pack_id
             ),
-            "card_speaker_is_exact_roster_name": card.speaker == "Mara Venn",
-            "accessible_text_uses_exact_roster_name": card.accessible_text.startswith(
-                "Mara Venn:"
+            "four_comparison_cards_rendered": len(deck.cards) == 4,
+            "comparison_speakers_are_exact_roster_names": (
+                tuple(card.speaker for card in deck.cards)
+                == ("Renna Holt", "Renna Holt", "Mara Venn", "Mara Venn")
             ),
-            "transcript_uses_exact_roster_name": deck.transcript.startswith(
-                "Mara Venn:"
+            "comparison_labels_identify_before_and_after_states": (
+                tuple(card.text for card in deck.cards)
+                == tuple(page.text for page in comparison_pages)
             ),
-            "manifest_binds_generated_pack": (
-                manifest_sprite["identity_handle"] == pack_id
+            "comparison_uses_state_specific_sprite_sets": (
+                tuple(resolved_sprite_sets) == expected_sprite_sets
+            ),
+            "manifest_binds_ordered_comparison_sprite_sets": (
+                manifest_sprite_sets == expected_sprite_sets
+            ),
+            "slideshow_contains_only_four_comparison_cards": (
+                len(slideshow_cards) == 4
             ),
         }
         if not all(
@@ -662,18 +760,35 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                 for job in ordered_jobs
             ],
             "checks": checks,
-            "card": {
+            "comparison_deck": {
                 "deck_id": deck.deck_id,
-                "speaker": card.speaker,
-                "accessible_text": card.accessible_text,
                 "transcript": deck.transcript,
-                "image_path": str(card.image_path.relative_to(run_dir)),
-                "image_sha256": hashlib.sha256(card.image_bytes).hexdigest(),
                 "manifest_path": str(deck.manifest_path.relative_to(run_dir)),
+                "sprite_set_ids": list(manifest_sprite_sets),
+                "cards": [
+                    {
+                        "index": card.index,
+                        "speaker": card.speaker,
+                        "text": card.text,
+                        "accessible_text": card.accessible_text,
+                        "image_path": str(card.image_path.relative_to(run_dir)),
+                        "image_sha256": hashlib.sha256(
+                            card.image_bytes
+                        ).hexdigest(),
+                    }
+                    for card in deck.cards
+                ],
             },
             "contact_sheet": {
                 "path": str(sheet_path.relative_to(run_dir)),
                 "sha256": _sha256(sheet_path),
+            },
+            "slideshow": {
+                "directory": str(slideshow_directory.relative_to(run_dir)),
+                "index": str(
+                    (slideshow_directory / "index.json").relative_to(run_dir)
+                ),
+                "card_count": len(slideshow_cards),
             },
         }
         report_path = run_dir / "report.json"
@@ -717,18 +832,8 @@ def main() -> int:
     load_dotenv()
     args = _parser().parse_args()
     run_dir, report = asyncio.run(_run(args))
-    slideshow_directory, slideshow_cards = export_vn_playtest_slideshow(run_dir)
-    report["slideshow"] = {
-        "directory": str(slideshow_directory.relative_to(run_dir)),
-        "index": str(
-            (slideshow_directory / "index.json").relative_to(run_dir)
-        ),
-        "card_count": len(slideshow_cards),
-    }
-    (run_dir / "report.json").write_text(
-        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    slideshow_directory = run_dir / report["slideshow"]["directory"]
+    slideshow_card_count = report["slideshow"]["card_count"]
     windows_copy = None
     if args.windows_root is not None:
         args.windows_root.mkdir(parents=True, exist_ok=True)
@@ -743,9 +848,9 @@ def main() -> int:
         ),
         "resolved_variants": report["checks"]["generated_variants_resolved"],
         "generation_seconds": report["generation_seconds"],
-        "deck_id": report["card"]["deck_id"],
+        "deck_id": report["comparison_deck"]["deck_id"],
         "slideshow": str(slideshow_directory),
-        "slideshow_card_count": len(slideshow_cards),
+        "slideshow_card_count": slideshow_card_count,
     }, indent=2))
     return 0
 
