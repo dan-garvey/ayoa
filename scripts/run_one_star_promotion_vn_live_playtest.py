@@ -611,7 +611,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
 
         await execute("setup_story", f"/story start {STORY_ID}")
         await execute("setup_join", f"/join {MASTER_ID}")
-        await execute("opening", "/begin --confirm")
+        await execute("opening", "/begin")
         renna_before = await execute(
             "renna_before",
             (

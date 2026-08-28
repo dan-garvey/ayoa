@@ -35,7 +35,6 @@ from app.engine.frontend_views import (
     DndCombatParticipantView,
     DndCombatView,
     DndSheetAttachmentSummary,
-    OpeningLobbyView,
     PendingRollPrompt,
     PreparedStoryOnboarding,
     PlayerJoinResult,
@@ -335,11 +334,6 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
     engine.image_generation.can_generate_render.return_value = False
     engine.wait_for_visual_novel_stage_work = AsyncMock(
         return_value=True,
-    )
-    engine.opening_lobby.return_value = OpeningLobbyView(
-        requires_confirmation=False,
-        claimed_seat_names=(),
-        open_seat_names=("Aldric", "Sera Vance"),
     )
     engine.session_activity.return_value = SessionActivityView(
         session_id=SESSION_ID,
@@ -1336,46 +1330,28 @@ class TestBeginCommand:
         assert "BadRequestError" not in out
         assert "/home/dan" not in out
 
-    def test_claim_sensitive_opening_lists_lobby_before_confirmation(
-        self, run, capsys,
-    ):
+    def test_begin_is_final_even_when_other_seats_are_open(self, run):
         engine = _mock_engine()
-        engine.opening_lobby.return_value = OpeningLobbyView(
-            requires_confirmation=True,
-            claimed_seat_names=("Aldric",),
-            open_seat_names=("Sera Vance",),
-        )
-        state = CLIState(engine, SESSION_ID, STORY_ID)
-        state.one_shot_mode = True
-
-        run(state.handle_line("/begin"))
-
-        engine.run_begin_turn.assert_not_awaited()
-        out = capsys.readouterr().out
-        assert "claimed seats: Aldric" in out
-        assert "still open: Sera Vance" in out
-        assert "/begin --confirm" in out
-
-    def test_explicit_begin_confirmation_opens_claim_sensitive_story(
-        self, run,
-    ):
-        engine = _mock_engine()
-        engine.opening_lobby.return_value = OpeningLobbyView(
-            requires_confirmation=True,
-            claimed_seat_names=("Aldric",),
-            open_seat_names=("Sera Vance",),
-        )
         state = CLIState(engine, SESSION_ID, STORY_ID)
         state.claims = {"aldric": 1}
         state.current_actor = "aldric"
         state.one_shot_mode = True
 
-        run(state.handle_line("/begin --confirm"))
+        run(state.handle_line("/begin"))
 
         engine.run_begin_turn.assert_awaited_once_with(
             session_id=SESSION_ID,
             triggering_character_id="aldric",
         )
+
+    def test_retired_begin_confirm_flag_is_rejected(self, run, capsys):
+        engine = _mock_engine()
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/begin --confirm"))
+
+        engine.run_begin_turn.assert_not_awaited()
+        assert "usage: /begin" in capsys.readouterr().out
 
 
 class TestStatusCommand:

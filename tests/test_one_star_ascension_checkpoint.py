@@ -470,7 +470,6 @@ def test_player_setup_metadata_is_structured_for_both_frontends() -> None:
     assert setting.recommended_players
     assert setting.play_guidance
     assert checkpoint.world_state.opening is not None
-    assert checkpoint.world_state.opening.requires_claim_confirmation is True
     assert set(playable) == {
         "one_star_newcomer",
         "the_master",
@@ -704,7 +703,6 @@ def test_unclaimed_newcomer_seed_is_an_unbound_claim_aware_seat() -> None:
     assert newcomer.player_slot_kind == PlayerSlotKind.player_authored
     assert newcomer.status.value == "dormant"
     assert opening is not None
-    assert opening.requires_claim_confirmation is True
 
 
 def test_model_visible_seed_surfaces_exclude_live_controller_metadata() -> None:

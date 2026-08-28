@@ -747,8 +747,9 @@ def test_projection_groups_equivalent_viewers_and_respects_fact_visibility():
     assert "PRIVATE" not in str(projections)
 
 
-def test_render_batch_keeps_private_povs_separate_and_anchors_latest_event():
+def test_render_batch_keeps_one_stage_projection_per_visible_event():
     ckpt = _checkpoint()
+    ckpt.session.config.settings.presentation_mode = "visual_novel"
     shared = router_output(
         event_id="evt_shared",
         observer_ids=["alice", "bob"],
@@ -788,18 +789,15 @@ def test_render_batch_keeps_private_povs_separate_and_anchors_latest_event():
     )
 
     assert len(projections) == 2
-    by_viewer = {
-        projection.viewer_character_ids[0]: projection
-        for projection in projections
-    }
-    assert by_viewer["alice"].event_id == "evt_private"
-    assert by_viewer["alice"].event_sequence == 18
-    assert by_viewer["alice"].canonical_event_count == 19
-    assert "hidden key" in str(by_viewer["alice"].visible_facts)
-    assert by_viewer["bob"].event_id == "evt_shared"
-    assert by_viewer["bob"].event_sequence == 17
-    assert by_viewer["bob"].canonical_event_count == 18
-    assert "hidden key" not in str(by_viewer["bob"].visible_facts)
+    by_event = {projection.event_id: projection for projection in projections}
+    assert by_event["evt_shared"].viewer_character_ids == ("alice", "bob")
+    assert by_event["evt_shared"].event_sequence == 17
+    assert by_event["evt_shared"].canonical_event_count == 18
+    assert "hidden key" not in str(by_event["evt_shared"].visible_facts)
+    assert by_event["evt_private"].viewer_character_ids == ("alice",)
+    assert by_event["evt_private"].event_sequence == 18
+    assert by_event["evt_private"].canonical_event_count == 19
+    assert "hidden key" in str(by_event["evt_private"].visible_facts)
 
 
 def test_visual_novel_action_staging_keeps_reviewed_location_available():
@@ -4201,6 +4199,82 @@ async def test_visual_novel_stage_context_is_relative_to_claimed_run(tmp_path):
     assert committed_before_claim == committed_after_context
     assert len(committed_before_claim) == 1
     assert committed_before_claim[0].startswith("current_stage=active;")
+
+
+def test_visual_novel_stage_context_includes_prior_event_in_same_render(
+    tmp_path,
+):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+    )
+    reference, _ = _frozen_reviewed_stage(
+        coordinator.config.runtime_root,
+        reference_id="authored.station.open",
+    )
+    coordinator.store.replace_reviewed_references(
+        session_id="image_test",
+        references={
+            reference.reference_id: (reference, "environment", "location")
+        },
+        identity_bindings={},
+        location_bindings={"station": [reference.reference_id]},
+    )
+    option = SelectableVisualReference(
+        reference_id=reference.reference_id,
+        scope="location",
+        scope_id="station",
+        selection_hint="Approved open station courtyard.",
+        stage_eligible=True,
+    )
+    _begin(coordinator, "tx_render")
+    first_projection = replace(
+        _projection(
+            transaction_id="tx_render",
+            event_id="evt_opening",
+            event_sequence=1,
+            viewers=("alice",),
+            source_turn_index=1,
+            presentation_mode="visual_novel",
+        ),
+        reference_options=(option,),
+        engine_location_label="station",
+        has_location_reference=True,
+    )
+    first_run = coordinator.store.enqueue_director_run(first_projection)
+    assert coordinator.store.claim_next_director_run() is not None
+    _complete_director(
+        coordinator,
+        first_run.run_id,
+        ImageDirectorOutput(
+            stage_action="replace",
+            stage_reference_id=reference.reference_id,
+            requests=[],
+        ),
+    )
+    coordinator.store.finalize_director_materialization(
+        first_run.run_id,
+        attempt=_director_attempt(coordinator, first_run.run_id),
+        projection=first_projection,
+        admitted_job_ids=[],
+        stage_reference=reference,
+    )
+
+    second_projection = replace(
+        first_projection,
+        event_id="evt_reply",
+        event_sequence=2,
+        event_fingerprint="b" * 64,
+    )
+    second_run = coordinator.store.enqueue_director_run(second_projection)
+
+    context = coordinator.store.visual_novel_stage_context_before_run(
+        second_run.run_id
+    )
+
+    assert len(context) == 1
+    assert context[0].startswith("current_stage=active;")
 
 
 def test_visual_novel_stage_context_requires_stored_target_run(tmp_path):

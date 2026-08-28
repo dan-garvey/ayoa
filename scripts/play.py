@@ -169,7 +169,7 @@ Commands:
                                     Set current actor identity without starting
   /act [--display <key>] <action>  Act with an optional existing VN display
   /defer                            Submit no action and let the scene continue
-  /begin [--confirm]                Open the story for the joined lobby
+  /begin                            Open the story for the joined lobby
   /attach <json> [id] [--name N]    Attach a D&D Beyond JSON export
   /sheet [page] [character_id]      Show an attached D&D character sheet
   /sheet all [character_id]         Show every sheet page
@@ -2033,34 +2033,9 @@ class CLIState:
         if not self._require_story():
             return
         raw = arg.strip()
-        if raw not in {"", "--confirm"}:
-            print("usage: /begin [--confirm]")
+        if raw:
+            print("usage: /begin")
             return
-        lobby = self.engine.opening_lobby(self.session_id)
-        if lobby.requires_confirmation and raw != "--confirm":
-            claimed = ", ".join(lobby.claimed_seat_names) or "none"
-            open_seats = ", ".join(lobby.open_seat_names) or "none"
-            print(f"claimed seats: {claimed}")
-            print(f"still open: {open_seats}")
-            if self.one_shot_mode:
-                print("review the lobby, then run /begin --confirm")
-                return
-            try:
-                answer = (
-                    (
-                        await self.console.prompt(
-                            "Begin with exactly these claimed seats? [y/N] "
-                        )
-                    )
-                    .strip()
-                    .casefold()
-                )
-            except (EOFError, KeyboardInterrupt):
-                print("\n(cancelled)")
-                return
-            if answer not in {"y", "yes"}:
-                print("(cancelled - other players can join before /begin)")
-                return
         actor_id = self.current_actor or next(iter(self.claims), "")
         try:
             async with _progress("opening the scene"):

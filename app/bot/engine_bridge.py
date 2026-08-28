@@ -52,7 +52,6 @@ from app.engine.frontend_views import (
     DndLootClaimResult,
     DndSheetAttachmentSummary,
     PendingRollPrompt,
-    OpeningLobbyView,
     PreparedStoryOnboarding,
     PlayerJoinResult,
     RetryRenderResult,
@@ -1427,32 +1426,6 @@ class EngineBridge:
         with binding state. Used by /story characters when a session exists."""
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         return _summaries_from_checkpoint(ckpt)
-
-    def opening_lobby(self, session_id: str) -> OpeningLobbyView:
-        """Player-safe readiness information for the story's first beat."""
-        ckpt = self.checkpoint_mgr.load_latest(session_id)
-        playable = [
-            character
-            for character in ckpt.characters
-            if character.is_playable and character.status != CharacterStatus.culled
-        ]
-        claimed = ckpt.session.character_bindings
-        return OpeningLobbyView(
-            requires_confirmation=bool(
-                ckpt.world_state.opening
-                and ckpt.world_state.opening.requires_claim_confirmation
-            ),
-            claimed_seat_names=tuple(
-                character.name
-                for character in playable
-                if character.character_id in claimed
-            ),
-            open_seat_names=tuple(
-                character.name
-                for character in playable
-                if character.character_id not in claimed
-            ),
-        )
 
     def session_activity(
         self,

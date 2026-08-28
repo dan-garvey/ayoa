@@ -80,13 +80,6 @@ class PlayerJoinResult:
 
 
 @dataclass(frozen=True)
-class OpeningLobbyView:
-    requires_confirmation: bool
-    claimed_seat_names: tuple[str, ...]
-    open_seat_names: tuple[str, ...]
-
-
-@dataclass(frozen=True)
 class StoryOnboardingChoiceView:
     label: str
     character_id: str

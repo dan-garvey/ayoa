@@ -2170,7 +2170,11 @@ class ImageJobStore:
                 SELECT r.* FROM image_director_runs AS r
                 JOIN image_transactions AS t
                   ON t.transaction_id = r.transaction_id
-                WHERE r.session_id = ? AND t.status = 'committed'
+                WHERE r.session_id = ?
+                  AND (
+                    t.status = 'committed'
+                    OR r.transaction_id = ?
+                  )
                   AND r.status != 'cancelled'
                   AND (
                     r.source_turn_index < ?
@@ -2186,6 +2190,7 @@ class ImageJobStore:
                 """,
                 (
                     current.projection.session_id,
+                    current.projection.transaction_id,
                     current.projection.source_turn_index,
                     current.projection.source_turn_index,
                     current.projection.event_sequence,

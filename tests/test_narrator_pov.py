@@ -212,7 +212,7 @@ class TestComposePovRender:
         assert "Available foreground characters:\n- Pip" in second
 
     @pytest.mark.asyncio
-    async def test_visual_novel_cannot_move_a_later_character_into_earlier_beat(
+    async def test_visual_novel_filters_repeated_cross_beat_sprite_cue(
         self,
         mock_client,
         prompt_manager,
@@ -245,28 +245,39 @@ class TestComposePovRender:
             side_effect=[llm_response(invalid), llm_response(invalid)]
         )
 
-        with pytest.raises(ValueError, match="unavailable sprite character"):
-            await compose_pov_render(
-                client=mock_client,
-                prompt_mgr=prompt_manager,
-                ckpt=ckpt,
-                pov_character_id="alice",
-                buffered_events=[
-                    RenderBufferEntry(
-                        event_id="evt_alpha",
-                        observation_level="direct",
-                    ),
-                    RenderBufferEntry(
-                        event_id="evt_beta",
-                        observation_level="direct",
-                    ),
-                ],
-                partial_mode=False,
-                user_input="I watch.",
-            )
+        buffered = [
+            RenderBufferEntry(
+                event_id="evt_alpha",
+                observation_level="direct",
+            ),
+            RenderBufferEntry(
+                event_id="evt_beta",
+                observation_level="direct",
+            ),
+        ]
+        result, entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            partial_mode=False,
+            user_input="I watch.",
+        )
 
         assert mock_client.complete.await_count == 2
-        assert ckpt.narrator_conversations == {}
+        assert result.beats[0].pages[0].sprites == []
+        assert result.beats[1].pages[0].sprites == ["Pip"]
+        correction = mock_client.complete.await_args_list[1].kwargs["messages"][-1]
+        assert "never carry" in correction["content"]
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=result,
+            user_input=entry.user,
+        )
+        assert len(ckpt.narrator_conversations["alice"]) == 2
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("presentation_mode", ["prose", "visual_novel"])
@@ -562,10 +573,6 @@ class TestComposePovRender:
 
         assert mock_client.complete.await_count == 2
         assert result == corrected
-        correction = mock_client.complete.await_args_list[1].kwargs["messages"][-1][
-            "content"
-        ]
-        assert "current speaker first" in correction
 
     @pytest.mark.asyncio
     async def test_visual_novel_descriptor_for_rostered_speaker_gets_exact_name(

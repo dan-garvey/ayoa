@@ -30,7 +30,6 @@ from app.bot import commands as bot_commands
 from app.bot.engine_bridge import EngineBridge, _narrator_history_message_text
 from app.engine.frontend_views import (
     CharacterSummary,
-    OpeningLobbyView,
     PreparedStoryOnboarding,
     PlayerJoinResult,
     RetryRenderResult,
@@ -1449,11 +1448,6 @@ class TestTurnResponseDelivery:
         )
         engine = MagicMock()
         engine.get_user_binding.return_value = "alice"
-        engine.opening_lobby.return_value = OpeningLobbyView(
-            requires_confirmation=True,
-            claimed_seat_names=("Alice",),
-            open_seat_names=(),
-        )
         engine.run_begin_turn = AsyncMock(return_value=response)
         engine.load_latest.return_value = SimpleNamespace(
             characters=[SimpleNamespace(character_id="alice", name="Alice")],
@@ -1487,7 +1481,7 @@ class TestTurnResponseDelivery:
             public_render,
         )
 
-        asyncio.run(tree.commands["begin"](inter, True))
+        asyncio.run(tree.commands["begin"](inter))
 
         public_render.assert_not_awaited()
         followups = [str(call.args[0]) for call in inter.followup.send.await_args_list]
@@ -2881,6 +2875,7 @@ class TestVisualNovelDiscordDeck:
     def test_story_start_posts_authored_onboarding_deck_publicly(
         self,
         tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ):
         class FakeTree:
             def __init__(self):
@@ -3071,6 +3066,59 @@ class TestVisualNovelDiscordDeck:
         assert modal.name_in.required is True
         assert modal.appearance_in.required is True
         engine.join_player_character.assert_not_awaited()
+
+        engine.get_user_binding.return_value = "the_master"
+        engine.run_begin_turn = AsyncMock(return_value=TurnResponse(
+            session_id="session",
+            checkpoint_id="ckpt_0001",
+            turn_index=1,
+            output_text="The summoning room opens around you.",
+            per_player_renders={
+                "the_master": "The summoning room opens around you."
+            },
+            beat_ended_reason="state_change",
+        ))
+        engine.load_visual_novel_deck.return_value = deck
+        monkeypatch.setattr(
+            bot_commands,
+            "_post_actor_render",
+            AsyncMock(return_value=("dm", None)),
+        )
+        welcome_message = SimpleNamespace(edit=AsyncMock())
+        begin_interaction = SimpleNamespace(
+            channel=object(),
+            channel_id=777,
+            user=SimpleNamespace(id=91),
+            client=tree.client,
+            response=SimpleNamespace(
+                defer=AsyncMock(),
+                send_message=AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=AsyncMock()),
+            message=welcome_message,
+        )
+
+        completed = asyncio.run(runtime.onboarding_action(
+            begin_interaction,
+            777,
+            "begin",
+            None,
+            deck.deck_id,
+            0,
+        ))
+
+        assert completed is True
+        engine.run_begin_turn.assert_awaited_once_with(
+            session_id="session",
+            triggering_character_id="the_master",
+        )
+        welcome_message.edit.assert_awaited_once()
+        completed_view = welcome_message.edit.await_args.kwargs["view"]
+        assert isinstance(completed_view, bot_commands._VisualNovelView)
+        assert not any(
+            isinstance(child, bot_commands._VisualNovelOnboardingControl)
+            for child in completed_view.children
+        )
 
     def test_restart_safe_controls_support_four_digit_card_indices(self):
         view = bot_commands._VisualNovelView(

@@ -274,7 +274,6 @@ def build_checkpoint() -> CheckpointFile:
     if checkpoint.world_state.opening is None:
         raise RuntimeError("source story has no opening policy")
     checkpoint.world_state.opening.allow_spawns = False
-    checkpoint.world_state.opening.requires_claim_confirmation = True
     checkpoint.world_state.opening.context = (
         "This is a later-state promotion playtest. The authored participants "
         "already exist and no summon or spawn occurs. Place the claimed Master "

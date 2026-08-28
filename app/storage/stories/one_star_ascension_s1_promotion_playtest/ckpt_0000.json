@@ -107,7 +107,6 @@
     ],
     "opening": {
       "allow_spawns": false,
-      "requires_claim_confirmation": true,
       "context": "This is a later-state promotion playtest. The authored participants already exist and no summon or spawn occurs. Place the claimed Master at the_masters_screen and show the operational lobby management view. Renna Holt, Mara Venn, Castor, and Iselle are already present in niflheim_lobby. The immediate choices are promotion and synthesis; do not replay the tutorial, first summon, or opening wave."
     },
     "knowledge_tiers": [

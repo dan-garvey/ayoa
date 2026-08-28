@@ -287,7 +287,7 @@ async def test_live_feed_location_update_selects_fixed_stage_without_director(
     ]
     checkpoint.canonical_events = [selected, resolved]
 
-    projection = build_render_batch_projection_groups(
+    projections = build_render_batch_projection_groups(
         checkpoint=checkpoint,
         buffered_events_by_pov={
             "alice": [
@@ -306,7 +306,11 @@ async def test_live_feed_location_update_selects_fixed_stage_without_director(
         source_turn_index=1,
         actor_ids_by_event_id={"evt_resolved": "renna"},
         active_location_labels={"promotion_chamber"},
-    )[0]
+    )
+
+    projection = next(
+        item for item in projections if item.event_id == "evt_resolved"
+    )
 
     assert projection.engine_location_label == "promotion_chamber"
     assert projection.has_location_reference is True

@@ -653,77 +653,6 @@ class _VisualNovelMoreView(discord.ui.View):
         await self.handler(interaction, action)
 
 
-class _BeginConfirmationView(discord.ui.View):
-    def __init__(
-        self,
-        *,
-        user_id: int,
-        confirm_handler: Callable[[discord.Interaction], Awaitable[bool]],
-        welcome_message: object | None,
-        deck_id: str,
-        session_channel_id: int,
-        index: int,
-    ) -> None:
-        super().__init__(timeout=120)
-        self.user_id = int(user_id)
-        self.confirm_handler = confirm_handler
-        self.welcome_message = welcome_message
-        self.deck_id = deck_id
-        self.session_channel_id = int(session_channel_id)
-        self.index = int(index)
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id == self.user_id:
-            return True
-        await interaction.response.send_message(
-            "This opening confirmation belongs to another player.",
-            ephemeral=True,
-        )
-        return False
-
-    @discord.ui.button(label="Begin now", style=discord.ButtonStyle.success)
-    async def confirm(
-        self,
-        interaction: discord.Interaction,
-        _button: discord.ui.Button,
-    ) -> None:
-        self.stop()
-        completed = await self.confirm_handler(interaction)
-        if not completed or self.welcome_message is None:
-            return
-        runtime = _runtime_actions(interaction)
-        if runtime is None:
-            return
-        try:
-            deck = runtime.engine.load_visual_novel_deck(self.deck_id)
-            if deck is not None:
-                await self.welcome_message.edit(
-                    view=_VisualNovelView(
-                        deck_id=self.deck_id,
-                        session_channel_id=self.session_channel_id,
-                        user_id=0,
-                        index=self.index,
-                        count=len(deck.cards),
-                        scope="n",
-                    )
-                )
-        except Exception:
-            logger.exception("failed to retire confirmed onboarding controls")
-
-    @discord.ui.button(label="Wait", style=discord.ButtonStyle.secondary)
-    async def cancel(
-        self,
-        interaction: discord.Interaction,
-        _button: discord.ui.Button,
-    ) -> None:
-        self.stop()
-        await interaction.response.edit_message(
-            content="Opening postponed. Join any remaining players, then press Begin.",
-            embed=None,
-            view=None,
-        )
-
-
 def _visual_novel_discord_file(deck, index: int) -> discord.File:
     card = deck.cards[index]
     return discord.File(
@@ -6336,7 +6265,6 @@ def register(
 
     async def _run_begin_interaction(
         inter: discord.Interaction,
-        confirm: bool = False,
         *,
         onboarding_deck_id: str = "",
         onboarding_index: int = 0,
@@ -6367,49 +6295,6 @@ def register(
             await inter.response.send_message(
                 "You aren't bound to a character. `/join` first, then "
                 "`/begin` will open the story.",
-                ephemeral=True,
-            )
-            return False
-
-        try:
-            lobby = engine.opening_lobby(row.session_id)
-        except Exception as e:
-            logger.exception("/begin opening lobby lookup failed")
-            await inter.response.send_message(
-                embed=render_error(f"`{type(e).__name__}: {e}`"),
-                ephemeral=True,
-            )
-            return False
-        if lobby.requires_confirmation and not confirm:
-            claimed = ", ".join(lobby.claimed_seat_names) or "none"
-            open_seats = ", ".join(lobby.open_seat_names) or "none"
-            session_channel_id = _session_channel_id(inter)
-
-            async def _confirm(click_inter: discord.Interaction) -> bool:
-                return await _run_begin_interaction(
-                    _SessionInteractionProxy(click_inter, session_channel_id),
-                    True,
-                    onboarding_deck_id=onboarding_deck_id,
-                    onboarding_index=onboarding_index,
-                    welcome_message=welcome_message,
-                )
-
-            await inter.response.send_message(
-                embed=render_info(
-                    "Confirm the opening lobby",
-                    f"**Claimed:** {claimed}\n"
-                    f"**Still open:** {open_seats}\n\n"
-                    "The opening branches from this exact set of claims. "
-                    "Begin now only if every intended player has joined.",
-                ),
-                view=_BeginConfirmationView(
-                    user_id=inter.user.id,
-                    confirm_handler=_confirm,
-                    welcome_message=welcome_message,
-                    deck_id=onboarding_deck_id,
-                    session_channel_id=session_channel_id,
-                    index=onboarding_index,
-                ),
                 ephemeral=True,
             )
             return False
@@ -6450,6 +6335,23 @@ def register(
         # player's render for the actor path; fan the rest out via
         # the standard per-POV helper.
         per_player = response.per_player_renders or {}
+
+        if welcome_message is not None and onboarding_deck_id:
+            try:
+                deck = engine.load_visual_novel_deck(onboarding_deck_id)
+                if deck is not None:
+                    await welcome_message.edit(
+                        view=_VisualNovelView(
+                            deck_id=onboarding_deck_id,
+                            session_channel_id=_session_channel_id(inter),
+                            user_id=0,
+                            index=onboarding_index,
+                            count=len(deck.cards),
+                            scope="n",
+                        )
+                    )
+            except Exception:
+                logger.exception("failed to retire completed onboarding controls")
 
         # Triggering character is either /begin'd by a bound player
         # or by an admin who isn't bound. Bound case: route to their
@@ -6553,13 +6455,8 @@ def register(
         description="Open the story for everyone in the lobby.",
         guild=guild,
     )
-    @app_commands.describe(
-        confirm=(
-            "Confirm that every intended player has claimed a seat and open the story."
-        ),
-    )
-    async def _begin(inter: discord.Interaction, confirm: bool = False):
-        await _run_begin_interaction(inter, confirm)
+    async def _begin(inter: discord.Interaction):
+        await _run_begin_interaction(inter)
 
     # ---- /leave -------------------------------------------------------------
 
@@ -8473,7 +8370,6 @@ def register(
         if action == "begin":
             return await _run_begin_interaction(
                 resolved_inter,
-                False,
                 onboarding_deck_id=deck_id,
                 onboarding_index=page_index,
                 welcome_message=inter.message,

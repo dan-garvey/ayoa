@@ -153,6 +153,47 @@ def _assert_visual_novel_sprite_cues(
                 )
 
 
+def _repair_visual_novel_sprite_cues(
+    result: VisualNovelNarratorOutput,
+    *,
+    allowed_labels_by_beat: tuple[tuple[str, ...], ...],
+) -> VisualNovelNarratorOutput:
+    """Deterministically constrain presentation-only cues after one retry.
+
+    The narrator owns page prose and foreground preference. The engine owns
+    which resolved sprites are actually available for each canonical event.
+    Filtering an unavailable cue, or placing an available dialogue speaker
+    first, cannot change story truth and prevents a presentation mistake from
+    aborting an otherwise valid committed turn.
+    """
+
+    repaired = result.model_copy(deep=True)
+    if repaired.handoff == "continue" or len(repaired.beats) != len(
+        allowed_labels_by_beat
+    ):
+        return repaired
+    for beat, allowed_labels in zip(
+        repaired.beats,
+        allowed_labels_by_beat,
+        strict=True,
+    ):
+        allowed = set(allowed_labels)
+        for page in beat.pages:
+            available = list(dict.fromkeys(
+                label for label in page.sprites if label in allowed
+            ))
+            if page.kind == "dialogue":
+                if page.speaker in allowed:
+                    available = [
+                        page.speaker,
+                        *(label for label in available if label != page.speaker),
+                    ]
+                else:
+                    available = []
+            page.sprites = available[:2]
+    return repaired
+
+
 def _visual_novel_page_sprite_cues_are_valid(
     page: object,
     *,
@@ -532,49 +573,71 @@ async def compose_pov_render(
             handoff_policy=handoff_policy,
         )
         if isinstance(result, VisualNovelNarratorOutput):
-            try:
-                if rejected_result is not None:
-                    _assert_visual_novel_correction_preserves_contract(
-                        rejected_result,
-                        result,
-                        source_ids=roster_source_ids,
-                        allowed_sprite_labels_by_beat=sprite_labels_by_beat,
-                    )
-                _assert_visual_novel_output_is_player_safe(ckpt, result)
-                _assert_visual_novel_sprite_cues(
+            if rejected_result is not None:
+                _assert_visual_novel_correction_preserves_contract(
+                    rejected_result,
                     result,
-                    allowed_labels_by_beat=sprite_labels_by_beat,
+                    source_ids=roster_source_ids,
+                    allowed_sprite_labels_by_beat=sprite_labels_by_beat,
                 )
+            try:
+                _assert_visual_novel_output_is_player_safe(ckpt, result)
             except ValueError:
                 if attempt:
                     raise
-                rejected_result = result.model_copy(deep=True)
-                messages = [
-                    *messages,
-                    {
-                        "role": "assistant",
-                        "content": result.model_dump_json(),
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            "Return corrected JSON only. Keep the handoff, beat "
-                            "count, page counts, page kinds, and page order "
-                            "unchanged. Change "
-                            "only speaker or text fields that contain a source "
-                            "identifier, or a dialogue speaker and sprite cue "
-                            "list that do not use the exact supplied roster "
-                            "label with the current speaker first; "
-                            "preserve every other field exactly. Remove every "
-                            "source identifier. Do "
-                            "not transform one into a guessed proper name. Use "
-                            "an already established viewpoint-known name when "
-                            "the context supplies one; otherwise use a short "
-                            "visible description."
-                        ),
-                    },
-                ]
-                continue
+            else:
+                try:
+                    _assert_visual_novel_sprite_cues(
+                        result,
+                        allowed_labels_by_beat=sprite_labels_by_beat,
+                    )
+                except ValueError:
+                    if attempt:
+                        repaired = _repair_visual_novel_sprite_cues(
+                            result,
+                            allowed_labels_by_beat=sprite_labels_by_beat,
+                        )
+                        _assert_visual_novel_sprite_cues(
+                            repaired,
+                            allowed_labels_by_beat=sprite_labels_by_beat,
+                        )
+                        logger.warning(
+                            "visual-novel narrator sprite cues required "
+                            "deterministic normalization after correction"
+                        )
+                        result = repaired
+                        break
+                else:
+                    break
+            rejected_result = result.model_copy(deep=True)
+            messages = [
+                *messages,
+                {
+                    "role": "assistant",
+                    "content": result.model_dump_json(),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Return corrected JSON only. Keep the handoff, beat "
+                        "count, page counts, page kinds, and page order "
+                        "unchanged. Change only speaker or text fields that "
+                        "contain a source identifier, or speaker and sprites "
+                        "fields that violate a visible beat's supplied "
+                        "Available foreground characters list; preserve every "
+                        "other field exactly. Sprite labels never carry from "
+                        "one visible beat into another unless the later beat "
+                        "lists them again. Remove unavailable sprite labels. "
+                        "For rostered dialogue, use the exact supplied label "
+                        "as speaker and put it first in sprites. For an "
+                        "unrostered speaker, use a short established "
+                        "player-safe label and leave sprites empty. Remove "
+                        "every source identifier. Do not transform one into a "
+                        "guessed proper name."
+                    ),
+                },
+            ]
+            continue
         break
     assert result is not None
     if isinstance(result, NarratorFinalOutput):

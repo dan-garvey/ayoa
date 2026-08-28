@@ -560,7 +560,7 @@ def build_render_batch_projection_groups(
     active_identity_character_ids: Iterable[str] = (),
     active_location_labels: Iterable[str] = (),
 ) -> list[VisibleEventProjection]:
-    """Project a complete pending render and merge equivalent POV batches."""
+    """Project a pending render at the presentation mode's image granularity."""
     actor_ids = actor_ids_by_event_id or {}
     event_sequences = {
         entry.event_id: entry.event_sequence
@@ -604,7 +604,47 @@ def build_render_batch_projection_groups(
                 if viewer_id in eligible_viewer_ids:
                     parts_by_viewer_event[(viewer_id, event_id)] = projection
 
-    grouped: dict[str, VisibleEventProjection] = {}
+    presentation_mode = checkpoint.session.config.settings.presentation_mode
+    if presentation_mode == "visual_novel":
+        # Narrator output is segmented one-to-one with buffered canonical
+        # events. Keep director projections at that same granularity so every
+        # segment resolves the stage decision made for its own event.
+        grouped_vn: dict[tuple[str, str], VisibleEventProjection] = {}
+        for viewer_id, entries in buffered_events_by_pov.items():
+            if viewer_id not in eligible_viewer_ids:
+                continue
+            for entry in entries:
+                projection = parts_by_viewer_event.get(
+                    (viewer_id, entry.event_id)
+                )
+                if projection is None:
+                    continue
+                event_projection = VisibleEventProjection(
+                    **{
+                        **projection.__dict__,
+                        "viewer_character_ids": (viewer_id,),
+                        "presentation_mode": presentation_mode,
+                    }
+                )
+                key = (entry.event_id, event_projection.grouping_key())
+                prior = grouped_vn.get(key)
+                if prior is None:
+                    grouped_vn[key] = event_projection
+                    continue
+                grouped_vn[key] = VisibleEventProjection(
+                    **{
+                        **prior.__dict__,
+                        "viewer_character_ids": tuple(dict.fromkeys((
+                            *prior.viewer_character_ids,
+                            viewer_id,
+                        ))),
+                    }
+                )
+        return list(grouped_vn.values())
+
+    # Prose has one illustration for the complete pending passage. Anchor it
+    # to the final scene while retaining all visible facts and characters.
+    grouped_prose: dict[str, VisibleEventProjection] = {}
     perception_rank = {"direct": 0, "indirect": 1, "inferred": 2}
     for viewer_id, entries in buffered_events_by_pov.items():
         if viewer_id not in eligible_viewer_ids:
@@ -622,9 +662,7 @@ def build_render_batch_projection_groups(
         if not parts:
             continue
         start_s = min(part.effective_at_s for part in parts)
-        end_s = max(
-            part.effective_at_s + part.duration_s for part in parts
-        )
+        end_s = max(part.effective_at_s + part.duration_s for part in parts)
         facts = tuple(
             (
                 text,
@@ -653,21 +691,16 @@ def build_render_batch_projection_groups(
                 "duration_s": max(0, end_s - start_s),
                 "visible_facts": facts,
                 "characters": tuple(characters.values()),
-                # One VN plate depicts the final/current scene in the batch.
-                # Earlier location guides cannot be selected against the
-                # anchor's engine-owned location binding.
                 "reference_options": anchor.reference_options,
-                "presentation_mode": (
-                    checkpoint.session.config.settings.presentation_mode
-                ),
+                "presentation_mode": presentation_mode,
             }
         )
         key = projection.grouping_key()
-        prior = grouped.get(key)
+        prior = grouped_prose.get(key)
         if prior is None:
-            grouped[key] = projection
+            grouped_prose[key] = projection
             continue
-        grouped[key] = VisibleEventProjection(
+        grouped_prose[key] = VisibleEventProjection(
             **{
                 **prior.__dict__,
                 "viewer_character_ids": tuple(dict.fromkeys((
@@ -676,7 +709,7 @@ def build_render_batch_projection_groups(
                 ))),
             }
         )
-    return list(grouped.values())
+    return list(grouped_prose.values())
 
 
 class ImageDirector:

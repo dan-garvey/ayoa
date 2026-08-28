@@ -832,10 +832,6 @@ class OpeningPolicy(BaseModel):
     """
 
     allow_spawns: bool = False
-    # Some stories branch their first event from the complete set of claimed
-    # seats. Frontends must ask for an explicit ready confirmation before
-    # starting those stories so an early /begin cannot silently omit a player.
-    requires_claim_confirmation: bool = False
     context: str = ""
 
     @model_validator(mode="after")
