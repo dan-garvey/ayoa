@@ -385,6 +385,18 @@ def test_playtest_seed_is_a_valid_visual_novel_story_copy() -> None:
     assert account.state.resources.materials == {
         "lesser_promotion_stone": 3,
     }
+    promotion_reference = next(
+        reference
+        for reference in checkpoint.reviewed_visual_references
+        if reference.reference_id == "osa_loc_1f_promotion_v1"
+    )
+    assert checkpoint.location_visual_reference_ids[
+        "niflheim_promotion_chamber"
+    ] == [promotion_reference.reference_id]
+    assert promotion_reference.fixed_stage is True
+    assert promotion_reference.sha256 == (
+        "c73621400a8d9c960a38391816c3fe16f57d5e04fb00e4bc2968d7fdeb07512a"
+    )
 
     expected = {
         "renna_holt": (1, 10, 4_500, False),

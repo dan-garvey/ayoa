@@ -543,6 +543,7 @@ def test_reviewed_lobby_backgrounds_bind_only_current_1f_scenes() -> None:
             "osa_loc_1f_crack_lobby_v1",
         ],
         "niflheim_synthesis_chamber": ["osa_loc_1f_synthesis_v1"],
+        "niflheim_promotion_chamber": ["osa_loc_1f_promotion_v1"],
         "niflheim_crack_of_space_and_time": [
             "osa_loc_1f_crack_facility_v1"
         ],
@@ -566,11 +567,19 @@ def test_reviewed_lobby_backgrounds_bind_only_current_1f_scenes() -> None:
             assert reference.scope_id == label
             assert reference.purpose == "environment"
             assert reference.diffusion_authorized is True
-    assert references["osa_loc_1f_synthesis_v1"].fixed_stage is True
+    assert {
+        reference_id
+        for reference_id, reference in references.items()
+        if reference.fixed_stage
+    } == {
+        "osa_loc_1f_synthesis_v1",
+        "osa_loc_1f_promotion_v1",
+    }
     assert all(
         not reference.fixed_stage
         for reference_id, reference in references.items()
-        if reference_id != "osa_loc_1f_synthesis_v1"
+        if reference_id
+        not in {"osa_loc_1f_synthesis_v1", "osa_loc_1f_promotion_v1"}
     )
 
 

@@ -201,10 +201,10 @@
       }
     ]
   },
-  "generation_1f_promotion_chamber_candidate": {
+  "generation_1f_promotion_chamber": {
     "tier": "1F",
     "scene": "promotion_chamber",
-    "status": "unbound_pending_human_approval",
+    "status": "approved_and_bound",
     "mode": "built-in image_gen",
     "model_identifier": null,
     "model_identifier_note": "The built-in service does not expose a model identifier.",
@@ -213,7 +213,7 @@
     "prompt_conflict_audit": "prompt_conflict_audit_1f_promotion_chamber.md",
     "postprocess": "Center-crop only from 1672x941 to exact 16:9 1664x936 using [4, 2, 1668, 938); no resampling.",
     "output": {
-      "id": "1F-E-candidate",
+      "id": "1F-E",
       "file": "backgrounds/1f/lobby_1f_promotion_chamber_candidate_v1.png",
       "dimensions": [1664, 936],
       "sha256": "c73621400a8d9c960a38391816c3fe16f57d5e04fb00e4bc2968d7fdeb07512a",
@@ -223,7 +223,13 @@
       "raw_file": "generation_raw/1f/builtin_1f_promotion_chamber_candidate_v1_raw.png",
       "raw_dimensions": [1672, 941],
       "raw_sha256": "0cab4a30bc1a062108e36c2a9ac8f61d6d5360d3c7013158962b6c210d440c8d",
-      "manual_review": "Candidate pass: character-free, creature-free, text-free, symbol-free, no UI, logo, or watermark; simple maintained plaster/timber/stone facility with one shallow rear platform under restrained pearly light and broad staging foreground. Not approved or bound."
+      "manual_review": "Human-approved exact pixels: character-free, creature-free, text-free, symbol-free, no UI, logo, or watermark; simple maintained plaster/timber/stone facility with one shallow rear platform under restrained pearly light and broad staging foreground.",
+      "production_binding": {
+        "reference_id": "osa_loc_1f_promotion_v1",
+        "scope_id": "niflheim_promotion_chamber",
+        "fixed_stage": true,
+        "story_storage_ref": "locations/niflheim/lobby_1f_promotion_chamber_v1.png"
+      }
     }
   },
   "screening_evidence": {

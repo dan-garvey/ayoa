@@ -2911,6 +2911,21 @@
       "fixed_stage": true
     },
     {
+      "reference_id": "osa_loc_1f_promotion_v1",
+      "storage_ref": "locations/niflheim/lobby_1f_promotion_chamber_v1.png",
+      "mime_type": "image/png",
+      "width": 1664,
+      "height": 936,
+      "byte_count": 1620509,
+      "sha256": "c73621400a8d9c960a38391816c3fe16f57d5e04fb00e4bc2968d7fdeb07512a",
+      "purpose": "environment",
+      "scope": "location",
+      "scope_id": "niflheim_promotion_chamber",
+      "selection_hint": "Promotion Chamber interior: use only when visible facts directly place the scene inside or at the threshold of the operational chamber with its shallow rear dais and restrained pearly transformation light.",
+      "diffusion_authorized": true,
+      "fixed_stage": true
+    },
+    {
       "reference_id": "osa_loc_1f_crack_facility_v1",
       "storage_ref": "locations/niflheim/lobby_1f_crack_of_space_and_time_v1.png",
       "mime_type": "image/png",
@@ -4641,6 +4656,9 @@
     ],
     "niflheim_synthesis_chamber": [
       "osa_loc_1f_synthesis_v1"
+    ],
+    "niflheim_promotion_chamber": [
+      "osa_loc_1f_promotion_v1"
     ],
     "niflheim_crack_of_space_and_time": [
       "osa_loc_1f_crack_facility_v1"
