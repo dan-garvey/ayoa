@@ -17,6 +17,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -30,8 +31,10 @@ from app.bot.engine_bridge import EngineBridge, _narrator_history_message_text
 from app.engine.frontend_views import (
     CharacterSummary,
     OpeningLobbyView,
+    PreparedStoryOnboarding,
     PlayerJoinResult,
     RetryRenderResult,
+    StoryOnboardingChoiceView,
 )
 from app.engine.image_job_store import VisualNovelStageResolution
 from app.engine.player_media import ResolvedPlayerMedia
@@ -249,6 +252,99 @@ def _visual_novel_stage_media(
 
 
 class TestEngineBridgeVisualNovelPresentation:
+    def test_story_onboarding_uses_only_frozen_authored_stage_and_sprites(
+        self,
+        mock_bridge: EngineBridge,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        checkpoint_path = (
+            Path(__file__).resolve().parent.parent
+            / "app"
+            / "storage"
+            / "stories"
+            / "one_star_ascension_s1"
+            / "ckpt_0000.json"
+        )
+        checkpoint = CheckpointFile.model_validate_json(
+            checkpoint_path.read_text(encoding="utf-8")
+        )
+        mock_bridge.load_latest = MagicMock(return_value=checkpoint)
+        frozen_stage = object()
+        mock_bridge.image_generation.store.reviewed_reference = MagicMock(
+            return_value=frozen_stage
+        )
+        stage_media = _visual_novel_stage_media((87, 123, 211))
+        stage_resolver = MagicMock(return_value=stage_media)
+        placement_resolver = MagicMock(
+            side_effect=(
+                ("iselle-happy-left",),
+                ("iselle-neutral-left",),
+                ("iselle-happy-left",),
+            )
+        )
+        monkeypatch.setattr(
+            "app.bot.engine_bridge.resolve_frozen_visual_reference_media",
+            stage_resolver,
+        )
+        monkeypatch.setattr(
+            "app.bot.engine_bridge.resolve_visual_novel_sprite_placements",
+            placement_resolver,
+        )
+        rendered = object()
+        mock_bridge.visual_novel_renderer.render_deck = MagicMock(
+            return_value=rendered
+        )
+        mock_bridge.image_generation.ensure_visual_novel_sprite_prewarm = AsyncMock()
+
+        prepared = asyncio.run(
+            mock_bridge.prepare_story_onboarding_deck("one-star-live")
+        )
+
+        assert prepared is not None
+        assert prepared.deck is rendered
+        assert [choice.label for choice in prepared.join_choices] == [
+            "Join as Master",
+            "Join as Newcomer",
+        ]
+        assert [choice.character_id for choice in prepared.join_choices] == [
+            "the_master",
+            "one_star_newcomer",
+        ]
+        assert [choice.player_authored for choice in prepared.join_choices] == [
+            False,
+            True,
+        ]
+        onboarding = checkpoint.visual_novel_onboarding
+        assert onboarding is not None
+        mock_bridge.image_generation.store.reviewed_reference.assert_called_once_with(
+            session_id="one-star-live",
+            reference_id=onboarding.stage_reference_id,
+        )
+        stage_resolver.assert_called_once_with(
+            frozen_stage,
+            runtime_root=mock_bridge.image_generation.config.runtime_root,
+        )
+        assert [
+            call.kwargs["variant_keys_by_label"]
+            for call in placement_resolver.call_args_list
+        ] == [
+            {"Iselle": "happy"},
+            {"Iselle": "neutral"},
+            {"Iselle": "happy"},
+        ]
+        assert all(
+            call.kwargs["viewer_character_id"] == ""
+            for call in placement_resolver.call_args_list
+        )
+        sections = mock_bridge.visual_novel_renderer.render_deck.call_args.args[0]
+        assert [section.stage_media for section in sections] == [stage_media] * 3
+        assert [section.sprite_placements for section in sections] == [
+            ("iselle-happy-left",),
+            ("iselle-neutral-left",),
+            ("iselle-happy-left",),
+        ]
+        mock_bridge.image_generation.ensure_visual_novel_sprite_prewarm.assert_not_awaited()
+
     def test_segments_resolve_stages_when_optional_sprite_prewarm_fails(
         self,
         mock_bridge: EngineBridge,
@@ -2663,9 +2759,11 @@ class TestVisualNovelDiscordDeck:
         deck = self._deck(tmp_path)
         view = bot_commands._VisualNovelView(
             deck_id=deck.deck_id,
+            session_channel_id=777,
             user_id=42,
             index=0,
             count=len(deck.cards),
+            scope="n",
         )
 
         assert view.timeout is None
@@ -2682,14 +2780,306 @@ class TestVisualNovelDiscordDeck:
             custom_id = control.item.custom_id
             assert custom_id is not None
             assert len(custom_id) <= 100
-            assert custom_id.startswith(f"avn:{deck.deck_id}:42:0:")
+            match = re.fullmatch(bot_commands._VISUAL_NOVEL_CUSTOM_ID_RE, custom_id)
+            assert match is not None
+            assert bot_commands._deck_id_from_token(match["deck"]) == deck.deck_id
+            assert int(match["session"], 36) == 777
+            assert int(match["user"], 36) == 42
+            assert int(match["index"], 36) == 0
+            assert match["scope"] == "n"
+
+    def test_onboarding_and_gameplay_views_expose_button_first_controls(
+        self,
+        tmp_path: Path,
+    ):
+        deck = self._deck(tmp_path)
+        choices = (
+            StoryOnboardingChoiceView(
+                label="Join as Master",
+                character_id="the_master",
+                character_name="Master",
+                player_authored=False,
+            ),
+            StoryOnboardingChoiceView(
+                label="Join as Newcomer",
+                character_id="one_star_newcomer",
+                character_name="Newcomer",
+                player_authored=True,
+            ),
+        )
+
+        onboarding = bot_commands._VisualNovelView(
+            deck_id=deck.deck_id,
+            session_channel_id=777,
+            user_id=0,
+            index=0,
+            count=len(deck.cards),
+            scope="o",
+            onboarding_choices=choices,
+        )
+        assert [child.item.label for child in onboarding.children] == [
+            "Previous",
+            "Next",
+            "Transcript",
+            "Join as Master",
+            "Join as Newcomer",
+            "Begin",
+        ]
+        onboarding_actions = [
+            child
+            for child in onboarding.children
+            if isinstance(child, bot_commands._VisualNovelOnboardingControl)
+        ]
+        assert [child.choice_index for child in onboarding_actions] == [0, 1, None]
+        assert all(
+            len(child.item.custom_id or "") <= 100
+            for child in onboarding_actions
+        )
+
+        gameplay = bot_commands._VisualNovelView(
+            deck_id=deck.deck_id,
+            session_channel_id=777,
+            user_id=42,
+            index=1,
+            count=len(deck.cards),
+            scope="g",
+        )
+        assert [child.item.label for child in gameplay.children] == [
+            "Previous",
+            "Next",
+            "Transcript",
+            "Act",
+            "Defer",
+            "More…",
+        ]
+        assert all(
+            len(child.item.custom_id or "") <= 100
+            for child in gameplay.children
+        )
+
+    def test_public_onboarding_navigation_is_not_owned_by_story_starter(
+        self,
+        tmp_path: Path,
+    ):
+        deck = self._deck(tmp_path)
+        control = bot_commands._VisualNovelControl(
+            deck_id=deck.deck_id,
+            session_channel_id=777,
+            user_id=0,
+            index=0,
+            scope="o",
+            action="n",
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=91),
+            response=SimpleNamespace(send_message=AsyncMock()),
+        )
+
+        assert asyncio.run(control.interaction_check(interaction)) is True
+        interaction.response.send_message.assert_not_awaited()
+
+    def test_story_start_posts_authored_onboarding_deck_publicly(
+        self,
+        tmp_path: Path,
+    ):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+                self.groups = {}
+                self.client = SimpleNamespace(add_dynamic_items=MagicMock())
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, group, **_kwargs):
+                self.groups[group.name] = group
+
+        deck = self._deck(tmp_path)
+        choices = (
+            StoryOnboardingChoiceView(
+                label="Join as Master",
+                character_id="the_master",
+                character_name="Master",
+                player_authored=False,
+            ),
+            StoryOnboardingChoiceView(
+                label="Join as Newcomer",
+                character_id="one_star_newcomer",
+                character_name="Newcomer",
+                player_authored=True,
+            ),
+        )
+        prepared = PreparedStoryOnboarding(deck=deck, join_choices=choices)
+        checkpoint = CheckpointFile(
+            session=SessionState(
+                session_id="session",
+                story_id="one_star_ascension_s1",
+            ),
+            world_state=WorldState(),
+        )
+        engine = MagicMock()
+        engine.list_story_ids.return_value = ["one_star_ascension_s1"]
+        engine.load_story_into_session.return_value = checkpoint
+        engine.prepare_story_onboarding_deck = AsyncMock(return_value=prepared)
+        smap = MagicMock()
+        smap.get = AsyncMock(return_value=SimpleNamespace(
+            session_id="session",
+            story_id="",
+            owner_user_id=42,
+        ))
+        smap.upsert = AsyncMock()
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+        command = tree.groups["story"].get_command("start")
+        assert command is not None
+        interaction = SimpleNamespace(
+            channel=object(),
+            channel_id=777,
+            guild_id=11,
+            user=SimpleNamespace(id=42),
+            client=tree.client,
+            response=SimpleNamespace(
+                defer=AsyncMock(),
+                send_message=AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=AsyncMock()),
+        )
+
+        asyncio.run(command.callback(interaction, "one_star_ascension_s1"))
+
+        interaction.response.defer.assert_awaited_once_with(thinking=True)
+        engine.load_story_into_session.assert_called_once_with(
+            "session",
+            "one_star_ascension_s1",
+        )
+        engine.prepare_story_onboarding_deck.assert_awaited_once_with("session")
+        smap.upsert.assert_awaited_once_with(
+            channel_id=777,
+            guild_id=11,
+            session_id="session",
+            owner_user_id=42,
+            story_id="one_star_ascension_s1",
+        )
+        interaction.followup.send.assert_awaited_once()
+        kwargs = interaction.followup.send.await_args.kwargs
+        assert "Choose a viewpoint" in kwargs["content"]
+        assert isinstance(kwargs["view"], bot_commands._VisualNovelView)
+        assert [child.item.label for child in kwargs["view"].children][-3:] == [
+            "Join as Master",
+            "Join as Newcomer",
+            "Begin",
+        ]
+        assert kwargs["file"].description.startswith(
+            "Visual novel story page 1 of 2."
+        )
+        kwargs["file"].close()
+        tree.client.add_dynamic_items.assert_called_once_with(
+            bot_commands._VisualNovelControl,
+            bot_commands._VisualNovelGameplayControl,
+            bot_commands._VisualNovelOnboardingControl,
+        )
+
+        seed_path = (
+            Path(__file__).resolve().parent.parent
+            / "app"
+            / "storage"
+            / "stories"
+            / "one_star_ascension_s1"
+            / "ckpt_0000.json"
+        )
+        live_checkpoint = CheckpointFile.model_validate_json(
+            seed_path.read_text(encoding="utf-8")
+        )
+        live_checkpoint.session.session_id = "session"
+        engine.load_latest.return_value = live_checkpoint
+        engine.get_user_binding.return_value = None
+        smap.get.return_value = SimpleNamespace(
+            session_id="session",
+            story_id="one_star_ascension_s1",
+            owner_user_id=42,
+        )
+        engine.prepare_story_onboarding_deck.reset_mock()
+        engine.prepare_story_onboarding_deck.return_value = prepared
+        engine.join_player_character = AsyncMock(return_value=PlayerJoinResult(
+            character_id="the_master",
+            character_name="Master",
+            pre_play=True,
+        ))
+        join_interaction = SimpleNamespace(
+            channel=object(),
+            channel_id=777,
+            user=SimpleNamespace(id=91),
+            client=tree.client,
+            response=SimpleNamespace(
+                defer=AsyncMock(),
+                send_message=AsyncMock(),
+                send_modal=AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=AsyncMock()),
+            message=None,
+        )
+        runtime = tree.client._ayoa_visual_novel_actions
+
+        completed = asyncio.run(runtime.onboarding_action(
+            join_interaction,
+            777,
+            "join",
+            0,
+            deck.deck_id,
+            0,
+        ))
+
+        assert completed is False
+        engine.join_player_character.assert_awaited_once_with(
+            "session",
+            "the_master",
+            91,
+        )
+        join_interaction.response.defer.assert_awaited_once_with(thinking=True)
+        join_interaction.followup.send.assert_awaited_once()
+
+        engine.join_player_character.reset_mock()
+        newcomer_interaction = SimpleNamespace(
+            channel=object(),
+            channel_id=777,
+            user=SimpleNamespace(id=92),
+            client=tree.client,
+            response=SimpleNamespace(
+                defer=AsyncMock(),
+                send_message=AsyncMock(),
+                send_modal=AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=AsyncMock()),
+            message=None,
+        )
+        completed = asyncio.run(runtime.onboarding_action(
+            newcomer_interaction,
+            777,
+            "join",
+            1,
+            deck.deck_id,
+            0,
+        ))
+
+        assert completed is False
+        newcomer_interaction.response.send_modal.assert_awaited_once()
+        modal = newcomer_interaction.response.send_modal.await_args.args[0]
+        assert modal.name_in.required is True
+        assert modal.appearance_in.required is True
+        engine.join_player_character.assert_not_awaited()
 
     def test_restart_safe_controls_support_four_digit_card_indices(self):
         view = bot_commands._VisualNovelView(
             deck_id="a" * 64,
+            session_channel_id=777,
             user_id=42,
             index=1_000,
             count=1_002,
+            scope="n",
         )
 
         custom_ids = [
@@ -2698,16 +3088,21 @@ class TestVisualNovelDiscordDeck:
             if isinstance(child, bot_commands._VisualNovelControl)
         ]
         assert len(custom_ids) == 3
-        assert all(
-            custom_id.startswith(f"avn:{'a' * 64}:42:1000:") for custom_id in custom_ids
-        )
+        matches = [
+            re.fullmatch(bot_commands._VISUAL_NOVEL_CUSTOM_ID_RE, custom_id)
+            for custom_id in custom_ids
+        ]
+        assert all(match is not None for match in matches)
+        assert all(int(match["index"], 36) == 1_000 for match in matches if match)
 
-    def test_restart_safe_view_uses_exact_discord_id_budget(self):
+    def test_restart_safe_view_stays_within_discord_id_budget(self):
         view = bot_commands._VisualNovelView(
             deck_id="f" * 64,
+            session_channel_id=9_223_372_036_854_775_807,
             user_id=99_999_999_999_999_999_999,
             index=bot_commands._VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX,
             count=bot_commands._VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX + 1,
+            scope="g",
         )
 
         custom_ids = [
@@ -2716,15 +3111,27 @@ class TestVisualNovelDiscordDeck:
             if isinstance(child, bot_commands._VisualNovelControl)
         ]
         assert len(custom_ids) == 3
-        assert all(len(custom_id) == 100 for custom_id in custom_ids)
+        assert all(len(custom_id) <= 100 for custom_id in custom_ids)
+        assert all(
+            bot_commands._deck_id_from_token(
+                re.fullmatch(
+                    bot_commands._VISUAL_NOVEL_CUSTOM_ID_RE,
+                    custom_id,
+                )["deck"]
+            )
+            == "f" * 64
+            for custom_id in custom_ids
+        )
 
     @pytest.mark.parametrize("index", (-1, 100_000_000))
     def test_restart_safe_control_rejects_unencodable_indices(self, index: int):
         with pytest.raises(ValueError, match="card index must be between"):
             bot_commands._VisualNovelControl(
                 deck_id="f" * 64,
+                session_channel_id=777,
                 user_id=42,
                 index=index,
+                scope="n",
                 action="n",
             )
 
@@ -2745,9 +3152,11 @@ class TestVisualNovelDiscordDeck:
         with pytest.raises(ValueError, match=message):
             bot_commands._VisualNovelView(
                 deck_id="f" * 64,
+                session_channel_id=777,
                 user_id=42,
                 index=index,
                 count=count,
+                scope="n",
             )
 
     def test_next_control_reloads_deck_and_edits_one_attachment(
@@ -2769,8 +3178,10 @@ class TestVisualNovelDiscordDeck:
         )
         control = bot_commands._VisualNovelControl(
             deck_id=deck.deck_id,
+            session_channel_id=777,
             user_id=42,
             index=0,
+            scope="n",
             action="n",
         )
 
@@ -2838,8 +3249,10 @@ class TestVisualNovelDiscordDeck:
         )
         control = bot_commands._VisualNovelControl(
             deck_id=deck.deck_id,
+            session_channel_id=777,
             user_id=42,
             index=0,
+            scope="n",
             action="n",
         )
 

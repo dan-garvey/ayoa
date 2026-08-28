@@ -47,6 +47,12 @@ from app.schemas.image_generation import (
     ImageGenerationStatus,
     ImageWorkerResult,
 )
+from app.schemas.narrator import VisualNovelPage
+from app.schemas.onboarding import (
+    VisualNovelOnboarding,
+    VisualNovelOnboardingJoinChoice,
+    VisualNovelOnboardingPage,
+)
 from app.schemas.event_router import LocationUpdateSignal
 from app.schemas.state import (
     RenderBufferEntry,
@@ -572,6 +578,47 @@ def test_reviewed_references_validate_freeze_and_detect_tampering(tmp_path):
             checkpoint,
             runtime_root=runtime_root,
         )
+
+
+def test_authored_onboarding_stage_is_frozen_without_location_selection(
+    tmp_path,
+):
+    story_dir = tmp_path / "story"
+    stage_path = story_dir / "visual-references" / "onboarding.png"
+    _write_png(stage_path, (42, 84, 126))
+    stage = _metadata(
+        stage_path,
+        reference_id="authored.onboarding.stage",
+        purpose="environment",
+        scope="location",
+        scope_id="welcome",
+    )
+    checkpoint = _checkpoint(references=[stage])
+    checkpoint = checkpoint.model_copy(update={
+        "visual_novel_onboarding": VisualNovelOnboarding(
+            stage_reference_id=stage.reference_id,
+            pages=[VisualNovelOnboardingPage(
+                page=VisualNovelPage(
+                    kind="narration",
+                    text="Welcome to the story.",
+                ),
+            )],
+            join_choices=[VisualNovelOnboardingJoinChoice(
+                label="Join as Alice",
+                character_id="alice",
+            )],
+        ),
+    })
+
+    frozen = freeze_story_visual_references(
+        checkpoint,
+        story_dir=story_dir,
+        runtime_root=tmp_path / "runtime",
+    )
+
+    assert list(frozen) == [stage.reference_id]
+    frozen_path = tmp_path / "runtime" / frozen[stage.reference_id].relative_path
+    assert frozen_path.read_bytes() == stage_path.read_bytes()
 
 
 def test_reviewed_reference_rejects_unsafe_relative_path(tmp_path):

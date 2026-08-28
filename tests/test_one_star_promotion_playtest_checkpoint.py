@@ -387,7 +387,8 @@ def test_playtest_seed_is_a_valid_visual_novel_story_copy() -> None:
     assert checkpoint.world_state.opening is not None
     assert checkpoint.world_state.opening.allow_spawns is False
     assert "sealed promotion" not in (checkpoint.session.config.narrative_rules.lower())
-    assert source.session.config.settings.presentation_mode == "prose"
+    assert source.session.config.settings.presentation_mode == "visual_novel"
+    assert source.visual_novel_onboarding is not None
 
     _source_owner, source_account = load_one_star_account(source)
     _owner, account = load_one_star_account(checkpoint)

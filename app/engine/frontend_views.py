@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.schemas.narrator import TranscriptEntry
 from app.schemas.responses import TurnResponse
+
+if TYPE_CHECKING:
+    from app.engine.visual_novel_presentation import VisualNovelDeck
 
 
 @dataclass(frozen=True)
@@ -81,6 +84,20 @@ class OpeningLobbyView:
     requires_confirmation: bool
     claimed_seat_names: tuple[str, ...]
     open_seat_names: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class StoryOnboardingChoiceView:
+    label: str
+    character_id: str
+    character_name: str
+    player_authored: bool
+
+
+@dataclass(frozen=True)
+class PreparedStoryOnboarding:
+    deck: "VisualNovelDeck"
+    join_choices: tuple[StoryOnboardingChoiceView, ...]
 
 
 @dataclass(frozen=True)

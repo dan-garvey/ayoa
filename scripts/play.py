@@ -1777,7 +1777,7 @@ class CLIState:
                     print(f"     {seat.player_guidance}")
         print()
 
-    def cmd_story_start(self, arg: str) -> None:
+    async def cmd_story_start(self, arg: str) -> None:
         story_ref = arg.strip()
         if not story_ref:
             print("usage: /story start <story_id|#>")
@@ -1795,11 +1795,18 @@ class CLIState:
             return
         try:
             self.engine.load_story_into_session(self.session_id, story_id)
+            onboarding = await self.engine.prepare_story_onboarding_deck(
+                self.session_id
+            )
         except (FileNotFoundError, FileExistsError) as e:
             print(f"error: {e}")
             return
         except Exception as e:
             logger.exception("load_story_into_session failed")
+            try:
+                self.engine.unload_story_from_session(self.session_id)
+            except Exception:
+                logger.exception("failed to roll back story after onboarding error")
             print(f"error: {type(e).__name__}: {e}")
             return
         self.story_id = story_id
@@ -1807,15 +1814,24 @@ class CLIState:
         self.current_actor = None
         self._load_existing_claims()
         print(f"loaded story `{story_id}` into session `{self.session_id}`")
-        summary = self.engine.story_summary(story_id)
-        print(f"# {summary.title}")
-        if summary.recommended_players:
-            print(f"Recommended: {summary.recommended_players}")
-        if summary.play_guidance:
-            print(summary.play_guidance)
-        if summary.player_primer:
-            print()
-            print(summary.player_primer)
+        if onboarding is not None:
+            await self._play_visual_novel_deck(
+                onboarding.deck,
+                character_id="story_onboarding",
+            )
+            print("\nChoose a viewpoint:")
+            for choice in onboarding.join_choices:
+                print(f"  {choice.label}: /join {choice.character_name}")
+        else:
+            summary = self.engine.story_summary(story_id)
+            print(f"# {summary.title}")
+            if summary.recommended_players:
+                print(f"Recommended: {summary.recommended_players}")
+            if summary.play_guidance:
+                print(summary.play_guidance)
+            if summary.player_primer:
+                print()
+                print(summary.player_primer)
         print("\nNext: /characters → /join <#> → /begin")
 
     def cmd_story_delete(self, arg: str) -> None:

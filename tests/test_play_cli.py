@@ -37,8 +37,10 @@ from app.engine.frontend_views import (
     DndSheetAttachmentSummary,
     OpeningLobbyView,
     PendingRollPrompt,
+    PreparedStoryOnboarding,
     PlayerJoinResult,
     SessionActivityView,
+    StoryOnboardingChoiceView,
     StorySummary,
     TurnHistoryEntry,
 )
@@ -294,6 +296,7 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
         engine.story_summary(story_id)
         for story_id in engine.list_story_ids.return_value
     ]
+    engine.prepare_story_onboarding_deck = AsyncMock(return_value=None)
     engine.turn_history.return_value = []
     engine.takeover = AsyncMock()
     engine.join_player_character = AsyncMock(side_effect=lambda *args, **kwargs: (
@@ -638,6 +641,46 @@ class TestNumberedSelectionRefs:
             "starfall",
         )
         assert state.story_id == "starfall"
+
+    def test_story_start_plays_authored_onboarding_before_join_choices(
+        self,
+        run,
+        capsys,
+    ):
+        engine = _mock_engine()
+        deck = object()
+        engine.prepare_story_onboarding_deck = AsyncMock(return_value=(
+            PreparedStoryOnboarding(
+                deck=deck,
+                join_choices=(
+                    StoryOnboardingChoiceView(
+                        label="Join as Master",
+                        character_id="the_master",
+                        character_name="Master",
+                        player_authored=False,
+                    ),
+                    StoryOnboardingChoiceView(
+                        label="Join as Newcomer",
+                        character_id="one_star_newcomer",
+                        character_name="Newcomer",
+                        player_authored=True,
+                    ),
+                ),
+            )
+        ))
+        state = CLIState(engine, SESSION_ID, "")
+        state._play_visual_novel_deck = AsyncMock()
+
+        run(state.handle_line(f"/story start {STORY_ID}"))
+
+        state._play_visual_novel_deck.assert_awaited_once_with(
+            deck,
+            character_id="story_onboarding",
+        )
+        output = capsys.readouterr().out
+        assert "Join as Master: /join Master" in output
+        assert "Join as Newcomer: /join Newcomer" in output
+        assert "Test briefing." not in output
 
     def test_story_info_accepts_number(self, run):
         engine = _mock_engine()

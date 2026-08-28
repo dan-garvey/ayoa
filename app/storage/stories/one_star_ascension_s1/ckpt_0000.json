@@ -28,7 +28,8 @@
         "cat_ii_human_timeout_seconds": 86400,
         "ruleset_id": "one_star_ascension",
         "player_roll_mode": "auto",
-        "content_manager_refresh_interval": 3
+        "content_manager_refresh_interval": 3,
+        "presentation_mode": "visual_novel"
       }
     },
     "active_act_slots": {},
@@ -42,6 +43,60 @@
     "pending_narrator_render": null
   },
   "player_primer": "Niflheim is being born around its first summon: a bare vertical lobby, an unseen novice Master, a cheerful System guide, and Floor 1 waiting beyond the deployment gate. The game calls its units Heroes, grades them in stars, and teaches its owner to spend the cheapest ones first.\n\nYou may enter from one of three very different seats. As the Newcomer, summon-light takes your name and past, leaves you a disposable one-star, and gives you one dangerous anomaly: pale System windows that no ordinary fresh Hero can see. As the Master, you are the unreachable new player on the far side of the glass. In the lobby you summon Heroes, build and upgrade facilities, manage scarce resources, and choose which floor to attempt with which roster and pre-deployment arrangement. Once the party crosses the gate, you mostly watch: the active interface feed carries the observed Heroes' actions and audible dialogue, but they choose how to survive the mission themselves. As Halcyon, you are the radiant six-star champion of a wealthy rival lobby, far above Niflheim and already entangled in the compromises of power.\n\nThese perspectives do not share knowledge, location, or leverage. The Newcomer survives by becoming worth keeping. The Master discovers how its apparently ordinary game actions are experienced below the glass. Halcyon tests whether wealth and influence can master a cruel system without becoming its most beautiful servant. Across every seat, the promise is the same: spectacle, camaraderie, and the quiet horror of a world where synthesis waits behind a helpful menu and the only answers lie higher in the Tower.",
+  "visual_novel_onboarding": {
+    "stage_reference_id": "osa_loc_1f_courtyard_v1",
+    "pages": [
+      {
+        "page": {
+          "kind": "dialogue",
+          "speaker": "Iselle",
+          "text": "Welcome! This is an interactive visual novel, but the choices are all yours. Instead of picking from preset dialogue, write anything you want your character to say or do.",
+          "sprites": [
+            "Iselle"
+          ]
+        },
+        "sprite_variant_keys_by_label": {
+          "Iselle": "happy"
+        }
+      },
+      {
+        "page": {
+          "kind": "dialogue",
+          "speaker": "Iselle",
+          "text": "Niflheim is a newborn lobby beneath the Tower. Its unseen Master summons Heroes, builds the refuge, and chooses who climbs; the Heroes decide for themselves how to survive.",
+          "sprites": [
+            "Iselle"
+          ]
+        },
+        "sprite_variant_keys_by_label": {
+          "Iselle": "neutral"
+        }
+      },
+      {
+        "page": {
+          "kind": "dialogue",
+          "speaker": "Iselle",
+          "text": "Choose your viewpoint: play the Master behind the interface, or the Newcomer awakening within the lobby.",
+          "sprites": [
+            "Iselle"
+          ]
+        },
+        "sprite_variant_keys_by_label": {
+          "Iselle": "happy"
+        }
+      }
+    ],
+    "join_choices": [
+      {
+        "label": "Join as Master",
+        "character_id": "the_master"
+      },
+      {
+        "label": "Join as Newcomer",
+        "character_id": "one_star_newcomer"
+      }
+    ]
+  },
   "world_state": {
     "facts": [
       "The Hundred-Floor Tower is a summon-RPG made real: Masters raise and deploy Heroes, and no one is known to have reached the top. This story begins at floor zero with a new Master, a nearly empty Niflheim lobby, the tutorial, first summons, and Floor 1 ahead.",

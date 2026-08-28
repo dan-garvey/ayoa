@@ -15,7 +15,12 @@ from app.schemas.conversation import ConversationMessage
 from app.schemas.content_privacy import should_include_private_runtime_metadata
 from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
 from app.schemas.one_star import OneStarEventRouterOutput
+from app.schemas.onboarding import VisualNovelOnboarding
 from app.schemas.state import SessionState, WorldState
+from app.schemas.narrator import (
+    visual_novel_pages_contain_source_identifiers,
+    visual_novel_text_contains_source_identifiers,
+)
 from app.schemas.visual_references import (
     ReviewedVisualNovelSpriteSet,
     ReviewedVisualReference,
@@ -45,6 +50,9 @@ class CheckpointFile(BaseModel):
     # and race-window problems of an authored opener; see commit log
     # for the rationale.
     player_primer: str = ""
+    # Optional deterministic, player-facing VN tutorial. Its opaque asset and
+    # roster handles are private runtime metadata and are never model input.
+    visual_novel_onboarding: VisualNovelOnboarding | None = None
     world_state: WorldState = Field(default_factory=WorldState)
     characters: list[CharacterRecord] = Field(default_factory=list)
     # Engine-only catalog of manually reviewed source images. The files remain
@@ -269,6 +277,82 @@ class CheckpointFile(BaseModel):
                     f"character {character.character_id!r} selects sprite set "
                     f"owned by {sprite_set.owner_character_id or 'presentation'}"
                 )
+
+        onboarding = self.visual_novel_onboarding
+        if onboarding is not None:
+            stage = references.get(onboarding.stage_reference_id)
+            if stage is None:
+                raise ValueError("visual-novel onboarding selects an unknown stage")
+            if not (
+                stage.scope == "location"
+                and stage.purpose == "environment"
+                and stage.diffusion_authorized
+            ):
+                raise ValueError(
+                    "visual-novel onboarding requires an authorized location stage"
+                )
+
+            active_labels: dict[str, list[CharacterRecord]] = {}
+            for character in self.characters:
+                if character.status.value == "culled":
+                    continue
+                label = " ".join((character.name or "").split()).strip()
+                if label:
+                    active_labels.setdefault(label, []).append(character)
+            pages = [authored.page for authored in onboarding.pages]
+            if visual_novel_pages_contain_source_identifiers(
+                pages,
+                source_ids=tuple(character_ids),
+            ):
+                raise ValueError(
+                    "visual-novel onboarding pages expose a source identifier"
+                )
+            for authored in onboarding.pages:
+                for label in authored.page.sprites:
+                    matches = active_labels.get(label, [])
+                    if len(matches) != 1:
+                        raise ValueError(
+                            "visual-novel onboarding sprite labels must resolve "
+                            "to exactly one active character"
+                        )
+                    character = matches[0]
+                    sprite_set = sprite_sets.get(character.visuals.sprite_set_id)
+                    if sprite_set is None:
+                        raise ValueError(
+                            "visual-novel onboarding characters require a "
+                            "reviewed sprite set"
+                        )
+                    variant_key = authored.sprite_variant_keys_by_label.get(
+                        label,
+                        "neutral",
+                    )
+                    if variant_key not in sprite_set.variant_reference_ids:
+                        raise ValueError(
+                            "visual-novel onboarding selects an unavailable "
+                            "sprite variant"
+                        )
+
+            characters_by_id = {
+                character.character_id: character
+                for character in self.characters
+            }
+            for choice in onboarding.join_choices:
+                target = characters_by_id.get(choice.character_id)
+                if (
+                    target is None
+                    or not target.is_playable
+                    or target.status.value == "culled"
+                ):
+                    raise ValueError(
+                        "visual-novel onboarding choices require playable seats"
+                    )
+                if visual_novel_text_contains_source_identifiers(
+                    choice.label,
+                    source_ids=tuple(character_ids),
+                ):
+                    raise ValueError(
+                        "visual-novel onboarding choice labels expose a source id"
+                    )
         return self
 
     @field_serializer("reviewed_visual_references")
@@ -300,3 +384,13 @@ class CheckpointFile(BaseModel):
         if should_include_private_runtime_metadata(info.context):
             return value
         return []
+
+    @field_serializer("visual_novel_onboarding")
+    def _serialize_visual_novel_onboarding(
+        self,
+        value: VisualNovelOnboarding | None,
+        info: SerializationInfo,
+    ) -> VisualNovelOnboarding | None:
+        if should_include_private_runtime_metadata(info.context):
+            return value
+        return None

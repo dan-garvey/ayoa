@@ -53,10 +53,12 @@ from app.engine.frontend_views import (
     DndSheetAttachmentSummary,
     PendingRollPrompt,
     OpeningLobbyView,
+    PreparedStoryOnboarding,
     PlayerJoinResult,
     RetryRenderResult,
     RewindResult,
     StorySummary,
+    StoryOnboardingChoiceView,
     SessionActivityView,
     TurnHistoryEntry,
 )
@@ -74,6 +76,7 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.reviewed_visual_references import (
     freeze_story_visual_references,
     load_frozen_visual_references,
+    resolve_frozen_visual_reference_media,
     validate_story_visual_references,
 )
 from app.engine.settings import (
@@ -490,6 +493,75 @@ class EngineBridge:
                     ),
                 ))
         return self.visual_novel_renderer.render_deck(sections)
+
+    async def prepare_story_onboarding_deck(
+        self,
+        session_id: str,
+    ) -> PreparedStoryOnboarding | None:
+        """Render a story-authored VN tutorial without any model calls."""
+
+        checkpoint = self.load_latest(session_id)
+        onboarding = checkpoint.visual_novel_onboarding
+        if (
+            onboarding is None
+            or checkpoint.session.config.settings.presentation_mode
+            != "visual_novel"
+        ):
+            return None
+
+        frozen_stage = self.image_generation.store.reviewed_reference(
+            session_id=session_id,
+            reference_id=onboarding.stage_reference_id,
+        )
+        if frozen_stage is None:
+            raise RuntimeError(
+                "The reviewed visual-novel onboarding stage is unavailable."
+            )
+        stage_media = resolve_frozen_visual_reference_media(
+            frozen_stage,
+            runtime_root=self.image_generation.config.runtime_root,
+        )
+
+        sections: list[VisualNovelDeckSection] = []
+        for authored in onboarding.pages:
+            placements = resolve_visual_novel_sprite_placements(
+                checkpoint=checkpoint,
+                viewer_character_id="",
+                page=authored.page,
+                generation=self.image_generation,
+                variant_keys_by_label=authored.sprite_variant_keys_by_label,
+            )
+            if len(placements) != len(authored.page.sprites):
+                raise RuntimeError(
+                    "A reviewed visual-novel onboarding sprite is unavailable."
+                )
+            sections.append(
+                VisualNovelDeckSection(
+                    pages=(authored.page,),
+                    stage_media=stage_media,
+                    sprite_placements=placements,
+                )
+            )
+
+        characters = {
+            character.character_id: character
+            for character in checkpoint.characters
+        }
+        choices = tuple(
+            StoryOnboardingChoiceView(
+                label=choice.label,
+                character_id=choice.character_id,
+                character_name=characters[choice.character_id].name,
+                player_authored=is_player_authored_slot(
+                    characters[choice.character_id]
+                ),
+            )
+            for choice in onboarding.join_choices
+        )
+        return PreparedStoryOnboarding(
+            deck=self.visual_novel_renderer.render_deck(sections),
+            join_choices=choices,
+        )
 
     def _previous_visual_novel_checkpoint(
         self,

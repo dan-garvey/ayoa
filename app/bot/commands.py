@@ -35,6 +35,7 @@ per-session lock so concurrent /act commands on the same channel serialize.
 from __future__ import annotations
 
 import asyncio
+import base64
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from io import BytesIO
@@ -96,13 +97,100 @@ from app.schemas.responses import DiceRollDisplay, TurnResponse
 logger = logging.getLogger(__name__)
 
 
+_BASE36_CUSTOM_ID_RE = r"[0-9a-z]{1,13}"
+_DECK_TOKEN_CUSTOM_ID_RE = r"[A-Za-z0-9_-]{43}"
 _VISUAL_NOVEL_CUSTOM_ID_RE = (
-    r"^avn:(?P<deck>[0-9a-f]{64}):(?P<user>[0-9]{1,20}):"
-    r"(?P<index>[0-9]{1,8}):(?P<action>[pnt])$"
+    rf"^avn:(?P<deck>{_DECK_TOKEN_CUSTOM_ID_RE}):"
+    rf"(?P<session>{_BASE36_CUSTOM_ID_RE}):"
+    rf"(?P<user>{_BASE36_CUSTOM_ID_RE}):"
+    r"(?P<index>[0-9a-z]{1,6}):(?P<scope>[gno]):(?P<action>[pnt])$"
+)
+_VISUAL_NOVEL_GAMEPLAY_CUSTOM_ID_RE = (
+    rf"^avg:(?P<session>{_BASE36_CUSTOM_ID_RE}):"
+    rf"(?P<user>{_BASE36_CUSTOM_ID_RE}):(?P<action>[adm])$"
+)
+_VISUAL_NOVEL_ONBOARDING_CUSTOM_ID_RE = (
+    rf"^avo:(?P<deck>{_DECK_TOKEN_CUSTOM_ID_RE}):"
+    rf"(?P<session>{_BASE36_CUSTOM_ID_RE}):"
+    r"(?P<index>[0-9a-z]{1,6}):"
+    r"(?P<action>b|j(?P<choice>[0-9a-z]{1,2}))$"
 )
 _VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX = 99_999_999
 _DISCORD_COMPONENT_CUSTOM_ID_MAX = 100
 _DISCORD_ATTACHMENT_DESCRIPTION_MAX = 1024
+
+
+def _base36(value: int) -> str:
+    number = int(value)
+    if number < 0:
+        raise ValueError("base36 values cannot be negative")
+    alphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
+    if number == 0:
+        return "0"
+    digits: list[str] = []
+    while number:
+        number, remainder = divmod(number, 36)
+        digits.append(alphabet[remainder])
+    return "".join(reversed(digits))
+
+
+def _from_base36(value: str) -> int:
+    return int(value, 36)
+
+
+def _deck_token(deck_id: str) -> str:
+    if re.fullmatch(r"[0-9a-f]{64}", deck_id) is None:
+        raise ValueError("visual-novel deck id must be a SHA-256 digest")
+    return base64.urlsafe_b64encode(bytes.fromhex(deck_id)).decode("ascii").rstrip("=")
+
+
+def _deck_id_from_token(token: str) -> str:
+    try:
+        raw = base64.urlsafe_b64decode(token + "=")
+    except Exception as exc:
+        raise ValueError("visual-novel deck token is invalid") from exc
+    if len(raw) != 32:
+        raise ValueError("visual-novel deck token has the wrong length")
+    return raw.hex()
+
+
+class _SessionInteractionProxy:
+    """Use the originating session channel for controls pressed in DMs."""
+
+    def __init__(self, interaction: discord.Interaction, session_channel_id: int):
+        self._interaction = interaction
+        self._ayoa_session_channel_id = int(session_channel_id)
+
+    @property
+    def channel(self):
+        getter = getattr(self._interaction.client, "get_channel", None)
+        resolved = (
+            getter(self._ayoa_session_channel_id)
+            if callable(getter)
+            else None
+        )
+        return resolved or self._interaction.channel
+
+    def __getattr__(self, name: str):
+        return getattr(self._interaction, name)
+
+
+@dataclass(frozen=True)
+class _VisualNovelRuntimeActions:
+    engine: EngineBridge
+    onboarding_choices: Callable[[int], Awaitable[Sequence[Any]]]
+    onboarding_action: Callable[
+        [discord.Interaction, int, str, int | None, str, int],
+        Awaitable[bool],
+    ]
+    gameplay_action: Callable[
+        [discord.Interaction, int, str],
+        Awaitable[None],
+    ]
+
+
+def _runtime_actions(interaction: discord.Interaction) -> _VisualNovelRuntimeActions | None:
+    return getattr(interaction.client, "_ayoa_visual_novel_actions", None)
 
 
 class _VisualNovelControl(
@@ -117,8 +205,10 @@ class _VisualNovelControl(
         self,
         *,
         deck_id: str,
+        session_channel_id: int,
         user_id: int,
         index: int,
+        scope: str,
         action: str,
         disabled: bool = False,
     ) -> None:
@@ -129,10 +219,22 @@ class _VisualNovelControl(
                 f"{_VISUAL_NOVEL_CUSTOM_ID_MAX_INDEX}"
             )
         self.deck_id = deck_id
+        self.session_channel_id = int(session_channel_id)
         self.user_id = int(user_id)
         self.index = page_index
+        if scope not in {"g", "n", "o"}:
+            raise ValueError("unknown visual-novel control scope")
+        self.scope = scope
         self.action = action
-        custom_id = f"avn:{deck_id}:{self.user_id}:{self.index}:{action}"
+        custom_id = ":".join((
+            "avn",
+            _deck_token(deck_id),
+            _base36(self.session_channel_id),
+            _base36(self.user_id),
+            _base36(self.index),
+            scope,
+            action,
+        ))
         if len(custom_id) > _DISCORD_COMPONENT_CUSTOM_ID_MAX:
             raise ValueError("visual-novel custom id exceeds Discord's limit")
         super().__init__(
@@ -145,6 +247,7 @@ class _VisualNovelControl(
                 ),
                 custom_id=custom_id,
                 disabled=disabled,
+                row=0,
             )
         )
 
@@ -152,14 +255,16 @@ class _VisualNovelControl(
     async def from_custom_id(cls, interaction, item, match):
         del interaction, item
         return cls(
-            deck_id=match["deck"],
-            user_id=int(match["user"]),
-            index=int(match["index"]),
+            deck_id=_deck_id_from_token(match["deck"]),
+            session_channel_id=_from_base36(match["session"]),
+            user_id=_from_base36(match["user"]),
+            index=_from_base36(match["index"]),
+            scope=match["scope"],
             action=match["action"],
         )
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id == self.user_id:
+        if self.user_id == 0 or interaction.user.id == self.user_id:
             return True
         await interaction.response.send_message(
             "These private story controls belong to another player.",
@@ -201,16 +306,190 @@ class _VisualNovelControl(
             return
         target = self.index + (-1 if self.action == "p" else 1)
         target = max(0, min(target, len(deck.cards) - 1))
+        onboarding_choices: Sequence[Any] = ()
+        if self.scope == "o":
+            runtime = _runtime_actions(interaction)
+            if runtime is None:
+                await interaction.response.send_message(
+                    "These story controls are unavailable after restart.",
+                    ephemeral=True,
+                )
+                return
+            try:
+                onboarding_choices = await runtime.onboarding_choices(
+                    self.session_channel_id
+                )
+            except Exception:
+                logger.exception("visual-novel onboarding controls failed to reload")
+                await interaction.response.send_message(
+                    "The story onboarding controls could not be restored.",
+                    ephemeral=True,
+                )
+                return
         file = _visual_novel_discord_file(deck, target)
         await interaction.response.edit_message(
             attachments=[file],
             view=_VisualNovelView(
                 deck_id=deck.deck_id,
+                session_channel_id=self.session_channel_id,
                 user_id=self.user_id,
                 index=target,
                 count=len(deck.cards),
+                scope=self.scope,
+                onboarding_choices=onboarding_choices,
             ),
         )
+
+
+class _VisualNovelGameplayControl(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=_VISUAL_NOVEL_GAMEPLAY_CUSTOM_ID_RE,
+):
+    _LABELS = {"a": "Act", "d": "Defer", "m": "More…"}
+
+    def __init__(self, *, session_channel_id: int, user_id: int, action: str) -> None:
+        self.session_channel_id = int(session_channel_id)
+        self.user_id = int(user_id)
+        self.action = action
+        custom_id = ":".join((
+            "avg",
+            _base36(self.session_channel_id),
+            _base36(self.user_id),
+            action,
+        ))
+        super().__init__(
+            discord.ui.Button(
+                label=self._LABELS[action],
+                style=(
+                    discord.ButtonStyle.primary
+                    if action == "a"
+                    else discord.ButtonStyle.secondary
+                ),
+                custom_id=custom_id,
+                row=1,
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        del interaction, item
+        return cls(
+            session_channel_id=_from_base36(match["session"]),
+            user_id=_from_base36(match["user"]),
+            action=match["action"],
+        )
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message(
+            "These private story controls belong to another player.",
+            ephemeral=True,
+        )
+        return False
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        runtime = _runtime_actions(interaction)
+        if runtime is None:
+            await interaction.response.send_message(
+                "These story controls are unavailable after restart.",
+                ephemeral=True,
+            )
+            return
+        await runtime.gameplay_action(
+            interaction,
+            self.session_channel_id,
+            self.action,
+        )
+
+
+class _VisualNovelOnboardingControl(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=_VISUAL_NOVEL_ONBOARDING_CUSTOM_ID_RE,
+):
+    def __init__(
+        self,
+        *,
+        deck_id: str,
+        session_channel_id: int,
+        index: int,
+        choice_index: int | None = None,
+        label: str = "",
+    ) -> None:
+        self.deck_id = deck_id
+        self.session_channel_id = int(session_channel_id)
+        self.index = int(index)
+        self.choice_index = choice_index
+        action = "b" if choice_index is None else f"j{_base36(choice_index)}"
+        custom_id = ":".join((
+            "avo",
+            _deck_token(deck_id),
+            _base36(self.session_channel_id),
+            _base36(self.index),
+            action,
+        ))
+        super().__init__(
+            discord.ui.Button(
+                label=label or ("Begin" if choice_index is None else "Join"),
+                style=(
+                    discord.ButtonStyle.success
+                    if choice_index is None
+                    else discord.ButtonStyle.primary
+                ),
+                custom_id=custom_id,
+                row=2 if choice_index is None else 1,
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        del interaction
+        raw_choice = match["choice"]
+        return cls(
+            deck_id=_deck_id_from_token(match["deck"]),
+            session_channel_id=_from_base36(match["session"]),
+            index=_from_base36(match["index"]),
+            choice_index=(
+                _from_base36(raw_choice)
+                if raw_choice is not None
+                else None
+            ),
+            label=str(getattr(item, "label", "") or ""),
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        runtime = _runtime_actions(interaction)
+        if runtime is None:
+            await interaction.response.send_message(
+                "These story controls are unavailable after restart.",
+                ephemeral=True,
+            )
+            return
+        completed = await runtime.onboarding_action(
+            interaction,
+            self.session_channel_id,
+            "begin" if self.choice_index is None else "join",
+            self.choice_index,
+            self.deck_id,
+            self.index,
+        )
+        if not completed or interaction.message is None:
+            return
+        try:
+            deck = runtime.engine.load_visual_novel_deck(self.deck_id)
+            if deck is not None:
+                await interaction.message.edit(
+                    view=_VisualNovelView(
+                        deck_id=self.deck_id,
+                        session_channel_id=self.session_channel_id,
+                        user_id=0,
+                        index=self.index,
+                        count=len(deck.cards),
+                        scope="n",
+                    )
+                )
+        except Exception:
+            logger.exception("failed to retire completed onboarding controls")
 
 
 class _VisualNovelView(discord.ui.View):
@@ -218,9 +497,12 @@ class _VisualNovelView(discord.ui.View):
         self,
         *,
         deck_id: str,
+        session_channel_id: int,
         user_id: int,
         index: int,
         count: int,
+        scope: str = "n",
+        onboarding_choices: Sequence[Any] = (),
     ) -> None:
         page_index = int(index)
         card_count = int(count)
@@ -235,8 +517,10 @@ class _VisualNovelView(discord.ui.View):
         self.add_item(
             _VisualNovelControl(
                 deck_id=deck_id,
+                session_channel_id=session_channel_id,
                 user_id=user_id,
                 index=page_index,
+                scope=scope,
                 action="p",
                 disabled=page_index <= 0,
             )
@@ -244,8 +528,10 @@ class _VisualNovelView(discord.ui.View):
         self.add_item(
             _VisualNovelControl(
                 deck_id=deck_id,
+                session_channel_id=session_channel_id,
                 user_id=user_id,
                 index=page_index,
+                scope=scope,
                 action="n",
                 disabled=page_index >= card_count - 1,
             )
@@ -253,10 +539,188 @@ class _VisualNovelView(discord.ui.View):
         self.add_item(
             _VisualNovelControl(
                 deck_id=deck_id,
+                session_channel_id=session_channel_id,
                 user_id=user_id,
                 index=page_index,
+                scope=scope,
                 action="t",
             )
+        )
+        if scope == "g":
+            for action in ("a", "d", "m"):
+                self.add_item(
+                    _VisualNovelGameplayControl(
+                        session_channel_id=session_channel_id,
+                        user_id=user_id,
+                        action=action,
+                    )
+                )
+        elif scope == "o" and onboarding_choices:
+            for choice_index, choice in enumerate(onboarding_choices):
+                self.add_item(
+                    _VisualNovelOnboardingControl(
+                        deck_id=deck_id,
+                        session_channel_id=session_channel_id,
+                        index=page_index,
+                        choice_index=choice_index,
+                        label=str(choice.label),
+                    )
+                )
+            self.add_item(
+                _VisualNovelOnboardingControl(
+                    deck_id=deck_id,
+                    session_channel_id=session_channel_id,
+                    index=page_index,
+                    label="Begin",
+                )
+            )
+
+
+class _VisualNovelMenuButton(discord.ui.Button):
+    def __init__(
+        self,
+        *,
+        action: str,
+        label: str,
+        row: int,
+        style: discord.ButtonStyle = discord.ButtonStyle.secondary,
+    ) -> None:
+        super().__init__(label=label, style=style, row=row)
+        self.action = action
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view = self.view
+        if not isinstance(view, _VisualNovelMoreView):
+            await interaction.response.send_message(
+                "This story menu is unavailable.",
+                ephemeral=True,
+            )
+            return
+        await view.dispatch(interaction, self.action)
+
+
+class _VisualNovelMoreView(discord.ui.View):
+    def __init__(
+        self,
+        *,
+        user_id: int,
+        handler: Callable[[discord.Interaction, str], Awaitable[None]],
+        include_master: bool,
+    ) -> None:
+        super().__init__(timeout=180)
+        self.user_id = int(user_id)
+        self.handler = handler
+        self.add_item(
+            _VisualNovelMenuButton(
+                action="query",
+                label="Query",
+                row=0,
+                style=discord.ButtonStyle.primary,
+            )
+        )
+        self.add_item(
+            _VisualNovelMenuButton(
+                action="status",
+                label="Story Status",
+                row=0,
+            )
+        )
+        if include_master:
+            for action, label in (
+                ("master_status", "Master Status"),
+                ("master_heroes", "Heroes"),
+                ("master_hero", "Hero Sheet"),
+                ("master_synthesis", "Synthesis"),
+            ):
+                self.add_item(
+                    _VisualNovelMenuButton(
+                        action=action,
+                        label=label,
+                        row=1,
+                    )
+                )
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message(
+            "This private story menu belongs to another player.",
+            ephemeral=True,
+        )
+        return False
+
+    async def dispatch(self, interaction: discord.Interaction, action: str) -> None:
+        await self.handler(interaction, action)
+
+
+class _BeginConfirmationView(discord.ui.View):
+    def __init__(
+        self,
+        *,
+        user_id: int,
+        confirm_handler: Callable[[discord.Interaction], Awaitable[bool]],
+        welcome_message: object | None,
+        deck_id: str,
+        session_channel_id: int,
+        index: int,
+    ) -> None:
+        super().__init__(timeout=120)
+        self.user_id = int(user_id)
+        self.confirm_handler = confirm_handler
+        self.welcome_message = welcome_message
+        self.deck_id = deck_id
+        self.session_channel_id = int(session_channel_id)
+        self.index = int(index)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message(
+            "This opening confirmation belongs to another player.",
+            ephemeral=True,
+        )
+        return False
+
+    @discord.ui.button(label="Begin now", style=discord.ButtonStyle.success)
+    async def confirm(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button,
+    ) -> None:
+        self.stop()
+        completed = await self.confirm_handler(interaction)
+        if not completed or self.welcome_message is None:
+            return
+        runtime = _runtime_actions(interaction)
+        if runtime is None:
+            return
+        try:
+            deck = runtime.engine.load_visual_novel_deck(self.deck_id)
+            if deck is not None:
+                await self.welcome_message.edit(
+                    view=_VisualNovelView(
+                        deck_id=self.deck_id,
+                        session_channel_id=self.session_channel_id,
+                        user_id=0,
+                        index=self.index,
+                        count=len(deck.cards),
+                        scope="n",
+                    )
+                )
+        except Exception:
+            logger.exception("failed to retire confirmed onboarding controls")
+
+    @discord.ui.button(label="Wait", style=discord.ButtonStyle.secondary)
+    async def cancel(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button,
+    ) -> None:
+        self.stop()
+        await interaction.response.edit_message(
+            content="Opening postponed. Join any remaining players, then press Begin.",
+            embed=None,
+            view=None,
         )
 
 
@@ -481,6 +945,9 @@ def _session_channel_id(inter: discord.Interaction) -> int:
     user run any session command from inside their POV thread and
     get the same routing they would from the main channel.
     """
+    override = getattr(inter, "_ayoa_session_channel_id", None)
+    if isinstance(override, int) and not isinstance(override, bool):
+        return override
     chan = inter.channel
     if isinstance(chan, discord.Thread) and chan.parent_id is not None:
         return chan.parent_id
@@ -1131,9 +1598,11 @@ async def _post_visual_novel_render(
     )
     view = _VisualNovelView(
         deck_id=deck.deck_id,
+        session_channel_id=_session_channel_id(inter),
         user_id=user.id,
         index=0,
         count=len(deck.cards),
+        scope="g",
     )
     channel = _session_text_channel(inter)
     thread: Optional[discord.Thread] = None
@@ -3857,9 +4326,14 @@ def register(
     client = getattr(tree, "client", None)
     if client is not None:
         setattr(client, "_ayoa_visual_novel_engine", engine)
+        setattr(client, "_ayoa_session_map", smap)
         add_dynamic_items = getattr(client, "add_dynamic_items", None)
         if callable(add_dynamic_items):
-            add_dynamic_items(_VisualNovelControl)
+            add_dynamic_items(
+                _VisualNovelControl,
+                _VisualNovelGameplayControl,
+                _VisualNovelOnboardingControl,
+            )
 
     async def _deliver_generated_image(
         job,
@@ -4252,6 +4726,24 @@ def register(
             await inter.followup.send(embed=render_error(f"`{type(e).__name__}: {e}`"))
             return
 
+        try:
+            onboarding = await engine.prepare_story_onboarding_deck(
+                row.session_id
+            )
+        except Exception as e:
+            logger.exception("prepare_story_onboarding_deck failed")
+            try:
+                engine.unload_story_from_session(row.session_id)
+            except Exception:
+                logger.exception("failed to roll back invalid story onboarding")
+            await inter.followup.send(
+                embed=render_error(
+                    "The story's reviewed introduction could not be rendered: "
+                    f"`{type(e).__name__}: {e}`"
+                )
+            )
+            return
+
         await smap.upsert(
             channel_id=_session_channel_id(inter),
             guild_id=inter.guild_id,
@@ -4260,12 +4752,33 @@ def register(
             story_id=story_id,
         )
 
+        if onboarding is not None:
+            await inter.followup.send(
+                content=(
+                    f"Loaded **{story_id}** into session `{row.session_id}`. "
+                    "Choose a viewpoint below when you're ready."
+                ),
+                file=_visual_novel_discord_file(onboarding.deck, 0),
+                view=_VisualNovelView(
+                    deck_id=onboarding.deck.deck_id,
+                    session_channel_id=_session_channel_id(inter),
+                    user_id=0,
+                    index=0,
+                    count=len(onboarding.deck.cards),
+                    scope="o",
+                    onboarding_choices=onboarding.join_choices,
+                ),
+            )
+            return
+
         briefing = render_briefing(ckpt, story_id)
-        intro = (
-            f"Loaded **{story_id}** into session `{row.session_id}`. "
-            f"Run `/join` when you're ready to step in."
+        await inter.followup.send(
+            content=(
+                f"Loaded **{story_id}** into session `{row.session_id}`. "
+                "Run `/join` when you're ready to step in."
+            ),
+            embed=briefing,
         )
-        await inter.followup.send(content=intro, embed=briefing)
 
     class _StoryPickerView(discord.ui.View):
         """Ephemeral dropdown shown when /story start is called without a
@@ -4349,7 +4862,7 @@ def register(
                 embed=render_info(
                     "Pick a story",
                     f"{len(story_ids)} available — pick one from the dropdown. "
-                    "The briefing will post publicly once loaded.",
+                    "The introduction will post publicly once loaded.",
                 ),
                 view=view,
                 ephemeral=True,
@@ -4369,7 +4882,7 @@ def register(
             )
             return
 
-        await inter.response.defer(thinking=True, ephemeral=True)
+        await inter.response.defer(thinking=True)
         await _execute_story_start(inter, row, story_id)
 
     # ---- /story resume ------------------------------------------------------
@@ -4586,7 +5099,8 @@ def register(
         body = (
             f"**{joined_name}** stepped into the lobby.\n\n"
             f"In the lobby:\n" + "\n".join(bound_lines) + "\n\n"
-            "Type `/begin` when everyone's ready and the story will open."
+            "Press **Begin** on the introduction when everyone's ready, "
+            "or use `/begin`."
         )
         try:
             await inter.followup.send(
@@ -4897,6 +5411,7 @@ def register(
             character_id: str,
             character_name: str,
             player_authored: bool,
+            session_channel_id: int | None = None,
         ):
             super().__init__()
             self._session_id = session_id
@@ -4904,6 +5419,7 @@ def register(
             self._character_id = character_id
             self._character_name = character_name
             self._player_authored = player_authored
+            self._session_channel_id = session_channel_id
             self.name_in = discord.ui.TextInput(
                 label=(
                     "Character name" if player_authored else "Display name (optional)"
@@ -4938,7 +5454,15 @@ def register(
             self.add_item(self.appearance_in)
 
         async def on_submit(self, modal_inter: discord.Interaction):
-            await modal_inter.response.defer(thinking=True)
+            resolved_inter = (
+                _SessionInteractionProxy(
+                    modal_inter,
+                    self._session_channel_id,
+                )
+                if self._session_channel_id is not None
+                else modal_inter
+            )
+            await resolved_inter.response.defer(thinking=True)
 
             chosen_name = (self.name_in.value or "").strip()
             chosen_appearance = (self.appearance_in.value or "").strip()
@@ -4946,19 +5470,19 @@ def register(
                 join_result = await engine.join_player_character(
                     self._session_id,
                     self._character_id,
-                    modal_inter.user.id,
+                    resolved_inter.user.id,
                     name=chosen_name,
                     appearance=chosen_appearance,
                 )
             except ValueError as e:
-                await modal_inter.followup.send(
+                await resolved_inter.followup.send(
                     embed=render_error(str(e)),
                     ephemeral=True,
                 )
                 return
             except Exception as e:
                 logger.exception("/join claim failed")
-                await modal_inter.followup.send(
+                await resolved_inter.followup.send(
                     embed=render_error(f"`{type(e).__name__}: {e}`"),
                     ephemeral=True,
                 )
@@ -4966,7 +5490,7 @@ def register(
 
             display_name = chosen_name or self._character_name
             await _handle_post_join(
-                modal_inter,
+                resolved_inter,
                 session_id=self._session_id,
                 story_id=self._story_id,
                 binding_cid=self._character_id,
@@ -4974,7 +5498,7 @@ def register(
                 join_result=join_result,
             )
             await _send_dnd_attach_hint(
-                modal_inter,
+                resolved_inter,
                 character_id=self._character_id,
                 char_name=display_name,
             )
@@ -5810,30 +6334,27 @@ def register(
     # and the "story already started" guard turns later /begins into
     # a friendly error after the opener landed.
 
-    @tree.command(
-        name="begin",
-        description="Open the story for everyone in the lobby.",
-        guild=guild,
-    )
-    @app_commands.describe(
-        confirm=(
-            "Confirm that every intended player has claimed a seat and open the story."
-        ),
-    )
-    async def _begin(inter: discord.Interaction, confirm: bool = False):
+    async def _run_begin_interaction(
+        inter: discord.Interaction,
+        confirm: bool = False,
+        *,
+        onboarding_deck_id: str = "",
+        onboarding_index: int = 0,
+        welcome_message: object | None = None,
+    ) -> bool:
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No session here. `/session start` then `/story start` first.",
                 ephemeral=True,
             )
-            return
+            return False
         if not row.story_id:
             await inter.response.send_message(
                 "This session has no story loaded yet. Run `/story start` first.",
                 ephemeral=True,
             )
-            return
+            return False
 
         triggering_cid = (
             engine.get_user_binding(
@@ -5848,7 +6369,7 @@ def register(
                 "`/begin` will open the story.",
                 ephemeral=True,
             )
-            return
+            return False
 
         try:
             lobby = engine.opening_lobby(row.session_id)
@@ -5858,22 +6379,40 @@ def register(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
-            return
+            return False
         if lobby.requires_confirmation and not confirm:
             claimed = ", ".join(lobby.claimed_seat_names) or "none"
             open_seats = ", ".join(lobby.open_seat_names) or "none"
+            session_channel_id = _session_channel_id(inter)
+
+            async def _confirm(click_inter: discord.Interaction) -> bool:
+                return await _run_begin_interaction(
+                    _SessionInteractionProxy(click_inter, session_channel_id),
+                    True,
+                    onboarding_deck_id=onboarding_deck_id,
+                    onboarding_index=onboarding_index,
+                    welcome_message=welcome_message,
+                )
+
             await inter.response.send_message(
                 embed=render_info(
                     "Confirm the opening lobby",
                     f"**Claimed:** {claimed}\n"
                     f"**Still open:** {open_seats}\n\n"
-                    "When every intended player has joined, run `/begin` "
-                    "again with `confirm:True`. The opening branches from "
-                    "this exact set of claims.",
+                    "The opening branches from this exact set of claims. "
+                    "Begin now only if every intended player has joined.",
+                ),
+                view=_BeginConfirmationView(
+                    user_id=inter.user.id,
+                    confirm_handler=_confirm,
+                    welcome_message=welcome_message,
+                    deck_id=onboarding_deck_id,
+                    session_channel_id=session_channel_id,
+                    index=onboarding_index,
                 ),
                 ephemeral=True,
             )
-            return
+            return False
 
         await inter.response.defer(thinking=True)
 
@@ -5887,7 +6426,7 @@ def register(
                 embed=render_error(str(e)),
                 ephemeral=True,
             )
-            return
+            return False
         except TransientLLMError as e:
             logger.warning(
                 "/begin hit transient LLM error after %d attempts: %s",
@@ -5895,7 +6434,7 @@ def register(
                 e.last_error,
             )
             await inter.followup.send(embed=render_error(str(e)))
-            return
+            return False
         except Exception as e:
             logger.exception("/begin run_begin_turn failed")
             await inter.followup.send(
@@ -5903,7 +6442,7 @@ def register(
                     player_safe_error_message(e, operation="the opening")
                 )
             )
-            return
+            return False
 
         # The router placed every bound player at the opening location
         # (see event_router.txt OOC `(begin)` rules), so per_player
@@ -6007,6 +6546,20 @@ def register(
             turn_index=response.turn_index,
             visual_novel_renders=(response.per_player_visual_novel_renders or {}),
         )
+        return True
+
+    @tree.command(
+        name="begin",
+        description="Open the story for everyone in the lobby.",
+        guild=guild,
+    )
+    @app_commands.describe(
+        confirm=(
+            "Confirm that every intended player has claimed a seat and open the story."
+        ),
+    )
+    async def _begin(inter: discord.Interaction, confirm: bool = False):
+        await _run_begin_interaction(inter, confirm)
 
     # ---- /leave -------------------------------------------------------------
 
@@ -6282,6 +6835,25 @@ def register(
 
     # ---- /act ---------------------------------------------------------------
 
+    async def _run_act_interaction(
+        inter: discord.Interaction,
+        action: str,
+        display: str = "",
+    ) -> None:
+        async def _run(session_id: str, binding: str) -> TurnResponse:
+            return await engine.run_turn(
+                session_id=session_id,
+                user_input=action,
+                acting_character_id=binding,
+                display_key=display,
+            )
+
+        await _run_bound_turn(
+            inter,
+            action_summary=action,
+            runner=_run,
+        )
+
     @tree.command(
         name="act",
         description="Take a turn in the current story.",
@@ -6296,19 +6868,7 @@ def register(
         action: str,
         display: str = "",
     ):
-        async def _run(session_id: str, binding: str) -> TurnResponse:
-            return await engine.run_turn(
-                session_id=session_id,
-                user_input=action,
-                acting_character_id=binding,
-                display_key=display,
-            )
-
-        await _run_bound_turn(
-            inter,
-            action_summary=action,
-            runner=_run,
-        )
+        await _run_act_interaction(inter, action, display)
 
     # ---- /retry ------------------------------------------------------------
 
@@ -6495,12 +7055,7 @@ def register(
 
     # ---- /defer -------------------------------------------------------------
 
-    @tree.command(
-        name="defer",
-        description="Take no action and let the scene continue.",
-        guild=guild,
-    )
-    async def _defer(inter: discord.Interaction):
+    async def _run_defer_interaction(inter: discord.Interaction) -> None:
         row = await smap.get(_session_channel_id(inter))
         if row is not None:
             binding = engine.get_user_binding(row.session_id, inter.user.id)
@@ -6554,28 +7109,25 @@ def register(
                     return
         # Reuse /act for ordinary null turns so they get identical binding,
         # locking, render, and fan-out behavior.
-        await _act.callback(inter, "(defer)")
+        await _run_act_interaction(inter, "(defer)")
+
+    @tree.command(
+        name="defer",
+        description="Take no action and let the scene continue.",
+        guild=guild,
+    )
+    async def _defer(inter: discord.Interaction):
+        await _run_defer_interaction(inter)
 
     # ---- /query -------------------------------------------------------------
     # Out-of-character consultation. `/query` now enters the router as
     # a private OOC clarification so the answer is canonically grounded
     # as an observable fact for the asking POV.
 
-    @tree.command(
-        name="query",
-        description=(
-            "Ask an out-of-character question (what do I see, who is X, "
-            "what day is it)."
-        ),
-        guild=guild,
-    )
-    @app_commands.describe(
-        question=(
-            "Out-of-character question. Answered from your character's POV "
-            "or refused in-fiction if they couldn't know."
-        ),
-    )
-    async def _query(inter: discord.Interaction, question: str):
+    async def _run_query_interaction(
+        inter: discord.Interaction,
+        question: str,
+    ) -> None:
         if not question.strip():
             await inter.response.send_message(
                 "Ask a question — what do you see, who is around, what day "
@@ -6635,6 +7187,23 @@ def register(
             actor_user=inter.user,
             response=response,
         )
+
+    @tree.command(
+        name="query",
+        description=(
+            "Ask an out-of-character question (what do I see, who is X, "
+            "what day is it)."
+        ),
+        guild=guild,
+    )
+    @app_commands.describe(
+        question=(
+            "Out-of-character question. Answered from your character's POV "
+            "or refused in-fiction if they couldn't know."
+        ),
+    )
+    async def _query(inter: discord.Interaction, question: str):
+        await _run_query_interaction(inter, question)
 
     # ---- /rewind ------------------------------------------------------------
     # Destructive: deletes ckpt_>target.json from disk. Owner-only by
@@ -7228,19 +7797,11 @@ def register(
             title="Master Hero",
         )
 
-    @master_group.command(
-        name="synthesis",
-        description="Select source Heroes to synthesize into a target Hero.",
-    )
-    @app_commands.describe(
-        target="Surviving target Hero name, id, or roster number.",
-        sources="Source Hero names, ids, or roster numbers, comma-separated.",
-    )
-    async def _master_synthesis(
+    async def _run_master_synthesis_interaction(
         inter: discord.Interaction,
         target: str,
         sources: str,
-    ):
+    ) -> None:
         source_refs = tuple(part.strip() for part in sources.split(",") if part.strip())
         if not target.strip() or not source_refs:
             await inter.response.send_message(
@@ -7266,14 +7827,24 @@ def register(
             runner=_run,
         )
 
+    @master_group.command(
+        name="synthesis",
+        description="Select source Heroes to synthesize into a target Hero.",
+    )
+    @app_commands.describe(
+        target="Surviving target Hero name, id, or roster number.",
+        sources="Source Hero names, ids, or roster numbers, comma-separated.",
+    )
+    async def _master_synthesis(
+        inter: discord.Interaction,
+        target: str,
+        sources: str,
+    ):
+        await _run_master_synthesis_interaction(inter, target, sources)
+
     # ---- /status ------------------------------------------------------------
 
-    @tree.command(
-        name="status",
-        description="Show the current state of this channel's story.",
-        guild=guild,
-    )
-    async def _status(inter: discord.Interaction):
+    async def _send_status_interaction(inter: discord.Interaction) -> None:
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
@@ -7313,6 +7884,14 @@ def register(
             embed=render_info("Session status", "\n".join(body_lines)),
             ephemeral=True,
         )
+
+    @tree.command(
+        name="status",
+        description="Show the current state of this channel's story.",
+        guild=guild,
+    )
+    async def _status(inter: discord.Interaction):
+        await _send_status_interaction(inter)
 
     # ---- /clear (admin-gated) -----------------------------------------------
 
@@ -7621,6 +8200,357 @@ def register(
             ephemeral=True,
         )
 
+    class _VisualNovelActModal(discord.ui.Modal, title="Take an action"):
+        action_input = discord.ui.TextInput(
+            label="What do you say or do?",
+            style=discord.TextStyle.paragraph,
+            required=True,
+            max_length=4_000,
+        )
+
+        def __init__(self, session_channel_id: int):
+            super().__init__()
+            self.session_channel_id = int(session_channel_id)
+
+        async def on_submit(self, modal_inter: discord.Interaction) -> None:
+            await _run_act_interaction(
+                _SessionInteractionProxy(
+                    modal_inter,
+                    self.session_channel_id,
+                ),
+                str(self.action_input.value or "").strip(),
+            )
+
+    class _VisualNovelQueryModal(discord.ui.Modal, title="Ask a question"):
+        question_input = discord.ui.TextInput(
+            label="What do you want to know?",
+            style=discord.TextStyle.paragraph,
+            required=True,
+            max_length=2_000,
+        )
+
+        def __init__(self, session_channel_id: int):
+            super().__init__()
+            self.session_channel_id = int(session_channel_id)
+
+        async def on_submit(self, modal_inter: discord.Interaction) -> None:
+            await _run_query_interaction(
+                _SessionInteractionProxy(
+                    modal_inter,
+                    self.session_channel_id,
+                ),
+                str(self.question_input.value or "").strip(),
+            )
+
+    class _VisualNovelHeroModal(discord.ui.Modal, title="Hero sheet"):
+        hero_input = discord.ui.TextInput(
+            label="Hero name or roster number",
+            required=True,
+            max_length=100,
+        )
+
+        def __init__(self, session_channel_id: int):
+            super().__init__()
+            self.session_channel_id = int(session_channel_id)
+
+        async def on_submit(self, modal_inter: discord.Interaction) -> None:
+            await _send_master_command(
+                _SessionInteractionProxy(
+                    modal_inter,
+                    self.session_channel_id,
+                ),
+                command="hero",
+                hero_ref=str(self.hero_input.value or "").strip(),
+                title="Master Hero",
+            )
+
+    class _VisualNovelSynthesisModal(
+        discord.ui.Modal,
+        title="Synthesize Heroes",
+    ):
+        target_input = discord.ui.TextInput(
+            label="Surviving target",
+            required=True,
+            max_length=100,
+        )
+        sources_input = discord.ui.TextInput(
+            label="Source Heroes, comma-separated",
+            style=discord.TextStyle.paragraph,
+            required=True,
+            max_length=1_000,
+        )
+
+        def __init__(self, session_channel_id: int):
+            super().__init__()
+            self.session_channel_id = int(session_channel_id)
+
+        async def on_submit(self, modal_inter: discord.Interaction) -> None:
+            await _run_master_synthesis_interaction(
+                _SessionInteractionProxy(
+                    modal_inter,
+                    self.session_channel_id,
+                ),
+                str(self.target_input.value or "").strip(),
+                str(self.sources_input.value or "").strip(),
+            )
+
+    async def _dispatch_visual_novel_menu_action(
+        inter: discord.Interaction,
+        session_channel_id: int,
+        action: str,
+    ) -> None:
+        resolved_inter = _SessionInteractionProxy(inter, session_channel_id)
+        if action == "query":
+            await inter.response.send_modal(
+                _VisualNovelQueryModal(session_channel_id)
+            )
+            return
+        if action == "status":
+            await _send_status_interaction(resolved_inter)
+            return
+        if action == "master_status":
+            await _send_master_command(
+                resolved_inter,
+                command="status",
+                title="Master status",
+            )
+            return
+        if action == "master_heroes":
+            await _send_master_command(
+                resolved_inter,
+                command="heroes",
+                title="Master Heroes",
+            )
+            return
+        if action == "master_hero":
+            await inter.response.send_modal(
+                _VisualNovelHeroModal(session_channel_id)
+            )
+            return
+        if action == "master_synthesis":
+            await inter.response.send_modal(
+                _VisualNovelSynthesisModal(session_channel_id)
+            )
+            return
+        await inter.response.send_message(
+            "That story control is unavailable.",
+            ephemeral=True,
+        )
+
+    async def _handle_visual_novel_gameplay_action(
+        inter: discord.Interaction,
+        session_channel_id: int,
+        action: str,
+    ) -> None:
+        resolved_inter = _SessionInteractionProxy(inter, session_channel_id)
+        if action == "a":
+            await inter.response.send_modal(
+                _VisualNovelActModal(session_channel_id)
+            )
+            return
+        if action == "d":
+            await _run_defer_interaction(resolved_inter)
+            return
+        if action != "m":
+            await inter.response.send_message(
+                "That story control is unavailable.",
+                ephemeral=True,
+            )
+            return
+
+        row = await smap.get(session_channel_id)
+        if row is None:
+            await inter.response.send_message(
+                "This story session is no longer available.",
+                ephemeral=True,
+            )
+            return
+        binding = engine.get_user_binding(row.session_id, inter.user.id)
+        if binding is None:
+            await inter.response.send_message(
+                "You are no longer bound to a character in this story.",
+                ephemeral=True,
+            )
+            return
+        include_master = False
+        try:
+            engine.one_star_master_command(
+                row.session_id,
+                binding,
+                "status",
+            )
+            include_master = True
+        except ValueError:
+            pass
+        except Exception as exc:
+            logger.exception("visual-novel role menu lookup failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(exc).__name__}: {exc}`"),
+                ephemeral=True,
+            )
+            return
+
+        async def _dispatch(
+            menu_inter: discord.Interaction,
+            selected_action: str,
+        ) -> None:
+            await _dispatch_visual_novel_menu_action(
+                menu_inter,
+                session_channel_id,
+                selected_action,
+            )
+
+        await inter.response.send_message(
+            "Choose a story control.",
+            view=_VisualNovelMoreView(
+                user_id=inter.user.id,
+                handler=_dispatch,
+                include_master=include_master,
+            ),
+            ephemeral=True,
+        )
+
+    async def _current_onboarding_choices(
+        session_channel_id: int,
+    ) -> Sequence[Any]:
+        row = await smap.get(session_channel_id)
+        if row is None:
+            return ()
+        checkpoint = engine.load_latest(row.session_id)
+        if any(checkpoint.narrator_conversations.values()):
+            return ()
+        onboarding = checkpoint.visual_novel_onboarding
+        if (
+            onboarding is None
+            or checkpoint.session.config.settings.presentation_mode
+            != "visual_novel"
+        ):
+            return ()
+        return tuple(onboarding.join_choices)
+
+    async def _handle_visual_novel_onboarding_action(
+        inter: discord.Interaction,
+        session_channel_id: int,
+        action: str,
+        choice_index: int | None,
+        deck_id: str,
+        page_index: int,
+    ) -> bool:
+        resolved_inter = _SessionInteractionProxy(inter, session_channel_id)
+        row = await smap.get(session_channel_id)
+        if row is None or not row.story_id:
+            await inter.response.send_message(
+                "This story session is no longer available.",
+                ephemeral=True,
+            )
+            return False
+        try:
+            checkpoint = engine.load_latest(row.session_id)
+            onboarding = checkpoint.visual_novel_onboarding
+            if onboarding is None:
+                raise ValueError("This story has no authored onboarding choices.")
+            if any(checkpoint.narrator_conversations.values()):
+                raise ValueError(
+                    "This introduction has ended. Use `/join` for a late arrival."
+                )
+            prepared = await engine.prepare_story_onboarding_deck(row.session_id)
+            if prepared is None or prepared.deck.deck_id != deck_id:
+                raise ValueError("This introduction is no longer current.")
+        except (FileNotFoundError, ValueError) as exc:
+            await inter.response.send_message(
+                embed=render_error(str(exc)),
+                ephemeral=True,
+            )
+            return False
+        except Exception as exc:
+            logger.exception("visual-novel onboarding validation failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(exc).__name__}: {exc}`"),
+                ephemeral=True,
+            )
+            return False
+
+        if action == "begin":
+            return await _run_begin_interaction(
+                resolved_inter,
+                False,
+                onboarding_deck_id=deck_id,
+                onboarding_index=page_index,
+                welcome_message=inter.message,
+            )
+        if action != "join" or choice_index is None:
+            await inter.response.send_message(
+                "That onboarding control is unavailable.",
+                ephemeral=True,
+            )
+            return False
+        if not 0 <= choice_index < len(prepared.join_choices):
+            await inter.response.send_message(
+                "That onboarding choice is no longer available.",
+                ephemeral=True,
+            )
+            return False
+        existing = engine.get_user_binding(row.session_id, inter.user.id)
+        if existing is not None:
+            existing_name = next(
+                (
+                    character.name
+                    for character in checkpoint.characters
+                    if character.character_id == existing
+                ),
+                "your current character",
+            )
+            await inter.response.send_message(
+                f"You are already playing **{existing_name}**. Use `/leave` "
+                "before choosing another role.",
+                ephemeral=True,
+            )
+            return False
+
+        choice = prepared.join_choices[choice_index]
+        if choice.player_authored:
+            await inter.response.send_modal(
+                _JoinIdentityModal(
+                    session_id=row.session_id,
+                    story_id=row.story_id,
+                    character_id=choice.character_id,
+                    character_name=choice.character_name,
+                    player_authored=True,
+                    session_channel_id=session_channel_id,
+                )
+            )
+            return False
+
+        await inter.response.defer(thinking=True)
+        try:
+            join_result = await engine.join_player_character(
+                row.session_id,
+                choice.character_id,
+                inter.user.id,
+            )
+        except ValueError as exc:
+            await inter.followup.send(
+                embed=render_error(str(exc)),
+                ephemeral=True,
+            )
+            return False
+        except Exception as exc:
+            logger.exception("onboarding role claim failed")
+            await inter.followup.send(
+                embed=render_error(f"`{type(exc).__name__}: {exc}`"),
+                ephemeral=True,
+            )
+            return False
+        await _handle_post_join(
+            resolved_inter,
+            session_id=row.session_id,
+            story_id=row.story_id,
+            binding_cid=choice.character_id,
+            char_name=join_result.character_name,
+            join_result=join_result,
+        )
+        return False
+
     # v11-r3d: /abort_beat admin recovery command. A wedged Cat II event
     # (responder disconnected, session frozen) can only be cleared by an
     # admin invoking this command; it force-releases the beat slot
@@ -7699,6 +8629,18 @@ def register(
                 logger.exception(
                     "abort_beat: thread-visible notification failed",
                 )
+
+    if client is not None:
+        setattr(
+            client,
+            "_ayoa_visual_novel_actions",
+            _VisualNovelRuntimeActions(
+                engine=engine,
+                onboarding_choices=_current_onboarding_choices,
+                onboarding_action=_handle_visual_novel_onboarding_action,
+                gameplay_action=_handle_visual_novel_gameplay_action,
+            ),
+        )
 
     # Attach command groups to the tree after all subcommands are defined.
     if guild is not None:

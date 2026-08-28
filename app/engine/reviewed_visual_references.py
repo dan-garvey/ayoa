@@ -362,6 +362,8 @@ def _selected_reviewed_reference_ids(
                     reference_id=reference_id,
                 )
             selected.append(reference_id)
+    if checkpoint.visual_novel_onboarding is not None:
+        selected.append(checkpoint.visual_novel_onboarding.stage_reference_id)
     return list(dict.fromkeys(selected))
 
 

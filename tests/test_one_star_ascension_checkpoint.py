@@ -12,6 +12,9 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from app.engine.character_manager import _assemble_knowledge_grant
 from app.engine.one_star_progression import (
     birth_hp_mean,
@@ -23,6 +26,7 @@ from app.engine.one_star_progression import (
 from app.engine.reviewed_visual_references import validate_story_visual_references
 from app.schemas.characters import CharacterAgentTier, PlayerSlotKind
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_COMBATANT_KEY,
@@ -136,6 +140,83 @@ def test_checkpoint_loads_as_typed_one_star_story() -> None:
     assert combatant.stats == {
         stat_id: 200 for stat_id in account.config.progression.stat_ids
     }
+
+
+def test_one_star_opens_with_authored_visual_novel_onboarding() -> None:
+    checkpoint = _load_checkpoint()
+    onboarding = checkpoint.visual_novel_onboarding
+
+    assert checkpoint.session.config.settings.presentation_mode == "visual_novel"
+    assert onboarding is not None
+    assert onboarding.stage_reference_id == "osa_loc_1f_courtyard_v1"
+    assert len(onboarding.pages) == 3
+    assert [page.page.sprites for page in onboarding.pages] == [
+        ["Iselle"],
+        ["Iselle"],
+        ["Iselle"],
+    ]
+    assert [
+        page.sprite_variant_keys_by_label["Iselle"]
+        for page in onboarding.pages
+    ] == ["happy", "neutral", "happy"]
+    assert {
+        (choice.label, choice.character_id)
+        for choice in onboarding.join_choices
+    } == {
+        ("Join as Master", "the_master"),
+        ("Join as Newcomer", "one_star_newcomer"),
+    }
+
+    public_payload = json.loads(checkpoint.model_dump_json())
+    private_payload = json.loads(checkpoint.model_dump_json(
+        context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
+    ))
+    assert public_payload["visual_novel_onboarding"] is None
+    assert private_payload["visual_novel_onboarding"]["stage_reference_id"] == (
+        onboarding.stage_reference_id
+    )
+    assert {
+        choice["character_id"]
+        for choice in private_payload["visual_novel_onboarding"]["join_choices"]
+    } == {"the_master", "one_star_newcomer"}
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    (
+        (
+            lambda payload: payload["visual_novel_onboarding"]["pages"][0][
+                "page"
+            ].__setitem__("text", "one_star_newcomer waits."),
+            "pages expose a source identifier",
+        ),
+        (
+            lambda payload: payload["visual_novel_onboarding"]["pages"][0][
+                "sprite_variant_keys_by_label"
+            ].__setitem__("Iselle", "missing"),
+            "selects an unavailable sprite variant",
+        ),
+        (
+            lambda payload: payload["visual_novel_onboarding"]["join_choices"][
+                0
+            ].__setitem__("character_id", "iselle_the_guide"),
+            "choices require playable seats",
+        ),
+    ),
+)
+def test_one_star_onboarding_contract_rejects_unsafe_authored_data(
+    mutate,
+    message: str,
+) -> None:
+    checkpoint = _load_checkpoint()
+    payload = checkpoint.model_dump(
+        mode="json",
+        context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
+    )
+    mutate(payload)
+
+    with pytest.raises(ValidationError, match=message):
+        CheckpointFile.model_validate(payload)
 
 
 def test_one_star_ledger_matches_approved_seed_authority() -> None:

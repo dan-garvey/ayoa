@@ -39,6 +39,7 @@ def _seed_checkpoint() -> CheckpointFile:
     # Dossier projection does not exercise reviewed image artifacts. Keep this
     # fixture self-contained instead of copying the story's frozen image store
     # into every temporary EngineBridge runtime.
+    checkpoint.visual_novel_onboarding = None
     checkpoint.reviewed_visual_references = []
     checkpoint.reviewed_visual_novel_sprite_sets = []
     checkpoint.location_visual_reference_ids = {}
