@@ -15,6 +15,7 @@ from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.llm.client import LLMClient
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput, SpawnRequest, SpawnSeed
 from app.schemas.events import ObservableFact
 from app.schemas.requests import TurnRequest
@@ -357,10 +358,12 @@ def _orchestrator_with_fake_dispatcher(
     monkeypatch,
     ckpt: CheckpointFile,
     spawn_manager: RecordingCharacterManager,
+    *,
+    dispatcher_cls: type[ClassFakeDispatcher] = ClassFakeDispatcher,
 ) -> tuple[Orchestrator, MagicMock]:
     monkeypatch.setattr(
         "app.engine.orchestrator.LLMDispatcher",
-        ClassFakeDispatcher,
+        dispatcher_cls,
     )
     client = MagicMock()
     client.config = MagicMock()
@@ -586,6 +589,23 @@ async def test_failed_opening_render_retry_materializes_wave_once(
 async def test_master_opening_reaches_selected_guide_before_first_render(
     monkeypatch,
 ) -> None:
+    briefing = (
+        "I brief the new Heroes, then recommend that the Master form their "
+        "party and deploy it to Floor 1."
+    )
+
+    class HistoryRecordingDispatcher(ClassFakeDispatcher):
+        async def agent_intend(self, **kwargs) -> str:
+            output = await super().agent_intend(**kwargs)
+            kwargs["ckpt"].character_conversations.setdefault(
+                kwargs["character_id"],
+                [],
+            ).extend([
+                ConversationMessage(role="user", content="opening cue"),
+                ConversationMessage(role="assistant", content=output),
+            ])
+            return output
+
     ckpt = _load_one_star()
     ckpt.session.character_bindings = {"the_master": "user-1"}
     spawn = [
@@ -599,6 +619,7 @@ async def test_master_opening_reaches_selected_guide_before_first_render(
         monkeypatch,
         ckpt,
         spawn_manager,
+        dispatcher_cls=HistoryRecordingDispatcher,
     )
     ClassFakeDispatcher.queue_route(
         _opening_output(
@@ -607,10 +628,7 @@ async def test_master_opening_reaches_selected_guide_before_first_render(
             spawn=spawn,
         )
     )
-    ClassFakeDispatcher.queue_agent(
-        "I brief the new Heroes, then recommend that the Master form their "
-        "party and deploy it to Floor 1."
-    )
+    ClassFakeDispatcher.queue_agent(briefing)
     ClassFakeDispatcher.queue_route(router_output(
         event_id="evt_iselle_briefing",
         event_kind="response_requested",
@@ -639,6 +657,12 @@ async def test_master_opening_reaches_selected_guide_before_first_render(
     assert len(
         ClassFakeDispatcher.narrator_calls[0]["buffered_events"]
     ) == 2
+    guide_history = ckpt.character_conversations["iselle_the_guide"]
+    assert [message.role for message in guide_history] == [
+        "user",
+        "assistant",
+    ]
+    assert guide_history[-1].content == briefing
     guide_checkpoint = ClassFakeDispatcher.agent_calls[0]["ckpt"]
     assert all(
         any(
