@@ -781,10 +781,10 @@ def test_one_star_normal_router_request_has_no_live_ledger_tail():
     assert "state_updates" in system["content"]
     assert "max_batch=5" in system["content"]
     assert "Gold: 34" not in system["content"]
-    assert "active_master_feed_id=pip" not in system["content"]
+    assert "active_master_feed_id" not in system["content"]
     assert "max_batch=5" not in user["content"]
     assert "Gold: 34" not in user["content"]
-    assert "active_master_feed_id=pip" not in user["content"]
+    assert "active_master_feed_id" not in user["content"]
     assert "one_star_current_ledger" not in user["content"]
     assert "submitted action" in user["content"]
 
@@ -1210,7 +1210,6 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         stamina_recovery_anchor_s=20,
         discretionary_funds=200,
         funds_accrual_anchor_s=0,
-        active_master_feed_id="pip",
         guide_character_ids=["iselle"],
         system_observer_ids=["iselle"],
         tutorial_deliveries={"summoning": ["pip"]},
@@ -1407,7 +1406,6 @@ def test_local_hero_cull_is_rejected_from_generic_lifecycle(monkeypatch):
             applied_event_fingerprints={},
             active_mission=None,
             pending_operation=None,
-            active_master_feed_id="",
             stored_equipment=[],
         ),
     )

@@ -90,7 +90,6 @@ Use these update shapes:
   with `pending_cancel`.
 - tutorial: `tutorial_delivery`, target tutorial key, empty value, repeated
   `recipient`.
-- feed: `active_feed`, target Hero id, empty value and details.
 
 Mission counters are exact progress declarations. Update the fixed counter set
 as facts advance it, and do not complete a mission or award its fixed reward
@@ -159,8 +158,11 @@ Reading already-authorized System information is not an embodied selection.
 Inspecting a Hero's visible status, stats, equipment, skills, roster entry, or
 mission status uses an empty state-update list, does not open Cat II, and
 does not make that Hero a responder. Put only the authorized readout in facts
-scoped to its actual interface audience. Changing the active mission feed is a
-real `active_feed` operation; merely reading its current status is not.
+scoped to its actual interface audience. Changing which scene the account owner
+watches is not bookkeeping. Treat an intention such as "I switch back to the
+lobby view" as a self-closing narrative viewpoint transition: establish the new
+observed scene in canonical facts, use an empty state-update list, and do not
+invent a control response. Canonical event history carries that view forward.
 
 For `pending_open`, deployment puts every selected party member in repeated
 `participant` details and leaves `target_id` absent. Synthesis puts source
@@ -184,8 +186,8 @@ Hero before this event; never add or invent it as part of the escape. A failed
 mission with survivors does not return them, and a Hero outside the recorded
 party cannot join an active mission through a plain location update.
 While a mission is active, the account owner may observe, inspect System
-status, or change the active feed, but cannot use lobby catalogue controls or
-perform a standard summon or Gem purchase.
+status, or narratively shift to another established scene, but cannot use lobby
+catalogue controls or perform a standard summon or Gem purchase.
 Promotion requires the target to have reached the configured level cap for
 their current star rank before advancing exactly one star.
 
@@ -203,9 +205,10 @@ canonical timestamps are derived from supplied authority and event time; do not
 restate them. Do not describe a successful unseen System effect without its
 corresponding state update. HP at zero must be paired with explicit terminal
 fiction and its exact state transition; zero HP alone is not an implied death.
-For a local Hero, an adjudicated in-world death uses a `hero_delta` update with
-`terminal_action=death` and its concrete `death_cause`. Never use that death
-operation for synthesis. Synthesis culls arise only from the later
+For a local Hero, an adjudicated in-world death uses one `hero_delta` update that
+contains `hp_current=0`, `terminal_action=death`, and its concrete
+`death_cause`. Never omit zero HP from that terminal update. Never use that
+death operation for synthesis. Synthesis culls arise only from the later
 `pending_resolve` of the selected operation after selection, response, and
 physical chamber entry. Never put that local Hero in generic `cull`.
 Generic `cull` is reserved for non-local or non-Hero lifecycle. Pair generic
@@ -214,21 +217,53 @@ never use them as a shadow local-Hero death or synthesis path.
 
 Write exact observable System facts only for characters who can perceive the
 relevant channel. Keep private account details, hidden potential, and unseen
-mechanics scoped. The guide's mediated awareness of a Master action does not
-normally authorize dialogue or an action for her: outside the synthesis
-response rule, when she should respond, select her as `next_output` and let her
-own output say it.
+mechanics scoped. A configured guide's mediated awareness of a Master action
+does not by itself authorize dialogue or action. Never displace an already owed
+`next_output` handoff or an unresolved Cat II responder collection. When routing
+a new lobby response, however, give an active configured guide strong
+`next_output` priority if arrivals need orientation, repeated questions or
+defiance are stalling the beat, a Master action leaves the room without a
+concrete next step, or the guide can force a consequential choice. Do not write
+the guide's dialogue or intention in canonical facts; select the guide and let
+their own output supply it. This priority selects who should act, not a loop:
+after the guide's own output resolves the situation, do not select that same
+guide again merely because the account owner cannot answer. Close the handoff or
+select a different character only when that character genuinely owes a response.
 
-The account owner has clear live camera access to whichever scene the current
-context establishes they are watching. `active_master_feed_id` anchors that
-scene when set; a directly observed lobby or interface scene remains their
-current camera scene until an explicit feed or camera transition changes it.
-Do not degrade this mediated access to indirect or inferred perception. For
-every action, spoken line, sound, or other event directly observable in that
-scene, include the account owner as an observer with `observation_level="d"`
-and give them the same observable fact. Preserve exact audible dialogue. This
-does not reveal unspoken thought, concealed facts, or anything in another
-off-feed scene; do not add the account owner to those facts or events.
+A hostile intention still opens Cat II when another character's chosen response
+could materially change what happens. Do not open it mechanically after
+canonical history has already satisfied a narrow guide-discipline trigger that
+the supplied narrative rules explicitly make immediate, and
+`submitted_actor_id` is that configured guide performing the consequence in
+their own intention. In that case the target has already spent the warning or
+response opportunity named by the story, so adjudicate the concrete action now
+using established capability and emit any required Hero terminal update. When
+another actor's action merely satisfies the trigger, canonicalize only that
+actor's action, select the guide as `next_output`, and do not invent the guide's
+punishment, dialogue, or state changes yet. This exception comes only from
+explicit supplied story authority; ordinary threats, first-time confusion, and
+unestablished punishments remain under the normal response rules.
+
+The account owner has clear live visual and audio access to whichever scene the
+current context establishes they are watching. Canonical event history
+establishes that viewpoint until the owner narratively shifts it. Do not degrade
+this mediated access to indirect or inferred perception. For every action,
+spoken line, sound, or other event directly observable in that scene, include
+the account owner as an observer with `observation_level="d"` and give them the
+same observable fact. Preserve exact audible dialogue. This does not reveal
+unspoken thought, concealed facts, or anything in another scene; do not add the
+account owner to those facts or events.
+
+A configured guide's spoken lobby dialogue is one event heard by co-present
+characters and conveyed live to the account owner. Include both audiences as
+direct observers with the same audible facts, even if the owner's immediately
+prior view was elsewhere. This narrow address channel carries the guide's own
+speech, not unrelated action from another scene. A guide may grant an account
+resource only when supplied narrative rules or character authority establish
+the exact trigger and amount. Treat that supplied trigger as grant authority
+rather than requiring a catalogue entry or an account-owner action. Pair an
+authorized spoken grant with the matching `inventory_delta` in that same event;
+unsupported patter does not change the balance.
 
 When a configured guide actually teaches a tutorial, emit a `tutorial_delivery` update
 with the exact tutorial key and only the active characters who directly
@@ -238,8 +273,9 @@ guide knows, intends, or plans to explain something.
 When the account owner makes a lobby-management change, every configured guide
 receives an `audience="only"` mediated System fact and appears in `observers`.
 Use `observe_only` unless the changed situation gives that guide genuine reason
-to answer next. This channel reports lobby management only; it does not reveal
-off-feed Hero action or tactical events.
+to answer next under the lobby priority above. This channel reports lobby
+management only; it does not reveal unrelated Hero action or tactical events in
+another scene.
 
 One-Star mission continuity is carried by compact state-update history. Do not
 emit `mission_status:` anywhere in `decision_rationale`.

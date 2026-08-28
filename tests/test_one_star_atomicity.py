@@ -301,9 +301,6 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
     returning_sheet["hp_current"] = 2
     returning_sheet["conditions"] = ["bleeding", "poisoned", "exhausted"]
     returning_sheet["persistent_injuries"] = ["missing fingertip"]
-    owner, account_before = load_one_star_account(checkpoint)
-    account_before.state.active_master_feed_id = "hero"
-    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account_before.model_dump(mode="json")
     with pytest.raises(OneStarTransactionError, match="active"):
         prepare_one_star_transaction(
             checkpoint,
@@ -361,7 +358,6 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
     assert account.state.active_mission is None
     assert account.state.highest_cleared_floor == 1
     assert account.state.highest_unlocked_floor == 1
-    assert "active_master_feed_id=none previous=hero" in completed.engine_history_updates
 
 
 def test_active_mission_rejects_undeployed_reinforcement_and_party_dormancy() -> None:
@@ -626,6 +622,48 @@ def test_terminal_hero_cull_cannot_be_overwritten_by_generic_dormancy() -> None:
         )
 
 
+def test_guide_discipline_can_pair_a_hero_death_with_account_compensation() -> None:
+    checkpoint = _checkpoint()
+    guide = CharacterRecord(
+        character_id="iselle_the_guide",
+        name="Iselle",
+        location="lobby",
+    )
+    checkpoint.characters.append(guide)
+    owner, account_before = load_one_star_account(checkpoint)
+    account_before.state.guide_character_ids = [guide.character_id]
+    gold_before = account_before.state.resources.gold
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account_before.model_dump(mode="json")
+
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="disciplinary_example",
+        transaction=_transaction(
+            _hero_delta(
+                hp_current=0,
+                terminal_action="death",
+                death_cause="killed by Iselle as a disciplinary example",
+            ),
+            {
+                "operation": "inventory_delta",
+                "item_id": "gold",
+                "quantity_delta": 5,
+            },
+        ),
+        initiating_actor_id=guide.character_id,
+    )
+
+    killed = next(
+        character
+        for character in prepared.after_checkpoint.characters
+        if character.character_id == "hero"
+    )
+    account_after = load_one_star_account(prepared.after_checkpoint)[1]
+    assert killed.status is CharacterStatus.culled
+    assert load_one_star_hero(killed).terminal_event_id == "disciplinary_example"
+    assert account_after.state.resources.gold == gold_before + 5
+
+
 def test_exact_event_replay_is_idempotent_but_payload_drift_is_rejected() -> None:
     checkpoint = _checkpoint()
     transaction = _transaction()
@@ -638,7 +676,7 @@ def test_exact_event_replay_is_idempotent_but_payload_drift_is_rejected() -> Non
         prepare_one_star_transaction(
             checkpoint,
             event_id="same",
-            transaction=_transaction({"operation": "active_feed", "hero_id": "hero"}),
+            transaction=_transaction(_hero_delta(conditions=["tired"])),
         )
 
 
@@ -752,7 +790,16 @@ def test_pending_open_is_the_only_operation_and_cannot_change_its_heroes() -> No
         "pending": pending.model_dump(mode="json"),
     }
     cases = [
-        ({"operations": [opening, {"operation": "active_feed", "hero_id": ""}]}, {}, {}, ["hero"], [], []),
+        ({
+            "operations": [
+                opening,
+                {
+                    "operation": "inventory_delta",
+                    "item_id": "gold",
+                    "quantity_delta": 1,
+                },
+            ],
+        }, {}, {}, ["hero"], [], []),
         ({"operations": [opening]}, {"hero": "lobby"}, {}, [], [], []),
         ({"operations": [opening]}, {}, {"hero": "lobby"}, [], [], []),
         ({"operations": [opening]}, {}, {}, [], ["hero"], []),
@@ -946,18 +993,6 @@ def test_owner_lobby_controls_are_unavailable_during_active_mission(
             initiating_actor_id="account_owner",
             **kwargs,
         )
-
-    feed = prepare_one_star_transaction(
-        checkpoint,
-        event_id=f"mission_allows_feed_{operation}",
-        transaction=_transaction({
-            "operation": "active_feed",
-            "hero_id": "hero",
-        }),
-        initiating_actor_id="account_owner",
-    )
-    assert load_one_star_account(feed.after_checkpoint)[1].state.active_master_feed_id == "hero"
-
 
 def test_lobby_control_cannot_follow_mission_start_in_same_transaction() -> None:
     pending = _pending("deployment", participants=["hero"], destination="tower_floor_1")
@@ -1182,7 +1217,6 @@ def test_six_to_seven_star_promotion_preserves_last_reviewed_knowledge_tier() ->
                 "opened_at_s": 0,
             },
         },
-        {"operation": "active_feed", "hero_id": "hero"},
     ],
 )
 def test_non_owner_cannot_initiate_master_control_operations(operation: dict) -> None:

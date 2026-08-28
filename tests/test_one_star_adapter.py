@@ -161,7 +161,24 @@ def _checkpoint() -> CheckpointFile:
 
 def test_transaction_requires_exact_present_shape() -> None:
     with pytest.raises(ValueError, match="present"):
-        OneStarTransaction.model_validate({"present": False, "operations": [{"operation": "active_feed", "hero_id": ""}]})
+        OneStarTransaction.model_validate({
+            "present": False,
+            "operations": [{
+                "operation": "inventory_delta",
+                "item_id": "gold",
+                "quantity_delta": 1,
+            }],
+        })
+
+
+def test_retired_active_feed_is_not_a_router_update() -> None:
+    with pytest.raises(ValueError):
+        OneStarStateUpdate.model_validate({
+            "kind": "active_feed",
+            "target_id": "hero",
+            "value": "",
+            "details": [],
+        })
 
 
 def test_automatic_stamina_recovery_is_returned_as_one_time_history_state() -> None:

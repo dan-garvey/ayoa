@@ -41,7 +41,6 @@ from app.schemas.one_star import (
     ONE_STAR_RULESET_ID,
     OneStarAccountEnvelope,
     OneStarAccountState,
-    OneStarActiveFeedOperation,
     OneStarCatalogueApplyOperation,
     OneStarCombatantState,
     OneStarCost,
@@ -445,7 +444,6 @@ def _validate_state_update_detail_keys(
         "equipment_move": frozenset(),
         "pending_cancel": frozenset(),
         "tutorial_delivery": frozenset({"recipient"}),
-        "active_feed": frozenset(),
     }
     prefix_by_kind: dict[str, tuple[str, ...]] = {
         "hero_delta": (
@@ -516,7 +514,6 @@ def _validate_state_update_scalar_shape(update: OneStarStateUpdate) -> None:
         "pending_resolve",
         "pending_cancel",
         "tutorial_delivery",
-        "active_feed",
     }
     if update.kind in empty_value_kinds and update.value:
         raise OneStarTransactionError(
@@ -936,13 +933,6 @@ def one_star_state_updates_to_transaction(
                 operation=kind,
                 tutorial_key=target_id,
                 delivered_to_ids=details.get("recipient", []),
-            ))
-            continue
-
-        if kind == "active_feed":
-            operations.append(OneStarActiveFeedOperation(
-                operation=kind,
-                hero_id=target_id,
             ))
             continue
 
@@ -2578,7 +2568,6 @@ def _apply_mission_end(
             hero.conditions = []
         _store_hero(character, hero)
     state.active_mission = None
-    state.active_master_feed_id = ""
     return tuple(system_consequences)
 
 
@@ -2777,7 +2766,6 @@ def _apply_pending_resolve(
                 raise OneStarTransactionError(
                     "deployment cannot resolve before every Hero physically enters the gate"
                 )
-        state.active_master_feed_id = pending.participant_ids[0]
     elif pending.kind == "synthesis":
         target_character, target, sources = _synthesis_sources_and_target(
             pending,
@@ -2999,17 +2987,6 @@ def _apply_tutorial(
     state.tutorial_deliveries[key] = list(dict.fromkeys([*delivered, *recipients]))
 
 
-def _apply_active_feed(
-    operation: OneStarActiveFeedOperation,
-    state: OneStarAccountState,
-    checkpoint: CheckpointFile,
-    config: OneStarRulesConfig,
-) -> None:
-    if operation.hero_id:
-        _require_local_active_hero(checkpoint, operation.hero_id, config)
-    state.active_master_feed_id = operation.hero_id
-
-
 def one_star_event_fingerprint(payload: Mapping[str, object]) -> str:
     """Return a stable fingerprint for one complete router event payload."""
 
@@ -3227,11 +3204,6 @@ def prepare_one_star_transaction(
     config = account.config
     _validate_global_equipment_ids(after, state)
     _validate_all_hero_progression_states(after, config)
-    active_feed_before_event = state.active_master_feed_id
-    active_feed_authored = any(
-        isinstance(operation, OneStarActiveFeedOperation)
-        for operation in transaction.operations
-    )
     if any(
         isinstance(operation, OneStarSummonOperation)
         and len(operation.hero_ids) > config.max_summon_batch
@@ -3641,9 +3613,6 @@ def prepare_one_star_transaction(
                     "tutorial delivery must originate from a configured guide"
                 )
             _apply_tutorial(operation, state, after)
-        elif isinstance(operation, OneStarActiveFeedOperation):
-            require_account_owner("an active-feed selection")
-            _apply_active_feed(operation, state, after, config)
         else:  # pragma: no cover - discriminated union prevents this at parse time.
             raise OneStarTransactionError(f"unsupported One-Star operation {operation!r}")
     if summon_ids != expected_summon_ids:
@@ -3657,25 +3626,6 @@ def prepare_one_star_transaction(
     _validate_global_equipment_ids(after, state)
     _validate_all_hero_progression_states(after, config)
 
-    if state.active_master_feed_id in dormant_ids:
-        state.active_master_feed_id = ""
-    if state.active_master_feed_id:
-        feed_character = _require_character(after, state.active_master_feed_id)
-        feed_hero = load_one_star_hero(feed_character)
-        if (
-            feed_character.status != CharacterStatus.active
-            or feed_hero is None
-            or feed_hero.owner_lobby_id != config.lobby_id
-        ):
-            state.active_master_feed_id = ""
-    if (
-        active_feed_before_event
-        and not state.active_master_feed_id
-        and not active_feed_authored
-    ):
-        engine_history_updates.append(
-            f"active_master_feed_id=none previous={active_feed_before_event}"
-        )
     state.applied_event_fingerprints[event_id] = fingerprint
     _store_account(owner, account)
     culled_character_ids = tuple(

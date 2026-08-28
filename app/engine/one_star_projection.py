@@ -282,7 +282,6 @@ def _promotion_authority_lines(
 def _management_lines(
     envelope: OneStarAccountEnvelope,
     *,
-    include_active_feed: bool,
     include_stored_equipment: bool = False,
     canonical_now_s: int,
 ) -> list[str]:
@@ -363,8 +362,6 @@ def _management_lines(
             )
         )
         lines.append(f"Stored equipment: {stored_equipment}")
-    if include_active_feed:
-        lines.append(f"Active feed: {state.active_master_feed_id or 'none'}")
     return lines
 
 
@@ -422,7 +419,6 @@ def _master_status_lines(
     )
     lines = _management_lines(
         envelope,
-        include_active_feed=True,
         include_stored_equipment=True,
         canonical_now_s=checkpoint.session.leading_at_s,
     )
@@ -555,7 +551,6 @@ def one_star_agent_state_block(
         lines.extend(
             _management_lines(
                 envelope,
-                include_active_feed=True,
                 include_stored_equipment=True,
                 canonical_now_s=checkpoint.session.leading_at_s,
             )
@@ -571,7 +566,6 @@ def one_star_agent_state_block(
         lines.extend(
             _management_lines(
                 envelope,
-                include_active_feed=False,
                 canonical_now_s=checkpoint.session.leading_at_s,
             )
         )

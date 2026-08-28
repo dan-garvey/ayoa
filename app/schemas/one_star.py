@@ -683,7 +683,6 @@ class OneStarAccountState(BaseModel):
     summon_draw_counters: dict[str, int] = Field(default_factory=dict)
     synthesis_resolution_count: int = Field(default=0, ge=0)
     applied_event_fingerprints: dict[str, str] = Field(default_factory=dict)
-    active_master_feed_id: str = ""
 
     @model_validator(mode="after")
     def _clean(self) -> "OneStarAccountState":
@@ -952,12 +951,6 @@ class OneStarTutorialDeliveryOperation(BaseModel):
     delivered_to_ids: list[str]
 
 
-class OneStarActiveFeedOperation(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    operation: Literal["active_feed"]
-    hero_id: str
-
-
 OneStarOperation = (
     OneStarCatalogueApplyOperation
     | OneStarSummonOperation
@@ -972,7 +965,6 @@ OneStarOperation = (
     | OneStarPendingResolveOperation
     | OneStarPendingCancelOperation
     | OneStarTutorialDeliveryOperation
-    | OneStarActiveFeedOperation
 )
 
 
@@ -1005,7 +997,6 @@ OneStarStateUpdateKind = Literal[
     "pending_cancel",
     "equipment_move",
     "tutorial_delivery",
-    "active_feed",
 ]
 
 

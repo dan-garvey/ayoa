@@ -644,7 +644,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                     "the chamber to complete it when she enters."
                 ),
                 (
-                    "I keep the active feed on the Promotion Chamber and wait "
+                    "I keep watching the Promotion Chamber and wait "
                     "for Renna Holt's decision without adding another order."
                 ),
             ),
@@ -652,7 +652,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         await execute(
             "renna_after",
             (
-                "I keep the feed on Renna Holt and inspect her after the "
+                "I turn my view to Renna Holt and inspect her after the "
                 "Promotion Chamber releases her."
             ),
         )
@@ -660,7 +660,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         mara_before = await execute(
             "mara_before",
             (
-                "I move the feed to Mara Venn and observe her before choosing "
+                "I turn my view to Mara Venn and observe her before choosing "
                 "her for promotion."
             ),
         )
@@ -688,7 +688,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                     "the chamber to complete it when she enters."
                 ),
                 (
-                    "I keep the active feed on the Promotion Chamber and wait "
+                    "I keep watching the Promotion Chamber and wait "
                     "for Mara Venn's decision without adding another order."
                 ),
                 "/defer",
@@ -709,7 +709,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             (
                 (
                     "I confirm the pending synthesis of Castor into Mara Venn "
-                    "and keep the feed on the Synthesis Chamber."
+                    "and turn my view to the Synthesis Chamber."
                 ),
                 (
                     "I keep watching the confirmed Synthesis Chamber operation "
@@ -721,7 +721,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         released = await execute(
             "mara_synthesis_release",
             (
-                "I keep the active feed on Mara Venn as the Synthesis Chamber "
+                "I keep watching Mara Venn as the Synthesis Chamber "
                 "opens, and wait for her to return to Niflheim's lobby before "
                 "making another selection."
             ),
@@ -764,7 +764,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                     "the chamber to complete it when she enters."
                 ),
                 (
-                    "I keep the active feed on the Promotion Chamber and wait "
+                    "I keep watching the Promotion Chamber and wait "
                     "for Mara Venn's decision without adding another order."
                 ),
                 "/defer",
@@ -773,7 +773,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         await execute(
             "mara_after",
             (
-                "I keep the feed on Mara Venn and inspect her after the "
+                "I turn my view to Mara Venn and inspect her after the "
                 "Promotion Chamber releases her at three stars."
             ),
         )

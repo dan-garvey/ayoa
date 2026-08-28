@@ -234,7 +234,6 @@ def _checkpoint(
             stamina_current=3,
             discretionary_funds=200,
             funds_accrual_anchor_s=0,
-            active_master_feed_id="feed-7",
             guide_character_ids=["guide"],
             system_observer_ids=["hero"] if system_observer else [],
             research_levels={"hero_reaction": research_level} if research_level else {},
@@ -321,7 +320,7 @@ def test_account_projection_is_exact_but_excludes_private_mechanics() -> None:
     assert "Hero capacity: 12" in block
     assert "basic: 2 Gold" in block
     assert "1-star 80%, 2-star 18%, 3-star 2%" in block
-    assert "feed-7" in block
+    assert "Active feed:" not in block
     assert "Tired Baker: 2-star" in block
     assert "HP 5/10" in block
     assert "Stored Bronze Shield [stored_bronze_shield] (offhand)" in block
@@ -378,7 +377,7 @@ def test_master_commands_split_account_roster_and_hero_sheet() -> None:
     assert "Hero capacity: 12; stamina 3/5" in status_text
     assert "Occupied Hero slots: 1/12" in status_text
     assert "armory 1" in status_text
-    assert "feed-7" in status_text
+    assert "Active feed:" not in status_text
     assert "Pending management operation: synthesis" in status_text
     assert "potential_grade" not in status_text
     assert "progression_seed" not in status_text

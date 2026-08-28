@@ -437,7 +437,6 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert state.highest_cleared_floor == 0
     assert state.active_mission is None
     assert state.pending_operation is None
-    assert state.active_master_feed_id == ""
     assert state.research_levels == {}
     assert state.tutorial_deliveries == {}
     assert state.synthesis_resolution_count == 0
@@ -1352,17 +1351,17 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
     ):
         assert management_choice in player_contract
 
-    # The human-facing Master contract permits observation, including the
-    # one-way audio feed, while explicitly assigning mission choices to Heroes.
+    # The human-facing Master contract permits narrative viewpoint shifts and
+    # one-way audio while explicitly assigning mission choices to Heroes.
     assert "during a mission" in master.player_guidance.lower()
     assert "mostly watch" in player_contract
-    assert "switch the available live hero feed" in player_contract
     assert "advances through the heroes' next actions" in player_contract
     assert "hear" in master.player_guidance.lower()
-    assert "audible hero dialogue" in master.player_guidance.lower()
     assert "cannot speak or type" in master.player_guidance.lower()
     assert "heroes choose targets" in player_contract
     assert "deployed heroes choose their own targets" in master.known_context.lower()
+    assert "active feed" not in player_contract
+    assert "live hero feed" not in player_contract
 
     # The tutorial guide must not recreate the removed tactical control loop.
     guide_contract = "\n".join(

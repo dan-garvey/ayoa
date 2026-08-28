@@ -334,7 +334,6 @@ def build_checkpoint() -> CheckpointFile:
     account.state.facilities["promotion_chamber"] = 1
     account.state.pending_operation = None
     account.state.active_mission = None
-    account.state.active_master_feed_id = ""
     account.state.synthesis_resolution_count = 0
     account.state.applied_event_fingerprints = {}
     account.state.stored_equipment = []

@@ -441,10 +441,6 @@ def render_one_star_repair_evidence(
                 f"tutorial {update.target_id}: already_delivered_to="
                 f"{','.join(state.tutorial_deliveries.get(update.target_id, [])) or 'none'}"
             )
-        elif update.kind == "active_feed":
-            add(f"active_master_feed_id={state.active_master_feed_id or 'none'}")
-            if update.target_id:
-                add_hero(update.target_id, set())
 
     lines.append("</one_star_conflict_evidence>")
     return "\n".join(lines)

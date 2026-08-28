@@ -44,7 +44,6 @@ def _command_checkpoint():
         owner.mechanics[ONE_STAR_ACCOUNT_KEY]
     )
     account.state.pending_operation = None
-    account.state.active_master_feed_id = ""
     owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
     donor_state = _hero_state()
     donor_state.equipment = []

@@ -266,6 +266,17 @@ def _fact_text(result: EventRouterOutput) -> str:
     return "\n".join(fact.text for fact in result.canonical_event.observable_facts)
 
 
+def _spoken_fact_text(result: EventRouterOutput) -> str:
+    """Return speech with the router's silent identity anchors removed."""
+
+    return re.sub(
+        r"\s+\[[a-z0-9_]+(?:,[a-z0-9_]+)*\]",
+        "",
+        _fact_text(result),
+        flags=re.IGNORECASE,
+    )
+
+
 def _observer_ids(result: EventRouterOutput) -> list[str]:
     return [obs.character_id for obs in result.observers]
 
@@ -314,7 +325,7 @@ async def _multi_recipient(dispatcher: LLMDispatcher) -> CaseResult:
         ),
         _check(
             "dialogue_preserved",
-            "What do you both want from this room" in _fact_text(result),
+            "What do you both want from this room" in _spoken_fact_text(result),
         ),
     ]
     return CaseResult(
