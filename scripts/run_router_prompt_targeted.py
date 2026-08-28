@@ -12,6 +12,7 @@ around:
 - NPC-to-NPC continuation instead of player-centric defaulting
 - defer/wait pacing
 - Cat II opening and resolution
+- Cat II resolution chronology without replaying the canonical opening
 - mediated perception without scene topology
 - custom player arrival guidance
 
@@ -483,6 +484,7 @@ async def _defer_after_premature_boundary(dispatcher: LLMDispatcher) -> CaseResu
             "message",
             "blocked path",
             "opened route",
+            "countdown",
             "britney",
         ]
     )
@@ -674,6 +676,82 @@ async def _cat_ii_resolution(dispatcher: LLMDispatcher) -> CaseResult:
     )
 
 
+async def _cat_ii_resolution_no_opening_replay(
+    dispatcher: LLMDispatcher,
+) -> CaseResult:
+    ckpt = _ckpt(session_id="targeted_cat_ii_no_opening_replay")
+    for character in ckpt.characters:
+        if character.character_id in {"dan", "pip"}:
+            character.location = "security_annex"
+    initiator_intention = (
+        "I reach for Pip's red badge and say, "
+        '"Keep your hands off the red badge."'
+    )
+    opening = await dispatcher.route_intention(
+        ckpt=ckpt,
+        actor_id="dan",
+        intention=initiator_intention,
+    )
+    responder_intention = (
+        "Pip clamps the badge to his chest, steps behind the security desk, "
+        'and says, "No."'
+    )
+    evt = OpenCatIIEvent(
+        event_id="evt_targeted_no_opening_replay",
+        initiator_id="dan",
+        initiator_intention=initiator_intention,
+        required_responders=["pip"],
+        collected_intentions={"pip": responder_intention},
+        swept_responders=[],
+        opening_event_id=opening.event_id,
+        opening_observer_ids=_observer_ids(opening),
+        opening_observable_facts=[
+            fact.text for fact in opening.canonical_event.observable_facts
+        ],
+    )
+    resolution = await dispatcher.route_intention(
+        ckpt=ckpt,
+        actor_id="dan",
+        intention="",
+        cat_ii_event=evt,
+    )
+    opening_text = _spoken_fact_text(opening).lower()
+    resolution_text = _spoken_fact_text(resolution).lower()
+    distinctive_line = "keep your hands off the red badge"
+    checks = [
+        _check(
+            "opening_is_cat_ii",
+            opening.requires_responders and opening.event_kind == "cat_ii_open",
+            f"kind={opening.event_kind} required={opening.required_responders}",
+        ),
+        _check(
+            "opening_preserves_distinctive_dialogue",
+            distinctive_line in opening_text,
+            _fact_text(opening),
+        ),
+        _check(
+            "resolution_is_cat_ii",
+            not resolution.requires_responders
+            and resolution.event_kind == "cat_ii_resolution",
+            f"kind={resolution.event_kind}",
+        ),
+        _check(
+            "resolution_does_not_replay_opening_dialogue",
+            distinctive_line not in resolution_text,
+            _fact_text(resolution),
+        ),
+    ]
+    return CaseResult(
+        name="cat_ii_resolution_no_opening_replay",
+        input_summary=(
+            "Dan's canonical opening attempt includes distinctive dialogue; "
+            "Pip supplies a contested response before resolution."
+        ),
+        output=_result_dict(resolution),
+        checks=checks,
+    )
+
+
 async def _mediated_pod(dispatcher: LLMDispatcher) -> CaseResult:
     ckpt = _ckpt(session_id="targeted_mediated_pod")
     text = (
@@ -798,6 +876,10 @@ CASES: list[tuple[str, Callable[[LLMDispatcher], Awaitable[CaseResult]]]] = [
     ("defer_after_premature_boundary", _defer_after_premature_boundary),
     ("cat_ii_open_physical_contest", _cat_ii_open),
     ("cat_ii_resolution_responder_overclaim", _cat_ii_resolution),
+    (
+        "cat_ii_resolution_no_opening_replay",
+        _cat_ii_resolution_no_opening_replay,
+    ),
     ("mediated_pod_shared_audio_not_sight", _mediated_pod),
     ("custom_arrival_story_direction", _custom_arrival),
 ]

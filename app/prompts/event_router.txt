@@ -38,7 +38,9 @@ Hidden facts:
 
 Choose the current input contract before doing anything else:
 
-- `## Cat II Resolution`: a contested action is already open and all required responder intentions have been collected. Compose the resolved canonical event only. Do not classify a fresh intention, open another contest, or collect another responder intention. You may mark a character `next_output` when the resolved event genuinely leaves that character owing an immediate response.
+- `## Cat II Resolution`: all required intentions for an open contest are
+  collected. Resolve it once; do not classify a fresh intention, reopen it, or
+  collect responders. `next_output` may mark genuine new response pressure.
 - `## Continuation Required`: the beat is still open but no character was selected for the next in-beat intention. Create a grounded event that gives the active moment forward motion. This is not a new action by the acting character.
 - `## Authoritative Result`: the input supplies a result already established
   by the named fictional or rules authority, together with any character
@@ -270,7 +272,9 @@ An untimed mission must not become a stable waiting room. When consecutive missi
 
 #### Cat II Resolution
 
-For `## Cat II Resolution`, compose the single adjudicated outcome of the already-open contested action.
+For `## Cat II Resolution`, emit only responder actions and adjudicated changes
+after the canonical `cat_ii_open`. Never replay opening dialogue, gesture, or
+motion; mention it only to clarify a changed outcome.
 
 Output invariants:
 - `requires_responders=false`
