@@ -31,7 +31,7 @@ from app.schemas.narrator import (
 
 CARD_WIDTH = 1024
 CARD_HEIGHT = 576
-_RENDERER_VERSION = "classic-adv-v8-distinct-sprite-subjects"
+_RENDERER_VERSION = "classic-adv-v9-identity-transitions"
 _SPEAKER_NAME_MAX_WIDTH = 900
 _MANIFEST_VERSION = 2
 _SHA256_LENGTH = 64
@@ -99,6 +99,8 @@ _CONTINUATION_FINAL_WORDS = {
 }
 _DEFAULT_REGULAR_FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
 _DEFAULT_BOLD_FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+
+VisualNovelCardStyle = Literal["adv", "identity_flash", "identity_reveal"]
 
 
 @dataclass(frozen=True)
@@ -185,6 +187,7 @@ class VisualNovelDeckSection:
     stage_path: str | Path | None = None
     stage_media: PlayerMediaBytes | None = None
     sprite_placements: tuple[VisualNovelSpritePlacement, ...] = ()
+    card_style: VisualNovelCardStyle = "adv"
 
 
 @dataclass(frozen=True)
@@ -200,6 +203,7 @@ class _ResolvedDeckSection:
     used_neutral_stage: bool
     sprites: tuple[_ResolvedSpritePlacement, ...]
     pages: tuple[VisualNovelPage, ...]
+    card_style: VisualNovelCardStyle
 
 
 class VisualNovelCardRenderer:
@@ -259,6 +263,12 @@ class VisualNovelCardRenderer:
                 raise ValueError("visual-novel deck sections require at least one page")
             if section.stage_path is not None and section.stage_media is not None:
                 raise ValueError("visual-novel deck sections accept one stage source")
+            if section.card_style not in {
+                "adv",
+                "identity_flash",
+                "identity_reveal",
+            }:
+                raise ValueError("visual-novel deck section has an invalid card style")
             stage, stage_sha256, used_neutral = _load_stage(
                 section.stage_path,
                 stage_media=section.stage_media,
@@ -271,6 +281,7 @@ class VisualNovelCardRenderer:
                     used_neutral_stage=used_neutral,
                     sprites=sprites,
                     pages=tuple(_paginate_pages(section.pages, fonts.body)),
+                    card_style=section.card_style,
                 )
             )
         identity = {
@@ -284,6 +295,7 @@ class VisualNovelCardRenderer:
                 {
                     "stage_sha256": section.stage_sha256,
                     "used_neutral_stage": section.used_neutral_stage,
+                    "card_style": section.card_style,
                     "sprites": [sprite.identity for sprite in section.sprites],
                     "pages": [
                         page.model_dump(mode="json", exclude={"sprites"})
@@ -307,6 +319,7 @@ class VisualNovelCardRenderer:
                     index=index,
                     count=count,
                     fonts=fonts,
+                    card_style=section.card_style,
                 )
                 encoded = BytesIO()
                 card_image.save(encoded, format="PNG", optimize=False)
@@ -588,6 +601,8 @@ class VisualNovelCardRenderer:
             body=ImageFont.truetype(str(self.regular_font_path), 24),
             speaker=ImageFont.truetype(str(self.bold_font_path), 25),
             counter=ImageFont.truetype(str(self.regular_font_path), 16),
+            title=ImageFont.truetype(str(self.bold_font_path), 34),
+            reveal=ImageFont.truetype(str(self.bold_font_path), 46),
         )
 
     def _open_pinned_root_fds(self) -> tuple[int, int]:
@@ -996,6 +1011,7 @@ def _valid_v2_identity(
         if type(section) is not dict or set(section) != {
             "stage_sha256",
             "used_neutral_stage",
+            "card_style",
             "sprites",
             "pages",
         }:
@@ -1003,6 +1019,12 @@ def _valid_v2_identity(
         if not _is_sha256(section["stage_sha256"]):
             return False
         if type(section["used_neutral_stage"]) is not bool:
+            return False
+        if type(section["card_style"]) is not str or section["card_style"] not in {
+            "adv",
+            "identity_flash",
+            "identity_reveal",
+        }:
             return False
         raw_sprites = section["sprites"]
         if (
@@ -1054,6 +1076,8 @@ class _CardFonts:
     body: ImageFont.FreeTypeFont
     speaker: ImageFont.FreeTypeFont
     counter: ImageFont.FreeTypeFont
+    title: ImageFont.FreeTypeFont
+    reveal: ImageFont.FreeTypeFont
 
 
 def _resolve_sprite_placements(
@@ -1645,7 +1669,24 @@ def _compose_card(
     index: int,
     count: int,
     fonts: _CardFonts,
+    card_style: VisualNovelCardStyle,
 ) -> Image.Image:
+    if card_style == "identity_flash":
+        return _compose_identity_flash_card(
+            stage,
+            page,
+            index=index,
+            count=count,
+            fonts=fonts,
+        )
+    if card_style == "identity_reveal":
+        return _compose_identity_reveal_card(
+            stage,
+            page,
+            index=index,
+            count=count,
+            fonts=fonts,
+        )
     card = stage.copy().convert("RGBA")
     overlay = Image.new("RGBA", card.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
@@ -1711,6 +1752,163 @@ def _compose_card(
         fill=cyan,
     )
     return Image.alpha_composite(card, overlay).convert("RGB")
+
+
+def _compose_identity_flash_card(
+    stage: Image.Image,
+    page: VisualNovelPage,
+    *,
+    index: int,
+    count: int,
+    fonts: _CardFonts,
+) -> Image.Image:
+    """Obscure the prior sprite with a deliberate full-card reveal flash."""
+
+    card = stage.copy().convert("RGBA")
+    overlay = Image.new("RGBA", card.size, (205, 237, 247, 92))
+    draw = ImageDraw.Draw(overlay)
+    center_x, center_y = CARD_WIDTH // 2, 300
+    for radius, alpha in (
+        (420, 28),
+        (330, 42),
+        (250, 62),
+        (180, 88),
+        (120, 132),
+        (72, 210),
+    ):
+        draw.ellipse(
+            (
+                center_x - radius,
+                center_y - radius,
+                center_x + radius,
+                center_y + radius,
+            ),
+            fill=(235, 252, 255, alpha),
+        )
+    draw.polygon(
+        (
+            (center_x - 70, 0),
+            (center_x + 70, 0),
+            (center_x + 132, CARD_HEIGHT),
+            (center_x - 132, CARD_HEIGHT),
+        ),
+        fill=(244, 254, 255, 164),
+    )
+    draw.line(
+        (center_x, 20, center_x, CARD_HEIGHT - 20),
+        fill=(255, 255, 255, 242),
+        width=5,
+    )
+    _draw_centered_text(
+        draw,
+        "REVELATION",
+        y=72,
+        font=fonts.title,
+        fill=(248, 255, 255, 255),
+        stroke_fill=(18, 63, 83, 220),
+        stroke_width=2,
+    )
+    _draw_centered_text(
+        draw,
+        page.text,
+        y=485,
+        font=fonts.body,
+        fill=(247, 254, 255, 255),
+        stroke_fill=(8, 34, 54, 230),
+        stroke_width=2,
+        max_width=900,
+    )
+    _draw_card_counter(draw, index=index, count=count, font=fonts.counter)
+    return Image.alpha_composite(card, overlay).convert("RGB")
+
+
+def _compose_identity_reveal_card(
+    stage: Image.Image,
+    page: VisualNovelPage,
+    *,
+    index: int,
+    count: int,
+    fonts: _CardFonts,
+) -> Image.Image:
+    """Present the new sprite without covering it with the ordinary ADV box."""
+
+    card = stage.copy().convert("RGBA")
+    overlay = Image.new("RGBA", card.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    for offset in range(170):
+        alpha = round(196 * (offset / 169) ** 1.7)
+        y = CARD_HEIGHT - 170 + offset
+        draw.line((0, y, CARD_WIDTH, y), fill=(5, 15, 31, alpha))
+    _draw_centered_text(
+        draw,
+        "IDENTITY REVEALED",
+        y=420,
+        font=fonts.title,
+        fill=(188, 242, 249, 255),
+        stroke_fill=(3, 18, 34, 235),
+        stroke_width=2,
+    )
+    draw.line(
+        (172, 462, CARD_WIDTH - 172, 462),
+        fill=(157, 231, 245, 225),
+        width=2,
+    )
+    _draw_centered_text(
+        draw,
+        page.text,
+        y=475,
+        font=fonts.reveal,
+        fill=(250, 253, 255, 255),
+        stroke_fill=(3, 12, 26, 245),
+        stroke_width=2,
+        max_width=900,
+    )
+    _draw_card_counter(draw, index=index, count=count, font=fonts.counter)
+    return Image.alpha_composite(card, overlay).convert("RGB")
+
+
+def _draw_centered_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    *,
+    y: int,
+    font: ImageFont.FreeTypeFont,
+    fill: tuple[int, int, int, int],
+    stroke_fill: tuple[int, int, int, int],
+    stroke_width: int,
+    max_width: int | None = None,
+) -> None:
+    display = str(text or "").strip()
+    if max_width is not None:
+        display = _ellipsize(draw, display, font, max_width=max_width)
+    width = _text_width(draw, display, font)
+    draw.text(
+        ((CARD_WIDTH - width) // 2, y),
+        display,
+        font=font,
+        fill=fill,
+        stroke_width=stroke_width,
+        stroke_fill=stroke_fill,
+    )
+
+
+def _draw_card_counter(
+    draw: ImageDraw.ImageDraw,
+    *,
+    index: int,
+    count: int,
+    font: ImageFont.FreeTypeFont,
+) -> None:
+    counter = f"{index} / {count}"
+    counter_width = _text_width(draw, counter, font)
+    draw.text(
+        (958 - counter_width, 532),
+        counter,
+        font=font,
+        fill=(211, 233, 241, 255),
+        stroke_width=1,
+        stroke_fill=(3, 12, 26, 230),
+    )
 
 
 def _ellipsize(

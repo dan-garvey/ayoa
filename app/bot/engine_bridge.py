@@ -90,7 +90,9 @@ from app.engine.visual_novel_presentation import (
     VisualNovelDeckSection,
 )
 from app.engine.visual_novel_sprites import (
+    resolve_visual_novel_identity_transition_placement,
     resolve_visual_novel_sprite_placements,
+    visual_novel_sprite_identity_transitions,
 )
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
@@ -345,6 +347,10 @@ class EngineBridge:
         """Build one ordered deck while preserving each beat's stage plate."""
 
         checkpoint = self.load_checkpoint(session_id, checkpoint_id)
+        previous_checkpoint = self._previous_visual_novel_checkpoint(
+            session_id=session_id,
+            checkpoint_id=checkpoint_id,
+        )
         await self._prewarm_visual_novel_sprites(
             session_id=session_id,
             checkpoint=checkpoint,
@@ -353,7 +359,27 @@ class EngineBridge:
             session_id=session_id,
             renders_by_pov={pov_character_id: render},
         )
+        pages = tuple(
+            page
+            for segment in render.segments
+            for page in segment.pages
+        )
+        identity_transitions = (
+            visual_novel_sprite_identity_transitions(
+                before_checkpoint=previous_checkpoint,
+                after_checkpoint=checkpoint,
+                viewer_character_id=pov_character_id,
+                pages=pages,
+            )
+            if previous_checkpoint is not None
+            else ()
+        )
+        prior_sprite_set_ids = {
+            transition.character_id: transition.before_sprite_set_id
+            for transition in identity_transitions
+        }
         sections: list[VisualNovelDeckSection] = []
+        final_stage_media = None
         for segment_index, segment in enumerate(render.segments, start=1):
             resolution, stage_media = self.image_generation.resolve_visual_novel_stage(
                 session_id=session_id,
@@ -368,6 +394,7 @@ class EngineBridge:
                     segment_index,
                     resolution.fallback_reason,
                 )
+            final_stage_media = stage_media
             for page in segment.pages:
                 sections.append(
                     VisualNovelDeckSection(
@@ -379,11 +406,83 @@ class EngineBridge:
                                 viewer_character_id=pov_character_id,
                                 page=page,
                                 generation=self.image_generation,
+                                sprite_set_id_overrides=prior_sprite_set_ids,
                             )
                         ),
                     )
                 )
+
+        if previous_checkpoint is not None:
+            for transition in identity_transitions:
+                before_placement = (
+                    resolve_visual_novel_identity_transition_placement(
+                        checkpoint=previous_checkpoint,
+                        viewer_character_id=pov_character_id,
+                        character_id=transition.character_id,
+                        sprite_set_id=transition.before_sprite_set_id,
+                        generation=self.image_generation,
+                    )
+                )
+                after_placement = resolve_visual_novel_identity_transition_placement(
+                    checkpoint=checkpoint,
+                    viewer_character_id=pov_character_id,
+                    character_id=transition.character_id,
+                    sprite_set_id=transition.after_sprite_set_id,
+                    generation=self.image_generation,
+                )
+                if before_placement is None or after_placement is None:
+                    logger.warning(
+                        "VN identity reveal unavailable session=%s pov=%s character=%s",
+                        session_id,
+                        pov_character_id,
+                        transition.character_id,
+                    )
+                    continue
+                sections.extend((
+                    VisualNovelDeckSection(
+                        pages=(VisualNovelPage(
+                            kind="narration",
+                            text="A new identity comes into focus.",
+                        ),),
+                        stage_media=final_stage_media,
+                        sprite_placements=(before_placement,),
+                        card_style="identity_flash",
+                    ),
+                    VisualNovelDeckSection(
+                        pages=(VisualNovelPage(
+                            kind="narration",
+                            text=transition.character_name,
+                        ),),
+                        stage_media=final_stage_media,
+                        sprite_placements=(after_placement,),
+                        card_style="identity_reveal",
+                    ),
+                ))
         return self.visual_novel_renderer.render_deck(sections)
+
+    def _previous_visual_novel_checkpoint(
+        self,
+        *,
+        session_id: str,
+        checkpoint_id: str,
+    ) -> CheckpointFile | None:
+        """Load the exact prior committed turn, if one exists."""
+
+        match = re.fullmatch(r"ckpt_(\d+)", checkpoint_id)
+        if match is None:
+            return None
+        current_turn = int(match.group(1))
+        prior_turns = [
+            turn
+            for turn in self.checkpoint_mgr.list_turn_indices(session_id)
+            if turn < current_turn
+        ]
+        if not prior_turns:
+            return None
+        return self.checkpoint_mgr.load(
+            session_id,
+            f"ckpt_{max(prior_turns):04d}",
+        )
 
     async def _prewarm_visual_novel_sprites(
         self,

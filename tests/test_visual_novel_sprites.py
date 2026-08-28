@@ -25,6 +25,7 @@ from app.engine.visual_novel_sprite_processing import (
 )
 from app.engine.visual_novel_sprites import (
     resolve_visual_novel_sprite_placements,
+    visual_novel_sprite_identity_transitions,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.image_generation import FrozenReferenceInput, ImageWorkerResult
@@ -281,6 +282,52 @@ def test_master_uses_veil_until_seeded_reveal_and_missing_mood_uses_neutral(
     )
     assert len(revealed) == 1
     assert revealed[0].identity_handle == "osa_vnset_renna_holt_v1"
+
+
+def test_checkpoint_boundary_finds_only_depicted_viewer_identity_changes() -> None:
+    before = CheckpointFile.model_validate_json(
+        PROMOTION_PLAYTEST_CHECKPOINT.read_text()
+    )
+    before.session.session_id = "identity-transition-test"
+    after = before.model_copy(deep=True)
+    renna = next(
+        character
+        for character in after.characters
+        if character.character_id == "renna_holt"
+    )
+    renna.mechanics["one_star_hero"]["current_stars"] = 2
+    depicted_page = VisualNovelPage(
+        kind="narration",
+        text="Renna Holt steps into the chamber light.",
+        sprites=[VisualNovelSpriteCue(
+            character="Renna Holt",
+            expression="tense",
+        )],
+    )
+
+    transitions = visual_novel_sprite_identity_transitions(
+        before_checkpoint=before,
+        after_checkpoint=after,
+        viewer_character_id="the_master",
+        pages=(depicted_page,),
+    )
+
+    assert len(transitions) == 1
+    assert transitions[0].character_id == "renna_holt"
+    assert transitions[0].character_name == "Renna Holt"
+    assert transitions[0].before_sprite_set_id == (
+        "osa_vnset_veiled_feminine_v1"
+    )
+    assert transitions[0].after_sprite_set_id == "osa_vnset_renna_holt_v1"
+    assert visual_novel_sprite_identity_transitions(
+        before_checkpoint=before,
+        after_checkpoint=after,
+        viewer_character_id="the_master",
+        pages=(VisualNovelPage(
+            kind="narration",
+            text="The empty hall remains quiet.",
+        ),),
+    ) == ()
 
 
 @pytest.mark.asyncio

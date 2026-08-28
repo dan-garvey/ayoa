@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Mapping, Sequence
 
 from app.engine.one_star_visuals import sprite_set_id_for_viewer
 from app.engine.reviewed_visual_references import (
@@ -21,7 +22,10 @@ from app.engine.reviewed_visual_references import (
 from app.engine.visual_novel_presentation import VisualNovelSpritePlacement
 from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.narrator import VisualNovelPage
+from app.schemas.narrator import (
+    VisualNovelPage,
+    visual_novel_text_contains_source_identifiers,
+)
 from app.schemas.visual_references import VisualNovelSpriteExpression
 
 if TYPE_CHECKING:
@@ -41,25 +45,39 @@ class _ResolvedCue:
     source_facing: str
 
 
+@dataclass(frozen=True)
+class VisualNovelSpriteIdentityTransition:
+    """One viewer-visible sprite-set change across committed checkpoints."""
+
+    character_id: str
+    character_name: str
+    before_sprite_set_id: str
+    after_sprite_set_id: str
+
+
 def resolve_visual_novel_sprite_placements(
     *,
     checkpoint: CheckpointFile,
     viewer_character_id: str,
     page: VisualNovelPage,
     generation: "ImageGenerationCoordinator",
+    sprite_set_id_overrides: Mapping[str, str] | None = None,
 ) -> tuple[VisualNovelSpritePlacement, ...]:
     """Resolve zero, one, or two safe page cues into immutable placements."""
 
     characters_by_label = _unique_character_labels(checkpoint)
+    overrides = sprite_set_id_overrides or {}
     resolved: list[_ResolvedCue] = []
     for cue in page.sprites:
         character = characters_by_label.get(cue.character)
         if character is None or character.character_id == viewer_character_id:
             continue
-        sprite_set_id = sprite_set_id_for_viewer(
-            checkpoint,
-            viewer_character_id=viewer_character_id,
-            character=character,
+        sprite_set_id = overrides.get(character.character_id) or (
+            sprite_set_id_for_viewer(
+                checkpoint,
+                viewer_character_id=viewer_character_id,
+                character=character,
+            )
         )
         if not sprite_set_id:
             continue
@@ -78,16 +96,151 @@ def resolve_visual_novel_sprite_placements(
         if candidate is not None:
             resolved.append(candidate)
 
+    return _placements_for_resolved_cues(resolved)
+
+
+def visual_novel_sprite_identity_transitions(
+    *,
+    before_checkpoint: CheckpointFile,
+    after_checkpoint: CheckpointFile,
+    viewer_character_id: str,
+    pages: Sequence[VisualNovelPage],
+) -> tuple[VisualNovelSpriteIdentityTransition, ...]:
+    """Find depicted identities whose viewer-scoped sprite set just changed.
+
+    The checkpoint boundary is authoritative. Page text is used only as a
+    visibility guard so an unrelated off-camera state change cannot create a
+    reveal card for this viewer.
+    """
+
+    if (
+        before_checkpoint.session.session_id
+        != after_checkpoint.session.session_id
+    ):
+        raise ValueError("VN identity transitions require one session")
+
+    before_by_id = {
+        character.character_id: character
+        for character in before_checkpoint.characters
+    }
+    visible_cues = {
+        " ".join(cue.character.split()).casefold()
+        for page in pages
+        for cue in page.sprites
+        if " ".join(cue.character.split()).strip()
+    }
+    visible_speakers = {
+        " ".join(page.speaker.split()).casefold()
+        for page in pages
+        if " ".join(page.speaker.split()).strip()
+    }
+    visible_text = "\n".join(page.text for page in pages)
+    after_labels = _unique_character_labels(after_checkpoint)
+
+    transitions: list[VisualNovelSpriteIdentityTransition] = []
+    for character_name, after_character in after_labels.items():
+        if (
+            after_character.character_id == viewer_character_id
+            or after_character.status == CharacterStatus.culled
+            or visual_novel_text_contains_source_identifiers(character_name)
+        ):
+            continue
+        before_character = before_by_id.get(after_character.character_id)
+        if before_character is None:
+            continue
+        normalized_name = character_name.casefold()
+        if (
+            normalized_name not in visible_cues
+            and normalized_name not in visible_speakers
+            and re.search(
+                rf"(?<![A-Za-z0-9_]){re.escape(character_name)}"
+                rf"(?![A-Za-z0-9_])",
+                visible_text,
+                re.IGNORECASE,
+            )
+            is None
+        ):
+            continue
+        before_sprite_set_id = sprite_set_id_for_viewer(
+            before_checkpoint,
+            viewer_character_id=viewer_character_id,
+            character=before_character,
+        )
+        after_sprite_set_id = sprite_set_id_for_viewer(
+            after_checkpoint,
+            viewer_character_id=viewer_character_id,
+            character=after_character,
+        )
+        if (
+            not before_sprite_set_id
+            or not after_sprite_set_id
+            or before_sprite_set_id == after_sprite_set_id
+        ):
+            continue
+        transitions.append(
+            VisualNovelSpriteIdentityTransition(
+                character_id=after_character.character_id,
+                character_name=character_name,
+                before_sprite_set_id=before_sprite_set_id,
+                after_sprite_set_id=after_sprite_set_id,
+            )
+        )
+    return tuple(transitions)
+
+
+def resolve_visual_novel_identity_transition_placement(
+    *,
+    checkpoint: CheckpointFile,
+    viewer_character_id: str,
+    character_id: str,
+    sprite_set_id: str,
+    generation: "ImageGenerationCoordinator",
+) -> VisualNovelSpritePlacement | None:
+    """Resolve one neutral, centered sprite for a deterministic reveal card."""
+
+    character = next(
+        (
+            item
+            for item in checkpoint.characters
+            if item.character_id == character_id
+            and item.status != CharacterStatus.culled
+        ),
+        None,
+    )
+    if character is None or character.character_id == viewer_character_id:
+        return None
+    resolved = _resolve_cue(
+        checkpoint=checkpoint,
+        generation=generation,
+        character=character,
+        subject_handle=_subject_handle(
+            checkpoint=checkpoint,
+            viewer_character_id=viewer_character_id,
+            character=character,
+        ),
+        sprite_set_id=sprite_set_id,
+        expression="neutral",
+    )
+    if resolved is None:
+        return None
+    return _placements_for_resolved_cues([resolved])[0]
+
+
+def _placements_for_resolved_cues(
+    resolved: Sequence[_ResolvedCue],
+) -> tuple[VisualNovelSpritePlacement, ...]:
     count = len(resolved)
     if count == 0:
         return ()
     if count == 1:
         slots = (("center", "right", (512, 565), 98),)
-    else:
+    elif count == 2:
         slots = (
             ("left", "right", (292, 565), 92),
             ("right", "left", (732, 565), 92),
         )
+    else:
+        raise ValueError("visual-novel pages accept at most two sprite cues")
     return tuple(
         VisualNovelSpritePlacement(
             subject_handle=item.subject_handle,

@@ -2907,7 +2907,8 @@
       "scope": "location",
       "scope_id": "niflheim_synthesis_chamber",
       "selection_hint": "Synthesis Chamber interior: use only when visible facts directly place the scene inside or at the threshold of the operational chamber with its low cold-blue floor recess.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": true
     },
     {
       "reference_id": "osa_loc_1f_crack_facility_v1",

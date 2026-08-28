@@ -40,6 +40,7 @@ from app.engine.visual_novel_presentation import (
     VisualNovelCardRenderer,
     VisualNovelDeckSection,
 )
+from app.engine.visual_novel_sprites import VisualNovelSpriteIdentityTransition
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_pack import SafeAssetRevealPayload
@@ -354,6 +355,102 @@ class TestEngineBridgeVisualNovelPresentation:
                 assert image.convert("RGB").getpixel((5, 5)) == (221, 37, 73)
         with Image.open(wren_cards[0].image_path) as image:
             assert image.convert("RGB").getpixel((5, 5)) == (17, 199, 101)
+
+    def test_identity_change_keeps_authored_pages_old_then_appends_reveal(
+        self,
+        mock_bridge: EngineBridge,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        before = CheckpointFile(
+            session=SessionState(session_id="session", turn_index=6),
+            world_state=WorldState(setting=StorySetting()),
+        )
+        after = before.model_copy(deep=True)
+        after.session.turn_index = 7
+        mock_bridge.load_checkpoint = MagicMock(return_value=after)
+        mock_bridge._previous_visual_novel_checkpoint = MagicMock(  # type: ignore[method-assign]
+            return_value=before
+        )
+        mock_bridge.image_generation.ensure_visual_novel_sprite_prewarm = AsyncMock()
+        mock_bridge.image_sidecar.wait_for_stage_discovery = AsyncMock()
+        mock_bridge.image_generation.wait_for_render_images = AsyncMock(
+            return_value=True
+        )
+        stage_media = _visual_novel_stage_media((33, 77, 119))
+        mock_bridge.image_generation.resolve_visual_novel_stage = MagicMock(
+            return_value=(
+                VisualNovelStageResolution(action="replace", artifact=None),
+                stage_media,
+            )
+        )
+        transition = VisualNovelSpriteIdentityTransition(
+            character_id="renna",
+            character_name="Renna Holt",
+            before_sprite_set_id="sprite.veiled",
+            after_sprite_set_id="sprite.renna",
+        )
+        transition_detector = MagicMock(return_value=(transition,))
+        page_resolver = MagicMock(return_value=("old-page-placement",))
+        transition_resolver = MagicMock(
+            side_effect=("old-transition-placement", "new-transition-placement")
+        )
+        monkeypatch.setattr(
+            "app.bot.engine_bridge.visual_novel_sprite_identity_transitions",
+            transition_detector,
+        )
+        monkeypatch.setattr(
+            "app.bot.engine_bridge.resolve_visual_novel_sprite_placements",
+            page_resolver,
+        )
+        monkeypatch.setattr(
+            "app.bot.engine_bridge.resolve_visual_novel_identity_transition_placement",
+            transition_resolver,
+        )
+        rendered = object()
+        mock_bridge.visual_novel_renderer.render_deck = MagicMock(
+            return_value=rendered
+        )
+        page = VisualNovelPage(
+            kind="narration",
+            text="Renna Holt enters the sealed chamber.",
+        )
+        render = VisualNovelRender(segments=[VisualNovelRenderSegment(
+            pages=[page],
+            rendered_event_ids=["evt_promotion"],
+        )])
+
+        result = asyncio.run(mock_bridge.prepare_visual_novel_deck(
+            session_id="session",
+            checkpoint_id="ckpt_0007",
+            pov_character_id="the_master",
+            render=render,
+        ))
+
+        assert result is rendered
+        transition_detector.assert_called_once_with(
+            before_checkpoint=before,
+            after_checkpoint=after,
+            viewer_character_id="the_master",
+            pages=(page,),
+        )
+        assert page_resolver.call_args.kwargs["sprite_set_id_overrides"] == {
+            "renna": "sprite.veiled"
+        }
+        sections = mock_bridge.visual_novel_renderer.render_deck.call_args.args[0]
+        assert [section.card_style for section in sections] == [
+            "adv",
+            "identity_flash",
+            "identity_reveal",
+        ]
+        assert [section.sprite_placements for section in sections] == [
+            ("old-page-placement",),
+            ("old-transition-placement",),
+            ("new-transition-placement",),
+        ]
+        assert sections[1].pages[0].text == "A new identity comes into focus."
+        assert sections[2].pages[0].text == "Renna Holt"
+        assert sections[1].stage_media is stage_media
+        assert sections[2].stage_media is stage_media
 
 
 class TestEngineBridgeQuery:

@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "issue_id": "ayoa-ale8",
   "extension_issue_id": "ayoa-nptq",
   "promotion_issue_id": "ayoa-yvja",
@@ -200,6 +200,31 @@
         "reason": "Rejected after canonical source arrived: clean 1F courtyard passed, but the unsupported star-filled lightning tear did not match the established arched ribbed aperture and segmented block-glitch seam."
       }
     ]
+  },
+  "generation_1f_promotion_chamber_candidate": {
+    "tier": "1F",
+    "scene": "promotion_chamber",
+    "status": "unbound_pending_human_approval",
+    "mode": "built-in image_gen",
+    "model_identifier": null,
+    "model_identifier_note": "The built-in service does not expose a model identifier.",
+    "call_count": 1,
+    "output_count": 1,
+    "prompt_conflict_audit": "prompt_conflict_audit_1f_promotion_chamber.md",
+    "postprocess": "Center-crop only from 1672x941 to exact 16:9 1664x936 using [4, 2, 1668, 938); no resampling.",
+    "output": {
+      "id": "1F-E-candidate",
+      "file": "backgrounds/1f/lobby_1f_promotion_chamber_candidate_v1.png",
+      "dimensions": [1664, 936],
+      "sha256": "c73621400a8d9c960a38391816c3fe16f57d5e04fb00e4bc2968d7fdeb07512a",
+      "prompt_file": "prompts/1f/promotion_chamber_candidate_v1.txt",
+      "prompt_sha256": "89d3c12ac3211e0dec7764c46718fc6c78891f49e9eaa4c5484161cde2fcf175",
+      "reference_ids": ["1F-A", "1F-D", "ref03"],
+      "raw_file": "generation_raw/1f/builtin_1f_promotion_chamber_candidate_v1_raw.png",
+      "raw_dimensions": [1672, 941],
+      "raw_sha256": "0cab4a30bc1a062108e36c2a9ac8f61d6d5360d3c7013158962b6c210d440c8d",
+      "manual_review": "Candidate pass: character-free, creature-free, text-free, symbol-free, no UI, logo, or watermark; simple maintained plaster/timber/stone facility with one shallow rear platform under restrained pearly light and broad staging foreground. Not approved or bound."
+    }
   },
   "screening_evidence": {
     "full_source_overviews": [

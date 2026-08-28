@@ -117,6 +117,7 @@ def _metadata(
     purpose: str,
     scope: str,
     scope_id: str = "",
+    fixed_stage: bool = False,
 ) -> ReviewedVisualReference:
     data = path.read_bytes()
     return ReviewedVisualReference(
@@ -136,7 +137,91 @@ def _metadata(
             else "Platform environment reference for location framing."
         ),
         diffusion_authorized=True,
+        fixed_stage=fixed_stage,
     )
+
+
+def test_fixed_stage_requires_one_selected_location_environment(tmp_path):
+    story_dir = tmp_path / "story"
+    visual_dir = story_dir / "visual-references"
+    location_path = visual_dir / "chamber.png"
+    _write_png(location_path, (20, 60, 100))
+    fixed = _metadata(
+        location_path,
+        reference_id="authored.chamber.fixed",
+        purpose="environment",
+        scope="location",
+        scope_id="station",
+        fixed_stage=True,
+    )
+
+    with pytest.raises(ValidationError, match="is not selected by location"):
+        _checkpoint(references=[fixed])
+
+    checkpoint = _checkpoint(
+        references=[fixed],
+        location_reference_ids=[fixed.reference_id],
+    )
+    assert checkpoint.reviewed_visual_references[0].fixed_stage is True
+
+    second = fixed.model_copy(
+        update={"reference_id": "authored.chamber.fixed.second"}
+    )
+    with pytest.raises(ValidationError, match="more than one fixed stage"):
+        _checkpoint(
+            references=[fixed, second],
+            location_reference_ids=[fixed.reference_id, second.reference_id],
+        )
+
+
+@pytest.mark.asyncio
+async def test_fixed_visual_novel_stage_bypasses_the_image_director(tmp_path):
+    story_dir, checkpoint, _identity, location = _reviewed_story(tmp_path)
+    next(
+        reference
+        for reference in checkpoint.reviewed_visual_references
+        if reference.reference_id == location.reference_id
+    ).fixed_stage = True
+    checkpoint.session.config.settings.presentation_mode = "visual_novel"
+    event = router_output(
+        event_id="evt_fixed_chamber",
+        observer_ids=["alice"],
+        facts=[ObservableFact.all("Alice waits inside the chamber.")],
+    )
+    projection = build_projection_groups(
+        checkpoint=checkpoint,
+        event=event,
+        event_sequence=0,
+        transaction_id="tx_fixed_chamber",
+        source_turn_index=1,
+        actor_id="alice",
+        active_location_labels={"station"},
+    )[0]
+    projection = replace(projection, presentation_mode="visual_novel")
+    assert len(projection.reference_options) == 1
+    assert projection.reference_options[0].fixed_stage is True
+
+    class _NeverCalledClient:
+        async def complete(self, **_kwargs):
+            raise AssertionError("fixed stages must not call the image director")
+
+    output = await ImageDirector(
+        _NeverCalledClient(),
+        PromptManager(prompts_dir="app/prompts"),
+    ).decide(projection)
+
+    assert output.stage_action == "replace"
+    assert output.stage_reference_id == location.reference_id
+    assert output.requests == []
+
+    prose_client = _DirectorClient()
+    prose_output = await ImageDirector(
+        prose_client,
+        PromptManager(prompts_dir="app/prompts"),
+    ).decide(replace(projection, presentation_mode="prose"))
+    assert prose_client.messages
+    assert prose_output.stage_action == "independent"
+    validate_story_visual_references(checkpoint, story_dir=story_dir)
 
 
 def _checkpoint(

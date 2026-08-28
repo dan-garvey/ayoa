@@ -146,6 +146,15 @@ class CheckpointFile(BaseModel):
                         f"location {label!r} selects reference "
                         f"{reference_id!r} without diffusion authorization"
                     )
+            fixed_reference_ids = [
+                reference_id
+                for reference_id in reference_ids
+                if references[reference_id].fixed_stage
+            ]
+            if len(fixed_reference_ids) > 1:
+                raise ValueError(
+                    f"location {label!r} selects more than one fixed stage"
+                )
             if reference_ids:
                 if label in normalized_locations:
                     raise ValueError(
@@ -153,6 +162,16 @@ class CheckpointFile(BaseModel):
                     )
                 normalized_locations[label] = reference_ids
         self.location_visual_reference_ids = normalized_locations
+
+        for reference in references.values():
+            if not reference.fixed_stage:
+                continue
+            selected_ids = normalized_locations.get(reference.scope_id, [])
+            if reference.reference_id not in selected_ids:
+                raise ValueError(
+                    f"fixed stage {reference.reference_id!r} is not selected "
+                    f"by location {reference.scope_id!r}"
+                )
 
         identity_owners: dict[str, str] = {}
         for character in self.characters:

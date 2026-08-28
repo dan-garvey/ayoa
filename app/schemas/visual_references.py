@@ -53,6 +53,10 @@ class ReviewedVisualReference(BaseModel):
     scope_id: str
     selection_hint: str
     diffusion_authorized: bool = False
+    # A fixed stage is an exact, recurring location plate. When that location
+    # is the depicted scene, presentation uses these reviewed bytes directly
+    # instead of asking the image director to choose or generate a substitute.
+    fixed_stage: bool = False
 
     @model_validator(mode="after")
     def _validate_reference(self) -> "ReviewedVisualReference":
@@ -106,6 +110,12 @@ class ReviewedVisualReference(BaseModel):
         }:
             raise ValueError(
                 "sprite references require character or presentation scope"
+            )
+        if self.fixed_stage and not (
+            self.purpose == "environment" and self.scope == "location"
+        ):
+            raise ValueError(
+                "fixed stages require an environment reference with location scope"
             )
         if not self.scope_id or len(self.scope_id) > 200:
             raise ValueError("reviewed visual scope_id must be a bounded identifier")

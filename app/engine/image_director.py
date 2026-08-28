@@ -102,6 +102,7 @@ class SelectableVisualReference:
     scope_id: str
     selection_hint: str
     stage_eligible: bool = False
+    fixed_stage: bool = False
 
     def prompt_line(self) -> str:
         applies_to = (
@@ -713,6 +714,23 @@ class ImageDirector:
             for reference in projection.reference_options
             if not visual_novel or reference.scope == "location"
         )
+        fixed_stages = tuple(
+            reference
+            for reference in director_references
+            if reference.fixed_stage
+        )
+        if visual_novel and fixed_stages:
+            if len(fixed_stages) != 1:
+                raise ValueError(
+                    "a visible location must resolve to exactly one fixed stage"
+                )
+            output = ImageDirectorOutput(
+                stage_action="replace",
+                stage_reference_id=fixed_stages[0].reference_id,
+                requests=[],
+            )
+            self.validate_output(projection, output)
+            return output
         messages = self.prompt_manager.render_messages(
             "image_director_visual_novel" if visual_novel else "image_director",
             story_block=_story_block(projection),
@@ -834,6 +852,20 @@ class ImageDirector:
             for reference in projection.reference_options
             if not visual_novel or reference.scope == "location"
         }
+        fixed_stages = tuple(
+            reference
+            for reference in allowed_references.values()
+            if reference.fixed_stage
+        )
+        if visual_novel and fixed_stages and (
+            len(fixed_stages) != 1
+            or output.stage_action != "replace"
+            or output.stage_reference_id != fixed_stages[0].reference_id
+            or output.requests
+        ):
+            raise ValueError(
+                "a fixed visual-novel stage must be used without a generated request"
+            )
         if output.stage_reference_id:
             selected_stage = allowed_references.get(output.stage_reference_id)
             if (
@@ -1085,6 +1117,7 @@ def _selectable_reference_options(
                     reference.scope == "location"
                     and reference.purpose == "environment"
                 ),
+                fixed_stage=reference.fixed_stage,
             )
         )
     return tuple(result)

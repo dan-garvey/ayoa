@@ -566,6 +566,12 @@ def test_reviewed_lobby_backgrounds_bind_only_current_1f_scenes() -> None:
             assert reference.scope_id == label
             assert reference.purpose == "environment"
             assert reference.diffusion_authorized is True
+    assert references["osa_loc_1f_synthesis_v1"].fixed_stage is True
+    assert all(
+        not reference.fixed_stage
+        for reference_id, reference in references.items()
+        if reference_id != "osa_loc_1f_synthesis_v1"
+    )
 
 
 def test_player_character_is_a_blank_user_created_slot() -> None:

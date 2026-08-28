@@ -419,6 +419,82 @@ def test_later_page_can_swap_resolved_variant_without_redrawing_stage(
     )
 
 
+def test_identity_transition_obscures_old_sprite_then_presents_new_sprite(
+    tmp_path: Path,
+) -> None:
+    stage_path = _stage(tmp_path / "stage.png")
+    old_placement = _placement(
+        subject_handle="subject.renna",
+        identity_handle="identity.veiled",
+        variant_handle="variant.veiled.neutral",
+        media=_sprite_media(color=(202, 48, 66, 255)),
+        slot="center",
+        anchor=(CARD_WIDTH // 2, CARD_HEIGHT),
+        scale_percent=98,
+    )
+    new_placement = _placement(
+        subject_handle="subject.renna",
+        identity_handle="identity.renna",
+        variant_handle="variant.renna.neutral",
+        media=_sprite_media(color=(49, 186, 104, 255)),
+        slot="center",
+        anchor=(CARD_WIDTH // 2, CARD_HEIGHT),
+        scale_percent=98,
+    )
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(
+                kind="narration",
+                text="The chamber seals around the veiled figure.",
+            ),),
+            stage_path=stage_path,
+            sprite_placements=(old_placement,),
+        ),
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(
+                kind="narration",
+                text="A new identity comes into focus.",
+            ),),
+            stage_path=stage_path,
+            sprite_placements=(old_placement,),
+            card_style="identity_flash",
+        ),
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(
+                kind="narration",
+                text="Renna Holt",
+            ),),
+            stage_path=stage_path,
+            sprite_placements=(new_placement,),
+            card_style="identity_reveal",
+        ),
+    ])
+
+    assert len(deck.cards) == 3
+    with Image.open(deck.cards[0].image_path) as old_card:
+        assert old_card.convert("RGB").getpixel((512, 300)) == (202, 48, 66)
+    with Image.open(deck.cards[1].image_path) as flash_card:
+        flash_pixel = flash_card.convert("RGB").getpixel((512, 300))
+        assert min(flash_pixel) > 220
+    with Image.open(deck.cards[2].image_path) as reveal_card:
+        assert reveal_card.convert("RGB").getpixel((512, 300)) == (49, 186, 104)
+
+    manifest = _manifest(deck)
+    assert [
+        section["card_style"]
+        for section in manifest["identity"]["sections"]
+    ] == ["adv", "identity_flash", "identity_reveal"]
+    assert [
+        section["sprites"][0]["identity_handle"]
+        for section in manifest["identity"]["sections"]
+    ] == ["identity.veiled", "identity.veiled", "identity.renna"]
+    assert VisualNovelCardRenderer(
+        tmp_path / "presentations"
+    ).load_deck(deck.deck_id) == deck
+
+
 def test_sprite_scale_and_bottom_center_anchor_are_deterministic(
     tmp_path: Path,
 ):

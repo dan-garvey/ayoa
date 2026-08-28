@@ -4,7 +4,7 @@ This isolated experiment screens the 22 files whose basenames begin `PMU` in:
 
 `C:\Users\danim\Pictures\Ayoa\ManhwaPanelDatasetReview_20260813\raw_strips`
 
-It contains six final visual-novel background plates across two architectural tiers. The four reviewed 1F plates are promoted into the One-Star story as authored location guides; the ornate pair remains registered but unbound for later 2F/3F progression. Runtime LLMs receive only opaque handles and authored selection hints, never image data, paths, hashes, crop metadata, or image-derived analysis.
+It contains six approved visual-novel background plates across two architectural tiers, plus one unbound Promotion Chamber review candidate. The four reviewed 1F plates are promoted into the One-Star story as authored location guides; the ornate pair remains registered but unbound for later 2F/3F progression. Runtime LLMs receive only opaque handles and authored selection hints, never image data, paths, hashes, crop metadata, or image-derived analysis.
 
 ## Beginner-tier 1F candidates
 
@@ -31,6 +31,17 @@ general courtyard or pavilion.
 scene prompts and their pre-call conflict audit are in `prompts/1f/` and
 `prompt_conflict_audit_1f_scenes.md`.
 
+## Pending 1F Promotion Chamber candidate
+
+| Scene | File | Size | SHA256 | Manual review |
+| --- | --- | --- | --- | --- |
+| Promotion Chamber | `backgrounds/1f/lobby_1f_promotion_chamber_candidate_v1.png` | 1664x936 | `c73621400a8d9c960a38391816c3fe16f57d5e04fb00e4bc2968d7fdeb07512a` | Candidate pass: sparse maintained plaster, timber, and gray-stone facility; one shallow rear platform under restrained pearly light; no people, text, symbols, UI, loose props, laboratory barriers, logo, or watermark; broad foreground remains usable. Pending exact human approval before any story or runtime binding. |
+
+The exact prompt is `prompts/1f/promotion_chamber_candidate_v1.txt`, and
+the pre-call contradiction review is
+`prompt_conflict_audit_1f_promotion_chamber.md`. This candidate remains
+isolated from the One-Star visual-reference registry and location map.
+
 ## Preserved higher-tier 2F/3F candidates
 
 The original A/B files are intentionally unchanged. Their more monumental gate, tracery, towers, banners, elaborate roof framing, and lanterns make them better fits for later 2F/3F progression than for the beginner lobby.
@@ -47,7 +58,7 @@ The original A/B files are intentionally unchanged. Their more monumental gate, 
 ## Generation method
 
 - Mode: built-in `image_gen`, reference-guided generation. The built-in service does not expose a model identifier.
-- Calls: two in the original run, two in the architectural-tier extension, and three in the scene extension. The interrupted scene call still completed both outputs; its first Crack was rejected after the canonical source arrived, and one independent corrected Crack call replaced it.
+- Calls: two in the original run, two in the architectural-tier extension, three in the scene extension, and one for the unbound Promotion Chamber candidate. The interrupted scene call still completed both outputs; its first Crack was rejected after the canonical source arrived, and one independent corrected Crack call replaced it.
 - Raw tool output: 1672x941 PNG in `generation_raw/` for the preserved 2F/3F pair and `generation_raw/1f/` for the 1F pair.
 - Final normalization: deterministic center crop `[4, 2, 1668, 938)` to 1664x936, an exact 16:9 ratio. There was no resampling, repainting, or other post-processing.
 - Prompts: exact call text is preserved in `prompts/` and `prompts/1f/`.
@@ -99,7 +110,8 @@ covered pavilion, and Crack approach for `niflheim_lobby`, the Synthesis
 Chamber only for `niflheim_synthesis_chamber`, and the Crack plate alone for
 its dedicated facility label. The 2F/3F pair is deliberately absent from the
 active location map until lobby progression supplies an authored higher-tier
-binding.
+binding. The Promotion Chamber candidate is not copied into the story and is
+not selectable until its exact pixels receive human approval.
 
 For a visual-novel replacement, the director receives only the current visible
 facts and these candidates' opaque handles plus selection hints. It must choose

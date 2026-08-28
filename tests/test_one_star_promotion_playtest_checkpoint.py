@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -41,6 +42,10 @@ from app.schemas.one_star import (
 )
 from scripts.run_one_star_promotion_sprite_playtest import (
     _promotion_comparison_pages,
+)
+from scripts.run_one_star_promotion_vn_live_playtest import (
+    _deck_has_committed_identity_reveal,
+    _deck_uses_only_stage,
 )
 from tests.support.factories import llm_response, router_output
 
@@ -177,6 +182,98 @@ def _generated_media() -> ResolvedPlayerMedia:
         byte_count=len(data),
         width=1100,
         height=1500,
+    )
+
+
+def test_live_playtest_reveal_check_requires_old_flash_new_on_one_stage() -> None:
+    stage_sha256 = "a" * 64
+    old_identity = "sprite.veiled"
+    new_identity = "sprite.revealed"
+    deck = {
+        "render": {
+            "segments": [{
+                "pages": [
+                    {
+                        "kind": "narration",
+                        "speaker": "",
+                        "text": "Mara enters the chamber.",
+                        "sprites": [{
+                            "character": "Mara Venn",
+                            "expression": "tense",
+                        }],
+                    },
+                    {
+                        "kind": "narration",
+                        "speaker": "",
+                        "text": "Promotion complete.",
+                        "sprites": [],
+                    },
+                ]
+            }]
+        },
+        "manifest": {
+            "identity": {
+                "sections": [
+                    {
+                        "card_style": "adv",
+                        "stage_sha256": stage_sha256,
+                        "sprites": [{"identity_handle": old_identity}],
+                    },
+                    {
+                        "card_style": "adv",
+                        "stage_sha256": stage_sha256,
+                        "sprites": [],
+                    },
+                    {
+                        "card_style": "identity_flash",
+                        "stage_sha256": stage_sha256,
+                        "sprites": [{"identity_handle": old_identity}],
+                    },
+                    {
+                        "card_style": "identity_reveal",
+                        "stage_sha256": stage_sha256,
+                        "sprites": [{"identity_handle": new_identity}],
+                    },
+                ]
+            }
+        },
+    }
+
+    assert _deck_has_committed_identity_reveal(
+        deck,
+        character_name="Mara Venn",
+        before_identity_handle=old_identity,
+        after_identity_handle=new_identity,
+        expected_stage_sha256=stage_sha256,
+    )
+    assert _deck_uses_only_stage(deck, stage_sha256=stage_sha256)
+
+    early_reveal = deepcopy(deck)
+    early_reveal["manifest"]["identity"]["sections"][0]["sprites"] = [
+        {"identity_handle": new_identity}
+    ]
+    assert not _deck_has_committed_identity_reveal(
+        early_reveal,
+        character_name="Mara Venn",
+        before_identity_handle=old_identity,
+        after_identity_handle=new_identity,
+        expected_stage_sha256=stage_sha256,
+    )
+
+    drifting_stage = deepcopy(deck)
+    drifting_stage["manifest"]["identity"]["sections"][2][
+        "stage_sha256"
+    ] = "b" * 64
+    assert not _deck_has_committed_identity_reveal(
+        drifting_stage,
+        character_name="Mara Venn",
+        before_identity_handle=old_identity,
+        after_identity_handle=new_identity,
+        expected_stage_sha256=stage_sha256,
+    )
+    assert not _deck_uses_only_stage(
+        drifting_stage,
+        stage_sha256=stage_sha256,
     )
 
 

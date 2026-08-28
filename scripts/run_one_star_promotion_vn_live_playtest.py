@@ -215,9 +215,9 @@ def _deck_has_sprite_transition(
 ) -> bool:
     pages = _flatten_render_pages(deck_record["render"])
     sections = deck_record["manifest"]["identity"]["sections"]
-    if len(pages) != len(sections):
+    if len(sections) < len(pages):
         return False
-    for page, section in zip(pages, sections, strict=True):
+    for page, section in zip(pages, sections[:len(pages)], strict=True):
         cue_names = {
             str(cue.get("character") or "") for cue in page.get("sprites") or ()
         }
@@ -228,6 +228,69 @@ def _deck_has_sprite_transition(
         if character_name in cue_names and identity_handle in handles:
             return True
     return False
+
+
+def _deck_has_committed_identity_reveal(
+    deck_record: dict[str, Any],
+    *,
+    character_name: str,
+    before_identity_handle: str,
+    after_identity_handle: str,
+    expected_stage_sha256: str,
+) -> bool:
+    """Verify old authored pages, then flash, then first new-identity card."""
+
+    pages = _flatten_render_pages(deck_record["render"])
+    sections = deck_record["manifest"]["identity"]["sections"]
+    if len(sections) != len(pages) + 2:
+        return False
+    authored_sections = sections[:len(pages)]
+    depicted_before = False
+    for page, section in zip(pages, authored_sections, strict=True):
+        cue_names = {
+            str(cue.get("character") or "") for cue in page.get("sprites") or ()
+        }
+        handles = {
+            str(sprite.get("identity_handle") or "")
+            for sprite in section.get("sprites") or ()
+        }
+        if character_name not in cue_names:
+            continue
+        depicted_before = True
+        if before_identity_handle not in handles or after_identity_handle in handles:
+            return False
+    flash, reveal = sections[-2:]
+    flash_handles = {
+        str(sprite.get("identity_handle") or "")
+        for sprite in flash.get("sprites") or ()
+    }
+    reveal_handles = {
+        str(sprite.get("identity_handle") or "")
+        for sprite in reveal.get("sprites") or ()
+    }
+    return (
+        depicted_before
+        and flash.get("card_style") == "identity_flash"
+        and reveal.get("card_style") == "identity_reveal"
+        and flash_handles == {before_identity_handle}
+        and reveal_handles == {after_identity_handle}
+        and all(
+            section.get("stage_sha256") == expected_stage_sha256
+            for section in sections
+        )
+    )
+
+
+def _deck_uses_only_stage(
+    deck_record: dict[str, Any],
+    *,
+    stage_sha256: str,
+) -> bool:
+    sections = deck_record["manifest"]["identity"]["sections"]
+    return bool(sections) and all(
+        section.get("stage_sha256") == stage_sha256
+        for section in sections
+    )
 
 
 def _configure_luna_agents() -> LLMConfig:
@@ -708,6 +771,51 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             )
             for deck in decks
         )
+    promotion_stage_sha256 = "c73621400a8d9c960a38391816c3fe16f57d5e04fb00e4bc2968d7fdeb07512a"
+    identity_reveal_checks = {
+        "renna_promotion_old_flash_new": any(
+            (
+                deck["action_label"] == "renna_select_promotion"
+                or deck["action_label"].startswith("renna_promotion_followup_")
+            )
+            and _deck_has_committed_identity_reveal(
+                deck,
+                character_name="Renna Holt",
+                before_identity_handle="osa_vnset_veiled_feminine_v1",
+                after_identity_handle="osa_vnset_renna_holt_v1",
+                expected_stage_sha256=promotion_stage_sha256,
+            )
+            for deck in decks
+        ),
+        "mara_promotion_old_flash_new": any(
+            (
+                deck["action_label"] == "mara_select_three_star"
+                or deck["action_label"].startswith("mara_three_star_promotion_followup_")
+            )
+            and _deck_has_committed_identity_reveal(
+                deck,
+                character_name="Mara Venn",
+                before_identity_handle="osa_vnset_veiled_feminine_v1",
+                after_identity_handle=generated_pack_id,
+                expected_stage_sha256=promotion_stage_sha256,
+            )
+            for deck in decks
+        ),
+    }
+    synthesis_stage_sha256 = "668e6fc4c1e7ac9b79601e6024aaf97f3565901ba9cbacc0aeac9e50d1d4afc1"
+    fixed_stage_checks = {
+        "synthesis_deck_uses_fixed_chamber": any(
+            (
+                deck["action_label"] == "mara_castor_synthesis"
+                or deck["action_label"].startswith("mara_synthesis_followup_")
+            )
+            and _deck_uses_only_stage(
+                deck,
+                stage_sha256=synthesis_stage_sha256,
+            )
+            for deck in decks
+        ),
+    }
 
     manifest_paths = [run_dir / deck["manifest_path"] for deck in decks]
     slideshow_dir = None
@@ -752,6 +860,8 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         "mara_after_narrator_deck_uses_generated_sprite": transition_checks[
             "mara_after"
         ],
+        **identity_reveal_checks,
+        **fixed_stage_checks,
         "chronological_slideshow_exported": bool(slideshow_cards),
     }
     report = {
@@ -790,6 +900,8 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         ],
         "decks": decks,
         "transition_checks": transition_checks,
+        "identity_reveal_checks": identity_reveal_checks,
+        "fixed_stage_checks": fixed_stage_checks,
         "final_state": final_state,
         "checks": checks,
         "slideshow": {
