@@ -617,6 +617,7 @@ _LIVE_VIEW_FOREGROUND_RE = re.compile(
     r"\b(?:(?:the|your)\s+)?(?:[A-Za-z0-9'_-]+\s+){0,4}"
     r"(?:view|feed|camera)\s+(?:holds?|frames?|shows?|tracks?|follows?|"
     r"(?:centers?|focuses?|rests?|settles?)(?:\s+on)?|"
+    r"remains?(?:\s+on)?|"
     r"(?:is\s+)?held\s+on|"
     r"shifts?\s+(?:from\s+[^.;]{1,120}?\s+)?to)\s+"
     r"(?P<subjects>.+?)"
@@ -633,6 +634,73 @@ _LIVE_VIEW_SCENE_RE = re.compile(
 )
 
 
+def _leading_live_view_subject_ids(
+    ckpt: CheckpointFile,
+    scene: str,
+) -> set[str]:
+    """Resolve roster subjects named at the start of an explicit live view.
+
+    A live-feed fact may put an embodied predicate immediately after its
+    subject (for example, ``Alice speaks ... and enters ...``).  The general
+    physical-presence classifier deliberately treats speech conservatively,
+    while this surrounding live-view clause already establishes that its
+    leading subject is what the camera depicts.  Keep the exception narrow:
+    accept only a leading roster name/list and reject possessives such as
+    ``Alice's empty chair`` or ``Alice's status record``.
+    """
+
+    probes = sorted(
+        (
+            (probe, character.character_id)
+            for character in _active_roster_characters(ckpt)
+            for probe in _character_presence_probes(ckpt, character)
+            if probe
+        ),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
+    offset = 0
+    matched_ids: set[str] = set()
+    while True:
+        subject_match: re.Match[str] | None = None
+        subject_id = ""
+        for probe, character_id in probes:
+            candidate = re.match(
+                rf"\s*{re.escape(probe)}(?![A-Za-z0-9_])",
+                scene[offset:],
+                re.IGNORECASE,
+            )
+            if candidate is not None:
+                subject_match = candidate
+                subject_id = character_id
+                break
+        if subject_match is None:
+            break
+        offset += subject_match.end()
+        if re.match(r"\s*[’']s\b", scene[offset:], re.IGNORECASE):
+            return set()
+        matched_ids.add(subject_id)
+        separator = re.match(
+            r"\s*(?:,\s*(?:and\s+)?|(?:and|or|&)\s+)",
+            scene[offset:],
+            re.IGNORECASE,
+        )
+        if separator is None:
+            break
+        next_offset = offset + separator.end()
+        if not any(
+            re.match(
+                rf"\s*{re.escape(probe)}(?![A-Za-z0-9_])",
+                scene[next_offset:],
+                re.IGNORECASE,
+            )
+            for probe, _character_id in probes
+        ):
+            break
+        offset = next_offset
+    return matched_ids
+
+
 def _live_view_foreground_character_ids(
     ckpt: CheckpointFile,
     visible_texts: Iterable[str],
@@ -642,6 +710,12 @@ def _live_view_foreground_character_ids(
     staged: set[str] = set()
     for text in visible_texts:
         for scene_match in _LIVE_VIEW_SCENE_RE.finditer(text or ""):
+            staged.update(
+                _leading_live_view_subject_ids(
+                    ckpt,
+                    scene_match.group("scene"),
+                )
+            )
             staged.update(
                 _physically_present_character_ids(
                     ckpt,

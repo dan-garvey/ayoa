@@ -29,6 +29,7 @@ from app.schemas.agents import CharacterAgentOutput
 from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.narrator import (
     NarratorFinalOutput,
+    VisualNovelBeatPages,
     VisualNovelNarratorOutput,
     VisualNovelPage,
     narrator_plain_text,
@@ -1027,13 +1028,18 @@ class TestVisualNovelNarratorOutput:
         output = VisualNovelNarratorOutput(
             handoff="render",
             handoff_reason="The question is a player boundary.",
-            pages=[
-                VisualNovelPage(kind="narration", text="You reach the gate."),
-                VisualNovelPage(
-                    kind="dialogue",
-                    speaker="Wren",
-                    text="Ready?",
-                ),
+            beats=[
+                VisualNovelBeatPages(pages=[
+                    VisualNovelPage(
+                        kind="narration",
+                        text="You reach the gate.",
+                    ),
+                    VisualNovelPage(
+                        kind="dialogue",
+                        speaker="Wren",
+                        text="Ready?",
+                    ),
+                ])
             ],
         )
 
@@ -1048,7 +1054,9 @@ class TestVisualNovelNarratorOutput:
             VisualNovelNarratorOutput(
                 handoff="continue",
                 handoff_reason="Motion continues.",
-                pages=[VisualNovelPage(kind="narration", text="Discard me.")],
+                beats=[VisualNovelBeatPages(pages=[
+                    VisualNovelPage(kind="narration", text="Discard me.")
+                ])],
             )
 
     @pytest.mark.parametrize(
@@ -1076,17 +1084,22 @@ class TestVisualNovelNarratorOutput:
 
 
 class TestVisualNovelRender:
-    def test_segments_keep_pages_with_ordered_event_provenance(self):
+    def test_segments_keep_pages_with_event_provenance(self):
         render = VisualNovelRender(segments=[VisualNovelRenderSegment(
-            pages=[VisualNovelPage(kind="narration", text="Scene two.")],
-            rendered_event_ids=["evt_second", "evt_first"],
+            pages=[VisualNovelPage(
+                kind="narration",
+                text="Scene two.",
+                sprites=["Wren"],
+            )],
+            rendered_event_id="evt_second",
+            sprite_variant_keys_by_label={"Wren": "skeptical"},
         )])
 
-        assert render.segments[0].rendered_event_ids == [
-            "evt_second",
-            "evt_first",
-        ]
+        assert render.segments[0].rendered_event_id == "evt_second"
         assert render.segments[0].pages[0].text == "Scene two."
+        assert render.segments[0].sprite_variant_keys_by_label == {
+            "Wren": "skeptical"
+        }
 
     @pytest.mark.parametrize(
         "page",
@@ -1106,26 +1119,49 @@ class TestVisualNovelRender:
         with pytest.raises(ValidationError, match="source-shaped ids"):
             VisualNovelRenderSegment(
                 pages=[page],
-                rendered_event_ids=["evt_one"],
+                rendered_event_id="evt_one",
             )
 
     @pytest.mark.parametrize(
         "kwargs",
         [
-            {"pages": [], "rendered_event_ids": ["evt_one"]},
+            {"pages": [], "rendered_event_id": "evt_one"},
             {
                 "pages": [VisualNovelPage(kind="narration", text="Scene.")],
-                "rendered_event_ids": [],
+                "rendered_event_id": "",
             },
             {
                 "pages": [VisualNovelPage(kind="narration", text="Scene.")],
-                "rendered_event_ids": ["   "],
+                "rendered_event_id": "   ",
             },
         ],
     )
     def test_segment_requires_pages_and_nonblank_event_ids(self, kwargs):
         with pytest.raises(ValidationError):
             VisualNovelRenderSegment(**kwargs)
+
+    @pytest.mark.parametrize(
+        "snapshot",
+        [
+            {"Wren": ""},
+            {"Wren": "not a key"},
+            {"Someone Else": "happy"},
+        ],
+    )
+    def test_segment_rejects_invalid_or_undepicted_variant_snapshots(
+        self,
+        snapshot,
+    ):
+        with pytest.raises(ValidationError):
+            VisualNovelRenderSegment(
+                pages=[VisualNovelPage(
+                    kind="narration",
+                    text="Wren waits.",
+                    sprites=["Wren"],
+                )],
+                rendered_event_id="evt_one",
+                sprite_variant_keys_by_label=snapshot,
+            )
 
     def test_render_requires_segments_and_has_no_flat_page_reader(self):
         with pytest.raises(ValidationError):
@@ -1343,7 +1379,7 @@ class TestTurnResponse:
                                 "https:///private/vn/leaked.pem"
                             ),
                         )],
-                        rendered_event_ids=["evt1"],
+                        rendered_event_id="evt1",
                     ),
                 ]),
             },

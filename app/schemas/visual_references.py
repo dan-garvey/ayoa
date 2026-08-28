@@ -9,18 +9,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 VisualReferencePurpose = Literal["identity", "environment", "style", "sprite"]
 VisualReferenceScope = Literal["character", "location", "presentation"]
-VisualNovelSpriteExpression = Literal[
-    "neutral",
-    "happy",
-    "concerned",
-    "tense",
-    "skeptical",
-    "angry",
-    "sad",
-    "surprised",
-]
-
-VISUAL_NOVEL_SPRITE_EXPRESSIONS: tuple[VisualNovelSpriteExpression, ...] = (
+VISUAL_NOVEL_SPRITE_VARIANT_KEYS: tuple[str, ...] = (
     "neutral",
     "happy",
     "concerned",
@@ -31,7 +20,19 @@ VISUAL_NOVEL_SPRITE_EXPRESSIONS: tuple[VisualNovelSpriteExpression, ...] = (
     "surprised",
 )
 
+VISUAL_NOVEL_SPRITE_VARIANT_DIRECTIONS: dict[str, str] = {
+    "neutral": "relaxed neutral expression in a balanced natural resting pose",
+    "happy": "genuine visible happiness with open, buoyant body language",
+    "concerned": "visible concern with attentive, protective body language",
+    "tense": "anxious threat anticipation with guarded, contracted body language",
+    "skeptical": "visible skepticism with an appraising, questioning pose",
+    "angry": "controlled visible anger with forceful, confrontational body language",
+    "sad": "visible sadness with lowered, withdrawn body language",
+    "surprised": "clear surprise with startled, opened body language",
+}
+
 _REFERENCE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$")
+_SPRITE_VARIANT_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,79}$")
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 _SUPPORTED_MIME_TYPES = frozenset(("image/jpeg", "image/png", "image/webp"))
 
@@ -139,7 +140,7 @@ class ReviewedVisualNovelSpriteSet(BaseModel):
 
     sprite_set_id: str
     owner_character_id: str = ""
-    variant_reference_ids: dict[VisualNovelSpriteExpression, str]
+    variant_reference_ids: dict[str, str]
     source_facing: Literal["left", "right"] = "right"
 
     @model_validator(mode="after")
@@ -152,11 +153,15 @@ class ReviewedVisualNovelSpriteSet(BaseModel):
             raise ValueError(
                 "reviewed sprite_set_id uses reserved generated prefix"
             )
-        cleaned = {
-            expression: str(reference_id or "").strip()
-            for expression, reference_id in self.variant_reference_ids.items()
-            if str(reference_id or "").strip()
-        }
+        cleaned: dict[str, str] = {}
+        for raw_key, raw_reference_id in self.variant_reference_ids.items():
+            key = str(raw_key or "").strip().lower()
+            reference_id = str(raw_reference_id or "").strip()
+            if not reference_id:
+                continue
+            if not _SPRITE_VARIANT_KEY_RE.fullmatch(key):
+                raise ValueError("sprite variant keys must be bounded opaque labels")
+            cleaned[key] = reference_id
         if "neutral" not in cleaned:
             raise ValueError("reviewed sprite sets require a neutral variant")
         if len(set(cleaned.values())) != len(cleaned):

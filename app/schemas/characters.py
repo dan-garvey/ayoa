@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from enum import Enum
+import re
 from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     SerializationInfo,
     field_serializer,
@@ -83,6 +85,87 @@ class CharacterDescriptions(BaseModel):
     private: str = ""
 
 
+class VisualNovelCustomVariantRequest(BaseModel):
+    """Character-authored request awaiting optional background generation."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    variant_key: str = Field(min_length=1, max_length=80)
+    direction: str = Field(min_length=1, max_length=200)
+    sprite_pack_id: str = Field(min_length=1, max_length=200)
+    requested_turn_index: int = Field(ge=0)
+    generation_round: int = Field(default=0, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def _normalize(self) -> "VisualNovelCustomVariantRequest":
+        self.variant_key = self.variant_key.strip().lower()
+        self.direction = " ".join(self.direction.split()).strip()
+        self.sprite_pack_id = self.sprite_pack_id.strip()
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_.-]{0,79}", self.variant_key):
+            raise ValueError("visual-novel custom variant key is invalid")
+        if "<" in self.direction or ">" in self.direction:
+            raise ValueError("visual-novel custom variant directions must be plain text")
+        return self
+
+
+class CharacterVisualNovelPresentation(BaseModel):
+    """Durable self-authored display state; image bytes never live here."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    current_variant_key: str = Field(default="neutral", min_length=1, max_length=80)
+    scene_location: str = Field(default="", max_length=500)
+    custom_variant_sprite_pack_id: str = Field(default="", max_length=200)
+    pending_requests: list[VisualNovelCustomVariantRequest] = Field(
+        default_factory=list,
+        max_length=2,
+    )
+    custom_variant_directions: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _normalize(self) -> "CharacterVisualNovelPresentation":
+        self.current_variant_key = self.current_variant_key.strip().lower()
+        self.scene_location = " ".join(self.scene_location.split()).strip()
+        self.custom_variant_sprite_pack_id = self.custom_variant_sprite_pack_id.strip()
+        cleaned_directions: dict[str, str] = {}
+        for raw_key, raw_direction in self.custom_variant_directions.items():
+            key = raw_key.strip().lower()
+            direction = " ".join(raw_direction.split()).strip()
+            if not key or not direction:
+                continue
+            if key in cleaned_directions:
+                raise ValueError(
+                    "visual-novel custom variant keys must remain unique"
+                )
+            if len(direction) > 200 or "<" in direction or ">" in direction:
+                raise ValueError(
+                    "visual-novel custom variant directions must be bounded plain text"
+                )
+            cleaned_directions[key] = direction
+        self.custom_variant_directions = cleaned_directions
+        if len(self.custom_variant_directions) > 20:
+            raise ValueError("visual-novel custom variant catalog exceeds 20")
+        pending_keys = [request.variant_key for request in self.pending_requests]
+        if len(pending_keys) != len(set(pending_keys)):
+            raise ValueError("visual-novel pending custom variants must be unique")
+        if set(pending_keys).intersection(self.custom_variant_directions):
+            raise ValueError(
+                "visual-novel pending variants cannot already be in the catalog"
+            )
+        if len(self.custom_variant_directions) + len(pending_keys) > 20:
+            raise ValueError("visual-novel custom variant capacity exceeds 20")
+        keys = {
+            self.current_variant_key,
+            *self.custom_variant_directions,
+        }
+        if any(
+            re.fullmatch(r"[a-z0-9][a-z0-9_.-]{0,79}", key) is None
+            for key in keys
+        ):
+            raise ValueError("visual-novel presentation keys must be opaque labels")
+        return self
+
+
 class CharacterVisuals(BaseModel):
     # Stable player-safe first-look exterior. This is separate from
     # `public_sheet.appearance` because it is runtime context: the engine may
@@ -101,6 +184,9 @@ class CharacterVisuals(BaseModel):
     # handles are presentation provenance, not character knowledge or player
     # text, and therefore serialize only in private checkpoint contexts.
     sprite_set_id: str = ""
+    visual_novel_presentation: CharacterVisualNovelPresentation = Field(
+        default_factory=CharacterVisualNovelPresentation
+    )
 
     @field_serializer("identity_reference_id")
     def _serialize_identity_reference_id(

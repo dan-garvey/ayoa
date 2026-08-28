@@ -7,10 +7,10 @@ resolution, and VN compositor behavior are all production paths. The harness
 records every model request/output and every delivered deck. It never authors
 narrator pages or sends image bytes to an LLM.
 
-The previously generated Mara expression sweep is copied into the isolated
-runtime as a cache. Reusing those immutable candidates avoids paying for the
-same generation twice; the live story still has to reach the two-star prewarm
-boundary and three-star reveal before the runtime may select them.
+The isolated image runtime starts empty. The live story must reach Mara's
+two-star prewarm boundary, generate her candidate pack through the production
+worker path, and then resolve one of those generated variants at the three-star
+reveal. No earlier story output or sprite-job database is reused.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ import logging
 import os
 import shutil
 import sys
+import time
 import traceback
 from contextlib import redirect_stdout
 from datetime import datetime, timezone
@@ -40,7 +41,10 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from app.bot.engine_bridge import EngineBridge
 from app.engine.one_star_adapter import load_one_star_account, load_one_star_hero
-from app.engine.one_star_visuals import sprite_set_id_for_viewer
+from app.engine.one_star_visuals import (
+    generated_sprite_pack_id,
+    sprite_set_id_for_viewer,
+)
 from app.llm.config import LLMConfig, live_play_required_roles
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.responses import TurnResponse
@@ -54,12 +58,6 @@ RENNA_ID = "renna_holt"
 MARA_ID = "promotion_playtest_faceless"
 CASTOR_ID = "castor_valebrand"
 SOURCE_STORY_DIR = REPO_ROOT / "app/storage/stories" / STORY_ID
-SOURCE_DIAGNOSTIC_DIR = (
-    REPO_ROOT
-    / "app/storage/playtest_reports"
-    / "one_star_promotion_sprite_20260827T173922Z"
-)
-SOURCE_IMAGE_RUNTIME = SOURCE_DIAGNOSTIC_DIR / "image-runtime"
 SOURCE_SESSION_ID = "one-star-promotion-sprite-20260827t173922z"
 DEFAULT_REPORT_ROOT = REPO_ROOT / "app/storage/playtest_reports"
 DEFAULT_WINDOWS_ROOT = Path(
@@ -114,19 +112,13 @@ def _sha256(path: Path) -> str:
 def _copy_playtest_inputs(run_dir: Path) -> tuple[Path, Path]:
     if not (SOURCE_STORY_DIR / "ckpt_0000.json").is_file():
         raise RuntimeError("promotion playtest story seed is missing")
-    if not (SOURCE_IMAGE_RUNTIME / "jobs.sqlite").is_file():
-        raise RuntimeError("reviewed Mara runtime cache is missing")
 
     story_dir = run_dir / "stories" / STORY_ID
     shutil.copytree(SOURCE_STORY_DIR, story_dir)
 
     runtime_root = run_dir / "runtime" / "image_generation"
     runtime_root.mkdir(parents=True)
-    shutil.copy2(SOURCE_IMAGE_RUNTIME / "jobs.sqlite", runtime_root)
-    shutil.copytree(
-        SOURCE_IMAGE_RUNTIME / "artifacts",
-        runtime_root / "artifacts",
-    )
+    (runtime_root / "artifacts").mkdir()
     (runtime_root / "tmp").mkdir()
     return story_dir, runtime_root
 
@@ -156,6 +148,9 @@ def _hero_summary(
         "level": hero.level,
         "experience_points": hero.experience_points,
         "generated_for_summon": hero.generated_for_summon,
+        "current_variant_key": (
+            character.visuals.visual_novel_presentation.current_variant_key
+        ),
         "sprite_set_id": sprite_set_id_for_viewer(
             checkpoint,
             viewer_character_id=MASTER_ID,
@@ -218,9 +213,7 @@ def _deck_has_sprite_transition(
     if len(sections) < len(pages):
         return False
     for page, section in zip(pages, sections[:len(pages)], strict=True):
-        cue_names = {
-            str(cue.get("character") or "") for cue in page.get("sprites") or ()
-        }
+        cue_names = {str(label) for label in page.get("sprites") or ()}
         handles = {
             str(sprite.get("identity_handle") or "")
             for sprite in section.get("sprites") or ()
@@ -247,9 +240,7 @@ def _deck_has_committed_identity_reveal(
     authored_sections = sections[:len(pages)]
     depicted_before = False
     for page, section in zip(pages, authored_sections, strict=True):
-        cue_names = {
-            str(cue.get("character") or "") for cue in page.get("sprites") or ()
-        }
+        cue_names = {str(label) for label in page.get("sprites") or ()}
         handles = {
             str(sprite.get("identity_handle") or "")
             for sprite in section.get("sprites") or ()
@@ -274,10 +265,14 @@ def _deck_has_committed_identity_reveal(
         and reveal.get("card_style") == "identity_reveal"
         and flash_handles == {before_identity_handle}
         and reveal_handles == {after_identity_handle}
-        and all(
-            section.get("stage_sha256") == expected_stage_sha256
-            for section in sections
-        )
+        # Earlier event-aligned pages may still occur in the lobby before the
+        # character enters.  The last authored page and the appended flash /
+        # reveal must share the fixed chamber so the transition itself cannot
+        # jump locations.
+        and authored_sections[-1].get("stage_sha256")
+        == expected_stage_sha256
+        and flash.get("stage_sha256") == expected_stage_sha256
+        and reveal.get("stage_sha256") == expected_stage_sha256
     )
 
 
@@ -507,6 +502,12 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
 
     state: RecordingCLIState | None = None
     error = ""
+    candidate_wait: dict[str, Any] = {
+        "minimum_variants": 2,
+        "timeout_seconds": args.sprite_wait_seconds,
+        "elapsed_seconds": 0.0,
+        "variant_keys": [],
+    }
 
     async def execute(label: str, line: str) -> dict[str, Any]:
         current_action.update(label=label, input=line)
@@ -567,6 +568,40 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                 f"{len(followup_inputs)} explicit follow-up turns"
             )
         return current
+
+    async def wait_for_generated_candidate_pack() -> tuple[str, ...]:
+        """Observe the real async prewarm rather than fabricating a candidate."""
+
+        started = time.monotonic()
+        deadline = started + args.sprite_wait_seconds
+        while True:
+            checkpoint = engine.load_latest(SOURCE_SESSION_ID)
+            character = _character(checkpoint, MARA_ID)
+            sprite_pack_id = generated_sprite_pack_id(checkpoint, character)
+            variant_keys = engine.image_generation.store.sprite_variant_keys(
+                session_id=SOURCE_SESSION_ID,
+                character_id=MARA_ID,
+                sprite_pack_id=sprite_pack_id,
+            )
+            candidate_wait.update(
+                elapsed_seconds=round(time.monotonic() - started, 3),
+                sprite_pack_id=sprite_pack_id,
+                variant_keys=list(variant_keys),
+            )
+            if "neutral" in variant_keys and len(variant_keys) >= 2:
+                print(
+                    "[mara_sprite_prewarm] generated variants="
+                    + ",".join(variant_keys),
+                    flush=True,
+                )
+                return variant_keys
+            if time.monotonic() >= deadline:
+                raise RuntimeError(
+                    "Mara's production sprite prewarm did not produce neutral "
+                    f"plus one alternate within {args.sprite_wait_seconds}s; "
+                    f"available={list(variant_keys)}"
+                )
+            await asyncio.sleep(2)
 
     await engine.start()
     try:
@@ -659,6 +694,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                 "/defer",
             ),
         )
+        await wait_for_generated_candidate_pack()
 
         selected = await execute(
             "mara_castor_synthesis",
@@ -751,6 +787,13 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
     final_checkpoint = engine.load_latest(SOURCE_SESSION_ID)
     final_state = _state_summary(final_checkpoint)
     generated_pack_id = str(final_state["mara"]["sprite_set_id"])
+    generated_variant_keys = (
+        engine.image_generation.store.sprite_variant_keys(
+            session_id=SOURCE_SESSION_ID,
+            character_id=MARA_ID,
+            sprite_pack_id=generated_pack_id,
+        )
+    )
     expected = {
         "renna_before": ("Renna Holt", "osa_vnset_veiled_feminine_v1"),
         "renna_after": ("Renna Holt", "osa_vnset_renna_holt_v1"),
@@ -860,6 +903,14 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         "mara_after_narrator_deck_uses_generated_sprite": transition_checks[
             "mara_after"
         ],
+        "mara_candidate_pack_generated_in_this_run": (
+            "neutral" in generated_variant_keys
+            and len(generated_variant_keys) >= 2
+        ),
+        "character_agent_presentation_footer_recorded": any(
+            "<presentation>" in str(call.get("raw_output") or "")
+            for call in agent_calls
+        ),
         **identity_reveal_checks,
         **fixed_stage_checks,
         "chronological_slideshow_exported": bool(slideshow_cards),
@@ -873,10 +924,14 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             "path": str(story_dir.relative_to(run_dir)),
             "checkpoint_sha256": _sha256(story_dir / "ckpt_0000.json"),
         },
-        "reused_candidate_cache": {
-            "source": str(SOURCE_IMAGE_RUNTIME),
-            "jobs_sqlite_sha256": _sha256(SOURCE_IMAGE_RUNTIME / "jobs.sqlite"),
-            "reason": "reuse the already-reviewed Mara sweep; no story output reused",
+        "candidate_generation": {
+            "source": "fresh isolated production image queue",
+            "generated_variant_keys": list(generated_variant_keys),
+            "prewarm_wait": candidate_wait,
+            "reason": (
+                "exercise the two-star prewarm and three-star generated reveal "
+                "without reusing an earlier sprite-job database"
+            ),
         },
         "runtime_llm_vision_calls": 0,
         "model_roles": {
@@ -934,6 +989,15 @@ def _parser() -> argparse.ArgumentParser:
         "--windows-root",
         type=Path,
         default=DEFAULT_WINDOWS_ROOT,
+    )
+    parser.add_argument(
+        "--sprite-wait-seconds",
+        type=float,
+        default=900.0,
+        help=(
+            "Maximum time to observe the production prewarm until neutral "
+            "and one alternate generated sprite are durable."
+        ),
     )
     return parser
 

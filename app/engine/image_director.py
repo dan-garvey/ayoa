@@ -1298,6 +1298,11 @@ def _visible_location_label(
         character_id: location
         for character_id in directly_present_character_ids
         if (record := by_id.get(character_id)) is not None
+        # A disembodied controller may be named possessively in a feed label
+        # ("the Master's live feed") without occupying the depicted scene.
+        # Its control-room location must not conflict with the embodied cast's
+        # fixed environment.
+        if record.visuals.depiction_policy != "omit"
         if (location := _safe_identifier(record.location))
     }
     for update in event.location_updates:

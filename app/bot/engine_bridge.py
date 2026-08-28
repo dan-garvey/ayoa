@@ -123,6 +123,26 @@ from app.schemas.responses import TurnResponse, VisualNovelRender
 from app.schemas.state import SlotEntry
 
 
+def _visual_novel_character_variant_key(
+    checkpoint: CheckpointFile,
+    character_id: str,
+) -> str:
+    character = next(
+        (
+            item
+            for item in checkpoint.characters
+            if item.character_id == character_id
+        ),
+        None,
+    )
+    if character is None:
+        return "neutral"
+    return (
+        character.visuals.visual_novel_presentation.current_variant_key
+        or "neutral"
+    )
+
+
 def _loot_claim_message(result: dict[str, Any]) -> str:
     parts: list[str] = []
     item_names = [
@@ -384,7 +404,7 @@ class EngineBridge:
             resolution, stage_media = self.image_generation.resolve_visual_novel_stage(
                 session_id=session_id,
                 pov_character_id=pov_character_id,
-                rendered_event_ids=list(segment.rendered_event_ids),
+                rendered_event_ids=[segment.rendered_event_id],
             )
             if resolution.fallback_reason:
                 logger.info(
@@ -407,6 +427,9 @@ class EngineBridge:
                                 page=page,
                                 generation=self.image_generation,
                                 sprite_set_id_overrides=prior_sprite_set_ids,
+                                variant_keys_by_label=(
+                                    segment.sprite_variant_keys_by_label
+                                ),
                             )
                         ),
                     )
@@ -421,6 +444,10 @@ class EngineBridge:
                         character_id=transition.character_id,
                         sprite_set_id=transition.before_sprite_set_id,
                         generation=self.image_generation,
+                        variant_key=_visual_novel_character_variant_key(
+                            previous_checkpoint,
+                            transition.character_id,
+                        ),
                     )
                 )
                 after_placement = resolve_visual_novel_identity_transition_placement(
@@ -429,6 +456,10 @@ class EngineBridge:
                     character_id=transition.character_id,
                     sprite_set_id=transition.after_sprite_set_id,
                     generation=self.image_generation,
+                    variant_key=_visual_novel_character_variant_key(
+                        checkpoint,
+                        transition.character_id,
+                    ),
                 )
                 if before_placement is None or after_placement is None:
                     logger.warning(
@@ -514,11 +545,11 @@ class EngineBridge:
             seen: set[str] = set()
             event_ids: list[str] = []
             for segment in render.segments:
-                for event_id in segment.rendered_event_ids:
-                    if event_id in seen:
-                        continue
-                    seen.add(event_id)
-                    event_ids.append(event_id)
+                event_id = segment.rendered_event_id
+                if event_id in seen:
+                    continue
+                seen.add(event_id)
+                event_ids.append(event_id)
             rendered_event_ids_by_pov[pov_character_id] = event_ids
 
         await self.image_sidecar.wait_for_stage_discovery(session_id)
@@ -3652,6 +3683,7 @@ class EngineBridge:
         session_id: str,
         user_input: str,
         acting_character_id: str = "",
+        display_key: str = "",
     ) -> TurnResponse:
         """Process one turn under a per-session lock. Subsequent concurrent calls
         for the same session_id queue and run in order.
@@ -3671,6 +3703,7 @@ class EngineBridge:
                 session_id=session_id,
                 user_input=user_input,
                 acting_character_id=acting_character_id,
+                display_key=display_key,
             )
 
     async def retry_failed_render(
@@ -3867,6 +3900,7 @@ class EngineBridge:
         session_id: str,
         user_input: str,
         acting_character_id: str,
+        display_key: str = "",
     ) -> TurnResponse:
         """Body of `run_turn` — caller MUST hold the per-session lock."""
 
@@ -3877,6 +3911,7 @@ class EngineBridge:
                 session_id=session_id,
                 user_input=user_input,
                 acting_character_id=acting_character_id,
+                display_key=display_key,
             )
         )
         response.pre_turn_resolutions = [

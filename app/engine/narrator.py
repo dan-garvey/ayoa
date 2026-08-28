@@ -66,7 +66,7 @@ def _assert_visual_novel_output_is_player_safe(
     result: VisualNovelNarratorOutput,
 ) -> None:
     if visual_novel_pages_contain_source_identifiers(
-        result.pages,
+        (page for beat in result.beats for page in beat.pages),
         source_ids=_checkpoint_roster_source_ids(ckpt),
     ):
         raise ValueError(
@@ -79,7 +79,7 @@ def _visual_novel_sprite_roster(
     *,
     viewer_id: str,
     resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
-) -> tuple[tuple[str, ...], str]:
+) -> tuple[str, ...]:
     texts: list[str] = []
     present_ids: set[str] = set()
     for entry, event in resolved:
@@ -109,36 +109,48 @@ def _visual_novel_sprite_roster(
     unique_labels = tuple(
         label for label in dict.fromkeys(labels) if labels.count(label) == 1
     )
-    block = (
-        "\n".join(f"- {label}" for label in unique_labels) if unique_labels else "None."
-    )
-    return unique_labels, block
+    return unique_labels
 
 
 def _assert_visual_novel_sprite_cues(
     result: VisualNovelNarratorOutput,
     *,
-    allowed_labels: tuple[str, ...],
+    allowed_labels_by_beat: tuple[tuple[str, ...], ...],
 ) -> None:
-    allowed = set(allowed_labels)
-    for page in result.pages:
-        if any(cue.character not in allowed for cue in page.sprites):
+    if result.handoff == "continue":
+        if result.beats:
             raise ValueError(
-                "visual-novel narrator selected an unavailable sprite character"
+                "visual-novel continue decisions cannot contain authored beats"
             )
-        if page.kind != "dialogue":
-            continue
-        if page.speaker in allowed:
-            if not page.sprites or page.sprites[0].character != page.speaker:
+        return
+    if len(result.beats) != len(allowed_labels_by_beat):
+        raise ValueError(
+            "visual-novel narrator must return one beat for each visible event"
+        )
+    for beat, allowed_labels in zip(
+        result.beats,
+        allowed_labels_by_beat,
+        strict=True,
+    ):
+        allowed = set(allowed_labels)
+        for page in beat.pages:
+            if any(label not in allowed for label in page.sprites):
                 raise ValueError(
-                    "visual-novel narrator must put the exact available "
-                    "dialogue speaker first in the sprite cues"
+                    "visual-novel narrator selected an unavailable sprite character"
                 )
-        elif page.sprites:
-            raise ValueError(
-                "visual-novel narrator used a descriptive dialogue speaker "
-                "with rostered sprite cues"
-            )
+            if page.kind != "dialogue":
+                continue
+            if page.speaker in allowed:
+                if not page.sprites or page.sprites[0] != page.speaker:
+                    raise ValueError(
+                        "visual-novel narrator must put the exact available "
+                        "dialogue speaker first in the sprite cues"
+                    )
+            elif page.sprites:
+                raise ValueError(
+                    "visual-novel narrator used a descriptive dialogue speaker "
+                    "with rostered sprite cues"
+                )
 
 
 def _visual_novel_page_sprite_cues_are_valid(
@@ -150,19 +162,19 @@ def _visual_novel_page_sprite_cues_are_valid(
     allowed = set(allowed_sprite_labels)
     sprites = getattr(page, "sprites", ())
     if any(
-        cue.character not in allowed
+        label not in allowed
         or visual_novel_text_contains_source_identifiers(
-            cue.character,
+            label,
             source_ids=source_ids,
         )
-        for cue in sprites
+        for label in sprites
     ):
         return False
     if getattr(page, "kind", "") != "dialogue":
         return True
     speaker = getattr(page, "speaker", "")
     if speaker in allowed:
-        return bool(sprites) and sprites[0].character == speaker
+        return bool(sprites) and sprites[0] == speaker
     return not sprites
 
 
@@ -184,16 +196,37 @@ def _assert_visual_novel_correction_preserves_contract(
     corrected: VisualNovelNarratorOutput,
     *,
     source_ids: tuple[str, ...],
-    allowed_sprite_labels: tuple[str, ...],
+    allowed_sprite_labels_by_beat: tuple[tuple[str, ...], ...],
 ) -> None:
     """Allow one correction to change only fields that exposed source ids."""
 
     if corrected.handoff != rejected.handoff:
         raise ValueError("visual-novel correction changed the handoff decision")
-    if len(corrected.pages) != len(rejected.pages):
-        raise ValueError("visual-novel correction changed the page count")
-    for index, (before, after) in enumerate(
-        zip(rejected.pages, corrected.pages, strict=True)
+    if len(corrected.beats) != len(rejected.beats):
+        raise ValueError("visual-novel correction changed the beat count")
+    if not rejected.beats:
+        return
+    if len(rejected.beats) != len(allowed_sprite_labels_by_beat):
+        raise ValueError(
+            "visual-novel rejected render lost visible-event alignment"
+        )
+    before_pages = [page for beat in rejected.beats for page in beat.pages]
+    after_pages = [page for beat in corrected.beats for page in beat.pages]
+    if [len(beat.pages) for beat in corrected.beats] != [
+        len(beat.pages) for beat in rejected.beats
+    ]:
+        raise ValueError("visual-novel correction changed a beat page count")
+    allowed_by_page = [
+        allowed
+        for allowed, beat in zip(
+            allowed_sprite_labels_by_beat,
+            rejected.beats,
+            strict=True,
+        )
+        for _page in beat.pages
+    ]
+    for index, (before, after, allowed_sprite_labels) in enumerate(
+        zip(before_pages, after_pages, allowed_by_page, strict=True)
     ):
         if after.kind != before.kind:
             raise ValueError(
@@ -243,7 +276,7 @@ def _strip_unmatched_trailing_closers(text: str) -> str:
     return cleaned
 
 
-def _resolve_buffered_events(
+def resolve_buffered_events_for_render(
     ckpt: CheckpointFile,
     buffered_events: list[RenderBufferEntry],
 ) -> list[tuple[RenderBufferEntry, EventRouterOutput]]:
@@ -296,12 +329,15 @@ def _format_visible_events_block(
     resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
     pov_character_id: str = "",
     ckpt: CheckpointFile | None = None,
+    sprite_labels_by_beat: tuple[tuple[str, ...], ...] = (),
 ) -> str:
-    """Serialize only POV-visible surface facts for prose composition."""
+    """Serialize one explicit, ordered input beat per buffered event."""
     if not resolved:
         return "Nothing new reaches this viewpoint."
+    if sprite_labels_by_beat and len(sprite_labels_by_beat) != len(resolved):
+        raise ValueError("sprite roster count must match visible event count")
     sections: list[str] = []
-    for entry, ev in resolved:
+    for beat_index, (entry, ev) in enumerate(resolved, start=1):
         header = _OBS_LEVEL_HEADERS.get(entry.observation_level, "Perceived:")
         ca = ev.canonical_event
         visible_facts = []
@@ -329,18 +365,24 @@ def _format_visible_events_block(
         if ckpt is not None:
             facts = [replace_character_ids_for_narrator(fact, ckpt) for fact in facts]
         if pov_character_id and not facts:
-            # No fact visible to this POV means the event must not
-            # surface in their render at all.
-            continue
-        lines = [header]
+            raise RuntimeError(
+                "Narrator render buffer contains an event with no visible "
+                f"facts for {pov_character_id}: {entry.event_id}"
+            )
+        lines = [f'<visible_beat index="{beat_index}">', header]
         if facts:
             for fact in facts:
                 lines.append(f"- {fact}")
         else:
             lines.append("Nothing concrete is visible.")
+        if sprite_labels_by_beat:
+            labels = sprite_labels_by_beat[beat_index - 1]
+            lines.append("Available foreground characters:")
+            lines.extend(f"- {label}" for label in labels)
+            if not labels:
+                lines.append("None.")
+        lines.append("</visible_beat>")
         sections.append("\n".join(lines))
-    if not sections:
-        return "Nothing new is visible to this viewpoint."
     return "\n\n".join(sections)
 
 
@@ -386,7 +428,7 @@ async def compose_pov_render(
     `commit_pov_render`; rejected handoff candidates must not affect narrator
     history or visual-introduction state.
     """
-    resolved = _resolve_buffered_events(ckpt, buffered_events)
+    resolved = resolve_buffered_events_for_render(ckpt, buffered_events)
 
     # POV character identity. Fall back to the raw id if the roster
     # doesn't know them (pristine tests, legacy checkpoints).
@@ -406,10 +448,23 @@ async def compose_pov_render(
     player_characters_block = build_narrator_player_characters_block(
         ckpt, pov_character_id
     )
+    sprite_labels_by_beat = tuple(
+        _visual_novel_sprite_roster(
+            ckpt,
+            viewer_id=pov_character_id,
+            resolved=[pair],
+        )
+        for pair in resolved
+    )
     visible_events_block = _format_visible_events_block(
         resolved,
         pov_character_id,
         ckpt,
+        sprite_labels_by_beat=(
+            sprite_labels_by_beat
+            if ckpt.session.config.settings.presentation_mode == "visual_novel"
+            else ()
+        ),
     )
     visual_intro_plan = plan_render_visual_introductions(
         ckpt,
@@ -418,11 +473,6 @@ async def compose_pov_render(
     )
     visual_intro_block = format_narrator_visual_introductions(
         visual_intro_plan.loadouts,
-    )
-    sprite_labels, sprite_roster_block = _visual_novel_sprite_roster(
-        ckpt,
-        viewer_id=pov_character_id,
-        resolved=resolved,
     )
     rendering_note = (
         PARTIAL_MODE_MARKER
@@ -447,7 +497,6 @@ async def compose_pov_render(
         rendering_note=rendering_note,
         handoff_policy=handoff_policy,
         handoff_context=(handoff_context or "No unresolved handoff condition."),
-        sprite_roster_block=sprite_roster_block,
     )
     render_ms = (time.monotonic() - render_t0) * 1000
 
@@ -484,18 +533,18 @@ async def compose_pov_render(
         )
         if isinstance(result, VisualNovelNarratorOutput):
             try:
-                _assert_visual_novel_output_is_player_safe(ckpt, result)
-                _assert_visual_novel_sprite_cues(
-                    result,
-                    allowed_labels=sprite_labels,
-                )
                 if rejected_result is not None:
                     _assert_visual_novel_correction_preserves_contract(
                         rejected_result,
                         result,
                         source_ids=roster_source_ids,
-                        allowed_sprite_labels=sprite_labels,
+                        allowed_sprite_labels_by_beat=sprite_labels_by_beat,
                     )
+                _assert_visual_novel_output_is_player_safe(ckpt, result)
+                _assert_visual_novel_sprite_cues(
+                    result,
+                    allowed_labels_by_beat=sprite_labels_by_beat,
+                )
             except ValueError:
                 if attempt:
                     raise
@@ -509,8 +558,9 @@ async def compose_pov_render(
                     {
                         "role": "user",
                         "content": (
-                            "Return corrected JSON only. Keep the handoff, page "
-                            "count, page kinds, and page order unchanged. Change "
+                            "Return corrected JSON only. Keep the handoff, beat "
+                            "count, page counts, page kinds, and page order "
+                            "unchanged. Change "
                             "only speaker or text fields that contain a source "
                             "identifier, or a dialogue speaker and sprite cue "
                             "list that do not use the exact supplied roster "
@@ -553,9 +603,20 @@ def commit_pov_render(
     user_input: str,
 ) -> None:
     """Persist one accepted POV conversation turn and visual introductions."""
+    resolved = resolve_buffered_events_for_render(ckpt, buffered_events)
     if isinstance(result, VisualNovelNarratorOutput):
         _assert_visual_novel_output_is_player_safe(ckpt, result)
-    resolved = _resolve_buffered_events(ckpt, buffered_events)
+        _assert_visual_novel_sprite_cues(
+            result,
+            allowed_labels_by_beat=tuple(
+                _visual_novel_sprite_roster(
+                    ckpt,
+                    viewer_id=pov_character_id,
+                    resolved=[pair],
+                )
+                for pair in resolved
+            ),
+        )
     visual_intro_plan = plan_render_visual_introductions(
         ckpt,
         viewer_id=pov_character_id,
@@ -577,7 +638,8 @@ def commit_pov_render(
             # continuity, so durable history keeps only the semantic pages.
             "pages": [
                 page.model_dump(mode="json", exclude={"sprites"})
-                for page in result.pages
+                for beat in result.beats
+                for page in beat.pages
             ]
         }
     else:

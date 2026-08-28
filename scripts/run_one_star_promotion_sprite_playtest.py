@@ -58,9 +58,9 @@ from app.engine.visual_novel_sprites import (
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.image_generation import ImageGenerationStatus
-from app.schemas.narrator import VisualNovelPage, VisualNovelSpriteCue
+from app.schemas.narrator import VisualNovelPage
 from app.schemas.one_star import OneStarTransaction
-from app.schemas.visual_references import VISUAL_NOVEL_SPRITE_EXPRESSIONS
+from app.schemas.visual_references import VISUAL_NOVEL_SPRITE_VARIANT_KEYS
 from scripts.export_vn_playtest_slideshow import (
     export_vn_playtest_slideshow,
 )
@@ -241,45 +241,25 @@ def _promotion_comparison_pages() -> tuple[VisualNovelPage, ...]:
             kind="dialogue",
             speaker="Renna Holt",
             text=("Before ascent · 1★ level 10 · generic veiled one-star appearance."),
-            sprites=[
-                VisualNovelSpriteCue(
-                    character="Renna Holt",
-                    expression="neutral",
-                )
-            ],
+            sprites=["Renna Holt"],
         ),
         VisualNovelPage(
             kind="dialogue",
             speaker="Renna Holt",
             text=("After ascent · 2★ level 10 · locked seeded identity revealed."),
-            sprites=[
-                VisualNovelSpriteCue(
-                    character="Renna Holt",
-                    expression="neutral",
-                )
-            ],
+            sprites=["Renna Holt"],
         ),
         VisualNovelPage(
             kind="dialogue",
             speaker="Mara Venn",
             text=("Before ascent · 1★ level 10 · generic veiled one-star appearance."),
-            sprites=[
-                VisualNovelSpriteCue(
-                    character="Mara Venn",
-                    expression="neutral",
-                )
-            ],
+            sprites=["Mara Venn"],
         ),
         VisualNovelPage(
             kind="dialogue",
             speaker="Mara Venn",
             text=("After ascent · 3★ level 30 · generated identity sprite revealed."),
-            sprites=[
-                VisualNovelSpriteCue(
-                    character="Mara Venn",
-                    expression="neutral",
-                )
-            ],
+            sprites=["Mara Venn"],
         ),
     )
 
@@ -498,7 +478,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         mara = _character(checkpoint, FACELESS_ID)
         pack_id = generated_sprite_pack_id(checkpoint, mara)
         existing_jobs = {
-            job.request.sprite_expression: job
+            job.request.sprite_variant_key: job
             for job in coordinator.store.all_jobs()
             if job.request.sprite_pack_id == pack_id
         }
@@ -530,13 +510,13 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         # returns no new ids here: the durable store is the source of truth.
         await coordinator.ensure_visual_novel_sprite_prewarm(checkpoint)
         generated_jobs = {
-            job.request.sprite_expression: job
+            job.request.sprite_variant_key: job
             for job in coordinator.store.all_jobs()
             if job.request.sprite_pack_id == pack_id
         }
         sweep_ids = tuple(
             generated_jobs[expression].job_id
-            for expression in VISUAL_NOVEL_SPRITE_EXPRESSIONS[1:]
+            for expression in VISUAL_NOVEL_SPRITE_VARIANT_KEYS[1:]
             if expression in generated_jobs
         )
         if len(sweep_ids) != 7:
@@ -553,34 +533,34 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         await coordinator.ensure_visual_novel_sprite_prewarm(checkpoint)
 
         jobs = {
-            job.request.sprite_expression: job
+            job.request.sprite_variant_key: job
             for job in coordinator.store.all_jobs()
             if job.request.sprite_pack_id == pack_id
         }
         ordered_jobs = [
             jobs[expression]
-            for expression in VISUAL_NOVEL_SPRITE_EXPRESSIONS
+            for expression in VISUAL_NOVEL_SPRITE_VARIANT_KEYS
             if expression in jobs
         ]
         for job in ordered_jobs:
-            (run_dir / "prompts" / f"{job.request.sprite_expression}.txt").write_text(
+            (run_dir / "prompts" / f"{job.request.sprite_variant_key}.txt").write_text(
                 job.request.prompt + "\n",
                 encoding="utf-8",
             )
             if job.status == ImageGenerationStatus.succeeded:
                 raw = coordinator.resolve_job_media(job)
-                (run_dir / "raw" / f"{job.request.sprite_expression}.webp").write_bytes(
+                (run_dir / "raw" / f"{job.request.sprite_variant_key}.webp").write_bytes(
                     raw.data
                 )
 
         resolved_variants: list[tuple[str, bytes]] = []
         variant_records: list[dict[str, object]] = []
-        for expression in VISUAL_NOVEL_SPRITE_EXPRESSIONS:
+        for expression in VISUAL_NOVEL_SPRITE_VARIANT_KEYS:
             resolved = coordinator.resolve_visual_novel_sprite_variant(
                 session_id=checkpoint.session.session_id,
                 character_id=FACELESS_ID,
                 sprite_pack_id=pack_id,
-                expression=expression,
+                variant_key=expression,
             )
             if resolved is None:
                 variant_records.append(
@@ -770,7 +750,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             "jobs": [
                 {
                     "job_id": job.job_id,
-                    "expression": job.request.sprite_expression,
+                    "variant_key": job.request.sprite_variant_key,
                     "status": job.status.value,
                     "error_code": job.error_code,
                     "attempts": job.attempts,

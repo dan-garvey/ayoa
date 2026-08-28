@@ -32,9 +32,9 @@ from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import ObservableFact
 from app.schemas.narrator import (
     NarratorFinalOutput,
+    VisualNovelBeatPages,
     VisualNovelNarratorOutput,
     VisualNovelPage,
-    VisualNovelSpriteCue,
 )
 from app.schemas.state import (
     RenderBufferEntry,
@@ -93,6 +93,22 @@ def _llm_response(final_text: str = "RENDERED"):
     return narrator_llm_response(final_text)
 
 
+def _visual_novel_output(
+    *,
+    handoff: str,
+    handoff_reason: str,
+    pages: list[VisualNovelPage],
+) -> VisualNovelNarratorOutput:
+    """Build the one-visible-event envelope used by most focused tests."""
+
+    beats = [VisualNovelBeatPages(pages=pages)] if pages else []
+    return VisualNovelNarratorOutput(
+        handoff=handoff,
+        handoff_reason=handoff_reason,
+        beats=beats,
+    )
+
+
 def _router_event(
     event_id: str,
     facts: list[ObservableFact],
@@ -137,6 +153,122 @@ def mock_client() -> MagicMock:
 
 class TestComposePovRender:
     @pytest.mark.asyncio
+    async def test_visual_novel_output_keeps_one_roster_scoped_beat_per_event(
+        self,
+        mock_client,
+        prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        ckpt.canonical_events[1].canonical_event.observable_facts = [
+            ObservableFact.all(
+                "Pip nods.",
+                visual_subject_ids=["pip"],
+            )
+        ]
+        expected = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="Pip has visibly answered.",
+            beats=[
+                VisualNovelBeatPages(pages=[VisualNovelPage(
+                    kind="narration",
+                    text="The arch is weathered.",
+                )]),
+                VisualNovelBeatPages(pages=[VisualNovelPage(
+                    kind="narration",
+                    text="Pip nods.",
+                    sprites=["Pip"],
+                )]),
+            ],
+        )
+        mock_client.complete = AsyncMock(return_value=llm_response(expected))
+
+        result, _entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(
+                    event_id="evt_alpha",
+                    observation_level="direct",
+                ),
+                RenderBufferEntry(
+                    event_id="evt_beta",
+                    observation_level="direct",
+                ),
+            ],
+            partial_mode=False,
+            user_input="I watch.",
+        )
+
+        assert result == expected
+        user_text = mock_client.complete.await_args.kwargs["messages"][-1][
+            "content"
+        ]
+        assert user_text.count("<visible_beat index=") == 2
+        first, second = user_text.split('<visible_beat index="2">', maxsplit=1)
+        assert "Available foreground characters:\nNone." in first
+        assert "Available foreground characters:\n- Pip" in second
+
+    @pytest.mark.asyncio
+    async def test_visual_novel_cannot_move_a_later_character_into_earlier_beat(
+        self,
+        mock_client,
+        prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        ckpt.canonical_events[1].canonical_event.observable_facts = [
+            ObservableFact.all(
+                "Pip nods.",
+                visual_subject_ids=["pip"],
+            )
+        ]
+        invalid = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="Pip has visibly answered.",
+            beats=[
+                VisualNovelBeatPages(pages=[VisualNovelPage(
+                    kind="narration",
+                    text="The arch is weathered.",
+                    sprites=["Pip"],
+                )]),
+                VisualNovelBeatPages(pages=[VisualNovelPage(
+                    kind="narration",
+                    text="Pip nods.",
+                    sprites=["Pip"],
+                )]),
+            ],
+        )
+        mock_client.complete = AsyncMock(
+            side_effect=[llm_response(invalid), llm_response(invalid)]
+        )
+
+        with pytest.raises(ValueError, match="unavailable sprite character"):
+            await compose_pov_render(
+                client=mock_client,
+                prompt_mgr=prompt_manager,
+                ckpt=ckpt,
+                pov_character_id="alice",
+                buffered_events=[
+                    RenderBufferEntry(
+                        event_id="evt_alpha",
+                        observation_level="direct",
+                    ),
+                    RenderBufferEntry(
+                        event_id="evt_beta",
+                        observation_level="direct",
+                    ),
+                ],
+                partial_mode=False,
+                user_input="I watch.",
+            )
+
+        assert mock_client.complete.await_count == 2
+        assert ckpt.narrator_conversations == {}
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("presentation_mode", ["prose", "visual_novel"])
     async def test_forced_handoff_rejects_continue_without_composition_mutation(
         self,
@@ -150,7 +282,7 @@ class TestComposePovRender:
             c for c in ckpt.characters if c.character_id == "pip"
         ).visuals = CharacterVisuals(default_loadout="Patched red coat.")
         result = (
-            VisualNovelNarratorOutput(
+            _visual_novel_output(
                 handoff="continue",
                 handoff_reason="Motion continues.",
                 pages=[],
@@ -185,6 +317,40 @@ class TestComposePovRender:
         assert ckpt.session.visual_introductions == {}
 
     @pytest.mark.asyncio
+    async def test_visual_novel_candidate_continue_keeps_empty_beats_without_retry(
+        self,
+        mock_client,
+        prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        expected = _visual_novel_output(
+            handoff="continue",
+            handoff_reason="The visible motion is still underway.",
+            pages=[],
+        )
+        mock_client.complete = AsyncMock(return_value=llm_response(expected))
+
+        result, entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[RenderBufferEntry(
+                event_id="evt_beta",
+                observation_level="direct",
+            )],
+            partial_mode=False,
+            handoff_policy="candidate",
+        )
+
+        assert result == expected
+        assert result.beats == []
+        assert entry.assistant == ""
+        assert mock_client.complete.await_count == 1
+        assert ckpt.narrator_conversations == {}
+
+    @pytest.mark.asyncio
     async def test_visual_novel_mode_uses_structured_pages_and_plain_history(
         self,
         mock_client,
@@ -194,7 +360,7 @@ class TestComposePovRender:
         ckpt.session.config.settings.presentation_mode = "visual_novel"
         mock_client.complete = AsyncMock(
             return_value=llm_response(
-                VisualNovelNarratorOutput(
+                _visual_novel_output(
                     handoff="render",
                     handoff_reason="Pip's question returns control.",
                     pages=[
@@ -256,7 +422,7 @@ class TestComposePovRender:
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
-        result = VisualNovelNarratorOutput(
+        result = _visual_novel_output(
             handoff="render",
             handoff_reason="Pip's reply returns control.",
             pages=[
@@ -264,12 +430,7 @@ class TestComposePovRender:
                     kind="dialogue",
                     speaker="Pip",
                     text="I am listening.",
-                    sprites=[
-                        VisualNovelSpriteCue(
-                            character="Pip",
-                            expression="neutral",
-                        )
-                    ],
+                    sprites=["Pip"],
                 )
             ],
         )
@@ -290,9 +451,10 @@ class TestComposePovRender:
         messages = mock_client.complete.await_args.kwargs["messages"]
         assert "- Pip" not in messages[0]["content"]
         assert (
-            "Characters directly present and available for optional sprite cues:\n- Pip"
-        ) in messages[-1]["content"]
-        assert composed.pages[0].sprites == result.pages[0].sprites
+            "Available foreground characters:\n- Pip"
+            in messages[-1]["content"]
+        )
+        assert composed.beats[0].pages[0].sprites == result.beats[0].pages[0].sprites
         commit_pov_render(
             ckpt,
             pov_character_id="alice",
@@ -320,7 +482,7 @@ class TestComposePovRender:
                 visual_subject_ids=["pip"],
             ),
         ]
-        result = VisualNovelNarratorOutput(
+        result = _visual_novel_output(
             handoff="render",
             handoff_reason="The visible reaction returns control.",
             pages=[
@@ -328,12 +490,7 @@ class TestComposePovRender:
                     kind="dialogue",
                     speaker="Pip",
                     text="I am still here.",
-                    sprites=[
-                        VisualNovelSpriteCue(
-                            character="Pip",
-                            expression="neutral",
-                        )
-                    ],
+                    sprites=["Pip"],
                 )
             ],
         )
@@ -356,9 +513,10 @@ class TestComposePovRender:
         messages = mock_client.complete.await_args.kwargs["messages"]
         assert "- Pip" not in messages[0]["content"]
         assert (
-            "Characters directly present and available for optional sprite cues:\n- Pip"
-        ) in messages[-1]["content"]
-        assert composed.pages[0].sprites[0].character == "Pip"
+            "Available foreground characters:\n- Pip"
+            in messages[-1]["content"]
+        )
+        assert composed.beats[0].pages[0].sprites[0] == "Pip"
 
     @pytest.mark.asyncio
     async def test_visual_novel_missing_available_speaker_cue_gets_one_correction(
@@ -368,7 +526,7 @@ class TestComposePovRender:
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
-        missing = VisualNovelNarratorOutput(
+        missing = _visual_novel_output(
             handoff="render",
             handoff_reason="Pip's reply returns control.",
             pages=[
@@ -380,12 +538,7 @@ class TestComposePovRender:
             ],
         )
         corrected = missing.model_copy(deep=True)
-        corrected.pages[0].sprites = [
-            VisualNovelSpriteCue(
-                character="Pip",
-                expression="neutral",
-            )
-        ]
+        corrected.beats[0].pages[0].sprites = ["Pip"]
         mock_client.complete = AsyncMock(
             side_effect=[
                 llm_response(missing),
@@ -422,7 +575,7 @@ class TestComposePovRender:
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
-        mislabeled = VisualNovelNarratorOutput(
+        mislabeled = _visual_novel_output(
             handoff="render",
             handoff_reason="Pip's reply returns control.",
             pages=[
@@ -430,17 +583,12 @@ class TestComposePovRender:
                     kind="dialogue",
                     speaker="The small courier beneath the arch",
                     text="I am listening.",
-                    sprites=[
-                        VisualNovelSpriteCue(
-                            character="Pip",
-                            expression="neutral",
-                        )
-                    ],
+                    sprites=["Pip"],
                 )
             ],
         )
         corrected = mislabeled.model_copy(deep=True)
-        corrected.pages[0].speaker = "Pip"
+        corrected.beats[0].pages[0].speaker = "Pip"
         mock_client.complete = AsyncMock(
             side_effect=[
                 llm_response(mislabeled),
@@ -463,8 +611,8 @@ class TestComposePovRender:
         )
 
         assert mock_client.complete.await_count == 2
-        assert result.pages[0].speaker == "Pip"
-        assert result.pages[0].sprites[0].character == "Pip"
+        assert result.beats[0].pages[0].speaker == "Pip"
+        assert result.beats[0].pages[0].sprites[0] == "Pip"
 
     @pytest.mark.asyncio
     async def test_visual_novel_source_identifier_gets_one_transient_correction(
@@ -474,7 +622,7 @@ class TestComposePovRender:
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
-        unsafe = VisualNovelNarratorOutput(
+        unsafe = _visual_novel_output(
             handoff="render",
             handoff_reason="The reply returns control.",
             pages=[
@@ -485,7 +633,7 @@ class TestComposePovRender:
                 ),
             ],
         )
-        safe = VisualNovelNarratorOutput(
+        safe = _visual_novel_output(
             handoff="render",
             handoff_reason="The reply returns control.",
             pages=[
@@ -543,7 +691,7 @@ class TestComposePovRender:
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
-        unsafe = VisualNovelNarratorOutput(
+        unsafe = _visual_novel_output(
             handoff="render",
             handoff_reason="The motion is visible.",
             pages=[
@@ -554,7 +702,7 @@ class TestComposePovRender:
                 ),
             ],
         )
-        safe = VisualNovelNarratorOutput(
+        safe = _visual_novel_output(
             handoff="render",
             handoff_reason="A revised diagnostic reason is allowed.",
             pages=[
@@ -562,12 +710,7 @@ class TestComposePovRender:
                     kind="dialogue",
                     speaker="Pip",
                     text="The courier waits beneath the arch.",
-                    sprites=[
-                        VisualNovelSpriteCue(
-                            character="Pip",
-                            expression="neutral",
-                        )
-                    ],
+                    sprites=["Pip"],
                 ),
             ],
         )
@@ -594,7 +737,7 @@ class TestComposePovRender:
         ("mutation", "error"),
         [
             ("handoff", "changed the handoff decision"),
-            ("page_count", "changed the page count"),
+            ("page_count", "changed a beat page count"),
             ("kind_order", "changed page kind/order"),
             ("safe_text", "changed an already-safe text field"),
         ],
@@ -608,7 +751,7 @@ class TestComposePovRender:
     ):
         ckpt = _ckpt()
         ckpt.session.config.settings.presentation_mode = "visual_novel"
-        unsafe = VisualNovelNarratorOutput(
+        unsafe = _visual_novel_output(
             handoff="render",
             handoff_reason="The reply returns control.",
             pages=[
@@ -637,7 +780,7 @@ class TestComposePovRender:
                 kind="narration",
                 text="Rain now sheets across the arch.",
             )
-        corrected = VisualNovelNarratorOutput(
+        corrected = _visual_novel_output(
             handoff=corrected_handoff,
             handoff_reason="Correction attempted.",
             pages=corrected_pages,
@@ -681,14 +824,14 @@ class TestComposePovRender:
                 status=CharacterStatus.culled,
             )
         )
-        unsafe = VisualNovelNarratorOutput(
+        unsafe = _visual_novel_output(
             handoff="render",
             handoff_reason="The reply returns control.",
             pages=[
                 VisualNovelPage(kind="dialogue", speaker="retiredguard", text="Halt.")
             ],
         )
-        safe = VisualNovelNarratorOutput(
+        safe = _visual_novel_output(
             handoff="render",
             handoff_reason="The reply returns control.",
             pages=[VisualNovelPage(kind="dialogue", speaker="Old Guard", text="Halt.")],
@@ -722,17 +865,24 @@ class TestComposePovRender:
         next(
             c for c in ckpt.characters if c.character_id == "pip"
         ).visuals = CharacterVisuals(default_loadout="Patched red coat.")
-        first = VisualNovelNarratorOutput(
-            handoff="render",
-            handoff_reason="The reply returns control.",
-            pages=[VisualNovelPage(kind="dialogue", speaker="pip", text="Ready?")],
-        )
-        second = VisualNovelNarratorOutput(
+        first = _visual_novel_output(
             handoff="render",
             handoff_reason="The reply returns control.",
             pages=[
                 VisualNovelPage(
-                    kind="narration",
+                    kind="dialogue",
+                    speaker="pip",
+                    text="off_roster_id waits beneath the arch.",
+                )
+            ],
+        )
+        second = _visual_novel_output(
+            handoff="render",
+            handoff_reason="The reply returns control.",
+            pages=[
+                VisualNovelPage(
+                    kind="dialogue",
+                    speaker="the courier",
                     text="off_roster_id waits beneath the arch.",
                 )
             ],
@@ -767,7 +917,7 @@ class TestComposePovRender:
         next(
             c for c in ckpt.characters if c.character_id == "pip"
         ).visuals = CharacterVisuals(default_loadout="Patched red coat.")
-        unsafe = VisualNovelNarratorOutput(
+        unsafe = _visual_novel_output(
             handoff="render",
             handoff_reason="The reply returns control.",
             pages=[VisualNovelPage(kind="dialogue", speaker="pip", text="Ready?")],
@@ -1164,7 +1314,7 @@ class TestComposePovRender:
             )
         )
         provider_result = (
-            VisualNovelNarratorOutput(
+            _visual_novel_output(
                 handoff="render",
                 handoff_reason="The arrival is visible.",
                 pages=[VisualNovelPage(kind="narration", text="Pip arrives.")],
@@ -1243,7 +1393,7 @@ class TestComposePovRender:
         ckpt.canonical_events.extend([remote_event, meeting_event])
         provider_results = (
             [
-                VisualNovelNarratorOutput(
+                _visual_novel_output(
                     handoff="render",
                     handoff_reason="The radio message is complete.",
                     pages=[
@@ -1253,7 +1403,7 @@ class TestComposePovRender:
                         )
                     ],
                 ),
-                VisualNovelNarratorOutput(
+                _visual_novel_output(
                     handoff="render",
                     handoff_reason="The arrival is visible.",
                     pages=[
@@ -1800,7 +1950,7 @@ class TestFormatVisibleEventsBlock:
         assert "knows curses" in as_aldric
 
     def test_resolved_buffers_sort_by_visible_time(self):
-        from app.engine.narrator import _resolve_buffered_events
+        from app.engine.narrator import resolve_buffered_events_for_render
 
         ckpt = _ckpt()
         buffered = [
@@ -1818,7 +1968,7 @@ class TestFormatVisibleEventsBlock:
             ),
         ]
 
-        resolved = _resolve_buffered_events(ckpt, buffered)
+        resolved = resolve_buffered_events_for_render(ckpt, buffered)
 
         assert [event.event_id for _, event in resolved] == [
             "evt_beta",

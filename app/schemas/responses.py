@@ -71,14 +71,31 @@ class VisualNovelRenderSegment(BaseModel):
     """One accepted POV beat and its canonical stage provenance."""
 
     pages: list[VisualNovelPage] = Field(min_length=1)
-    rendered_event_ids: list[str] = Field(min_length=1)
+    rendered_event_id: str = Field(min_length=1)
+    sprite_variant_keys_by_label: dict[str, str] = Field(default_factory=dict)
 
-    @field_validator("rendered_event_ids")
+    @field_validator("rendered_event_id")
     @classmethod
-    def _require_nonempty_event_ids(cls, values: list[str]) -> list[str]:
-        cleaned = [str(value).strip() for value in values]
-        if any(not value for value in cleaned):
-            raise ValueError("rendered_event_ids cannot contain blank ids")
+    def _require_nonempty_event_id(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("rendered_event_id cannot be blank")
+        return cleaned
+
+    @field_validator("sprite_variant_keys_by_label")
+    @classmethod
+    def _clean_variant_snapshot(cls, value: dict[str, str]) -> dict[str, str]:
+        cleaned: dict[str, str] = {}
+        for raw_label, raw_key in value.items():
+            label = " ".join(raw_label.split()).strip()
+            key = raw_key.strip().lower()
+            if not label or not key:
+                raise ValueError("sprite variant snapshots cannot contain blanks")
+            if re.fullmatch(r"[a-z0-9][a-z0-9_.-]{0,79}", key) is None:
+                raise ValueError("sprite variant snapshot key is invalid")
+            if label in cleaned:
+                raise ValueError("sprite variant snapshot labels must be unique")
+            cleaned[label] = key
         return cleaned
 
     @model_validator(mode="after")
@@ -86,6 +103,15 @@ class VisualNovelRenderSegment(BaseModel):
         if visual_novel_pages_contain_source_identifiers(self.pages):
             raise ValueError(
                 "visual-novel response pages cannot expose source-shaped ids"
+            )
+        page_labels = {
+            label
+            for page in self.pages
+            for label in page.sprites
+        }
+        if set(self.sprite_variant_keys_by_label) - page_labels:
+            raise ValueError(
+                "sprite variant snapshots may name only depicted page labels"
             )
         return self
 

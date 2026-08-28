@@ -271,7 +271,7 @@ class TestEngineBridgeVisualNovelPresentation:
                             text=" ".join(["Stay on the first stage."] * 45),
                         )
                     ],
-                    rendered_event_ids=["evt_first", "evt_shared"],
+                    rendered_event_id="evt_first",
                 ),
                 VisualNovelRenderSegment(
                     pages=[
@@ -281,7 +281,7 @@ class TestEngineBridgeVisualNovelPresentation:
                             text="Now the scene has changed.",
                         )
                     ],
-                    rendered_event_ids=["evt_shared", "evt_second"],
+                    rendered_event_id="evt_second",
                 ),
             ]
         )
@@ -334,7 +334,7 @@ class TestEngineBridgeVisualNovelPresentation:
         mock_bridge.image_generation.wait_for_render_images.assert_awaited_once_with(
             session_id="session",
             rendered_event_ids_by_pov={
-                "alice": ["evt_first", "evt_shared", "evt_second"]
+                "alice": ["evt_first", "evt_second"]
             },
         )
         assert [
@@ -343,8 +343,8 @@ class TestEngineBridgeVisualNovelPresentation:
                 mock_bridge.image_generation.resolve_visual_novel_stage.call_args_list
             )
         ] == [
-            ["evt_first", "evt_shared"],
-            ["evt_shared", "evt_second"],
+            ["evt_first"],
+            ["evt_second"],
         ]
         iselle_cards = [card for card in deck.cards if card.speaker == "Iselle"]
         wren_cards = [card for card in deck.cards if card.speaker == "Wren"]
@@ -365,8 +365,18 @@ class TestEngineBridgeVisualNovelPresentation:
             session=SessionState(session_id="session", turn_index=6),
             world_state=WorldState(setting=StorySetting()),
         )
+        before.characters = [CharacterRecord(
+            character_id="renna",
+            name="Renna Holt",
+        )]
+        before.characters[0].visuals.visual_novel_presentation.current_variant_key = (
+            "sad"
+        )
         after = before.model_copy(deep=True)
         after.session.turn_index = 7
+        after.characters[0].visuals.visual_novel_presentation.current_variant_key = (
+            "surprised"
+        )
         mock_bridge.load_checkpoint = MagicMock(return_value=after)
         mock_bridge._previous_visual_novel_checkpoint = MagicMock(  # type: ignore[method-assign]
             return_value=before
@@ -413,10 +423,12 @@ class TestEngineBridgeVisualNovelPresentation:
         page = VisualNovelPage(
             kind="narration",
             text="Renna Holt enters the sealed chamber.",
+            sprites=["Renna Holt"],
         )
         render = VisualNovelRender(segments=[VisualNovelRenderSegment(
             pages=[page],
-            rendered_event_ids=["evt_promotion"],
+            rendered_event_id="evt_promotion",
+            sprite_variant_keys_by_label={"Renna Holt": "tense"},
         )])
 
         result = asyncio.run(mock_bridge.prepare_visual_novel_deck(
@@ -436,6 +448,13 @@ class TestEngineBridgeVisualNovelPresentation:
         assert page_resolver.call_args.kwargs["sprite_set_id_overrides"] == {
             "renna": "sprite.veiled"
         }
+        assert page_resolver.call_args.kwargs["variant_keys_by_label"] == {
+            "Renna Holt": "tense"
+        }
+        assert [
+            call.kwargs["variant_key"]
+            for call in transition_resolver.call_args_list
+        ] == ["sad", "surprised"]
         sections = mock_bridge.visual_novel_renderer.render_deck.call_args.args[0]
         assert [section.card_style for section in sections] == [
             "adv",
@@ -2874,7 +2893,7 @@ class TestVisualNovelDiscordDeck:
                             kind="dialogue", speaker="Iselle", text="Hello."
                         )
                     ],
-                    rendered_event_ids=["evt_1"],
+                    rendered_event_id="evt_1",
                 )
             ]
         )
@@ -2981,7 +3000,7 @@ class TestVisualNovelDiscordDeck:
                             kind="dialogue", speaker="Iselle", text="Hello."
                         )
                     ],
-                    rendered_event_ids=["evt_1"],
+                    rendered_event_id="evt_1",
                 )
             ]
         )
@@ -3047,7 +3066,7 @@ class TestVisualNovelDiscordDeck:
                             kind="dialogue", speaker="Iselle", text="Hello."
                         )
                     ],
-                    rendered_event_ids=["evt_1"],
+                    rendered_event_id="evt_1",
                 )
             ]
         )
@@ -3119,7 +3138,7 @@ class TestVisualNovelJoinArrival:
                             text="Alice steps into the lantern light.",
                         )
                     ],
-                    rendered_event_ids=["evt_arrive"],
+                    rendered_event_id="evt_arrive",
                 )
             ]
         )
@@ -3132,7 +3151,7 @@ class TestVisualNovelJoinArrival:
                             text="Bob sees Alice arrive.",
                         )
                     ],
-                    rendered_event_ids=["evt_arrive"],
+                    rendered_event_id="evt_arrive",
                 )
             ]
         )

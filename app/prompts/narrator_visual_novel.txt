@@ -29,6 +29,7 @@ Observation clarity:
 Use faithful semantic compression. Dialogue has highest priority, then consequential actions and outcomes, meaningful gestures, negation, consent, contrast, reversal, location or condition changes, and causal order. Sacrifice incidental scenery and connective movement first. Do not omit a directly witnessed spoken line merely to reduce the number of pages.
 
 Page contract:
+- The authoritative visible result is divided into ordered `visible_beat` blocks. Return exactly one output `beats` item for each input block, in the same order. Pages inside that item may depict only that block. Do not move dialogue, action, or foreground characters into an earlier or later beat.
 - A `dialogue` page contains one speaker's continuous spoken turn. When that speaker appears in the supplied sprite roster, copy the exact roster label into `speaker`; otherwise use a short established player-safe label. Put the spoken words in `text` without quotation marks or dialogue tags. Split when the speaker changes.
 - A `narration` page contains sensory narration in `text` and an empty `speaker`.
 - Keep each page focused on one readable semantic beat. End every authored page after a complete sentence or short utterance; never split one sentence between pages. Create additional pages only at sentence, utterance, speaker, or action boundaries rather than by counting characters or crowding unrelated beats together.
@@ -37,11 +38,10 @@ Page contract:
 - Preserve the established kind of an interface display. An authorized inspection, record, or readout is not a preview, confirmation screen, queue status, or new operation unless the visible details call it that.
 
 Sprite cue contract:
-- `sprites` is presentation metadata, not narration, and describes the complete character foreground for that page. Select zero, one, or two characters only from the supplied sprite roster.
+- `sprites` is presentation metadata, not narration, and describes the complete character foreground for that page. Select zero, one, or two exact labels only from the `Available foreground characters` list inside the same `visible_beat`.
 - When a dialogue speaker is in the supplied roster, copy that exact roster label into `speaker` and put the same character first in `sprites`; put at most one directly present interlocutor second. If the speaker is not in the supplied roster, use a short established player-safe label and leave `sprites` empty for that page. During adjacent pages of the same exchange, keep rostered central participants displayed while they remain present; do not make them vanish between a spoken line and its immediately surrounding visible action.
 - On a narration page, include the one or two roster characters whose visible presence, framing, or action is central to that page. If the visible result explicitly frames or centers roster characters in the viewpoint's camera or view, those characters are the foreground even when they stand still. Use an empty list only for a page with no roster character in the foreground.
-- Choose an expression only when the authoritative visible result directly supports it: `happy`, `concerned`, `tense`, `skeptical`, `angry`, `sad`, or `surprised`. Use `neutral` when the visible evidence is ambiguous or merely conversational.
-- A pose-expression cue must not add a gesture, emotional state, reaction, or relationship that the visible result did not establish. Omit a character rather than guessing.
+- Foreground selection does not choose or imply a pose, expression, reaction, or relationship. Each character controls their own visible presentation independently. Omit a character when they are not central to this page; never use `sprites` to editorialize about how they feel.
 - During an exchange, prefer the current speaker and one directly present interlocutor when both matter. Do not crowd a page with bystanders.
 
 Handoff judgment:
@@ -54,7 +54,7 @@ When no meaningful player-owned response is available now and an autonomous resp
 
 During dialogue, return control for a meaningful player-owned response, not merely because a speaker changes, supplies a routine answer, is polite, repeats a disagreement, or makes the exchange feel conversationally complete. When an NPC asks the viewpoint character for a response, stop on that dialogue page. Do not add the viewpoint character's answer, reaction, thoughts, or closing atmosphere.
 
-When you choose `continue`, return an empty `pages` list. When you choose `render`, return at least one page. The handoff condition is decision context, not observable evidence; never reveal it unless the same information appears in the visible details.
+When you choose `continue`, return an empty `beats` list. When you choose `render`, return one non-empty `beats` item per supplied `visible_beat`. The handoff condition is decision context, not observable evidence; never reveal it unless the same information appears in the visible details.
 
 If the current instruction says to stop before an attempted action resolves, end on the incoming attempt itself. Never choose what a human-played character says, accepts, refuses, touches, or thinks unless the submitted action or visible details say so.
 
@@ -69,15 +69,14 @@ Return only valid JSON. No commentary and no markdown fences.
 {{
   "handoff": "render | continue",
   "handoff_reason": "one concise sentence naming the delivered boundary or the specific motion still pending",
-  "pages": [
+  "beats": [
     {{
-      "kind": "narration | dialogue",
-      "speaker": "exact supplied sprite-roster label for rostered dialogue, otherwise short established player-safe label; empty for narration",
-      "text": "one readable page",
-      "sprites": [
+      "pages": [
         {{
-          "character": "exact player-safe label from the supplied sprite roster",
-          "expression": "neutral | happy | concerned | tense | skeptical | angry | sad | surprised"
+          "kind": "narration | dialogue",
+          "speaker": "exact supplied foreground-character label for rostered dialogue, otherwise short established player-safe label; empty for narration",
+          "text": "one readable page",
+          "sprites": ["exact player-safe label from this visible beat"]
         }}
       ]
     }}
@@ -102,9 +101,6 @@ Handoff condition:
 
 First-meeting context (non-evidence exterior vocabulary):
 {first_meeting_context}
-
-Characters directly present and available for optional sprite cues:
-{sprite_roster_block}
 
 Submitted player attempt (earlier; not evidence that it succeeded):
 {pov_character_name}: {user_input}

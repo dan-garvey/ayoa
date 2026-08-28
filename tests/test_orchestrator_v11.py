@@ -387,7 +387,7 @@ def test_turn_response_preserves_visual_novel_beat_segments():
     ckpt = _ckpt(bindings={"alice": "u1"})
     first = VisualNovelRenderSegment(
         pages=[VisualNovelPage(kind="narration", text="Scene A.")],
-        rendered_event_ids=["evt_a"],
+        rendered_event_id="evt_a",
     )
     second = VisualNovelRenderSegment(
         pages=[VisualNovelPage(
@@ -395,7 +395,7 @@ def test_turn_response_preserves_visual_novel_beat_segments():
             speaker="Alice",
             text="Scene B.",
         )],
-        rendered_event_ids=["evt_b"],
+        rendered_event_id="evt_b",
     )
 
     response = _turn_response_from_beat_results(
@@ -430,9 +430,9 @@ def test_turn_response_preserves_visual_novel_beat_segments():
     assert response is not None
     assert response.output_text == "Scene A. Alice: Scene B."
     render = response.per_player_visual_novel_renders["alice"]
-    assert [segment.rendered_event_ids for segment in render.segments] == [
-        ["evt_a"],
-        ["evt_b"],
+    assert [segment.rendered_event_id for segment in render.segments] == [
+        "evt_a",
+        "evt_b",
     ]
     assert [
         page.text for segment in render.segments for page in segment.pages
@@ -457,6 +457,54 @@ def patched_orchestrator(monkeypatch):
 
 
 class TestHappyPath:
+    @pytest.mark.asyncio
+    async def test_player_display_selection_applies_before_the_turn(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_router_out(event_kind="cascade_exhausted"))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I lower my voice and wait.",
+            acting_character_id="alice",
+            display_key="skeptical",
+        ))
+
+        assert response.beat_ended_reason == "cascade_exhausted"
+        alice = next(
+            character
+            for character in ckpt.characters
+            if character.character_id == "alice"
+        )
+        assert (
+            alice.visuals.visual_novel_presentation.current_variant_key
+            == "skeptical"
+        )
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_unknown_player_display_rejects_without_running_the_beat(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I wait.",
+            acting_character_id="alice",
+            display_key="custom-not-generated",
+        ))
+
+        assert response.beat_ended_reason == "display_rejected"
+        assert "available visual-novel display key" in response.output_text
+        assert FakeDispatcher.route_calls == []
+        assert mgr.save.call_count == 0
+
     @pytest.mark.asyncio
     async def test_real_infeasible_router_result_uses_rejection_rollback(
         self,
@@ -856,6 +904,9 @@ class TestHappyPath:
         sink = RecordingImageSink()
         generation = MagicMock()
         generation.reconcile_lineage = MagicMock()
+        generation.sync_visual_novel_character_presentations = AsyncMock(
+            return_value=False
+        )
         client = MagicMock()
         client.config.provider_for_role.return_value = "test"
         client.config.model_for_role.return_value = "test-model"

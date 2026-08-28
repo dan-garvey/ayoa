@@ -38,7 +38,33 @@ Why no LLM-target schema:
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class CharacterPresentationChoice(BaseModel):
+    """One character-authored outward display plus an optional future request."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    use: str = Field(default="", max_length=80)
+    request: str = Field(default="", max_length=200)
+
+    @model_validator(mode="after")
+    def _normalize(self) -> "CharacterPresentationChoice":
+        self.use = self.use.strip().lower()
+        self.request = " ".join(self.request.split()).strip()
+        return self
+
+
+class CharacterPerceptionOutput(BaseModel):
+    """Parsed visual-loadout prose and its character-owned display choice."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    public_text: str
+    presentation: CharacterPresentationChoice = Field(
+        default_factory=CharacterPresentationChoice
+    )
 
 
 class CharacterAgentOutput(BaseModel):
@@ -53,3 +79,6 @@ class CharacterAgentOutput(BaseModel):
     character_id: str
     public_text: str
     intent: str
+    presentation: CharacterPresentationChoice = Field(
+        default_factory=CharacterPresentationChoice
+    )

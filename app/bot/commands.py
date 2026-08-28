@@ -6287,13 +6287,21 @@ def register(
         description="Take a turn in the current story.",
         guild=guild,
     )
-    @app_commands.describe(action="What your character does or says.")
-    async def _act(inter: discord.Interaction, action: str):
+    @app_commands.describe(
+        action="What your character does or says.",
+        display="Optional existing VN pose-expression key for this action.",
+    )
+    async def _act(
+        inter: discord.Interaction,
+        action: str,
+        display: str = "",
+    ):
         async def _run(session_id: str, binding: str) -> TurnResponse:
             return await engine.run_turn(
                 session_id=session_id,
                 user_input=action,
                 acting_character_id=binding,
+                display_key=display,
             )
 
         await _run_bound_turn(

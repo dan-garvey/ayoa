@@ -639,6 +639,38 @@ def test_live_view_scene_stages_embodied_action_after_the_camera_subject():
     assert visually_staged_character_ids(ckpt, [fact]) == {"alice"}
 
 
+def test_live_view_stages_leading_subject_when_speech_precedes_movement():
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            _character("alice", "Alice", CharacterAgentTier.standard),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+        ],
+    )
+    fact = (
+        "The live lobby feed shows Alice speak beneath the pale light, "
+        "enter the Promotion Chamber, and vanish behind its door."
+    )
+
+    assert visually_staged_character_ids(ckpt, [fact]) == {"alice"}
+    assert physically_present_character_ids(ckpt, [fact]) == set()
+
+
+def test_live_view_remains_on_named_subject():
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            _character("alice", "Alice", CharacterAgentTier.standard),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+        ],
+    )
+
+    assert visually_staged_character_ids(
+        ckpt,
+        ["The active live feed remains on Pip inside the Synthesis Chamber."],
+    ) == {"pip"}
+
+
 def test_live_view_shift_stages_only_the_new_camera_target():
     ckpt = CheckpointFile(
         session=SessionState(session_id="s"),

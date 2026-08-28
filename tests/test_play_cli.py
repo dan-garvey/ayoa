@@ -1094,6 +1094,7 @@ class TestDeferCommand:
             session_id=SESSION_ID,
             user_input="(defer)",
             acting_character_id="aldric",
+            display_key="",
         )
 
     def test_defer_uses_reaction_endpoint_when_actor_has_reaction(self, run):
@@ -1113,6 +1114,38 @@ class TestDeferCommand:
             event_id="evt_react",
             user_id=1,
         )
+        engine.run_turn.assert_not_awaited()
+
+
+class TestActDisplayCommand:
+    def test_act_forwards_existing_visual_novel_display_key(self, run):
+        engine = _mock_engine()
+        engine.run_turn = AsyncMock(return_value=_turn_response(
+            beat_ended_reason="cascade_exhausted",
+            turn_index=3,
+            output_text="Aldric holds his ground.",
+        ))
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+
+        run(state.handle_line("/act --display tense I hold my ground."))
+
+        engine.run_turn.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            user_input="I hold my ground.",
+            acting_character_id="aldric",
+            display_key="tense",
+        )
+
+    def test_act_requires_action_after_display_key(self, run, capsys):
+        engine = _mock_engine()
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+
+        run(state.handle_line("/act --display tense"))
+
+        assert "usage: /act" in capsys.readouterr().out
         engine.run_turn.assert_not_awaited()
 
 
@@ -1953,7 +1986,7 @@ class TestActingDescribe:
                         kind="narration",
                         text="The crest is weathered silver.",
                         )],
-                        rendered_event_ids=["evt_crest"],
+                        rendered_event_id="evt_crest",
                     )
                 ])
             },

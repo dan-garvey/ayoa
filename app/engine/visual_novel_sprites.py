@@ -1,7 +1,8 @@
 """Resolve private sprite-set handles into deterministic VN placements.
 
-Narrator pages carry only player-safe character labels and bounded expression
-cues. This boundary maps those labels back to checkpoint identities, applies
+Narrator pages carry only player-safe character labels. This boundary maps
+those labels back to checkpoint identities, applies the character-authored
+event-relative variant snapshot,
 viewpoint-specific adapter policy, and resolves immutable PNG bytes without
 putting image metadata into any model context.
 """
@@ -26,8 +27,6 @@ from app.schemas.narrator import (
     VisualNovelPage,
     visual_novel_text_contains_source_identifiers,
 )
-from app.schemas.visual_references import VisualNovelSpriteExpression
-
 if TYPE_CHECKING:
     from app.engine.image_generation import ImageGenerationCoordinator
     from app.engine.player_media import ResolvedPlayerMedia
@@ -62,14 +61,16 @@ def resolve_visual_novel_sprite_placements(
     page: VisualNovelPage,
     generation: "ImageGenerationCoordinator",
     sprite_set_id_overrides: Mapping[str, str] | None = None,
+    variant_keys_by_label: Mapping[str, str] | None = None,
 ) -> tuple[VisualNovelSpritePlacement, ...]:
     """Resolve zero, one, or two safe page cues into immutable placements."""
 
     characters_by_label = _unique_character_labels(checkpoint)
     overrides = sprite_set_id_overrides or {}
+    variant_keys = variant_keys_by_label or {}
     resolved: list[_ResolvedCue] = []
-    for cue in page.sprites:
-        character = characters_by_label.get(cue.character)
+    for label in page.sprites:
+        character = characters_by_label.get(label)
         if character is None or character.character_id == viewer_character_id:
             continue
         sprite_set_id = overrides.get(character.character_id) or (
@@ -91,7 +92,7 @@ def resolve_visual_novel_sprite_placements(
                 character=character,
             ),
             sprite_set_id=sprite_set_id,
-            expression=cue.expression,
+            variant_key=variant_keys.get(label, "neutral"),
         )
         if candidate is not None:
             resolved.append(candidate)
@@ -124,10 +125,10 @@ def visual_novel_sprite_identity_transitions(
         for character in before_checkpoint.characters
     }
     visible_cues = {
-        " ".join(cue.character.split()).casefold()
+        " ".join(label.split()).casefold()
         for page in pages
-        for cue in page.sprites
-        if " ".join(cue.character.split()).strip()
+        for label in page.sprites
+        if " ".join(label.split()).strip()
     }
     visible_speakers = {
         " ".join(page.speaker.split()).casefold()
@@ -195,8 +196,9 @@ def resolve_visual_novel_identity_transition_placement(
     character_id: str,
     sprite_set_id: str,
     generation: "ImageGenerationCoordinator",
+    variant_key: str = "neutral",
 ) -> VisualNovelSpritePlacement | None:
-    """Resolve one neutral, centered sprite for a deterministic reveal card."""
+    """Resolve one centered character-owned sprite for a reveal card."""
 
     character = next(
         (
@@ -219,7 +221,7 @@ def resolve_visual_novel_identity_transition_placement(
             character=character,
         ),
         sprite_set_id=sprite_set_id,
-        expression="neutral",
+        variant_key=variant_key,
     )
     if resolved is None:
         return None
@@ -288,7 +290,7 @@ def _resolve_cue(
     character: CharacterRecord,
     subject_handle: str,
     sprite_set_id: str,
-    expression: VisualNovelSpriteExpression,
+    variant_key: str,
 ) -> _ResolvedCue | None:
     authored = next(
         (
@@ -298,36 +300,19 @@ def _resolve_cue(
         ),
         None,
     )
-    if authored is not None:
-        requested_reference_id = authored.variant_reference_ids.get(expression)
-        neutral_reference_id = authored.variant_reference_ids["neutral"]
-        candidate_reference_ids = tuple(
-            dict.fromkeys(
-                reference_id
-                for reference_id in (
-                    requested_reference_id,
-                    neutral_reference_id,
-                )
-                if reference_id
-            )
+    variant_key = variant_key.strip().lower() or "neutral"
+
+    def _resolve_authored(key: str) -> _ResolvedCue | None:
+        if authored is None:
+            return None
+        reference_id = authored.variant_reference_ids.get(key, "")
+        if not reference_id:
+            return None
+        frozen = generation.store.reviewed_reference(
+            session_id=checkpoint.session.session_id,
+            reference_id=reference_id,
         )
-        reference_id = ""
-        frozen = None
-        for candidate_reference_id in candidate_reference_ids:
-            candidate = generation.store.reviewed_reference(
-                session_id=checkpoint.session.session_id,
-                reference_id=candidate_reference_id,
-            )
-            if candidate is not None:
-                reference_id = candidate_reference_id
-                frozen = candidate
-                break
         if frozen is None:
-            logger.warning(
-                "reviewed VN sprite is unavailable session=%s set=%s",
-                checkpoint.session.session_id,
-                sprite_set_id,
-            )
             return None
         try:
             media = resolve_frozen_visual_reference_media(
@@ -350,29 +335,35 @@ def _resolve_cue(
             source_facing=authored.source_facing,
         )
 
-    resolved = generation.resolve_visual_novel_sprite_variant(
-        session_id=checkpoint.session.session_id,
-        character_id=character.character_id,
-        sprite_pack_id=sprite_set_id,
-        expression=expression,
-    )
-    if resolved is None and expression != "neutral":
+    def _resolve_generated(key: str) -> _ResolvedCue | None:
         resolved = generation.resolve_visual_novel_sprite_variant(
             session_id=checkpoint.session.session_id,
             character_id=character.character_id,
             sprite_pack_id=sprite_set_id,
-            expression="neutral",
+            variant_key=key,
         )
-    if resolved is None:
-        return None
-    variant_handle, media, source_facing = resolved
-    return _ResolvedCue(
-        subject_handle=subject_handle,
-        sprite_set_id=sprite_set_id,
-        variant_handle=variant_handle,
-        media=media,
-        source_facing=source_facing,
+        if resolved is None:
+            return None
+        variant_handle, media, source_facing = resolved
+        return _ResolvedCue(
+            subject_handle=subject_handle,
+            sprite_set_id=sprite_set_id,
+            variant_handle=variant_handle,
+            media=media,
+            source_facing=source_facing,
+        )
+
+    for key in dict.fromkeys((variant_key, "neutral")):
+        candidate = _resolve_authored(key) or _resolve_generated(key)
+        if candidate is not None:
+            return candidate
+    logger.warning(
+        "VN sprite is unavailable session=%s set=%s variant=%s",
+        checkpoint.session.session_id,
+        sprite_set_id,
+        variant_key,
     )
+    return None
 
 
 def _subject_handle(

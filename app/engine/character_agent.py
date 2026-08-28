@@ -31,16 +31,19 @@ from app.engine.dnd_combat_access import (
     obj_get as _obj_get,
 )
 from app.engine.context_builder import (
-    append_turn_to_conversation,
     build_character_packet,
     build_dnd_player_identities_block,
     build_character_state,
     build_world_context,
     clear_character_inbox,
-    conversation_turn_messages,
     format_character_location_for_agent,
     format_elapsed_agent_turn_block,
     format_pending_observations_block,
+)
+from app.engine.character_presentation import (
+    apply_character_presentation_choice,
+    format_character_presentation_catalog,
+    parse_character_presentation_footer,
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
@@ -50,7 +53,11 @@ from app.engine.turn_loop_contracts import (
     format_agent_turn_body,
 )
 from app.llm.client import LLMClient
-from app.schemas.agents import CharacterAgentOutput
+from app.schemas.agents import (
+    CharacterAgentOutput,
+    CharacterPerceptionOutput,
+    CharacterPresentationChoice,
+)
 from app.schemas.characters import (
     CharacterAgentTier,
     CharacterRecord,
@@ -248,6 +255,56 @@ def _extract_parenthetical(text: str) -> tuple[str, str]:
     return public_text, intent
 
 
+def _assistant_history_message(response: Any, text: str) -> ConversationMessage:
+    """Preserve provider compaction blocks while replacing private footer text."""
+
+    from app.engine.context_builder import assistant_message_from_response
+
+    original = assistant_message_from_response(response)
+    if not isinstance(original.content, list):
+        return ConversationMessage(role="assistant", content=text)
+    blocks: list[dict[str, Any]] = []
+    inserted = False
+    for raw_block in original.content:
+        block = dict(raw_block)
+        if block.get("type") == "text":
+            if not inserted:
+                blocks.append({"type": "text", "text": text})
+                inserted = True
+            continue
+        blocks.append(block)
+    if not inserted:
+        blocks.append({"type": "text", "text": text})
+    return ConversationMessage(role="assistant", content=blocks)
+
+
+def _parse_agent_turn_response(
+    text: str,
+) -> tuple[str, str, CharacterPresentationChoice]:
+    """Parse intent and presentation without exposing either as public prose.
+
+    The instructed order is prose, presentation footer, private intent. A
+    bounded fallback also accepts a footer accidentally placed after intent;
+    malformed footer attempts are stripped in either position.
+    """
+
+    raw = text or ""
+    public_with_footer, intent = _extract_parenthetical(raw)
+    public_text, presentation = parse_character_presentation_footer(
+        public_with_footer
+    )
+    if intent and public_text != public_with_footer.rstrip():
+        return public_text, intent, presentation
+
+    without_terminal_footer, terminal_presentation = (
+        parse_character_presentation_footer(raw)
+    )
+    if without_terminal_footer != raw.rstrip():
+        public_text, intent = _extract_parenthetical(without_terminal_footer)
+        return public_text, intent, terminal_presentation
+    return public_text, intent, presentation
+
+
 class CharacterAgent:
     """Generates in-character responses over a per-character rolling conversation."""
 
@@ -359,7 +416,7 @@ class CharacterAgent:
         self,
         character: CharacterRecord,
         checkpoint: CheckpointFile,
-    ) -> str:
+    ) -> CharacterPerceptionOutput:
         """Observer-agnostic perception beat — return this character's
         current visual loadout as plain prose (1-3 sentences).
 
@@ -417,6 +474,10 @@ class CharacterAgent:
             == ONE_STAR_ASCENSION_RULESET_ID
             else ""
         )
+        presentation_catalog = format_character_presentation_catalog(
+            checkpoint,
+            character,
+        )
 
         render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
@@ -433,6 +494,7 @@ class CharacterAgent:
             mode_block=_join_mode_blocks(
                 format_agent_perception_body(),
                 one_star_perception,
+                presentation_catalog,
             ),
         )
         render_ms = (time.monotonic() - render_t0) * 1000
@@ -451,7 +513,13 @@ class CharacterAgent:
             cache=True,
             compact=True,
         )
-        text = (response.content or "").strip()
+        text, presentation = parse_character_presentation_footer(
+            (response.content or "").strip()
+        )
+        result = CharacterPerceptionOutput(
+            public_text=text,
+            presentation=presentation,
+        )
         self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
 
         conv = checkpoint.character_conversations.setdefault(
@@ -462,17 +530,32 @@ class CharacterAgent:
             conversation_user_content = conversation_user_content.replace(
                 one_star_perception, "", 1
             )
-        append_turn_to_conversation(
-            conv,
-            _conversation_safe_user_content(conversation_user_content),
-            response,
+        if presentation_catalog:
+            conversation_user_content = conversation_user_content.replace(
+                presentation_catalog,
+                "",
+                1,
+            )
+        conv.extend((
+            ConversationMessage(
+                role="user",
+                content=_conversation_safe_user_content(
+                    conversation_user_content
+                ),
+            ),
+            _assistant_history_message(response, text),
+        ))
+        apply_character_presentation_choice(
+            checkpoint,
+            character,
+            result.presentation,
         )
 
         logger.info(
             "Agent %s perceive: %d chars",
             character.name, len(text),
         )
-        return text
+        return result
 
     async def draft_turn(
         self,
@@ -503,6 +586,10 @@ class CharacterAgent:
             if frame == "foreground"
             else ""
         )
+        presentation_catalog = format_character_presentation_catalog(
+            checkpoint,
+            character,
+        )
 
         return await self._draft_beat(
             character=character,
@@ -515,6 +602,7 @@ class CharacterAgent:
                     local_context=local_context,
                 ),
                 foreground_block,
+                presentation_catalog,
             ),
             log_label="turn",
             log_extra=frame,
@@ -540,6 +628,11 @@ class CharacterAgent:
             character.character_id, [],
         )
         conv.extend([draft.user_message, draft.assistant_message])
+        apply_character_presentation_choice(
+            checkpoint,
+            character,
+            draft.output.presentation,
+        )
 
     def commit_draft(
         self,
@@ -625,11 +718,14 @@ class CharacterAgent:
             cache=True,
             compact=True,
         )
-        public_text, intent = _extract_parenthetical(response.content)
+        public_text, intent, presentation = _parse_agent_turn_response(
+            response.content
+        )
         result = CharacterAgentOutput(
             character_id=character.character_id,
             public_text=public_text,
             intent=intent,
+            presentation=presentation,
         )
         self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
         conversation_user_content = user_content
@@ -637,10 +733,24 @@ class CharacterAgent:
             conversation_user_content = conversation_user_content.replace(
                 one_star_state, "", 1
             )
-        user_message, assistant_message = conversation_turn_messages(
-            _conversation_safe_user_content(conversation_user_content),
-            response,
+        presentation_catalog = format_character_presentation_catalog(
+            checkpoint,
+            character,
         )
+        if presentation_catalog:
+            conversation_user_content = conversation_user_content.replace(
+                presentation_catalog,
+                "",
+                1,
+            )
+        history_text = public_text
+        if intent:
+            history_text = f"{history_text} ({intent})".strip()
+        user_message = ConversationMessage(
+            role="user",
+            content=_conversation_safe_user_content(conversation_user_content),
+        )
+        assistant_message = _assistant_history_message(response, history_text)
 
         logger.info(
             "Agent %s %s: %d chars public, %d chars intent",

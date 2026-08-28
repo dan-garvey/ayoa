@@ -627,6 +627,12 @@ class RenderBufferEntry(BaseModel):
     visible_at_s: int = 0
     # Stable event-log order tie-breaker for simultaneous visible events.
     event_sequence: int = 0
+    # Character id -> character-owned presentation key at this exact visible
+    # event. This stays in checkpoint/runtime state and never enters narrator
+    # input or player-visible text.
+    sprite_variant_keys_by_character_id: dict[str, str] = Field(
+        default_factory=dict
+    )
 
 
 class SessionSettings(BaseModel):

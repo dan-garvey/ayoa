@@ -364,6 +364,70 @@ class TestCharacterAgent:
         assert "Watch this newcomer" not in result.public_text
 
     @pytest.mark.asyncio
+    async def test_visual_novel_presentation_is_character_owned_and_private(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        sample_checkpoint.session.config.settings.presentation_mode = (
+            "visual_novel"
+        )
+        response = (
+            'He tilts his head. "That does not follow."\n'
+            '<presentation>{"use":"skeptical","request":""}</presentation>\n'
+            "(He wants to see whether she changes her story.)"
+        )
+        mock_client.complete.return_value = _llm_response(response)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        result = await agent.turn(guard_character, sample_checkpoint)
+
+        assert result.public_text == (
+            'He tilts his head. "That does not follow."'
+        )
+        assert result.intent == "He wants to see whether she changes her story."
+        assert result.presentation.use == "skeptical"
+        assert (
+            guard_character.visuals.visual_novel_presentation.current_variant_key
+            == "skeptical"
+        )
+        live_user = mock_client.complete.await_args.kwargs["messages"][-1][
+            "content"
+        ]
+        assert '<presentation_catalog current="neutral">' in live_user
+        saved = sample_checkpoint.character_conversations["guard_17"]
+        assert "presentation_catalog" not in saved[0].content
+        saved_assistant = saved[1].content[0]["text"]
+        assert "<presentation>" not in saved_assistant
+        assert "skeptical" not in saved_assistant
+        assert result.public_text in saved_assistant
+        assert result.intent in saved_assistant
+
+    @pytest.mark.asyncio
+    async def test_visual_novel_footer_after_intent_is_stripped_without_leak(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        sample_checkpoint.session.config.settings.presentation_mode = (
+            "visual_novel"
+        )
+        response = (
+            "He braces beside the gate. (He expects an attack.)\n"
+            '<presentation>{"use":"tense","request":""}</presentation>'
+        )
+        mock_client.complete.return_value = _llm_response(response)
+
+        result = await CharacterAgent(mock_client, prompt_manager).turn(
+            guard_character,
+            sample_checkpoint,
+        )
+
+        assert result.public_text == "He braces beside the gate."
+        assert result.intent == "He expects an attack."
+        assert "presentation" not in result.public_text
+        assert (
+            guard_character.visuals.visual_novel_presentation.current_variant_key
+            == "tense"
+        )
+
+    @pytest.mark.asyncio
     async def test_imported_asset_source_sentinels_do_not_reach_prompt(
         self, mock_client, prompt_manager, guard_character, sample_checkpoint,
         sample_agent_text,
@@ -1306,7 +1370,37 @@ class TestPerceptionMode:
         mock_client.complete.return_value = self._llm_text_only(loadout)
         agent = CharacterAgent(mock_client, prompt_manager)
         result = await agent.perceive(guard_character, sample_checkpoint)
-        assert result == loadout
+        assert result.public_text == loadout
+
+    @pytest.mark.asyncio
+    async def test_perception_commits_private_visual_novel_choice(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        sample_checkpoint.session.config.settings.presentation_mode = (
+            "visual_novel"
+        )
+        response = (
+            "His shoulders ease, and a small smile reaches his eyes.\n"
+            '<presentation>{"use":"happy","request":""}</presentation>'
+        )
+        mock_client.complete.return_value = self._llm_text_only(response)
+
+        result = await CharacterAgent(mock_client, prompt_manager).perceive(
+            guard_character,
+            sample_checkpoint,
+        )
+
+        assert result.public_text == (
+            "His shoulders ease, and a small smile reaches his eyes."
+        )
+        assert result.presentation.use == "happy"
+        assert (
+            guard_character.visuals.visual_novel_presentation.current_variant_key
+            == "happy"
+        )
+        saved = sample_checkpoint.character_conversations["guard_17"]
+        assert "presentation_catalog" not in saved[0].content
+        assert "presentation" not in saved[1].content[0]["text"]
 
     @pytest.mark.asyncio
     async def test_perceive_user_message_starts_with_perception_header(
@@ -1436,4 +1530,4 @@ class TestPerceptionMode:
         )
         agent = CharacterAgent(mock_client, prompt_manager)
         result = await agent.perceive(guard_character, sample_checkpoint)
-        assert result == "Polished armor."
+        assert result.public_text == "Polished armor."

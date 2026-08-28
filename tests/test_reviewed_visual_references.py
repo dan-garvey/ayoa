@@ -224,12 +224,109 @@ async def test_fixed_visual_novel_stage_bypasses_the_image_director(tmp_path):
     validate_story_visual_references(checkpoint, story_dir=story_dir)
 
 
+@pytest.mark.asyncio
+async def test_live_feed_location_update_selects_fixed_stage_without_director(
+    tmp_path,
+):
+    story_dir = tmp_path / "story"
+    location_path = story_dir / "visual-references" / "chamber.png"
+    _write_png(location_path, (20, 60, 100))
+    fixed = _metadata(
+        location_path,
+        reference_id="authored.promotion.fixed",
+        purpose="environment",
+        scope="location",
+        scope_id="promotion_chamber",
+        fixed_stage=True,
+    )
+    checkpoint = _checkpoint(
+        references=[fixed],
+        location_reference_ids=[fixed.reference_id],
+        location_label="promotion_chamber",
+    )
+    checkpoint.session.config.settings.presentation_mode = "visual_novel"
+    checkpoint.characters[0].location = "remote_screen"
+    checkpoint.characters[0].visuals.depiction_policy = "omit"
+    checkpoint.characters.append(
+        CharacterRecord(
+            character_id="renna",
+            name="Renna",
+            location="lobby",
+        )
+    )
+    selected = router_output(
+        event_id="evt_selected",
+        observer_ids=["alice"],
+        facts=[
+            ObservableFact.all(
+                "The live feed shows pale light settle over Renna."
+            )
+        ],
+    )
+    resolved = router_output(
+        event_id="evt_resolved",
+        observer_ids=["alice"],
+        facts=[
+            ObservableFact.all(
+                "Alice's live feed shows Renna speak beneath the pale light, "
+                "enter the Promotion Chamber, and vanish behind its door."
+            )
+        ],
+    )
+    resolved.location_updates = [
+        LocationUpdateSignal(
+            character_id="renna",
+            location_label="promotion_chamber",
+        )
+    ]
+    checkpoint.canonical_events = [selected, resolved]
+
+    projection = build_render_batch_projection_groups(
+        checkpoint=checkpoint,
+        buffered_events_by_pov={
+            "alice": [
+                RenderBufferEntry(
+                    event_id="evt_selected",
+                    event_sequence=0,
+                ),
+                RenderBufferEntry(
+                    event_id="evt_resolved",
+                    event_sequence=1,
+                ),
+            ]
+        },
+        eligible_viewer_ids={"alice"},
+        transaction_id="tx_fixed_live_feed",
+        source_turn_index=1,
+        actor_ids_by_event_id={"evt_resolved": "renna"},
+        active_location_labels={"promotion_chamber"},
+    )[0]
+
+    assert projection.engine_location_label == "promotion_chamber"
+    assert projection.has_location_reference is True
+    assert [option.reference_id for option in projection.reference_options] == [
+        fixed.reference_id
+    ]
+
+    class _NeverCalledClient:
+        async def complete(self, **_kwargs):
+            raise AssertionError("fixed stages must not call the image director")
+
+    output = await ImageDirector(
+        _NeverCalledClient(),
+        PromptManager(prompts_dir="app/prompts"),
+    ).decide(projection)
+    assert output.stage_action == "replace"
+    assert output.stage_reference_id == fixed.reference_id
+
+
 def _checkpoint(
     *,
     session_id: str = "reviewed_refs",
     references: list[ReviewedVisualReference] | None = None,
     identity_reference_id: str = "",
     location_reference_ids: list[str] | None = None,
+    location_label: str = "station",
 ) -> CheckpointFile:
     return CheckpointFile(
         session=SessionState(
@@ -267,7 +364,9 @@ def _checkpoint(
         ],
         reviewed_visual_references=references or [],
         location_visual_reference_ids=(
-            {"station": location_reference_ids} if location_reference_ids else {}
+            {location_label: location_reference_ids}
+            if location_reference_ids
+            else {}
         ),
     )
 

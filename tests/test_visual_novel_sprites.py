@@ -29,7 +29,7 @@ from app.engine.visual_novel_sprites import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.image_generation import FrozenReferenceInput, ImageWorkerResult
-from app.schemas.narrator import VisualNovelPage, VisualNovelSpriteCue
+from app.schemas.narrator import VisualNovelPage
 from app.schemas.one_star import OneStarTransaction
 
 
@@ -225,12 +225,7 @@ def test_master_uses_veil_until_seeded_reveal_and_missing_mood_uses_neutral(
         kind="dialogue",
         speaker="Renna Holt",
         text="I am listening.",
-        sprites=[
-            VisualNovelSpriteCue(
-                character="Renna Holt",
-                expression="concerned",
-            )
-        ],
+        sprites=["Renna Holt"],
     )
 
     veiled = resolve_visual_novel_sprite_placements(
@@ -238,6 +233,7 @@ def test_master_uses_veil_until_seeded_reveal_and_missing_mood_uses_neutral(
         viewer_character_id="the_master",
         page=page,
         generation=generation,
+        variant_keys_by_label={"Renna Holt": "concerned"},
     )
     assert len(veiled) == 1
     assert veiled[0].identity_handle == "osa_vnset_veiled_feminine_v1"
@@ -249,16 +245,7 @@ def test_master_uses_veil_until_seeded_reveal_and_missing_mood_uses_neutral(
         page=VisualNovelPage(
             kind="narration",
             text="Renna and Mara wait together.",
-            sprites=[
-                VisualNovelSpriteCue(
-                    character="Renna Holt",
-                    expression="neutral",
-                ),
-                VisualNovelSpriteCue(
-                    character="Mara Venn",
-                    expression="neutral",
-                ),
-            ],
+            sprites=["Renna Holt", "Mara Venn"],
         ),
         generation=generation,
     )
@@ -299,10 +286,7 @@ def test_checkpoint_boundary_finds_only_depicted_viewer_identity_changes() -> No
     depicted_page = VisualNovelPage(
         kind="narration",
         text="Renna Holt steps into the chamber light.",
-        sprites=[VisualNovelSpriteCue(
-            character="Renna Holt",
-            expression="tense",
-        )],
+        sprites=["Renna Holt"],
     )
 
     transitions = visual_novel_sprite_identity_transitions(
@@ -383,7 +367,9 @@ async def test_generated_pack_builds_neutral_then_parallelizable_sweep(
         assert len(jobs) == 8
         assert all(job.status.value == "succeeded" for job in jobs)
         neutral_request = next(
-            job.request for job in jobs if job.request.sprite_expression == "neutral"
+            job.request
+            for job in jobs
+            if job.request.sprite_variant_key == "neutral"
         )
         assert neutral_request.reference_inputs == []
         assert "pack's neutral baseline" in neutral_request.prompt
@@ -391,12 +377,12 @@ async def test_generated_pack_builds_neutral_then_parallelizable_sweep(
         assert all(
             len(job.request.reference_inputs) == 1
             for job in jobs
-            if job.request.sprite_expression != "neutral"
+            if job.request.sprite_variant_key != "neutral"
         )
         assert all(
             "distinct from the neutral baseline" in job.request.prompt
             for job in jobs
-            if job.request.sprite_expression != "neutral"
+            if job.request.sprite_variant_key != "neutral"
         )
         assert all(
             request.sprite_pack_id and "/home/" not in request.prompt
@@ -408,7 +394,7 @@ async def test_generated_pack_builds_neutral_then_parallelizable_sweep(
             session_id=checkpoint.session.session_id,
             character_id=renna.character_id,
             sprite_pack_id=pack_id,
-            expression="happy",
+            variant_key="happy",
         )
         assert resolved is not None
         _handle, media, facing = resolved

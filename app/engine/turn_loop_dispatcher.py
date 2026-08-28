@@ -59,6 +59,7 @@ from app.engine.turn_loop_contracts import (
 from app.llm.client import LLMClient
 from app.schemas.characters import CharacterRecord, is_non_social_hazard
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
     ClosedEventRouterOutput,
@@ -2412,35 +2413,61 @@ class LLMDispatcher:
                 cache=True,
                 compact=True,
             )
+            result: EventRouterOutput = response.parsed
+
+            def validate_candidate() -> None:
+                _include_one_star_synthesis_guide_responders(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+                _validate_one_star_cat_ii_transaction(ckpt, result)
+                _validate_one_star_pending_operation_shapes(ckpt, result)
+                _validate_one_star_tutorial_routing(ckpt, result)
+                _validate_one_star_pending_response_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+                _validate_one_star_guide_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+
+            try:
+                validate_candidate()
+            except ValueError as first_error:
+                if not _one_star_router_enabled(ckpt):
+                    raise
+                result = await self._retry_one_star_routing_contract(
+                    messages=messages,
+                    result=result,
+                    validation_error=str(first_error),
+                )
+                try:
+                    validate_candidate()
+                except ValueError as second_error:
+                    raise ValueError(
+                        "One-Star continuation output remained invalid after "
+                        f"one correction: {second_error}"
+                    ) from second_error
+
+            _normalize_router_result_for_history(
+                ckpt,
+                result=result,
+                clock_anchor_character_id=actor_id,
+            )
+            _append_router_history_record(
+                ckpt.session_conversation,
+                acting_character_id=actor_id,
+                result=result,
+                mode="continuation",
+            )
+            return result
         except Exception:
             _restore_router_call_snapshot(ckpt, router_snapshot)
             raise
-
-        result: EventRouterOutput = response.parsed
-        _validate_one_star_cat_ii_transaction(ckpt, result)
-        _validate_one_star_tutorial_routing(ckpt, result)
-        _validate_one_star_pending_response_routing(
-            ckpt,
-            actor_id=actor_id,
-            result=result,
-        )
-        _validate_one_star_guide_routing(
-            ckpt,
-            actor_id=actor_id,
-            result=result,
-        )
-        _normalize_router_result_for_history(
-            ckpt,
-            result=result,
-            clock_anchor_character_id=actor_id,
-        )
-        _append_router_history_record(
-            ckpt.session_conversation,
-            acting_character_id=actor_id,
-            result=result,
-            mode="continuation",
-        )
-        return result
 
     # ------------------------------------------------------------------
     # route_authoritative_result
@@ -2633,7 +2660,12 @@ class LLMDispatcher:
         request_ids = [request.character_id for request in requests]
         if len(request_ids) != len(set(request_ids)):
             raise ValueError("authoritative contribution requests must be unique")
-        shadow = CheckpointFile.model_validate(ckpt.model_dump(mode="python"))
+        shadow = CheckpointFile.model_validate(
+            ckpt.model_dump(
+                mode="python",
+                context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
+            )
+        )
         shadow_by_id = {
             character.character_id: character for character in shadow.characters
         }
@@ -2818,10 +2850,11 @@ class LLMDispatcher:
                 )
                 return ""
             try:
-                return await self._agent.perceive(
+                result = await self._agent.perceive(
                     character=character,
                     checkpoint=ckpt,
                 )
+                return result.public_text
             except Exception as exc:  # noqa: BLE001 — see docstring
                 logger.warning(
                     "harvest_perceptions: perceive() failed for %s: %s",

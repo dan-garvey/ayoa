@@ -41,6 +41,8 @@ Commands inside the REPL:
     /leave [name|#]             Release a claim (default: current actor)
     /as <name|#>                Switch which claimed character acts next
     /describe                   Set name + appearance of the current actor
+    /act [--display <key>] <action>
+                                Act with an optional existing VN display
     /defer                      Submit no action and let the scene continue
     /begin                      Open the story for the joined lobby
     /attach <json> [id]         Attach a D&D Beyond JSON export
@@ -165,6 +167,7 @@ Commands:
   /as <name|#>                      Switch which claimed character acts next
   /describe [--name N] [--appearance A]
                                     Set current actor identity without starting
+  /act [--display <key>] <action>  Act with an optional existing VN display
   /defer                            Submit no action and let the scene continue
   /begin [--confirm]                Open the story for the joined lobby
   /attach <json> [id] [--name N]    Attach a D&D Beyond JSON export
@@ -1649,6 +1652,7 @@ class CLIState:
             return
         print("Core play commands:")
         print("  <plain text>         Act as the selected character")
+        print("  /act [--display <key>] <action>")
         print("  /defer               Let the scene continue without acting")
         print("  /query <question>    Ask from this character's POV")
         print("  /status")
@@ -3269,7 +3273,24 @@ class CLIState:
                 return
         await self._act("(defer)")
 
-    async def _act(self, text: str) -> None:
+    async def cmd_act(self, arg: str) -> None:
+        """Submit a turn with an optional existing VN display selection."""
+
+        raw = arg.strip()
+        display_key = ""
+        if raw.startswith("--display "):
+            remainder = raw[len("--display "):].lstrip()
+            parts = remainder.split(maxsplit=1)
+            if len(parts) != 2:
+                print("usage: /act [--display <key>] <action>")
+                return
+            display_key, raw = parts
+        if not raw:
+            print("usage: /act [--display <key>] <action>")
+            return
+        await self._act(raw, display_key=display_key)
+
+    async def _act(self, text: str, *, display_key: str = "") -> None:
         if not self._require_story():
             return
         if self.current_actor is None:
@@ -3281,6 +3302,7 @@ class CLIState:
                     session_id=self.session_id,
                     user_input=text,
                     acting_character_id=self.current_actor,
+                    display_key=display_key,
                 )
         except Exception as e:
             logger.exception("run_turn failed")

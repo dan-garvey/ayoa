@@ -34,7 +34,7 @@ from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.events import ObservableFact
-from app.schemas.narrator import VisualNovelPage, VisualNovelSpriteCue
+from app.schemas.narrator import VisualNovelPage
 from app.schemas.one_star import (
     OneStarEventRouterOutput,
     OneStarStateUpdateList,
@@ -185,7 +185,7 @@ def _generated_media() -> ResolvedPlayerMedia:
     )
 
 
-def test_live_playtest_reveal_check_requires_old_flash_new_on_one_stage() -> None:
+def test_live_playtest_reveal_check_requires_old_flash_new_in_fixed_chamber() -> None:
     stage_sha256 = "a" * 64
     old_identity = "sprite.veiled"
     new_identity = "sprite.revealed"
@@ -197,10 +197,7 @@ def test_live_playtest_reveal_check_requires_old_flash_new_on_one_stage() -> Non
                         "kind": "narration",
                         "speaker": "",
                         "text": "Mara enters the chamber.",
-                        "sprites": [{
-                            "character": "Mara Venn",
-                            "expression": "tense",
-                        }],
+                            "sprites": ["Mara Venn"],
                     },
                     {
                         "kind": "narration",
@@ -247,6 +244,22 @@ def test_live_playtest_reveal_check_requires_old_flash_new_on_one_stage() -> Non
         expected_stage_sha256=stage_sha256,
     )
     assert _deck_uses_only_stage(deck, stage_sha256=stage_sha256)
+
+    event_aligned_entry = deepcopy(deck)
+    event_aligned_entry["manifest"]["identity"]["sections"][0][
+        "stage_sha256"
+    ] = "b" * 64
+    assert _deck_has_committed_identity_reveal(
+        event_aligned_entry,
+        character_name="Mara Venn",
+        before_identity_handle=old_identity,
+        after_identity_handle=new_identity,
+        expected_stage_sha256=stage_sha256,
+    )
+    assert not _deck_uses_only_stage(
+        event_aligned_entry,
+        stage_sha256=stage_sha256,
+    )
 
     early_reveal = deepcopy(deck)
     early_reveal["manifest"]["identity"]["sections"][0]["sprites"] = [
@@ -356,11 +369,11 @@ class _GeneratedSpriteResolver:
         self,
         *,
         sprite_pack_id: str,
-        expression: str,
+        variant_key: str,
         **_kwargs: object,
     ):
         assert sprite_pack_id == self.pack_id
-        assert expression == "neutral"
+        assert variant_key == "neutral"
         return "imgsprite_mara_neutral", _generated_media(), "right"
 
 
@@ -544,12 +557,7 @@ def test_fixture_reaches_authored_and_generated_reveal_contracts() -> None:
             kind="dialogue",
             speaker="Mara Venn",
             text="I remember enough to know this face is mine.",
-            sprites=[
-                VisualNovelSpriteCue(
-                    character="Mara Venn",
-                    expression="neutral",
-                )
-            ],
+            sprites=["Mara Venn"],
         ),
         generation=_GeneratedSpriteResolver(pack_id),  # type: ignore[arg-type]
     )
@@ -578,7 +586,7 @@ def test_promotion_comparison_pages_name_and_order_both_transitions() -> None:
         "Before ascent",
         "After ascent",
     )
-    assert tuple(page.sprites[0].character for page in pages) == (
+    assert tuple(page.sprites[0] for page in pages) == (
         "Renna Holt",
         "Renna Holt",
         "Mara Venn",

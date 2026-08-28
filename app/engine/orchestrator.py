@@ -30,6 +30,7 @@ from typing import Any, Callable
 
 from app.engine import dnd_combat, dnd_inventory
 from app.engine.action_rejection import PlayerActionRejected
+from app.engine.character_presentation import select_player_character_presentation
 from app.engine.character_manager import CharacterManager
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.closed_event_runtime import (
@@ -715,6 +716,18 @@ class Orchestrator:
         # serialize here; perception fan-out is observer-driven.
         self.session_locks = SessionLockManager()
 
+    async def _sync_visual_novel_character_presentations(
+        self,
+        ckpt: CheckpointFile,
+    ) -> None:
+        if self.image_generation is None:
+            return
+        changed = await self.image_generation.sync_visual_novel_character_presentations(
+            ckpt
+        )
+        if changed:
+            self.checkpoint_mgr.save(ckpt)
+
     @staticmethod
     def _apply_authored_spawn_records(
         runtime: ClosedEventRuntime,
@@ -1022,6 +1035,7 @@ class Orchestrator:
         async with lock:
             ckpt = self.checkpoint_mgr.load_latest(session_id)
             sync_checkpoint_runtime_models(ckpt, self.client.config)
+            await self._sync_visual_novel_character_presentations(ckpt)
             dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
             resumed = await self._resume_pending_narrator_render_locked(
                 session_id=session_id,
@@ -1273,6 +1287,7 @@ class Orchestrator:
         async with lock:
             ckpt = self.checkpoint_mgr.load_latest(request.session_id)
             sync_checkpoint_runtime_models(ckpt, self.client.config)
+            await self._sync_visual_novel_character_presentations(ckpt)
             dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
             resumed = await self._resume_pending_narrator_render_locked(
                 session_id=request.session_id,
@@ -1435,6 +1450,31 @@ class Orchestrator:
             if was_combat_blocked and check.conflict == SlotConflict.FREE:
                 release_character_slot(ckpt, acting_id)
 
+            if request.display_key:
+                acting_character = next(
+                    character
+                    for character in ckpt.characters
+                    if character.character_id == acting_id
+                )
+                try:
+                    select_player_character_presentation(
+                        ckpt,
+                        acting_character,
+                        request.display_key,
+                    )
+                except ValueError as exc:
+                    return _with_pre_turn_resolutions(
+                        TurnResponse(
+                            session_id=request.session_id,
+                            checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                            turn_index=ckpt.session.turn_index,
+                            output_text=str(exc),
+                            per_player_renders={},
+                            beat_ended_reason="display_rejected",
+                        ),
+                        pre_turn_resolutions,
+                    )
+
             # 5. Run the beat.
             deferred_handoff = _deferred_autonomous_handoff(
                 ckpt,
@@ -1585,6 +1625,7 @@ class Orchestrator:
         async with lock:
             ckpt = self.checkpoint_mgr.load_latest(session_id)
             sync_checkpoint_runtime_models(ckpt, self.client.config)
+            await self._sync_visual_novel_character_presentations(ckpt)
             dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
             resumed = await self._resume_pending_narrator_render_locked(
                 session_id=session_id,
@@ -2000,6 +2041,7 @@ class Orchestrator:
                     beat_ended_reason="cat_ii_stale",
                 )
 
+            await self._sync_visual_novel_character_presentations(ckpt)
             dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
 
             if cat_ii_is_ready(evt_live):
@@ -2190,6 +2232,7 @@ class Orchestrator:
                 output_actor_id=output_actor_id,
             )
         self._ensure_closed_event_runtime(ckpt)
+        await self._sync_visual_novel_character_presentations(ckpt)
         dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
         roll_keys_before = completed_automatic_roll_keys(ckpt)
         try:
@@ -2351,6 +2394,7 @@ class Orchestrator:
         evt_live,
         output_actor_id: str,
     ) -> TurnResponse:
+        await self._sync_visual_novel_character_presentations(ckpt)
         dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
         roll_keys_before = completed_automatic_roll_keys(ckpt)
         return await self._finalize_ready_cat_ii_locked(

@@ -61,6 +61,7 @@ from app.schemas.events import (
 from app.schemas.narrator import (
     NarratorFinalOutput,
     TranscriptEntry,
+    VisualNovelBeatPages,
     VisualNovelNarratorOutput,
     VisualNovelPage,
 )
@@ -2597,6 +2598,74 @@ class TestBroadcastEvent:
         assert alice.pending_observations == []
         assert ckpt.session.render_buffers["alice"][0].event_id == event.event_id
 
+    def test_render_buffer_freezes_character_display_for_each_event(self):
+        ckpt = _ckpt({"alice": "1"})
+        pip = next(
+            character
+            for character in ckpt.characters
+            if character.character_id == "pip"
+        )
+        pip.visuals.visual_novel_presentation.current_variant_key = "skeptical"
+        first = self._with_updates(
+            self._event(observer_ids=["alice"]),
+            event_id="evt_first_display",
+        )
+
+        broadcast_event(ckpt, first, actor_id="pip")
+        pip.visuals.visual_novel_presentation.current_variant_key = "happy"
+        second = self._with_updates(
+            self._event(observer_ids=["alice"]),
+            event_id="evt_second_display",
+        )
+        broadcast_event(ckpt, second, actor_id="pip")
+
+        buffered = ckpt.session.render_buffers["alice"]
+        assert [entry.event_id for entry in buffered] == [
+            "evt_first_display",
+            "evt_second_display",
+        ]
+        assert [
+            entry.sprite_variant_keys_by_character_id["pip"]
+            for entry in buffered
+        ] == ["skeptical", "happy"]
+
+    def test_canonical_location_change_resets_display_but_same_location_does_not(
+        self,
+    ):
+        ckpt = _ckpt()
+        pip = next(
+            character
+            for character in ckpt.characters
+            if character.character_id == "pip"
+        )
+        presentation = pip.visuals.visual_novel_presentation
+        presentation.current_variant_key = "angry"
+        presentation.scene_location = pip.location
+        move = self._with_updates(
+            self._event(observer_ids=["pip"]),
+            location_updates=[{
+                "character_id": "pip",
+                "location_label": "archive",
+            }],
+        )
+
+        broadcast_event(ckpt, move, actor_id="alice")
+
+        assert pip.location == "archive"
+        assert presentation.scene_location == "archive"
+        assert presentation.current_variant_key == "neutral"
+
+        presentation.current_variant_key = "happy"
+        same_place = self._with_updates(
+            self._event(observer_ids=["pip"]),
+            location_updates=[{
+                "character_id": "pip",
+                "location_label": "archive",
+            }],
+        )
+        broadcast_event(ckpt, same_place, actor_id="alice")
+        assert presentation.current_variant_key == "happy"
+
     def test_scoped_fact_only_reaches_visible_recipient(self):
         ckpt = _ckpt()
         ckpt.characters.extend([
@@ -3318,13 +3387,15 @@ class TestEndBeatFanout:
                     envelope = VisualNovelNarratorOutput(
                         handoff=handoff,
                         handoff_reason="Forced-boundary contract test.",
-                        pages=(
+                        beats=(
                             []
                             if handoff == "continue"
-                            else [VisualNovelPage(
-                                kind="narration",
-                                text="The gate locks open.",
-                            )]
+                            else [VisualNovelBeatPages(pages=[
+                                VisualNovelPage(
+                                    kind="narration",
+                                    text="The gate locks open.",
+                                )
+                            ])]
                         ),
                     )
                 else:
@@ -3757,11 +3828,22 @@ class TestNarratorHandoff:
                 return VisualNovelNarratorOutput(
                     handoff=envelope.handoff,
                     handoff_reason=envelope.handoff_reason,
-                    pages=(
-                        [VisualNovelPage(
-                            kind="narration",
-                            text=envelope.final_text,
-                        )]
+                    beats=(
+                        [
+                            VisualNovelBeatPages(pages=[
+                                VisualNovelPage(
+                                    kind="narration",
+                                    text=(
+                                        "The gate starts to rise."
+                                        if index == 0
+                                        else envelope.final_text
+                                    ),
+                                )
+                            ])
+                            for index, _buffered in enumerate(
+                                kwargs["buffered_events"]
+                            )
+                        ]
                         if envelope.handoff == "render"
                         else []
                     ),
@@ -3799,15 +3881,22 @@ class TestNarratorHandoff:
                 intention="I wait until the gate finishes opening.",
             ))
 
-        assert result.renders == {"alice": "ACCEPTED BATCH"}
+        assert result.renders == {
+            "alice": "The gate starts to rise.\n\nACCEPTED BATCH"
+        }
         render = result.visual_novel_renders["alice"]
-        assert len(render.segments) == 1
-        assert render.segments[0].rendered_event_ids == [
+        assert len(render.segments) == 2
+        assert [segment.rendered_event_id for segment in render.segments] == [
             "evt_motion",
             "evt_arrival",
         ]
-        assert [page.text for page in render.segments[0].pages] == [
-            "ACCEPTED BATCH"
+        assert [
+            page.text
+            for segment in render.segments
+            for page in segment.pages
+        ] == [
+            "The gate starts to rise.",
+            "ACCEPTED BATCH",
         ]
         assert [
             len(call["buffered_events"]) for call in fake.narrator_calls

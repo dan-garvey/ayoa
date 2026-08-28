@@ -11,6 +11,10 @@ class TurnRequest(BaseModel):
     # working without change. The orchestrator resolves this against the
     # roster each turn for the router/narrator turn context.
     acting_character_id: str = ""
+    # Optional character-owned VN presentation key. It is validated against
+    # the bound character's available catalog under the session lock and never
+    # becomes player prose.
+    display_key: str = ""
     # NOTE: `debug: bool` and `debug_flags: DebugFlags` lived here through
     # v11-r7i. They were the on/off switch for the also-murdered
     # `TurnResponse.debug` payload — and since nothing in the

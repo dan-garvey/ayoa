@@ -73,6 +73,7 @@ from app.engine.action_rejection import PlayerActionRejected
 from app.engine.narrator import (
     assert_narrator_handoff_policy,
     commit_pov_render,
+    resolve_buffered_events_for_render,
 )
 from app.engine.dnd_combat_access import (
     checkpoint_active_combat,
@@ -843,6 +844,14 @@ def append_to_render_buffer(
             observation_level=observation_level,
             visible_at_s=max(0, visible_at_s),
             event_sequence=max(0, event_sequence),
+            sprite_variant_keys_by_character_id={
+                character.character_id: (
+                    character.visuals.visual_novel_presentation.current_variant_key
+                    or "neutral"
+                )
+                for character in ckpt.characters
+                if character.status != CharacterStatus.culled
+            },
         )
     )
 
@@ -855,6 +864,42 @@ def flush_render_buffer(
     out = ckpt.session.render_buffers.get(character_id, [])
     ckpt.session.render_buffers[character_id] = []
     return out
+
+
+def _visual_novel_variant_snapshot_by_label(
+    ckpt: CheckpointFile,
+    *,
+    buffered: RenderBufferEntry,
+    pages: list[object],
+) -> dict[str, str]:
+    """Project private character-id state onto page-approved safe labels."""
+
+    labels = {
+        label
+        for page in pages
+        for label in getattr(page, "sprites", ())
+        if str(label).strip()
+    }
+    active = [
+        character
+        for character in ckpt.characters
+        if character.status != CharacterStatus.culled
+    ]
+    counts: dict[str, int] = {}
+    for character in active:
+        label = " ".join((character.name or "").split()).strip()
+        if label:
+            counts[label] = counts.get(label, 0) + 1
+    result: dict[str, str] = {}
+    for character in active:
+        label = " ".join((character.name or "").split()).strip()
+        if label not in labels or counts.get(label) != 1:
+            continue
+        result[label] = buffered.sprite_variant_keys_by_character_id.get(
+            character.character_id,
+            "neutral",
+        )
+    return result
 
 
 def _log_router_rationale(
@@ -1544,7 +1589,14 @@ def _apply_location_updates(
                 update.character_id,
             )
             continue
-        char.location = update.location_label
+        previous_location = " ".join(str(char.location or "").split()).strip()
+        next_location = " ".join(update.location_label.split()).strip()
+        presentation = char.visuals.visual_novel_presentation
+        established_scene = presentation.scene_location or previous_location
+        if established_scene and established_scene != next_location:
+            presentation.current_variant_key = "neutral"
+        presentation.scene_location = next_location
+        char.location = next_location
 
 
 def _apply_commitment_open(
@@ -4509,17 +4561,34 @@ async def _end_beat(
             )
             renders[h] = narrator_plain_text(envelope)
             if isinstance(envelope, VisualNovelNarratorOutput):
+                resolved = resolve_buffered_events_for_render(
+                    ckpt,
+                    dict(targets)[h],
+                )
+                if len(envelope.beats) != len(resolved):
+                    raise RuntimeError(
+                        "accepted visual-novel narrator output lost event alignment"
+                    )
                 visual_novel_renders[h] = VisualNovelRender(
                     segments=[
                         VisualNovelRenderSegment(
                             pages=[
                                 page.model_copy(deep=True)
-                                for page in envelope.pages
+                                for page in beat.pages
                             ],
-                            rendered_event_ids=[
-                                buffered.event_id
-                                for buffered in dict(targets)[h]
-                            ],
+                            rendered_event_id=buffered.event_id,
+                            sprite_variant_keys_by_label=(
+                                _visual_novel_variant_snapshot_by_label(
+                                    ckpt,
+                                    buffered=buffered,
+                                    pages=list(beat.pages),
+                                )
+                            ),
+                        )
+                        for beat, (buffered, _event) in zip(
+                            envelope.beats,
+                            resolved,
+                            strict=True,
                         )
                     ]
                 )

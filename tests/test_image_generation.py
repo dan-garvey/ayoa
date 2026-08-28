@@ -22,12 +22,15 @@ from app.engine.image_director import (
     projection_checkpoint_snapshot,
     source_event_fingerprint,
 )
+from app.engine.character_presentation import apply_character_presentation_choice
 from app.engine.event_image_sidecar import EventImageSidecar
 from app.engine.image_generation import (
     ImageDeliveryTarget,
     ImageGenerationConfig,
     ImageGenerationCoordinator,
     _authored_identity_reroll_input,
+    _sprite_generation_prompt,
+    _sprite_visual_style,
     build_diffusion_prompt,
 )
 from app.engine.image_worker_client import ImageWorkerError
@@ -44,6 +47,7 @@ from app.schemas.characters import (
     PrivateState,
     PublicSheet,
 )
+from app.schemas.agents import CharacterPresentationChoice
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
 from app.schemas.events import ObservableFact
@@ -57,7 +61,10 @@ from app.schemas.image_generation import (
     ImageWorkerResult,
 )
 from app.schemas.narrator import VisualNovelPage
-from app.schemas.visual_references import ReviewedVisualReference
+from app.schemas.visual_references import (
+    ReviewedVisualNovelSpriteSet,
+    ReviewedVisualReference,
+)
 from app.schemas.state import (
     RenderBufferEntry,
     SessionState,
@@ -429,6 +436,275 @@ def _frozen_reviewed_stage(
             allowed_root="artifacts",
         ),
         data,
+    )
+
+
+def _checkpoint_with_authored_sprite_pack(
+    coordinator: ImageGenerationCoordinator,
+    *,
+    session_id: str,
+) -> tuple[CheckpointFile, CharacterRecord, FrozenReferenceInput]:
+    checkpoint = _checkpoint(session_id)
+    checkpoint.session.config.settings.presentation_mode = "visual_novel"
+    character = checkpoint.characters[0]
+    sprite_pack_id = "alice-reviewed-sprites-v1"
+    reference, _ = _frozen_reviewed_stage(
+        coordinator.config.runtime_root,
+        reference_id="alice-neutral-sprite-v1",
+    )
+    coordinator.store.replace_reviewed_references(
+        session_id=session_id,
+        references={
+            reference.reference_id: (reference, "identity", "character")
+        },
+        identity_bindings={"alice": [reference.reference_id]},
+        location_bindings={},
+    )
+    checkpoint.reviewed_visual_novel_sprite_sets = [
+        ReviewedVisualNovelSpriteSet(
+            sprite_set_id=sprite_pack_id,
+            owner_character_id=character.character_id,
+            variant_reference_ids={"neutral": reference.reference_id},
+        )
+    ]
+    character.visuals.sprite_set_id = sprite_pack_id
+    return checkpoint, character, reference
+
+
+def test_sprite_style_projection_drops_scene_composition_conflicts():
+    style = _sprite_visual_style(
+        "Pick Me Up inspired Korean manhwa character rendering with bold ink. "
+        "Niflheim stone architecture fills every edge of the in-world view. "
+        "Painterly cel-shaded costume rendering with controlled highlights."
+    )
+
+    assert "manhwa character rendering" in style
+    assert "cel-shaded costume" in style
+    assert "Niflheim" not in style
+    assert "architecture" not in style
+    assert "fill every edge" not in style
+    assert "in-world view" not in style
+
+
+def test_sprite_prompt_is_pose_expression_cutout_not_a_scene():
+    prompt = _sprite_generation_prompt(
+        variant_key="concerned",
+        variant_direction=(
+            "Open worried reaching gesture, brows lifted, guarded stance."
+        ),
+        description=(
+            "Red-haired spearfighter in a dark long coat; one double-ended "
+            "spear with a tassel."
+        ),
+        visual_style="Korean manhwa character rendering.",
+        style_trigger="",
+        has_neutral_reference=True,
+    )
+
+    assert "Open worried reaching gesture" in prompt
+    assert "same face" in prompt
+    assert "exact count" in prompt
+    assert "three-quarter" in prompt
+    assert "magenta chroma-key" in prompt
+    for conflict in (
+        "Niflheim",
+        "fill every edge of the scene",
+        "dungeon hallway",
+        "room interior",
+    ):
+        assert conflict not in prompt
+
+
+@pytest.mark.asyncio
+async def test_custom_sprite_completion_auto_activates_character_choice(tmp_path):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+    )
+    checkpoint, character, neutral_reference = (
+        _checkpoint_with_authored_sprite_pack(
+            coordinator,
+            session_id="custom-sprite-complete",
+        )
+    )
+    apply_character_presentation_choice(
+        checkpoint,
+        character,
+        CharacterPresentationChoice(
+            request="A relieved laugh with one hand pressed to the heart."
+        ),
+    )
+    pending = character.visuals.visual_novel_presentation.pending_requests[0]
+
+    changed = await coordinator.sync_visual_novel_character_presentations(
+        checkpoint
+    )
+    assert changed is False
+    job = next(
+        job
+        for job in coordinator.store.all_jobs()
+        if job.request.sprite_variant_key == pending.variant_key
+    )
+    assert job.request.sprite_variant_direction == pending.direction
+    assert job.request.reference_inputs == [neutral_reference]
+
+    claimed = coordinator.store.claim_next()
+    assert claimed is not None
+    artifact = GeneratedImageArtifact(
+        sha256="a" * 64,
+        relative_path="artifacts/generated/custom.webp",
+        width=claimed.request.width,
+        height=claimed.request.height,
+        byte_count=1,
+    )
+    succeeded = coordinator.store.mark_succeeded(claimed.job_id, artifact)
+    assert succeeded is not None
+    coordinator.store.save_sprite_variant(
+        job_id=claimed.job_id,
+        frozen=neutral_reference,
+    )
+
+    changed = await coordinator.sync_visual_novel_character_presentations(
+        checkpoint
+    )
+    presentation = character.visuals.visual_novel_presentation
+    assert changed is True
+    assert presentation.pending_requests == []
+    assert presentation.custom_variant_directions[pending.variant_key] == (
+        pending.direction
+    )
+    assert presentation.current_variant_key == pending.variant_key
+
+
+@pytest.mark.asyncio
+async def test_player_visible_scene_claim_precedes_background_sprite_prewarm(
+    tmp_path,
+):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+    )
+    _begin(coordinator, "tx_sprite")
+    sprite = await coordinator._enqueue_sprite_request(
+        session_id="image_test",
+        transaction_id="tx_sprite",
+        source_turn_index=1,
+        character_id="alice",
+        sprite_pack_id="alice-generated-sprites",
+        variant_key="neutral",
+        variant_direction="Relaxed ready stance and calm neutral face.",
+        description="Short dark hair and a yellow raincoat.",
+        visual_style="soft cinematic character illustration",
+        reference_inputs=(),
+    )
+    assert sprite is not None
+
+    _begin(coordinator, "tx_scene")
+    projection = _projection(
+        transaction_id="tx_scene",
+        event_id="evt_later_visible_scene",
+        event_sequence=99,
+        viewers=("alice",),
+    )
+    scene = await coordinator.enqueue_direction(
+        projection=projection,
+        direction=ImageDirection(
+            kind="establishing",
+            title="Visible Courtyard",
+            subject_character_ids=[],
+            scene_prompt="An unoccupied rain-dark courtyard.",
+        ),
+        request_ordinal=0,
+        visual_style="soft cinematic illustration",
+        delivery_targets=[_target("alice")],
+    )
+    assert scene is not None
+
+    claimed = coordinator.store.claim_next()
+    assert claimed is not None
+    assert claimed.job_id == scene.job_id
+    assert claimed.request.sprite_pack_id == ""
+
+
+@pytest.mark.asyncio
+async def test_exhausted_custom_sprite_retries_once_on_later_restart(tmp_path):
+    store = ImageJobStore(tmp_path / "runtime" / "jobs.sqlite")
+    first = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+        store=store,
+    )
+    checkpoint, character, _neutral_reference = (
+        _checkpoint_with_authored_sprite_pack(
+            first,
+            session_id="custom-sprite-retry",
+        )
+    )
+    apply_character_presentation_choice(
+        checkpoint,
+        character,
+        CharacterPresentationChoice(
+            request="A rueful wince with both palms raised in surrender."
+        ),
+    )
+    pending = character.visuals.visual_novel_presentation.pending_requests[0]
+
+    await first.sync_visual_novel_character_presentations(checkpoint)
+    for expected_attempt in (1, 2):
+        claimed = store.claim_next()
+        assert claimed is not None
+        assert claimed.request.sprite_generation_round == 0
+        assert claimed.attempts == expected_attempt
+        store.mark_failed(claimed.job_id, "generation_failed")
+        if expected_attempt == 1:
+            await first.sync_visual_novel_character_presentations(checkpoint)
+
+    restarted = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+        store=store,
+    )
+    assert await restarted.sync_visual_novel_character_presentations(checkpoint)
+    assert pending.generation_round == 1
+    round_one = next(
+        job
+        for job in store.all_jobs()
+        if job.request.sprite_generation_round == 1
+    )
+    assert round_one.request.sprite_variant_key == pending.variant_key
+
+    for expected_attempt in (1, 2):
+        claimed = store.claim_next()
+        assert claimed is not None
+        assert claimed.request.sprite_generation_round == 1
+        assert claimed.attempts == expected_attempt
+        store.mark_failed(claimed.job_id, "generation_failed")
+        if expected_attempt == 1:
+            await restarted.sync_visual_novel_character_presentations(checkpoint)
+
+    second_restart = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+        store=store,
+    )
+    assert not await second_restart.sync_visual_novel_character_presentations(
+        checkpoint
+    )
+    assert pending.generation_round == 1
+    assert len([
+        job
+        for job in store.all_jobs()
+        if job.request.sprite_variant_key == pending.variant_key
+    ]) == 2
+    assert all(
+        job.status == ImageGenerationStatus.failed
+        for job in store.all_jobs()
+        if job.request.sprite_variant_key == pending.variant_key
     )
 
 
@@ -1717,7 +1993,7 @@ def test_v1_actor_cadence_store_is_retired_in_direct_v11_migration(tmp_path):
             WHERE type = 'table' AND name = 'image_eligible_beats'
             """
         ).fetchone()
-    assert version == "12"
+    assert version == "13"
     assert old_table is None
 
 
@@ -1780,7 +2056,7 @@ def test_v7_prose_gate_store_is_retired_before_v11_foreign_key_parent(tmp_path):
         transaction_count = db.execute(
             "SELECT COUNT(*) AS count FROM image_transactions"
         ).fetchone()["count"]
-    assert version == "12"
+    assert version == "13"
     assert retired == set()
     assert transaction_count == 0
 

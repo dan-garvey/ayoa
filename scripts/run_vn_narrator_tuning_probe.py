@@ -39,7 +39,7 @@ from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.narrator import VisualNovelNarratorOutput
+from app.schemas.narrator import VisualNovelNarratorOutput, VisualNovelPage
 from app.schemas.state import (
     RenderBufferEntry,
     SessionState,
@@ -155,8 +155,15 @@ def _replay_checkpoint(case: ProbeCase) -> CheckpointFile:
 def _result_text(result: VisualNovelNarratorOutput) -> str:
     return "\n".join(
         f"{page.speaker}: {page.text}" if page.kind == "dialogue" else page.text
-        for page in result.pages
+        for beat in result.beats
+        for page in beat.pages
     )
+
+
+def _result_pages(
+    result: VisualNovelNarratorOutput,
+) -> tuple[VisualNovelPage, ...]:
+    return tuple(page for beat in result.beats for page in beat.pages)
 
 
 async def _run_router_anchor_probe(
@@ -253,10 +260,11 @@ def _checks(
             "no roster source identifier may reach a page",
         ),
     ]
+    pages = _result_pages(result)
     if case.name == "bracketed_direct_address_forced":
         dialogue = " ".join(
             page.text
-            for page in result.pages
+            for page in pages
             if page.kind == "dialogue" and page.speaker.casefold() == "iselle"
         )
         second_person_count = len(
@@ -284,9 +292,9 @@ def _checks(
         checks.extend([
             (
                 "authored_pages_end_cleanly",
-                bool(result.pages) and all(
+                bool(pages) and all(
                     _COMPLETE_END_RE.search(page.text.rstrip()) is not None
-                    for page in result.pages
+                    for page in pages
                 ),
                 "each semantic page ends after a complete sentence or utterance",
             ),
@@ -360,7 +368,8 @@ async def _run_case(
     if result.handoff == "render":
         renderer = VisualNovelCardRenderer(run_dir / "cards" / case.name)
         deck = renderer.render_deck([
-            VisualNovelDeckSection(pages=tuple(result.pages)),
+            VisualNovelDeckSection(pages=tuple(beat.pages))
+            for beat in result.beats
         ])
         deck_id = deck.deck_id
         card_paths = [str(card.image_path) for card in deck.cards]

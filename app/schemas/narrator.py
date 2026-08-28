@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-from app.schemas.visual_references import VisualNovelSpriteExpression
-
 
 class TranscriptEntry(BaseModel):
     user: str
@@ -35,15 +32,6 @@ class NarratorFinalOutput(BaseModel):
         return self
 
 
-class VisualNovelSpriteCue(BaseModel):
-    """Player-safe character label plus one bounded visible expression cue."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    character: str = Field(min_length=1, max_length=80)
-    expression: VisualNovelSpriteExpression = "neutral"
-
-
 class VisualNovelPage(BaseModel):
     """One player-visible ADV page authored by the narrator.
 
@@ -56,7 +44,7 @@ class VisualNovelPage(BaseModel):
     kind: Literal["narration", "dialogue"]
     speaker: str = Field(default="", max_length=80)
     text: str = Field(min_length=1, max_length=4_000)
-    sprites: list[VisualNovelSpriteCue] = Field(default_factory=list, max_length=2)
+    sprites: list[str] = Field(default_factory=list, max_length=2)
 
     @model_validator(mode="after")
     def _validate_speaker(self) -> "VisualNovelPage":
@@ -64,10 +52,20 @@ class VisualNovelPage(BaseModel):
             raise ValueError("dialogue pages require a speaker label")
         if self.kind == "narration":
             self.speaker = ""
-        labels = [cue.character for cue in self.sprites]
-        if len(set(labels)) != len(labels):
+        self.sprites = [" ".join(label.split()).strip() for label in self.sprites]
+        if any(not label for label in self.sprites):
+            raise ValueError("visual-novel sprite labels cannot be blank")
+        if len(set(self.sprites)) != len(self.sprites):
             raise ValueError("visual-novel sprite cues cannot repeat a character")
         return self
+
+
+class VisualNovelBeatPages(BaseModel):
+    """Pages depicting exactly one ordered visible canonical beat."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    pages: list[VisualNovelPage] = Field(min_length=1)
 
 
 class VisualNovelNarratorOutput(BaseModel):
@@ -77,14 +75,16 @@ class VisualNovelNarratorOutput(BaseModel):
 
     handoff: Literal["render", "continue"]
     handoff_reason: str = Field(min_length=1, max_length=500)
-    pages: list[VisualNovelPage] = Field(default_factory=list, max_length=40)
+    beats: list[VisualNovelBeatPages] = Field(default_factory=list, max_length=40)
 
     @model_validator(mode="after")
     def _validate_handoff_pages(self) -> "VisualNovelNarratorOutput":
-        if self.handoff == "render" and not self.pages:
-            raise ValueError("pages must be non-empty when handoff='render'")
-        if self.handoff == "continue" and self.pages:
-            raise ValueError("pages must be empty when handoff='continue'")
+        if self.handoff == "render" and not self.beats:
+            raise ValueError("beats must be non-empty when handoff='render'")
+        if self.handoff == "continue" and self.beats:
+            raise ValueError("beats must be empty when handoff='continue'")
+        if sum(len(beat.pages) for beat in self.beats) > 40:
+            raise ValueError("visual-novel output cannot exceed 40 total pages")
         return self
 
 
@@ -132,7 +132,7 @@ def visual_novel_pages_contain_source_identifiers(
         for value in (
             page.speaker,
             page.text,
-            *(cue.character for cue in page.sprites),
+            *page.sprites,
         ):
             if visual_novel_text_contains_source_identifiers(
                 value,
@@ -147,11 +147,13 @@ def narrator_plain_text(result: NarratorOutput) -> str:
 
     if isinstance(result, NarratorFinalOutput):
         return result.final_text
-    return visual_novel_pages_plain_text(result.pages)
+    return visual_novel_pages_plain_text(
+        page for beat in result.beats for page in beat.pages
+    )
 
 
 def visual_novel_pages_plain_text(
-    pages: Sequence[VisualNovelPage],
+    pages: Iterable[VisualNovelPage],
 ) -> str:
     """Project validated ADV pages into the shared text history surface."""
 

@@ -2,15 +2,13 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import PurePosixPath
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.image_director import ImageDirectionKind, ImageGenerationMode
-from app.schemas.visual_references import VisualNovelSpriteExpression
-
-
-IMAGE_JOB_SCHEMA_VERSION = "12"
+IMAGE_JOB_SCHEMA_VERSION = "13"
 
 
 class ImageGenerationStatus(str, Enum):
@@ -115,7 +113,9 @@ class ImageGenerationRequest(BaseModel):
     reference_inputs: list[FrozenReferenceInput] = Field(default_factory=list)
     reroll_of_reference_id: str = ""
     sprite_pack_id: str = ""
-    sprite_expression: VisualNovelSpriteExpression | Literal[""] = ""
+    sprite_variant_key: str = ""
+    sprite_variant_direction: str = ""
+    sprite_generation_round: int = 0
     sprite_character_description: str = ""
     sprite_visual_style: str = ""
     sprite_source_facing: Literal["", "left", "right"] = ""
@@ -157,6 +157,10 @@ class ImageGenerationRequest(BaseModel):
         ]
         self.reroll_of_reference_id = self.reroll_of_reference_id.strip()
         self.sprite_pack_id = self.sprite_pack_id.strip()
+        self.sprite_variant_key = self.sprite_variant_key.strip().lower()
+        self.sprite_variant_direction = " ".join(
+            self.sprite_variant_direction.split()
+        ).strip()
         self.sprite_character_description = (
             " ".join(self.sprite_character_description.split()).strip()
         )
@@ -165,13 +169,21 @@ class ImageGenerationRequest(BaseModel):
         ).strip()
         sprite_fields = (
             bool(self.sprite_pack_id),
-            bool(self.sprite_expression),
+            bool(self.sprite_variant_key),
+            bool(self.sprite_variant_direction),
             bool(self.sprite_character_description),
             bool(self.sprite_source_facing),
         )
         if any(sprite_fields) != all(sprite_fields):
             raise ValueError("sprite generation metadata must be all-or-none")
         if self.sprite_pack_id:
+            if not re.fullmatch(
+                r"[a-z0-9][a-z0-9_.-]{0,79}",
+                self.sprite_variant_key,
+            ):
+                raise ValueError("sprite variant key is invalid")
+            if len(self.sprite_variant_direction) > 200:
+                raise ValueError("sprite variant direction exceeds limit")
             if (
                 self.kind != "portrait"
                 or self.generation_mode != "compose"
@@ -186,6 +198,10 @@ class ImageGenerationRequest(BaseModel):
                 raise ValueError("sprite character description exceeds limit")
             if len(self.sprite_visual_style) > 800:
                 raise ValueError("sprite visual style exceeds limit")
+        elif self.sprite_generation_round:
+            raise ValueError("sprite generation round requires sprite metadata")
+        if self.sprite_generation_round < 0:
+            raise ValueError("sprite generation round must be non-negative")
         if self.source_event_sequence < 0 or self.source_turn_index < 0:
             raise ValueError("source sequence and turn must be non-negative")
         if self.request_ordinal < 0:

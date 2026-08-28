@@ -37,7 +37,11 @@ from app.schemas.one_star import (
 from app.schemas.conversation import ConversationMessage
 from app.schemas.state import OpenCatIIEvent
 from app.engine.turn_loop_contracts import format_actor_submission
-from app.schemas.event_router import EventRouterOutput, ObserverEntry
+from app.schemas.event_router import (
+    EventRouterOutput,
+    LocationUpdateSignal,
+    ObserverEntry,
+)
 from app.schemas.events import ObservableFact
 from tests.support.factories import (
     character_record,
@@ -474,6 +478,127 @@ def test_one_star_continuation_uses_the_closed_schema(monkeypatch):
         client.complete.await_args.kwargs["response_model"]
         is ClosedOneStarEventRouterOutput
     )
+
+
+def _lobby_return_continuation(*, guide_delivery: bool):
+    result = _closed_one_star_output()
+    result.event_id = (
+        "corrected_lobby_return" if guide_delivery else "invalid_lobby_return"
+    )
+    result.location_updates = [
+        LocationUpdateSignal(character_id="pip", location_label="lobby")
+    ]
+    result.observers = [
+        ObserverEntry(
+            character_id="alice",
+            observation_level="d",
+            routing_role="observe_only",
+        )
+    ]
+    if guide_delivery:
+        result.observers.append(
+            ObserverEntry(
+                character_id="iselle",
+                observation_level="d",
+                routing_role="observe_only",
+            )
+        )
+        result.canonical_event.observable_facts.append(
+            ObservableFact.only(
+                "The System reports Pip's return to the lobby.",
+                ["iselle"],
+            )
+        )
+    return result
+
+
+def _stub_one_star_guide_account(monkeypatch, ckpt) -> None:
+    from app.engine import one_star_adapter
+
+    account = SimpleNamespace(
+        config=SimpleNamespace(
+            lobby_id="local",
+            lobby_location_label="lobby",
+            operation_requirements={},
+        ),
+        state=SimpleNamespace(guide_character_ids=["iselle"]),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_account",
+        lambda _ckpt: (ckpt.characters[0], account),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_hero",
+        lambda character: (
+            SimpleNamespace(owner_lobby_id="local")
+            if character is not None and character.character_id == "pip"
+            else None
+        ),
+    )
+
+
+def test_one_star_continuation_retries_missing_guide_delivery_before_commit(
+    monkeypatch,
+):
+    _stub_one_star_router_context(monkeypatch)
+    ckpt = _one_star_checkpoint()
+    next(character for character in ckpt.characters if character.character_id == "pip").location = "synthesis"
+    ckpt.characters.append(character_record("iselle", location="lobby"))
+    _stub_one_star_guide_account(monkeypatch, ckpt)
+    invalid = _lobby_return_continuation(guide_delivery=False)
+    corrected = _lobby_return_continuation(guide_delivery=True)
+    dispatcher, client = _dispatcher(invalid, corrected)
+
+    result = asyncio.run(
+        dispatcher.route_continuation(
+            ckpt=ckpt,
+            actor_id="alice",
+            prior_result=_one_star_output(),
+            original_action="I wait for Pip to return.",
+        )
+    )
+
+    assert result is corrected
+    assert client.complete.await_count == 2
+    correction_call = client.complete.await_args_list[1]
+    assert correction_call.kwargs["response_model"] is OneStarEventRouterOutput
+    assert "configured guide" in correction_call.kwargs["messages"][-1]["content"]
+    history = "\n".join(message.content for message in ckpt.session_conversation)
+    assert "corrected_lobby_return" in history
+    assert "invalid_lobby_return" not in history
+
+
+def test_repeated_invalid_one_star_continuation_restores_router_snapshot(
+    monkeypatch,
+):
+    _stub_one_star_router_context(monkeypatch)
+    ckpt = _one_star_checkpoint()
+    next(character for character in ckpt.characters if character.character_id == "pip").location = "synthesis"
+    ckpt.characters.append(character_record("iselle", location="lobby"))
+    _stub_one_star_guide_account(monkeypatch, ckpt)
+    dispatcher, client = _dispatcher(
+        _lobby_return_continuation(guide_delivery=False),
+        _lobby_return_continuation(guide_delivery=False),
+    )
+    before = ckpt.model_dump(mode="json")
+
+    with pytest.raises(
+        ValueError,
+        match="continuation output remained invalid after one correction",
+    ):
+        asyncio.run(
+            dispatcher.route_continuation(
+                ckpt=ckpt,
+                actor_id="alice",
+                prior_result=_one_star_output(),
+                original_action="I wait for Pip to return.",
+            )
+        )
+
+    assert client.complete.await_count == 2
+    assert ckpt.model_dump(mode="json") == before
 
 
 def test_one_star_repair_accepts_only_the_state_update_shape(monkeypatch):

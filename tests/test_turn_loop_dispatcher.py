@@ -20,6 +20,7 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import pin_cat_ii_responder
 from app.engine.turn_loop_contracts import (
     AUTHORITATIVE_RESULT_HEADER,
+    AuthoritativeContributionRequest,
     AuthoritativeResultPlan,
     ROUTER_CONTINUATION_HEADER,
     format_actor_submission,
@@ -35,7 +36,7 @@ from app.engine.turn_loop_dispatcher import (
     refresh_router_history_record,
 )
 from app.llm.client import LLMClient
-from app.schemas.agents import CharacterAgentOutput
+from app.schemas.agents import CharacterAgentOutput, CharacterPerceptionOutput
 from app.schemas.characters import (
     CharacterRecord,
     FictionalEntityKind,
@@ -71,6 +72,7 @@ from app.schemas.state import (
     StorySetting,
     WorldState,
 )
+from app.schemas.visual_references import ReviewedVisualReference
 from tests.support.factories import (
     character_record,
     checkpoint,
@@ -2658,6 +2660,79 @@ class TestDndCombatContentContext:
 
 
 class TestAgentIntend:
+    def test_authoritative_draft_shadow_preserves_private_visual_state(
+        self,
+        prompt_mgr,
+        mock_client,
+        monkeypatch,
+    ):
+        ckpt = _ckpt()
+        pip = next(
+            character
+            for character in ckpt.characters
+            if character.character_id == "pip"
+        )
+        ckpt.reviewed_visual_references = [
+            ReviewedVisualReference(
+                reference_id="private-identity-handle",
+                storage_ref="visual-references/pip.png",
+                mime_type="image/png",
+                width=1,
+                height=1,
+                byte_count=1,
+                sha256="0" * 64,
+                purpose="identity",
+                scope="character",
+                scope_id="pip",
+                selection_hint="Pip's reviewed identity.",
+                diffusion_authorized=True,
+            )
+        ]
+        pip.visuals.identity_reference_id = "private-identity-handle"
+        presentation = pip.visuals.visual_novel_presentation
+        presentation.custom_variant_sprite_pack_id = "private-sprite-pack"
+        presentation.custom_variant_directions = {
+            "custom-wry": "a restrained wry smile with one shoulder raised",
+        }
+        sentinel = object()
+
+        async def _fake_draft(
+            self,
+            *,
+            character,
+            checkpoint,
+            frame="foreground",
+            local_context="",
+        ):
+            assert character.visuals.identity_reference_id == (
+                "private-identity-handle"
+            )
+            assert (
+                character.visuals.visual_novel_presentation
+                .custom_variant_directions["custom-wry"]
+                == "a restrained wry smile with one shoulder raised"
+            )
+            return sentinel
+
+        monkeypatch.setattr(
+            "app.engine.character_agent.CharacterAgent.draft_turn",
+            _fake_draft,
+        )
+
+        result = asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).draft_authoritative_contributions(
+                ckpt=ckpt,
+                requests=[
+                    AuthoritativeContributionRequest(
+                        character_id="pip",
+                        local_context="The fixed result reaches Pip.",
+                    )
+                ],
+            )
+        )
+
+        assert result == [("pip", sentinel)]
+
     def test_returns_public_text_only(self, prompt_mgr, mock_client, monkeypatch):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
@@ -2779,7 +2854,9 @@ class TestHarvestPerceptions:
         }
 
         async def _fake_perceive(self, character, checkpoint):
-            return loadouts[character.character_id]
+            return CharacterPerceptionOutput(
+                public_text=loadouts[character.character_id]
+            )
 
         monkeypatch.setattr(
             "app.engine.character_agent.CharacterAgent.perceive",
@@ -2858,7 +2935,7 @@ class TestHarvestPerceptions:
         async def _flaky_perceive(self, character, checkpoint):
             if character.character_id == "vex":
                 raise RuntimeError("model timeout")
-            return "Pip's loadout"
+            return CharacterPerceptionOutput(public_text="Pip's loadout")
 
         monkeypatch.setattr(
             "app.engine.character_agent.CharacterAgent.perceive",

@@ -165,13 +165,13 @@ CREATE TABLE IF NOT EXISTS image_sprite_variants (
     session_id          TEXT NOT NULL,
     character_id        TEXT NOT NULL,
     sprite_pack_id      TEXT NOT NULL,
-    expression          TEXT NOT NULL,
+    variant_key         TEXT NOT NULL,
     job_id              TEXT NOT NULL UNIQUE,
     frozen_json         TEXT NOT NULL,
     source_facing       TEXT NOT NULL,
     created_at          REAL NOT NULL,
     updated_at          REAL NOT NULL,
-    PRIMARY KEY (session_id, sprite_pack_id, expression),
+    PRIMARY KEY (session_id, sprite_pack_id, variant_key),
     FOREIGN KEY(job_id) REFERENCES image_jobs(job_id)
         ON DELETE CASCADE
 );
@@ -277,7 +277,7 @@ _CURRENT_SCHEMA_COLUMNS = {
     "image_sprite_variants": {
         "character_id",
         "sprite_pack_id",
-        "expression",
+        "variant_key",
         "job_id",
         "frozen_json",
         "source_facing",
@@ -1565,7 +1565,16 @@ class ImageJobStore:
                 JOIN image_transactions AS t
                   ON t.transaction_id = j.transaction_id
                 WHERE j.status = ? AND t.status != 'cancelled'
-                ORDER BY j.source_event_sequence,
+                -- Sprite packs are speculative latency-hiding work.  A later
+                -- player-visible scene must never wait behind that backlog.
+                ORDER BY CASE
+                             WHEN COALESCE(json_extract(
+                                 j.request_json,
+                                 '$.sprite_pack_id'
+                             ), '') = '' THEN 0
+                             ELSE 1
+                         END,
+                         j.source_event_sequence,
                          CAST(json_extract(
                              j.request_json,
                              '$.request_ordinal'
@@ -2864,17 +2873,17 @@ class ImageJobStore:
             )
             if (
                 not request.sprite_pack_id
-                or not request.sprite_expression
+                or not request.sprite_variant_key
                 or len(request.subject_character_ids) != 1
             ):
                 raise ValueError("image job is not a sprite variant")
             db.execute(
                 """
                 INSERT INTO image_sprite_variants (
-                    session_id, character_id, sprite_pack_id, expression,
+                    session_id, character_id, sprite_pack_id, variant_key,
                     job_id, frozen_json, source_facing, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(session_id, sprite_pack_id, expression) DO UPDATE SET
+                ON CONFLICT(session_id, sprite_pack_id, variant_key) DO UPDATE SET
                     character_id = excluded.character_id,
                     job_id = excluded.job_id,
                     frozen_json = excluded.frozen_json,
@@ -2885,7 +2894,7 @@ class ImageJobStore:
                     request.session_id,
                     request.subject_character_ids[0],
                     request.sprite_pack_id,
-                    request.sprite_expression,
+                    request.sprite_variant_key,
                     job_id,
                     frozen.model_dump_json(),
                     request.sprite_source_facing,
@@ -2901,7 +2910,7 @@ class ImageJobStore:
         session_id: str,
         character_id: str,
         sprite_pack_id: str,
-        expression: str,
+        variant_key: str,
     ) -> tuple[str, FrozenReferenceInput, str] | None:
         with self._connect() as db:
             row = db.execute(
@@ -2909,17 +2918,37 @@ class ImageJobStore:
                 SELECT job_id, frozen_json, source_facing
                 FROM image_sprite_variants
                 WHERE session_id = ? AND character_id = ?
-                  AND sprite_pack_id = ? AND expression = ?
+                  AND sprite_pack_id = ? AND variant_key = ?
                 """,
-                (session_id, character_id, sprite_pack_id, expression),
+                (session_id, character_id, sprite_pack_id, variant_key),
             ).fetchone()
         if row is None:
             return None
         return (
-            f"{sprite_pack_id}:{expression}",
+            f"{sprite_pack_id}:{variant_key}",
             FrozenReferenceInput.model_validate_json(row["frozen_json"]),
             str(row["source_facing"]),
         )
+
+    def sprite_variant_keys(
+        self,
+        *,
+        session_id: str,
+        character_id: str,
+        sprite_pack_id: str,
+    ) -> tuple[str, ...]:
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT variant_key
+                FROM image_sprite_variants
+                WHERE session_id = ? AND character_id = ?
+                  AND sprite_pack_id = ?
+                ORDER BY created_at, variant_key
+                """,
+                (session_id, character_id, sprite_pack_id),
+            ).fetchall()
+        return tuple(str(row["variant_key"]) for row in rows)
 
     def suppress_reviewed_identity_binding(
         self,
