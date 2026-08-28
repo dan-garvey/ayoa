@@ -2582,8 +2582,6 @@ def _apply_pending_open(
         raise OneStarTransactionError(
             "cannot open a lobby operation while a Tower mission is active"
         )
-    if state.pending_operation is not None:
-        raise OneStarTransactionError("only one embodied One-Star operation may be pending")
     selection = operation.pending
     validate_one_star_pending_operation_shape(selection)
     if selection.opened_at_s != now_s:
@@ -2617,6 +2615,10 @@ def _apply_pending_open(
             else None
         ),
     )
+    # A pending selection is reversible metadata, not an irreversible part of
+    # the operation.  The account therefore has one current selection rather
+    # than a queue: a later router-authored selection supersedes the earlier
+    # one atomically while leaving every character's physical state untouched.
     state.pending_operation = pending
     return pending
 

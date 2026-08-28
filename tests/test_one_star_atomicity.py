@@ -846,6 +846,58 @@ def test_deployment_pending_open_rejects_a_separate_target_hero() -> None:
         )
 
 
+def test_pending_open_atomically_supersedes_an_unresolved_selection() -> None:
+    first_hero = _hero()
+    second_hero = _hero()
+    second_hero.character_id = "second_hero"
+    checkpoint = _checkpoint(heroes=[first_hero, second_hero])
+    opened = prepare_one_star_transaction(
+        checkpoint,
+        event_id="first_deployment_selection",
+        transaction=_transaction({
+            "operation": "pending_open",
+            "pending": {
+                "operation_id": "deployment_1",
+                "kind": "deployment",
+                "participant_ids": ["hero"],
+                "target_id": "",
+                "destination": "tower_floor_1",
+                "opened_at_s": 0,
+            },
+        }),
+        initiating_actor_id="account_owner",
+    )
+
+    replaced = prepare_one_star_transaction(
+        opened.after_checkpoint,
+        event_id="replacement_deployment_selection",
+        transaction=_transaction({
+            "operation": "pending_open",
+            "pending": {
+                "operation_id": "deployment_2",
+                "kind": "deployment",
+                "participant_ids": ["second_hero"],
+                "target_id": "",
+                "destination": "tower_floor_1",
+                "opened_at_s": 1,
+            },
+        }),
+        initiating_actor_id="account_owner",
+        canonical_at_s=1,
+    )
+
+    pending = load_one_star_account(replaced.after_checkpoint)[1].state.pending_operation
+    assert pending is not None
+    assert pending.operation_id == "deployment_2"
+    assert pending.participant_ids == ["second_hero"]
+    assert pending.opened_at_s == 1
+    assert {
+        character.character_id: character.location
+        for character in replaced.after_checkpoint.characters
+        if character.character_id in {"hero", "second_hero"}
+    } == {"hero": "lobby", "second_hero": "lobby"}
+
+
 def test_deployment_gate_crossing_requires_atomic_resolution_and_mission_start() -> None:
     pending = _pending("deployment", participants=["hero"], destination="tower_floor_1")
     opened = prepare_one_star_transaction(

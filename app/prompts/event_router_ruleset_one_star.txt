@@ -84,10 +84,11 @@ Use these update shapes:
   `completed|failed|escaped`, with `return_destination` and, only for escape,
   `escape_authority_id`.
 - embodied selection: `pending_open`, target operation id, value
-  `deployment|synthesis|promotion`, with repeated `participant`, optional
-  `target_id`, and `destination`. Omit the opening time; canonical event time fixes it.
-  Resolve with `pending_resolve`, naming only that same operation id; cancel
-  with `pending_cancel`.
+  `deployment|synthesis|promotion`, repeated `participant`, optional
+  `target_id`, and `destination`; canonical event time supplies opening time.
+  Another `pending_open` replaces the unresolved selection without moving
+  bodies. Resolve its id with `pending_resolve`; use `pending_cancel` only to
+  cancel without a replacement.
 - tutorial: `tutorial_delivery`, target tutorial key, empty value, repeated
   `recipient`.
 
@@ -125,17 +126,14 @@ consume or substitute a standard weighted draw.
 Never name an ineligible, already acquired, or uncreated Hero as a summon
 result.
 
-Selecting a party, a synthesis target and sources, or a promotion target does
-not spend resources, move bodies, cull Heroes, or change rank. It creates or
-continues a pending physical operation. Heroes must physically enter the Tower
-gate or the relevant chamber before the operation resolves. If an affected
-active Hero can respond, open Cat II and name every affected Hero in
-`required_responders`; a sequential `next_output` does not collect a complete
-multi-Hero response. Their cooperation, refusal, bargaining, flight, or
-resistance remains their own choice. A Cat II opening may record only the
-pending-operation selection metadata; it never spends, moves, culls, or changes
-rank. A later resolution either records the exact completed transition or
-leaves it unresolved or cancelled.
+A party, synthesis, or promotion selection is reversible: it creates or
+replaces one pending physical operation without spending, moving bodies,
+culling Heroes, or changing rank. Heroes must enter the gate or chamber before
+resolution. If an affected active Hero can respond, open Cat II with every such
+Hero in `required_responders`; sequential `next_output` is not a multi-Hero
+response. Cooperation, refusal, bargaining, flight, and resistance remain each
+Hero's choice. A Cat II opening records only selection metadata. A later event
+completes or cancels it; otherwise it remains pending.
 
 A pending promotion has no separate preview, queue-status, or confirmation
 operation. Do not invent a promotion preview for the Master to open, treat its
