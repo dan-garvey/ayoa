@@ -59,6 +59,7 @@ def _spawn_request(character_id: str, role: str) -> SpawnRequest:
 def _opening_output(
     *,
     observer_ids: list[str],
+    agent_ids: list[str] | None = None,
     spawn: list[SpawnRequest] | None = None,
     activate: list[dict[str, str]] | None = None,
     location_updates: list[dict[str, str]] | None = None,
@@ -67,6 +68,7 @@ def _opening_output(
     return router_output(
         event_kind="state_change",
         facts=[ObservableFact.all(fact_text)],
+        agent_ids=agent_ids,
         observer_ids=observer_ids,
         spawn=spawn,
         activate=activate,
@@ -578,3 +580,79 @@ async def test_failed_opening_render_retry_materializes_wave_once(
         for character_id in expected_ids
     )
     assert len(ClassFakeDispatcher.route_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_master_opening_reaches_selected_guide_before_first_render(
+    monkeypatch,
+) -> None:
+    ckpt = _load_one_star()
+    ckpt.session.character_bindings = {"the_master": "user-1"}
+    spawn = [
+        _spawn_request("niflheim_first_summon_01", "timid field medic"),
+        _spawn_request("niflheim_first_summon_02", "blunt quarry worker"),
+        _spawn_request("niflheim_first_summon_03", "watchful trail scout"),
+    ]
+    spawned_ids = [request.character_id for request in spawn]
+    spawn_manager = RecordingCharacterManager()
+    orchestrator, _checkpoint_manager = _orchestrator_with_fake_dispatcher(
+        monkeypatch,
+        ckpt,
+        spawn_manager,
+    )
+    ClassFakeDispatcher.queue_route(
+        _opening_output(
+            observer_ids=["the_master", "iselle_the_guide", *spawned_ids],
+            agent_ids=["iselle_the_guide"],
+            spawn=spawn,
+        )
+    )
+    ClassFakeDispatcher.queue_agent(
+        "I brief the new Heroes, then recommend that the Master form their "
+        "party and deploy it to Floor 1."
+    )
+    ClassFakeDispatcher.queue_route(router_output(
+        event_id="evt_iselle_briefing",
+        event_kind="response_requested",
+        facts=[ObservableFact.all(
+            "Iselle briefs the new Heroes, then recommends that the Master "
+            "form their party and deploy it to Floor 1."
+        )],
+        agent_ids=["the_master"],
+        observer_ids=["the_master", "iselle_the_guide", *spawned_ids],
+    ))
+
+    response = await orchestrator.process_turn(
+        TurnRequest(
+            session_id=ckpt.session.session_id,
+            user_input="(begin)",
+            acting_character_id="the_master",
+        )
+    )
+
+    assert response.output_text == "POV_RENDER"
+    assert len(ckpt.canonical_events) == 2
+    assert ckpt.canonical_events[-1].event_id == "evt_iselle_briefing"
+    assert len(ClassFakeDispatcher.route_calls) == 2
+    assert len(ClassFakeDispatcher.agent_calls) == 1
+    assert len(ClassFakeDispatcher.narrator_calls) == 1
+    assert len(
+        ClassFakeDispatcher.narrator_calls[0]["buffered_events"]
+    ) == 2
+    guide_checkpoint = ClassFakeDispatcher.agent_calls[0]["ckpt"]
+    assert all(
+        any(
+            character.character_id == character_id
+            for character in guide_checkpoint.characters
+        )
+        for character_id in spawned_ids
+    )
+    assert spawn_manager.calls == 1
+    assert all(
+        sum(
+            character.character_id == character_id
+            for character in ckpt.characters
+        )
+        == 1
+        for character_id in spawned_ids
+    )

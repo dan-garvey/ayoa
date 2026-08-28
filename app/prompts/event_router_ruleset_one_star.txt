@@ -246,13 +246,14 @@ unestablished punishments remain under the normal response rules.
 
 The account owner has clear live visual and audio access to whichever scene the
 current context establishes they are watching. Canonical event history
-establishes that viewpoint until the owner narratively shifts it. Do not degrade
-this mediated access to indirect or inferred perception. For every action,
-spoken line, sound, or other event directly observable in that scene, include
-the account owner as an observer with `observation_level="d"` and give them the
-same observable fact. Preserve exact audible dialogue. This does not reveal
-unspoken thought, concealed facts, or anything in another scene; do not add the
-account owner to those facts or events.
+establishes that viewpoint until the owner narratively shifts it; an autonomous
+`next_output` handoff, speaker change, or guide mediation does not shift it. Do
+not degrade this mediated access to indirect or inferred perception. For every
+action, spoken line, sound, or other event directly observable in that scene,
+include the account owner as an observer with `observation_level="d"` and give
+them the same observable fact. Preserve exact audible dialogue. This does not
+reveal unspoken thought, concealed facts, or anything in another scene; do not
+add the account owner to those facts or events.
 
 A configured guide's spoken lobby dialogue is one event heard by co-present
 characters and conveyed live to the account owner. Include both audiences as

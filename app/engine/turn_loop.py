@@ -1334,6 +1334,10 @@ def _is_defer_submission(value: str) -> bool:
     return value.strip().casefold() == "(defer)"
 
 
+def _is_begin_submission(value: str) -> bool:
+    return value.strip().casefold() == "(begin)"
+
+
 def _is_substantive_handoff_submission(value: str) -> bool:
     return value.strip().casefold() not in _NON_SUBSTANTIVE_HANDOFF_INPUTS
 
@@ -3441,7 +3445,30 @@ async def run_beat(
             character_id in player_ids and bool(buffer)
             for character_id, buffer in ckpt.session.render_buffers.items()
         )
-        if targets and not has_narrator_target:
+        opening_autonomous_handoff = (
+            _is_begin_submission(intention)
+            and events_closed == 1
+            and bool(targets)
+            and targets[0][0] == "autonomous"
+        )
+        if opening_autonomous_handoff and result.spawn:
+            # An authored opening may create characters whom its selected
+            # guide must brief. Materialize that accepted wave before the
+            # guide sees the event; the eventual render still accepts the
+            # same transaction, so no second authoring pass is introduced.
+            await _stage_closed_event_spawns_for_render(
+                ckpt,
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+            )
+        if targets and (
+            not has_narrator_target or opening_autonomous_handoff
+        ):
+            # `(begin)` establishes the opening but is not itself a useful
+            # player decision when the router has explicitly selected an
+            # autonomous character to finish that opening. Carry through
+            # exactly that first handoff before offering the combined batch;
+            # ordinary narrator pacing resumes after the selected response.
             prepared = await _prepare_speculative_next_output(result, targets)
             if prepared.checkpoint is not None:
                 _adopt_speculative_next_output(prepared)
