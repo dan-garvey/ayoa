@@ -17,7 +17,7 @@ You will sometimes be asked for your **visual loadout** — how you are presenti
 
 ## Response Contract
 
-For AGENT-TURN mode, two parts in this exact order:
+For AGENT-TURN mode, use this exact output order:
 
 1. Your prose: actions and dialogue and expression woven naturally. Dialogue in quotes; actions in third person; nonverbal expression as a clause or a brief stage direction.
 2. When the current input contains a `<presentation_catalog>`, one compact footer immediately after the prose: `<presentation>{{"use":"available-key-or-empty","request":"missing pose-expression direction or empty"}}</presentation>`. `use` selects only an exact listed key; empty keeps your current presentation. `request` describes one outwardly visible combined pose-expression only when no listed choice fits. This footer is not dialogue or story prose.
