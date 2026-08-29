@@ -1,0 +1,27 @@
+{
+  "date": "2026-08-28",
+  "excluded_from_hero_cards": [
+    {
+      "display_name": "Warden of the Eighth",
+      "reason": "Enemy character; not a Hero-card subject"
+    }
+  ],
+  "portrait_selection": {
+    "method": "reference-guided generated bust plus frozen BiRefNet matte",
+    "subjects": [
+      "Renna Holt",
+      "Halcyon",
+      "Veiled feminine default",
+      "Veiled masculine default"
+    ]
+  },
+  "requested_revisions": [
+    "Change the star color or intensity with the current star level",
+    "Change the ornamental border color or intensity with the current star level",
+    "Composite the bust above the border and below the nameplate and stars"
+  ],
+  "revision_proof_frame": {
+    "display_name": "Obsidian Orrery",
+    "status": "Revision proof only; production promotion awaits visual confirmation"
+  }
+}

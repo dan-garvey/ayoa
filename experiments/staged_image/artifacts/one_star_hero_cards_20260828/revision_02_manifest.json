@@ -1,0 +1,740 @@
+{
+  "board": {
+    "artifact": "proofs/revision_02/boards/revised_heroes_1024x576.png",
+    "cards": [
+      {
+        "artifact": "proofs/revision_02/heroes/renna_revised.png",
+        "display_name": "Renna Holt",
+        "layer_order": [
+          "card_plate",
+          "rank_glow",
+          "rank_frame_border",
+          "generated_bust",
+          "nameplate_foreground",
+          "vector_stars",
+          "name_and_emblem"
+        ],
+        "layer_overlap_pixels": {
+          "bust_over_border": 4554,
+          "nameplate_over_bust": 469,
+          "stars_over_bust": 885
+        },
+        "name_font_size": 48,
+        "name_lines": [
+          "Renna Holt"
+        ],
+        "portrait_method": "generated_bust_plus_matte",
+        "sha256": "b0f9b716c869447480e0b5f1a9d473f478ea2c270e3e2f290d096d8302a9a7f2",
+        "star_count": 1,
+        "subject": "renna"
+      },
+      {
+        "artifact": "proofs/revision_02/heroes/halcyon_revised.png",
+        "display_name": "Halcyon",
+        "layer_order": [
+          "card_plate",
+          "rank_glow",
+          "rank_frame_border",
+          "generated_bust",
+          "nameplate_foreground",
+          "vector_stars",
+          "name_and_emblem"
+        ],
+        "layer_overlap_pixels": {
+          "bust_over_border": 2510,
+          "nameplate_over_bust": 469,
+          "stars_over_bust": 22202
+        },
+        "name_font_size": 48,
+        "name_lines": [
+          "Halcyon"
+        ],
+        "portrait_method": "generated_bust_plus_matte",
+        "sha256": "75b1856fec505a6c082b2c2f9ca507ea7a099634b79cebc3b4a7c404756718dc",
+        "star_count": 6,
+        "subject": "halcyon"
+      },
+      {
+        "artifact": "proofs/revision_02/heroes/veiled_feminine_revised.png",
+        "display_name": "Identity Veiled",
+        "layer_order": [
+          "card_plate",
+          "rank_glow",
+          "rank_frame_border",
+          "generated_bust",
+          "nameplate_foreground",
+          "vector_stars",
+          "name_and_emblem"
+        ],
+        "layer_overlap_pixels": {
+          "bust_over_border": 5260,
+          "nameplate_over_bust": 469,
+          "stars_over_bust": 885
+        },
+        "name_font_size": 48,
+        "name_lines": [
+          "Identity Veiled"
+        ],
+        "portrait_method": "generated_bust_plus_matte",
+        "sha256": "6105d24fcf03db1c980988150b6dcae35ea26ce627bdf1ba47c23711d2096af2",
+        "star_count": 1,
+        "subject": "veiled_feminine"
+      },
+      {
+        "artifact": "proofs/revision_02/heroes/veiled_masculine_revised.png",
+        "display_name": "Identity Veiled",
+        "layer_order": [
+          "card_plate",
+          "rank_glow",
+          "rank_frame_border",
+          "generated_bust",
+          "nameplate_foreground",
+          "vector_stars",
+          "name_and_emblem"
+        ],
+        "layer_overlap_pixels": {
+          "bust_over_border": 4217,
+          "nameplate_over_bust": 469,
+          "stars_over_bust": 885
+        },
+        "name_font_size": 48,
+        "name_lines": [
+          "Identity Veiled"
+        ],
+        "portrait_method": "generated_bust_plus_matte",
+        "sha256": "3ef003f52d264fe3608bbd48ca2372ee9f87f3082b8eefa7a5ab4bcff2fdd310",
+        "star_count": 1,
+        "subject": "veiled_masculine"
+      }
+    ],
+    "dimensions": [
+      1024,
+      576
+    ],
+    "review_artifact": "review_revision_02/03_revised_hero_board_1024x576.png",
+    "sha256": "254bbafe1393c3e99c5ba37b215f06480c334dccb26c1e0c645d70914b8e2fed"
+  },
+  "excluded_card_subjects": [
+    "warden_of_the_eighth"
+  ],
+  "frame": {
+    "display_name": "Obsidian Orrery",
+    "status": "revision proof only"
+  },
+  "hero_proofs": [
+    {
+      "artifact": "proofs/revision_02/heroes/renna_revised.png",
+      "display_name": "Renna Holt",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 885
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "b0f9b716c869447480e0b5f1a9d473f478ea2c270e3e2f290d096d8302a9a7f2",
+      "star_count": 1,
+      "subject": "renna"
+    },
+    {
+      "artifact": "proofs/revision_02/heroes/halcyon_revised.png",
+      "display_name": "Halcyon",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 2510,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 22202
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Halcyon"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "75b1856fec505a6c082b2c2f9ca507ea7a099634b79cebc3b4a7c404756718dc",
+      "star_count": 6,
+      "subject": "halcyon"
+    },
+    {
+      "artifact": "proofs/revision_02/heroes/veiled_feminine_revised.png",
+      "display_name": "Identity Veiled",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 5260,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 885
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Identity Veiled"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "6105d24fcf03db1c980988150b6dcae35ea26ce627bdf1ba47c23711d2096af2",
+      "star_count": 1,
+      "subject": "veiled_feminine"
+    },
+    {
+      "artifact": "proofs/revision_02/heroes/veiled_masculine_revised.png",
+      "display_name": "Identity Veiled",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 4217,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 885
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Identity Veiled"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "3ef003f52d264fe3608bbd48ca2372ee9f87f3082b8eefa7a5ab4bcff2fdd310",
+      "star_count": 1,
+      "subject": "veiled_masculine"
+    }
+  ],
+  "layer_order": [
+    "card_plate",
+    "rank_glow",
+    "rank_frame_border",
+    "generated_bust",
+    "nameplate_foreground",
+    "vector_stars",
+    "name_and_emblem"
+  ],
+  "portrait_selection": "generated_bust_plus_matte",
+  "rank_proofs": [
+    {
+      "artifact": "proofs/revision_02/ranks/renna_rank_1.png",
+      "display_name": "Renna Holt",
+      "frame_artifact": "proofs/revision_02/frames/rank_1_frame_rgba.png",
+      "frame_sha256": "37f030a51b20937158de6e0062eabf5de0b9458630b256357b893ffade2f7e40",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 885
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "b0f9b716c869447480e0b5f1a9d473f478ea2c270e3e2f290d096d8302a9a7f2",
+      "star_count": 1,
+      "style": {
+        "border_highlight": [
+          173,
+          185,
+          197
+        ],
+        "border_mid": [
+          76,
+          86,
+          99
+        ],
+        "border_shadow": [
+          18,
+          22,
+          29
+        ],
+        "frame_glow_alpha": 18,
+        "glow": [
+          132,
+          157,
+          181
+        ],
+        "star_fill": [
+          151,
+          166,
+          181
+        ],
+        "star_glow_alpha": 34,
+        "star_highlight": [
+          231,
+          239,
+          244
+        ],
+        "star_outline": [
+          31,
+          38,
+          47
+        ],
+        "stars": 1,
+        "tint_strength": 0.58
+      },
+      "subject": "renna"
+    },
+    {
+      "artifact": "proofs/revision_02/ranks/renna_rank_2.png",
+      "display_name": "Renna Holt",
+      "frame_artifact": "proofs/revision_02/frames/rank_2_frame_rgba.png",
+      "frame_sha256": "351ad47c8a6ab493947607384cde1c45c44e1c0f4c93fd9ff08e2d3eb337e4e9",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 4296
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "59ce58911342cde46b608ef64d966580bfecc884ed54b7ca6ebb2917fc09067f",
+      "star_count": 2,
+      "style": {
+        "border_highlight": [
+          170,
+          229,
+          232
+        ],
+        "border_mid": [
+          50,
+          108,
+          120
+        ],
+        "border_shadow": [
+          10,
+          30,
+          36
+        ],
+        "frame_glow_alpha": 28,
+        "glow": [
+          72,
+          190,
+          205
+        ],
+        "star_fill": [
+          82,
+          185,
+          199
+        ],
+        "star_glow_alpha": 48,
+        "star_highlight": [
+          224,
+          255,
+          255
+        ],
+        "star_outline": [
+          20,
+          55,
+          61
+        ],
+        "stars": 2,
+        "tint_strength": 0.63
+      },
+      "subject": "renna"
+    },
+    {
+      "artifact": "proofs/revision_02/ranks/renna_rank_3.png",
+      "display_name": "Renna Holt",
+      "frame_artifact": "proofs/revision_02/frames/rank_3_frame_rgba.png",
+      "frame_sha256": "a42726086f55ae7ca89bcf755d08de9a0bb4a02fd5fc3818e75f2856fdfb3466",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 8258
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "45afcd9a94dcabbd4120b7c89cb98f3be07b7ded5529d2c46325e99e7f8750cc",
+      "star_count": 3,
+      "style": {
+        "border_highlight": [
+          166,
+          220,
+          255
+        ],
+        "border_mid": [
+          42,
+          103,
+          168
+        ],
+        "border_shadow": [
+          8,
+          29,
+          53
+        ],
+        "frame_glow_alpha": 38,
+        "glow": [
+          55,
+          145,
+          235
+        ],
+        "star_fill": [
+          65,
+          157,
+          231
+        ],
+        "star_glow_alpha": 62,
+        "star_highlight": [
+          217,
+          244,
+          255
+        ],
+        "star_outline": [
+          17,
+          45,
+          83
+        ],
+        "stars": 3,
+        "tint_strength": 0.68
+      },
+      "subject": "renna"
+    },
+    {
+      "artifact": "proofs/revision_02/ranks/renna_rank_4.png",
+      "display_name": "Renna Holt",
+      "frame_artifact": "proofs/revision_02/frames/rank_4_frame_rgba.png",
+      "frame_sha256": "7df088fbc0b0cff745598912043bcbee0dd45c0fc181986eb72ab440d26e03f7",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 12916
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "8482f55be0a317423078f0fc1b1443bb289597bf00a2034a21923693713f4786",
+      "star_count": 4,
+      "style": {
+        "border_highlight": [
+          220,
+          193,
+          255
+        ],
+        "border_mid": [
+          105,
+          72,
+          159
+        ],
+        "border_shadow": [
+          31,
+          18,
+          57
+        ],
+        "frame_glow_alpha": 48,
+        "glow": [
+          146,
+          91,
+          226
+        ],
+        "star_fill": [
+          157,
+          108,
+          224
+        ],
+        "star_glow_alpha": 78,
+        "star_highlight": [
+          239,
+          223,
+          255
+        ],
+        "star_outline": [
+          55,
+          29,
+          82
+        ],
+        "stars": 4,
+        "tint_strength": 0.72
+      },
+      "subject": "renna"
+    },
+    {
+      "artifact": "proofs/revision_02/ranks/renna_rank_5.png",
+      "display_name": "Renna Holt",
+      "frame_artifact": "proofs/revision_02/frames/rank_5_frame_rgba.png",
+      "frame_sha256": "d3946f33b4196d3c11ece2477d4b98b23461062c2c71b449c0f6c70cd99a631c",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 17624
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "72efdc73224e8c5592bd880377a75fcddaa8b47cfe7411d0d1f9ce7efb23d8e0",
+      "star_count": 5,
+      "style": {
+        "border_highlight": [
+          255,
+          192,
+          157
+        ],
+        "border_mid": [
+          163,
+          65,
+          68
+        ],
+        "border_shadow": [
+          61,
+          23,
+          29
+        ],
+        "frame_glow_alpha": 58,
+        "glow": [
+          228,
+          88,
+          70
+        ],
+        "star_fill": [
+          229,
+          108,
+          77
+        ],
+        "star_glow_alpha": 94,
+        "star_highlight": [
+          255,
+          226,
+          194
+        ],
+        "star_outline": [
+          82,
+          32,
+          26
+        ],
+        "stars": 5,
+        "tint_strength": 0.76
+      },
+      "subject": "renna"
+    },
+    {
+      "artifact": "proofs/revision_02/ranks/renna_rank_6.png",
+      "display_name": "Renna Holt",
+      "frame_artifact": "proofs/revision_02/frames/rank_6_frame_rgba.png",
+      "frame_sha256": "f568d07e9408b0bc29ac54f8410905d1a3b68bea1dbd5ad70a73671bf1e4ae52",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 22202
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "d975cbe40395b1ae8c5d565dbd635952f2547f52d9caf3529353aa287d4f1182",
+      "star_count": 6,
+      "style": {
+        "border_highlight": [
+          255,
+          228,
+          138
+        ],
+        "border_mid": [
+          188,
+          129,
+          36
+        ],
+        "border_shadow": [
+          66,
+          45,
+          11
+        ],
+        "frame_glow_alpha": 68,
+        "glow": [
+          244,
+          174,
+          45
+        ],
+        "star_fill": [
+          241,
+          180,
+          60
+        ],
+        "star_glow_alpha": 112,
+        "star_highlight": [
+          255,
+          244,
+          184
+        ],
+        "star_outline": [
+          79,
+          51,
+          10
+        ],
+        "stars": 6,
+        "tint_strength": 0.82
+      },
+      "subject": "renna"
+    },
+    {
+      "artifact": "proofs/revision_02/ranks/renna_rank_7.png",
+      "display_name": "Renna Holt",
+      "frame_artifact": "proofs/revision_02/frames/rank_7_frame_rgba.png",
+      "frame_sha256": "3f59f5b79512aaaebd88e23294dc484b5d09fed1fd81124e0d53fdf448c92406",
+      "layer_order": [
+        "card_plate",
+        "rank_glow",
+        "rank_frame_border",
+        "generated_bust",
+        "nameplate_foreground",
+        "vector_stars",
+        "name_and_emblem"
+      ],
+      "layer_overlap_pixels": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 27956
+      },
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated_bust_plus_matte",
+      "sha256": "823a7c71f5bb4d0b4a6e6ca95a7f780fdb17230d0531113824d5877fcf5dc612",
+      "star_count": 7,
+      "style": {
+        "border_highlight": [
+          255,
+          255,
+          239
+        ],
+        "border_mid": [
+          229,
+          192,
+          79
+        ],
+        "border_shadow": [
+          68,
+          57,
+          17
+        ],
+        "frame_glow_alpha": 80,
+        "glow": [
+          255,
+          225,
+          114
+        ],
+        "star_fill": [
+          255,
+          226,
+          112
+        ],
+        "star_glow_alpha": 138,
+        "star_highlight": [
+          255,
+          255,
+          246
+        ],
+        "star_outline": [
+          84,
+          62,
+          8
+        ],
+        "stars": 7,
+        "tint_strength": 0.88
+      },
+      "subject": "renna"
+    }
+  ],
+  "review": [
+    "review_revision_02/01_rank_treatments_1_to_7.png",
+    "review_revision_02/02_layer_order_before_after.png",
+    "review_revision_02/03_revised_hero_board_1024x576.png",
+    "review_revision_02/04_revision_02_contact_sheet.png"
+  ],
+  "review_decision": {
+    "artifact": "provenance/review_decision_20260828.json",
+    "sha256": "c67678ad6aa22d9bcafdd90cdb023726f6253dc322de908d299caed2b4dfb337"
+  },
+  "review_html": "review_revision_02/index.html",
+  "review_start": "review_revision_02/00_START_HERE.txt",
+  "revision": "02",
+  "schema_version": 2,
+  "status": "review_ready"
+}

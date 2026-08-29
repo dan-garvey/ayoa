@@ -1,0 +1,604 @@
+{
+  "checks": [
+    {
+      "detail": {
+        "artifact": "provenance/review_decision_20260828.json",
+        "sha256": "c67678ad6aa22d9bcafdd90cdb023726f6253dc322de908d299caed2b4dfb337"
+      },
+      "name": "review decision binding",
+      "passed": true
+    },
+    {
+      "detail": {
+        "layer_order": [
+          "card_plate",
+          "rank_glow",
+          "rank_frame_border",
+          "generated_bust",
+          "nameplate_foreground",
+          "vector_stars",
+          "name_and_emblem"
+        ],
+        "revision": "02",
+        "schema_version": 2,
+        "status": "review_ready"
+      },
+      "name": "revision contract",
+      "passed": true
+    },
+    {
+      "detail": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "name": "all star levels represented",
+      "passed": true
+    },
+    {
+      "detail": {
+        "card": "proofs/revision_02/ranks/renna_rank_1.png",
+        "card_mode": "RGBA",
+        "card_size": [
+          640,
+          1024
+        ],
+        "frame": "proofs/revision_02/frames/rank_1_frame_rgba.png",
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "frame_mode": "RGBA",
+        "frame_size": [
+          640,
+          1024
+        ],
+        "stars": 1,
+        "visible_components": 1
+      },
+      "name": "rank 1 deterministic card and frame",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 885
+      },
+      "name": "rank 1 front/back overlap evidence",
+      "passed": true
+    },
+    {
+      "detail": {
+        "card": "proofs/revision_02/ranks/renna_rank_2.png",
+        "card_mode": "RGBA",
+        "card_size": [
+          640,
+          1024
+        ],
+        "frame": "proofs/revision_02/frames/rank_2_frame_rgba.png",
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "frame_mode": "RGBA",
+        "frame_size": [
+          640,
+          1024
+        ],
+        "stars": 2,
+        "visible_components": 2
+      },
+      "name": "rank 2 deterministic card and frame",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 4296
+      },
+      "name": "rank 2 front/back overlap evidence",
+      "passed": true
+    },
+    {
+      "detail": {
+        "card": "proofs/revision_02/ranks/renna_rank_3.png",
+        "card_mode": "RGBA",
+        "card_size": [
+          640,
+          1024
+        ],
+        "frame": "proofs/revision_02/frames/rank_3_frame_rgba.png",
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "frame_mode": "RGBA",
+        "frame_size": [
+          640,
+          1024
+        ],
+        "stars": 3,
+        "visible_components": 3
+      },
+      "name": "rank 3 deterministic card and frame",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 8258
+      },
+      "name": "rank 3 front/back overlap evidence",
+      "passed": true
+    },
+    {
+      "detail": {
+        "card": "proofs/revision_02/ranks/renna_rank_4.png",
+        "card_mode": "RGBA",
+        "card_size": [
+          640,
+          1024
+        ],
+        "frame": "proofs/revision_02/frames/rank_4_frame_rgba.png",
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "frame_mode": "RGBA",
+        "frame_size": [
+          640,
+          1024
+        ],
+        "stars": 4,
+        "visible_components": 4
+      },
+      "name": "rank 4 deterministic card and frame",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 12916
+      },
+      "name": "rank 4 front/back overlap evidence",
+      "passed": true
+    },
+    {
+      "detail": {
+        "card": "proofs/revision_02/ranks/renna_rank_5.png",
+        "card_mode": "RGBA",
+        "card_size": [
+          640,
+          1024
+        ],
+        "frame": "proofs/revision_02/frames/rank_5_frame_rgba.png",
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "frame_mode": "RGBA",
+        "frame_size": [
+          640,
+          1024
+        ],
+        "stars": 5,
+        "visible_components": 5
+      },
+      "name": "rank 5 deterministic card and frame",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 17624
+      },
+      "name": "rank 5 front/back overlap evidence",
+      "passed": true
+    },
+    {
+      "detail": {
+        "card": "proofs/revision_02/ranks/renna_rank_6.png",
+        "card_mode": "RGBA",
+        "card_size": [
+          640,
+          1024
+        ],
+        "frame": "proofs/revision_02/frames/rank_6_frame_rgba.png",
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "frame_mode": "RGBA",
+        "frame_size": [
+          640,
+          1024
+        ],
+        "stars": 6,
+        "visible_components": 6
+      },
+      "name": "rank 6 deterministic card and frame",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 22202
+      },
+      "name": "rank 6 front/back overlap evidence",
+      "passed": true
+    },
+    {
+      "detail": {
+        "card": "proofs/revision_02/ranks/renna_rank_7.png",
+        "card_mode": "RGBA",
+        "card_size": [
+          640,
+          1024
+        ],
+        "frame": "proofs/revision_02/frames/rank_7_frame_rgba.png",
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "frame_mode": "RGBA",
+        "frame_size": [
+          640,
+          1024
+        ],
+        "stars": 7,
+        "visible_components": 7
+      },
+      "name": "rank 7 deterministic card and frame",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bust_over_border": 4554,
+        "nameplate_over_bust": 469,
+        "stars_over_bust": 27956
+      },
+      "name": "rank 7 front/back overlap evidence",
+      "passed": true
+    },
+    {
+      "detail": {
+        "border_mids": [
+          [
+            76,
+            86,
+            99
+          ],
+          [
+            50,
+            108,
+            120
+          ],
+          [
+            42,
+            103,
+            168
+          ],
+          [
+            105,
+            72,
+            159
+          ],
+          [
+            163,
+            65,
+            68
+          ],
+          [
+            188,
+            129,
+            36
+          ],
+          [
+            229,
+            192,
+            79
+          ]
+        ],
+        "star_fills": [
+          [
+            151,
+            166,
+            181
+          ],
+          [
+            82,
+            185,
+            199
+          ],
+          [
+            65,
+            157,
+            231
+          ],
+          [
+            157,
+            108,
+            224
+          ],
+          [
+            229,
+            108,
+            77
+          ],
+          [
+            241,
+            180,
+            60
+          ],
+          [
+            255,
+            226,
+            112
+          ]
+        ],
+        "unique_frame_hashes": 7
+      },
+      "name": "rank palettes are distinct",
+      "passed": true
+    },
+    {
+      "detail": {
+        "frame_glow_alpha": [
+          18,
+          28,
+          38,
+          48,
+          58,
+          68,
+          80
+        ],
+        "star_glow_alpha": [
+          34,
+          48,
+          62,
+          78,
+          94,
+          112,
+          138
+        ],
+        "tint_strength": [
+          0.58,
+          0.63,
+          0.68,
+          0.72,
+          0.76,
+          0.82,
+          0.88
+        ]
+      },
+      "name": "rank intensity grows monotonically",
+      "passed": true
+    },
+    {
+      "detail": {
+        "excluded": [
+          "warden_of_the_eighth"
+        ],
+        "subjects": [
+          "renna",
+          "halcyon",
+          "veiled_feminine",
+          "veiled_masculine"
+        ],
+        "unexpected_warden_files": []
+      },
+      "name": "selected Hero bust subjects only",
+      "passed": true
+    },
+    {
+      "detail": {
+        "artifact": "proofs/revision_02/heroes/renna_revised.png",
+        "sha256": "b0f9b716c869447480e0b5f1a9d473f478ea2c270e3e2f290d096d8302a9a7f2"
+      },
+      "name": "Hero proof renna",
+      "passed": true
+    },
+    {
+      "detail": {
+        "artifact": "proofs/revision_02/heroes/halcyon_revised.png",
+        "sha256": "75b1856fec505a6c082b2c2f9ca507ea7a099634b79cebc3b4a7c404756718dc"
+      },
+      "name": "Hero proof halcyon",
+      "passed": true
+    },
+    {
+      "detail": {
+        "artifact": "proofs/revision_02/heroes/veiled_feminine_revised.png",
+        "sha256": "6105d24fcf03db1c980988150b6dcae35ea26ce627bdf1ba47c23711d2096af2"
+      },
+      "name": "Hero proof veiled_feminine",
+      "passed": true
+    },
+    {
+      "detail": {
+        "artifact": "proofs/revision_02/heroes/veiled_masculine_revised.png",
+        "sha256": "3ef003f52d264fe3608bbd48ca2372ee9f87f3082b8eefa7a5ab4bcff2fdd310"
+      },
+      "name": "Hero proof veiled_masculine",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          1024,
+          576
+        ],
+        "mode": "RGB",
+        "sha256": "254bbafe1393c3e99c5ba37b215f06480c334dccb26c1e0c645d70914b8e2fed",
+        "subjects": [
+          "renna",
+          "halcyon",
+          "veiled_feminine",
+          "veiled_masculine"
+        ]
+      },
+      "name": "revised 1024x576 Hero board",
+      "passed": true
+    },
+    {
+      "detail": {
+        "forbidden_hits": [],
+        "png_count": 23,
+        "pngs_with_metadata": {}
+      },
+      "name": "no private/source identifiers in revision artifacts",
+      "passed": true
+    },
+    {
+      "detail": {
+        "changed": {},
+        "checked_artifacts": 27,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "/home/dan/ayoa/experiments/staged_image/artifacts/one_star_hero_cards_20260828/revision_02_manifest.json\n/home/dan/ayoa/experiments/staged_image/artifacts/one_star_hero_cards_20260828/review_revision_02/index.html\n/home/dan/ayoa/experiments/staged_image/artifacts/one_star_hero_cards_20260828/proofs/revision_02/boards/revised_heroes_1024x576.png"
+      },
+      "name": "deterministic revision compositor rerun",
+      "passed": true
+    },
+    {
+      "detail": {
+        "files": [
+          "00_START_HERE.txt",
+          "01_rank_treatments_1_to_7.png",
+          "02_layer_order_before_after.png",
+          "03_revised_hero_board_1024x576.png",
+          "04_revision_02_contact_sheet.png",
+          "index.html"
+        ],
+        "mismatches": [],
+        "missing": [],
+        "path": "/mnt/c/Users/danim/Pictures/Ayoa/OneStarHeroCardReview_20260828_Revision02",
+        "unexpected": []
+      },
+      "name": "Windows revision slideshow copy",
+      "passed": true
+    }
+  ],
+  "deterministic_hashes": {
+    "proofs/revision_02/boards/revised_heroes_1024x576.png": "254bbafe1393c3e99c5ba37b215f06480c334dccb26c1e0c645d70914b8e2fed",
+    "proofs/revision_02/frames/rank_1_frame_rgba.png": "37f030a51b20937158de6e0062eabf5de0b9458630b256357b893ffade2f7e40",
+    "proofs/revision_02/frames/rank_2_frame_rgba.png": "351ad47c8a6ab493947607384cde1c45c44e1c0f4c93fd9ff08e2d3eb337e4e9",
+    "proofs/revision_02/frames/rank_3_frame_rgba.png": "a42726086f55ae7ca89bcf755d08de9a0bb4a02fd5fc3818e75f2856fdfb3466",
+    "proofs/revision_02/frames/rank_4_frame_rgba.png": "7df088fbc0b0cff745598912043bcbee0dd45c0fc181986eb72ab440d26e03f7",
+    "proofs/revision_02/frames/rank_5_frame_rgba.png": "d3946f33b4196d3c11ece2477d4b98b23461062c2c71b449c0f6c70cd99a631c",
+    "proofs/revision_02/frames/rank_6_frame_rgba.png": "f568d07e9408b0bc29ac54f8410905d1a3b68bea1dbd5ad70a73671bf1e4ae52",
+    "proofs/revision_02/frames/rank_7_frame_rgba.png": "3f59f5b79512aaaebd88e23294dc484b5d09fed1fd81124e0d53fdf448c92406",
+    "proofs/revision_02/heroes/halcyon_revised.png": "75b1856fec505a6c082b2c2f9ca507ea7a099634b79cebc3b4a7c404756718dc",
+    "proofs/revision_02/heroes/renna_revised.png": "b0f9b716c869447480e0b5f1a9d473f478ea2c270e3e2f290d096d8302a9a7f2",
+    "proofs/revision_02/heroes/veiled_feminine_revised.png": "6105d24fcf03db1c980988150b6dcae35ea26ce627bdf1ba47c23711d2096af2",
+    "proofs/revision_02/heroes/veiled_masculine_revised.png": "3ef003f52d264fe3608bbd48ca2372ee9f87f3082b8eefa7a5ab4bcff2fdd310",
+    "proofs/revision_02/ranks/renna_rank_1.png": "b0f9b716c869447480e0b5f1a9d473f478ea2c270e3e2f290d096d8302a9a7f2",
+    "proofs/revision_02/ranks/renna_rank_2.png": "59ce58911342cde46b608ef64d966580bfecc884ed54b7ca6ebb2917fc09067f",
+    "proofs/revision_02/ranks/renna_rank_3.png": "45afcd9a94dcabbd4120b7c89cb98f3be07b7ded5529d2c46325e99e7f8750cc",
+    "proofs/revision_02/ranks/renna_rank_4.png": "8482f55be0a317423078f0fc1b1443bb289597bf00a2034a21923693713f4786",
+    "proofs/revision_02/ranks/renna_rank_5.png": "72efdc73224e8c5592bd880377a75fcddaa8b47cfe7411d0d1f9ce7efb23d8e0",
+    "proofs/revision_02/ranks/renna_rank_6.png": "d975cbe40395b1ae8c5d565dbd635952f2547f52d9caf3529353aa287d4f1182",
+    "proofs/revision_02/ranks/renna_rank_7.png": "823a7c71f5bb4d0b4a6e6ca95a7f780fdb17230d0531113824d5877fcf5dc612",
+    "provenance/review_decision_20260828.json": "c67678ad6aa22d9bcafdd90cdb023726f6253dc322de908d299caed2b4dfb337",
+    "review_revision_02/00_START_HERE.txt": "6c68b467814ea22bdab9dd3f9a9c69980e5fbdcc7b09d0ca49113f84b20cfcbe",
+    "review_revision_02/01_rank_treatments_1_to_7.png": "fad2631abf04bf14c08437d99eff63e649f84726a260ffe488b0aac328f314d3",
+    "review_revision_02/02_layer_order_before_after.png": "05f7e0a56cc713120f0623d4bfe2f1b15bd4f2af35ce6bc7342881a51950a2b7",
+    "review_revision_02/03_revised_hero_board_1024x576.png": "254bbafe1393c3e99c5ba37b215f06480c334dccb26c1e0c645d70914b8e2fed",
+    "review_revision_02/04_revision_02_contact_sheet.png": "a7327a98ea0790b533ccf7a801ba6f8f23a3453f946b67d78baf7771a4ec0949",
+    "review_revision_02/index.html": "72d8d9749cbbed07bf81f755d25fe76f6c312a9cadf6af84978db7193c438bdc",
+    "revision_02_manifest.json": "d2e57e2a30432711b8c5be8567013b4ff8816715b82234efb1d917dd1f038f45"
+  },
+  "failures": [],
+  "manual_visual_checks": [
+    {
+      "check": "all seven border and star treatments are visibly distinct",
+      "evidence": "01_rank_treatments_1_to_7 inspected at original detail",
+      "status": "passed"
+    },
+    {
+      "check": "busts cross the inner arch and side ornament",
+      "evidence": "Renna hair and Halcyon hair/cape compared before and after",
+      "status": "passed"
+    },
+    {
+      "check": "nameplate and vector stars remain in front of every bust",
+      "evidence": "individual RGBA cards and exact board inspected",
+      "status": "passed"
+    },
+    {
+      "check": "enemy stress-test subject is absent from revised card pixels",
+      "evidence": "revision board and all rank cards inspected",
+      "status": "passed"
+    }
+  ],
+  "schema_version": 1,
+  "star_pixel_counts": [
+    {
+      "card": "proofs/revision_02/ranks/renna_rank_1.png",
+      "frame": "proofs/revision_02/frames/rank_1_frame_rgba.png",
+      "stars": 1,
+      "visible_components": 1
+    },
+    {
+      "card": "proofs/revision_02/ranks/renna_rank_2.png",
+      "frame": "proofs/revision_02/frames/rank_2_frame_rgba.png",
+      "stars": 2,
+      "visible_components": 2
+    },
+    {
+      "card": "proofs/revision_02/ranks/renna_rank_3.png",
+      "frame": "proofs/revision_02/frames/rank_3_frame_rgba.png",
+      "stars": 3,
+      "visible_components": 3
+    },
+    {
+      "card": "proofs/revision_02/ranks/renna_rank_4.png",
+      "frame": "proofs/revision_02/frames/rank_4_frame_rgba.png",
+      "stars": 4,
+      "visible_components": 4
+    },
+    {
+      "card": "proofs/revision_02/ranks/renna_rank_5.png",
+      "frame": "proofs/revision_02/frames/rank_5_frame_rgba.png",
+      "stars": 5,
+      "visible_components": 5
+    },
+    {
+      "card": "proofs/revision_02/ranks/renna_rank_6.png",
+      "frame": "proofs/revision_02/frames/rank_6_frame_rgba.png",
+      "stars": 6,
+      "visible_components": 6
+    },
+    {
+      "card": "proofs/revision_02/ranks/renna_rank_7.png",
+      "frame": "proofs/revision_02/frames/rank_7_frame_rgba.png",
+      "stars": 7,
+      "visible_components": 7
+    }
+  ],
+  "status": "passed",
+  "windows_review": {
+    "files": [
+      "00_START_HERE.txt",
+      "01_rank_treatments_1_to_7.png",
+      "02_layer_order_before_after.png",
+      "03_revised_hero_board_1024x576.png",
+      "04_revision_02_contact_sheet.png",
+      "index.html"
+    ],
+    "mismatches": [],
+    "missing": [],
+    "path": "/mnt/c/Users/danim/Pictures/Ayoa/OneStarHeroCardReview_20260828_Revision02",
+    "unexpected": []
+  }
+}
