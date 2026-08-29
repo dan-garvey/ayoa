@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from app.engine.action_rejection import PlayerActionRejected
 from app.engine.one_star_adapter import (
@@ -11,19 +11,21 @@ from app.engine.one_star_adapter import (
     apply_one_star_prepared_mutation,
     load_one_star_account,
     one_star_birth_stars_for_ticket,
-    one_star_standard_summon_lifecycle,
+    one_star_opening_roster_preview,
     one_star_state_updates_to_transaction,
+    one_star_summon_lifecycle,
     one_star_summon_draw_preview,
     preflight_one_star_account_updates,
     prepare_one_star_transaction,
 )
-from app.schemas.characters import CharacterRecord, CharacterStatus
+from app.schemas.characters import CharacterRecord, CharacterStatus, PlayerSlotKind
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_HERO_KEY,
     OneStarCost,
     OneStarSummonPool,
+    OneStarStandardSummonPool,
     OneStarStateUpdate,
     OneStarTransaction,
 )
@@ -34,8 +36,8 @@ def _pool(
     minimum: int,
     maximum: int,
     weights: dict[int, int],
-) -> OneStarSummonPool:
-    return OneStarSummonPool(
+) -> OneStarStandardSummonPool:
+    return OneStarStandardSummonPool(
         cost=OneStarCost(
             gold=0,
             gems=0,
@@ -252,7 +254,7 @@ def _summon_transaction(
     ],
 )
 def test_weighted_ticket_boundaries_are_exact(
-    pool: OneStarSummonPool,
+    pool: OneStarStandardSummonPool,
     ticket: int,
     expected_stars: int,
 ) -> None:
@@ -301,7 +303,7 @@ def test_compact_standard_summon_update_derives_hidden_draw_and_lifecycle() -> N
         canonical_at_s=0,
     )
     operation = transaction.operations[0]
-    spawns, wakes = one_star_standard_summon_lifecycle(checkpoint, [update])
+    spawns, wakes = one_star_summon_lifecycle(checkpoint, [update])
 
     assert operation.birth_stars == [draw.birth_stars for draw in preview]
     assert set(operation.hero_ids[:2]) == {"reserve_a", "reserve_b"}
@@ -314,6 +316,185 @@ def test_compact_standard_summon_update_derives_hidden_draw_and_lifecycle() -> N
         "value": "3",
         "details": [],
     }
+
+
+def test_legacy_opening_wave_pool_shape_is_retired() -> None:
+    with pytest.raises(ValidationError, match="opening_wave"):
+        TypeAdapter(OneStarSummonPool).validate_python({
+            "usage": "opening_wave",
+            "cost": {
+                "gold": 0,
+                "gems": 0,
+                "building_resources": 0,
+                "materials": {},
+            },
+            "minimum_birth_stars": 1,
+            "maximum_birth_stars": 1,
+            "star_weights": {1: 10_000},
+            "eligible_existing_ids": [],
+            "fresh_generation_allowed": True,
+        })
+
+
+def test_opening_roster_preview_is_stable_ordered_and_uses_all_authored_heroes() -> None:
+    checkpoint = _checkpoint()
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["opening"] = {
+        "usage": "opening_roster",
+        "slots": [
+            {"kind": "fixed", "character_id": "edren"},
+            {"kind": "fixed", "character_id": "renna"},
+            {"kind": "random_existing_grade", "birth_stars": 3},
+        ],
+    }
+    edren = _hero("edren")
+    renna = _hero("renna")
+    wren = _hero("wren", birth_stars=3)
+    mirelle = _hero("mirelle", birth_stars=3)
+    player_authored = _hero("blank_player", birth_stars=3)
+    player_authored.player_slot_kind = PlayerSlotKind.player_authored
+    active = _hero("active_three", birth_stars=3, status=CharacterStatus.active)
+    owned = _hero("owned_three", birth_stars=3, owner="another_lobby")
+    terminal = _hero("terminal_three", birth_stars=3)
+    terminal.mechanics[ONE_STAR_HERO_KEY]["terminal_event_id"] = "death"
+    checkpoint.characters.extend([
+        edren,
+        renna,
+        wren,
+        mirelle,
+        player_authored,
+        active,
+        owned,
+        terminal,
+    ])
+
+    preview = one_star_opening_roster_preview(checkpoint, "opening")
+    replay = CheckpointFile.model_validate_json(checkpoint.model_dump_json())
+
+    assert one_star_opening_roster_preview(replay, "opening") == preview
+    assert [draw.existing_character_id for draw in preview[:2]] == [
+        "edren",
+        "renna",
+    ]
+    assert preview[2].existing_character_id in {"wren", "mirelle"}
+    assert [draw.birth_stars for draw in preview] == [1, 1, 3]
+
+
+def test_opening_roster_future_authored_grade_is_eligible_without_allowlist() -> None:
+    checkpoint = _checkpoint()
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["opening"] = {
+        "usage": "opening_roster",
+        "slots": [{"kind": "random_existing_grade", "birth_stars": 3}],
+    }
+    checkpoint.characters.append(_hero("future_authored_three", birth_stars=3))
+
+    assert one_star_opening_roster_preview(
+        checkpoint,
+        "opening",
+    )[0].existing_character_id == "future_authored_three"
+
+
+def test_opening_roster_missing_grade_fails_loudly_without_mutation() -> None:
+    checkpoint = _checkpoint()
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["opening"] = {
+        "usage": "opening_roster",
+        "slots": [{"kind": "random_existing_grade", "birth_stars": 3}],
+    }
+    before = checkpoint.model_dump_json()
+
+    with pytest.raises(OneStarTransactionError, match="no eligible.*birth-3"):
+        one_star_opening_roster_preview(checkpoint, "opening")
+
+    assert checkpoint.model_dump_json() == before
+
+
+def test_opening_roster_compact_update_owns_transaction_and_wake_identities() -> None:
+    checkpoint = _checkpoint()
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["opening"] = {
+        "usage": "opening_roster",
+        "slots": [
+            {"kind": "fixed", "character_id": "edren"},
+            {"kind": "random_existing_grade", "birth_stars": 3},
+        ],
+    }
+    checkpoint.characters.extend([
+        _hero("edren"),
+        _hero("authored_three", birth_stars=3),
+    ])
+    update = OneStarStateUpdate(
+        kind="summon",
+        target_id="opening",
+        value="2",
+        details=[],
+    )
+    preview = one_star_opening_roster_preview(checkpoint, "opening")
+
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        [update],
+        canonical_at_s=0,
+    )
+    spawns, wakes = one_star_summon_lifecycle(checkpoint, [update])
+    operation = transaction.operations[0]
+
+    assert operation.hero_ids == [draw.existing_character_id for draw in preview]
+    assert operation.birth_stars == [draw.birth_stars for draw in preview]
+    assert spawns == ()
+    assert [wake.character_id for wake in wakes] == operation.hero_ids
+    assert all(wake.location_label == "lobby" for wake in wakes)
+
+
+def test_opening_actor_compact_update_activates_its_exact_player_authored_slot() -> None:
+    checkpoint = _checkpoint()
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["opening_actor"] = {
+        "usage": "opening_actor",
+        "character_id": "newcomer",
+    }
+    newcomer = _hero("newcomer")
+    newcomer.player_slot_kind = PlayerSlotKind.player_authored
+    checkpoint.characters.append(newcomer)
+    update = OneStarStateUpdate(
+        kind="summon",
+        target_id="opening_actor",
+        value="1",
+        details=[],
+    )
+
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        [update],
+        canonical_at_s=0,
+    )
+    spawns, wakes = one_star_summon_lifecycle(checkpoint, [update])
+    operation = transaction.operations[0]
+
+    assert operation.hero_ids == ["newcomer"]
+    assert operation.birth_stars == [1]
+    assert spawns == ()
+    assert [(wake.character_id, wake.location_label) for wake in wakes] == [
+        ("newcomer", "lobby"),
+    ]
+
+
+def test_every_summon_rejects_router_authored_identity_details() -> None:
+    checkpoint = _checkpoint()
+    update = OneStarStateUpdate(
+        kind="summon",
+        target_id="basic",
+        value="1",
+        details=["hero_id=reserve_a"],
+    )
+
+    with pytest.raises(OneStarTransactionError, match="unsupported details"):
+        one_star_state_updates_to_transaction(
+            checkpoint,
+            [update],
+            canonical_at_s=0,
+        )
 
 
 def test_unaffordable_summon_is_rejected_without_mutating_draw_state() -> None:
@@ -463,7 +644,7 @@ def test_exact_prefix_commits_once_and_failed_substitution_cannot_reroll() -> No
     exact_stars = [draw.birth_stars for draw in preview]
     activation_locations = {hero_id: "lobby" for hero_id in exact_ids}
 
-    with pytest.raises(OneStarTransactionError, match="exact reserve"):
+    with pytest.raises(OneStarTransactionError, match="exact adapter preview"):
         prepare_one_star_transaction(
             checkpoint,
             event_id="substitute",
@@ -542,7 +723,19 @@ def test_exhausted_reserve_grade_falls_back_to_fresh_generated_hero() -> None:
     next_draw = one_star_summon_draw_preview(checkpoint, "basic", count=1)[0]
     assert next_draw.existing_character_id == ""
 
-    fresh_id = "fresh_roll"
+    update = OneStarStateUpdate(
+        kind="summon",
+        target_id="basic",
+        value="1",
+        details=[],
+    )
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        [update],
+        canonical_at_s=0,
+    )
+    fresh_id = transaction.operations[0].hero_ids[0]
+    assert fresh_id == "lobby_a_basic_0003"
     checkpoint.characters.append(_hero(
         fresh_id,
         status=CharacterStatus.active,
@@ -550,11 +743,7 @@ def test_exhausted_reserve_grade_falls_back_to_fresh_generated_hero() -> None:
     fresh = prepare_one_star_transaction(
         checkpoint,
         event_id="fresh_pull",
-        transaction=_summon_transaction(
-            pool_id="basic",
-            hero_ids=[fresh_id],
-            birth_stars=[next_draw.birth_stars],
-        ),
+        transaction=transaction,
         spawned_character_ids=[fresh_id],
         initiating_actor_id="account_owner",
     )
@@ -572,7 +761,7 @@ def test_wrong_weighted_birth_grade_is_rejected_without_consumption() -> None:
         birth_stars=draw.birth_stars + 1 if draw.birth_stars < 5 else 4,
         status=CharacterStatus.active,
     ))
-    with pytest.raises(OneStarTransactionError, match="exact next weighted"):
+    with pytest.raises(OneStarTransactionError, match="exact adapter preview"):
         prepare_one_star_transaction(
             checkpoint,
             event_id="wrong_grade",

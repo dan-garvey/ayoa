@@ -16,6 +16,11 @@ import pytest
 from pydantic import ValidationError
 
 from app.engine.character_manager import _assemble_knowledge_grant
+from app.engine.context_builder import (
+    build_character_packet,
+    build_character_state,
+    build_world_context,
+)
 from app.engine.one_star_progression import (
     birth_hp_mean,
     birth_stat_total_mean,
@@ -50,6 +55,7 @@ CHECKPOINT_PATH = (
 EXPECTED_CHARACTER_IDS = {
     "one_star_newcomer",
     "renna_holt",
+    "edren_marr",
     "iselle_the_guide",
     "the_master",
     "halcyon_of_the_gilded_march",
@@ -75,6 +81,7 @@ EXPECTED_INTENTION_MOVERS = {
 # Pre-authored characters held in reserve as a dormant, quarantined summon pool.
 SUMMON_POOL_IDS = {
     "renna_holt",
+    "edren_marr",
     "soren_ironvow",
     "castor_valebrand",
     "wren_thelantern",
@@ -268,21 +275,19 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert config.summon_pools["premium"].usage == "standard"
     opening_pool = config.summon_pools["newcomer_opening"]
     assert opening_pool.usage == "opening_actor"
-    assert opening_pool.cost.model_dump() == {
-        "gold": 0,
-        "gems": 0,
-        "building_resources": 0,
-        "materials": {},
-    }
-    assert opening_pool.minimum_birth_stars == 1
-    assert opening_pool.maximum_birth_stars == 1
-    assert opening_pool.star_weights == {1: 10_000}
-    assert opening_pool.eligible_existing_ids == [BLANK_PLAYER_ID]
-    assert opening_pool.fresh_generation_allowed is False
+    assert opening_pool.character_id == BLANK_PLAYER_ID
     assert config.summon_pools["basic"].cost.gold == 2
     assert config.summon_pools["premium"].cost.gems == 5
-    assert config.summon_pools["master_opening_wave"].usage == "opening_wave"
-    assert config.summon_pools["master_opening_wave"].star_weights == {1: 10_000}
+    master_opening = config.summon_pools["master_opening_roster"]
+    assert master_opening.model_dump(mode="json") == {
+        "usage": "opening_roster",
+        "slots": [
+            {"kind": "fixed", "character_id": "renna_holt"},
+            {"kind": "random_existing_grade", "birth_stars": 3},
+            {"kind": "fixed", "character_id": "edren_marr"},
+        ],
+        "initial_deployment_requires_guide_handoff": True,
+    }
     assert "basic_summon" not in config.catalogue
     assert "premium_summon" not in config.catalogue
     assert set(config.summon_pools["basic"].eligible_existing_ids) == {
@@ -521,6 +526,7 @@ BOUND_IDENTITY_REFERENCE_IDS = {
 
 UNBOUND_IDENTITY_IDS = {
     "one_star_newcomer",
+    "edren_marr",
     "the_master",
 }
 
@@ -829,9 +835,8 @@ def test_floor_zero_start_and_summon_pool() -> None:
         assert pooled.is_playable is False, pool_id
         assert pooled.private_state.intentions_enabled is False, pool_id
 
-    # Ordinary one-stars are generated for an actual summon instead of living as
-    # fixed active starters. Renna is the only authored one-star exception:
-    # dormant, optional, publicly ordinary, and privately high-potential.
+    # Ordinary one-stars are generated for paid summons. The free authored
+    # starter roster carries two fixed, dormant one-star exceptions.
     assert "bex_greenpull" not in by_id
     assert "dala_greenpull" not in by_id
     seeded_tier_ones = {
@@ -839,7 +844,7 @@ def test_floor_zero_start_and_summon_pool() -> None:
         for character in checkpoint.characters
         if character.knowledge_tier == 1
     }
-    assert seeded_tier_ones == {"renna_holt"}
+    assert seeded_tier_ones == {"renna_holt", "edren_marr"}
     renna = by_id["renna_holt"]
     assert renna.name == "Renna Holt"
     assert renna.status.value == "dormant"
@@ -849,6 +854,12 @@ def test_floor_zero_start_and_summon_pool() -> None:
     assert len(renna.personality.split()) < 55
     assert renna.descriptions.private
     assert len(renna.private_state.secrets) == 1
+    edren = by_id["edren_marr"]
+    assert edren.name == "Edren Marr"
+    assert edren.status.value == "dormant"
+    assert edren.location == "unsummoned_pool"
+    assert edren.is_playable is False
+    assert edren.private_state.intentions_enabled is False
 
     for character in checkpoint.characters:
         role = character.public_sheet.role.lower()
@@ -865,6 +876,91 @@ def test_floor_zero_start_and_summon_pool() -> None:
     for pool_id in SUMMON_POOL_IDS | {"warden_of_the_eighth"}:
         private = by_id[pool_id].descriptions.private.lower()
         assert not any(leak in private for leak in lifecycle_leaks), pool_id
+
+
+def test_edren_opening_refusal_is_a_condition_bounded_character_cue() -> None:
+    checkpoint = _load_checkpoint()
+    renna = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "renna_holt"
+    )
+    edren = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "edren_marr"
+    )
+
+    rendered_identity = build_character_packet(edren, checkpoint)
+    rendered_state = build_character_state(edren, checkpoint)
+    rendered_personality = rendered_identity["character_personality"].lower()
+    rendered_objectives = rendered_state["character_current_objectives"].lower()
+    rendered_world = build_world_context(edren, checkpoint).lower()
+
+    # Edren owns the refusal in his agent-visible characterization. The cue is
+    # bounded to the first pre-crossing selection and explicitly changes after
+    # physical force, so the router never has to invent his intention and the
+    # profile does not imply recurring resistance on later deployments.
+    for one_shot_boundary in (
+        "first moment",
+        "still physically free to refuse",
+        "exactly once",
+        "physically forced into danger",
+    ):
+        assert one_shot_boundary in rendered_personality
+
+    # Durable objectives and world knowledge must not keep restarting that
+    # opening exchange after his one response opportunity is spent.
+    for recurring_resistance_cue in (
+        "demand an intelligible reason",
+        "reason before accepting",
+        "refus",
+    ):
+        assert recurring_resistance_cue not in rendered_objectives
+    assert "no explanation has yet been given" not in rendered_world
+    assert (
+        "no explanation has yet been given"
+        not in build_world_context(renna, checkpoint).lower()
+    )
+
+
+def test_iselle_opening_discipline_cannot_stop_at_the_synthesis_remark() -> None:
+    checkpoint = _load_checkpoint()
+    iselle = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "iselle_the_guide"
+    )
+
+    matching_objectives = [
+        objective.lower()
+        for objective in iselle.private_state.current_objectives
+        if "starter roster's first deployment" in objective.lower()
+        and "edren" in objective.lower()
+    ]
+    assert len(matching_objectives) == 1
+    objective = matching_objectives[0]
+
+    # This one-shot condition permits the requested cruel suggestion, but the
+    # same agent turn must contain concrete enforcement instead of another
+    # threat-only or Master-facing handoff.
+    assert "at most one" in objective
+    assert "synthesis material" in objective
+    assert "same submitted turn" in objective
+    assert any(action in objective for action in ("seize", "drive", "carry"))
+    for forbidden_stall in ("ask a question", "ask the master again", "wait"):
+        assert forbidden_stall in objective
+
+    rendered_objectives = build_character_state(iselle, checkpoint)[
+        "character_current_objectives"
+    ].lower()
+    for semantic_boundary in (
+        "at most one",
+        "synthesis material",
+        "same submitted turn",
+        "already-open floor 1 gate",
+    ):
+        assert semantic_boundary in rendered_objectives
 
 
 def test_opening_seed_has_no_stale_slime_guidance() -> None:
@@ -936,6 +1032,7 @@ def test_hero_mechanics_follow_authored_tiers_without_public_hidden_potential() 
     expected_birth_stars = {
         "one_star_newcomer": 1,
         "renna_holt": 1,
+        "edren_marr": 1,
         "halcyon_of_the_gilded_march": 6,
         "soren_ironvow": 5,
         "castor_valebrand": 4,
@@ -952,6 +1049,7 @@ def test_hero_mechanics_follow_authored_tiers_without_public_hidden_potential() 
     expected_affinities = {
         "one_star_newcomer": ("agility", "power"),
         "renna_holt": ("agility", "power"),
+        "edren_marr": ("resilience", "agility"),
         "halcyon_of_the_gilded_march": ("power", "agility"),
         "soren_ironvow": ("resilience", "agility"),
         "castor_valebrand": ("agility", "resilience"),

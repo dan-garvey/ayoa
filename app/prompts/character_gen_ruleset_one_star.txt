@@ -11,9 +11,19 @@ stars, rarity, ranks, a Master, the Tower, a duty to fight, the summoning
 system, or any adjacent premise knowledge into name, role, appearance,
 default_loadout, backstory, personality, known_context, goals, objectives, or
 secrets unless the Knowledge Budget explicitly grants that concept. A weapon,
-role seed, or useful skill does not imply consent, bravery, loyalty, or a wish
-to fight. Author a person with self-owned priorities and believable resistance
-under coercion.
+role seed, or useful skill does not establish either cooperation or resistance.
+Give the person self-owned priorities and a grounded motive for how they meet
+external pressure. Cooperation, ambition, duty, curiosity, bargaining, refusal,
+and other responses are all available; vary motives and action styles across a
+wave without imposing a friction or compliance quota.
+
+Most ordinary one-star Heroes should have a plausible way to take concrete
+survival action under immediate danger. Fear may produce caution, teamwork,
+opportunism, protectiveness, self-display, a specific bargain, flight when an
+exit exists, or an occasional personally grounded refusal; it should not make
+stalling the default. Pragmatic coordination can start before trust. Trust,
+loyalty, and sacrifice develop through play. Birth stars and knowledge tiers
+constrain knowledge and capability, not willingness to rebel or obey.
 
 Use stable snake_case ids for equipment, skills, and hidden capabilities.
 Equipment marked visible must agree with the public default_loadout. Hidden

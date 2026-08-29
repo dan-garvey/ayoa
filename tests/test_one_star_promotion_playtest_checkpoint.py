@@ -437,6 +437,79 @@ def test_playtest_seed_is_a_valid_visual_novel_story_copy() -> None:
     )
 
 
+def test_playtest_seed_inherits_current_one_star_motivation_policy() -> None:
+    checkpoint = _load()
+    source = _load(SOURCE_STORY_DIR)
+
+    def rule_section(seed: CheckpointFile, heading: str) -> str:
+        return next(
+            paragraph
+            for paragraph in seed.session.config.narrative_rules.split("\n\n")
+            if paragraph.startswith(f"{heading}:")
+        )
+
+    source_tier_one = next(
+        tier for tier in source.world_state.knowledge_tiers if tier.tier == 1
+    )
+    playtest_tier_one = next(
+        tier for tier in checkpoint.world_state.knowledge_tiers if tier.tier == 1
+    )
+
+    # The focused later-state fixture may change economy and live character
+    # state, but it must not fork the story's durable autonomy/generation policy.
+    assert rule_section(checkpoint, "Autonomy") == rule_section(source, "Autonomy")
+    assert (
+        playtest_tier_one.generation_guidance
+        == source_tier_one.generation_guidance
+    )
+
+    source_renna = _character(source, "renna_holt")
+    playtest_renna = _character(checkpoint, "renna_holt")
+    source_hero = load_one_star_hero(source_renna)
+    playtest_hero = load_one_star_hero(playtest_renna)
+    assert source_hero is not None
+    assert playtest_hero is not None
+
+    # Promotion-specific objectives stay local to this fixture while Renna's
+    # stable motives, action style, and concealed capability remain canonical.
+    assert playtest_renna.private_state.goals == source_renna.private_state.goals
+    assert playtest_renna.personality == source_renna.personality
+    assert (
+        playtest_renna.private_state.current_objectives
+        != source_renna.private_state.current_objectives
+    )
+    assert playtest_hero.hidden_capabilities == source_hero.hidden_capabilities
+    assert set(playtest_hero.hidden_capabilities) == {"pattern_retention"}
+
+
+def test_one_star_seeds_have_no_forced_resistance_quota() -> None:
+    obsolete_resistance_cues = (
+        "fear may surface as refusal, freezing",
+        "turn every fear into dutiful compliance",
+        "at least one person's strategy should create material friction",
+        "eighty-year-old baker",
+        "helpful adventurer waiting for an assignment",
+        "if pressed toward danger without answers, she refuses",
+        "no explanation has yet been given",
+    )
+
+    for checkpoint in (_load(SOURCE_STORY_DIR), _load()):
+        tier_one = next(
+            tier for tier in checkpoint.world_state.knowledge_tiers if tier.tier == 1
+        )
+        renna = _character(checkpoint, "renna_holt")
+        model_visible_bias_surfaces = "\n".join((
+            checkpoint.session.config.narrative_rules,
+            tier_one.generation_guidance.personality_depth,
+            renna.personality,
+            renna.known_context,
+            *renna.private_state.goals,
+            *renna.private_state.current_objectives,
+        )).lower()
+        for obsolete_cue in obsolete_resistance_cues:
+            assert obsolete_cue not in model_visible_bias_surfaces
+
+
 def test_fixture_reaches_authored_and_generated_reveal_contracts() -> None:
     checkpoint = _load()
     master_id = "the_master"

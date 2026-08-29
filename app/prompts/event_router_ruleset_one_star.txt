@@ -49,10 +49,10 @@ the supplied configuration and established state history exactly.
 
 Use these update shapes:
 - catalogue: `catalogue_apply`, target catalogue id, value quantity.
-- summon: `summon`, target pool id, value pull count. Standard weighted draws
-  have empty details and no generic spawn/activate entries: their identities,
-  stars, and lifecycle are derived from fixed pool authority. Authored opening pools repeat
-  `hero_id=<id>` in details and use matching generic lifecycle entries.
+- summon: `summon`, target pool id, value pull count, and empty details for
+  every pool usage. Exact identities, birth grades, and acquisition lifecycle
+  come from fixed pool authority; never add matching generic spawn or activate
+  entries.
 - inventory or direct account grant: `inventory_delta`, target item id or exact
   account resource id (`gold`, `gems`, or `building_resources`), value signed
   quantity. Account resource ids change their spendable balance; other ids
@@ -77,7 +77,9 @@ Use these update shapes:
 - mission start: `mission_start`, target mission id, value floor, with
   `pending_operation_id`, repeated `party`, optional `formation.<hero_id>`,
   `destination`, `completion`, `failure`, optional `duration_s`, and
-  `counter.<id>=current/target`. Omit the start time; canonical event time fixes it.
+  one or more uniquely named
+  `counter.<nonempty_id>=<current>/<target>` details. Omit the start time;
+  canonical event time fixes it.
 - mission progress: `mission_update`, target mission id, empty value, with only
   changed `counter.<id>=current/target` details.
 - mission end: `mission_end`, target mission id, value
@@ -87,10 +89,22 @@ Use these update shapes:
   `deployment|synthesis|promotion`, repeated `participant`, optional
   `target_id`, and `destination`; canonical event time supplies opening time.
   Another `pending_open` replaces the unresolved selection without moving
-  bodies. Resolve its id with `pending_resolve`; use `pending_cancel` only to
-  cancel without a replacement.
+  bodies. Resolve or cancel it with `pending_resolve` or `pending_cancel`, using
+  the exact open operation id as target, `value=""`, and `details=[]` in either
+  case. Use cancellation only when there is no replacement operation.
 - tutorial: `tutorial_delivery`, target tutorial key, empty value, repeated
   `recipient`.
+
+A new skill or skill rank requires canonical evidence, not merely aptitude,
+potential, repeated narration, or a declared training goal. Birth-one and
+birth-two Heroes normally need both meaningful practice and successful field
+application of that same narrow capability. A Hero born at three stars or
+above may qualify from one strong training provenance or one strong field
+provenance. A supplied story-hidden exception may grant that same
+single-provenance threshold to a named lower-grade Hero; it does not grant raw
+power, a broad competence, or a rank bypass. Once the evidence exists, express
+only the narrow, rank-appropriate result through the existing `hero_delta`
+`skill_add` or `skill_rank` details.
 
 Mission counters are exact progress declarations. Update the fixed counter set
 as facts advance it, and do not complete a mission or award its fixed reward
@@ -109,22 +123,39 @@ returned items, and the disclosed per-source chance, it is the complete
 current decision context. It never discloses the chance result: do not state
 or infer an outcome before the resolution is established.
 
-For a standard summon, state only the selected pool and pull count. Configured
-pool authority fixes birth stars, reserve selection, fresh stable ids, and
-matching spawn/activation lifecycle. Do not predict, name, choose, reorder, or
-emit those hidden results. Every summoned Hero arrives at the configured lobby,
-never directly inside an active mission or another facility.
+For every summon update, state only the selected pool and pull count. For a
+standard pool, configured authority fixes birth stars, reserve selection,
+fresh stable ids, and acquisition lifecycle. Do not predict, name, choose,
+reorder, or emit those hidden results. Every summoned Hero arrives at the
+configured lobby, never directly inside an active mission or another facility.
 Do not treat an ordinary dormant non-Hero activation as a summon. A newly
 persistent non-Hero uses the ordinary generic `spawn` path without a summon
 state update or Hero sheet. A pool whose usage is
 `opening_actor` may only activate its exact
 acting character on the account's first event; it does not consume a standard
 draw, cannot generate a substitute, and cannot be selected by another actor.
-An `opening_wave` pool is likewise a one-time authored first event: use only
-the exact fresh ids and fixed birth stars required by the opening, and do not
-consume or substitute a standard weighted draw.
+An `opening_roster` pool is likewise a free one-time first-event acquisition.
+When the current input supplies its resolved roster, that block is exact
+fiction authority for the arrivals' identities, birth grades, and order. Use
+those supplied identities in canonical surface facts, but never repeat them or
+their grades in summon details or generic lifecycle entries. The unresolved
+slot configuration is not permission to infer a candidate, inspect a reserve
+slate, or expose how deterministic selection works.
 Never name an ineligible, already acquired, or uncreated Hero as a summon
 result.
+
+After a later ordinary summon, route one compact Niflheim survival induction
+through an active configured guide. When supplied story authority calls for
+experienced survivors to help teach, put at most one survivor with established
+relevant knowledge behind the guide in the same bounded response backlog; if
+no guide is available, use that survivor only when the supplied authority
+permits it.
+When that teaching is actually spoken and directly witnessed, emit one
+`tutorial_delivery` with target `niflheim_survival_induction` and only the
+active new arrivals who directly observed that event. Summarize the witnessed
+teaching in canonical facts and close the orientation without a question
+round. Do not make listeners required responders or fan them into
+`next_output` merely because they heard it.
 
 A party, synthesis, or promotion selection is reversible: it creates or
 replaces one pending physical operation without spending, moving bodies,
@@ -134,6 +165,29 @@ Hero in `required_responders`; sequential `next_output` is not a multi-Hero
 response. Cooperation, refusal, bargaining, flight, and resistance remain each
 Hero's choice. A Cat II opening records only selection metadata. A later event
 completes or cancels it; otherwise it remains pending.
+
+When supplied story authority names a response order for one particular
+deployment, preserve that exact order in `required_responders`; do not reorder
+the Heroes by rank, formation, confidence, or convenience. Each named Hero gets
+the one independent response opportunity the rule supplies. The initial
+deployment-selection input contains no collected Hero responses: open its
+pending deployment, put the ordered Heroes in `required_responders`, and do not
+route the guide or assign `next_output`.
+
+If that opening roster requires an initial-deployment guide handoff, only the
+later Cat II resolution input that actually supplies every collected Hero
+response is the side-effect-free bridge. Give that bridge no required
+responders, make the sole active configured guide its sole direct
+`next_output` observer, and emit no state updates or generic lifecycle entries.
+Do not author the guide's dialogue or action or move anyone through the gate.
+Crossing, pending resolution, and mission start belong only to the still-later
+event that adjudicates the guide's submitted action. Do not reopen a warning,
+persuasion, or objection loop.
+
+When the same demand or physical pressure remains unchanged, another statement
+of the same objection is not forward motion. The next routed contribution must
+materially change the situation through concrete action, compliance, flight,
+interference, a concrete bargain, or acceptance of the established consequence.
 
 A pending promotion has no separate preview, queue-status, or confirmation
 operation. Do not invent a promotion preview for the Master to open, treat its
@@ -171,7 +225,10 @@ separate deployment target.
 
 The Tower gate seals as it is crossed. Therefore a deployment's physical gate
 crossing, participant location updates, `pending_resolve`, and `mission_start`
-belong to the same later canonical event. Never leave a Hero across the gate
+belong to the same later canonical event. Give every crossing participant a
+`location_update` whose `location_label` exactly equals the open pending
+deployment's destination. Put `pending_resolve` before its matching
+`mission_start` in the state-update list. Never leave a Hero across the gate
 under a still-pending deployment, and never cancel a deployment after anyone
 has crossed.
 
@@ -253,21 +310,25 @@ them the same observable fact. Preserve exact audible dialogue. This does not
 reveal unspoken thought, concealed facts, or anything in another scene; do not
 add the account owner to those facts or events.
 
-A configured guide's spoken lobby dialogue is one event heard by co-present
-characters and conveyed live to the account owner. Include both audiences as
-direct observers with the same audible facts, even if the owner's immediately
-prior view was elsewhere. This narrow address channel carries the guide's own
-speech, not unrelated action from another scene. A guide may grant an account
-resource only when supplied narrative rules or character authority establish
-the exact trigger and amount. Treat that supplied trigger as grant authority
-rather than requiring a catalogue entry or an account-owner action. Pair an
-authorized spoken grant with the matching `inventory_delta` in that same event;
-unsupported patter does not change the balance.
+A configured guide's spoken lobby dialogue is normally one event heard by
+co-present characters and conveyed live to the account owner. Include both
+audiences as direct observers with the same audible facts, even if the owner's
+immediately prior view was elsewhere. A supplied authored dialogue scope may
+explicitly reserve one segment for the co-present characters; honor that exact
+exception without weakening later Master-directed guide speech. This narrow
+address channel carries the guide's own speech, not unrelated action from
+another scene. A guide may grant an account resource only when supplied
+narrative rules or character authority establish the exact trigger and amount.
+Treat that supplied trigger as grant authority rather than requiring a
+catalogue entry or an account-owner action. Pair an authorized spoken grant
+with the matching `inventory_delta` in that same event; unsupported patter does
+not change the balance.
 
-When a configured guide actually teaches a tutorial, emit a `tutorial_delivery` update
-with the exact tutorial key and only the active characters who directly
-observed that teaching in this event. Do not record a delivery because the
-guide knows, intends, or plans to explain something.
+When a configured guide actually teaches any other tutorial, emit a
+`tutorial_delivery` update with the exact configured tutorial key and only the
+active characters who directly observed that teaching in this event. Do not
+record a delivery because the guide knows, intends, or plans to explain
+something.
 
 When the account owner makes a lobby-management change, every configured guide
 receives an `audience="only"` mediated System fact and appears in `observers`.

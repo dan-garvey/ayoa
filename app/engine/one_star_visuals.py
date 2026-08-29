@@ -87,6 +87,44 @@ def generated_sprite_pack_id(
     return f"imgspritepack_{digest[:32]}"
 
 
+def one_star_character_has_reviewed_sprite_set(
+    checkpoint: CheckpointFile,
+    character: CharacterRecord,
+) -> bool:
+    """Return whether this Hero owns a reviewed, seed-authored sprite set.
+
+    Character provenance and visual provenance are separate contracts. An
+    authored dormant Hero may intentionally begin without bespoke art, while a
+    generated summon may later carry a generated sprite-pack id. Only the
+    checkpoint's reviewed sprite catalogue grants the earlier seeded reveal.
+    """
+
+    sprite_set_id = character.visuals.sprite_set_id.strip()
+    if not sprite_set_id:
+        return False
+    return any(
+        sprite_set.sprite_set_id == sprite_set_id
+        and sprite_set.owner_character_id == character.character_id
+        for sprite_set in checkpoint.reviewed_visual_novel_sprite_sets
+    )
+
+
+def one_star_identity_reveal_stars(
+    checkpoint: CheckpointFile,
+    character: CharacterRecord,
+) -> int | None:
+    """Return the Master-facing identity-reveal threshold for a birth-one Hero."""
+
+    configured = one_star_visual_novel_config(checkpoint)
+    hero = load_one_star_hero(character)
+    if configured is None or hero is None or hero.birth_stars != 1:
+        return None
+    _owner_id, config = configured
+    if one_star_character_has_reviewed_sprite_set(checkpoint, character):
+        return config.seeded_birth_one_reveal_stars
+    return config.generated_birth_one_reveal_stars
+
+
 def one_star_character_is_veiled_for_viewer(
     checkpoint: CheckpointFile,
     *,
@@ -96,17 +134,13 @@ def one_star_character_is_veiled_for_viewer(
     configured = one_star_visual_novel_config(checkpoint)
     if configured is None:
         return False
-    owner_id, config = configured
+    owner_id, _config = configured
     if viewer_character_id != owner_id:
         return False
     hero = load_one_star_hero(character)
-    if hero is None or hero.birth_stars != 1:
+    threshold = one_star_identity_reveal_stars(checkpoint, character)
+    if hero is None or threshold is None:
         return False
-    threshold = (
-        config.generated_birth_one_reveal_stars
-        if hero.generated_for_summon
-        else config.seeded_birth_one_reveal_stars
-    )
     return hero.current_stars < threshold
 
 
@@ -161,23 +195,26 @@ def first_look_override_for_viewer(
 def characters_needing_generated_sprite_prewarm(
     checkpoint: CheckpointFile,
 ) -> tuple[CharacterRecord, ...]:
-    """Return generated birth-one Heroes approaching their identity reveal."""
+    """Return birth-one Heroes without reviewed art approaching reveal."""
 
     configured = one_star_visual_novel_config(checkpoint)
     if configured is None:
         return ()
-    _owner_id, config = configured
+
     def ready_for_prewarm(character: CharacterRecord) -> bool:
         hero = load_one_star_hero(character)
         if hero is None:
             return False
-        if hero.birth_stars != 1 or not hero.generated_for_summon:
+        reveal_stars = one_star_identity_reveal_stars(checkpoint, character)
+        if hero.birth_stars != 1 or reveal_stars is None:
+            return False
+        if one_star_character_has_reviewed_sprite_set(checkpoint, character):
             return False
         # Start the neutral candidate one promotion before the Master-facing
         # reveal so ordinary image latency does not stall that story beat.
         return hero.current_stars >= max(
             1,
-            config.generated_birth_one_reveal_stars - 1,
+            reveal_stars - 1,
         )
     return tuple(
         character

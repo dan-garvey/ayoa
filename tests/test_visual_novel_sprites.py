@@ -17,7 +17,9 @@ from app.engine.image_generation import (
 from app.engine.one_star_adapter import prepare_one_star_transaction
 from app.engine.one_star_visuals import (
     characters_needing_generated_sprite_prewarm,
+    first_look_override_for_viewer,
     generated_sprite_pack_id,
+    sprite_set_id_for_viewer,
 )
 from app.engine.player_media import ResolvedPlayerMedia
 from app.engine.visual_novel_sprite_processing import (
@@ -90,7 +92,7 @@ def test_one_star_prepared_mutation_preserves_private_visual_bindings() -> None:
     )
 
 
-def test_seeded_hero_without_binding_never_enters_generated_prewarm() -> None:
+def test_reviewed_seeded_hero_never_enters_generated_prewarm() -> None:
     checkpoint = CheckpointFile.model_validate_json(STORY_CHECKPOINT.read_text())
     checkpoint.session.config.settings.presentation_mode = "visual_novel"
     renna = next(
@@ -99,11 +101,61 @@ def test_seeded_hero_without_binding_never_enters_generated_prewarm() -> None:
         if character.character_id == "renna_holt"
     )
     renna.status = "active"
-    renna.visuals.sprite_set_id = ""
     renna.mechanics["one_star_hero"]["current_stars"] = 3
     assert renna.mechanics["one_star_hero"]["generated_for_summon"] is False
 
     assert renna not in characters_needing_generated_sprite_prewarm(checkpoint)
+
+
+def test_authored_hero_without_reviewed_art_uses_generated_prewarm() -> None:
+    checkpoint = CheckpointFile.model_validate_json(STORY_CHECKPOINT.read_text())
+    checkpoint.session.config.settings.presentation_mode = "visual_novel"
+    edren = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "edren_marr"
+    )
+    edren.status = "active"
+    edren.mechanics["one_star_hero"]["current_stars"] = 2
+
+    assert edren.mechanics["one_star_hero"]["generated_for_summon"] is False
+    assert edren.visuals.sprite_set_id == ""
+    assert edren in characters_needing_generated_sprite_prewarm(checkpoint)
+
+
+def test_authored_hero_without_reviewed_art_uses_generated_reveal_threshold() -> None:
+    checkpoint = CheckpointFile.model_validate_json(STORY_CHECKPOINT.read_text())
+    edren = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "edren_marr"
+    )
+    edren.status = "active"
+
+    for current_stars in (1, 2):
+        edren.mechanics["one_star_hero"]["current_stars"] = current_stars
+        assert sprite_set_id_for_viewer(
+            checkpoint,
+            viewer_character_id="the_master",
+            character=edren,
+        ) == "osa_vnset_veiled_masculine_v1"
+        assert first_look_override_for_viewer(
+            checkpoint,
+            viewer_character_id="the_master",
+            character=edren,
+        ) is not None
+
+    edren.mechanics["one_star_hero"]["current_stars"] = 3
+    assert sprite_set_id_for_viewer(
+        checkpoint,
+        viewer_character_id="the_master",
+        character=edren,
+    ) == generated_sprite_pack_id(checkpoint, edren)
+    assert first_look_override_for_viewer(
+        checkpoint,
+        viewer_character_id="the_master",
+        character=edren,
+    ) is None
 
 
 class _SpriteWorker:

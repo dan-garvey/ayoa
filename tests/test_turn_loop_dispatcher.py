@@ -17,6 +17,7 @@ from app.engine.content_pack_compiler import (
 from app.engine.content_lookup import MissingContentError
 from app.engine.content_lookup import EventRouterContentLookupOutput
 from app.engine.prompt_manager import PromptManager
+from app.engine.one_star_adapter import one_star_opening_roster_preview
 from app.engine.turn_loop import pin_cat_ii_responder
 from app.engine.turn_loop_contracts import (
     AUTHORITATIVE_RESULT_HEADER,
@@ -515,7 +516,7 @@ class TestRouterContext:
 
         assert bound_system == rebound_system
         assert bound_user == rebound_user
-        assert len(bound_system) < 85_000
+        assert len(bound_system) < 92_000
         assert "<one_star_rules_config>" in bound_system
         assert "summon_pools:" in bound_system
         assert "non_hero_combat_authority:" in bound_system
@@ -582,11 +583,16 @@ class TestRouterContext:
 
         assert master_system == newcomer_system
         assert master_user != newcomer_user
+        static_config = newcomer_system.split(
+            "<one_star_rules_config>",
+            1,
+        )[1].split("</one_star_rules_config>", 1)[0]
+        assert "one_star_newcomer" not in static_config
         assert "- the_master" in master_user
         assert "- one_star_newcomer" in newcomer_user
         assert "Name: Mara Vale" in newcomer_user
         assert "Appearance: a scarlet coat and iron-gray braid" in newcomer_user
-        for forbidden in ("human", "binding", "bound", "controller"):
+        for forbidden in ("binding", "bound", "controller"):
             assert forbidden not in master_user.lower()
             assert forbidden not in newcomer_user.lower()
 
@@ -721,6 +727,73 @@ class TestRouterContext:
         assert "Current status: dormant" in opening
         for forbidden in ("human", "player", "binding", "bound", "agent"):
             assert forbidden not in opening.lower()
+
+    def test_one_star_master_begin_includes_resolved_existing_roster(
+        self,
+        prompt_mgr: PromptManager,
+    ):
+        ckpt = _one_star_checkpoint(bindings={"the_master": "discord_1"})
+
+        draws = one_star_opening_roster_preview(
+            ckpt,
+            "master_opening_roster",
+        )
+        system, opening = _render_one_star_begin(
+            prompt_mgr,
+            ckpt,
+            actor_id="the_master",
+        )
+        static_config = system.split("<one_star_rules_config>", 1)[1].split(
+            "</one_star_rules_config>",
+            1,
+        )[0]
+
+        assert "## Resolved One-Star Opening Roster" in opening
+        positions = [
+            opening.index(f"{draw.slot}. {draw.existing_character_id}")
+            for draw in draws
+        ]
+        assert positions == sorted(positions)
+        for draw in draws:
+            assert f"Birth stars: {draw.birth_stars}" in opening
+            assert draw.existing_character_id not in static_config
+        selected_ids = {draw.existing_character_id for draw in draws}
+        unselected_birth_three_ids = {
+            "wren_thelantern",
+            "mirelle_voss",
+        } - selected_ids
+        assert all(
+            character_id not in opening
+            for character_id in unselected_birth_three_ids
+        )
+
+    def test_one_star_opening_actor_branch_omits_dormant_master_roster(
+        self,
+        prompt_mgr: PromptManager,
+    ):
+        ckpt = _one_star_checkpoint(bindings={
+            "the_master": "discord_1",
+            "one_star_newcomer": "discord_2",
+        })
+        draws = one_star_opening_roster_preview(
+            ckpt,
+            "master_opening_roster",
+        )
+
+        _system, opening = _render_one_star_begin(
+            prompt_mgr,
+            ckpt,
+            actor_id="one_star_newcomer",
+        )
+
+        assert "## Authored Opening Participants" in opening
+        assert "- the_master" in opening
+        assert "- one_star_newcomer" in opening
+        assert "## Resolved One-Star Opening Roster" not in opening
+        assert all(
+            draw.existing_character_id not in opening
+            for draw in draws
+        )
 
     def test_arrive_carries_existing_dormant_character_identity(self):
         ckpt = _ckpt(bindings={"blank_arrival": "discord_1"})

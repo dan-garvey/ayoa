@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.engine.checkpoint_manager import CheckpointManager
+from app.engine.one_star_adapter import one_star_opening_roster_preview
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
 from app.engine.spawn_authoring import SpawnAuthoringCoordinator
@@ -18,6 +19,7 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput, SpawnRequest, SpawnSeed
 from app.schemas.events import ObservableFact
+from app.schemas.one_star import OneStarEventRouterOutput, OneStarStateUpdate
 from app.schemas.requests import TurnRequest
 from tests.support.factories import (
     ClassFakeDispatcher,
@@ -65,16 +67,24 @@ def _opening_output(
     activate: list[dict[str, str]] | None = None,
     location_updates: list[dict[str, str]] | None = None,
     fact_text: str = "The first summon-light fills the lobby.",
+    facts: list[ObservableFact] | None = None,
+    state_updates: list[OneStarStateUpdate] | None = None,
 ) -> EventRouterOutput:
-    return router_output(
+    result = router_output(
         event_kind="state_change",
-        facts=[ObservableFact.all(fact_text)],
+        facts=facts if facts is not None else [ObservableFact.all(fact_text)],
         agent_ids=agent_ids,
         observer_ids=observer_ids,
         spawn=spawn,
         activate=activate,
         location_updates=location_updates,
     )
+    if state_updates is None:
+        return result
+    return OneStarEventRouterOutput.model_validate({
+        **result.model_dump(mode="python"),
+        "state_updates": state_updates,
+    })
 
 
 def _last_user_content(messages: list[dict]) -> str:
@@ -131,11 +141,13 @@ def test_claimed_newcomer_receives_existing_character_opening_contract() -> None
         fact_text=(
             "The Newcomer takes shape in the first summon-light at Niflheim."
         ),
-        activate=[
-            {
-                "character_id": "one_star_newcomer",
-                "location_label": "niflheim_lobby",
-            }
+        state_updates=[
+            OneStarStateUpdate(
+                kind="summon",
+                target_id="newcomer_opening",
+                value="1",
+                details=[],
+            )
         ],
     )
 
@@ -157,7 +169,6 @@ def test_claimed_newcomer_receives_existing_character_opening_contract() -> None
     assert "- one_star_newcomer" in opening_input
     assert "Name: Mara Vale" in opening_input
     assert "Appearance: scarlet coat and iron-gray braid" in opening_input
-    assert "emit no spawn requests" in opening_input
     for forbidden in (
         "human-bound",
         "human player",
@@ -168,28 +179,46 @@ def test_claimed_newcomer_receives_existing_character_opening_contract() -> None
     ):
         assert forbidden not in opening_input.lower()
     assert result.spawn == []
-    assert [
-        update.character_id for update in result.activate
-    ] == ["one_star_newcomer"]
+    assert result.activate == []
+    assert result.state_updates == [
+        OneStarStateUpdate(
+            kind="summon",
+            target_id="newcomer_opening",
+            value="1",
+            details=[],
+        )
+    ]
     assert result.location_updates == []
 
 
-def test_master_only_opening_accepts_varied_generated_wave_contract() -> None:
+def test_master_only_opening_uses_resolved_existing_roster_contract() -> None:
     ckpt = _load_one_star()
     ckpt.session.character_bindings = {"the_master": "user-1"}
-    spawn = [
-        _spawn_request("niflheim_first_summon_01", "timid field medic"),
-        _spawn_request("niflheim_first_summon_02", "blunt quarry worker"),
-        _spawn_request("niflheim_first_summon_03", "watchful trail scout"),
-    ]
+    draws = one_star_opening_roster_preview(ckpt, "master_opening_roster")
 
     result, user_content = asyncio.run(
         _route_opening(
             ckpt,
             actor_id="the_master",
             output=_opening_output(
-                observer_ids=["the_master"],
-                spawn=spawn,
+                observer_ids=["the_master", "iselle_the_guide"],
+                facts=[
+                    ObservableFact.all(
+                        "Three figures take shape in Niflheim's summoning light."
+                    ),
+                    ObservableFact.only(
+                        "System: the starter roster has been acquired.",
+                        ["iselle_the_guide"],
+                    ),
+                ],
+                state_updates=[
+                    OneStarStateUpdate(
+                        kind="summon",
+                        target_id="master_opening_roster",
+                        value="3",
+                        details=[],
+                    )
+                ],
             ),
         )
     )
@@ -203,17 +232,28 @@ def test_master_only_opening_accepts_varied_generated_wave_contract() -> None:
     assert "## Authored Opening Participants" in opening_input
     assert "- the_master" in opening_input
     assert "- one_star_newcomer" not in opening_input
-    assert "New-character spawn requests: allowed only" in opening_input
-    assert "niflheim_first_summon_03" in opening_input
-    assert [request.character_id for request in result.spawn] == [
-        "niflheim_first_summon_01",
-        "niflheim_first_summon_02",
-        "niflheim_first_summon_03",
+    assert "## Resolved One-Star Opening Roster" in opening_input
+    assert [
+        opening_input.index(f"{draw.slot}. {draw.existing_character_id}")
+        for draw in draws
+    ] == sorted(
+        opening_input.index(f"{draw.slot}. {draw.existing_character_id}")
+        for draw in draws
+    )
+    assert all(
+        f"Birth stars: {draw.birth_stars}" in opening_input
+        for draw in draws
+    )
+    assert result.spawn == []
+    assert result.activate == []
+    assert result.state_updates == [
+        OneStarStateUpdate(
+            kind="summon",
+            target_id="master_opening_roster",
+            value="3",
+            details=[],
+        )
     ]
-    assert len({request.seed.role for request in result.spawn}) == 3
-    assert all(request.seed.location == "niflheim_lobby" for request in result.spawn)
-    assert all(request.seed.objectives for request in result.spawn)
-    assert all(request.seed.knowledge_tier == 1 for request in result.spawn)
 
 
 def test_multiple_selected_opening_participants_are_semantic_only() -> None:
@@ -312,6 +352,8 @@ def test_story_without_opening_spawn_authority_rejects_router_spawn() -> None:
 def test_opening_spawn_cannot_duplicate_claimed_existing_character() -> None:
     ckpt = _load_one_star()
     ckpt.session.character_bindings = {"one_star_newcomer": "user-1"}
+    assert ckpt.world_state.opening is not None
+    ckpt.world_state.opening.allow_spawns = True
     duplicate = _spawn_request("one_star_newcomer", "replacement protagonist")
 
     with pytest.raises(ValueError, match="genuinely new character ids"):

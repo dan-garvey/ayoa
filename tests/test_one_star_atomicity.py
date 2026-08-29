@@ -21,6 +21,7 @@ from app.engine.one_star_adapter import (
     prepare_one_star_transaction,
 )
 from app.engine.one_star_progression import rebalance_hero
+from app.engine.one_star_visuals import one_star_identity_reveal_stars
 from app.schemas.characters import CharacterAgentTier, CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.events import CanonicalEvent
@@ -38,6 +39,10 @@ from app.schemas.one_star import (
     OneStarRulesConfig,
 )
 from app.schemas.state import KnowledgeTier, SessionConfig, SessionSettings, SessionState, WorldState
+from app.schemas.visual_references import (
+    ReviewedVisualNovelSpriteSet,
+    ReviewedVisualReference,
+)
 
 
 def _config() -> dict:
@@ -227,6 +232,653 @@ def _hero_delta(hero_id: str = "hero", **overrides: object) -> dict:
     }
     operation.update(overrides)
     return operation
+
+
+def _deployment_router_output(
+    *,
+    event_id: str,
+    location_updates: list[dict[str, str]],
+    mission_first: bool = False,
+) -> OneStarEventRouterOutput:
+    from tests.support.factories import router_output
+
+    data = router_output(
+        event_id=event_id,
+        event_kind="state_change",
+        observer_ids=["account_owner", "hero"],
+        location_updates=location_updates,
+    ).model_dump(mode="json")
+    resolve = {
+        "kind": "pending_resolve",
+        "target_id": "deployment_1",
+        "value": "",
+        "details": [],
+    }
+    mission_start = {
+        "kind": "mission_start",
+        "target_id": "mission_1",
+        "value": "1",
+        "details": [
+            "pending_operation_id=deployment_1",
+            "party=hero",
+            "formation.hero=front",
+            "destination=tower_floor_1",
+            "completion=the floor is cleared",
+            "failure=the party is broken",
+            "counter.clear=0/1",
+        ],
+    }
+    data["state_updates"] = (
+        [mission_start, resolve] if mission_first else [resolve, mission_start]
+    )
+    return OneStarEventRouterOutput.model_validate(data)
+
+
+@pytest.mark.asyncio
+async def test_deployment_location_contract_gets_one_full_router_retry() -> None:
+    """A generic-location failure bypasses the state-update-only repair."""
+
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.engine.prompt_manager import PromptManager
+    from app.engine.turn_loop_dispatcher import LLMDispatcher
+    from app.llm.client import LLMClient
+    from tests.support.factories import llm_response
+
+    pending = OneStarPendingOperation.model_validate(
+        _pending(
+            "deployment",
+            participants=["hero"],
+            destination="tower_floor_1",
+        ).model_dump(mode="json")
+    )
+    checkpoint = _checkpoint(pending_operation=pending)
+    checkpoint.session.character_bindings = {"account_owner": "test-user"}
+    invalid = _deployment_router_output(
+        event_id="deployment_resolution",
+        location_updates=[],
+    )
+    corrected = _deployment_router_output(
+        event_id="deployment_resolution",
+        location_updates=[{
+            "character_id": "hero",
+            "location_label": "tower_floor_1",
+        }],
+    )
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(side_effect=[
+        llm_response(invalid),
+        llm_response(corrected),
+    ])
+    dispatcher = LLMDispatcher(client, PromptManager("app/prompts"))
+
+    result = await dispatcher.route_intention(
+        ckpt=checkpoint,
+        actor_id="account_owner",
+        intention="Deploy the selected Hero to Floor 1.",
+    )
+
+    assert result is corrected
+    assert client.complete.await_count == 2
+    assert [
+        call.kwargs["response_model"]
+        for call in client.complete.await_args_list
+    ] == [OneStarEventRouterOutput, OneStarEventRouterOutput]
+    correction = client.complete.await_args_list[1].kwargs["messages"][-1][
+        "content"
+    ]
+    assert "generic location_updates" in correction
+    assert "hero" in correction
+    prior_records = [
+        message.content
+        for message in checkpoint.session_conversation
+        if message.content.startswith("prior_event ")
+    ]
+    assert len(prior_records) == 1
+    assert "loc hero=tower_floor_1" in prior_records[0]
+
+    await dispatcher.prepare_ruleset_event(
+        ckpt=checkpoint,
+        result=result,
+        actor_id="account_owner",
+    )
+
+    hero = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "hero"
+    )
+    account = load_one_star_account(checkpoint)[1]
+    assert hero.location == "tower_floor_1"
+    assert account.state.pending_operation is None
+    assert account.state.active_mission is not None
+
+
+@pytest.mark.asyncio
+async def test_invalid_full_deployment_correction_restores_router_snapshot() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.engine.prompt_manager import PromptManager
+    from app.engine.turn_loop_dispatcher import LLMDispatcher
+    from app.llm.client import LLMClient
+    from tests.support.factories import llm_response
+
+    pending = OneStarPendingOperation.model_validate(
+        _pending(
+            "deployment",
+            participants=["hero"],
+            destination="tower_floor_1",
+        ).model_dump(mode="json")
+    )
+    checkpoint = _checkpoint(pending_operation=pending)
+    checkpoint.session.pending_engine_state_updates = ["keep me"]
+    before = checkpoint.model_dump_json()
+    invalid = _deployment_router_output(
+        event_id="bad_deployment_resolution",
+        location_updates=[],
+    )
+    still_invalid = _deployment_router_output(
+        event_id="bad_deployment_resolution",
+        location_updates=[{
+            "character_id": "hero",
+            "location_label": "tower_floor_1",
+        }],
+        mission_first=True,
+    )
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(side_effect=[
+        llm_response(invalid),
+        llm_response(still_invalid),
+    ])
+    dispatcher = LLMDispatcher(client, PromptManager("app/prompts"))
+
+    with pytest.raises(
+        ValueError,
+        match="remained invalid after one correction",
+    ):
+        await dispatcher.route_intention(
+            ckpt=checkpoint,
+            actor_id="account_owner",
+            intention="Deploy the selected Hero to Floor 1.",
+        )
+
+    assert client.complete.await_count == 2
+    assert all(
+        call.kwargs["response_model"] is OneStarEventRouterOutput
+        for call in client.complete.await_args_list
+    )
+    assert checkpoint.model_dump_json() == before
+
+
+@pytest.mark.asyncio
+async def test_typed_repair_scalar_failure_gets_one_valid_full_correction() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.engine.prompt_manager import PromptManager
+    from app.engine.turn_loop_dispatcher import LLMDispatcher
+    from app.llm.client import LLMClient
+    from app.schemas.one_star import OneStarStateUpdateList
+    from tests.support.factories import llm_response
+
+    pending = OneStarPendingOperation.model_validate(
+        _pending(
+            "deployment",
+            participants=["hero"],
+            destination="tower_floor_1",
+        ).model_dump(mode="json")
+    )
+    checkpoint = _checkpoint(pending_operation=pending)
+    location_updates = [{
+        "character_id": "hero",
+        "location_label": "tower_floor_1",
+    }]
+    valid = _deployment_router_output(
+        event_id="typed_repair_deployment",
+        location_updates=location_updates,
+    )
+    initial_data = valid.model_dump(mode="json")
+    mission_start = initial_data["state_updates"][1]
+    mission_start["details"] = [
+        detail
+        for detail in mission_start["details"]
+        if not detail.startswith("counter.")
+    ]
+    initial = OneStarEventRouterOutput.model_validate(initial_data)
+    repaired_data = valid.model_dump(mode="json")["state_updates"]
+    repaired_data[0]["value"] = "deployment_1"
+    repaired = OneStarStateUpdateList.model_validate({
+        "state_updates": repaired_data,
+    })
+    corrected = _deployment_router_output(
+        event_id="typed_repair_deployment",
+        location_updates=location_updates,
+    )
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(side_effect=[
+        llm_response(initial),
+        llm_response(repaired),
+        llm_response(corrected),
+    ])
+    dispatcher = LLMDispatcher(client, PromptManager("app/prompts"))
+
+    result = await dispatcher.route_intention(
+        ckpt=checkpoint,
+        actor_id="account_owner",
+        intention="Complete the selected deployment.",
+    )
+
+    assert result is corrected
+    assert client.complete.await_count == 3
+    assert [
+        call.kwargs["response_model"]
+        for call in client.complete.await_args_list
+    ] == [
+        OneStarEventRouterOutput,
+        OneStarStateUpdateList,
+        OneStarEventRouterOutput,
+    ]
+    repair_packet = client.complete.await_args_list[1].kwargs["messages"][-1][
+        "content"
+    ]
+    assert "mission counter ids must be non-empty and unique" in repair_packet
+    assert 'pending_resolve, pending_cancel' in repair_packet
+    assert 'require value=""' in repair_packet
+    assert "counter.<nonempty_id>=<current>/<target>" in repair_packet
+    correction_packet = client.complete.await_args_list[2].kwargs["messages"][-1][
+        "content"
+    ]
+    assert "pending_resolve state update does not use value" in correction_packet
+    assert 'require value=""' in correction_packet
+    assert "counter.<nonempty_id>=<current>/<target>" in correction_packet
+    assert "typed_repair_deployment" in checkpoint.session_conversation[-1].content
+
+
+@pytest.mark.asyncio
+async def test_invalid_full_correction_after_typed_repair_restores_snapshot() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.engine.prompt_manager import PromptManager
+    from app.engine.turn_loop_dispatcher import LLMDispatcher
+    from app.llm.client import LLMClient
+    from app.schemas.one_star import OneStarStateUpdateList
+    from tests.support.factories import llm_response
+
+    pending = OneStarPendingOperation.model_validate(
+        _pending(
+            "deployment",
+            participants=["hero"],
+            destination="tower_floor_1",
+        ).model_dump(mode="json")
+    )
+    checkpoint = _checkpoint(pending_operation=pending)
+    checkpoint.session.pending_engine_state_updates = ["preserve me"]
+    before = checkpoint.model_dump_json()
+    valid = _deployment_router_output(
+        event_id="invalid_typed_repair_deployment",
+        location_updates=[{
+            "character_id": "hero",
+            "location_label": "tower_floor_1",
+        }],
+    )
+    initial_data = valid.model_dump(mode="json")
+    initial_data["state_updates"][1]["details"] = [
+        detail
+        for detail in initial_data["state_updates"][1]["details"]
+        if not detail.startswith("counter.")
+    ]
+    initial = OneStarEventRouterOutput.model_validate(initial_data)
+    invalid_data = valid.model_dump(mode="json")
+    invalid_data["state_updates"][0]["value"] = "deployment_1"
+    repaired = OneStarStateUpdateList.model_validate({
+        "state_updates": invalid_data["state_updates"],
+    })
+    still_invalid = OneStarEventRouterOutput.model_validate(invalid_data)
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(side_effect=[
+        llm_response(initial),
+        llm_response(repaired),
+        llm_response(still_invalid),
+    ])
+    dispatcher = LLMDispatcher(client, PromptManager("app/prompts"))
+
+    with pytest.raises(
+        ValueError,
+        match="remained invalid after state repair and routing correction",
+    ):
+        await dispatcher.route_intention(
+            ckpt=checkpoint,
+            actor_id="account_owner",
+            intention="Complete the selected deployment.",
+        )
+
+    assert client.complete.await_count == 3
+    assert [
+        call.kwargs["response_model"]
+        for call in client.complete.await_args_list
+    ] == [
+        OneStarEventRouterOutput,
+        OneStarStateUpdateList,
+        OneStarEventRouterOutput,
+    ]
+    assert checkpoint.model_dump_json() == before
+
+
+@pytest.mark.asyncio
+async def test_pending_resolution_accepts_hero_already_at_exact_destination() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.engine.prompt_manager import PromptManager
+    from app.engine.turn_loop_dispatcher import LLMDispatcher
+    from app.llm.client import LLMClient
+    from tests.support.factories import llm_response
+
+    pending = OneStarPendingOperation.model_validate(
+        _pending(
+            "deployment",
+            participants=["hero"],
+            destination="tower_floor_1",
+        ).model_dump(mode="json")
+    )
+    checkpoint = _checkpoint(
+        heroes=[_hero(location="tower_floor_1")],
+        pending_operation=pending,
+    )
+    routed = _deployment_router_output(
+        event_id="already_crossed_deployment",
+        location_updates=[],
+    )
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(return_value=llm_response(routed))
+    dispatcher = LLMDispatcher(client, PromptManager("app/prompts"))
+
+    result = await dispatcher.route_intention(
+        ckpt=checkpoint,
+        actor_id="account_owner",
+        intention="Resolve the crossing.",
+    )
+
+    assert result is routed
+    client.complete.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("location_updates", "error"),
+    [
+        pytest.param(
+            [
+                {
+                    "character_id": "hero",
+                    "location_label": "tower_floor_1",
+                },
+                {
+                    "character_id": "hero",
+                    "location_label": "tower_floor_1",
+                },
+            ],
+            "duplicate generic location_updates",
+            id="duplicate",
+        ),
+        pytest.param(
+            [{
+                "character_id": "hero",
+                "location_label": "tower_antechamber",
+            }],
+            "exact pending destination",
+            id="wrong-final-location",
+        ),
+    ],
+)
+def test_pending_resolution_location_contract_is_exact_and_unambiguous(
+    location_updates: list[dict[str, str]],
+    error: str,
+) -> None:
+    from app.engine.turn_loop_dispatcher import (
+        _validate_one_star_pending_resolution_event_contract,
+    )
+
+    pending = OneStarPendingOperation.model_validate(
+        _pending(
+            "deployment",
+            participants=["hero"],
+            destination="tower_floor_1",
+        ).model_dump(mode="json")
+    )
+    checkpoint = _checkpoint(pending_operation=pending)
+    routed = _deployment_router_output(
+        event_id="ambiguous_deployment",
+        location_updates=location_updates,
+    )
+
+    with pytest.raises(ValueError, match=error):
+        _validate_one_star_pending_resolution_event_contract(
+            checkpoint,
+            routed,
+        )
+
+
+@pytest.mark.parametrize(
+    "state_updates",
+    [
+        pytest.param([], id="crossing-without-resolution"),
+        pytest.param(
+            [{
+                "kind": "mission_start",
+                "target_id": "mission_1",
+                "value": "1",
+                "details": [
+                    "pending_operation_id=deployment_1",
+                    "party=hero",
+                    "formation.hero=front",
+                    "destination=tower_floor_1",
+                    "completion=the floor is cleared",
+                    "failure=the party is broken",
+                    "counter.clear=0/1",
+                ],
+            }],
+            id="mission-start-without-resolution",
+        ),
+    ],
+)
+def test_deployment_crossing_requires_resolve_and_start_even_without_resolve(
+    state_updates: list[dict[str, object]],
+) -> None:
+    from app.engine.turn_loop_dispatcher import (
+        _validate_one_star_pending_resolution_event_contract,
+    )
+    from tests.support.factories import router_output
+
+    pending = OneStarPendingOperation.model_validate(
+        _pending(
+            "deployment",
+            participants=["hero"],
+            destination="tower_floor_1",
+        ).model_dump(mode="json")
+    )
+    checkpoint = _checkpoint(pending_operation=pending)
+    data = router_output(
+        event_id="incomplete_deployment_crossing",
+        event_kind="state_change",
+        observer_ids=["account_owner", "hero"],
+        location_updates=[{
+            "character_id": "hero",
+            "location_label": "tower_floor_1",
+        }],
+    ).model_dump(mode="json")
+    data["state_updates"] = state_updates
+    routed = OneStarEventRouterOutput.model_validate(data)
+
+    with pytest.raises(ValueError) as exc_info:
+        _validate_one_star_pending_resolution_event_contract(
+            checkpoint,
+            routed,
+        )
+    error = str(exc_info.value)
+    assert "exactly one pending_resolve" in error
+    assert "matching mission_start" in error
+
+
+def test_duplicate_locations_are_rejected_without_a_pending_resolve() -> None:
+    from app.engine.turn_loop_dispatcher import (
+        _validate_one_star_pending_resolution_event_contract,
+    )
+    from tests.support.factories import router_output
+
+    pending = OneStarPendingOperation.model_validate(
+        _pending(
+            "deployment",
+            participants=["hero"],
+            destination="tower_floor_1",
+        ).model_dump(mode="json")
+    )
+    checkpoint = _checkpoint(pending_operation=pending)
+    data = router_output(
+        event_id="duplicate_locations_without_resolution",
+        event_kind="state_change",
+        observer_ids=["account_owner", "hero"],
+        location_updates=[
+            {"character_id": "hero", "location_label": "lobby"},
+            {"character_id": "hero", "location_label": "tower_floor_1"},
+        ],
+    ).model_dump(mode="json")
+    data["state_updates"] = []
+    routed = OneStarEventRouterOutput.model_validate(data)
+
+    with pytest.raises(ValueError, match="duplicate generic location_updates"):
+        _validate_one_star_pending_resolution_event_contract(
+            checkpoint,
+            routed,
+        )
+
+
+@pytest.mark.parametrize(
+    ("status", "current_location", "extra_location", "activation"),
+    [
+        pytest.param(
+            CharacterStatus.active,
+            "tower_floor_1",
+            None,
+            None,
+            id="already-beyond-gate",
+        ),
+        pytest.param(
+            CharacterStatus.active,
+            "lobby",
+            "tower_floor_1",
+            None,
+            id="generic-location-crossing",
+        ),
+        pytest.param(
+            CharacterStatus.dormant,
+            "not_yet_fictional",
+            None,
+            "tower_floor_1",
+            id="activation-crossing",
+        ),
+    ],
+)
+def test_deployment_rejects_unselected_local_hero_crossing(
+    status: CharacterStatus,
+    current_location: str,
+    extra_location: str | None,
+    activation: str | None,
+) -> None:
+    from app.engine.turn_loop_dispatcher import (
+        _validate_one_star_pending_resolution_event_contract,
+    )
+
+    pending = OneStarPendingOperation.model_validate(
+        _pending(
+            "deployment",
+            participants=["hero"],
+            destination="tower_floor_1",
+        ).model_dump(mode="json")
+    )
+    rival = _hero(status=status, location=current_location)
+    rival.character_id = "rival"
+    rival.name = "Rival"
+    checkpoint = _checkpoint(
+        heroes=[_hero(), rival],
+        pending_operation=pending,
+    )
+    locations = [{
+        "character_id": "hero",
+        "location_label": "tower_floor_1",
+    }]
+    if extra_location is not None:
+        locations.append({
+            "character_id": "rival",
+            "location_label": extra_location,
+        })
+    data = _deployment_router_output(
+        event_id="deployment_with_unselected_crosser",
+        location_updates=locations,
+    ).model_dump(mode="json")
+    if activation is not None:
+        data["activate"] = [{
+            "character_id": "rival",
+            "location_label": activation,
+        }]
+    routed = OneStarEventRouterOutput.model_validate(data)
+
+    with pytest.raises(ValueError, match="unselected local Heroes"):
+        _validate_one_star_pending_resolution_event_contract(
+            checkpoint,
+            routed,
+        )
+
+
+@pytest.mark.asyncio
+async def test_continuation_uses_same_full_deployment_contract_retry() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.engine.prompt_manager import PromptManager
+    from app.engine.turn_loop_dispatcher import LLMDispatcher
+    from app.llm.client import LLMClient
+    from app.schemas.one_star import ClosedOneStarEventRouterOutput
+    from tests.support.factories import llm_response, router_output
+
+    pending = OneStarPendingOperation.model_validate(
+        _pending(
+            "deployment",
+            participants=["hero"],
+            destination="tower_floor_1",
+        ).model_dump(mode="json")
+    )
+    checkpoint = _checkpoint(pending_operation=pending)
+    invalid = ClosedOneStarEventRouterOutput.model_validate(
+        _deployment_router_output(
+            event_id="continued_deployment",
+            location_updates=[],
+        ).model_dump(mode="json")
+    )
+    corrected = ClosedOneStarEventRouterOutput.model_validate(
+        _deployment_router_output(
+            event_id="continued_deployment",
+            location_updates=[{
+                "character_id": "hero",
+                "location_label": "tower_floor_1",
+            }],
+        ).model_dump(mode="json")
+    )
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(side_effect=[
+        llm_response(invalid),
+        llm_response(corrected),
+    ])
+    dispatcher = LLMDispatcher(client, PromptManager("app/prompts"))
+
+    result = await dispatcher.route_continuation(
+        ckpt=checkpoint,
+        actor_id="account_owner",
+        prior_result=router_output(event_id="prior", observer_ids=[]),
+        original_action="Deploy the Hero.",
+    )
+
+    assert result is corrected
+    assert [
+        call.kwargs["response_model"]
+        for call in client.complete.await_args_list
+    ] == [ClosedOneStarEventRouterOutput, ClosedOneStarEventRouterOutput]
 
 
 def test_ordinary_non_hero_spawn_does_not_require_a_summon_transaction() -> None:
@@ -537,7 +1189,7 @@ def test_guide_tutorial_delivery_records_active_recipient_exactly_once() -> None
         )
 
     fresh = _hero(location="tower_floor_1", owner="")
-    fresh.character_id = "fresh"
+    fresh.character_id = "lobby_a_basic_0001"
     fresh_checkpoint = _checkpoint(heroes=[fresh])
     fresh_checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"][
         "summon_pools"
@@ -554,10 +1206,10 @@ def test_guide_tutorial_delivery_records_active_recipient_exactly_once() -> None
             transaction=_transaction({
                 "operation": "summon",
                 "pool_id": "basic",
-                "hero_ids": ["fresh"],
+                "hero_ids": ["lobby_a_basic_0001"],
                 "birth_stars": [1],
             }),
-            spawned_character_ids=["fresh"],
+            spawned_character_ids=["lobby_a_basic_0001"],
             initiating_actor_id="account_owner",
         )
 
@@ -719,16 +1371,54 @@ def test_synthesis_resolve_derives_selected_source_culls() -> None:
 
 
 @pytest.mark.parametrize(
-    ("generated_for_summon", "starting_tier", "expected_tier"),
+    (
+        "generated_for_summon",
+        "has_reviewed_sprite",
+        "starting_tier",
+        "expected_tier",
+        "remains_visually_introduced",
+    ),
     [
-        (True, CharacterAgentTier.standard, CharacterAgentTier.standard),
-        (False, CharacterAgentTier.utility, CharacterAgentTier.premium),
+        pytest.param(
+            True,
+            False,
+            CharacterAgentTier.standard,
+            CharacterAgentTier.standard,
+            True,
+            id="generated-no-reviewed-art",
+        ),
+        pytest.param(
+            False,
+            False,
+            CharacterAgentTier.utility,
+            CharacterAgentTier.premium,
+            True,
+            id="authored-no-reviewed-art",
+        ),
+        pytest.param(
+            False,
+            True,
+            CharacterAgentTier.utility,
+            CharacterAgentTier.premium,
+            False,
+            id="authored-reviewed-art",
+        ),
+        pytest.param(
+            True,
+            True,
+            CharacterAgentTier.standard,
+            CharacterAgentTier.standard,
+            False,
+            id="generated-reviewed-art",
+        ),
     ],
 )
 def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge(
     generated_for_summon: bool,
+    has_reviewed_sprite: bool,
     starting_tier: CharacterAgentTier,
     expected_tier: CharacterAgentTier,
+    remains_visually_introduced: bool,
 ) -> None:
     target = _hero(location="promotion_room", level=10, xp=4_500)
     target.agent_tier = starting_tier
@@ -758,6 +1448,42 @@ def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge(
     checkpoint.session.visual_introductions = {
         "account_owner": ["hero"],
     }
+    checkpoint_target = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "hero"
+    )
+    if has_reviewed_sprite:
+        sprite_set_id = "hero-reviewed-sprites-v1"
+        reference_id = "hero-reviewed-neutral-v1"
+        checkpoint.reviewed_visual_references = [
+            ReviewedVisualReference(
+                reference_id=reference_id,
+                storage_ref="artifacts/hero-reviewed-neutral.png",
+                mime_type="image/png",
+                width=1,
+                height=1,
+                byte_count=1,
+                sha256="a" * 64,
+                purpose="sprite",
+                scope="character",
+                scope_id="hero",
+                selection_hint="Reviewed neutral Hero sprite.",
+            )
+        ]
+        checkpoint.reviewed_visual_novel_sprite_sets = [
+            ReviewedVisualNovelSpriteSet(
+                sprite_set_id=sprite_set_id,
+                owner_character_id="hero",
+                variant_reference_ids={"neutral": reference_id},
+            )
+        ]
+        checkpoint_target.visuals.sprite_set_id = sprite_set_id
+
+    assert one_star_identity_reveal_stars(
+        checkpoint,
+        checkpoint_target,
+    ) == (2 if has_reviewed_sprite else 3)
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id="promotion",
@@ -780,7 +1506,7 @@ def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge(
             "account_owner",
             [],
         )
-    ) is generated_for_summon
+    ) is remains_visually_introduced
 
 
 def test_pending_open_is_the_only_operation_and_cannot_change_its_heroes() -> None:
@@ -944,6 +1670,79 @@ def test_deployment_gate_crossing_requires_atomic_resolution_and_mission_start()
         for item in resolved.after_checkpoint.characters
         if item.character_id == "hero"
     ).location == "tower_floor_1"
+
+
+def test_deployment_resolution_does_not_infer_missing_party_movement() -> None:
+    second_hero = _hero()
+    second_hero.character_id = "second_hero"
+    pending = _pending(
+        "deployment",
+        participants=["hero", "second_hero"],
+        destination="tower_floor_1",
+    )
+    checkpoint = _checkpoint(
+        heroes=[_hero(), second_hero],
+        pending_operation=pending,
+    )
+    before = checkpoint.model_dump_json()
+
+    with pytest.raises(
+        OneStarTransactionError,
+        match="every Hero physically enters the gate",
+    ):
+        prepare_one_star_transaction(
+            checkpoint,
+            event_id="partial_party_crossing",
+            transaction=_transaction(
+                {
+                    "operation": "pending_resolve",
+                    "operation_id": pending.operation_id,
+                },
+                {
+                    "operation": "mission_start",
+                    "mission": _mission(
+                        party=["hero", "second_hero"],
+                    ).model_dump(mode="json"),
+                    "pending_operation_id": pending.operation_id,
+                },
+            ),
+            location_updates={"hero": "tower_floor_1"},
+        )
+
+    assert checkpoint.model_dump_json() == before
+
+
+def test_mission_start_cannot_precede_pending_resolution_in_event_order() -> None:
+    pending = _pending(
+        "deployment",
+        participants=["hero"],
+        destination="tower_floor_1",
+    )
+    checkpoint = _checkpoint(pending_operation=pending)
+    before = checkpoint.model_dump_json()
+
+    with pytest.raises(
+        OneStarTransactionError,
+        match="mission start requires a deployment resolved in this event",
+    ):
+        prepare_one_star_transaction(
+            checkpoint,
+            event_id="mission_start_before_resolution",
+            transaction=_transaction(
+                {
+                    "operation": "mission_start",
+                    "mission": _mission().model_dump(mode="json"),
+                    "pending_operation_id": pending.operation_id,
+                },
+                {
+                    "operation": "pending_resolve",
+                    "operation_id": pending.operation_id,
+                },
+            ),
+            location_updates={"hero": "tower_floor_1"},
+        )
+
+    assert checkpoint.model_dump_json() == before
 
 
 def test_crossed_pending_deployment_cannot_cancel_or_return() -> None:
@@ -1288,13 +2087,8 @@ def test_opening_actor_pool_remains_available_to_the_exact_newcomer() -> None:
     checkpoint = _checkpoint(heroes=[newcomer])
     config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
     config["summon_pools"]["opening"] = {
-        "cost": {"gold": 0, "gems": 0, "building_resources": 0, "materials": {}},
-        "minimum_birth_stars": 1,
-        "maximum_birth_stars": 1,
-        "star_weights": {1: 10_000},
-        "eligible_existing_ids": ["newcomer"],
-        "fresh_generation_allowed": False,
         "usage": "opening_actor",
+        "character_id": "newcomer",
     }
     prepared = prepare_one_star_transaction(
         checkpoint,
@@ -1315,6 +2109,7 @@ def test_opening_actor_pool_remains_available_to_the_exact_newcomer() -> None:
         if character.character_id == "newcomer"
     )
     assert load_one_star_hero(acquired).owner_lobby_id == "lobby_a"
+    assert acquired.private_state.intentions_enabled is True
     assert (
         load_one_star_account(prepared.after_checkpoint)[1]
         .state.summon_draw_counters
@@ -1322,39 +2117,44 @@ def test_opening_actor_pool_remains_available_to_the_exact_newcomer() -> None:
     )
 
 
-def test_authored_master_opening_wave_does_not_consume_standard_draws() -> None:
-    fresh_heroes = []
+def test_authored_master_opening_roster_is_free_and_enables_existing_heroes() -> None:
+    opening_heroes = []
     for index in range(3):
-        hero = _hero(status=CharacterStatus.active, owner="")
+        hero = _hero(status=CharacterStatus.dormant, owner="")
         hero.character_id = f"opening_{index}"
-        fresh_heroes.append(hero)
-    checkpoint = _checkpoint(heroes=fresh_heroes)
+        opening_heroes.append(hero)
+    checkpoint = _checkpoint(heroes=opening_heroes)
     config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
-    config["summon_pools"]["opening_wave"] = {
-        "cost": {"gold": 1, "gems": 0, "building_resources": 0, "materials": {}},
-        "minimum_birth_stars": 1,
-        "maximum_birth_stars": 1,
-        "star_weights": {1: 10_000},
-        "eligible_existing_ids": [],
-        "fresh_generation_allowed": True,
-        "usage": "opening_wave",
+    config["summon_pools"]["opening_roster"] = {
+        "usage": "opening_roster",
+        "slots": [
+            {"kind": "fixed", "character_id": "opening_0"},
+            {"kind": "fixed", "character_id": "opening_1"},
+            {"kind": "random_existing_grade", "birth_stars": 1},
+        ],
     }
-    ids = [hero.character_id for hero in fresh_heroes]
+    ids = [hero.character_id for hero in opening_heroes]
     prepared = prepare_one_star_transaction(
         checkpoint,
-        event_id="master_opening_wave",
+        event_id="master_opening_roster",
         transaction=_transaction({
             "operation": "summon",
-            "pool_id": "opening_wave",
+            "pool_id": "opening_roster",
             "hero_ids": ids,
             "birth_stars": [1, 1, 1],
         }),
-        spawned_character_ids=ids,
+        activated_character_ids=ids,
+        activated_character_locations={hero_id: "lobby" for hero_id in ids},
         initiating_actor_id="account_owner",
     )
     account = load_one_star_account(prepared.after_checkpoint)[1]
-    assert account.state.resources.gold == 17
+    assert account.state.resources.gold == 20
     assert account.state.summon_draw_counters == {}
+    assert all(
+        character.private_state.intentions_enabled
+        for character in prepared.after_checkpoint.characters
+        if character.character_id in ids
+    )
 
 
 def test_deployment_selection_cannot_target_the_lobby_as_its_floor() -> None:

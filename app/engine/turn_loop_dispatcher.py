@@ -69,6 +69,7 @@ from app.schemas.event_router import (
 )
 from app.schemas.one_star import (
     ClosedOneStarEventRouterOutput,
+    OneStarAccountEnvelope,
     OneStarEventRouterOutput,
     ONE_STAR_RULESET_ID,
     OneStarStateUpdate,
@@ -109,6 +110,14 @@ _ONE_STAR_LOBBY_MANAGEMENT_OPERATIONS = frozenset(
         "pending_resolve",
         "pending_cancel",
     }
+)
+
+_ONE_STAR_COMPACT_UPDATE_AUTHORITY = (
+    'Compact state scalar authority: hero_delta, mission_update, '
+    'pending_resolve, pending_cancel, and tutorial_delivery require value="". '
+    "For pending_resolve and pending_cancel, put the pending operation id only "
+    "in target_id and use details=[]. The mission_start update requires one or "
+    "more unique counter.<nonempty_id>=<current>/<target> details."
 )
 
 
@@ -252,8 +261,22 @@ def _one_star_transaction_for_result(
             canonical_at_s=result.effective_at_s + result.duration_s,
         )
     except ValidationError as exc:
+        errors = exc.errors(
+            include_url=False,
+            include_context=False,
+            include_input=False,
+        )
+        specific_issue = (
+            str(errors[0].get("msg", ""))
+            .removeprefix("Value error, ")
+            .strip()
+            if errors
+            else ""
+        )
+        detail = f": {specific_issue}" if specific_issue else ""
         raise OneStarTransactionError(
             "a compact One-Star state update violates its typed value bounds"
+            + detail
         ) from exc
 
 
@@ -315,6 +338,471 @@ def _validate_one_star_pending_operation_shapes(
     for operation in transaction.operations:
         if getattr(operation, "operation", "") == "pending_open":
             validate_one_star_pending_operation_shape(operation.pending)
+
+
+def _one_star_initial_guided_roster(
+    ckpt: CheckpointFile,
+) -> tuple[str, OneStarAccountEnvelope, tuple[str, ...]] | None:
+    """Return the seed-authorized initial roster in its acquisition order."""
+
+    if not _one_star_router_enabled(ckpt) or not ckpt.canonical_events:
+        return None
+
+    from app.engine.one_star_adapter import (
+        find_one_star_account_owner,
+        load_one_star_account,
+        load_one_star_hero,
+    )
+    from app.schemas.one_star import OneStarOpeningRosterSummonPool
+
+    if find_one_star_account_owner(ckpt.characters) is None:
+        return None
+    owner, account = load_one_star_account(ckpt)
+    if account.state.highest_cleared_floor != 0 or any(
+        getattr(update, "kind", "") == "mission_start"
+        for event in ckpt.canonical_events
+        for update in getattr(event, "state_updates", ())
+    ):
+        return None
+    guided_pools = [
+        (pool_id, pool)
+        for pool_id, pool in account.config.summon_pools.items()
+        if isinstance(pool, OneStarOpeningRosterSummonPool)
+        and pool.initial_deployment_requires_guide_handoff
+    ]
+    if not guided_pools:
+        return None
+    if len(guided_pools) != 1:
+        raise ValueError(
+            "One-Star initial deployment guide handoff requires exactly one "
+            "configured opening-roster authority"
+        )
+    pool_id, pool = guided_pools[0]
+
+    opening_event = ckpt.canonical_events[0]
+    opening_summons = [
+        update
+        for update in getattr(opening_event, "state_updates", ())
+        if getattr(update, "kind", "") == "summon"
+    ]
+    if (
+        len(opening_summons) != 1
+        or opening_summons[0].target_id != pool_id
+        or opening_summons[0].value != str(len(pool.slots))
+    ):
+        return None
+
+    acquired_ids = {
+        character.character_id
+        for character in ckpt.characters
+        if (
+            (hero := load_one_star_hero(character)) is not None
+            and hero.owner_lobby_id == account.config.lobby_id
+            and hero.acquisition_event_id == opening_event.event_id
+        )
+    }
+    ordered_ids = tuple(
+        signal.character_id
+        for signal in opening_event.activate
+        if signal.character_id in acquired_ids
+    )
+    if (
+        len(acquired_ids) != len(pool.slots)
+        or len(ordered_ids) != len(pool.slots)
+        or len(set(ordered_ids)) != len(ordered_ids)
+        or set(ordered_ids) != acquired_ids
+    ):
+        return None
+    return owner.character_id, account, ordered_ids
+
+
+def _validate_one_star_initial_deployment_responder_order(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    *,
+    actor_id: str,
+    cat_ii_event: OpenCatIIEvent | None,
+) -> None:
+    """Require the opted-in opening roster's independent response order."""
+
+    if cat_ii_event is not None:
+        return
+    guided = _one_star_initial_guided_roster(ckpt)
+    if guided is None:
+        return
+    owner_id, _account, ordered_ids = guided
+    if actor_id != owner_id:
+        return
+    transaction = _one_star_transaction_for_result(ckpt, result)
+    operations = (
+        transaction.operations
+        if transaction is not None and transaction.present
+        else []
+    )
+    pending_opens = [
+        operation
+        for operation in operations
+        if getattr(operation, "operation", "") == "pending_open"
+        and getattr(operation.pending, "kind", "") == "deployment"
+        and set(operation.pending.participant_ids) == set(ordered_ids)
+    ]
+    if not pending_opens:
+        return
+    if (
+        len(pending_opens) != 1
+        or not result.requires_responders
+        or result.required_responders != list(ordered_ids)
+    ):
+        raise ValueError(
+            "One-Star guided initial deployment must open Cat II with "
+            "required_responders exactly equal to the opening-roster slot "
+            "order and no guide or extra responder"
+        )
+
+
+def _validate_one_star_initial_deployment_guide_handoff(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    *,
+    cat_ii_event: OpenCatIIEvent | None,
+) -> None:
+    """Keep the opted-in opening deployment response-owned by its guide.
+
+    An opening-roster pool may require one guide turn after the independently
+    collected Hero intentions and before any deployment side effect.  This
+    check runs on the first Cat II resolution candidate, while a complete
+    router-envelope correction is still possible.  The guide's ordinary later
+    turn owns the physical crossing and pending/mission resolution.
+    """
+
+    if cat_ii_event is None:
+        return
+    guided = _one_star_initial_guided_roster(ckpt)
+    if guided is None:
+        return
+    owner_id, account, ordered_ids = guided
+    pending = account.state.pending_operation
+    if (
+        pending is None
+        or pending.kind != "deployment"
+        or cat_ii_event.initiator_id != owner_id
+        or set(pending.participant_ids) != set(ordered_ids)
+    ):
+        return
+    pending_open_event = next(
+        (
+            event
+            for event in ckpt.canonical_events
+            if event.event_id == cat_ii_event.opening_event_id
+        ),
+        None,
+    )
+    if pending_open_event is None or not any(
+        getattr(update, "kind", "") == "pending_open"
+        and getattr(update, "target_id", "") == pending.operation_id
+        and getattr(update, "value", "") == "deployment"
+        for update in getattr(pending_open_event, "state_updates", ())
+    ):
+        return
+
+    characters = {
+        character.character_id: character for character in ckpt.characters
+    }
+    active_guide_ids = [
+        guide_id
+        for guide_id in account.state.guide_character_ids
+        if (
+            (guide := characters.get(guide_id)) is not None
+            and guide.status.value == "active"
+        )
+    ]
+    errors: list[str] = []
+    if len(active_guide_ids) != 1:
+        errors.append(
+            "exactly one configured guide must be active for the handoff"
+        )
+        guide_id = ""
+    else:
+        guide_id = active_guide_ids[0]
+
+    if cat_ii_event.required_responders != list(ordered_ids):
+        errors.append(
+            "the collected responders must retain the opening-roster slot order"
+        )
+    if result.requires_responders or result.required_responders:
+        errors.append("the post-collection bridge cannot request responders")
+    if result.next_output_character_ids != ([guide_id] if guide_id else []):
+        errors.append(
+            "the sole next_output must be the active configured guide"
+        )
+    guide_observer = next(
+        (
+            observer
+            for observer in result.observers
+            if observer.character_id == guide_id
+        ),
+        None,
+    )
+    if (
+        not guide_id
+        or guide_observer is None
+        or guide_observer.observation_level != "d"
+        or guide_observer.routing_role != "next_output"
+    ):
+        errors.append(
+            "the active configured guide must be a direct next_output observer"
+        )
+    if guide_id and not any(
+        fact.is_visible_to(guide_id)
+        for fact in result.canonical_event.observable_facts
+    ):
+        errors.append(
+            "the guide must receive an observable fact carrying the collected "
+            "response context"
+        )
+    if result.perception_enrichment_character_ids:
+        errors.append("the post-collection bridge cannot request enrichment")
+    if getattr(result, "state_updates", None):
+        errors.append("the post-collection bridge must have empty state_updates")
+    generic_side_effects = {
+        "spawn": bool(result.spawn),
+        "dormant": bool(result.dormant),
+        "cull": bool(result.cull),
+        "activate": bool(result.activate),
+        "location_updates": bool(result.location_updates),
+        "commitment_open": bool(result.commitment_open.present),
+        "commitment_resolutions": bool(result.commitment_resolutions),
+        "commitment_interrupts": bool(result.commitment_interrupts),
+    }
+    present_side_effects = [
+        name for name, present in generic_side_effects.items() if present
+    ]
+    if present_side_effects:
+        errors.append(
+            "the post-collection bridge must have empty generic side effects: "
+            + ", ".join(present_side_effects)
+        )
+    if errors:
+        raise ValueError(
+            "One-Star initial deployment requires a side-effect-free "
+            "post-collection guide handoff:\n- "
+            + "\n- ".join(errors)
+        )
+
+
+def _validate_one_star_pending_resolution_event_contract(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+) -> None:
+    """Validate state/generic coupling while a full router retry is possible.
+
+    Embodied pending resolutions depend on generic ``location_updates`` that
+    the compact One-Star state-update repair cannot author. Deployment also
+    couples that physical crossing to an ordered mission start. Reject those
+    cross-envelope mistakes before router history or rules state mutates so
+    the existing one-shot full-output correction can repair the whole event.
+    """
+
+    if not isinstance(
+        result,
+        (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+    ):
+        return
+
+    location_updates: dict[str, str] = {}
+    for update in result.location_updates:
+        if update.character_id in location_updates:
+            raise ValueError(
+                "One-Star event has duplicate generic location_updates for "
+                f"{update.character_id!r}"
+            )
+        location_updates[update.character_id] = update.location_label
+
+    transaction = _one_star_transaction_for_result(ckpt, result)
+    operations = (
+        transaction.operations
+        if transaction is not None and transaction.present
+        else []
+    )
+    resolutions = [
+        (index, operation)
+        for index, operation in enumerate(operations)
+        if getattr(operation, "operation", "") == "pending_resolve"
+    ]
+    mission_starts = [
+        (index, operation)
+        for index, operation in enumerate(operations)
+        if getattr(operation, "operation", "") == "mission_start"
+    ]
+
+    from app.engine.one_star_adapter import (
+        find_one_star_account_owner,
+        load_one_star_account,
+        load_one_star_hero,
+    )
+
+    if find_one_star_account_owner(ckpt.characters) is None:
+        # Ruleset-only prompt/schema fixtures have no durable One-Star account,
+        # hence cannot carry an open pending operation for this validator.
+        return
+    _owner, account = load_one_star_account(ckpt)
+    pending = account.state.pending_operation
+    if pending is None:
+        if resolutions:
+            raise ValueError(
+                "One-Star pending_resolve requires one matching open pending "
+                "operation"
+            )
+        return
+
+    characters = {
+        character.character_id: character for character in ckpt.characters
+    }
+    affected_ids = {
+        *pending.participant_ids,
+        *([pending.target_id] if pending.target_id else []),
+    }
+    final_locations = {
+        character_id: location_updates.get(
+            character_id,
+            getattr(characters.get(character_id), "location", ""),
+        )
+        for character_id in affected_ids
+    }
+
+    if pending.kind == "deployment":
+        matching_resolutions = [
+            (index, operation)
+            for index, operation in resolutions
+            if getattr(operation, "operation_id", "") == pending.operation_id
+        ]
+        matching_mission_starts = [
+            (index, operation)
+            for index, operation in mission_starts
+            if getattr(operation, "pending_operation_id", "")
+            == pending.operation_id
+        ]
+        reaches_gate = any(
+            getattr(characters.get(character_id), "location", "")
+            == pending.destination
+            or final_locations[character_id] == pending.destination
+            for character_id in pending.participant_ids
+        )
+        if not (
+            reaches_gate
+            or matching_resolutions
+            or matching_mission_starts
+            or resolutions
+        ):
+            return
+
+        errors: list[str] = []
+        misplaced_ids = [
+            character_id
+            for character_id in sorted(affected_ids)
+            if final_locations[character_id] != pending.destination
+        ]
+        if misplaced_ids:
+            errors.append(
+                "generic location_updates must place every affected Hero at "
+                f"the exact pending destination {pending.destination!r}; "
+                "missing or mismatched: " + ", ".join(misplaced_ids)
+            )
+        activation_locations = {
+            signal.character_id: signal.location_label
+            for signal in result.activate
+        }
+        unselected_crossers: list[str] = []
+        selected_ids = set(pending.participant_ids)
+        for character in ckpt.characters:
+            if character.character_id in selected_ids:
+                continue
+            hero = load_one_star_hero(character)
+            if hero is None or hero.owner_lobby_id != account.config.lobby_id:
+                continue
+            planned_location = location_updates.get(
+                character.character_id,
+                activation_locations.get(
+                    character.character_id,
+                    character.location,
+                ),
+            )
+            currently_beyond_gate = (
+                character.status.value == "active"
+                and character.location == pending.destination
+            )
+            will_be_active = (
+                character.status.value == "active"
+                or character.character_id in activation_locations
+            )
+            if currently_beyond_gate or (
+                will_be_active and planned_location == pending.destination
+            ):
+                unselected_crossers.append(character.character_id)
+        if unselected_crossers:
+            errors.append(
+                "unselected local Heroes cannot reach the pending deployment "
+                "destination through current, location-update, or activation "
+                "state: " + ", ".join(sorted(unselected_crossers))
+            )
+        if len(resolutions) != 1 or len(matching_resolutions) != 1:
+            errors.append(
+                "exactly one pending_resolve must match the open deployment "
+                f"{pending.operation_id!r}"
+            )
+        if (
+            len(mission_starts) != 1
+            or len(matching_mission_starts) != 1
+            or not matching_resolutions
+            or matching_mission_starts[0][0] <= matching_resolutions[0][0]
+        ):
+            errors.append(
+                "exactly one matching mission_start must follow "
+                "pending_resolve in the same event"
+            )
+        elif (
+            set(matching_mission_starts[0][1].mission.party_ids)
+            != set(pending.participant_ids)
+            or matching_mission_starts[0][1].mission.destination
+            != pending.destination
+        ):
+            errors.append(
+                "mission party and destination must exactly match the "
+                "pending deployment"
+            )
+        if errors:
+            raise ValueError(
+                "One-Star deployment crossing contract is incomplete:\n- "
+                + "\n- ".join(errors)
+            )
+        return
+
+    if not resolutions:
+        # Synthesis and promotion allow physical chamber entry to precede
+        # resolution. Only an explicit resolve couples their state update to
+        # the generic location envelope.
+        return
+    if (
+        len(resolutions) != 1
+        or getattr(resolutions[0][1], "operation_id", "")
+        != pending.operation_id
+    ):
+        raise ValueError(
+            "One-Star pending_resolve must match the one open pending operation "
+            f"{pending.operation_id!r}"
+        )
+    misplaced_ids = [
+        character_id
+        for character_id in sorted(affected_ids)
+        if final_locations[character_id] != pending.destination
+    ]
+    if misplaced_ids:
+        raise ValueError(
+            "One-Star pending resolution requires generic location_updates "
+            f"that place every affected Hero at the exact pending destination "
+            f"{pending.destination!r}; missing or mismatched: "
+            + ", ".join(misplaced_ids)
+        )
 
 
 def _validate_one_star_guide_routing(
@@ -787,6 +1275,76 @@ def _is_begin_directive(intention: str) -> bool:
     return (intention or "").strip().casefold() == "(begin)"
 
 
+def _build_one_star_opening_roster_block(
+    checkpoint: CheckpointFile,
+    opening_participant_ids: set[str],
+) -> str:
+    """Project an adapter-resolved opening roster into the fresh router turn."""
+
+    if not _one_star_router_enabled(checkpoint):
+        return ""
+
+    from app.engine.one_star_adapter import (
+        load_one_star_account,
+        one_star_opening_roster_preview,
+    )
+    from app.schemas.one_star import (
+        OneStarOpeningActorSummonPool,
+        OneStarOpeningRosterSummonPool,
+    )
+
+    owner, account = load_one_star_account(checkpoint)
+    opening_actor_ids = {
+        pool.character_id
+        for pool in account.config.summon_pools.values()
+        if isinstance(pool, OneStarOpeningActorSummonPool)
+    }
+    if opening_actor_ids & opening_participant_ids:
+        return ""
+    if owner.character_id not in opening_participant_ids:
+        return ""
+
+    roster_pool_ids = [
+        pool_id
+        for pool_id, pool in account.config.summon_pools.items()
+        if isinstance(pool, OneStarOpeningRosterSummonPool)
+    ]
+    if not roster_pool_ids:
+        return ""
+    if len(roster_pool_ids) != 1:
+        raise ValueError(
+            "an authored One-Star opening requires exactly one opening-roster pool"
+        )
+
+    pool_id = roster_pool_ids[0]
+    characters = {
+        character.character_id: character for character in checkpoint.characters
+    }
+    lines = [
+        "## Resolved One-Star Opening Roster",
+        "Use these existing Heroes in exactly this order. Their identities and "
+        "birth grades are already resolved; do not substitute or reroll them.",
+        f"Pool: {pool_id}",
+    ]
+    for draw in one_star_opening_roster_preview(checkpoint, pool_id):
+        character_id = draw.existing_character_id
+        if not character_id or character_id not in characters:
+            raise ValueError(
+                "resolved One-Star opening roster references a missing character"
+            )
+        character = characters[character_id]
+        role = character.public_sheet.role or "unspecified role"
+        appearance = (character.public_sheet.appearance or "not yet described").strip()
+        lines.extend((
+            f"{draw.slot}. {character.character_id}",
+            f"   Name: {character.name}",
+            f"   Birth stars: {draw.birth_stars}",
+            f"   Role: {role}",
+            f"   Appearance: {appearance}",
+        ))
+    return "\n".join(lines)
+
+
 def _build_opening_context_block(
     checkpoint: CheckpointFile,
     intention: str,
@@ -863,6 +1421,11 @@ def _build_opening_context_block(
     if is_arrive:
         return participants
 
+    resolved_roster = _build_one_star_opening_roster_block(
+        checkpoint,
+        selected_ids,
+    )
+
     policy = checkpoint.world_state.opening
     if policy is None:
         opening_context = (
@@ -884,7 +1447,11 @@ def _build_opening_context_block(
             f"New-character spawn requests: {spawn_rule}.\n"
             f"{context}"
         )
-    return f"{participants}\n\n{opening_context}"
+    return _build_router_input_block(
+        participants,
+        resolved_roster,
+        opening_context,
+    )
 
 
 def _validate_opening_spawn_authority(
@@ -913,6 +1480,86 @@ def _validate_opening_spawn_authority(
         raise ValueError(
             "opening spawn requests must target genuinely new character ids; "
             "existing ids: " + ", ".join(dict.fromkeys(conflicting_ids))
+        )
+
+
+def _validate_projected_one_star_authored_opening_handoff(
+    checkpoint: CheckpointFile,
+    intention: str,
+    result: EventRouterOutput,
+) -> None:
+    """Guard an adapter-authored opening lifecycle before history mutates.
+
+    Opening summon identities are intentionally absent from the router's
+    generic spawn/activate fields. Preview the adapter-owned lifecycle on a
+    copy, then apply the same branch-aware handoff guard used after prepare.
+    """
+
+    if (
+        not _is_begin_directive(intention)
+        or not isinstance(
+            result,
+            (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+        )
+        or not (result.requires_responders or result.next_output_character_ids)
+    ):
+        return
+
+    from app.engine.one_star_adapter import one_star_summon_lifecycle
+    from app.engine.turn_loop import _validate_authored_opening_handoff
+
+    adapter_spawns, adapter_wakes = one_star_summon_lifecycle(
+        checkpoint,
+        result.state_updates,
+    )
+    projected = result.model_copy(deep=True)
+    projected.spawn.extend(adapter_spawns)
+    projected.activate.extend(adapter_wakes)
+    _validate_authored_opening_handoff(
+        checkpoint,
+        projected,
+        submission=intention,
+        events_closed=0,
+        is_continuation=False,
+    )
+
+
+def _validate_one_star_guide_and_opening_envelope(
+    checkpoint: CheckpointFile,
+    *,
+    actor_id: str,
+    intention: str,
+    result: EventRouterOutput,
+) -> None:
+    """Report coupled guide-delivery and authored-handoff defects together."""
+
+    from app.engine.one_star_adapter import OneStarTransactionError
+
+    errors: list[str] = []
+    validators = (
+        lambda: _validate_one_star_guide_routing(
+            checkpoint,
+            actor_id=actor_id,
+            result=result,
+        ),
+        lambda: _validate_projected_one_star_authored_opening_handoff(
+            checkpoint,
+            intention,
+            result,
+        ),
+    )
+    for validate in validators:
+        try:
+            validate()
+        except OneStarTransactionError:
+            # State-shape failures keep their narrower repair path.
+            raise
+        except ValueError as exc:
+            errors.append(str(exc))
+    if errors:
+        raise ValueError(
+            "One-Star router envelope violates coupled routing contracts:\n- "
+            + "\n- ".join(errors)
         )
 
 
@@ -1583,7 +2230,7 @@ class LLMDispatcher:
             apply_one_star_prepared_mutation,
             one_star_event_already_applied,
             one_star_event_fingerprint,
-            one_star_standard_summon_lifecycle,
+            one_star_summon_lifecycle,
             preflight_one_star_account_updates,
             prepare_one_star_transaction,
         )
@@ -1596,7 +2243,7 @@ class LLMDispatcher:
                 initiating_actor_id=actor_id,
                 canonical_at_s=(result.effective_at_s + result.duration_s),
             )
-        adapter_spawns, adapter_wakes = one_star_standard_summon_lifecycle(
+        adapter_spawns, adapter_wakes = one_star_summon_lifecycle(
             ckpt,
             result.state_updates,
         )
@@ -1607,7 +2254,7 @@ class LLMDispatcher:
         ) | (existing_wake_ids & {signal.character_id for signal in adapter_wakes})
         if generated_overlap:
             raise OneStarTransactionError(
-                "standard summon lifecycle is adapter-authored and was duplicated: "
+                "summon lifecycle is adapter-authored and was duplicated: "
                 + ", ".join(sorted(generated_overlap))
             )
         result.spawn.extend(adapter_spawns)
@@ -1913,6 +2560,7 @@ class LLMDispatcher:
             "source Heroes as participant details and names a distinct "
             "target_id; promotion uses the same single Hero as its sole "
             "participant and target_id.\n"
+            f"{_ONE_STAR_COMPACT_UPDATE_AUTHORITY}\n"
             f"Submitting actor id: {actor_id}\n"
             f"Validation failure: {validation_error}\n"
             "Current conflicting state:\n"
@@ -1952,9 +2600,13 @@ class LLMDispatcher:
         self,
         *,
         messages: list[dict[str, object]],
-        result: OneStarEventRouterOutput,
+        result: OneStarEventRouterOutput | ClosedOneStarEventRouterOutput,
         validation_error: str,
-    ) -> OneStarEventRouterOutput:
+        response_model: (
+            type[OneStarEventRouterOutput]
+            | type[ClosedOneStarEventRouterOutput]
+        ) = OneStarEventRouterOutput,
+    ) -> OneStarEventRouterOutput | ClosedOneStarEventRouterOutput:
         """Ask once for a complete replacement of an invalid routing envelope.
 
         State-update repair is intentionally narrower and runs only after the
@@ -1984,7 +2636,9 @@ class LLMDispatcher:
                     "Preserve any compatible fictional judgment, but make the "
                     "canonical event, Cat II classification, responder set, "
                     "observers, lifecycle, and One-Star state updates mutually "
-                    "consistent. Do not discuss the correction in the fiction "
+                    "consistent. "
+                    f"{_ONE_STAR_COMPACT_UPDATE_AUTHORITY} "
+                    "Do not discuss the correction in the fiction "
                     "or rationale.\n"
                     "</router_output_correction>"
                 ),
@@ -1997,7 +2651,7 @@ class LLMDispatcher:
         response = await self.client.complete(
             role="event_router",
             messages=correction_messages,
-            response_model=OneStarEventRouterOutput,
+            response_model=response_model,
             temperature=0.2,
             max_tokens=EVENT_ROUTER_MAX_TOKENS,
             cache=True,
@@ -2161,17 +2815,33 @@ class LLMDispatcher:
                     actor_id=actor_id,
                     result=result,
                 )
+                _validate_one_star_initial_deployment_responder_order(
+                    ckpt,
+                    result,
+                    actor_id=actor_id,
+                    cat_ii_event=cat_ii_event,
+                )
                 _validate_one_star_cat_ii_transaction(ckpt, result)
                 _validate_one_star_pending_operation_shapes(ckpt, result)
+                _validate_one_star_initial_deployment_guide_handoff(
+                    ckpt,
+                    result,
+                    cat_ii_event=cat_ii_event,
+                )
+                _validate_one_star_pending_resolution_event_contract(
+                    ckpt,
+                    result,
+                )
                 _validate_one_star_tutorial_routing(ckpt, result)
                 _validate_one_star_pending_response_routing(
                     ckpt,
                     actor_id=actor_id,
                     result=result,
                 )
-                _validate_one_star_guide_routing(
+                _validate_one_star_guide_and_opening_envelope(
                     ckpt,
                     actor_id=actor_id,
+                    intention=intention,
                     result=result,
                 )
                 _validate_opening_spawn_authority(ckpt, intention, result)
@@ -2416,6 +3086,10 @@ class LLMDispatcher:
             result: EventRouterOutput = response.parsed
 
             def validate_candidate() -> None:
+                if result.requires_responders or result.required_responders:
+                    raise ValueError(
+                        "One-Star continuation cannot open a new Cat II event"
+                    )
                 _include_one_star_synthesis_guide_responders(
                     ckpt,
                     actor_id=actor_id,
@@ -2423,6 +3097,10 @@ class LLMDispatcher:
                 )
                 _validate_one_star_cat_ii_transaction(ckpt, result)
                 _validate_one_star_pending_operation_shapes(ckpt, result)
+                _validate_one_star_pending_resolution_event_contract(
+                    ckpt,
+                    result,
+                )
                 _validate_one_star_tutorial_routing(ckpt, result)
                 _validate_one_star_pending_response_routing(
                     ckpt,
@@ -2444,6 +3122,7 @@ class LLMDispatcher:
                     messages=messages,
                     result=result,
                     validation_error=str(first_error),
+                    response_model=ClosedOneStarEventRouterOutput,
                 )
                 try:
                     validate_candidate()

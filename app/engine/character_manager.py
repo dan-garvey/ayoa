@@ -36,6 +36,13 @@ CHARACTER_MANAGER_MAX_TOKENS = 8_000
 # multi-paragraph backstory.
 ROUTER_SUMMARY_MAX_CHARS = 600
 
+# Character generation sees enough local behavior to avoid producing a cast of
+# cosmetic variants with identical motives, without receiving private dossiers
+# or gameplay history. These caps keep the volatile roster tail compact.
+EXISTING_CHARACTER_PERSONALITY_MAX_CHARS = 240
+EXISTING_CHARACTER_OBJECTIVE_MAX_CHARS = 160
+EXISTING_CHARACTER_OBJECTIVES_MAX = 2
+
 DND_GENERATION_INSTRUCTIONS = """
 12. Because this session uses D&D 5e rules, also emit `dnd_statblock`. Build it
     from this character's fiction: role, likely competence, physicality, gear,
@@ -299,6 +306,7 @@ def _existing_character_generation_lines(
     *,
     bound_character_ids: set[str] | None = None,
     local_active_location: str | None = None,
+    max_behavior_knowledge_tier: int | None = None,
 ) -> str:
     lines: list[str] = []
     bound = bound_character_ids or set()
@@ -320,12 +328,46 @@ def _existing_character_generation_lines(
         role = " ".join(character.public_sheet.role.split())
         appearance = " ".join(character.public_sheet.appearance.split())
         loadout = " ".join(character.visuals.default_loadout.split())
+        # In a tiered story, behavior from a same- or lower-tier arrival is
+        # useful casting context. Tier-zero story authorities can know the
+        # whole premise despite that sentinel value, so their private behavior
+        # cannot safely enter a tier-gated generation call.
+        include_behavior = (
+            max_behavior_knowledge_tier is None
+            or 0 < character.knowledge_tier <= max_behavior_knowledge_tier
+        )
+        personality = (
+            " ".join(character.personality.split()) if include_behavior else ""
+        )
+        objectives = (
+            [
+                " ".join(objective.split())[
+                    :EXISTING_CHARACTER_OBJECTIVE_MAX_CHARS
+                ]
+                for objective in character.private_state.current_objectives[
+                    :EXISTING_CHARACTER_OBJECTIVES_MAX
+                ]
+            ]
+            if include_behavior
+            else []
+        )
         if role:
             parts.append(f"role={role[:180]}")
         if appearance:
             parts.append(f"appearance={appearance[:240]}")
         if loadout:
             parts.append(f"loadout={loadout[:240]}")
+        if personality:
+            parts.append(
+                "personality="
+                f"{personality[:EXISTING_CHARACTER_PERSONALITY_MAX_CHARS]}"
+            )
+        if any(objectives):
+            parts.append(
+                "objectives=" + " | ".join(
+                    objective for objective in objectives if objective
+                )
+            )
         lines.append("- " + "; ".join(parts))
     return "\n".join(lines) if lines else "No existing characters."
 
@@ -624,6 +666,9 @@ class CharacterManager:
             # plot figures are not character knowledge or necessary casting
             # context for this arrival.
             local_active_location=(location if knowledge_isolated else None),
+            max_behavior_knowledge_tier=(
+                req.seed.knowledge_tier if knowledge_isolated else None
+            ),
         )
         dnd_enabled = _dnd_ruleset_enabled(checkpoint)
         one_star_enabled = _one_star_ruleset_enabled(checkpoint)

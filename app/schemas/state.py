@@ -823,6 +823,68 @@ class KnowledgeTier(BaseModel):
     agent_tier: CharacterAgentTier | None = None
 
 
+class AuthoredOpeningDialogueSegment(BaseModel):
+    """One exact line in an optional story-authored opening character beat.
+
+    The audience labels are semantic groups resolved from the live opening:
+    opening players are the characters bound when ``(begin)`` runs, while
+    introduced characters are the records materialized by that opening's
+    lifecycle signals.  The speaker is implicit in both audiences because a
+    character necessarily knows what they just said.
+    """
+
+    audiences: list[Literal["opening_players", "introduced_characters"]] = (
+        Field(min_length=1, max_length=2)
+    )
+    speaker_presentation: Literal["voice_only", "visible"] = "voice_only"
+    text: str = Field(min_length=1, max_length=4_000)
+
+    @model_validator(mode="after")
+    def _clean_segment(self) -> "AuthoredOpeningDialogueSegment":
+        self.audiences = list(dict.fromkeys(self.audiences))
+        self.text = self.text.strip()
+        if not self.text:
+            raise ValueError("authored opening dialogue text cannot be blank")
+        return self
+
+
+class AuthoredOpeningCharacterBeat(BaseModel):
+    """Exact post-materialization dialogue attached to the normal opening.
+
+    ``required_participant_ids`` is both a branch trigger and a fixed-cast
+    validator, but does not select the roster. If none of those ids is among
+    the opening's lifecycle signals, this beat does not apply; a partial match
+    is invalid. ``introduced_character_count`` then validates the complete set,
+    allowing a deterministic variable slot without creating another roster
+    authority here. An empty required-id list makes the beat apply to every
+    opening governed by this policy.
+    """
+
+    speaker_character_id: str = Field(min_length=1)
+    required_participant_ids: list[str] = Field(default_factory=list)
+    introduced_character_count: int = Field(ge=1, le=32)
+    segments: list[AuthoredOpeningDialogueSegment] = Field(
+        min_length=1,
+        max_length=16,
+    )
+    private_intent: str = Field(min_length=1, max_length=2_000)
+
+    @model_validator(mode="after")
+    def _clean_beat(self) -> "AuthoredOpeningCharacterBeat":
+        self.speaker_character_id = self.speaker_character_id.strip()
+        self.required_participant_ids = list(dict.fromkeys(
+            character_id.strip()
+            for character_id in self.required_participant_ids
+            if character_id.strip()
+        ))
+        self.private_intent = self.private_intent.strip()
+        if not self.speaker_character_id:
+            raise ValueError("authored opening speaker id cannot be blank")
+        if not self.private_intent:
+            raise ValueError("authored opening private intent cannot be blank")
+        return self
+
+
 class OpeningPolicy(BaseModel):
     """Story-authored constraints for the router's canonical opening.
 
@@ -833,6 +895,7 @@ class OpeningPolicy(BaseModel):
 
     allow_spawns: bool = False
     context: str = ""
+    authored_character_beat: AuthoredOpeningCharacterBeat | None = None
 
     @model_validator(mode="after")
     def _validate_spawn_authority(self) -> "OpeningPolicy":

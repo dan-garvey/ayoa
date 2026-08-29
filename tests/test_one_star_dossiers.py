@@ -202,14 +202,17 @@ def _render_foreground_agent(
     )
 
 
-def test_birth_one_star_learns_tutorial_only_from_witnessed_dialogue() -> None:
+@pytest.mark.parametrize("character_id", ("renna_holt", "edren_marr"))
+def test_birth_one_star_learns_tutorial_only_from_witnessed_dialogue(
+    character_id: str,
+) -> None:
     checkpoint = _seed_checkpoint()
-    renna = next(
+    character = next(
         character for character in checkpoint.characters
-        if character.character_id == "renna_holt"
+        if character.character_id == character_id
     )
 
-    initial = _render_foreground_agent(checkpoint, renna.character_id)
+    initial = _render_foreground_agent(checkpoint, character.character_id)
     assert [message["role"] for message in initial] == ["system", "user"]
     initial_system = initial[0]["content"]
     initial_user = initial[1]["content"]
@@ -224,12 +227,12 @@ def test_birth_one_star_learns_tutorial_only_from_witnessed_dialogue() -> None:
         assert pre_tutorial_leak not in initial_system.casefold()
         assert pre_tutorial_leak not in initial_user.casefold()
 
-    renna.pending_observations.append(
+    character.pending_observations.append(
         "Iselle says, \"An unseen Master brought you here. You are expected "
         "to climb the Tower, and entering the deployment gate commits you "
         "until the objective is cleared.\""
     )
-    instructed = _render_foreground_agent(checkpoint, renna.character_id)
+    instructed = _render_foreground_agent(checkpoint, character.character_id)
     assert instructed[0]["content"] == initial_system
     instructed_user = instructed[-1]["content"].casefold()
     assert "since your last response" in instructed_user

@@ -13,6 +13,7 @@ from app.schemas.characters import (
     CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
+    PlayerSlotKind,
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
@@ -212,6 +213,63 @@ async def test_tier_one_receives_grant_without_broader_story_truth() -> None:
     assert "The Cartel Prince" not in user
     assert "Vey" not in user
     assert spawned[0].knowledge_tier == 1
+
+
+@pytest.mark.asyncio
+async def test_existing_cast_behavior_is_compact_and_user_tail_only() -> None:
+    checkpoint = _checkpoint()
+    local_guide = checkpoint.characters[0]
+    local_guide.knowledge_tier = 1
+    local_guide.personality = "P" * 240 + " PERSONALITY_TAIL"
+    local_guide.private_state.current_objectives = [
+        "A" * 160 + " OBJECTIVE_ONE_TAIL",
+        "B" * 160 + " OBJECTIVE_TWO_TAIL",
+        "THIRD_OBJECTIVE_MUST_NOT_APPEAR",
+    ]
+    local_guide.backstory = "BACKSTORY_MUST_NOT_APPEAR"
+    local_guide.known_context = "KNOWN_CONTEXT_MUST_NOT_APPEAR"
+    local_guide.private_state.secrets = ["SECRET_MUST_NOT_APPEAR"]
+    local_guide.mechanics = {
+        "hidden_fixture": {"value": "MECHANICS_MUST_NOT_APPEAR"},
+    }
+    checkpoint.characters.append(
+        CharacterRecord(
+            character_id="unbound_newcomer",
+            name="UNBOUND_PLAYER_SLOT_MUST_NOT_APPEAR",
+            location="lower_hall",
+            is_playable=True,
+            player_slot_kind=PlayerSlotKind.player_authored,
+        )
+    )
+    client = _client(_authored())
+
+    await CharacterManager(
+        client, PromptManager("app/prompts"),
+    ).spawn_characters(checkpoint, [_request(tier=1)])
+
+    system, user = _rendered_call(client)
+    assert "P" * 240 in user
+    assert "A" * 160 in user
+    assert "B" * 160 in user
+    assert "P" * 240 not in system
+    assert "A" * 160 not in system
+    assert "B" * 160 not in system
+    assert all(
+        marker not in f"{system}\n{user}"
+        for marker in (
+            "PERSONALITY_TAIL",
+            "OBJECTIVE_ONE_TAIL",
+            "OBJECTIVE_TWO_TAIL",
+            "THIRD_OBJECTIVE_MUST_NOT_APPEAR",
+            "BACKSTORY_MUST_NOT_APPEAR",
+            "KNOWN_CONTEXT_MUST_NOT_APPEAR",
+            "SECRET_MUST_NOT_APPEAR",
+            "MECHANICS_MUST_NOT_APPEAR",
+            "UNBOUND_PLAYER_SLOT_MUST_NOT_APPEAR",
+        )
+    )
+    assert "The Cartel Prince" not in user
+    assert "Vey" not in user
 
 
 @pytest.mark.asyncio

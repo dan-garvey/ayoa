@@ -23,6 +23,7 @@ and character_agent modules into the protocol `run_beat` depends on.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import uuid
 from copy import deepcopy
@@ -92,14 +93,26 @@ from app.llm.client import LLMClient
 # landed — a missing module is a real packaging error.
 from app.engine.turn_loop_dispatcher import (
     LLMDispatcher,
+    _append_router_history_record,
     refresh_router_history_record,
 )
 from app.engine.turn_loop_contracts import AuthoritativeResultPlan
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.conversation import ConversationMessage
+from app.schemas.event_router import (
+    EventRouterOutput,
+    ObserverEntry,
+    empty_commitment_open_signal,
+)
+from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
+from app.schemas.narrator import VisualNovelPage
 from app.schemas.requests import TurnRequest
-from app.schemas.responses import TurnResponse, VisualNovelRender
+from app.schemas.responses import (
+    TurnResponse,
+    VisualNovelRender,
+    VisualNovelRenderSegment,
+)
 from app.schemas.state import CommitmentRevisionPrompt, PendingNarratorRender
 
 logger = logging.getLogger(__name__)
@@ -430,6 +443,334 @@ def _combine_visual_novel_renders(
             else:
                 existing.segments.extend(segments)
     return combined
+
+
+def _authored_opening_event_id(
+    ckpt: CheckpointFile,
+    *,
+    speaker_character_id: str,
+    opening_events: list[EventRouterOutput],
+) -> str:
+    source = "\0".join((
+        ckpt.session.session_id,
+        speaker_character_id,
+        *(event.event_id for event in opening_events),
+    ))
+    digest = hashlib.sha256(source.encode("utf-8")).hexdigest()[:20]
+    return f"evt_authored_opening_{digest}"
+
+
+def _authored_opening_requested(
+    ckpt: CheckpointFile,
+    submission: str,
+) -> bool:
+    policy = ckpt.world_state.opening
+    return bool(
+        submission.strip().casefold() == "(begin)"
+        and policy is not None
+        and policy.authored_character_beat is not None
+    )
+
+
+def _commit_authored_opening_character_beat(
+    ckpt: CheckpointFile,
+    *,
+    opening_result: BeatResult,
+) -> BeatResult | None:
+    """Commit exact story-authored dialogue after a successful ``(begin)``.
+
+    The router event remains the sole roster authority.  This projection only
+    validates and reads the spawn/wake signals from the just-closed opening,
+    then broadcasts an authored canonical dialogue event and builds its exact
+    presentation without passing it through the narrator.
+    """
+
+    policy = ckpt.world_state.opening
+    beat = policy.authored_character_beat if policy is not None else None
+    if beat is None:
+        return None
+    if any(
+        event.event_id.startswith("evt_authored_opening_")
+        for event in ckpt.canonical_events
+    ):
+        return None
+    if opening_result.events_closed <= 0:
+        raise ValueError(
+            "authored opening dialogue requires a closed opening event"
+        )
+
+    opening_events = list(
+        ckpt.canonical_events[-opening_result.events_closed:]
+    )
+    event_id = _authored_opening_event_id(
+        ckpt,
+        speaker_character_id=beat.speaker_character_id,
+        opening_events=opening_events,
+    )
+    if any(event.event_id == event_id for event in ckpt.canonical_events):
+        return None
+
+    opening_player_ids = sorted(collect_player_ids(ckpt))
+    introduced_ids: list[str] = []
+    for event in opening_events:
+        for character_id in (
+            *(request.character_id for request in event.spawn),
+            *(signal.character_id for signal in event.activate),
+        ):
+            if (
+                character_id
+                and character_id != beat.speaker_character_id
+                and character_id not in introduced_ids
+            ):
+                introduced_ids.append(character_id)
+
+    present_required = [
+        character_id
+        for character_id in beat.required_participant_ids
+        if character_id in introduced_ids
+    ]
+    if beat.required_participant_ids and not present_required:
+        return None
+    missing_required = [
+        character_id
+        for character_id in beat.required_participant_ids
+        if character_id not in introduced_ids
+    ]
+    if missing_required:
+        raise ValueError(
+            "authored opening dialogue is missing required participants: "
+            + ", ".join(missing_required)
+        )
+    if len(introduced_ids) != beat.introduced_character_count:
+        raise ValueError(
+            "authored opening dialogue expected "
+            f"{beat.introduced_character_count} introduced characters but "
+            f"the opening materialized {len(introduced_ids)}"
+        )
+
+    characters = {character.character_id: character for character in ckpt.characters}
+    speaker = characters.get(beat.speaker_character_id)
+    if speaker is None or str(getattr(speaker.status, "value", speaker.status)) != "active":
+        raise ValueError(
+            "authored opening dialogue speaker must be an active character"
+        )
+    if speaker.character_id in opening_player_ids:
+        raise ValueError(
+            "authored opening dialogue cannot speak for a player-controlled "
+            "character"
+        )
+    inactive_introductions = [
+        character_id
+        for character_id in introduced_ids
+        if character_id not in characters
+        or str(getattr(
+            characters[character_id].status,
+            "value",
+            characters[character_id].status,
+        )) != "active"
+    ]
+    if inactive_introductions:
+        raise ValueError(
+            "authored opening dialogue participants were not materialized: "
+            + ", ".join(inactive_introductions)
+        )
+
+    visual_novel_mode = (
+        ckpt.session.config.settings.presentation_mode == "visual_novel"
+    )
+    facts: list[ObservableFact] = []
+    render_paragraphs_by_player: dict[str, list[str]] = {}
+    pages_by_player: dict[str, list[VisualNovelPage]] = {}
+    all_observer_ids: list[str] = []
+    for segment in beat.segments:
+        recipient_ids = [beat.speaker_character_id]
+        if "opening_players" in segment.audiences:
+            recipient_ids.extend(opening_player_ids)
+        if "introduced_characters" in segment.audiences:
+            recipient_ids.extend(introduced_ids)
+        recipient_ids = list(dict.fromkeys(recipient_ids))
+        all_observer_ids.extend(recipient_ids)
+        speaker_visible = segment.speaker_presentation == "visible"
+        facts.append(ObservableFact.only(
+            f"{speaker.name}: {segment.text}",
+            recipient_ids,
+            visual_subject_ids=(
+                [beat.speaker_character_id] if speaker_visible else []
+            ),
+        ))
+        page = (
+            VisualNovelPage(
+                kind="dialogue",
+                speaker=speaker.name,
+                text=segment.text,
+                sprites=[speaker.name] if speaker_visible else [],
+            )
+            if visual_novel_mode
+            else None
+        )
+        for character_id in opening_player_ids:
+            if character_id in recipient_ids:
+                render_paragraphs_by_player.setdefault(character_id, []).append(
+                    f"{speaker.name}: {segment.text}"
+                )
+                if page is not None:
+                    pages_by_player.setdefault(character_id, []).append(
+                        page.model_copy(deep=True)
+                    )
+
+    observer_ids = list(dict.fromkeys(all_observer_ids))
+    end_at_s = max(
+        (
+            event.effective_at_s + event.duration_s
+            for event in opening_events
+        ),
+        default=0,
+    )
+    event = EventRouterOutput(
+        event_id=event_id,
+        effective_at_s=end_at_s,
+        duration_s=0,
+        decision_rationale="Story-authored opening character beat.",
+        canonical_event=CanonicalEvent(
+            world_adjudication=WorldAdjudication(feasible=True),
+            observable_facts=facts,
+        ),
+        event_kind="public_fact",
+        requires_responders=False,
+        required_responders=[],
+        observers=[
+            ObserverEntry(
+                character_id=character_id,
+                observation_level="d",
+                routing_role="observe_only",
+            )
+            for character_id in observer_ids
+        ],
+        spawn=[],
+        dormant=[],
+        cull=[],
+        commitment_open=empty_commitment_open_signal(),
+        commitment_resolutions=[],
+        commitment_interrupts=[],
+        location_updates=[],
+        activate=[],
+    )
+
+    introduced_names = [characters[character_id].name for character_id in introduced_ids]
+    public_text = "\n\n".join(segment.text for segment in beat.segments)
+    private_intent = beat.private_intent
+    if not (private_intent.startswith("(") and private_intent.endswith(")")):
+        private_intent = f"({private_intent})"
+    history_messages = (
+        ConversationMessage(
+            role="user",
+            content=(
+                "The opening participants are assembled before you: "
+                + ", ".join(introduced_names)
+                + "."
+            ),
+        ),
+        ConversationMessage(
+            role="assistant",
+            content=f"{public_text}\n\n{private_intent}",
+        ),
+    )
+
+    renders = {
+        character_id: "\n\n".join(paragraphs)
+        for character_id, paragraphs in render_paragraphs_by_player.items()
+    }
+    variant_key = (
+        speaker.visuals.visual_novel_presentation.current_variant_key
+        or "neutral"
+    )
+    # The authored dialogue is a deterministic continuation of the rendered
+    # opening, not a second image-direction request. Point its pages at the
+    # accepted opening transition so visual clients retain that exact stage.
+    stage_event_id = opening_events[-1].event_id
+    visual_renders = (
+        {
+            character_id: VisualNovelRender(segments=[
+                VisualNovelRenderSegment(
+                    pages=[page.model_copy(deep=True) for page in pages],
+                    rendered_event_id=stage_event_id,
+                    sprite_variant_keys_by_label=(
+                        {speaker.name: variant_key}
+                        if any(speaker.name in page.sprites for page in pages)
+                        else {}
+                    ),
+                )
+            ])
+            for character_id, pages in pages_by_player.items()
+        }
+        if visual_novel_mode
+        else {}
+    )
+    result = BeatResult(
+        renders=renders,
+        events_closed=1,
+        ended_reason=opening_result.ended_reason,
+        transcript_entries={},
+        event_actor_ids=[beat.speaker_character_id],
+        visual_novel_renders=visual_renders,
+        reaction_prompts={},
+    )
+    narrator_history_messages = {
+        character_id: ConversationMessage(
+            role="assistant",
+            content=[{
+                "type": "text",
+                "text": json.dumps(
+                    (
+                        {
+                            "pages": [
+                                page.model_dump(
+                                    mode="json",
+                                    exclude={"sprites"},
+                                )
+                                for page in pages_by_player[character_id]
+                            ]
+                        }
+                        if visual_novel_mode
+                        else {"final_text": renders[character_id]}
+                    ),
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                ),
+            }],
+        )
+        for character_id in renders
+    }
+
+    # Construct and validate every returned object before mutating canonical
+    # state. The surrounding turn transaction can then roll back any broadcast
+    # failure without leaving a half-built authored response.
+    broadcast_event(ckpt, event, actor_id=beat.speaker_character_id)
+    _append_router_history_record(
+        ckpt.session_conversation,
+        acting_character_id=beat.speaker_character_id,
+        result=event,
+        mode="authored",
+    )
+    ckpt.character_conversations.setdefault(
+        beat.speaker_character_id,
+        [],
+    ).extend(history_messages)
+    for character_id, history_message in narrator_history_messages.items():
+        ckpt.narrator_conversations.setdefault(character_id, []).append(
+            history_message
+        )
+
+    # These players receive exact authored text/pages above, so consume only
+    # this event's ordinary narrator-buffer entry. Leaving it queued would
+    # render the same dialogue a second time on the next turn.
+    for character_id in opening_player_ids:
+        ckpt.session.render_buffers[character_id] = [
+            entry
+            for entry in ckpt.session.render_buffers.get(character_id, [])
+            if entry.event_id != event.event_id
+        ]
+    return result
 
 
 def _combine_loot_prompts(results: list[BeatResult]) -> dict[str, list[str]]:
@@ -957,64 +1298,90 @@ class Orchestrator:
             (str(transaction_id), str(roll_id))
             for transaction_id, roll_id in pending.roll_keys_before
         }
-        self._ensure_closed_event_runtime(
+        retry_snapshot = _durable_player_action_snapshot(ckpt)
+        event_runtime = self._ensure_closed_event_runtime(
             ckpt,
             source_turn_index=ckpt.session.turn_index,
         )
-        beat_result = await _end_beat(
+        authored_opening_requested = _authored_opening_requested(
             ckpt,
-            dispatcher,
-            ended_reason=pending.ended_reason,
-            events_closed=pending.events_closed,
-            event_actor_ids=list(pending.event_actor_ids),
-            release_slots=pending.release_slots,
-            force_partial=pending.force_partial,
-            acting_player_id=pending.acting_player_id,
-            acting_player_input=pending.acting_player_input,
-            suppress_reaction_prompts=pending.suppress_reaction_prompts,
-            soft_handoff_candidate=pending.soft_handoff_candidate,
+            pending.acting_player_input,
         )
-        if beat_result.continue_requested:
-            prior_result = next(
-                (
-                    event
-                    for event in reversed(ckpt.canonical_events)
-                    if event.event_id == pending.handoff_event_id
+        event_runtime.defer_roster_acceptance = authored_opening_requested
+        authored_opening_results: list[BeatResult] = []
+        try:
+            beat_result = await _end_beat(
+                ckpt,
+                dispatcher,
+                ended_reason=pending.ended_reason,
+                events_closed=pending.events_closed,
+                event_actor_ids=list(pending.event_actor_ids),
+                release_slots=pending.release_slots,
+                force_partial=pending.force_partial,
+                acting_player_id=pending.acting_player_id,
+                acting_player_input=pending.acting_player_input,
+                suppress_reaction_prompts=pending.suppress_reaction_prompts,
+                soft_handoff_candidate=(
+                    pending.soft_handoff_candidate
+                    and not authored_opening_requested
                 ),
-                None,
             )
-            if prior_result is None:
-                raise RuntimeError(
-                    "Pending narrator continuation event is missing from "
-                    "canonical history."
+            if beat_result.continue_requested:
+                prior_result = next(
+                    (
+                        event
+                        for event in reversed(ckpt.canonical_events)
+                        if event.event_id == pending.handoff_event_id
+                    ),
+                    None,
                 )
-            beat_result = await run_beat(
-                ckpt=ckpt,
-                dispatcher=dispatcher,
-                actor_id=pending.acting_player_id,
-                intention=pending.acting_player_input,
-                resume_after_handoff=prior_result,
-                resume_events_closed=pending.events_closed,
-                resume_event_actor_ids=list(pending.event_actor_ids),
+                if prior_result is None:
+                    raise RuntimeError(
+                        "Pending narrator continuation event is missing from "
+                        "canonical history."
+                    )
+                beat_result = await run_beat(
+                    ckpt=ckpt,
+                    dispatcher=dispatcher,
+                    actor_id=pending.acting_player_id,
+                    intention=pending.acting_player_input,
+                    resume_after_handoff=prior_result,
+                    resume_events_closed=pending.events_closed,
+                    resume_event_actor_ids=list(pending.event_actor_ids),
+                )
+            self._clear_pending_commitment_revision(ckpt, pending)
+            authored_opening_results = (
+                await self._finalize_rendered_beat_state(
+                    ckpt=ckpt,
+                    beat_result=beat_result,
+                    log_label="Resumed BeatResult",
+                    acting_id=pending.acting_player_id,
+                    submission=pending.acting_player_input,
+                )
             )
-        self._clear_pending_commitment_revision(ckpt, pending)
-        await self._apply_beat_roster_side_effects(
-            ckpt, beat_result, log_label="Resumed BeatResult",
-        )
-        _handle_combat_after_beat(
+            self.checkpoint_mgr.save(ckpt)
+        except Exception:
+            await self._cancel_closed_event_runtime(
+                ckpt,
+                reason="pending_render_retry_failed_before_commit",
+            )
+            _restore_rejected_player_action(ckpt, retry_snapshot)
+            raise
+
+        await self._commit_closed_event_runtime(
             ckpt,
-            acting_id=pending.acting_player_id,
-            beat_result=beat_result,
+            [beat_result, *authored_opening_results],
         )
-        flush_combat_visible_facts(ckpt)
-        self.checkpoint_mgr.save(ckpt)
-        await self._commit_closed_event_runtime(ckpt, [beat_result])
         automated_results = await self._run_automated_combat_turns_locked(
             ckpt=ckpt,
             dispatcher=dispatcher,
         )
 
-        beat_results = [beat_result, *automated_results]
+        beat_results = [
+            beat_result,
+            *authored_opening_results,
+            *automated_results,
+        ]
         response = _turn_response_from_beat_results(
             session_id=session_id,
             ckpt=ckpt,
@@ -1062,6 +1429,8 @@ class Orchestrator:
         beat_result: BeatResult,
         *,
         log_label: str,
+        accept_roster: bool = True,
+        retire_terminal_identities: bool = True,
     ) -> dict[str, list[str]]:
         if beat_result.events_closed <= 0:
             beat_result.loot_prompts = {}
@@ -1078,44 +1447,12 @@ class Orchestrator:
             actors = actors + [None] * (beat_result.events_closed - len(actors))
         for evt, evt_actor in zip(closed_this_beat, actors):
             self.char_mgr.apply_roster_updates(ckpt, evt)
-            terminal_ids = list(evt.cull)
-            from app.schemas.one_star import (
-                ClosedOneStarEventRouterOutput,
-                OneStarEventRouterOutput,
-            )
-
-            if isinstance(
-                evt,
-                (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
-            ):
-                from app.engine.one_star_adapter import (
-                    one_star_transaction_cull_ids,
+            if retire_terminal_identities:
+                self._retire_terminal_identities(
+                    ckpt,
+                    self._terminal_character_ids(ckpt, evt),
+                    event_runtime=event_runtime,
                 )
-
-                terminal_ids.extend(
-                    one_star_transaction_cull_ids(
-                        ckpt,
-                        event_id=evt.event_id,
-                    )
-                )
-            terminal_ids = list(dict.fromkeys(terminal_ids))
-            if self.image_generation is not None:
-                for character_id in terminal_ids:
-                    self.image_generation.retire_character_identity(
-                        session_id=ckpt.session.session_id,
-                        character_id=character_id,
-                        source_turn_index=event_runtime.source_turn_index,
-                    )
-                    character = next(
-                        (
-                            item
-                            for item in ckpt.characters
-                            if item.character_id == character_id
-                        ),
-                        None,
-                    )
-                    if character is not None:
-                        character.visuals.identity_reference_id = ""
             if evt.spawn:
                 records = await event_runtime.authored_records(
                     checkpoint=ckpt,
@@ -1131,16 +1468,129 @@ class Orchestrator:
                     result=evt,
                     spawned_characters=records,
                 )
-        self.spawn_authoring.accept_roster(
-            checkpoint=ckpt,
-            transaction_id=event_runtime.transaction_id,
-        )
+        if accept_roster:
+            self.spawn_authoring.accept_roster(
+                checkpoint=ckpt,
+                transaction_id=event_runtime.transaction_id,
+            )
         loot_prompts = dnd_inventory.apply_loot_offers_from_events(
             ckpt,
             closed_this_beat,
         )
         beat_result.loot_prompts = loot_prompts
         return loot_prompts
+
+    @staticmethod
+    def _terminal_character_ids(
+        ckpt: CheckpointFile,
+        event: EventRouterOutput,
+    ) -> list[str]:
+        terminal_ids = list(event.cull)
+        from app.schemas.one_star import (
+            ClosedOneStarEventRouterOutput,
+            OneStarEventRouterOutput,
+        )
+
+        if isinstance(
+            event,
+            (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+        ):
+            from app.engine.one_star_adapter import (
+                one_star_transaction_cull_ids,
+            )
+
+            terminal_ids.extend(
+                one_star_transaction_cull_ids(
+                    ckpt,
+                    event_id=event.event_id,
+                )
+            )
+        return list(dict.fromkeys(terminal_ids))
+
+    def _retire_terminal_identities(
+        self,
+        ckpt: CheckpointFile,
+        character_ids: list[str],
+        *,
+        event_runtime: ClosedEventRuntime,
+    ) -> None:
+        if self.image_generation is None:
+            return
+        for character_id in character_ids:
+            self.image_generation.retire_character_identity(
+                session_id=ckpt.session.session_id,
+                character_id=character_id,
+                source_turn_index=event_runtime.source_turn_index,
+            )
+            character = next(
+                (
+                    item
+                    for item in ckpt.characters
+                    if item.character_id == character_id
+                ),
+                None,
+            )
+            if character is not None:
+                character.visuals.identity_reference_id = ""
+
+    def _accept_deferred_roster(self, ckpt: CheckpointFile) -> None:
+        runtime = closed_event_runtime_for(ckpt)
+        if runtime is None:
+            return
+        accepted = self.spawn_authoring.accept_roster(
+            checkpoint=ckpt,
+            transaction_id=runtime.transaction_id,
+        )
+        runtime.applied_character_ids.update(accepted)
+        runtime.defer_roster_acceptance = False
+
+    async def _finalize_rendered_beat_state(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        beat_result: BeatResult,
+        log_label: str,
+        acting_id: str,
+        submission: str,
+        allow_new_combat_pending: bool = True,
+    ) -> list[BeatResult]:
+        """Finish all fallible post-render work before roster acceptance."""
+
+        authored_opening = _authored_opening_requested(ckpt, submission)
+        await self._apply_beat_roster_side_effects(
+            ckpt,
+            beat_result,
+            log_label=log_label,
+            accept_roster=not authored_opening,
+            retire_terminal_identities=not authored_opening,
+        )
+        authored_results: list[BeatResult] = []
+        if authored_opening:
+            result = _commit_authored_opening_character_beat(
+                ckpt,
+                opening_result=beat_result,
+            )
+            if result is not None:
+                authored_results.append(result)
+
+        _handle_combat_after_beat(
+            ckpt,
+            acting_id=acting_id,
+            beat_result=beat_result,
+            allow_new_pending=allow_new_combat_pending,
+        )
+        flush_combat_visible_facts(ckpt)
+        if authored_opening:
+            event_runtime = self._ensure_closed_event_runtime(ckpt)
+            if beat_result.events_closed > 0:
+                for event in ckpt.canonical_events[-beat_result.events_closed:]:
+                    self._retire_terminal_identities(
+                        ckpt,
+                        self._terminal_character_ids(ckpt, event),
+                        event_runtime=event_runtime,
+                    )
+            self._accept_deferred_roster(ckpt)
+        return authored_results
 
     async def _run_automated_combat_turns_locked(
         self,
@@ -1484,7 +1934,10 @@ class Orchestrator:
                 combat_reaction_event_id=combat_reaction_event_id,
             )
             rejected_action_snapshot = _durable_player_action_snapshot(ckpt)
-            self._ensure_closed_event_runtime(ckpt)
+            event_runtime = self._ensure_closed_event_runtime(ckpt)
+            event_runtime.defer_roster_acceptance = (
+                _authored_opening_requested(ckpt, request.user_input)
+            )
             roll_keys_before = completed_automatic_roll_keys(ckpt)
             revision_input_consumed = (
                 deferred_handoff is None
@@ -1504,6 +1957,7 @@ class Orchestrator:
                     revision_before=revision_before,
                 )
             )
+            authored_opening_results: list[BeatResult] = []
             try:
                 beat_result = await run_beat(
                     ckpt=ckpt,
@@ -1514,6 +1968,41 @@ class Orchestrator:
                     combat_reaction_event_id=combat_reaction_event_id,
                     resume_after_handoff=deferred_handoff,
                 )
+                if revision_before is not None:
+                    current_revision = (
+                        ckpt.session.pending_commitment_revisions.get(acting_id)
+                    )
+                    if (
+                        current_revision is not None
+                        and current_revision.commitment_id
+                        == revision_before.commitment_id
+                        and current_revision.trigger_event_id
+                        == revision_before.trigger_event_id
+                    ):
+                        ckpt.session.pending_commitment_revisions.pop(
+                            acting_id,
+                            None,
+                        )
+
+                authored_opening_results = (
+                    await self._finalize_rendered_beat_state(
+                        ckpt=ckpt,
+                        beat_result=beat_result,
+                        log_label="BeatResult",
+                        acting_id=acting_id,
+                        submission=request.user_input,
+                        allow_new_combat_pending=(
+                            combat_reaction_event_id is None
+                        ),
+                    )
+                )
+
+                # run_beat has mutated canonical/render/conversation state;
+                # every fallible authored and roster projection above is now
+                # complete, so this is the single durable commit boundary.
+                if not pending_render_saved():
+                    ckpt.session.turn_index += 1
+                self.checkpoint_mgr.save(ckpt)
             except PlayerActionRejected as exc:
                 if pending_render_saved():
                     # This exception is reserved for validation before any
@@ -1548,52 +2037,26 @@ class Orchestrator:
                         ckpt,
                         reason="turn_failed_before_commit",
                     )
-                raise
-            if revision_before is not None:
-                current_revision = ckpt.session.pending_commitment_revisions.get(
-                    acting_id
-                )
-                if (
-                    current_revision is not None
-                    and current_revision.commitment_id
-                    == revision_before.commitment_id
-                    and current_revision.trigger_event_id
-                    == revision_before.trigger_event_id
-                ):
-                    ckpt.session.pending_commitment_revisions.pop(
-                        acting_id,
-                        None,
+                    _restore_rejected_player_action(
+                        ckpt,
+                        rejected_action_snapshot,
                     )
-
-            # 6. Apply roster side-effects of every event that closed
-            # this beat. `run_beat` broadcasts + renders but leaves
-            # spawn / dormant / cull for the orchestrator to apply.
-            await self._apply_beat_roster_side_effects(
-                ckpt, beat_result, log_label="BeatResult",
-            )
-
-            _handle_combat_after_beat(
+                raise
+            await self._commit_closed_event_runtime(
                 ckpt,
-                acting_id=acting_id,
-                beat_result=beat_result,
-                allow_new_pending=combat_reaction_event_id is None,
+                [beat_result, *authored_opening_results],
             )
-            flush_combat_visible_facts(ckpt)
-
-            # 7. Save. run_beat has already mutated active_act_slots,
-            # open_cat_ii_events, render_buffers, canonical_events, and
-            # (through the dispatcher) narrator_conversations.
-            if not pending_render_saved():
-                ckpt.session.turn_index += 1
-            self.checkpoint_mgr.save(ckpt)
-            await self._commit_closed_event_runtime(ckpt, [beat_result])
             automated_results = await self._run_automated_combat_turns_locked(
                 ckpt=ckpt,
                 dispatcher=dispatcher,
             )
 
         # 8. Build the response.
-        beat_results = [beat_result, *automated_results]
+        beat_results = [
+            beat_result,
+            *authored_opening_results,
+            *automated_results,
+        ]
         response = _turn_response_from_beat_results(
             session_id=request.session_id,
             ckpt=ckpt,

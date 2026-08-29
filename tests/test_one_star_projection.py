@@ -37,7 +37,7 @@ from app.schemas.one_star import (
     OneStarProgressionConfig,
     OneStarSkillEntry,
     OneStarSynthesisPreview,
-    OneStarSummonPool,
+    OneStarStandardSummonPool,
 )
 from app.schemas.state import SessionConfig, SessionSettings, SessionState
 from tests.support.factories import text_llm_response
@@ -124,7 +124,7 @@ def _rules_config() -> OneStarRulesConfig:
         lobby_location_label="cold_lobby_hall",
         catalogue={},
         summon_pools={
-            "basic": OneStarSummonPool(
+            "basic": OneStarStandardSummonPool(
                 cost=OneStarCost(
                     gold=2,
                     gems=0,

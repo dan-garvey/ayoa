@@ -2,9 +2,9 @@
 
 The router still arbitrates fiction. This module translates its one compact
 state-update list into private typed bookkeeping, validates it, and applies it
-atomically. Standard weighted summons are resolved here without exposing future
-draws to the router. The adapter deliberately has no combat resolver, story id,
-or facility/economy constants.
+atomically. Weighted and authored opening summons are resolved here without
+exposing identities or future draws to the router. The adapter deliberately
+has no combat resolver, story id, or facility/economy constants.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from app.schemas.characters import (
     CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
+    is_player_authored_slot,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
@@ -56,6 +57,9 @@ from app.schemas.one_star import (
     OneStarMissionStartOperation,
     OneStarMissionUpdateOperation,
     OneStarOperation,
+    OneStarOpeningActorSummonPool,
+    OneStarOpeningRosterFixedSlot,
+    OneStarOpeningRosterSummonPool,
     OneStarPendingOperation,
     OneStarPendingOperationSelection,
     OneStarPendingCancelOperation,
@@ -66,7 +70,7 @@ from app.schemas.one_star import (
     OneStarSkillEntry,
     OneStarSkillRankUpdate,
     OneStarStateUpdate,
-    OneStarSummonPool,
+    OneStarStandardSummonPool,
     OneStarSynthesisPreview,
     OneStarSummonOperation,
     OneStarTransaction,
@@ -236,7 +240,7 @@ def load_one_star_combatant(
 
 
 def one_star_birth_stars_for_ticket(
-    pool: OneStarSummonPool,
+    pool: OneStarStandardSummonPool,
     ticket: int,
 ) -> int:
     """Map a zero-based 10,000-point ticket through configured pool weights."""
@@ -389,6 +393,174 @@ def one_star_summon_draw_preview(
     )
 
 
+def _opening_existing_hero(
+    checkpoint: CheckpointFile,
+    character_id: str,
+    *,
+    exclude_player_authored: bool,
+) -> tuple[CharacterRecord, OneStarHeroState]:
+    """Return one acquisition-eligible authored opening participant."""
+
+    character = _require_character(checkpoint, character_id)
+    hero = load_one_star_hero(character)
+    if hero is None:
+        raise OneStarTransactionError(
+            f"opening character {character_id!r} has no One-Star Hero sheet"
+        )
+    if character.status != CharacterStatus.dormant:
+        raise OneStarTransactionError(
+            f"opening character {character_id!r} is not dormant"
+        )
+    if hero.owner_lobby_id or hero.acquisition_event_id:
+        raise OneStarTransactionError(
+            f"opening character {character_id!r} is already owned or acquired"
+        )
+    if hero.terminal_event_id:
+        raise OneStarTransactionError(
+            f"opening character {character_id!r} is terminal"
+        )
+    if exclude_player_authored and is_player_authored_slot(character):
+        raise OneStarTransactionError(
+            f"opening roster character {character_id!r} is player-authored"
+        )
+    return character, hero
+
+
+def _one_star_opening_roster_preview(
+    checkpoint: CheckpointFile,
+    *,
+    pool_id: str,
+    pool: OneStarOpeningRosterSummonPool,
+) -> tuple[OneStarSummonDraw, ...]:
+    fixed_ids = {
+        slot.character_id
+        for slot in pool.slots
+        if isinstance(slot, OneStarOpeningRosterFixedSlot)
+    }
+    fixed_heroes: dict[str, OneStarHeroState] = {}
+    for character_id in sorted(fixed_ids):
+        _character, hero = _opening_existing_hero(
+            checkpoint,
+            character_id,
+            exclude_player_authored=True,
+        )
+        fixed_heroes[character_id] = hero
+
+    chosen_ids: set[str] = set()
+    draws: list[OneStarSummonDraw] = []
+    for slot_index, slot in enumerate(pool.slots):
+        if isinstance(slot, OneStarOpeningRosterFixedSlot):
+            character_id = slot.character_id
+            hero = fixed_heroes[character_id]
+        else:
+            candidates: list[tuple[str, OneStarHeroState]] = []
+            for character in checkpoint.characters:
+                if character.character_id in fixed_ids | chosen_ids:
+                    continue
+                hero = load_one_star_hero(character)
+                if hero is None or hero.birth_stars != slot.birth_stars:
+                    continue
+                if (
+                    character.status != CharacterStatus.dormant
+                    or hero.owner_lobby_id
+                    or hero.acquisition_event_id
+                    or hero.terminal_event_id
+                    or is_player_authored_slot(character)
+                ):
+                    continue
+                candidates.append((character.character_id, hero))
+            candidates.sort(key=lambda item: item[0])
+            if not candidates:
+                raise OneStarTransactionError(
+                    "opening roster has no eligible dormant unowned "
+                    f"birth-{slot.birth_stars} Hero for slot {slot_index + 1}"
+                )
+            candidate_index = _stable_bounded_draw(
+                session_id=checkpoint.session.session_id,
+                pool_id=pool_id,
+                draw_index=slot_index,
+                stream=f"opening-roster-birth-{slot.birth_stars}",
+                upper_bound=len(candidates),
+            )
+            character_id, hero = candidates[candidate_index]
+        if character_id in chosen_ids:
+            raise OneStarTransactionError(
+                f"opening roster selects character {character_id!r} more than once"
+            )
+        chosen_ids.add(character_id)
+        draws.append(OneStarSummonDraw(
+            slot=slot_index + 1,
+            birth_stars=hero.birth_stars,
+            existing_character_id=character_id,
+        ))
+    return tuple(draws)
+
+
+def one_star_opening_roster_preview(
+    checkpoint: CheckpointFile,
+    pool_id: str,
+) -> tuple[OneStarSummonDraw, ...]:
+    """Resolve a free authored opening roster without mutating the checkpoint."""
+
+    _owner, account = load_one_star_account(checkpoint)
+    pool = account.config.summon_pools.get(pool_id)
+    if not isinstance(pool, OneStarOpeningRosterSummonPool):
+        raise OneStarTransactionError(
+            "opening roster preview requires an opening-roster summon pool"
+        )
+    return _one_star_opening_roster_preview(
+        checkpoint,
+        pool_id=pool_id,
+        pool=pool,
+    )
+
+
+def _one_star_summon_result_preview(
+    checkpoint: CheckpointFile,
+    account: OneStarAccountEnvelope,
+    *,
+    pool_id: str,
+    count: int,
+) -> tuple[OneStarSummonDraw, ...]:
+    pool = account.config.summon_pools.get(pool_id)
+    if pool is None:
+        raise OneStarTransactionError(
+            "summon state update references an unknown configured pool"
+        )
+    if isinstance(pool, OneStarStandardSummonPool):
+        return _one_star_summon_draw_preview(
+            checkpoint,
+            account.config,
+            account.state,
+            pool_id=pool_id,
+            count=count,
+        )
+    if isinstance(pool, OneStarOpeningActorSummonPool):
+        if count != 1:
+            raise OneStarTransactionError(
+                "opening-actor summon count must be exactly one"
+            )
+        _character, hero = _opening_existing_hero(
+            checkpoint,
+            pool.character_id,
+            exclude_player_authored=False,
+        )
+        return (OneStarSummonDraw(
+            slot=1,
+            birth_stars=hero.birth_stars,
+            existing_character_id=pool.character_id,
+        ),)
+    if count != len(pool.slots):
+        raise OneStarTransactionError(
+            "opening-roster summon count must exactly match its configured slots"
+        )
+    return _one_star_opening_roster_preview(
+        checkpoint,
+        pool_id=pool_id,
+        pool=pool,
+    )
+
+
 def _state_update_details(update: OneStarStateUpdate) -> dict[str, list[str]]:
     details: dict[str, list[str]] = {}
     for raw_entry in update.details:
@@ -410,7 +582,7 @@ def _validate_state_update_detail_keys(
 
     exact_by_kind: dict[str, frozenset[str]] = {
         "catalogue_apply": frozenset(),
-        "summon": frozenset({"hero_id"}),
+        "summon": frozenset(),
         "inventory_delta": frozenset(),
         "gem_purchase": frozenset(),
         "hero_delta": frozenset({
@@ -630,52 +802,27 @@ def one_star_state_updates_to_transaction(
                 raise OneStarTransactionError(
                     "summon state update references an unknown configured pool"
                 )
-            supplied_ids = [value for value in details.get("hero_id", []) if value]
-            if pool.usage == "standard":
-                if details:
-                    raise OneStarTransactionError(
-                        "standard summon state updates must not name hidden draw results"
-                    )
-                draws = one_star_summon_draw_preview(
-                    checkpoint,
-                    target_id,
-                    count=count,
+            if details:
+                raise OneStarTransactionError(
+                    "summon state updates must not name adapter-owned results"
                 )
-                start_index = account.state.summon_draw_counters.get(target_id, 0)
-                hero_ids = [
-                    draw.existing_character_id
-                    or _fresh_summon_character_id(
-                        lobby_id=account.config.lobby_id,
-                        pool_id=target_id,
-                        draw_index=start_index + offset,
-                    )
-                    for offset, draw in enumerate(draws)
-                ]
-                if supplied_ids and supplied_ids != hero_ids:
-                    raise OneStarTransactionError(
-                        "standard summon ids are adapter-authored and must not be replaced"
-                    )
-                birth_stars = [draw.birth_stars for draw in draws]
-            else:
-                if len(supplied_ids) != count:
-                    raise OneStarTransactionError(
-                        "authored opening summon must name each exact Hero id"
-                    )
-                hero_ids = supplied_ids
-                birth_stars = []
-                for hero_id in hero_ids:
-                    character = next(
-                        (
-                            item for item in checkpoint.characters
-                            if item.character_id == hero_id
-                        ),
-                        None,
-                    )
-                    hero = load_one_star_hero(character) if character else None
-                    birth_stars.append(
-                        hero.birth_stars if hero is not None
-                        else pool.minimum_birth_stars
-                    )
+            draws = _one_star_summon_result_preview(
+                checkpoint,
+                account,
+                pool_id=target_id,
+                count=count,
+            )
+            start_index = account.state.summon_draw_counters.get(target_id, 0)
+            hero_ids = [
+                draw.existing_character_id
+                or _fresh_summon_character_id(
+                    lobby_id=account.config.lobby_id,
+                    pool_id=target_id,
+                    draw_index=start_index + offset,
+                )
+                for offset, draw in enumerate(draws)
+            ]
+            birth_stars = [draw.birth_stars for draw in draws]
             operations.append(OneStarSummonOperation(
                 operation=kind,
                 pool_id=target_id,
@@ -946,11 +1093,11 @@ def one_star_state_updates_to_transaction(
     )
 
 
-def one_star_standard_summon_lifecycle(
+def one_star_summon_lifecycle(
     checkpoint: CheckpointFile,
     state_updates: Iterable[OneStarStateUpdate],
 ) -> tuple[tuple[SpawnRequest, ...], tuple[WakeSignal, ...]]:
-    """Materialize standard weighted draws without exposing them to the router."""
+    """Materialize every configured summon without router-authored identities."""
 
     updates = [update for update in state_updates if update.kind == "summon"]
     if not updates:
@@ -965,14 +1112,21 @@ def one_star_standard_summon_lifecycle(
     for update in updates:
         pool_id = update.target_id.strip()
         pool = account.config.summon_pools.get(pool_id)
-        if pool is None or pool.usage != "standard":
-            continue
+        if pool is None:
+            raise OneStarTransactionError(
+                "summon lifecycle references an unknown configured pool"
+            )
         if update.details:
             raise OneStarTransactionError(
-                "standard summon state updates must not name hidden draw results"
+                "summon state updates must not name adapter-owned results"
             )
         count = _integer_update_value(update.value, label="summon count")
-        draws = one_star_summon_draw_preview(checkpoint, pool_id, count=count)
+        draws = _one_star_summon_result_preview(
+            checkpoint,
+            account,
+            pool_id=pool_id,
+            count=count,
+        )
         start_index = account.state.summon_draw_counters.get(pool_id, 0)
         for offset, draw in enumerate(draws):
             if draw.existing_character_id:
@@ -981,6 +1135,10 @@ def one_star_standard_summon_lifecycle(
                     location_label=account.config.lobby_location_label,
                 ))
                 continue
+            if not isinstance(pool, OneStarStandardSummonPool):
+                raise OneStarTransactionError(
+                    "authored opening summons cannot create fresh identities"
+                )
             character_id = _fresh_summon_character_id(
                 lobby_id=account.config.lobby_id,
                 pool_id=pool_id,
@@ -2015,11 +2173,30 @@ def _apply_summon(
         raise OneStarTransactionError(
             "summon ids must exactly match fresh spawns and unowned Hero activations"
         )
-    if pool.usage == "opening_actor":
+    if isinstance(pool, OneStarStandardSummonPool):
+        expected_draws = _one_star_summon_draw_preview(
+            checkpoint,
+            config,
+            state,
+            pool_id=operation.pool_id,
+            count=len(operation.hero_ids),
+        )
+    elif isinstance(pool, OneStarOpeningActorSummonPool):
+        _character, hero = _opening_existing_hero(
+            checkpoint,
+            pool.character_id,
+            exclude_player_authored=False,
+        )
+        expected_draws = (OneStarSummonDraw(
+            slot=1,
+            birth_stars=hero.birth_stars,
+            existing_character_id=pool.character_id,
+        ),)
         if (
             len(operation.hero_ids) != 1
             or operation.hero_ids[0] != initiating_actor_id
-            or set(operation.hero_ids) != activated_ids
+            or operation.hero_ids[0] != pool.character_id
+            or operation.hero_ids[0] not in activated_ids
             or spawned_ids
             or state.applied_event_fingerprints
         ):
@@ -2035,19 +2212,24 @@ def _apply_summon(
             raise OneStarTransactionError(
                 "opening-actor summon requires an account with no acquired Heroes"
             )
-        weighted_draws: tuple[OneStarSummonDraw, ...] = ()
-    elif pool.usage == "opening_wave":
+    else:
+        expected_draws = _one_star_opening_roster_preview(
+            checkpoint,
+            pool_id=operation.pool_id,
+            pool=pool,
+        )
         account_owner = find_one_star_account_owner(checkpoint.characters)
         if (
-            set(operation.hero_ids) != spawned_ids
-            or activated_ids
+            set(operation.hero_ids) != set(expected_summon_ids)
+            or not set(operation.hero_ids).issubset(activated_ids)
+            or spawned_ids
             or state.applied_event_fingerprints
             or account_owner is None
             or initiating_actor_id != account_owner.character_id
         ):
             raise OneStarTransactionError(
-                "opening-wave summon must be the account owner's first event "
-                "and contain only fresh Hero spawns"
+                "opening-roster summon must be the account owner's first event "
+                "and activate only its configured existing Heroes"
             )
         if any(
             character.status != CharacterStatus.culled
@@ -2056,47 +2238,45 @@ def _apply_summon(
             for character in checkpoint.characters
         ):
             raise OneStarTransactionError(
-                "opening-wave summon requires an account with no acquired Heroes"
+                "opening-roster summon requires an account with no acquired Heroes"
             )
-        weighted_draws = ()
-    else:
-        weighted_draws = _one_star_summon_draw_preview(
-            checkpoint,
-            config,
-            state,
+
+    expected_ids = [
+        draw.existing_character_id
+        or _fresh_summon_character_id(
+            lobby_id=config.lobby_id,
             pool_id=operation.pool_id,
-            count=len(operation.hero_ids),
+            draw_index=(
+                state.summon_draw_counters.get(operation.pool_id, 0) + offset
+            ),
         )
-        expected_birth_stars = [draw.birth_stars for draw in weighted_draws]
-        if operation.birth_stars != expected_birth_stars:
-            raise OneStarTransactionError(
-                "summon birth stars must consume the exact next weighted draw prefix"
-            )
-        for hero_id, draw in zip(
-            operation.hero_ids,
-            weighted_draws,
-            strict=True,
-        ):
-            if draw.existing_character_id:
-                if (
-                    hero_id != draw.existing_character_id
-                    or hero_id not in activated_ids
-                    or hero_id in spawned_ids
-                ):
-                    raise OneStarTransactionError(
-                        "summon must activate the exact reserve selected by "
-                        "its weighted draw"
-                    )
-            elif hero_id not in spawned_ids or hero_id in activated_ids:
-                raise OneStarTransactionError(
-                    "a fresh weighted summon result requires a matching new Hero spawn"
-                )
-    if any(
-        stars < pool.minimum_birth_stars or stars > pool.maximum_birth_stars
-        for stars in operation.birth_stars
+        for offset, draw in enumerate(expected_draws)
+    ]
+    expected_birth_stars = [draw.birth_stars for draw in expected_draws]
+    if (
+        operation.hero_ids != expected_ids
+        or operation.birth_stars != expected_birth_stars
     ):
-        raise OneStarTransactionError("summon birth stars fall outside the selected pool")
-    _spend_resources(state.resources, _multiply_cost(pool.cost, len(operation.hero_ids)))
+        raise OneStarTransactionError(
+            "summon identities and birth stars must match the exact adapter preview"
+        )
+    for hero_id, draw in zip(operation.hero_ids, expected_draws, strict=True):
+        if draw.existing_character_id:
+            if hero_id not in activated_ids or hero_id in spawned_ids:
+                raise OneStarTransactionError(
+                    "summon must activate the exact existing Hero selected by "
+                    "the adapter"
+                )
+        elif hero_id not in spawned_ids or hero_id in activated_ids:
+            raise OneStarTransactionError(
+                "a fresh weighted summon result requires a matching new Hero spawn"
+            )
+
+    if isinstance(pool, OneStarStandardSummonPool):
+        _spend_resources(
+            state.resources,
+            _multiply_cost(pool.cost, len(operation.hero_ids)),
+        )
     occupied = sum(
         1
         for character in checkpoint.characters
@@ -2117,14 +2297,22 @@ def _apply_summon(
             )
         hero = existing_hero
         if hero_id in spawned_ids:
-            if not pool.fresh_generation_allowed:
+            if (
+                not isinstance(pool, OneStarStandardSummonPool)
+                or not pool.fresh_generation_allowed
+            ):
                 raise OneStarTransactionError(
                     "summon pool does not allow fresh generation"
                 )
             arrival_location = existing.location
         elif hero_id in activated_ids:
-            if hero_id not in pool.eligible_existing_ids:
-                raise OneStarTransactionError("existing summon identity is not eligible for this pool")
+            if (
+                isinstance(pool, OneStarStandardSummonPool)
+                and hero_id not in pool.eligible_existing_ids
+            ):
+                raise OneStarTransactionError(
+                    "existing summon identity is not eligible for this pool"
+                )
             if existing.status != CharacterStatus.dormant:
                 raise OneStarTransactionError(
                     "existing summon reserves must be dormant before activation"
@@ -2148,13 +2336,14 @@ def _apply_summon(
             )
         hero.owner_lobby_id = config.lobby_id
         hero.acquisition_event_id = event_id
+        existing.private_state.intentions_enabled = True
         _validate_hero_progression_state(hero, config)
         hero_initializations[hero_id] = hero
         _store_hero(existing, hero)
-    if weighted_draws:
+    if isinstance(pool, OneStarStandardSummonPool):
         state.summon_draw_counters[operation.pool_id] = (
             state.summon_draw_counters.get(operation.pool_id, 0)
-            + len(weighted_draws)
+            + len(expected_draws)
         )
 
 
@@ -2911,15 +3100,17 @@ def _apply_pending_resolve(
             )
         _spend_resources(state.resources, config.promotion_cost)
         target.current_stars = next_stars
-        visual_novel_presentation = config.visual_novel_presentation
-        if visual_novel_presentation is not None:
-            reveal_stars = (
-                visual_novel_presentation.generated_birth_one_reveal_stars
-                if target.generated_for_summon
-                else visual_novel_presentation.seeded_birth_one_reveal_stars
+        if config.visual_novel_presentation is not None:
+            from app.engine.one_star_visuals import (
+                one_star_identity_reveal_stars,
+            )
+
+            reveal_stars = one_star_identity_reveal_stars(
+                checkpoint,
+                target_character,
             )
             if (
-                target.birth_stars == 1
+                reveal_stars is not None
                 and previous_stars < reveal_stars <= next_stars
             ):
                 introduced = checkpoint.session.visual_introductions.get(
@@ -3507,7 +3698,7 @@ def prepare_one_star_transaction(
                 raise OneStarTransactionError(
                     "summon references an unknown configured pool"
                 )
-            if pool.usage in {"standard", "opening_wave"}:
+            if pool.usage in {"standard", "opening_roster"}:
                 require_account_owner("an account summon")
                 if state.active_mission is not None:
                     raise OneStarTransactionError(

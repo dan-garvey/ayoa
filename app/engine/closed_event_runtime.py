@@ -69,6 +69,10 @@ class ClosedEventRuntime:
     applied_character_ids: set[str] = field(default_factory=set)
     image_transaction_ids: set[str] = field(default_factory=set)
     accepted_image_transaction_ids: set[str] = field(default_factory=set)
+    # An authored post-render beat may still fail after narrator acceptance.
+    # Keep generated records reversible until that deterministic work has
+    # validated and committed through the orchestrator's outer transaction.
+    defer_roster_acceptance: bool = False
 
     def close_event(
         self,

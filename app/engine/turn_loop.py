@@ -1338,6 +1338,59 @@ def _is_begin_submission(value: str) -> bool:
     return value.strip().casefold() == "(begin)"
 
 
+def _authored_opening_branch_matches(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+) -> bool:
+    """Return whether this arrival is governed by the authored follow-up.
+
+    Required participant ids double as the branch trigger. A none-match is an
+    unrelated opening (for example, a separately authored player arrival) and
+    keeps the normal handoff rules; an empty trigger applies to every opening.
+    Partial matches count here so the later fixed-cast validator can reject
+    them without first dispatching improvised dialogue.
+    """
+
+    policy = ckpt.world_state.opening
+    beat = policy.authored_character_beat if policy is not None else None
+    if beat is None:
+        return False
+    introduced_ids = {
+        character_id
+        for character_id in (
+            *(request.character_id for request in event.spawn),
+            *(signal.character_id for signal in event.activate),
+        )
+        if character_id and character_id != beat.speaker_character_id
+    }
+    return not beat.required_participant_ids or any(
+        character_id in introduced_ids
+        for character_id in beat.required_participant_ids
+    )
+
+
+def _validate_authored_opening_handoff(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+    *,
+    submission: str,
+    events_closed: int,
+    is_continuation: bool,
+) -> None:
+    if (
+        not _is_begin_submission(submission)
+        or events_closed != 0
+        or is_continuation
+        or not _authored_opening_branch_matches(ckpt, event)
+    ):
+        return
+    if event.requires_responders or event.next_output_character_ids:
+        raise ValueError(
+            "authored opening arrival cannot request responders or "
+            "next_output; its exact character beat follows the closed arrival"
+        )
+
+
 def _is_substantive_handoff_submission(value: str) -> bool:
     return value.strip().casefold() not in _NON_SUBSTANTIVE_HANDOFF_INPUTS
 
@@ -3198,6 +3251,23 @@ async def run_beat(
     pending_result_actor_id: str = ""
     pending_result_submission: str = ""
     suppress_reaction_prompts = combat_reaction_event_id is not None
+    prepared_event_objects: set[int] = set()
+
+    async def _prepare_event_once(
+        event: EventRouterOutput,
+        *,
+        ruleset_actor_id: str,
+    ) -> None:
+        event_object_id = id(event)
+        if event_object_id in prepared_event_objects:
+            return
+        await prepare_event_for_broadcast(
+            dispatcher,
+            ckpt,
+            event,
+            actor_id=ruleset_actor_id,
+        )
+        prepared_event_objects.add(event_object_id)
 
     async def _commit_event(
         event: EventRouterOutput,
@@ -3206,11 +3276,9 @@ async def run_beat(
         ruleset_actor_id: str | None = None,
         close_for_presentation: bool = True,
     ) -> list[str]:
-        await prepare_event_for_broadcast(
-            dispatcher,
-            ckpt,
+        await _prepare_event_once(
             event,
-            actor_id=(
+            ruleset_actor_id=(
                 event_actor_id
                 if ruleset_actor_id is None
                 else ruleset_actor_id
@@ -3403,6 +3471,29 @@ async def run_beat(
                 ckpt,
                 dispatcher,
                 ended_reason="max_events_cap",
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
+                suppress_reaction_prompts=suppress_reaction_prompts,
+            )
+        if (
+            _is_begin_submission(intention)
+            and events_closed == 1
+            and _authored_opening_branch_matches(ckpt, result)
+        ):
+            # The arrival is the complete router-owned fiction before the
+            # exact authored character beat. Force its presentation boundary;
+            # neither an autonomous response nor narrator continuation may
+            # insert improvised dialogue between those two authored parts.
+            return await _end_beat(
+                ckpt,
+                dispatcher,
+                ended_reason=(
+                    default_ended_reason
+                    or _event_handoff_reason(result)
+                    or "authored_opening_arrival"
+                ),
                 events_closed=events_closed,
                 event_actor_ids=event_actor_ids,
                 acting_player_id=actor_id,
@@ -3790,6 +3881,13 @@ async def run_beat(
                 current_actor = result_actor_id
                 current_intention = result_submission
 
+        _validate_authored_opening_handoff(
+            ckpt,
+            result,
+            submission=intention,
+            events_closed=events_closed,
+            is_continuation=result_is_continuation,
+        )
         if not result_is_continuation and _is_side_effect_free_infeasible_result(
             result
         ):
@@ -3815,6 +3913,35 @@ async def run_beat(
         # Validate the semantic frontier before materializing spawns, opening
         # Cat II, pinning slots, or otherwise mutating beat state.
         _validate_non_social_hazard_routing(ckpt, result)
+
+        opening_policy = ckpt.world_state.opening
+        if (
+            _is_begin_submission(intention)
+            and events_closed == 0
+            and not result_is_continuation
+            and opening_policy is not None
+            and opening_policy.authored_character_beat is not None
+            and (
+                result.requires_responders
+                or bool(result.next_output_character_ids)
+            )
+        ):
+            # Rules adapters may own summon selection and inject generic
+            # spawn/activate signals only during event preparation. Prepare
+            # this one opening event before any Cat II or next-output work,
+            # then re-run the branch-aware guard against the complete generic
+            # lifecycle envelope. `_commit_event` reuses this preparation.
+            await _prepare_event_once(
+                result,
+                ruleset_actor_id=result_actor_id,
+            )
+            _validate_authored_opening_handoff(
+                ckpt,
+                result,
+                submission=intention,
+                events_closed=events_closed,
+                is_continuation=False,
+            )
 
         interaction_mode = _dnd_interaction_mode(result)
         if interaction_mode == "dnd_combat_start":
@@ -4302,6 +4429,8 @@ def _accept_speculative_spawn_roster(ckpt: CheckpointFile) -> None:
 
     runtime = closed_event_runtime_for(ckpt)
     if runtime is None:
+        return
+    if runtime.defer_roster_acceptance:
         return
     accepted = runtime.spawn_authoring.accept_roster(
         checkpoint=ckpt,

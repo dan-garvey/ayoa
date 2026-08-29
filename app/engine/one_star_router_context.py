@@ -12,7 +12,16 @@ from app.engine.one_star_adapter import (
     load_one_star_hero,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.one_star import OneStarCost, OneStarStateUpdate
+from app.schemas.one_star import (
+    OneStarCost,
+    OneStarOpeningActorSummonPool,
+    OneStarOpeningRosterFixedSlot,
+    OneStarOpeningRosterRandomExistingGradeSlot,
+    OneStarOpeningRosterSummonPool,
+    OneStarStandardSummonPool,
+    OneStarStateUpdate,
+    OneStarSummonPool,
+)
 
 
 def _render_resources(resources: OneStarCost) -> str:
@@ -58,6 +67,37 @@ def _render_star_weights(weights: dict[int, int]) -> str:
     )
 
 
+def _render_summon_pool(pool_id: str, pool: OneStarSummonPool) -> str:
+    """Project only the authored summon authority the router may use."""
+    if isinstance(pool, OneStarStandardSummonPool):
+        return (
+            f"- {pool_id}: cost[{_render_nonzero_resources(pool.cost)}]; "
+            f"stars={pool.minimum_birth_stars}-{pool.maximum_birth_stars}; "
+            f"rates[{_render_star_weights(pool.star_weights)}]; usage={pool.usage}"
+        )
+    if isinstance(pool, OneStarOpeningActorSummonPool):
+        return f"- {pool_id}: usage={pool.usage}; count=1"
+    if isinstance(pool, OneStarOpeningRosterSummonPool):
+        slots: list[str] = []
+        for slot_index, slot in enumerate(pool.slots, start=1):
+            if isinstance(slot, OneStarOpeningRosterFixedSlot):
+                slots.append(f"{slot_index}=fixed")
+            elif isinstance(slot, OneStarOpeningRosterRandomExistingGradeSlot):
+                slots.append(
+                    f"{slot_index}=random_existing_grade:{slot.birth_stars}"
+                )
+        handoff = (
+            "; initial_deployment_requires_guide_handoff=true"
+            if pool.initial_deployment_requires_guide_handoff
+            else ""
+        )
+        return (
+            f"- {pool_id}: usage={pool.usage}; "
+            f"count={len(pool.slots)}; slots[{','.join(slots)}]{handoff}"
+        )
+    raise TypeError(f"unsupported One-Star summon pool type: {type(pool).__name__}")
+
+
 def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
     """Render immutable seed rules for the router's cached system prefix."""
     if not is_one_star_checkpoint(checkpoint):
@@ -71,11 +111,7 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
         "summon_pools:",
     ]
     for pool_id, pool in sorted(config.summon_pools.items()):
-        lines.append(
-            f"- {pool_id}: cost[{_render_nonzero_resources(pool.cost)}]; "
-            f"stars={pool.minimum_birth_stars}-{pool.maximum_birth_stars}; "
-            f"rates[{_render_star_weights(pool.star_weights)}]; usage={pool.usage}"
-        )
+        lines.append(_render_summon_pool(pool_id, pool))
 
     lines.append("catalogue:")
     for catalogue_id, entry in sorted(config.catalogue.items()):
@@ -303,7 +339,6 @@ def render_one_star_repair_evidence(
                     f"inventory={state.inventory.get(entry.inventory_item_id, 0)}"
                 )
         elif update.kind == "summon":
-            add_resources()
             pool = config.summon_pools.get(update.target_id)
             if pool is None:
                 add(f"summon_pool {update.target_id}: nonexistent")
@@ -315,10 +350,29 @@ def render_one_star_repair_evidence(
                     and hero.owner_lobby_id == config.lobby_id
                     and character.status.value != "culled"
                 )
+                if isinstance(pool, OneStarStandardSummonPool):
+                    add_resources()
+                    authority = (
+                        f"usage={pool.usage}; "
+                        f"cost_per_pull={_render_nonzero_resources(pool.cost)}; "
+                        f"maximum_batch={config.max_summon_batch}"
+                    )
+                elif isinstance(pool, OneStarOpeningActorSummonPool):
+                    authority = (
+                        f"usage={pool.usage}; cost_per_pull=free; "
+                        "required_count=1; first_event_only=true"
+                    )
+                else:
+                    authority = (
+                        f"usage={pool.usage}; cost_per_pull=free; "
+                        f"required_count={len(pool.slots)}; first_event_only=true"
+                    )
+                    if pool.initial_deployment_requires_guide_handoff:
+                        authority += (
+                            "; initial_deployment_requires_guide_handoff=true"
+                        )
                 add(
-                    f"summon_pool {update.target_id}: cost_per_pull="
-                    f"{_render_nonzero_resources(pool.cost)}; "
-                    f"maximum_batch={config.max_summon_batch}; "
+                    f"summon_pool {update.target_id}: {authority}; "
                     f"occupied={owned_count}/{state.capacity}"
                 )
         elif update.kind == "inventory_delta":

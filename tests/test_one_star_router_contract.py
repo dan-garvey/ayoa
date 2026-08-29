@@ -30,6 +30,12 @@ from app.schemas.one_star import (
     ClosedOneStarEventRouterOutput,
     OneStarEventRouterOutput,
     ONE_STAR_RULESET_ID,
+    OneStarCost,
+    OneStarOpeningActorSummonPool,
+    OneStarOpeningRosterFixedSlot,
+    OneStarOpeningRosterRandomExistingGradeSlot,
+    OneStarOpeningRosterSummonPool,
+    OneStarStandardSummonPool,
     OneStarStateUpdate,
     OneStarStateUpdateList,
     OneStarTransaction,
@@ -271,33 +277,93 @@ def test_compact_update_translation_rejects_unknown_or_duplicate_details():
         )
 
 
-def test_compact_mission_update_derives_canonical_timestamps():
+def test_compact_mission_start_derives_canonical_timestamps_and_counters():
     from app.engine.one_star_adapter import one_star_state_updates_to_transaction
 
+    update = OneStarStateUpdate(
+        kind="mission_start",
+        target_id="floor_1_attempt",
+        value="1",
+        details=[
+            "pending_operation_id=deployment_1",
+            "party=pip",
+            "destination=tower_floor_1",
+            "completion=defeat four goblins",
+            "failure=no party member remains able to fight",
+            "duration_s=300",
+            "counter.goblins=0/4",
+        ],
+    )
     transaction = one_star_state_updates_to_transaction(
         _one_star_checkpoint(),
-        [
-            OneStarStateUpdate(
-                kind="mission_start",
-                target_id="floor_1_attempt",
-                value="1",
-                details=[
-                    "pending_operation_id=deployment_1",
-                    "party=pip",
-                    "destination=tower_floor_1",
-                    "completion=defeat four goblins",
-                    "failure=no party member remains able to fight",
-                    "duration_s=300",
-                    "counter.goblins=0/4",
-                ],
-            )
-        ],
+        [update],
         canonical_at_s=12,
     )
     mission = transaction.operations[0].mission
 
     assert mission.started_at_s == 12
     assert mission.deadline_at_s == 312
+    assert [counter.model_dump() for counter in mission.counters] == [
+        {"counter_id": "goblins", "current": 0, "target": 4}
+    ]
+
+    for invalid_details, error_type, message in (
+        (
+            [detail for detail in update.details if not detail.startswith("counter.")],
+            ValidationError,
+            "mission counter ids must be non-empty and unique",
+        ),
+        (
+            [*update.details[:-1], "counter.=0/4"],
+            OneStarTransactionError,
+            "empty detail id",
+        ),
+        (
+            [*update.details, "counter.goblins=1/4"],
+            OneStarTransactionError,
+            "must appear exactly once",
+        ),
+        (
+            [*update.details[:-1], "counter.goblins=0"],
+            OneStarTransactionError,
+            "must use current/target",
+        ),
+    ):
+        with pytest.raises(error_type, match=message):
+            one_star_state_updates_to_transaction(
+                _one_star_checkpoint(),
+                [update.model_copy(update={"details": invalid_details})],
+                canonical_at_s=12,
+            )
+
+
+def test_compact_pending_resolve_uses_only_target_id():
+    from app.engine.one_star_adapter import one_star_state_updates_to_transaction
+
+    update = OneStarStateUpdate(
+        kind="pending_resolve",
+        target_id="deployment_1",
+        value="",
+        details=[],
+    )
+    transaction = one_star_state_updates_to_transaction(
+        _one_star_checkpoint(),
+        [update],
+        canonical_at_s=12,
+    )
+
+    assert transaction.operations[0].operation_id == "deployment_1"
+
+    for changed_field, changed_value, message in (
+        ("value", "resolved", "does not use value"),
+        ("details", ["participant=pip"], "unsupported details"),
+    ):
+        with pytest.raises(OneStarTransactionError, match=message):
+            one_star_state_updates_to_transaction(
+                _one_star_checkpoint(),
+                [update.model_copy(update={changed_field: changed_value})],
+                canonical_at_s=12,
+            )
 
 
 def test_one_star_router_schema_is_used_for_fresh_and_cat_ii_routes(monkeypatch):
@@ -521,7 +587,10 @@ def _stub_one_star_guide_account(monkeypatch, ckpt) -> None:
             lobby_location_label="lobby",
             operation_requirements={},
         ),
-        state=SimpleNamespace(guide_character_ids=["iselle"]),
+        state=SimpleNamespace(
+            guide_character_ids=["iselle"],
+            pending_operation=None,
+        ),
     )
     monkeypatch.setattr(
         one_star_adapter,
@@ -563,7 +632,10 @@ def test_one_star_continuation_retries_missing_guide_delivery_before_commit(
     assert result is corrected
     assert client.complete.await_count == 2
     correction_call = client.complete.await_args_list[1]
-    assert correction_call.kwargs["response_model"] is OneStarEventRouterOutput
+    assert (
+        correction_call.kwargs["response_model"]
+        is ClosedOneStarEventRouterOutput
+    )
     assert "configured guide" in correction_call.kwargs["messages"][-1]["content"]
     history = "\n".join(message.content for message in ckpt.session_conversation)
     assert "corrected_lobby_return" in history
@@ -598,6 +670,53 @@ def test_repeated_invalid_one_star_continuation_restores_router_snapshot(
         )
 
     assert client.complete.await_count == 2
+    assert all(
+        call.kwargs["response_model"] is ClosedOneStarEventRouterOutput
+        for call in client.complete.await_args_list
+    )
+    assert ckpt.model_dump(mode="json") == before
+
+
+def test_corrected_one_star_continuation_cannot_open_cat_ii(monkeypatch):
+    _stub_one_star_router_context(monkeypatch)
+    ckpt = _one_star_checkpoint()
+    next(
+        character
+        for character in ckpt.characters
+        if character.character_id == "pip"
+    ).location = "synthesis"
+    ckpt.characters.append(character_record("iselle", location="lobby"))
+    _stub_one_star_guide_account(monkeypatch, ckpt)
+    invalid = _lobby_return_continuation(guide_delivery=False)
+    corrected_data = _lobby_return_continuation(
+        guide_delivery=True,
+    ).model_dump(mode="json")
+    corrected_data.update({
+        "event_kind": "cat_ii_open",
+        "requires_responders": True,
+        "required_responders": ["pip"],
+    })
+    corrected_cat_ii = OneStarEventRouterOutput.model_validate(corrected_data)
+    dispatcher, client = _dispatcher(invalid, corrected_cat_ii)
+    before = ckpt.model_dump(mode="json")
+
+    with pytest.raises(
+        ValueError,
+        match="continuation output remained invalid after one correction",
+    ):
+        asyncio.run(
+            dispatcher.route_continuation(
+                ckpt=ckpt,
+                actor_id="alice",
+                prior_result=_one_star_output(),
+                original_action="I wait for Pip to return.",
+            )
+        )
+
+    assert all(
+        call.kwargs["response_model"] is ClosedOneStarEventRouterOutput
+        for call in client.complete.await_args_list
+    )
     assert ckpt.model_dump(mode="json") == before
 
 
@@ -623,10 +742,30 @@ def test_one_star_repair_accepts_only_the_state_update_shape(monkeypatch):
     assert "deployment repeats participant details" in repair_packet
     assert "omits target_id" in repair_packet
     assert "change the offending field" in repair_packet
+    scalar_contract = next(
+        line
+        for line in repair_packet.splitlines()
+        if "pending_resolve" in line and 'value=""' in line
+    )
+    normalized_scalar_contract = scalar_contract.lower()
+    for required_shape in (
+        "pending_resolve",
+        'value=""',
+        "target_id",
+        "details=[]",
+        "mission_start",
+        "counter.<nonempty_id>=<current>/<target>",
+    ):
+        assert required_shape in normalized_scalar_contract
     assert "<one_star_conflict_evidence>" in repair_packet
     assert "current_resources: gold=34" in repair_packet
     assert "one_star_current_ledger" not in repair_packet
     assert "canonical_event" not in repair_packet
+    system_prompt = client.complete.await_args.kwargs["messages"][0]["content"]
+    assert "counter.<nonempty_id>=<current>/<target>" in system_prompt
+    assert 'pending_resolve' in system_prompt
+    assert 'value=""' in system_prompt
+    assert 'details=[]' in system_prompt
 
 
 def test_invalid_compact_value_bounds_enter_the_one_star_repair_contract():
@@ -1120,14 +1259,50 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         starting_resources=cost(gold=40, gems=5, building_resources=3),
         max_summon_batch=5,
         summon_pools={
-            "premium": SimpleNamespace(
-                cost=cost(gems=5),
+            "premium": OneStarStandardSummonPool(
+                usage="standard",
+                cost=OneStarCost(
+                    gold=0,
+                    gems=5,
+                    building_resources=0,
+                    materials={},
+                ),
                 minimum_birth_stars=2,
                 maximum_birth_stars=5,
                 star_weights={2: 7500, 3: 2300, 4: 175, 5: 25},
-                eligible_existing_ids=["veil"],
+                eligible_existing_ids=["private_reserve_candidate"],
                 fresh_generation_allowed=True,
-                usage="standard",
+            ),
+            "newcomer_opening": OneStarOpeningActorSummonPool(
+                usage="opening_actor",
+                character_id="one_star_newcomer",
+            ),
+            "starter_roster": OneStarOpeningRosterSummonPool(
+                usage="opening_roster",
+                slots=[
+                    OneStarOpeningRosterFixedSlot(
+                        kind="fixed",
+                        character_id="renna_holt",
+                    ),
+                    OneStarOpeningRosterRandomExistingGradeSlot(
+                        kind="random_existing_grade",
+                        birth_stars=3,
+                    ),
+                    OneStarOpeningRosterFixedSlot(
+                        kind="fixed",
+                        character_id="edren_marr",
+                    ),
+                ],
+                initial_deployment_requires_guide_handoff=True,
+            ),
+            "unflagged_roster": OneStarOpeningRosterSummonPool(
+                usage="opening_roster",
+                slots=[
+                    OneStarOpeningRosterRandomExistingGradeSlot(
+                        kind="random_existing_grade",
+                        birth_stars=2,
+                    ),
+                ],
             ),
         },
         catalogue={
@@ -1271,6 +1446,43 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         lambda character: hero if character.character_id == "pip" else None,
     )
     static = one_star_router_context.render_one_star_router_static_config(ckpt)
+    opening_actor_repair_evidence = (
+        one_star_router_context.render_one_star_repair_evidence(
+            ckpt,
+            state_updates=[
+                OneStarStateUpdate(
+                    kind="summon",
+                    target_id="newcomer_opening",
+                    value="1",
+                    details=[],
+                )
+            ],
+        )
+    )
+    opening_repair_evidence = one_star_router_context.render_one_star_repair_evidence(
+        ckpt,
+        state_updates=[
+            OneStarStateUpdate(
+                kind="summon",
+                target_id="starter_roster",
+                value="3",
+                details=[],
+            )
+        ],
+    )
+    unflagged_opening_repair_evidence = (
+        one_star_router_context.render_one_star_repair_evidence(
+            ckpt,
+            state_updates=[
+                OneStarStateUpdate(
+                    kind="summon",
+                    target_id="unflagged_roster",
+                    value="1",
+                    details=[],
+                )
+            ],
+        )
+    )
     hp_evidence = one_star_router_context.render_one_star_repair_evidence(
         ckpt,
         state_updates=[
@@ -1348,6 +1560,55 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
     assert "synthesis_chamber_i" in static
     assert "stars=2-5" in static
     assert "rates[2=75%,3=23%,4=1.75%,5=0.25%]" in static
+    assert "newcomer_opening: usage=opening_actor; count=1" in static
+    assert (
+        "starter_roster: usage=opening_roster; "
+        "count=3; slots[1=fixed,2=random_existing_grade:3,3=fixed]"
+    ) in static
+    starter_pool_line = next(
+        line for line in static.splitlines() if line.startswith("- starter_roster:")
+    )
+    unflagged_pool_line = next(
+        line for line in static.splitlines() if line.startswith("- unflagged_roster:")
+    )
+    assert "initial_deployment_requires_guide_handoff=true" in starter_pool_line
+    assert "initial_deployment_requires_guide_handoff" not in unflagged_pool_line
+    for private_character_id in (
+        "one_star_newcomer",
+        "renna_holt",
+        "edren_marr",
+        "private_reserve_candidate",
+    ):
+        assert private_character_id not in static
+    assert "eligible_existing_ids" not in static
+    assert (
+        "summon_pool newcomer_opening: usage=opening_actor; "
+        "cost_per_pull=free; required_count=1; first_event_only=true"
+    ) in opening_actor_repair_evidence
+    assert (
+        "summon_pool starter_roster: usage=opening_roster; "
+        "cost_per_pull=free; required_count=3; first_event_only=true"
+    ) in opening_repair_evidence
+    assert (
+        "initial_deployment_requires_guide_handoff=true"
+        in opening_repair_evidence
+    )
+    assert (
+        "initial_deployment_requires_guide_handoff"
+        not in unflagged_opening_repair_evidence
+    )
+    for repair_evidence in (
+        opening_actor_repair_evidence,
+        opening_repair_evidence,
+        unflagged_opening_repair_evidence,
+    ):
+        for private_character_id in (
+            "one_star_newcomer",
+            "renna_holt",
+            "edren_marr",
+            "private_reserve_candidate",
+        ):
+            assert private_character_id not in repair_evidence
     assert "repeat_clear_gold" in static
     assert "starting_funds=$200" in static
     assert "periodic_income=$100/604800s" in static

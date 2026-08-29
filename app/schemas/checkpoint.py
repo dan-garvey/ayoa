@@ -42,13 +42,11 @@ class CheckpointFile(BaseModel):
     # (which leaked spoilers). Synthetic story checkpoints should author
     # this directly. Empty checkpoints render a fallback stub.
     #
-    # Note: there is no longer an authored `opening_narrative` field —
-    # the opening beat is composed at runtime by the router (using
-    # world_state, character_records, and the `(begin)` OOC directive)
-    # and rendered per-POV by the narrator on the first turn. This
-    # keeps every turn on a single code path and avoids the POV-binding
-    # and race-window problems of an authored opener; see commit log
-    # for the rationale.
+    # Note: there is no top-level authored `opening_narrative` field. The
+    # opening arrival is composed at runtime by the router and rendered through
+    # the normal per-POV turn. A story may attach exact post-materialization
+    # character dialogue to `world_state.opening`; that scoped follow-up still
+    # commits inside `(begin)` rather than reviving a detached preplay opener.
     player_primer: str = ""
     # Optional deterministic, player-facing VN tutorial. Its opaque asset and
     # roster handles are private runtime metadata and are never model input.

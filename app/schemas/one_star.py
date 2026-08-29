@@ -7,7 +7,7 @@ normal character lifecycle/location fields for embodied state.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -89,19 +89,21 @@ class OneStarCatalogueEntry(BaseModel):
         return self
 
 
-class OneStarSummonPool(BaseModel):
+class OneStarStandardSummonPool(BaseModel):
+    """A paid weighted draw which may consume authored reserves or spawn."""
+
     model_config = ConfigDict(extra="forbid")
 
+    usage: Literal["standard"]
     cost: OneStarCost
     minimum_birth_stars: int = Field(ge=1)
     maximum_birth_stars: int = Field(ge=1)
     star_weights: dict[int, int]
     eligible_existing_ids: list[str] = Field(default_factory=list)
     fresh_generation_allowed: bool = False
-    usage: Literal["standard", "opening_actor", "opening_wave"]
 
     @model_validator(mode="after")
-    def _valid_star_range(self) -> "OneStarSummonPool":
+    def _valid_star_range(self) -> "OneStarStandardSummonPool":
         if self.maximum_birth_stars < self.minimum_birth_stars:
             raise ValueError("maximum_birth_stars must be at least minimum_birth_stars")
         expected_stars = set(
@@ -123,28 +125,84 @@ class OneStarSummonPool(BaseModel):
         self.eligible_existing_ids = list(dict.fromkeys(
             value.strip() for value in self.eligible_existing_ids if value.strip()
         ))
-        if self.usage == "opening_actor":
-            if self.fresh_generation_allowed:
-                raise ValueError(
-                    "opening-actor summon pools cannot generate a substitute"
-                )
-            if any((
-                self.cost.gold,
-                self.cost.gems,
-                self.cost.building_resources,
-                *self.cost.materials.values(),
-            )):
-                raise ValueError("opening-actor summon pools must be free")
-        if self.usage == "opening_wave":
-            if (
-                not self.fresh_generation_allowed
-                or self.eligible_existing_ids
-                or self.minimum_birth_stars != self.maximum_birth_stars
-            ):
-                raise ValueError(
-                    "opening-wave summon pools require one fixed fresh grade and no reserves"
-                )
         return self
+
+
+class OneStarOpeningActorSummonPool(BaseModel):
+    """A free first-event acquisition of one exact existing actor."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    usage: Literal["opening_actor"]
+    character_id: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "OneStarOpeningActorSummonPool":
+        self.character_id = self.character_id.strip()
+        if not self.character_id:
+            raise ValueError("opening-actor summon pools require a character id")
+        return self
+
+
+class OneStarOpeningRosterFixedSlot(BaseModel):
+    """One exact authored participant in a free opening roster."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["fixed"]
+    character_id: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "OneStarOpeningRosterFixedSlot":
+        self.character_id = self.character_id.strip()
+        if not self.character_id:
+            raise ValueError("fixed opening-roster slots require a character id")
+        return self
+
+
+class OneStarOpeningRosterRandomExistingGradeSlot(BaseModel):
+    """A deterministic existing participant of one immutable birth grade."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["random_existing_grade"]
+    birth_stars: int = Field(ge=1)
+
+
+OneStarOpeningRosterSlot = Annotated[
+    OneStarOpeningRosterFixedSlot
+    | OneStarOpeningRosterRandomExistingGradeSlot,
+    Field(discriminator="kind"),
+]
+
+
+class OneStarOpeningRosterSummonPool(BaseModel):
+    """A free ordered first-event roster resolved entirely from seed records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    usage: Literal["opening_roster"]
+    slots: list[OneStarOpeningRosterSlot] = Field(min_length=1)
+    initial_deployment_requires_guide_handoff: bool = False
+
+    @model_validator(mode="after")
+    def _validate_fixed_slots(self) -> "OneStarOpeningRosterSummonPool":
+        fixed_ids = [
+            slot.character_id
+            for slot in self.slots
+            if isinstance(slot, OneStarOpeningRosterFixedSlot)
+        ]
+        if len(fixed_ids) != len(set(fixed_ids)):
+            raise ValueError("fixed opening-roster character ids must be unique")
+        return self
+
+
+OneStarSummonPool = Annotated[
+    OneStarStandardSummonPool
+    | OneStarOpeningActorSummonPool
+    | OneStarOpeningRosterSummonPool,
+    Field(discriminator="usage"),
+]
 
 
 class OneStarFloorReward(BaseModel):
@@ -351,6 +409,28 @@ class OneStarRulesConfig(BaseModel):
             )
         if not self.summon_pools:
             raise ValueError("One-Star config requires at least one summon pool")
+        oversized_opening_rosters = sorted(
+            pool_id
+            for pool_id, pool in self.summon_pools.items()
+            if isinstance(pool, OneStarOpeningRosterSummonPool)
+            and len(pool.slots) > self.max_summon_batch
+        )
+        if oversized_opening_rosters:
+            raise ValueError(
+                "opening rosters exceed the configured maximum summon batch: "
+                + ", ".join(oversized_opening_rosters)
+            )
+        guided_opening_rosters = [
+            pool_id
+            for pool_id, pool in self.summon_pools.items()
+            if isinstance(pool, OneStarOpeningRosterSummonPool)
+            and pool.initial_deployment_requires_guide_handoff
+        ]
+        if len(guided_opening_rosters) > 1:
+            raise ValueError(
+                "only one opening roster may require an initial deployment "
+                "guide handoff"
+            )
         if not self.star_level_caps or any(
             stars < 1 or cap < 1 for stars, cap in self.star_level_caps.items()
         ):
@@ -1009,6 +1089,9 @@ class OneStarStateUpdate(BaseModel):
     operation's primary scalar. Additional non-empty ``key=value`` entries
     live in ``details``; repeated keys represent lists. The adapter parses and
     validates those entries into its private typed transaction before commit.
+    A summon uses only its pool id and pull count: its ``details`` list is
+    always empty because the adapter owns identities, birth grades, and
+    lifecycle for every pool usage.
     """
 
     model_config = ConfigDict(extra="forbid")
