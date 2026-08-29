@@ -1,0 +1,18 @@
+{
+  "date": "2026-08-29",
+  "feedback": "The restrained palette options have too little differentiation between ranks",
+  "frozen_invariants": [
+    "Reference-guided generated bust plus frozen BiRefNet matte",
+    "Obsidian Orrery frame geometry",
+    "Bust above the border and below the nameplate and vector stars",
+    "Exact deterministic one-through-seven star counts",
+    "Enemy subject excluded from Hero cards"
+  ],
+  "requested_balance": "Increase adjacent-rank contrast without returning to a seven-hue rainbow",
+  "options": [
+    "D: seven-step metal ladder from black iron to white gold",
+    "E: one obsidian-and-gold family with an aggressive radiance ramp",
+    "F: hard metal bands with milestone changes at three, five, and seven stars"
+  ],
+  "status": "Contrast review only; no production option selected"
+}

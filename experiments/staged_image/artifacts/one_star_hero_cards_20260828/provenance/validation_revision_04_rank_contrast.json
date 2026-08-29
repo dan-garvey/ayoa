@@ -1,0 +1,1154 @@
+{
+  "checks": [
+    {
+      "detail": {
+        "decision_sha256": "a3d85bd45f7a4329f46b37eca52ae280c378f3c902e2e0f41276fe670592aa95",
+        "feedback": "The restrained palette options have too little differentiation between ranks",
+        "status": "Contrast review only; no production option selected"
+      },
+      "name": "review feedback frozen",
+      "passed": true
+    },
+    {
+      "detail": {
+        "frozen_invariants": {
+          "excluded_card_subjects": [
+            "warden_of_the_eighth"
+          ],
+          "frame": "Obsidian Orrery geometry",
+          "layer_order": [
+            "card_plate",
+            "rank_glow",
+            "rank_frame_border",
+            "generated_bust",
+            "nameplate_foreground",
+            "vector_stars",
+            "name_and_emblem"
+          ],
+          "portrait": "generated_bust_plus_matte"
+        },
+        "revision": "04_rank_contrast",
+        "status": "review_ready"
+      },
+      "name": "revision contract",
+      "passed": true
+    },
+    {
+      "detail": [
+        "d_seven_metal_ladder",
+        "e_obsidian_radiance",
+        "f_metal_milestones"
+      ],
+      "name": "three requested options",
+      "passed": true
+    },
+    {
+      "detail": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "name": "d_seven_metal_ladder all star levels",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 840
+        },
+        "visible_stars": 1
+      },
+      "name": "d_seven_metal_ladder rank 1 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 1680
+        },
+        "visible_stars": 2
+      },
+      "name": "d_seven_metal_ladder rank 2 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 6539
+        },
+        "visible_stars": 3
+      },
+      "name": "d_seven_metal_ladder rank 3 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 12666
+        },
+        "visible_stars": 4
+      },
+      "name": "d_seven_metal_ladder rank 4 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 17856
+        },
+        "visible_stars": 5
+      },
+      "name": "d_seven_metal_ladder rank 5 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 23100
+        },
+        "visible_stars": 6
+      },
+      "name": "d_seven_metal_ladder rank 6 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 29258
+        },
+        "visible_stars": 7
+      },
+      "name": "d_seven_metal_ladder rank 7 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "adjacent_style_distances": [
+          120.41,
+          124.2,
+          127.58,
+          147.03,
+          115.64,
+          170.14
+        ],
+        "frame_glow_alpha": [
+          3,
+          12,
+          24,
+          40,
+          58,
+          82,
+          112
+        ],
+        "minimum_required": 60.0,
+        "star_glow_alpha": [
+          12,
+          28,
+          48,
+          74,
+          98,
+          132,
+          175
+        ],
+        "unique_frames": 7
+      },
+      "name": "d_seven_metal_ladder strong adjacent-rank contrast",
+      "passed": true
+    },
+    {
+      "detail": {
+        "colors": [
+          {
+            "border_mid": [
+              30,
+              34,
+              40
+            ],
+            "star_fill": [
+              92,
+              101,
+              112
+            ]
+          },
+          {
+            "border_mid": [
+              53,
+              58,
+              66
+            ],
+            "star_fill": [
+              133,
+              144,
+              158
+            ]
+          },
+          {
+            "border_mid": [
+              76,
+              84,
+              94
+            ],
+            "star_fill": [
+              177,
+              190,
+              204
+            ]
+          },
+          {
+            "border_mid": [
+              106,
+              113,
+              122
+            ],
+            "star_fill": [
+              224,
+              232,
+              240
+            ]
+          },
+          {
+            "border_mid": [
+              125,
+              111,
+              74
+            ],
+            "star_fill": [
+              224,
+              202,
+              134
+            ]
+          },
+          {
+            "border_mid": [
+              173,
+              128,
+              39
+            ],
+            "star_fill": [
+              248,
+              194,
+              62
+            ]
+          },
+          {
+            "border_mid": [
+              221,
+              181,
+              74
+            ],
+            "star_fill": [
+              255,
+              232,
+              135
+            ]
+          }
+        ],
+        "star_brightness": [
+          305,
+          435,
+          571,
+          696,
+          560,
+          504,
+          622
+        ]
+      },
+      "name": "d_seven_metal_ladder restrained metal families",
+      "passed": true
+    },
+    {
+      "detail": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "name": "e_obsidian_radiance all star levels",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 840
+        },
+        "visible_stars": 1
+      },
+      "name": "e_obsidian_radiance rank 1 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 1680
+        },
+        "visible_stars": 2
+      },
+      "name": "e_obsidian_radiance rank 2 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 6539
+        },
+        "visible_stars": 3
+      },
+      "name": "e_obsidian_radiance rank 3 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 12916
+        },
+        "visible_stars": 4
+      },
+      "name": "e_obsidian_radiance rank 4 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 18612
+        },
+        "visible_stars": 5
+      },
+      "name": "e_obsidian_radiance rank 5 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 23916
+        },
+        "visible_stars": 6
+      },
+      "name": "e_obsidian_radiance rank 6 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 30130
+        },
+        "visible_stars": 7
+      },
+      "name": "e_obsidian_radiance rank 7 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "adjacent_style_distances": [
+          65.42,
+          66.92,
+          74.6,
+          84.0,
+          92.17,
+          133.2
+        ],
+        "frame_glow_alpha": [
+          0,
+          8,
+          20,
+          38,
+          62,
+          92,
+          128
+        ],
+        "minimum_required": 60.0,
+        "star_glow_alpha": [
+          10,
+          25,
+          48,
+          78,
+          115,
+          155,
+          205
+        ],
+        "unique_frames": 7
+      },
+      "name": "e_obsidian_radiance strong adjacent-rank contrast",
+      "passed": true
+    },
+    {
+      "detail": {
+        "colors": [
+          {
+            "border_mid": [
+              28,
+              25,
+              22
+            ],
+            "star_fill": [
+              95,
+              76,
+              42
+            ]
+          },
+          {
+            "border_mid": [
+              44,
+              37,
+              28
+            ],
+            "star_fill": [
+              125,
+              97,
+              47
+            ]
+          },
+          {
+            "border_mid": [
+              62,
+              49,
+              31
+            ],
+            "star_fill": [
+              157,
+              119,
+              50
+            ]
+          },
+          {
+            "border_mid": [
+              82,
+              62,
+              32
+            ],
+            "star_fill": [
+              188,
+              143,
+              55
+            ]
+          },
+          {
+            "border_mid": [
+              108,
+              79,
+              31
+            ],
+            "star_fill": [
+              217,
+              169,
+              62
+            ]
+          },
+          {
+            "border_mid": [
+              141,
+              101,
+              29
+            ],
+            "star_fill": [
+              242,
+              198,
+              76
+            ]
+          },
+          {
+            "border_mid": [
+              178,
+              129,
+              38
+            ],
+            "star_fill": [
+              255,
+              228,
+              126
+            ]
+          }
+        ],
+        "star_brightness": [
+          213,
+          269,
+          326,
+          386,
+          448,
+          516,
+          609
+        ]
+      },
+      "name": "e_obsidian_radiance restrained metal families",
+      "passed": true
+    },
+    {
+      "detail": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "name": "f_metal_milestones all star levels",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 840
+        },
+        "visible_stars": 1
+      },
+      "name": "f_metal_milestones rank 1 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 1748
+        },
+        "visible_stars": 2
+      },
+      "name": "f_metal_milestones rank 2 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 7308
+        },
+        "visible_stars": 3
+      },
+      "name": "f_metal_milestones rank 3 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 13126
+        },
+        "visible_stars": 4
+      },
+      "name": "f_metal_milestones rank 4 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 18194
+        },
+        "visible_stars": 5
+      },
+      "name": "f_metal_milestones rank 5 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 23504
+        },
+        "visible_stars": 6
+      },
+      "name": "f_metal_milestones rank 6 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          640,
+          1024
+        ],
+        "frame_alpha": [
+          0,
+          255
+        ],
+        "overlaps": {
+          "bust_and_border": 5023,
+          "bust_and_nameplate": 469,
+          "bust_and_stars": 29654
+        },
+        "visible_stars": 7
+      },
+      "name": "f_metal_milestones rank 7 card",
+      "passed": true
+    },
+    {
+      "detail": {
+        "adjacent_style_distances": [
+          157.07,
+          93.68,
+          144.82,
+          292.55,
+          130.55,
+          181.33
+        ],
+        "frame_glow_alpha": [
+          3,
+          15,
+          26,
+          44,
+          58,
+          86,
+          120
+        ],
+        "minimum_required": 60.0,
+        "star_glow_alpha": [
+          12,
+          33,
+          53,
+          82,
+          105,
+          143,
+          188
+        ],
+        "unique_frames": 7
+      },
+      "name": "f_metal_milestones strong adjacent-rank contrast",
+      "passed": true
+    },
+    {
+      "detail": {
+        "colors": [
+          {
+            "border_mid": [
+              31,
+              35,
+              41
+            ],
+            "star_fill": [
+              96,
+              105,
+              116
+            ]
+          },
+          {
+            "border_mid": [
+              62,
+              68,
+              76
+            ],
+            "star_fill": [
+              148,
+              159,
+              171
+            ]
+          },
+          {
+            "border_mid": [
+              79,
+              86,
+              95
+            ],
+            "star_fill": [
+              183,
+              194,
+              206
+            ]
+          },
+          {
+            "border_mid": [
+              116,
+              123,
+              132
+            ],
+            "star_fill": [
+              232,
+              239,
+              246
+            ]
+          },
+          {
+            "border_mid": [
+              112,
+              83,
+              38
+            ],
+            "star_fill": [
+              210,
+              158,
+              58
+            ]
+          },
+          {
+            "border_mid": [
+              174,
+              128,
+              35
+            ],
+            "star_fill": [
+              248,
+              194,
+              62
+            ]
+          },
+          {
+            "border_mid": [
+              223,
+              183,
+              76
+            ],
+            "star_fill": [
+              255,
+              234,
+              142
+            ]
+          }
+        ],
+        "star_brightness": [
+          317,
+          478,
+          583,
+          717,
+          426,
+          504,
+          631
+        ]
+      },
+      "name": "f_metal_milestones restrained metal families",
+      "passed": true
+    },
+    {
+      "detail": {
+        "cards": 21,
+        "unique_hashes": 21
+      },
+      "name": "all option cards are distinct",
+      "passed": true
+    },
+    {
+      "detail": [],
+      "name": "enemy subject absent from contrast proofs",
+      "passed": true
+    },
+    {
+      "detail": {
+        "dimensions": [
+          1024,
+          576
+        ],
+        "mode": "RGB",
+        "sha256": "291257b8dc3f4dc3defa81d656ed9cb1d64c92982ee3309e0a44a6a0c550aacf"
+      },
+      "name": "exact system-board scale proof",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_d_seven_metal_ladder.png",
+        "02_e_obsidian_radiance.png",
+        "03_f_metal_milestones.png",
+        "04_all_options_comparison.png",
+        "05_board_scale_options_1024x576.png",
+        "06_palette_options_contact_sheet.png",
+        "index.html"
+      ],
+      "name": "complete review pack",
+      "passed": true
+    },
+    {
+      "detail": {
+        "forbidden_hits": [],
+        "pngs_with_metadata": {}
+      },
+      "name": "no private/source identifiers in contrast artifacts",
+      "passed": true
+    },
+    {
+      "detail": {
+        "changed": {},
+        "checked_artifacts": 53,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "/home/dan/ayoa/experiments/staged_image/artifacts/one_star_hero_cards_20260828/revision_04_rank_contrast_manifest.json\n/home/dan/ayoa/experiments/staged_image/artifacts/one_star_hero_cards_20260828/review_revision_04_rank_contrast/index.html\n/home/dan/ayoa/experiments/staged_image/artifacts/one_star_hero_cards_20260828/proofs/revision_04_rank_contrast/board_scale_options_1024x576.png"
+      },
+      "name": "deterministic contrast compositor rerun",
+      "passed": true
+    },
+    {
+      "detail": {
+        "files": [
+          "00_START_HERE.txt",
+          "01_d_seven_metal_ladder.png",
+          "02_e_obsidian_radiance.png",
+          "03_f_metal_milestones.png",
+          "04_all_options_comparison.png",
+          "05_board_scale_options_1024x576.png",
+          "06_palette_options_contact_sheet.png",
+          "index.html"
+        ],
+        "mismatches": [],
+        "missing": [],
+        "path": "/mnt/c/Users/danim/Pictures/Ayoa/OneStarHeroCardReview_20260829_RankContrast",
+        "unexpected": []
+      },
+      "name": "Windows contrast slideshow copy",
+      "passed": true
+    }
+  ],
+  "deterministic_hashes": {
+    "proofs/revision_04_rank_contrast/board_scale_options_1024x576.png": "291257b8dc3f4dc3defa81d656ed9cb1d64c92982ee3309e0a44a6a0c550aacf",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/cards/renna_rank_1.png": "9fc5e864a4ddd12f0df830b9d9b954bd23d6bd63bf11f5b6aa8ed39146a28372",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/cards/renna_rank_2.png": "b1fe491bf5653578b54e0eaf1170c8319fc688e13f7ec1b46c6c77b9f2080696",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/cards/renna_rank_3.png": "43b99db9016b7e3d950d426ed75fd6ed33e4476bcae528968e4e38fc6fb46366",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/cards/renna_rank_4.png": "5bb771340caa6ce8061def9bd7b76bd880b80415d623ceffe41119793dc8a991",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/cards/renna_rank_5.png": "246eb16c496d561147084607d99517f650fb78f1ccf0bcf66c74e4ebe1e39c46",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/cards/renna_rank_6.png": "4ab6ef319e48b3cca1ec41931305a9efd9fcced5c78984cf15d1a0de69abfc9a",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/cards/renna_rank_7.png": "a659c610264ac9f3faad7984365033aca3e880d55fc40c5981d6e1c591dd27ff",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/frames/rank_1_frame_rgba.png": "b8919202d29d6cadc466bab47190e1657b6988e3f596f728f039c234cef77339",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/frames/rank_2_frame_rgba.png": "34df03e3b437fa0645b72d0639938dc682fa2a890d9de7e1e474781796e76842",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/frames/rank_3_frame_rgba.png": "c570480a79c35028bc14edebaad81af1dd125920c08242067c25502f72334f98",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/frames/rank_4_frame_rgba.png": "4c54deb7bf9a1330f5fc96603ee384893b1e07aefbefc39724e4ab6774c64fc5",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/frames/rank_5_frame_rgba.png": "ed25d0eb4b6ab1ab3b06d9441568e6dff065a1e0fb10f3610dcafc865d335f62",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/frames/rank_6_frame_rgba.png": "48022dfafc6ca37322531f2ecf4511890bd5199503e060765f3b538ccecc5dd5",
+    "proofs/revision_04_rank_contrast/d_seven_metal_ladder/frames/rank_7_frame_rgba.png": "116f7e156d84cb93c5127f42a1cfa66ecce96c3d8508a9972f49b11927e0d64a",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/cards/renna_rank_1.png": "9ff6c93f86f5b4c2d626854c6d63c6a11b7a7bed107c2a5fa79a5f97621bc619",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/cards/renna_rank_2.png": "805d7b0d86010c0912924e4f4efb59e4cb75af76797b3ab5ac0d18c63287fa02",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/cards/renna_rank_3.png": "d2406d7f1e36d96a084951a3eec4de6f0d0cc74b6557925a0315b3ceb651175f",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/cards/renna_rank_4.png": "7c883d5a2916131e96518a29fe7307d9166d2ec931cfc2757f2173edad31746e",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/cards/renna_rank_5.png": "4b26b26ee109387eadc1264cd099103d77aa63df2d48e3664876b383af851335",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/cards/renna_rank_6.png": "50593744151df96f9b7e810d2e13a00f3a626236000e19ac4aac6434950c392c",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/cards/renna_rank_7.png": "69f377c890d10ce8516f462787089401e6913a82f2c0aded8e6643b5742f7e56",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/frames/rank_1_frame_rgba.png": "44f1f038fbe8c628e89e42b48f706a9bbbec222577848a19f12862185d62f921",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/frames/rank_2_frame_rgba.png": "fc6b59c917c6c62fbf1ab37eb0841f82ac268856730d5a4ac3baa0783865255c",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/frames/rank_3_frame_rgba.png": "1b6b6af8cfb87c5ea89c4924a0041645130ffb64cfc5b0f4b35d99e71452c9cb",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/frames/rank_4_frame_rgba.png": "651c8b526c6771b1908d4d5b4acb5f93bd199f656c316eebf39546dd7582f126",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/frames/rank_5_frame_rgba.png": "74209f9981b356493a9d672ea3e64ed3c458c074b11eb4bd075f8b868106f799",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/frames/rank_6_frame_rgba.png": "fddcd5723f608b6a84e90f597c95df09ab57223fc125ab6470b3ab573bb405b4",
+    "proofs/revision_04_rank_contrast/e_obsidian_radiance/frames/rank_7_frame_rgba.png": "55b0ef3d8f7b3bf7a25e07106b2d5ad854a134500327ead29419d753f8fa81fd",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/cards/renna_rank_1.png": "c0858d26dedba171ff3ced91fca928474e9a54b76c6dd231eee7c00bb422636a",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/cards/renna_rank_2.png": "74f0ba2c2cc94bab435850af1a475c381b1e374854be4fb4b40e6a13b683d5d3",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/cards/renna_rank_3.png": "c255285579360d165368ef4cf1912fd6046b38673d84d5bd0fdf2788f8e8213c",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/cards/renna_rank_4.png": "096d5f05d52c1f5aeae1cf60700903195baa0a99c102c0a50fea38dd8613b94c",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/cards/renna_rank_5.png": "8c14962a8e7ae71ff5a016c1a9bc12c839eb4849142b90a9056941f99794f10a",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/cards/renna_rank_6.png": "2ef00b98593bfccaaa4bb8d08163b48afb7e28087bbfd23f60f79e1c3424f0bf",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/cards/renna_rank_7.png": "ce671de7c44e209b2b7abe73b5a7b639ac717c490928971de253b0336343a975",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/frames/rank_1_frame_rgba.png": "f2c2c75a6b80715d0838cf56665f270bc49e3438f081e8e9b7782fe530c59567",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/frames/rank_2_frame_rgba.png": "2f8ec4427ccaa5b8a2b700db3e85310fbb49ae801e08386c8b8f8ab3e363ecb8",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/frames/rank_3_frame_rgba.png": "81ee55d3f2a627ef333834eb8102a028e07f08e6a866e6b43d3c6539ea0015e5",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/frames/rank_4_frame_rgba.png": "883e496d8b6e0210683e2cc649db8159fec11511d11ad094f225d401d5c97477",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/frames/rank_5_frame_rgba.png": "b1e7b1f4fd8e37a88e14020d0b66ac2f24df487eef4206b35aa5a42447cdb2c9",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/frames/rank_6_frame_rgba.png": "3877830204c328cd1336e0fd62add61d81c6b30e7c0fc6ed5e1c6e3742af496d",
+    "proofs/revision_04_rank_contrast/f_metal_milestones/frames/rank_7_frame_rgba.png": "684ca6ebe32987cf5a36a3c5101959394f2860257d3762d7754b572c30a94164",
+    "provenance/review_decision_rank_contrast_20260829.json": "a3d85bd45f7a4329f46b37eca52ae280c378f3c902e2e0f41276fe670592aa95",
+    "review_revision_04_rank_contrast/00_START_HERE.txt": "c785f4524da07d842d9b45338268512d51b23cc9d80707849fcf26236f55418e",
+    "review_revision_04_rank_contrast/01_d_seven_metal_ladder.png": "e494b9f7748161ca702f0c03aea65598dfb6aa0ac66d624133d5f0d009ad9170",
+    "review_revision_04_rank_contrast/02_e_obsidian_radiance.png": "89071dda494cd350f5a4755b21de10d865688c563f7fd4ca01e32627e7042f4f",
+    "review_revision_04_rank_contrast/03_f_metal_milestones.png": "900fa0f4713ca1e0ee3d5dc9740234b3926e65b4fe28d6f6f0f8c51a34fe7543",
+    "review_revision_04_rank_contrast/04_all_options_comparison.png": "db1fe6af99af74b1c45e6ef0b0a9541836559c52d9932a21d9444ca0ec1a7208",
+    "review_revision_04_rank_contrast/05_board_scale_options_1024x576.png": "291257b8dc3f4dc3defa81d656ed9cb1d64c92982ee3309e0a44a6a0c550aacf",
+    "review_revision_04_rank_contrast/06_palette_options_contact_sheet.png": "bb8d0bd3029f66352f0b5cb272f41daa36d2f204f2c35cb5120e24db5e9d02b7",
+    "review_revision_04_rank_contrast/index.html": "b8d414ac26af7b26c130a1bebc0ea8696b36ecf5f56ce69bf7a409bf04610dd9",
+    "revision_04_rank_contrast_manifest.json": "6f9c889528301f4a6c4d40787fe10d19ee67b3a3b2db366cb36f8f045c349d66"
+  },
+  "failures": [],
+  "manual_visual_checks": [
+    {
+      "check": "each option has materially stronger rank separation without rainbow hues",
+      "evidence": "three full-size 1-through-7 sheets inspected at original detail",
+      "status": "passed"
+    },
+    {
+      "check": "generated bust remains above the border and below nameplate and stars",
+      "evidence": "all option sheets inspected with the approved stacking frozen",
+      "status": "passed"
+    },
+    {
+      "check": "representative ranks remain legible at system-board scale",
+      "evidence": "exact 1024x576 board proof inspected at original detail",
+      "status": "passed"
+    },
+    {
+      "check": "combined-sheet labels and summaries do not overlap cards",
+      "evidence": "3840x2160 comparison inspected at original detail",
+      "status": "passed"
+    },
+    {
+      "check": "no private/source identifiers are visible in proof pixels",
+      "evidence": "option sheets, comparison, board proof, and contact sheet inspected",
+      "status": "passed"
+    }
+  ],
+  "option_summaries": {
+    "d_seven_metal_ladder": {
+      "adjacent_style_distances": [
+        120.41,
+        124.2,
+        127.58,
+        147.03,
+        115.64,
+        170.14
+      ],
+      "cards": 7,
+      "frame_hashes": [
+        "b8919202d29d6cadc466bab47190e1657b6988e3f596f728f039c234cef77339",
+        "34df03e3b437fa0645b72d0639938dc682fa2a890d9de7e1e474781796e76842",
+        "c570480a79c35028bc14edebaad81af1dd125920c08242067c25502f72334f98",
+        "4c54deb7bf9a1330f5fc96603ee384893b1e07aefbefc39724e4ab6774c64fc5",
+        "ed25d0eb4b6ab1ab3b06d9441568e6dff065a1e0fb10f3610dcafc865d335f62",
+        "48022dfafc6ca37322531f2ecf4511890bd5199503e060765f3b538ccecc5dd5",
+        "116f7e156d84cb93c5127f42a1cfa66ecce96c3d8508a9972f49b11927e0d64a"
+      ],
+      "minimum_adjacent_style_distance": 115.64
+    },
+    "e_obsidian_radiance": {
+      "adjacent_style_distances": [
+        65.42,
+        66.92,
+        74.6,
+        84.0,
+        92.17,
+        133.2
+      ],
+      "cards": 7,
+      "frame_hashes": [
+        "44f1f038fbe8c628e89e42b48f706a9bbbec222577848a19f12862185d62f921",
+        "fc6b59c917c6c62fbf1ab37eb0841f82ac268856730d5a4ac3baa0783865255c",
+        "1b6b6af8cfb87c5ea89c4924a0041645130ffb64cfc5b0f4b35d99e71452c9cb",
+        "651c8b526c6771b1908d4d5b4acb5f93bd199f656c316eebf39546dd7582f126",
+        "74209f9981b356493a9d672ea3e64ed3c458c074b11eb4bd075f8b868106f799",
+        "fddcd5723f608b6a84e90f597c95df09ab57223fc125ab6470b3ab573bb405b4",
+        "55b0ef3d8f7b3bf7a25e07106b2d5ad854a134500327ead29419d753f8fa81fd"
+      ],
+      "minimum_adjacent_style_distance": 65.42
+    },
+    "f_metal_milestones": {
+      "adjacent_style_distances": [
+        157.07,
+        93.68,
+        144.82,
+        292.55,
+        130.55,
+        181.33
+      ],
+      "cards": 7,
+      "frame_hashes": [
+        "f2c2c75a6b80715d0838cf56665f270bc49e3438f081e8e9b7782fe530c59567",
+        "2f8ec4427ccaa5b8a2b700db3e85310fbb49ae801e08386c8b8f8ab3e363ecb8",
+        "81ee55d3f2a627ef333834eb8102a028e07f08e6a866e6b43d3c6539ea0015e5",
+        "883e496d8b6e0210683e2cc649db8159fec11511d11ad094f225d401d5c97477",
+        "b1e7b1f4fd8e37a88e14020d0b66ac2f24df487eef4206b35aa5a42447cdb2c9",
+        "3877830204c328cd1336e0fd62add61d81c6b30e7c0fc6ed5e1c6e3742af496d",
+        "684ca6ebe32987cf5a36a3c5101959394f2860257d3762d7754b572c30a94164"
+      ],
+      "minimum_adjacent_style_distance": 93.68
+    }
+  },
+  "schema_version": 1,
+  "status": "passed",
+  "windows_review": {
+    "files": [
+      "00_START_HERE.txt",
+      "01_d_seven_metal_ladder.png",
+      "02_e_obsidian_radiance.png",
+      "03_f_metal_milestones.png",
+      "04_all_options_comparison.png",
+      "05_board_scale_options_1024x576.png",
+      "06_palette_options_contact_sheet.png",
+      "index.html"
+    ],
+    "mismatches": [],
+    "missing": [],
+    "path": "/mnt/c/Users/danim/Pictures/Ayoa/OneStarHeroCardReview_20260829_RankContrast",
+    "unexpected": []
+  }
+}

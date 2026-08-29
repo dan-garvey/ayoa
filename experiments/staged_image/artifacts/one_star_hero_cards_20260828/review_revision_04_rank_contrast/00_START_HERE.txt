@@ -1,0 +1,13 @@
+ONE-STAR HERO CARD VISUAL REVIEW — HIGHER-CONTRAST OPTIONS
+
+01  Option D: Seven-Metal Ladder — a distinct metal finish at every rank
+02  Option E: Obsidian Radiance — one gold family with a steep glow ramp
+03  Option F: Metal Milestones — iron/silver/gold bands plus rank-seven white gold
+04  All three options in one 1-through-7 comparison
+05  Representative ranks at exact 1024 x 576 system-board scale
+06  Contact sheet
+
+Every option freezes the selected generated bust, Obsidian frame geometry,
+exact vector-star counts, and corrected frame → bust → nameplate/stars order.
+This pass increases adjacent-rank contrast without restoring the rainbow palette.
+No generative image call or production promotion is part of this revision.
