@@ -230,7 +230,15 @@ class CheckpointFile(BaseModel):
                 )
             expected_scope = "character" if owner_id else "presentation"
             expected_scope_id = owner_id or sprite_set.sprite_set_id
-            for reference_id in sprite_set.variant_reference_ids.values():
+            sprite_reference_ids = [
+                *sprite_set.variant_reference_ids.values(),
+                *(
+                    [sprite_set.portrait_reference_id]
+                    if sprite_set.portrait_reference_id
+                    else []
+                ),
+            ]
+            for reference_id in sprite_reference_ids:
                 reference = references.get(reference_id)
                 if reference is None:
                     raise ValueError(

@@ -71,6 +71,13 @@ from app.engine.event_image_sidecar import EventImageSidecar
 from app.engine.spawn_authoring import SpawnAuthoringCoordinator
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.orchestrator import Orchestrator
+from app.engine.one_star_hero_cards import (
+    OneStarHeroCardError,
+    generated_portrait_prewarm_character_ids,
+    new_one_star_hero_card_events,
+    one_star_hero_card_events_for_render,
+    render_one_star_hero_card_boards,
+)
 from app.engine.prompt_manager import PromptManager
 from app.engine.reviewed_visual_references import (
     freeze_story_visual_references,
@@ -373,9 +380,22 @@ class EngineBridge:
             session_id=session_id,
             checkpoint_id=checkpoint_id,
         )
+        card_events = one_star_hero_card_events_for_render(
+            checkpoint=checkpoint,
+            previous_checkpoint=previous_checkpoint,
+            viewer_character_id=pov_character_id,
+            render=render,
+        )
+        required_portrait_ids = generated_portrait_prewarm_character_ids(
+            checkpoint=checkpoint,
+            viewer_character_id=pov_character_id,
+            events=card_events,
+        )
         await self._prewarm_visual_novel_sprites(
             session_id=session_id,
             checkpoint=checkpoint,
+            required_visible_character_ids=required_portrait_ids,
+            await_required=True,
         )
         await self.wait_for_visual_novel_stage_work(
             session_id=session_id,
@@ -401,6 +421,8 @@ class EngineBridge:
             for transition in identity_transitions
         }
         sections: list[VisualNovelDeckSection] = []
+        card_events_by_id = {event.event_id: event for event in card_events}
+        inserted_card_event_ids: set[str] = set()
         final_stage_media = None
         for segment_index, segment in enumerate(render.segments, start=1):
             resolution, stage_media = self.image_generation.resolve_visual_novel_stage(
@@ -436,6 +458,26 @@ class EngineBridge:
                         ),
                     )
                 )
+            card_event = card_events_by_id.get(segment.rendered_event_id)
+            if (
+                card_event is not None
+                and card_event.event_id not in inserted_card_event_ids
+            ):
+                for board in render_one_star_hero_card_boards(
+                    checkpoint=checkpoint,
+                    viewer_character_id=pov_character_id,
+                    event=card_event,
+                    generation=self.image_generation,
+                ):
+                    sections.append(VisualNovelDeckSection(
+                        pages=(VisualNovelPage(
+                            kind="narration",
+                            text=board.accessible_text,
+                        ),),
+                        stage_media=board.media,
+                        card_style="system_panel",
+                    ))
+                inserted_card_event_ids.add(card_event.event_id)
 
         if previous_checkpoint is not None:
             for transition in identity_transitions:
@@ -591,17 +633,92 @@ class EngineBridge:
         *,
         session_id: str,
         checkpoint: CheckpointFile | None = None,
+        required_visible_character_ids: Iterable[str] = (),
+        await_required: bool = False,
     ) -> None:
-        """Start optional candidates without making presentation depend on them."""
+        """Start optional candidates and await only required Hero-card neutrals."""
 
         try:
             source = checkpoint or self.checkpoint_mgr.load_latest(session_id)
-            await self.image_generation.ensure_visual_novel_sprite_prewarm(source)
+            required_ids = tuple(dict.fromkeys(
+                character_id.strip()
+                for character_id in required_visible_character_ids
+                if character_id.strip()
+            ))
+            if required_ids:
+                admitted = (
+                    await self.image_generation.ensure_visual_novel_sprite_prewarm(
+                        source,
+                        required_visible_character_ids=required_ids,
+                    )
+                )
+            else:
+                admitted = (
+                    await self.image_generation.ensure_visual_novel_sprite_prewarm(
+                        source
+                    )
+                )
+            if await_required and required_ids:
+                required_id_set = set(required_ids)
+                terminal_jobs = []
+                for job_id in admitted:
+                    job = self.image_generation.store.get(job_id)
+                    if (
+                        job is not None
+                        and job.request.character_id in required_id_set
+                        and job.request.sprite_variant_key == "neutral"
+                    ):
+                        terminal_jobs.append(
+                            self.image_generation.wait_for_terminal(job_id)
+                        )
+                if terminal_jobs:
+                    await asyncio.gather(*terminal_jobs)
         except Exception:
             logger.exception(
                 "visual-novel sprite prewarm failed session=%s",
                 session_id,
             )
+
+    def _validate_one_star_hero_card_routing(
+        self,
+        response: TurnResponse,
+    ) -> None:
+        if not response.checkpoint_id:
+            return
+        try:
+            checkpoint = self.load_checkpoint(
+                response.session_id,
+                response.checkpoint_id,
+            )
+        except FileNotFoundError:
+            # Some transport-only responses (and offline callers) may carry a
+            # checkpoint label without owning its persisted state. There is no
+            # One-Star commit to validate in that case.
+            return
+        if checkpoint.session.config.settings.presentation_mode != "visual_novel":
+            return
+        previous = self._previous_visual_novel_checkpoint(
+            session_id=response.session_id,
+            checkpoint_id=response.checkpoint_id,
+        )
+        required = new_one_star_hero_card_events(checkpoint, previous)
+        if not required:
+            return
+        from app.engine.one_star_visuals import one_star_visual_novel_config
+
+        configured = one_star_visual_novel_config(checkpoint)
+        if configured is None:
+            return
+        owner_id, _config = configured
+        render = response.per_player_visual_novel_renders.get(owner_id)
+        if render is None:
+            raise OneStarHeroCardError("master_render_missing_card_event")
+        one_star_hero_card_events_for_render(
+            checkpoint=checkpoint,
+            previous_checkpoint=previous,
+            viewer_character_id=owner_id,
+            render=render,
+        )
 
     async def wait_for_visual_novel_stage_work(
         self,
@@ -3963,6 +4080,8 @@ class EngineBridge:
             *pre_turn,
             *(response.pre_turn_resolutions or []),
         ]
+        for resolved_response in [*response.pre_turn_resolutions, response]:
+            self._validate_one_star_hero_card_routing(resolved_response)
         await self._prewarm_visual_novel_sprites(session_id=session_id)
         return response
 

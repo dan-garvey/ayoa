@@ -711,6 +711,8 @@ class ImageGenerationCoordinator:
     async def ensure_visual_novel_sprite_prewarm(
         self,
         checkpoint: CheckpointFile,
+        *,
+        required_visible_character_ids: Sequence[str] = (),
     ) -> tuple[str, ...]:
         """Admit non-blocking generated sprite candidates for eligible Heroes."""
 
@@ -721,7 +723,10 @@ class ImageGenerationCoordinator:
         ):
             return ()
         admitted: list[str] = []
-        for character in characters_needing_generated_sprite_prewarm(checkpoint):
+        for character in characters_needing_generated_sprite_prewarm(
+            checkpoint,
+            required_visible_character_ids=required_visible_character_ids,
+        ):
             sprite_pack_id = generated_sprite_pack_id(checkpoint, character)
             transaction_id = f"sprite_tx_{_stable_hash({
                 'session_id': checkpoint.session.session_id,

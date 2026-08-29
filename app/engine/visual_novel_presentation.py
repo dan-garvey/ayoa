@@ -100,7 +100,12 @@ _CONTINUATION_FINAL_WORDS = {
 _DEFAULT_REGULAR_FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
 _DEFAULT_BOLD_FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 
-VisualNovelCardStyle = Literal["adv", "identity_flash", "identity_reveal"]
+VisualNovelCardStyle = Literal[
+    "adv",
+    "identity_flash",
+    "identity_reveal",
+    "system_panel",
+]
 
 
 @dataclass(frozen=True)
@@ -199,6 +204,7 @@ class _ResolvedSpritePlacement:
 @dataclass(frozen=True)
 class _ResolvedDeckSection:
     composed_stage: Image.Image = field(repr=False)
+    system_panel_bytes: bytes | None = field(repr=False)
     stage_sha256: str
     used_neutral_stage: bool
     sprites: tuple[_ResolvedSpritePlacement, ...]
@@ -267,8 +273,34 @@ class VisualNovelCardRenderer:
                 "adv",
                 "identity_flash",
                 "identity_reveal",
+                "system_panel",
             }:
                 raise ValueError("visual-novel deck section has an invalid card style")
+            if section.card_style == "system_panel" and (
+                len(section.pages) != 1
+                or section.sprite_placements
+                or section.stage_media is None
+                or section.stage_path is not None
+            ):
+                raise ValueError(
+                    "system-panel sections require one media page and no sprites"
+                )
+            system_panel_bytes = None
+            if section.card_style == "system_panel":
+                media = section.stage_media
+                assert media is not None
+                data = bytes(media.data)
+                if (
+                    media.mime_type != "image/png"
+                    or media.width != CARD_WIDTH
+                    or media.height != CARD_HEIGHT
+                    or media.byte_count != len(data)
+                    or hashlib.sha256(data).hexdigest() != media.sha256
+                ):
+                    raise ValueError(
+                        "system-panel media must be an exact 1024x576 PNG"
+                    )
+                system_panel_bytes = data
             stage, stage_sha256, used_neutral = _load_stage(
                 section.stage_path,
                 stage_media=section.stage_media,
@@ -277,10 +309,15 @@ class VisualNovelCardRenderer:
             resolved_sections.append(
                 _ResolvedDeckSection(
                     composed_stage=_compose_sprite_stage(stage, sprites),
+                    system_panel_bytes=system_panel_bytes,
                     stage_sha256=stage_sha256,
                     used_neutral_stage=used_neutral,
                     sprites=sprites,
-                    pages=tuple(_paginate_pages(section.pages, fonts.body)),
+                    pages=(
+                        tuple(section.pages)
+                        if section.card_style == "system_panel"
+                        else tuple(_paginate_pages(section.pages, fonts.body))
+                    ),
                     card_style=section.card_style,
                 )
             )
@@ -313,17 +350,20 @@ class VisualNovelCardRenderer:
             for page in section.pages:
                 index += 1
                 physical_pages.append(page)
-                card_image = _compose_card(
-                    section.composed_stage,
-                    page,
-                    index=index,
-                    count=count,
-                    fonts=fonts,
-                    card_style=section.card_style,
-                )
-                encoded = BytesIO()
-                card_image.save(encoded, format="PNG", optimize=False)
-                image_bytes = encoded.getvalue()
+                if section.system_panel_bytes is not None:
+                    image_bytes = section.system_panel_bytes
+                else:
+                    card_image = _compose_card(
+                        section.composed_stage,
+                        page,
+                        index=index,
+                        count=count,
+                        fonts=fonts,
+                        card_style=section.card_style,
+                    )
+                    encoded = BytesIO()
+                    card_image.save(encoded, format="PNG", optimize=False)
+                    image_bytes = encoded.getvalue()
                 rendered_cards.append(
                     (
                         page,
@@ -1024,6 +1064,7 @@ def _valid_v2_identity(
             "adv",
             "identity_flash",
             "identity_reveal",
+            "system_panel",
         }:
             return False
         raw_sprites = section["sprites"]
@@ -1045,6 +1086,10 @@ def _valid_v2_identity(
             return False
         raw_pages = section["pages"]
         if type(raw_pages) is not list or not raw_pages:
+            return False
+        if section["card_style"] == "system_panel" and (
+            raw_sprites or len(raw_pages) != 1
+        ):
             return False
         neutral_sections.append(section["used_neutral_stage"])
         for raw_page in raw_pages:
@@ -1671,6 +1716,8 @@ def _compose_card(
     fonts: _CardFonts,
     card_style: VisualNovelCardStyle,
 ) -> Image.Image:
+    if card_style == "system_panel":
+        return stage.copy().convert("RGB")
     if card_style == "identity_flash":
         return _compose_identity_flash_card(
             stage,

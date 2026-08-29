@@ -7,7 +7,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
-VisualReferencePurpose = Literal["identity", "environment", "style", "sprite"]
+VisualReferencePurpose = Literal[
+    "identity",
+    "environment",
+    "style",
+    "sprite",
+    "presentation",
+]
 VisualReferenceScope = Literal["character", "location", "presentation"]
 VISUAL_NOVEL_SPRITE_VARIANT_KEYS: tuple[str, ...] = (
     "neutral",
@@ -112,6 +118,10 @@ class ReviewedVisualReference(BaseModel):
             raise ValueError(
                 "sprite references require character or presentation scope"
             )
+        if self.purpose == "presentation" and self.scope != "presentation":
+            raise ValueError(
+                "presentation references require presentation scope"
+            )
         if self.fixed_stage and not (
             self.purpose == "environment" and self.scope == "location"
         ):
@@ -141,12 +151,14 @@ class ReviewedVisualNovelSpriteSet(BaseModel):
     sprite_set_id: str
     owner_character_id: str = ""
     variant_reference_ids: dict[str, str]
+    portrait_reference_id: str = ""
     source_facing: Literal["left", "right"] = "right"
 
     @model_validator(mode="after")
     def _validate_sprite_set(self) -> "ReviewedVisualNovelSpriteSet":
         self.sprite_set_id = self.sprite_set_id.strip()
         self.owner_character_id = self.owner_character_id.strip()
+        self.portrait_reference_id = self.portrait_reference_id.strip()
         if not _REFERENCE_ID_RE.fullmatch(self.sprite_set_id):
             raise ValueError("sprite_set_id must be an opaque identifier")
         if self.sprite_set_id.startswith("imgspritepack_"):
@@ -166,5 +178,13 @@ class ReviewedVisualNovelSpriteSet(BaseModel):
             raise ValueError("reviewed sprite sets require a neutral variant")
         if len(set(cleaned.values())) != len(cleaned):
             raise ValueError("reviewed sprite variants must use unique references")
+        if self.portrait_reference_id and not _REFERENCE_ID_RE.fullmatch(
+            self.portrait_reference_id
+        ):
+            raise ValueError("portrait_reference_id must be an opaque identifier")
+        if self.portrait_reference_id in cleaned.values():
+            raise ValueError(
+                "reviewed portrait overrides must be distinct from sprite variants"
+            )
         self.variant_reference_ids = cleaned
         return self

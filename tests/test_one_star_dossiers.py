@@ -15,6 +15,7 @@ from app.engine.context_builder import (
     build_world_context,
     format_pending_observations_block,
 )
+from app.engine.one_star_adapter import load_one_star_account
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import AGENT_TURN_HEADER, format_agent_turn_body
 from app.schemas.checkpoint import CheckpointFile
@@ -43,6 +44,9 @@ def _seed_checkpoint() -> CheckpointFile:
     checkpoint.reviewed_visual_references = []
     checkpoint.reviewed_visual_novel_sprite_sets = []
     checkpoint.location_visual_reference_ids = {}
+    owner, account = load_one_star_account(checkpoint)
+    account.config.visual_novel_presentation = None
+    owner.mechanics["one_star_account"] = account.model_dump(mode="json")
     for character in checkpoint.characters:
         character.visuals.identity_reference_id = ""
         character.visuals.sprite_set_id = ""

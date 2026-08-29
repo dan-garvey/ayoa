@@ -343,6 +343,56 @@ def _selected_reviewed_reference_ids(
                 reference_id=sprite_set_id,
             )
         selected.extend(sprite_set.variant_reference_ids.values())
+        if sprite_set.portrait_reference_id:
+            portrait = by_id.get(sprite_set.portrait_reference_id)
+            expected_scope = (
+                "character" if sprite_set.owner_character_id else "presentation"
+            )
+            expected_scope_id = (
+                sprite_set.owner_character_id or sprite_set.sprite_set_id
+            )
+            if portrait is None:
+                raise ReviewedVisualReferenceError(
+                    "selected_portrait_reference_missing",
+                    reference_id=sprite_set.portrait_reference_id,
+                )
+            if (
+                portrait.purpose != "sprite"
+                or portrait.scope != expected_scope
+                or portrait.scope_id != expected_scope_id
+                or portrait.diffusion_authorized
+            ):
+                raise ReviewedVisualReferenceError(
+                    "selected_portrait_reference_unauthorized",
+                    reference_id=sprite_set.portrait_reference_id,
+                )
+            selected.append(sprite_set.portrait_reference_id)
+
+    from app.engine.one_star_adapter import is_one_star_checkpoint, load_one_star_account
+    from app.schemas.one_star import ONE_STAR_HERO_CARD_PRESENTATION_SCOPE_ID
+
+    if is_one_star_checkpoint(checkpoint):
+        _owner, account = load_one_star_account(checkpoint)
+        presentation = account.config.visual_novel_presentation
+        if presentation is not None and presentation.hero_card_frame_reference_id:
+            frame_id = presentation.hero_card_frame_reference_id
+            frame = by_id.get(frame_id)
+            if frame is None:
+                raise ReviewedVisualReferenceError(
+                    "selected_presentation_frame_missing",
+                    reference_id=frame_id,
+                )
+            if (
+                frame.purpose != "presentation"
+                or frame.scope != "presentation"
+                or frame.scope_id != ONE_STAR_HERO_CARD_PRESENTATION_SCOPE_ID
+                or frame.diffusion_authorized
+            ):
+                raise ReviewedVisualReferenceError(
+                    "selected_presentation_frame_unauthorized",
+                    reference_id=frame_id,
+                )
+            selected.append(frame_id)
 
     for reference_ids in checkpoint.location_visual_reference_ids.values():
         for reference_id in reference_ids:

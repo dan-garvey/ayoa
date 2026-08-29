@@ -1442,6 +1442,7 @@ def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge(
             "masculine": "veiled-masculine",
             "feminine": "veiled-feminine",
         },
+        "hero_card_frame_reference_id": "one-star-card-frame",
         "seeded_birth_one_reveal_stars": 2,
         "generated_birth_one_reveal_stars": 3,
     }

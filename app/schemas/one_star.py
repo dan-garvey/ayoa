@@ -19,6 +19,7 @@ ONE_STAR_ACCOUNT_KEY = "one_star_account"
 ONE_STAR_HERO_KEY = "one_star_hero"
 ONE_STAR_COMBATANT_KEY = "one_star_combatant"
 ONE_STAR_GACHA_WEIGHT_TOTAL = 10_000
+ONE_STAR_HERO_CARD_PRESENTATION_SCOPE_ID = "one_star_hero_cards"
 
 
 class OneStarResources(BaseModel):
@@ -331,11 +332,19 @@ class OneStarVisualNovelPresentationConfig(BaseModel):
         Literal["masculine", "feminine"],
         str,
     ]
+    hero_card_frame_reference_id: str = Field(
+        min_length=1,
+        max_length=200,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+    )
     seeded_birth_one_reveal_stars: int = Field(default=2, ge=2)
     generated_birth_one_reveal_stars: int = Field(default=3, ge=2)
 
     @model_validator(mode="after")
     def _clean(self) -> "OneStarVisualNovelPresentationConfig":
+        self.hero_card_frame_reference_id = (
+            self.hero_card_frame_reference_id.strip()
+        )
         self.veiled_sprite_set_ids = {
             presentation: value.strip()
             for presentation, value in self.veiled_sprite_set_ids.items()

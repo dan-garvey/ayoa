@@ -147,6 +147,92 @@ def _single_page_deck(tmp_path: Path):
     return renderer, deck
 
 
+def test_system_panel_preserves_exact_bytes_text_hash_and_restart(
+    tmp_path: Path,
+) -> None:
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    image = Image.new("RGB", (CARD_WIDTH, CARD_HEIGHT), (7, 19, 37))
+    image.putpixel((511, 287), (241, 197, 83))
+    panel = replace(
+        _resolved_png(image),
+        filename="reviewed-private-source-id.png",
+    )
+    accessible = (
+        "System panel — Heroes acquired: Renna Holt — 1 star; "
+        "Halcyon — 6 stars"
+    )
+
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(kind="narration", text=accessible),),
+            stage_media=panel,
+            card_style="system_panel",
+        )
+    ])
+
+    assert deck.cards[0].image_bytes == panel.data
+    assert deck.cards[0].accessible_text == accessible
+    assert deck.transcript == accessible
+    manifest = _manifest(deck)
+    assert manifest["identity"]["sections"][0]["card_style"] == "system_panel"
+    assert "reviewed-private-source-id" not in json.dumps(manifest)
+    restarted = VisualNovelCardRenderer(tmp_path / "presentations").load_deck(
+        deck.deck_id
+    )
+    assert restarted is not None
+    assert restarted.cards[0].image_bytes == panel.data
+
+    changed_text = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(
+                kind="narration",
+                text=accessible.replace("1 star", "2 stars"),
+            ),),
+            stage_media=panel,
+            card_style="system_panel",
+        )
+    ])
+    assert changed_text.deck_id != deck.deck_id
+
+
+def test_system_panel_rejects_nonexact_or_annotated_sections(
+    tmp_path: Path,
+) -> None:
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    panel = _resolved_png(Image.new("RGB", (CARD_WIDTH, CARD_HEIGHT)))
+
+    with pytest.raises(ValueError, match="one media page"):
+        renderer.render_deck([
+            VisualNovelDeckSection(
+                pages=(
+                    VisualNovelPage(kind="narration", text="First"),
+                    VisualNovelPage(kind="narration", text="Second"),
+                ),
+                stage_media=panel,
+                card_style="system_panel",
+            )
+        ])
+    bad_panel = replace(panel, sha256="0" * 64)
+    with pytest.raises(ValueError, match="exact 1024x576 PNG"):
+        renderer.render_deck([
+            VisualNovelDeckSection(
+                pages=(VisualNovelPage(kind="narration", text="Panel"),),
+                stage_media=bad_panel,
+                card_style="system_panel",
+            )
+        ])
+
+    wrong_size = _resolved_png(Image.new("RGB", (CARD_WIDTH - 1, CARD_HEIGHT)))
+    with pytest.raises(ValueError, match="exact 1024x576 PNG"):
+        renderer.render_deck([
+            VisualNovelDeckSection(
+                pages=(VisualNovelPage(kind="narration", text="Panel"),),
+                stage_media=wrong_size,
+                card_style="system_panel",
+            )
+        ])
+
+
 def test_classic_adv_renderer_preserves_stage_above_overlay(tmp_path: Path):
     renderer = VisualNovelCardRenderer(tmp_path / "presentations")
     deck = renderer.render_deck(

@@ -976,6 +976,7 @@
                 "masculine": "osa_vnset_veiled_masculine_v1",
                 "feminine": "osa_vnset_veiled_feminine_v1"
               },
+              "hero_card_frame_reference_id": "osa_hero_card_frame_obsidian_orrery_v1",
               "seeded_birth_one_reveal_stars": 2,
               "generated_birth_one_reveal_stars": 3
             },
@@ -2231,6 +2232,76 @@
     }
   ],
   "reviewed_visual_references": [
+    {
+      "reference_id": "osa_hero_card_frame_obsidian_orrery_v1",
+      "storage_ref": "system-panels/one_star_hero_card_frame_obsidian_orrery_v1.png",
+      "mime_type": "image/png",
+      "width": 640,
+      "height": 1024,
+      "byte_count": 609495,
+      "sha256": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f",
+      "purpose": "presentation",
+      "scope": "presentation",
+      "scope_id": "one_star_hero_cards",
+      "selection_hint": "Reviewed blank ornate frame for deterministic One-Star Hero card composition.",
+      "diffusion_authorized": false
+    },
+    {
+      "reference_id": "osa_hero_card_portrait_renna_holt_v1",
+      "storage_ref": "hero-card-portraits/renna_holt_v1.png",
+      "mime_type": "image/png",
+      "width": 1122,
+      "height": 1402,
+      "byte_count": 1611430,
+      "sha256": "2df3dc776a723a74f9d2d08aef737def587987093758fbb34bcf69a8f2c9145a",
+      "purpose": "sprite",
+      "scope": "character",
+      "scope_id": "renna_holt",
+      "selection_hint": "Reviewed Hero-card bust override for Renna Holt.",
+      "diffusion_authorized": false
+    },
+    {
+      "reference_id": "osa_hero_card_portrait_halcyon_v1",
+      "storage_ref": "hero-card-portraits/halcyon_of_the_gilded_march_v1.png",
+      "mime_type": "image/png",
+      "width": 1086,
+      "height": 1448,
+      "byte_count": 1989597,
+      "sha256": "20553fb725837246f6417e8ffb054493efaa5ff032cedcb04b91d5b788642448",
+      "purpose": "sprite",
+      "scope": "character",
+      "scope_id": "halcyon_of_the_gilded_march",
+      "selection_hint": "Reviewed Hero-card bust override for Halcyon of the Gilded March.",
+      "diffusion_authorized": false
+    },
+    {
+      "reference_id": "osa_hero_card_portrait_veiled_feminine_v1",
+      "storage_ref": "hero-card-portraits/veiled_feminine_v1.png",
+      "mime_type": "image/png",
+      "width": 1122,
+      "height": 1402,
+      "byte_count": 1701561,
+      "sha256": "cf48a48c8089ce90d662231897d8b636eb4a857aaba5e32bc954400648eeb691",
+      "purpose": "sprite",
+      "scope": "presentation",
+      "scope_id": "osa_vnset_veiled_feminine_v1",
+      "selection_hint": "Reviewed identity-safe feminine veil bust for One-Star Hero cards.",
+      "diffusion_authorized": false
+    },
+    {
+      "reference_id": "osa_hero_card_portrait_veiled_masculine_v1",
+      "storage_ref": "hero-card-portraits/veiled_masculine_v1.png",
+      "mime_type": "image/png",
+      "width": 1118,
+      "height": 1407,
+      "byte_count": 1727476,
+      "sha256": "10a3a6facea74fc368f562e1a4dcb55ed835f2668c50e8d727300a16f6125dfa",
+      "purpose": "sprite",
+      "scope": "presentation",
+      "scope_id": "osa_vnset_veiled_masculine_v1",
+      "selection_hint": "Reviewed identity-safe masculine veil bust for One-Star Hero cards.",
+      "diffusion_authorized": false
+    },
     {
       "reference_id": "osa_aveline_morcant_locked_active_profile_v1",
       "storage_ref": "locked/aveline_morcant/active_profile.png",
@@ -4924,6 +4995,7 @@
         "sad": "osa_vnsprite_halcyon_of_the_gilded_march_sad_v1",
         "surprised": "osa_vnsprite_halcyon_of_the_gilded_march_surprised_v1"
       },
+      "portrait_reference_id": "osa_hero_card_portrait_halcyon_v1",
       "source_facing": "right"
     },
     {
@@ -4984,6 +5056,7 @@
         "sad": "osa_vnsprite_renna_holt_sad_v1",
         "surprised": "osa_vnsprite_renna_holt_surprised_v1"
       },
+      "portrait_reference_id": "osa_hero_card_portrait_renna_holt_v1",
       "source_facing": "right"
     },
     {
@@ -5059,6 +5132,7 @@
         "sad": "osa_vnsprite_veiled_feminine_sad_v1",
         "surprised": "osa_vnsprite_veiled_feminine_surprised_v1"
       },
+      "portrait_reference_id": "osa_hero_card_portrait_veiled_feminine_v1",
       "source_facing": "right"
     },
     {
@@ -5074,6 +5148,7 @@
         "sad": "osa_vnsprite_veiled_masculine_sad_v1",
         "surprised": "osa_vnsprite_veiled_masculine_surprised_v1"
       },
+      "portrait_reference_id": "osa_hero_card_portrait_veiled_masculine_v1",
       "source_facing": "right"
     },
     {

@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Iterable
 
 from app.engine.one_star_adapter import (
     load_one_star_account,
@@ -194,6 +195,8 @@ def first_look_override_for_viewer(
 
 def characters_needing_generated_sprite_prewarm(
     checkpoint: CheckpointFile,
+    *,
+    required_visible_character_ids: Iterable[str] = (),
 ) -> tuple[CharacterRecord, ...]:
     """Return birth-one Heroes without reviewed art approaching reveal."""
 
@@ -201,10 +204,26 @@ def characters_needing_generated_sprite_prewarm(
     if configured is None:
         return ()
 
+    owner_id, _config = configured
+    required_ids = {
+        character_id.strip()
+        for character_id in required_visible_character_ids
+        if character_id.strip()
+    }
+
     def ready_for_prewarm(character: CharacterRecord) -> bool:
         hero = load_one_star_hero(character)
         if hero is None:
             return False
+        if (
+            character.character_id in required_ids
+            and not one_star_character_is_veiled_for_viewer(
+                checkpoint,
+                viewer_character_id=owner_id,
+                character=character,
+            )
+        ):
+            return True
         reveal_stars = one_star_identity_reveal_stars(checkpoint, character)
         if hero.birth_stars != 1 or reveal_stars is None:
             return False
