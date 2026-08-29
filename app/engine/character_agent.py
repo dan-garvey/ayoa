@@ -54,6 +54,7 @@ from app.engine.turn_loop_contracts import (
 )
 from app.llm.client import LLMClient
 from app.schemas.agents import (
+    CharacterAgentFormatRepair,
     CharacterAgentOutput,
     CharacterPerceptionOutput,
     CharacterPresentationChoice,
@@ -83,6 +84,10 @@ class CharacterAgentTurnDraft:
     output: CharacterAgentOutput
     user_message: ConversationMessage
     assistant_message: ConversationMessage
+
+
+class CharacterAgentFormatError(RuntimeError):
+    """The character model did not produce a usable private turn intent."""
 
 
 def _conversation_safe_user_content(text: str) -> str:
@@ -305,6 +310,32 @@ def _parse_agent_turn_response(
     return public_text, intent, presentation
 
 
+def _has_valid_private_intent(text: str) -> bool:
+    """Return whether a regular agent response has a non-empty intent footer."""
+    _public_text, intent, _presentation = _parse_agent_turn_response(text)
+    return bool(intent.strip())
+
+
+def _usage_with_format_repairs(
+    *usage_dicts: dict[str, int],
+    format_repairs: int,
+    prompt_render_ms: float,
+) -> dict[str, int]:
+    """Combine usage for every provider call in one logical agent turn."""
+    combined: dict[str, int] = {}
+    for usage in usage_dicts:
+        for key, value in usage.items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                combined[key] = combined.get(key, 0) + value
+            else:
+                # The current providers expose integer counters, but retain a
+                # future non-numeric field rather than silently dropping it.
+                combined[key] = value
+    combined["format_repairs"] = format_repairs
+    combined["prompt_render_ms"] = prompt_render_ms
+    return combined
+
+
 class CharacterAgent:
     """Generates in-character responses over a per-character rolling conversation."""
 
@@ -520,7 +551,11 @@ class CharacterAgent:
             public_text=text,
             presentation=presentation,
         )
-        self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
+        self.last_usage = _usage_with_format_repairs(
+            response.usage,
+            format_repairs=0,
+            prompt_render_ms=render_ms,
+        )
 
         conv = checkpoint.character_conversations.setdefault(
             character.character_id, [],
@@ -710,24 +745,83 @@ class CharacterAgent:
             log_label, log_extra, len(history),
         )
 
+        role = model_role_for_character(character)
         response = await self.client.complete(
-            role=model_role_for_character(character),
+            role=role,
             messages=messages,
             temperature=0.6,
             max_tokens=2000,
             cache=True,
             compact=True,
         )
-        public_text, intent, presentation = _parse_agent_turn_response(
-            response.content
-        )
+        format_repairs = 0
+        if _has_valid_private_intent(response.content):
+            final_response = response
+            public_text, intent, presentation = _parse_agent_turn_response(
+                final_response.content
+            )
+        else:
+            format_repairs = 1
+            logger.warning(
+                "Agent %s returned an invalid private intent; requesting one "
+                "bounded format repair",
+                character.name,
+            )
+            repair_instruction = self.prompt_manager.render(
+                "agent_format_repair"
+            ).strip()
+            repair_messages = [
+                *messages,
+                {
+                    "role": "assistant",
+                    "content": response.content or "",
+                },
+                {
+                    "role": "user",
+                    "content": repair_instruction,
+                },
+            ]
+            final_response = await self.client.complete(
+                role=role,
+                messages=repair_messages,
+                response_model=CharacterAgentFormatRepair,
+                temperature=0.0,
+                max_tokens=2000,
+                cache=True,
+                compact=True,
+            )
+            self.last_usage = _usage_with_format_repairs(
+                response.usage,
+                final_response.usage,
+                format_repairs=format_repairs,
+                prompt_render_ms=render_ms,
+            )
+            repaired = final_response.parsed
+            if not isinstance(repaired, CharacterAgentFormatRepair):
+                raise CharacterAgentFormatError(
+                    "Character agent failed to produce a non-empty trailing "
+                    f"private intent for {character.character_id!r} after one "
+                    "bounded repair."
+                )
+            public_text = repaired.observable_prose
+            intent = repaired.private_intent
+            presentation = repaired.presentation
         result = CharacterAgentOutput(
             character_id=character.character_id,
             public_text=public_text,
             intent=intent,
             presentation=presentation,
         )
-        self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
+        usage_dicts = (
+            (response.usage, final_response.usage)
+            if format_repairs
+            else (final_response.usage,)
+        )
+        self.last_usage = _usage_with_format_repairs(
+            *usage_dicts,
+            format_repairs=format_repairs,
+            prompt_render_ms=render_ms,
+        )
         conversation_user_content = user_content
         if one_star_state:
             conversation_user_content = conversation_user_content.replace(
@@ -750,7 +844,10 @@ class CharacterAgent:
             role="user",
             content=_conversation_safe_user_content(conversation_user_content),
         )
-        assistant_message = _assistant_history_message(response, history_text)
+        assistant_message = _assistant_history_message(
+            final_response,
+            history_text,
+        )
 
         logger.info(
             "Agent %s %s: %d chars public, %d chars intent",

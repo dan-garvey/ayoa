@@ -161,7 +161,10 @@ def test_live_play_preflight_does_not_require_content_manager_key():
             "event_router": "router-key",
             "narrator": "narrator-key",
             "dnd_combat_manager": "combat-key",
+            "agent": "agent-key",
             "agent_standard": "agent-key",
+            "agent_convenience": "agent-key",
+            "character_manager": "agent-key",
         },
     )
 
@@ -1985,7 +1988,7 @@ class TestActingDescribe:
         engine.wait_for_visual_novel_stage_work.assert_not_awaited()
         assert "illustrating" not in capsys.readouterr().out
 
-    def test_visual_stage_wait_is_independent_of_terminal_image_support(
+    def test_visual_stage_wait_is_owned_once_by_deck_preparation(
         self, run, capsys,
     ):
         engine = _mock_engine()
@@ -1996,6 +1999,7 @@ class TestActingDescribe:
         engine.run_query = AsyncMock(return_value=_turn_response(
             beat_ended_reason="query_response",
             turn_index=4,
+            checkpoint_id="ckpt_0004",
             output_text="The crest is weathered silver.",
             per_player_renders={"aldric": "The crest is weathered silver."},
             per_player_visual_novel_renders={
@@ -2016,13 +2020,16 @@ class TestActingDescribe:
 
         run(state.handle_line("/query what does the crest look like?"))
 
-        engine.wait_for_visual_novel_stage_work.assert_awaited_once_with(
+        engine.prepare_visual_novel_deck.assert_awaited_once_with(
             session_id=SESSION_ID,
-            renders_by_pov={
-                "aldric": engine.run_query.return_value
+            checkpoint_id="ckpt_0004",
+            pov_character_id="aldric",
+            render=(
+                engine.run_query.return_value
                 .per_player_visual_novel_renders["aldric"]
-            },
+            ),
         )
+        engine.wait_for_visual_novel_stage_work.assert_not_awaited()
         assert "illustrating" in capsys.readouterr().out
 
     def test_visual_card_fallback_prints_shared_accessible_projection(

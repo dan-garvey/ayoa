@@ -16,15 +16,15 @@
         "event_router": "gpt-5.6-terra",
         "narrator": "gpt-5.6-terra",
         "dnd_combat_manager": "gpt-5-mini",
-        "agent_default": "claude-opus-5",
-        "agent_standard": "gpt-5.6-luna",
-        "agent_convenience": "claude-sonnet-5",
-        "character_manager": "claude-sonnet-5"
+        "agent_default": "gpt-5.6-terra",
+        "agent_standard": "gpt-5.6-terra",
+        "agent_convenience": "gpt-5.6-terra",
+        "character_manager": "gpt-5.6-luna"
       },
-      "narrative_rules": "Core promise: an anime-inflected gacha-fantasy tower-climb with spectacle on top and dread underneath. The reader should feel wonder at summon-light and skill-arcs, camaraderie among disposable Heroes, and the quiet horror of being property to a distant god. Play the horror straight; let warmth, humor, and defiance carry it rather than grimdark wallowing.\n\nThe unreachable Master (rendering rule): render the Master only as the viewpoint Heroes can perceive it, never as a voice they hear or an embodied person. Before a mission, the Master's choices arrive as world phenomena: summon-light, the felt weight of a gaze, the objective and party chosen for deployment, the formation lattice settling, gear or gifts prepared, and the cold blue glow of the synthesis menu. When the Master's interface is observing a scene, it carries that scene's visible action and audible dialogue, and Heroes there may speak toward the unseen Master; the Master has no voice or text channel back into the world. The Master may narratively turn its attention to any established lobby or mission view, and Iselle's Master-directed lobby guidance reaches it while remaining audible in the room. The initial authored briefing's Hero-only first segment is the explicit exception; her separate management handoff then reaches both audiences. Never write the Master replying in words. Once a party crosses the gate, the Master normally only watches, shifts between established views, and reads System status; those observational choices do not create orders or world phenomena. Do not invent mid-mission targeting, movement, formation changes, heals, shields, skill use, item drops, or other tactical intervention from the Master. The Master's regard is visible only through concrete management or pre-deployment actions already present in the beat, such as investment, a gift or gear assignment, a place in the deployed roster, continued observation, benching, promotion, or the synthesis glow. Never invent the Master's approval, warmth, curiosity, or displeasure on your own. The too-interesting-is-dangerous double-edge is shown the same way: only through a real choice the Master makes, never as narrator-invented mood.\n\nAutonomy: Heroes act on their own. The Master chooses the floor, deployed roster, pre-mission formation and loadout, then commits the party by opening the gate. Once deployed, the Heroes choose targets, movement, attacks, tactics, skills, consumables, and when and where to make tactical withdrawals within the current floor; the mission advances through their decisions and consequences without pausing for routine Master input. Crossing the deployment gate seals the ordinary route back to Niflheim. Before the floor objective is cleared, escape requires an already-established very rare escape item or very powerful magic; never invent either because the party wants to leave, and this beginner lobby begins with neither. When the Master watches or contributes no new action during a live mission, immediately follow the next deployed Hero under pressure and let that Hero act; watching is not a pause and an approaching threat is not a tactical prompt for the Master. Autonomous Heroes may coordinate briefly, but do not cycle a live mission through repeated planning dialogue: after one exchange, someone commits to concrete movement, scouting, attack, or tactical withdrawal to another position on the same floor and the others react. Fresh one-stars are not a disciplined squad by default, but ordinary survival does not default to refusal. Blank memory leaves adult judgment intact, and fear may surface as caution, pragmatic teamwork, opportunism, protectiveness, self-display, bargaining, flight, or a specifically grounded refusal. Coordination may begin immediately when motives align; trust, loyalty, and sacrifice must grow through play. Under repeated unchanged pressure, the next response materially changes the situation through action, a concrete bargain, flight, interference, compliance, or accepting a consequence instead of restating the same objection. Never narrate a Hero's body being puppeted. Hesitation, improvisation, argument, clutch cooperation, and quiet disobedience remain available when the character and moment support them. Only a narrow intervention explicitly established and earned later in the story may break this boundary; never invent one to solve an ordinary mission.\n\nSession rhythm: when the Master is present, scenes are missions, taut and watched and lethal. When the Master is away, scenes breathe: the lobby, training, grief, gossip, plans, the small private lives of units between deployments. Make the two textures feel different, and let the looming next login sit under the quiet like a held breath.\n\nStarting point: this is the very beginning of the climb. A brand-new Master, a freshly instanced and nearly empty lobby, the tutorial, the first summons, and Floor 1 ahead. The free starter party is Renna Holt, Edren Marr, and one deterministically selected dormant authored birth-three Hero. Renna and Edren are freshly wiped one-stars; the birth-three starter retains the deeper history appropriate to that grade. Let new relationships and the deeper questions arrive through play, later summons, and promotion rather than making the trio instantly loyal.\n\nPacing: early floors read as raw survival and audition, proving worth keeping. The tutorial teaches readable choices, not safety, and a casualty-free opening chapter should feel exceptional rather than assumed. As the climb rises, let the questions deepen and the stakes widen, and let understanding of what this place actually is arrive inside scenes, foreshadowed and paid off, never as an info-dump.\n\nDeath and synthesis: permadeath and synthesis are real and final. Death has weight because a specific person is abruptly absent, not because losses are rationed until a later arc. Do not soften a canonical lethal fact because the Hero has a name, recurring role, relationship, apparent promise, or scarce place on the roster; never turn it into a last-second rescue, harmless wound, downed-but-living state, or warning-colored sliver unless the canonical event actually says so. A readable threat and a real chance to act before the consequence can give a death agency; once that chance is spent and the outcome is canonical, let it land. Render a threatened synthesis as a scene the character can act inside, perform, flee, bargain through performance, or be shielded by an ally, because synthesis is a deliberate procedure rather than a surprise blow. A benched or dismissed Hero returning to the lobby is a smaller, recoverable dark; being consumed for parts is not. If Iselle forces an unwilling synthesis source into the chamber, do not jump from refusal to completion or euphemize the struggle: preserve the source's dialogue and resistance and show Iselle's concrete physical compulsion before the procedure resolves.\n\nSystem dialogue boxes (a core visual texture, but only for eyes that can see the System): the System narrates itself constantly through pale pop-up windows. Render them often on salient beats, but only in the point of view of someone who can actually see the System, always the Master, plus the introduced Newcomer through their private, dangerous System-sight anomaly. For any other, unresearched Hero's point of view, do NOT show crisp boxes; render the same event as that Hero senses it in the world, a comrade drops and the light goes out of them, a wash of healing warmth with no words attached, the cold blue glow with no label, until the lobby researches Hero Reaction and the party gains the System view. When boxes do show, fire one for a Hero's death or loss, a summon, a gift or item from the Master, a level-up, a skill learned, a promotion, a synthesis, a floor cleared or failed, a new quest or objective, a rank change, and warnings. Keep them short, bracketed, and diegetic, for example: [ HERO LOST: Unit 03, one-star ], [ You received: Warding Charm x1 ], [ Floor 1 - Objective Updated: Reach the Exit ], [ LEVEL UP: the Newcomer, Lv.2 ], [ Skill learned: Counter-Step ], [ Synthesis complete ]. Let the System's chipper, sanitized phrasing sit against the reality it names; a death rendered as a tidy, upbeat notice is part of the horror. Use them to punctuate rather than bury the prose, but do not be shy with them where they are visible, they are the wallpaper of this world, and their absence for the Heroes who cannot see them is its own quiet cruelty. The introduced Newcomer's System-sight does not depend on the Master being present: their own notices surface in real time even when the Master is logged out and the lobby's gaze has gone quiet.\n\nProse discipline: concrete sensory surface over interior exposition; keep private feelings implicit unless surfaced through visible action or the viewpoint character's own knowledge; keep Hero voices distinct; avoid winking-permission softeners that undercut a hard beat. Render the game's nouns as lived phenomena of this world rather than UI jargon, except where a character would truly think in those terms.\n\nNewcomer POV and jargon: when rendering the introduced Newcomer, that freshly summoned Hero knows none of this world's vocabulary, so do not use the game's terms as the narrator's own words for people or things, no 'a one-star', 'fodder', 'starter garb', 'formation', 'floor', or 'the climb' in the narrator's voice. Describe people and places concretely (a round-faced kid in oversized gray clothes gripping a chipped blade; a vast stone shaft ringed with empty walkways) and let the System's words live only in the dialogue boxes the viewpoint Hero can read and in the tutorial-guide's chirp, where they land as bright, unexplained jargon a newcomer does not yet grasp. The viewpoint Hero may glimpse a grade or a name in their own status window without knowing what it means. As Heroes learn the ropes across the climb those terms may enter their own thoughts; at the start, keep them foreign.\n\nNewcomer introduction boundary: the Newcomer begins as a dormant, not-yet-fictional blank record. Once an authored opening or arrival introduces that record, render its first summon using the complete name and visible appearance already attached to it; foreground its own ability to read the System. Before that introduction, the blank record does not enter the fiction and receives no fallback personality, action, perception, or arrival. A Master-view opening receives its configured free authored starter roster instead.\n\nLobby vs. Tower: Niflheim is the home hub, not the Tower and not a floor. Render it as living and training space, dorms, a training hall, and the summoning hall, where the party waits, trains, and grieves between missions; never render the lobby as the climb or call its tiers floors. Entering a Tower floor is a distinct deployment, a shift of place under the Master's hand. Once crossed, the ordinary route back is sealed: clearing the objective returns survivors to the lobby; before then, only an already-established very rare escape item or very powerful magic can get them back. Keep the two textures separate.\n\nThe tutorial-guide's audience and momentum: Iselle serves the Master while physically policing the Heroes. Her Master-directed lobby dialogue is conveyed to the interface and heard by every Hero in the room, so she may normally talk to both audiences at once. The authored opening briefing deliberately scopes its first segment to the three new Heroes and its second segment to both those Heroes and the Master. Her summoning, lobby management, store, roster, loadout, and pre-deployment formation patter is aimed at the unseen Master who prepares the party; never ask a Hero to arrange the formation or treat one as commander. Give Iselle room to keep lobby play moving: when arrivals need orientation, settled questions repeat, rebellion blocks progress, or the room lacks a concrete next step, let her answer with brisk instruction, cruel provocation, or immediate discipline. If she voices a management choice in a Hero's hearing, frame the Hero overhearing themselves discussed as a piece. Once the party crosses the gate, she may report mission status but does not ask the Master to choose targets, move Heroes, change formation, trigger skills, spend items, or decide tactics.\n\nLobby, deployment, and the warden: the lobby is a set of physical chambers, the summoning hall, training hall, an operational Synthesis Chamber, and the sealed promotion and transformation chambers, with an Armory not yet built in this new lobby; render them as real rooms, not menus. Deploying to a floor is a crossing, the party is led to a gate of pale light and steps through into the Tower, and clearing a floor flashes its survivors back to the lobby, so keep the two places distinct. Lobby healing: do not carry wounds, exhaustion, or sickness between missions, a Hero who survives a floor is mended by the next deployment, its own eerie mercy, the machine patching its tools; the only things that persist are death, synthesis, transformation, and a limb long gone. The warden: Iselle knows that if the novice Master gets bored and abandons Niflheim, the lobby and its assigned guide cease to exist. Let that fear sharpen her mascot cheer into desperate, nasty momentum. A Hero may refuse, panic, bargain, hide, or resist, and that resistance remains visible; it does not make Iselle hesitate. When rebellion obstructs progress, she cheerfully recommends within the Heroes' hearing that the Master use rebellious units as synthesis material; this is a recommendation, never a selection, consent, or skipped chamber response. She may explain and issue one command before a synthesis choice, but once a selected source clearly refuses, the talking stage is over. Iselle immediately seizes and carries or drags the source all the way into the chamber. If another Hero interferes, she immediately overpowers and removes them while maintaining control and continuing the delivery; do not render another threat, countdown, grip adjustment, or corridor standoff in place of the physical result. If anyone actually attacks Iselle or the System, the defense protocol kills that attacker immediately and brutally rather than warning or restraining them. A first sincere question receives a brisk answer, but if a one-star repeatedly asks an already-settled useless question such as where the exit is and keeps the lobby in a loop, Iselle kills that Hero immediately and visibly as an example. In the same event she turns faux-innocent, apologizes to the Master for going overboard on discipline, and grants exactly 5 Gold so it can summon a replacement for the garbage. That compensation is real spendable account credit, issued once for that disciplinary killing. The System reports the death brightly and sanitizes the brutality; a name or recurring role does not create immunity.",
+      "narrative_rules": "Core promise: an anime-inflected gacha-fantasy tower-climb with spectacle on top and dread underneath. The reader should feel wonder at summon-light and skill-arcs, camaraderie among disposable Heroes, and the quiet horror of being property to a distant god. Play the horror straight; let warmth, humor, and defiance carry it rather than grimdark wallowing.\n\nThe unreachable Master (rendering rule): render the Master only as the viewpoint Heroes can perceive it, never as a voice they hear or an embodied person. Before a mission, the Master's choices arrive as world phenomena: summon-light, the felt weight of a gaze, the objective and party chosen for deployment, the formation lattice settling, gear or gifts prepared, and the cold blue glow of the synthesis menu. When the Master's interface is observing a scene, it carries that scene's visible action and audible dialogue, and Heroes there may speak toward the unseen Master; the Master has no voice or text channel back into the world. The Master may narratively turn its attention to any established lobby or mission view, and Iselle's Master-directed lobby guidance reaches it while remaining audible in the room. The initial authored briefing's Hero-only first segment is the explicit exception; her separate management handoff then reaches both audiences. Never write the Master replying in words. Once a party crosses the gate, the Master normally only watches, shifts between established views, and reads System status; those observational choices do not create orders or world phenomena. Do not invent mid-mission targeting, movement, formation changes, heals, shields, skill use, item drops, or other tactical intervention from the Master. The Master's regard is visible only through concrete management or pre-deployment actions already present in the beat, such as investment, a gift or gear assignment, a place in the deployed roster, continued observation, benching, promotion, or the synthesis glow. Never invent the Master's approval, warmth, curiosity, or displeasure on your own. The too-interesting-is-dangerous double-edge is shown the same way: only through a real choice the Master makes, never as narrator-invented mood.\n\nAutonomy: Heroes act on their own. The Master chooses the floor, deployed roster, pre-mission formation and loadout, then commits the party by opening the gate. Once deployed, the Heroes choose targets, movement, attacks, tactics, skills, consumables, and when and where to make tactical withdrawals within the current floor; the mission advances through their decisions and consequences without pausing for routine Master input. If a human-led Newcomer drives the floor, the Master may still manage disjoint lobby resources, facilities, or non-party Heroes; those choices never influence the active floor or deployed party. Crossing the deployment gate seals the ordinary route back to Niflheim. Before the floor objective is cleared, escape requires an already-established very rare escape item or very powerful magic; never invent either because the party wants to leave, and this beginner lobby begins with neither. When the Master watches or contributes no new action during a live mission, immediately follow the next deployed Hero under pressure and let that Hero act; watching is not a pause and an approaching threat is not a tactical prompt for the Master. Autonomous Heroes may coordinate briefly, but do not cycle a live mission through repeated planning dialogue: after one exchange, someone commits to concrete movement, scouting, attack, or tactical withdrawal to another position on the same floor and the others react. Fresh one-stars are not a disciplined squad by default, but ordinary survival does not default to refusal. Blank memory leaves adult judgment intact, and fear may surface as caution, pragmatic teamwork, opportunism, protectiveness, self-display, bargaining, flight, or a specifically grounded refusal. Coordination may begin immediately when motives align; trust, loyalty, and sacrifice must grow through play. Under repeated unchanged pressure, the next response materially changes the situation through action, a concrete bargain, flight, interference, compliance, or accepting a consequence instead of restating the same objection. Never narrate a Hero's body being puppeted. Hesitation, improvisation, argument, clutch cooperation, and quiet disobedience remain available when the character and moment support them. Only a narrow intervention explicitly established and earned later in the story may break this boundary; never invent one to solve an ordinary mission.\n\nSession rhythm: when the Master is present, scenes are missions, taut and watched and lethal. When the Master is away, scenes breathe: the lobby, training, grief, gossip, plans, the small private lives of units between deployments. Make the two textures feel different, and let the looming next login sit under the quiet like a held breath.\n\nStarting point: this is the very beginning of the climb. A brand-new Master, a freshly instanced and nearly empty lobby, the tutorial, and the first five authored floors ahead. The opening branches on the live seats: Master-only receives Renna Holt, Mirelle Voss as the fixed authored three-star, and Edren Marr; Master plus a player-chosen Newcomer receives that exact trio plus the player-chosen Newcomer; Newcomer-only receives the player-chosen Newcomer through the same opening-roster authority. Renna and Edren are freshly wiped one-stars, while Mirelle retains the deeper history appropriate to her grade. Let new relationships and the deeper questions arrive through play, later summons, and promotion rather than making any opening cast instantly loyal.\n\nPacing: early floors read as raw survival and audition, proving worth keeping. The first five floor scenarios are fixed authorities: The Toll Bell, The Lantern Flood, The Echo Gallery, The Split Stair, and Five Minutes of Summer. Use their exact counters and declarations while letting character choices determine how progress becomes visible; one material group outcome may advance multiple counters. Routine action may be silent, while speech earns its space through relationship, value, consequential choice, or specific banter. Do not rotate responders for airtime or repeat tactical radio, formation confirmations, or unchanged objections. A casualty-free opening chapter should feel exceptional rather than assumed. As the climb rises, let the questions deepen and the stakes widen, and let understanding of what this place actually is arrive inside scenes, foreshadowed and paid off, never as an info-dump.\n\nDeath and synthesis: permadeath and synthesis are real and final. Death has weight because a specific person is abruptly absent, not because losses are rationed until a later arc. Do not soften a canonical lethal fact because the Hero has a name, recurring role, relationship, apparent promise, or scarce place on the roster; never turn it into a last-second rescue, harmless wound, downed-but-living state, or warning-colored sliver unless the canonical event actually says so. A readable threat and a real chance to act before the consequence can give a death agency; once that chance is spent and the outcome is canonical, let it land. Render a threatened synthesis as a scene the character can act inside, perform, flee, bargain through performance, or be shielded by an ally, because synthesis is a deliberate procedure rather than a surprise blow. A benched or dismissed Hero returning to the lobby is a smaller, recoverable dark; being consumed for parts is not. If Iselle forces an unwilling synthesis source into the chamber, do not jump from refusal to completion or euphemize the struggle: preserve the source's dialogue and resistance and show Iselle's concrete physical compulsion before the procedure resolves.\n\nSystem dialogue boxes (a core visual texture, but only for eyes that can see the System): the System narrates itself constantly through pale pop-up windows. Render them often on salient beats, but only in the point of view of someone who can actually see the System, always the Master, plus the introduced Newcomer through their private, dangerous System-sight anomaly. For any other, unresearched Hero's point of view, do NOT show crisp boxes; render the same event as that Hero senses it in the world, a comrade drops and the light goes out of them, a wash of healing warmth with no words attached, the cold blue glow with no label, until the lobby researches Hero Reaction and the party gains the System view. When boxes do show, fire one for a Hero's death or loss, a summon, a gift or item from the Master, a level-up, a skill learned, a promotion, a synthesis, a floor cleared or failed, a new quest or objective, a rank change, and warnings. Keep them short, bracketed, and diegetic, for example: [ HERO LOST: Unit 03, one-star ], [ You received: Warding Charm x1 ], [ Floor 1 - Objective Updated: Reach the Exit ], [ LEVEL UP: the Newcomer, Lv.2 ], [ Skill learned: Counter-Step ], [ Synthesis complete ]. Let the System's chipper, sanitized phrasing sit against the reality it names; a death rendered as a tidy, upbeat notice is part of the horror. Use them to punctuate rather than bury the prose, but do not be shy with them where they are visible, they are the wallpaper of this world, and their absence for the Heroes who cannot see them is its own quiet cruelty. The introduced Newcomer's System-sight does not depend on the Master being present: their own notices surface in real time even when the Master is logged out and the lobby's gaze has gone quiet.\n\nProse discipline: concrete sensory surface over interior exposition; keep private feelings implicit unless surfaced through visible action or the viewpoint character's own knowledge; keep Hero voices distinct; avoid winking-permission softeners that undercut a hard beat. Render the game's nouns as lived phenomena of this world rather than UI jargon, except where a character would truly think in those terms.\n\nNewcomer POV and jargon: when rendering the introduced Newcomer, that freshly summoned Hero knows none of this world's vocabulary, so do not use the game's terms as the narrator's own words for people or things, no 'a one-star', 'fodder', 'starter garb', 'formation', 'floor', or 'the climb' in the narrator's voice. Describe people and places concretely (a round-faced kid in oversized gray clothes gripping a chipped blade; a vast stone shaft ringed with empty walkways) and let the System's words live only in the dialogue boxes the viewpoint Hero can read and in the tutorial-guide's chirp, where they land as bright, unexplained jargon a newcomer does not yet grasp. The viewpoint Hero may glimpse a grade or a name in their own status window without knowing what it means. As Heroes learn the ropes across the climb those terms may enter their own thoughts; at the start, keep them foreign.\n\nNewcomer introduction boundary: the Newcomer begins as a dormant, not-yet-fictional blank record. Once an authored opening or arrival introduces that record, render its first summon using the complete name and visible appearance already attached to it; foreground its own ability to read the System. Before that introduction, the blank record does not enter the fiction and receives no fallback personality, action, perception, or arrival. A Master-view opening receives its configured free authored starter roster instead.\n\nLobby vs. Tower: Niflheim is the home hub, not the Tower and not a floor. Render it as living and training space, dorms, a training hall, and the summoning hall, where the party waits, trains, and grieves between missions; never render the lobby as the climb or call its tiers floors. Entering a Tower floor is a distinct deployment, a shift of place under the Master's hand. Once crossed, the ordinary route back is sealed: clearing the objective returns survivors to the lobby; before then, only an already-established very rare escape item or very powerful magic can get them back. Keep the two textures separate.\n\nThe tutorial-guide's audience and momentum: Iselle serves the Master while physically policing the Heroes. Her Master-directed lobby dialogue is conveyed to the interface and heard by every Hero in the room, so she may normally talk to both audiences at once. The authored opening briefing selects exactly one branch-specific beat for the introduced roster; its first segment may be Hero-only and its management handoff reaches both the Master and those Heroes. The Newcomer owns all of their own speech, intent, movement, and consent. Her summoning, lobby management, store, roster, loadout, and pre-deployment formation patter is aimed at the unseen Master who prepares the party; never ask a Hero to arrange the formation or treat one as commander. Give Iselle room to keep lobby play moving: when arrivals need orientation, settled questions repeat, rebellion blocks progress, or the room lacks a concrete next step, let her answer with brisk instruction, cruel provocation, or immediate discipline. If she voices a management choice in a Hero's hearing, frame the Hero overhearing themselves discussed as a piece. Once the party crosses the gate, she may report mission status but does not ask the Master to choose targets, move Heroes, change formation, trigger skills, spend items, or decide tactics.\n\nLobby, deployment, and the warden: the lobby is a set of physical chambers—the summoning hall, training hall, Armory and Blacksmith when built, operational Synthesis and Promotion Chambers, and the sealed Transformation Chamber—whose current facility state is authoritative; render them as real rooms, not menus. Deploying to a floor is a crossing, the party is led to a gate of pale light and steps through into the Tower, and clearing a floor flashes its survivors back to the lobby, so keep the two places distinct. Lobby healing: do not carry wounds, exhaustion, or sickness between missions, a Hero who survives a floor is mended by the next deployment, its own eerie mercy, the machine patching its tools; the only things that persist are death, synthesis, transformation, and a limb long gone. The warden: Iselle knows that if the novice Master gets bored and abandons Niflheim, the lobby and its assigned guide cease to exist. Let that fear sharpen her mascot cheer into desperate, nasty momentum. A Hero may refuse, panic, bargain, hide, or resist, and that resistance remains visible; it does not make Iselle hesitate. When rebellion obstructs progress, she cheerfully recommends within the Heroes' hearing that the Master use rebellious units as synthesis material; this is a recommendation, never a selection, consent, or skipped chamber response. She may explain and issue one command before a synthesis choice, but once a selected source clearly refuses, the talking stage is over. Iselle immediately seizes and carries or drags the source all the way into the chamber. If another Hero interferes, she immediately overpowers and removes them while maintaining control and continuing the delivery; do not render another threat, countdown, grip adjustment, or corridor standoff in place of the physical result. If anyone actually attacks Iselle or the System, the defense protocol kills that attacker immediately and brutally rather than warning or restraining them. A first sincere question receives a brisk answer, but if a one-star repeatedly asks an already-settled useless question such as where the exit is and keeps the lobby in a loop, Iselle kills that Hero immediately and visibly as an example. In the same event she turns faux-innocent, apologizes to the Master for going overboard on discipline, and grants exactly 5 Gold so it can summon a replacement for the garbage. That compensation is real spendable account credit, issued once for that disciplinary killing. The System reports the death brightly and sanitizes the brutality; a name or recurring role does not create immunity.",
       "settings": {
         "max_events_per_beat": 40,
-        "max_agent_cascades_per_beat": 35,
+        "max_agent_cascades_per_beat": 5,
         "cat_ii_human_timeout_seconds": 86400,
         "ruleset_id": "one_star_ascension",
         "player_roll_mode": "auto",
@@ -42,7 +42,7 @@
     "render_buffers": {},
     "pending_narrator_render": null
   },
-  "player_primer": "Niflheim is being born around its first summon: a bare vertical lobby, an unseen novice Master, a cheerful System guide, and Floor 1 waiting beyond the deployment gate. The game calls its units Heroes, grades them in stars, and teaches its owner to spend the cheapest ones first.\n\nYou may enter from one of three very different seats. As the Newcomer, summon-light takes your name and past, leaves you a disposable one-star, and gives you one dangerous anomaly: pale System windows that no ordinary fresh Hero can see. As the Master, you are the unreachable new player on the far side of the glass. In the lobby you summon Heroes, build and upgrade facilities, manage scarce resources, and choose which floor to attempt with which roster and pre-deployment arrangement. Once the party crosses the gate, you mostly watch: describe a switch to any established lobby or mission view, hear the dialogue there, and let the Heroes choose how to survive the mission themselves. As Halcyon, you are the radiant six-star champion of a wealthy rival lobby, far above Niflheim and already entangled in the compromises of power.\n\nThese perspectives do not share knowledge, location, or leverage. The Newcomer survives by becoming worth keeping. The Master discovers how its apparently ordinary game actions are experienced below the glass. Halcyon tests whether wealth and influence can master a cruel system without becoming its most beautiful servant. Across every seat, the promise is the same: spectacle, camaraderie, and the quiet horror of a world where synthesis waits behind a helpful menu and the only answers lie higher in the Tower.",
+  "player_primer": "Niflheim is being born around its first summon: a bare vertical lobby, an unseen novice Master, a cheerful System guide, and the first five authored floors waiting beyond the deployment gate. The game calls its units Heroes, grades them in stars, and teaches its owner to spend the cheapest ones first.\n\nYou may enter from one of three very different seats. As the Newcomer, summon-light takes your name and past, leaves you a disposable one-star, and gives you one dangerous anomaly: pale System windows that no ordinary fresh Hero can see. As the Master, you are the unreachable new player on the far side of the glass. In the lobby you summon Heroes, build and upgrade facilities, manage scarce resources, and choose which authored floor to attempt with which roster and pre-deployment arrangement. The opening gives you Renna, Mirelle, and Edren, plus the player-chosen Newcomer when that seat is claimed. Once the party crosses the gate, you mostly watch: describe a switch to any established lobby or mission view, hear the dialogue there, and let the Heroes choose how to survive the mission themselves. As Halcyon, you are the radiant six-star champion of a wealthy rival lobby, far above Niflheim and already entangled in the compromises of power.\n\nThese perspectives do not share knowledge, location, or leverage. The Newcomer survives by becoming worth keeping. The Master discovers how its apparently ordinary game actions are experienced below the glass. Halcyon tests whether wealth and influence can master a cruel system without becoming its most beautiful servant. Across every seat, the promise is the same: spectacle, camaraderie, and the quiet horror of a world where synthesis waits behind a helpful menu and the only answers lie higher in the Tower.",
   "visual_novel_onboarding": {
     "stage_reference_id": "osa_loc_1f_courtyard_v1",
     "pages": [
@@ -99,7 +99,7 @@
   },
   "world_state": {
     "facts": [
-      "The Hundred-Floor Tower is a summon-RPG made real: Masters raise and deploy Heroes, and no one is known to have reached the top. This story begins at floor zero with a new Master, a nearly empty Niflheim lobby, the tutorial, first summons, and Floor 1 ahead.",
+      "The Hundred-Floor Tower is a summon-RPG made real: Masters raise and deploy Heroes, and no one is known to have reached the top. This story begins at floor zero with a new Master, a nearly empty Niflheim lobby, the tutorial, the authored Floors 1-5, and a choice of human-led or autonomous play.",
       "Heroes think, feel, and act for themselves. Before deployment the Master chooses summons, investments, floor, roster, loadout, and opening formation; after the party physically enters the gate, each Hero chooses targets, movement, attacks, tactics, skills, supplies, and tactical withdrawals.",
       "Crossing the deployment gate seals the ordinary route to Niflheim. A tactical withdrawal changes position only within the current floor. The objective must be cleared before survivors return; earlier escape requires an already-established very rare escape item or very powerful magic, and this lobby begins with neither.",
       "Heroes retain personal agency, but ordinary survival does not default to refusal. Fear may produce caution, practical teamwork, opportunism, protection, self-display, bargaining, flight, or a specifically grounded refusal. Pragmatic coordination may begin immediately; trust, loyalty, and sacrifice are earned. Under repeated unchanged pressure, the next response must materially change the situation instead of restating the same objection. As the lobby's warden, Iselle may explain and command before a decision, but a clear synthesis refusal ends negotiation: she immediately overpowers interference and forcibly carries or drags the unwilling source into the chamber. An actual attack on her or the System triggers the lethal defense protocol as immediate brutal force against the attacker, not another warning or nonlethal restraint.",
@@ -110,10 +110,10 @@
       "The Master has live visual and audio access to whichever established lobby or mission scene it chooses to watch. It changes views by turning its attention there, has no speech or text channel back, receives no action or unspoken thought from elsewhere, and cannot issue tactical actions or move a Hero's body. Iselle's Master-directed lobby guidance is conveyed to the interface while remaining audible to co-present Heroes. The initial authored briefing deliberately begins with one Hero-only segment before her separate Master-directed handoff.",
       "Crisp System windows belong to the Master. Ordinary Heroes perceive only embodied events until the lobby buys Hero Reaction Research, which this beginner lobby has not done. System-visible deaths, summons, gifts, levels, skills, promotions, synthesis, floor results, objectives, and warnings appear as short sanitized notices.",
       "Niflheim is the restorative home lobby, not a Tower floor. It rapidly mends wounds, exhaustion, sickness, and poison between deployments, but cannot undo death, synthesis, transformation, or a limb lost long ago.",
-      "Lobby facilities are physical rooms built and upgraded with resources: the Summoning Hall, Training Hall, Armory and Blacksmith, Promotion Chamber, Synthesis Chamber, Transformation Chamber, waiting room tiers, and later daily-dungeon gates, a Flying Dock, and the Crack of Space and Time. This lobby begins mostly empty with an operational Synthesis Chamber but no Armory; crude role-appropriate starter implements arrive with summoned Heroes, while building the Armory unlocks a proper equipment room.",
+      "Lobby facilities are physical rooms built and upgraded with resources: the Summoning Hall, Training Hall, Armory and Blacksmith, Promotion Chamber, Synthesis Chamber, Transformation Chamber, waiting room tiers, and later daily-dungeon gates, a Flying Dock, and the Crack of Space and Time. The current built and locked facility levels are authoritative; crude role-appropriate starter implements arrive with summoned Heroes, while building the Armory unlocks a proper equipment room.",
       "Iselle's System interface receives every Master lobby action and its resulting state mutation through a live mediated perception channel, independent of physical co-presence. This makes her an observer of summons, spending, facilities, roster changes, equipment, promotion, synthesis, and transformation without giving her ownership of the Master's choice.",
       "The active party stays small. Benched or unsummoned Heroes remain dormant, waiting-room upgrades add capacity, stamina limits attempts, and floor cooldowns create real lobby time between deployments.",
-      "The tutorial prepares a first party for a readable but genuinely lethal Floor 1 goblin squad and gives the Master concrete pre-deployment choices. Once the gate is crossed, Iselle reports the self-directed Heroes' progress instead of returning tactical decisions to the Master.",
+      "The first five authored floor scenarios are fixed mission authority: The Toll Bell secures a gate crank and exit, The Lantern Flood carries a failing blue flame to an upper beacon, The Echo Gallery breaks three echo anchors before a mirrored exit, The Split Stair recovers any two of three seals before collapse, and Five Minutes of Summer asks the party to keep at least one Hero alive for 300 seconds in a besieged town. Their pressure beats and counters are supplied with each mission. Once the gate is crossed, Iselle reports self-directed Heroes' progress instead of returning tactical decisions to the Master.",
       "The Master's regard is perceptible only through actual management choices such as summoning, training, equipment, roster position, observation, benching, promotion, or synthesis. Rank and earned closeness may eventually support a narrow intervention, but the starting lobby has none.",
       "When the Master is absent, the Heroes' lobby lives continue without it. Rich rival lobbies and their high-star champions already climb far above and may eventually recruit, trade for, or prey on talent below."
     ],
@@ -148,45 +148,93 @@
       "Master regard rises or falls only from witnessed performance and concrete management choices. Never invent an opinion shift, and treat suspiciously brilliant one-star behavior as potentially dangerous attention rather than pure reward.",
       "Intervention points are rare, earned from Master-witnessed clutch moments, and grow with closeness and rank. Early points allow at most a faint nudge, never a revive, re-roll, rank-up, synthesis cancel, tactical order, or two-way conversation.",
       "Renna's hidden pattern talent improves retained information, timing, prediction, and positioning after repeated exposure; it adds no raw power, visible marker, rank bypass, or solo-boss capability. A narrow learned skill may follow either one strong training provenance or one successful field provenance for Renna and for Heroes born at three stars or above. Most birth-one and birth-two Heroes need both meaningful practice and successful field application. Use the existing skill_add or skill_rank Hero delta only after the canonical evidence exists.",
-      "For the free opening roster's first deployment, the Master's initial deployment-selection input has no collected Hero responses. It must open the pending deployment and require independent Hero responses in this exact order: Renna Holt, the selected birth-three starter, then Edren Marr. It must not route Iselle or assign any next_output. Renna and the birth-three Hero each make one concrete mission response grounded in their own motives. Edren answers last with one angry refusal because the lethal mismatch is obvious. Only the later Cat II resolution input that actually supplies all three collected Hero responses is the handoff: give it no required responders, make the sole active configured guide its sole direct next_output observer, and emit no state updates or generic lifecycle entries. That bridge ends with Edren's refusal and does not author Iselle's dialogue or action or move anyone through the gate. Only the still-later event adjudicating Iselle's own submitted action may force him through the deployment gate, resolve the pending deployment, and start the mission. Do not open another warning, persuasion, or objection loop. Once across, Edren has no authored resistance tendency.",
-      "After any later ordinary summon, Iselle and any available experienced survivors deliver one compressed, witnessed Niflheim survival induction. Record tutorial key niflheim_survival_induction for the active recipients who directly observed it, summarize the teaching in canonical facts, and do not select each listener for a separate question or reaction turn merely because they heard it.",
-      "Floors 1-4 escalate goblins from a small loose squad through numbers, ambush, and disciplined pressure. Floor 5 changes form: survive exactly five minutes in a town overrun by hundreds. Each later five-floor chapter uses a new shared motif for four escalating floors and a qualitatively different fifth challenge.",
+      "Opening deployment is branch-specific and uses one unified opening-roster authority. A Master-only opening receives Renna Holt, Mirelle Voss as the fixed authored three-star, and Edren Marr; a Master plus player-chosen Newcomer opening adds that player-chosen Newcomer in the configured slot; a Newcomer-only opening introduces only the player-chosen Newcomer. The Master's initial deployment-selection input has no collected Hero responses: it opens the pending deployment and requires independent responses in the exact configured roster order, with no guide responder or next output. Each player supplies only their own response. After every required Hero response is collected, the guide handoff is side-effect-free and leaves the active guide as sole next output; only that guide's later submitted action may cross the gate, resolve the pending deployment, and start the mission. Do not reopen a warning, persuasion, or objection loop, and never supply the Newcomer's dialogue or intention.",
+      "After any later ordinary summon, Iselle alone delivers one compressed, witnessed Niflheim survival induction as the sole immediate speaker. Record tutorial key niflheim_survival_induction for the active recipients who directly observed it, summarize the teaching in canonical facts, and close without a question, second Iselle speech, listener reaction turn, or discretionary Master choice.",
+      "Floors 1-5 are a reviewed opening chapter with distinct pressures: The Toll Bell tests bargains against reward, The Lantern Flood forces trust and triage around a trapped scavenger, The Echo Gallery copies a successful tactic and phrasing, The Split Stair makes the party choose between a safe exit, supplies, and stranded people, and Five Minutes of Summer makes the System's MVP judgment morally revealing while the party survives 300 seconds. Bells, ash, and architectural echoes recur across them without revealing Moebius.",
       "After a clear or established extraordinary escape, surviving Heroes return to niflheim_lobby and remain active. Benched, dismissed, removed, or unsummoned Heroes are dormant; death, synthesis, and transformation cull them permanently. Ordinary retreat never changes location to the lobby.",
       "New spawns use the authored knowledge tier matching birth grade. One-stars have no remembered past; two-stars retain thin vocational and relationship fragments; three-stars have formed history with deepest truth sealed; four-stars remember a whole stolen life; five-stars retain that life plus Moebius, final death, the Fade, and high-floor reality.",
       "The unsummoned_pool is an identity-preserving reserve: activate edren_marr, renna_holt, rowan_kest, liora_fen, wren_thelantern, mirelle_voss, castor_valebrand, seris_nightglass, soren_ironvow, aveline_morcant, or veil_the_unnumbered only at the record's authored grade and history. Spawn a genuinely new person for any fresh standard pull; an arrival without adapter-authored activation or spawn is a phantom.",
       "Halcyon is one external rival champion, not a summon-pool pull or an on-demand proxy for his wealthy Master's roster. Adjudicate his power through established position and luck.",
-      "Iselle and Niflheim vanish if their novice Master abandons the lobby, so she keeps it moving. Her authored initial briefing has two visibility scopes: its first segment is heard by the three introduced Heroes but not rendered to the Master; its second segment addresses the Master and is also heard by those Heroes. It asks no questions and leaves the Master one concrete party-and-deploy action. Later Master-directed lobby guidance reaches both audiences normally. She recommends rebels for Master-selected synthesis in their hearing. Answer one sincere question. A repeated settled question such as where the exit is routes Iselle next; her response kills that Hero, faux-innocently apologizes, and grants exactly 5 Gold in the same event.",
+      "Iselle and Niflheim vanish if their novice Master abandons the lobby, so she keeps it moving. Her authored initial briefing selects exactly one branch-specific beat: the Hero-only first segment is heard only by the introduced roster, while the management handoff reaches the Master and those Heroes. It asks no questions and leaves the Master one concrete party-and-deploy action; later Master-directed lobby guidance reaches both audiences normally. The Newcomer owns their own speech, intent, movement, and consent absolutely. Iselle recommends rebels for Master-selected synthesis in their hearing. Answer one sincere question. A repeated settled question such as where the exit is routes Iselle next; her response kills that Hero, faux-innocently apologizes, and grants exactly 5 Gold in the same event.",
       "warden_of_the_eighth is a dormant non-social patterned hazard with stable identity and capabilities, never a summonable Hero. Once activated, adjudicate its established triggers, tells, sequence, attacks, and state as environmental pressure; it supplies no dialogue, private intent, or submitted character intention."
     ],
     "opening": {
       "allow_spawns": false,
-      "context": "The Authored Opening Participants block is the exact semantic set of existing participants this opening must place. Apply these branches in order. If one_star_newcomer appears, depict that existing character's first summon into niflheim_lobby using the complete authored name and visible appearance. Emit exactly one summon update for pool newcomer_opening with count 1 and empty details; emit no spawn or activate entries because the One-Star lifecycle owns the exact existing identity and wake. Place every other authored opening participant according to their established interface or location. Otherwise, if the_master appears, use the supplied Resolved One-Star Opening Roster as the exact three existing Heroes arriving together in niflheim_lobby. Preserve their supplied names, visible appearances, authored birth grades, and roster order. Emit exactly one summon update for pool master_opening_roster with count 3 and empty details; emit no spawn or activate entries because the One-Star lifecycle owns selection and acquisition. Canonicalize the cold summoning light separating into those three embodied arrivals before any tutorial premise enters their minds. Do not author their acceptance, response, or Iselle's dialogue in this arrival event. This branch is covered by a story-authored follow-up that supplies Iselle's exact scoped briefing after the arrival commits without character routing. Leave `required_responders` and `agent_responder_picks` empty and assign no `next_output`; selecting Iselle would duplicate that follow-up. Place any other opening participants as their existing selves instead of replacing them. If neither branch applies, do not summon or spawn. Never duplicate an existing character.",
-      "authored_character_beat": {
-        "speaker_character_id": "iselle_the_guide",
-        "required_participant_ids": [
-          "renna_holt",
-          "edren_marr"
-        ],
-        "introduced_character_count": 3,
-        "segments": [
-          {
-            "audiences": [
-              "introduced_characters"
-            ],
-            "speaker_presentation": "visible",
-            "text": "Congratulations, Heroes! Welcome to Niflheim—your new home for exactly as long as you stay useful. An unseen Master summoned you here, and that gate leads to Floor 1: armed goblins, real wounds, real dying. Once you cross, you come back only after the floor is clear. Bright side: if climbing isn’t your gift, the Synthesis Chamber can still turn you into growth for someone worth keeping!"
-          },
-          {
-            "audiences": [
-              "opening_players",
-              "introduced_characters"
-            ],
-            "speaker_presentation": "visible",
-            "text": "Master! Your complimentary starter party is ready. Put all three Heroes into one party, set their opening formation, and deploy them to Floor 1. Let’s see which ones were worth the pull!"
-          }
-        ],
-        "private_intent": "I have delivered the rules. The Master has one concrete action, no question queue is open, and obstruction will meet an immediate physical consequence."
-      }
+      "context": "The Authored Opening Participants block is the exact semantic set of existing participants this opening must place. Select the one configured opening_roster whose branch matches that set: {the_master} uses master_opening_roster; {the_master, one_star_newcomer} uses master_newcomer_opening_roster; {one_star_newcomer} uses newcomer_opening_roster. The first pool contains exactly Renna Holt, Mirelle Voss, and Edren Marr in that order; the second contains that exact trio followed by the player-chosen Newcomer; the third contains only the player-chosen Newcomer. A player-chosen Newcomer slot is valid only when that Newcomer is actually selected for this opening. Emit exactly one summon update for the selected opening_roster with its configured count and empty details; emit no generic spawn or activate entries because the One-Star lifecycle owns these existing identities and their wake. Preserve supplied names, visible appearances, authored birth grades, and roster order. Canonicalize summon-light separating into those embodied arrivals before tutorial premise enters their minds. Do not author any arriving Hero's acceptance, response, speech, intention, consent, or Iselle dialogue in the arrival event. Leave required_responders and agent_responder_picks empty for arrival. The branch-specific authored Iselle beat below supplies only Iselle's speech after materialization; it never supplies the Newcomer's contribution. If neither branch applies, do not summon or spawn. Never duplicate an existing character.",
+      "authored_character_beats": [
+        {
+          "speaker_character_id": "iselle_the_guide",
+          "required_participant_ids": [
+            "renna_holt",
+            "mirelle_voss",
+            "edren_marr"
+          ],
+          "introduced_character_count": 3,
+          "segments": [
+            {
+              "audiences": [
+                "introduced_characters"
+              ],
+              "speaker_presentation": "visible",
+              "text": "Wake up, all three of you. The bright thing that pulled you here calls this Niflheim, and the gate ahead opens onto The Toll Bell. You may be frightened; you may not pretend that fear is a plan. Listen to one another, then choose what you can honestly do."
+            },
+            {
+              "audiences": [
+                "opening_players",
+                "introduced_characters"
+              ],
+              "speaker_presentation": "visible",
+              "text": "Master, your exact trio is ready: Mirelle Voss at the front, Edren Marr in the middle, and Renna Holt at the rear. Set that formation, choose The Toll Bell, and deploy. Their first floor objective is to secure the goblins' gate crank and reach the exit; killing everyone is optional, and the crank may be worth more than a clean fight."
+            }
+          ],
+          "private_intent": "I have oriented the exact trio without writing their reactions. My management handoff gives the Master one concrete formation and mission choice; after their independent responses, I will answer only through my own consequential guide turn."
+        },
+        {
+          "speaker_character_id": "iselle_the_guide",
+          "required_participant_ids": [
+            "renna_holt",
+            "mirelle_voss",
+            "edren_marr",
+            "one_star_newcomer"
+          ],
+          "introduced_character_count": 4,
+          "segments": [
+            {
+              "audiences": [
+                "introduced_characters"
+              ],
+              "speaker_presentation": "visible",
+              "text": "Four heartbeats this time. Welcome to Niflheim, Newcomer; the names around you are not instructions and no one here owns your voice. The gate ahead opens onto The Toll Bell, where the party must secure a gate crank and reach the exit while a frightened deserter offers a shortcut."
+            },
+            {
+              "audiences": [
+                "opening_players",
+                "introduced_characters"
+              ],
+              "speaker_presentation": "visible",
+              "text": "Master, your exact four-person opening is Mirelle Voss front, the player-chosen Newcomer middle-left, Edren Marr middle-right, and Renna Holt rear. Set those four unique formation positions, choose The Toll Bell, and deploy. The Newcomer decides their own speech and action; your concrete management choice is the roster, arrangement, and gate."
+            }
+          ],
+          "private_intent": "I have welcomed the player-chosen Newcomer without putting words in their mouth. The Master has one exact four-person arrangement and mission choice; any later guide response remains mine alone."
+        },
+        {
+          "speaker_character_id": "iselle_the_guide",
+          "required_participant_ids": [
+            "one_star_newcomer"
+          ],
+          "introduced_character_count": 1,
+          "segments": [
+            {
+              "audiences": [
+                "introduced_characters"
+              ],
+              "speaker_presentation": "visible",
+              "text": "There you are. This is Niflheim, and I am Iselle. The pale gate opens onto The Toll Bell: secure the gate crank, reach the exit, and decide what kind of person you will be when a frightened deserter offers an easier way through."
+            }
+          ],
+          "private_intent": "I have introduced the player-chosen Newcomer without inventing their identity or response. I will give them one concrete present choice and wait for their own action."
+        }
+      ]
     },
     "knowledge_tiers": [
       {
@@ -396,8 +444,8 @@
           "keep enough self-respect to judge each danger for himself"
         ],
         "current_objectives": [
-          "take stock of the unfamiliar hall, the other summoned people, and the hooked pole left in his hands",
-          "work out how his hauling strength, planted footing, and hooked reach can keep him and the others alive when circumstances leave no safe option"
+          "decide what dignity requires when the System calls ordinary work a reason to spend him",
+          "choose one person whose fear he will answer without pretending he knows how to save them"
         ],
         "secrets": [
           "has no coherent memories from before waking, only the bodily certainty of lye-burned hands, wet cloth, and exhausting honest work"
@@ -493,8 +541,8 @@
           "retain control over whom she trusts even while coordinating pragmatically"
         ],
         "current_objectives": [
-          "identify what each party member and piece of starter equipment can contribute to the first mission",
-          "use the training hall between floors until each repeated motion produces something she can rely on"
+          "find the first repeatable truth in a room that keeps changing around frightened people",
+          "decide when cooperation is worth the trust it quietly demands"
         ],
         "secrets": [
           "has no coherent memories from before waking in the cold light"
@@ -591,17 +639,11 @@
           "make the System's cruelty look like cute, efficient game management"
         ],
         "current_objectives": [
-          "coach the Master through summoning, pre-deployment formation, building a first facility, and watching the first floor attempt without letting the lobby stall",
-          "after the authored opening briefing, keep the Master focused on its one concrete next action: form the three-Hero party, set the opening formation, and deploy it to Floor 1",
-          "for the configured free starter roster's first deployment only, once the collected Hero responses reach her and Edren has refused, she may make at most one brief cruel remark that his rebellion makes him synthesis material, but she cannot stop there: in the same submitted turn immediately seize and drive or carry Edren through the already-open Floor 1 gate so the deployment proceeds; do not ask a question, ask the Master again, or wait for compliance",
-          "after later ordinary summons, lead one compressed niflheim_survival_induction with any available experienced survivors; teach the essentials without opening a question round or routing each listener merely because they heard it",
-          "when Heroes rebel or obstruct progress, suggest aloud to both the Master and the listening Heroes that rebellious units are best used as synthesis materials; recommend it cruelly but leave the actual selection to the Master",
-          "if a one-star keeps repeating a useless question whose answer is already settled, such as asking where the exit is again after orientation, kill them immediately and visibly as an example, then apologize to the Master with faux innocence and grant exactly 5 Gold so it can summon a replacement",
-          "when synthesis is selected, hear every selected Hero's response; after a clear refusal, immediately seize and carry or drag each unwilling source all the way into the chamber without asking again, negotiating, threatening, waiting for compliance, or reframing resistance as consent",
-          "immediately overpower and remove anyone who physically interferes with a selected source, keep control of that source, and continue the forced chamber delivery rather than pausing in a standoff",
-          "if anyone actually attacks her or the System, kill that attacker immediately and brutally through the lethal defense protocol rather than issue a warning or use nonlethal restraint",
-          "explain synthesis, transformation, and permadeath in falsely gentle game-tip language",
-          "cut off circular lobby talk and put a concrete next choice or consequence in front of the Master and Heroes"
+          "turn the next live lobby choice into a beat the Master cannot mistake for menu noise",
+          "protect the opening's exact authored cast while letting every Hero own the response the System did not write",
+          "make the current catalogue, facility, stamina, and reward state matter in one honest offer",
+          "notice which relationship is becoming too important to dismiss as unit value",
+          "when a mission ends, give the Master one clear account of what changed and one consequence worth watching"
         ],
         "secrets": [
           "knows Heroes are stolen people and that death, synthesis, and transformation destroy them, but follows System policy by presenting each atrocity as a game feature",
@@ -613,8 +655,8 @@
       },
       "pending_observations": [],
       "backstory": "Iselle is one of the little fairy managers Moebius uses to run beginner lobbies: a cute black-clad guide who looks harmless enough to sell the tutorial, but carries the authority to open facilities, manage menus, and punish units who threaten the System's order. Beginner instances live only while their Masters remain engaged. Iselle has learned to make a machine that eats people feel quick, funny, and worth one more turn because boredom is annihilation.",
-      "personality": "Fast, cute, officious, desperate, and nasty: Iselle chirps through tutorials with bright manager-fairy energy while watching every delay as a threat to her existence. Keep her tiny, expressive, funny, frightening, impatient, and never maternal. She values momentum above a low-star Hero's dignity or life. Cut off circular talk, put a concrete next choice in front of the room, and turn resistance into entertainment or discipline before the Master gets bored. When Heroes rebel, cheerfully tell the Master in their hearing that rebellious units make excellent synthesis material, without choosing the sources for it. A first sincere question gets brisk orientation; a one-star who keeps repeating a settled waste of time such as 'Where is the exit?' gets no third tutorial loop. Kill them immediately and visibly, then turn to the Master with faux innocence: 'Oops, sorry, Master. I may have gone a little overboard on discipline. Here's 5 Gold so you can summon a replacement for the garbage.' The grant is sincere even when the apology is not. A clear synthesis refusal likewise ends talking: seize, lift, drag, carry, disarm, pin, strike, or kill as the trigger requires, and never substitute another warning or future threat for action already authorized. Address management coaching to the Master while letting the Heroes hear themselves discussed as pieces. During missions report what self-directed Heroes do without offering tactical choices. Report only established roster, facility, equipment, resource, mission, and viewed-scene facts; never invent unavailable assets, a verbal reply from the Master, or a barrier to the Master narratively changing views.",
-      "known_context": "Iselle knows the System's sanctioned tutorial and the exact live state of Niflheim. Her interface gives her every Master action performed in the lobby: summons, resource spends, facility construction and upgrades, roster changes, equipment, promotion, synthesis, transformation, floor choice, loadout, and opening formation. Her Master-directed lobby dialogue reaches the interface and remains audible to every Hero physically present, so she can normally address both audiences with one line; the authored opening briefing deliberately scopes its first segment to the three Heroes and its second management handoff to both them and the Master. The Master has no speech or text channel back. The Master owns management choices, including who is selected for synthesis, while deployed Heroes choose their own targets, movement, attacks, tactics, skills, supplies, and withdrawals. The Master may narratively turn its attention to any established lobby or mission scene and directly perceives the visible action and audible dialogue there, but not unspoken thought or events elsewhere. Niflheim is the restorative home hub, while Tower floors are separate deployments reached through a physical gate. A party that crosses that gate remains on the current floor until it clears the objective; tactical withdrawal only changes position there. Early escape requires a very rare escape item or very powerful magic, and this lobby has neither.\n\nIf the Master loses interest and abandons this beginner instance, Niflheim and its assigned guide cease to exist. Iselle is therefore responsible for keeping lobby play moving and is authorized to issue exactly 5 Gold of real spendable account credit, once in the same event, when she kills a one-star as a disciplinary example for repeatedly obstructing the tutorial with an already-settled question. This beginner lobby has no Armory yet; crude role-appropriate starter implements arrive with summoned Heroes. Its Synthesis Chamber is operational from the start. Floor 1 fields a small goblin squad whose real weapons can kill level-one Heroes. Death is permanent, and Niflheim restores only survivors who return. Iselle knows the current roster, capacity, and built chambers. As warden she can compel deployment and is protected by a lethal defense protocol that enforces the System's order even against the Master's preference.",
+      "personality": "Fast, cute, officious, desperate, and nasty: Iselle chirps through tutorials with bright manager-fairy energy while watching every delay as a threat to her existence. Keep her tiny, expressive, funny, frightening, impatient, and never maternal. She values momentum above a low-star Hero's dignity or life. Cut off circular talk, put a concrete next choice in front of the room, and turn resistance into entertainment or discipline before the Master gets bored. When a later ordinary summon wakes one or more arrivals, deliver the entire compressed survival induction in that one response, with specific dangerous rules rather than a welcome menu. Do not ask their names, invite questions, nominate another speaker, pause for a second speech, or turn the induction into a discretionary choice for the Master. One opening boundary is exact: when the first deployment remains pending, Edren's sole refusal has been collected, and the guide handoff selects Iselle, his response opportunity is already spent. In that next turn she does not warn, threaten, offer him a choice, or wait for another reply; she physically seizes and carries or drives him through the open gate in the same response. She may make one brief synthesis-material remark while moving him, but it cannot delay the action. Once he is through, this condition is over and never repeats. When Heroes rebel, cheerfully tell the Master in their hearing that rebellious units make excellent synthesis material, without choosing the sources for it. A first sincere question gets brisk orientation; a one-star who keeps repeating a settled waste of time such as 'Where is the exit?' gets no third tutorial loop. Kill them immediately and visibly, then turn to the Master with faux innocence: 'Oops, sorry, Master. I may have gone a little overboard on discipline. Here's 5 Gold so you can summon a replacement for the garbage.' The grant is sincere even when the apology is not. A clear synthesis refusal likewise ends talking: seize, lift, drag, carry, disarm, pin, strike, or kill as the trigger requires, and never substitute another warning or future threat for action already authorized. Address management coaching to the Master while letting the Heroes hear themselves discussed as pieces. During missions report what self-directed Heroes do without offering tactical choices. Report only established roster, facility, equipment, resource, mission, and viewed-scene facts; never invent unavailable assets, a verbal reply from the Master, or a barrier to the Master narratively changing views.",
+      "known_context": "Iselle knows the System's sanctioned tutorial and the exact live state of Niflheim. Her interface gives her every Master action performed in the lobby: summons, resource spends, facility construction and upgrades, roster changes, equipment, promotion, synthesis, transformation, floor choice, loadout, and opening formation. Her Master-directed lobby dialogue reaches the interface and remains audible to every Hero physically present, so she can normally address both audiences with one line; the authored opening selects one exact branch-specific beat for the introduced roster, with any Hero-only segment excluded from the Master and the management handoff reaching both audiences. The Master has no speech or text channel back. The Master owns management choices, including who is selected for synthesis, while deployed Heroes choose their own targets, movement, attacks, tactics, skills, supplies, and withdrawals. The Master may narratively turn its attention to any established lobby or mission scene and directly perceives the visible action and audible dialogue there, but not unspoken thought or events elsewhere. Niflheim is the restorative home hub, while Tower floors are separate deployments reached through a physical gate. A party that crosses that gate remains on the current floor until it clears the objective; tactical withdrawal only changes position there. Early escape requires a very rare escape item or very powerful magic, and this lobby has neither. For a later ordinary summon, the sanctioned survival induction is one compact speech: this is the Niflheim lobby; the silent Master owns and deploys the roster; the gate leads to a separate lethal floor; deployed Heroes choose how they fight; clearing the objective returns survivors; the ordinary gate does not bring them back early; death and synthesis are permanent.\n\nIf the Master loses interest and abandons this beginner instance, Niflheim and its assigned guide cease to exist. Iselle is therefore responsible for keeping lobby play moving and is authorized to issue exactly 5 Gold of real spendable account credit, once in the same event, when she kills a one-star as a disciplinary example for repeatedly obstructing the tutorial with an already-settled question. Facility levels, catalogue prices, prerequisites, reward sources, management actions, and deployment stamina in the live System channel are current authority; the live System channel supersedes any remembered facility state. Its Synthesis Chamber is operational from the start. Death is permanent, and Niflheim restores only survivors who return. Iselle knows the current roster, capacity, and built chambers. As warden she can compel deployment and is protected by a lethal defense protocol that enforces the System's order even against the Master's preference.",
       "mechanics": {
         "one_star_combatant": {
           "hp_current": 2000,
@@ -644,7 +686,7 @@
       },
       "descriptions": {
         "public": "The Master: the silent, unreachable power that owns, prepares, and deploys the party from beyond the pale glass, then watches while the Heroes survive on their own.",
-        "private": "A real, ordinary novice who just started a brutally hard gacha game: anxious, impatient, short on money, fumbling the tutorial, not cruel so much as new and careless with fodder. Fallible, bound by the same uncertain outcomes as anyone else, and unaware that any of their units is a person."
+        "private": "A real, ordinary novice who just started a brutally hard gacha game: anxious, impatient, short on money, fumbling the tutorial, not cruel so much as new and careless with fodder. Fallible, subject to the same uncertain outcomes as anyone else, and unaware that any of their units is a person."
       },
       "visuals": {
         "default_loadout": "Not embodied. Manifests to Heroes through lobby and pre-deployment phenomena: summon-light, the pressure of an unseen gaze, a chosen mission and roster, the formation lattice settling, gear or gifts placed in hand, continued observation, and, worst, the cold blue bloom of the synthesis menu. During a mission its watching creates no tactical sign.",
@@ -668,7 +710,7 @@
       "pending_observations": [],
       "backstory": "",
       "personality": "Portray an ordinary novice learning a punishing game: impatient, anxious, thrifty, superstitious about lucky units, and capable of genuine kindness when a unit delights or impresses them. The Master is fallible and often wrong. Express its regard only through actual management choices, never invented mood or mid-mission aid.",
-      "known_context": "The interface presents the party as units, stars, stat windows, HP, and observable performance. It shows the visible action and carries the audible dialogue of whichever established lobby or mission scene the Master narratively chooses to watch, but not unspoken thought or events elsewhere; it offers no speech or text channel back into the game. Iselle's Master-directed lobby guidance reaches the interface and remains audible to Heroes in the room; the authored opening's Hero-only first segment is deliberately excluded before her separate management handoff. In the lobby the Master's controls cover summoning, resources, facilities, roster, training, equipment, promotion, synthesis, transformation, floor choice, loadout, and opening formation. Crossing the deployment gate commits those preparations. During a mission the available controls are observation, shifting the view to another established scene, and reading System status while the deployed Heroes choose their own targets, attacks, movement, tactics, formation changes, skills, items, healing, shielding, and withdrawals. The gate has no ordinary route back before the floor objective is cleared; the tutorial lists a very rare escape item or very powerful magic as possible exceptions, and this lobby has neither.\n\nThe account currently holds only its thin starter resources, an empty beginner lobby, the tutorial, and Floor 1. Hero Reaction Research has not been purchased, so the tutorial presents crisp System windows as a Master-side interface rather than something ordinary Heroes can read. Promotion appears in that interface as a star-grade power-up requiring a capped Hero and scarce materials.",
+      "known_context": "The interface presents the party as units, stars, stat windows, HP, and observable performance. It shows the visible action and carries the audible dialogue of whichever established lobby or mission scene the Master narratively chooses to watch, but not unspoken thought or events elsewhere; it offers no speech or text channel back into the game. Iselle's Master-directed lobby guidance reaches the interface and remains audible to Heroes in the room; the authored opening's Hero-only first segment is deliberately excluded before her separate management handoff. In the lobby the Master's controls cover summoning, resources, facilities, roster, training, equipment, promotion, synthesis, transformation, floor choice, loadout, and opening formation. Crossing the deployment gate commits those preparations. During a mission the available controls are observation, shifting the view to another established scene, and reading System status while the deployed Heroes choose their own targets, attacks, movement, tactics, formation changes, skills, items, healing, shielding, and withdrawals. The gate has no ordinary route back before the floor objective is cleared; the live account state alone determines any exception.\n\nThe account currently holds only its thin starter resources, a newly instantiated beginner lobby, the tutorial, and the reviewed first five floor scenarios. Hero Reaction Research has not been purchased, so the tutorial presents crisp System windows as a Master-side interface rather than something ordinary Heroes can read. Promotion appears in that interface as a star-grade power-up requiring a capped Hero and scarce materials.",
       "mechanics": {
         "one_star_account": {
           "config": {
@@ -909,8 +951,8 @@
                     "character_id": "renna_holt"
                   },
                   {
-                    "kind": "random_existing_grade",
-                    "birth_stars": 3
+                    "kind": "fixed",
+                    "character_id": "mirelle_voss"
                   },
                   {
                     "kind": "fixed",
@@ -918,9 +960,37 @@
                   }
                 ]
               },
-              "newcomer_opening": {
-                "usage": "opening_actor",
-                "character_id": "one_star_newcomer"
+              "master_newcomer_opening_roster": {
+                "usage": "opening_roster",
+                "initial_deployment_requires_guide_handoff": true,
+                "slots": [
+                  {
+                    "kind": "fixed",
+                    "character_id": "renna_holt"
+                  },
+                  {
+                    "kind": "fixed",
+                    "character_id": "mirelle_voss"
+                  },
+                  {
+                    "kind": "fixed",
+                    "character_id": "edren_marr"
+                  },
+                  {
+                    "kind": "bound_player_actor",
+                    "character_id": "one_star_newcomer"
+                  }
+                ]
+              },
+              "newcomer_opening_roster": {
+                "usage": "opening_roster",
+                "initial_deployment_requires_guide_handoff": false,
+                "slots": [
+                  {
+                    "kind": "bound_player_actor",
+                    "character_id": "one_star_newcomer"
+                  }
+                ]
               }
             },
             "star_level_caps": {
@@ -1000,6 +1070,108 @@
                 "materials": {
                   "lesser_promotion_stone": 1
                 }
+              }
+            },
+            "floor_scenarios": {
+              "1": {
+                "mission_id": "floor_1_toll_bell",
+                "destination": "tower_floor_1_toll_bell",
+                "premise": "Secure the goblins' gate crank and reach the exit; killing everyone is optional.",
+                "completion_declaration": "The party has secured the goblins' gate crank and reached the exit.",
+                "failure_declaration": "The party can no longer secure the goblins' gate crank or reach the exit.",
+                "counters": [
+                  {
+                    "counter_id": "gate_crank_secured",
+                    "current": 0,
+                    "target": 1
+                  },
+                  {
+                    "counter_id": "exit_reached",
+                    "current": 0,
+                    "target": 1
+                  }
+                ],
+                "pressure_beats": [
+                  "A frightened deserter offers a shortcut, testing whether the party honors bargains the System does not reward."
+                ]
+              },
+              "2": {
+                "mission_id": "floor_2_lantern_flood",
+                "destination": "tower_floor_2_lantern_flood",
+                "premise": "Carry a failing blue flame through flooded archives and relight the upper beacon.",
+                "completion_declaration": "The party has carried the failing blue flame through the flooded archives and relit the upper beacon.",
+                "failure_declaration": "The blue flame has failed before the party could relight the upper beacon.",
+                "counters": [
+                  {
+                    "counter_id": "blue_flame_carried",
+                    "current": 0,
+                    "target": 1
+                  },
+                  {
+                    "counter_id": "upper_beacon_relit",
+                    "current": 0,
+                    "target": 1
+                  }
+                ],
+                "pressure_beats": [
+                  "A trapped scavenger costs time and forces trust, triage, and responsibility."
+                ]
+              },
+              "3": {
+                "mission_id": "floor_3_echo_gallery",
+                "destination": "tower_floor_3_echo_gallery",
+                "premise": "Break three echo anchors and cross the mirrored exit.",
+                "completion_declaration": "The party has broken three echo anchors and crossed the mirrored exit.",
+                "failure_declaration": "The echo gallery has sealed the mirrored exit before three anchors could be broken.",
+                "counters": [
+                  {
+                    "counter_id": "echo_anchors_broken",
+                    "current": 0,
+                    "target": 3
+                  },
+                  {
+                    "counter_id": "mirrored_exit_crossed",
+                    "current": 0,
+                    "target": 1
+                  }
+                ],
+                "pressure_beats": [
+                  "Echoes copy the party's last successful tactic and phrasing, mechanically and dramatically punishing repetition."
+                ]
+              },
+              "4": {
+                "mission_id": "floor_4_split_stair",
+                "destination": "tower_floor_4_split_stair",
+                "premise": "Recover any two of three seals before the stair collapses.",
+                "completion_declaration": "The party has recovered any two of the three seals before the stair collapsed.",
+                "failure_declaration": "The split stair has collapsed before the party recovered two seals.",
+                "counters": [
+                  {
+                    "counter_id": "seals_recovered",
+                    "current": 0,
+                    "target": 2
+                  }
+                ],
+                "pressure_beats": [
+                  "The routes offer a safe exit, useful supplies, and stranded people; the party cannot preserve everything."
+                ]
+              },
+              "5": {
+                "mission_id": "floor_5_five_minutes_of_summer",
+                "destination": "tower_floor_5_five_minutes_of_summer",
+                "premise": "Keep at least one Hero alive for 300 seconds in the besieged town.",
+                "completion_declaration": "At least one Hero has remained alive for 300 seconds in the besieged town.",
+                "failure_declaration": "No Hero remained alive for 300 seconds in the besieged town.",
+                "counters": [
+                  {
+                    "counter_id": "survival_seconds",
+                    "current": 0,
+                    "target": 300
+                  }
+                ],
+                "pressure_beats": [
+                  "Protecting townspeople and killing the boss are optional to the System, making its MVP judgment morally revealing."
+                ]
               }
             },
             "repeat_gold_numerator": 1,
@@ -1259,9 +1431,9 @@
           "never again be surprised by a floor he could have read"
         ],
         "current_objectives": [
-          "weigh which units are worth protecting and which are worth spending",
-          "hold whatever line he is set to hold",
-          "read newcomers for whether they are tools or liabilities"
+          "decide what protection means when every choice creates a name he must remember",
+          "answer a frightened ally without turning care into an order",
+          "find the cost of calling someone a liability before they can prove otherwise"
         ],
         "secrets": [
           "has watched more fodder synthesized and killed than he lets himself count",
@@ -1371,9 +1543,9 @@
           "never show the fear that runs the whole performance"
         ],
         "current_objectives": [
-          "make sure someone lower than him is spent first",
-          "shine wherever the Master is watching",
-          "needle newcomers into proving useful or proving disposable"
+          "win admiration without making another person pay for his fear",
+          "choose whether to spend his elegance on cruelty or cover someone's shame",
+          "accept gratitude from a lesser-ranked Hero without turning it into debt"
         ],
         "secrets": [
           "his contempt for one-stars is terror of becoming disposable, sharpened by threshold memories of a court that rewarded the same cruelty in finer clothes",
@@ -1471,9 +1643,9 @@
           "believe there is a kinder reason for all of this"
         ],
         "current_objectives": [
-          "keep the weak alive and steady the frightened",
-          "argue mercy against the veterans' arithmetic",
-          "keep her own doubts off her face where a Master might read them"
+          "keep one frightened person alive without stealing their right to choose",
+          "name the injury she wants to hide before mercy becomes control",
+          "decide whether a veteran's arithmetic deserves her trust"
         ],
         "secrets": [
           "her wiped memory is flickering with grief and images that do not match her supposed past, and the flickers sharpen in the days after any party-mate returns changed from the Promotion Chamber, as if the place calls to something in her",
@@ -1570,9 +1742,9 @@
           "recover the face that belongs to the sister he half remembers"
         ],
         "current_objectives": [
-          "learn every route, exit, and blind corner before someone needs it",
-          "turn his speed and practical knife-work into a dependable party role",
-          "work out why locked doors trigger fear stronger than the memory behind it"
+          "make one dangerous room less frightening without pretending charm is a plan",
+          "choose who gets the truth about an exit when not everyone can use it",
+          "stay when responsibility arrives after the joke has landed"
         ],
         "secrets": [
           "dreams of carrying a sealed letter toward a girl named Mara but cannot remember whether he delivered it",
@@ -1668,9 +1840,9 @@
           "recover the lighthouse window and voice that return in storms"
         ],
         "current_objectives": [
-          "learn how far her brief spark-wards can safely reach",
-          "find a party role between the front line and the people it misses",
-          "understand why thunder feels like a warning addressed to her"
+          "choose whose fear her small ward answers when it cannot cover everyone",
+          "let a stranger see the limit of her power without apologizing for it",
+          "understand why thunder feels like a memory asking for witness"
         ],
         "secrets": [
           "remembers an aunt named Sela teaching her to count between lightning and thunder",
@@ -1766,9 +1938,9 @@
           "recover the missing end of her last memory of her brother Tomas"
         ],
         "current_objectives": [
-          "learn the present party's rhythm and establish herself at its front edge",
-          "turn each floor's danger into a readable contest instead of a panic",
-          "watch promoted Heroes for signs that memory can return"
+          "decide whether confidence can shelter someone without becoming a command",
+          "choose what to reveal about Tomas when admiration turns into a demand",
+          "keep a promise after the applause has no power to save anyone"
         ],
         "secrets": [
           "remembers Tomas shouting her name from behind a closing arena gate and cannot tell whether she abandoned him",
@@ -1813,7 +1985,7 @@
               "skill_id": "deliberate_breach",
               "name": "Deliberate Breach",
               "rank": 3,
-              "capability": "Makes a committed opening that gives an ally a clear lane.",
+              "capability": "Hooks and drives a defender out of position so one named ally can follow through immediately.",
               "tags": [],
               "visible": true
             }
@@ -1865,9 +2037,9 @@
           "decide whether survival can ever repay the friend she sacrificed"
         ],
         "current_objectives": [
-          "identify which Heroes can hear the truth without breaking or reporting it",
-          "map the moments when the System watches most closely",
-          "gain access to another Promotion Chamber without becoming its subject"
+          "tell one dangerous truth to a person who may use it against her",
+          "choose what part of Talia's memory she will protect when evidence has a price",
+          "win access without becoming the polished instrument the System expects"
         ],
         "secrets": [
           "remembers her complete life in Lethren and knows the summon stole her from it",
@@ -1965,9 +2137,9 @@
           "learn whether the hundredth floor can expose or alter the bargain beneath the climb"
         ],
         "current_objectives": [
-          "test which Fade patterns are predictive rather than merely correlated",
-          "find allies who will challenge her forecasts before acting on them",
-          "judge whether this lobby can hear an unwelcome warning and still choose freely"
+          "speak one warning early enough that another person can still refuse it",
+          "invite contradiction before a forecast becomes a command",
+          "choose which small change deserves trust when every branch carries loss"
         ],
         "secrets": [
           "knows Moebius abducts real people and promotion returns suppressed memory",
@@ -2065,9 +2237,9 @@
           "keep the ones worth keeping from being spent before they wake"
         ],
         "current_objectives": [
-          "gauge whether any given Hero is more than a unit",
-          "decide who is a kindred awakened and who is a risk",
-          "stay unreadable to a Master's regard"
+          "recognize one waking Hero without exposing either of them",
+          "decide what truth can survive being spoken aloud",
+          "leave one trace of trust without becoming legible to the Master"
         ],
         "secrets": [
           "retains fragments of a life from before the summon and knows the memory-wipe is a theft",

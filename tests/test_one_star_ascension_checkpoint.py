@@ -28,6 +28,10 @@ from app.engine.one_star_progression import (
     experience_to_reach_level,
     rebalance_hero,
 )
+from app.engine.one_star_adapter import (
+    load_one_star_account,
+    one_star_opening_roster_preview,
+)
 from app.engine.reviewed_visual_references import validate_story_visual_references
 from app.schemas.characters import CharacterAgentTier, PlayerSlotKind
 from app.schemas.checkpoint import CheckpointFile
@@ -109,6 +113,7 @@ def test_checkpoint_loads_as_typed_one_star_story() -> None:
     assert checkpoint.session.story_id == "one_star_ascension_s1"
     assert checkpoint.session.session_id == "one_star_ascension_s1"
     assert checkpoint.session.config.settings.ruleset_id == ONE_STAR_RULESET_ID
+    assert checkpoint.session.config.settings.max_agent_cascades_per_beat == 5
     assert checkpoint.world_state.physics_ruleset.magic_enabled is True
     assert checkpoint.session.active_combat is None
     owners = [
@@ -147,6 +152,40 @@ def test_checkpoint_loads_as_typed_one_star_story() -> None:
     assert combatant.stats == {
         stat_id: 200 for stat_id in account.config.progression.stat_ids
     }
+
+
+def test_opening_roster_guide_handoff_is_branch_specific() -> None:
+    """The mixed opening follows the same guide gate as the Master trio."""
+    expected = {
+        "master_opening_roster": (
+            True,
+            ["renna_holt", "mirelle_voss", "edren_marr"],
+            {},
+        ),
+        "master_newcomer_opening_roster": (
+            True,
+            [
+                "renna_holt",
+                "mirelle_voss",
+                "edren_marr",
+                BLANK_PLAYER_ID,
+            ],
+            {BLANK_PLAYER_ID: "player-1"},
+        ),
+        "newcomer_opening_roster": (
+            False,
+            [BLANK_PLAYER_ID],
+            {BLANK_PLAYER_ID: "player-1"},
+        ),
+    }
+    for pool_id, (requires_handoff, character_ids, bindings) in expected.items():
+        branch = _load_checkpoint()
+        branch.session.character_bindings = bindings
+        _owner, branch_account = load_one_star_account(branch)
+        pool = branch_account.config.summon_pools[pool_id]
+        assert pool.initial_deployment_requires_guide_handoff is requires_handoff
+        draws = one_star_opening_roster_preview(branch, pool_id)
+        assert [draw.existing_character_id for draw in draws] == character_ids
 
 
 def test_one_star_opens_with_authored_visual_novel_onboarding() -> None:
@@ -273,9 +312,6 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     }
     assert config.summon_pools["basic"].usage == "standard"
     assert config.summon_pools["premium"].usage == "standard"
-    opening_pool = config.summon_pools["newcomer_opening"]
-    assert opening_pool.usage == "opening_actor"
-    assert opening_pool.character_id == BLANK_PLAYER_ID
     assert config.summon_pools["basic"].cost.gold == 2
     assert config.summon_pools["premium"].cost.gems == 5
     master_opening = config.summon_pools["master_opening_roster"]
@@ -283,10 +319,29 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
         "usage": "opening_roster",
         "slots": [
             {"kind": "fixed", "character_id": "renna_holt"},
-            {"kind": "random_existing_grade", "birth_stars": 3},
+            {"kind": "fixed", "character_id": "mirelle_voss"},
             {"kind": "fixed", "character_id": "edren_marr"},
         ],
         "initial_deployment_requires_guide_handoff": True,
+    }
+    assert config.summon_pools["master_newcomer_opening_roster"].model_dump(
+        mode="json"
+    ) == {
+        "usage": "opening_roster",
+        "slots": [
+            {"kind": "fixed", "character_id": "renna_holt"},
+            {"kind": "fixed", "character_id": "mirelle_voss"},
+            {"kind": "fixed", "character_id": "edren_marr"},
+            {"kind": "bound_player_actor", "character_id": BLANK_PLAYER_ID},
+        ],
+        "initial_deployment_requires_guide_handoff": True,
+    }
+    assert config.summon_pools["newcomer_opening_roster"].model_dump(
+        mode="json"
+    ) == {
+        "usage": "opening_roster",
+        "slots": [{"kind": "bound_player_actor", "character_id": BLANK_PLAYER_ID}],
+        "initial_deployment_requires_guide_handoff": False,
     }
     assert "basic_summon" not in config.catalogue
     assert "premium_summon" not in config.catalogue
@@ -388,6 +443,37 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
         "building_resources": 5,
         "materials": {"lesser_promotion_stone": 1},
     }
+    assert set(config.floor_scenarios) == {1, 2, 3, 4, 5}
+    assert config.floor_scenarios[1].model_dump() == {
+        "mission_id": "floor_1_toll_bell",
+        "destination": "tower_floor_1_toll_bell",
+        "premise": (
+            "Secure the goblins' gate crank and reach the exit; "
+            "killing everyone is optional."
+        ),
+        "completion_declaration": (
+            "The party has secured the goblins' gate crank and reached the exit."
+        ),
+        "failure_declaration": (
+            "The party can no longer secure the goblins' gate crank or reach the exit."
+        ),
+        "counters": [
+            {"counter_id": "gate_crank_secured", "current": 0, "target": 1},
+            {"counter_id": "exit_reached", "current": 0, "target": 1},
+        ],
+        "pressure_beats": [
+            "A frightened deserter offers a shortcut, testing whether the party honors bargains the System does not reward."
+        ],
+    }
+    assert config.floor_scenarios[2].counters[0].current == 0
+    assert config.floor_scenarios[2].counters[0].target == 1
+    assert "trapped scavenger" in config.floor_scenarios[2].pressure_beats[0]
+    assert config.floor_scenarios[3].counters[0].target == 3
+    assert "Echoes copy" in config.floor_scenarios[3].pressure_beats[0]
+    assert config.floor_scenarios[4].counters[0].target == 2
+    assert "safe exit" in config.floor_scenarios[4].pressure_beats[0]
+    assert config.floor_scenarios[5].counters[0].target == 300
+    assert "morally revealing" in config.floor_scenarios[5].pressure_beats[0]
     assert config.repeat_gold_numerator == 1
     assert config.repeat_gold_denominator == 4
     assert config.repeat_gold_minimum == 1
@@ -932,35 +1018,45 @@ def test_iselle_opening_discipline_cannot_stop_at_the_synthesis_remark() -> None
         if character.character_id == "iselle_the_guide"
     )
 
-    matching_objectives = [
-        objective.lower()
-        for objective in iselle.private_state.current_objectives
-        if "starter roster's first deployment" in objective.lower()
-        and "edren" in objective.lower()
+    objectives = [
+        objective.lower() for objective in iselle.private_state.current_objectives
     ]
-    assert len(matching_objectives) == 1
-    objective = matching_objectives[0]
+    assert len(objectives) == 5
 
-    # This one-shot condition permits the requested cruel suggestion, but the
-    # same agent turn must contain concrete enforcement instead of another
-    # threat-only or Master-facing handoff.
-    assert "at most one" in objective
-    assert "synthesis material" in objective
-    assert "same submitted turn" in objective
-    assert any(action in objective for action in ("seize", "drive", "carry"))
-    for forbidden_stall in ("ask a question", "ask the master again", "wait"):
-        assert forbidden_stall in objective
-
+    # Durable objectives describe Iselle's dramatic pressure and current live
+    # choices. The force/enforcement edge remains in her authored personality
+    # and knowledge, rather than turning the objective list into a stale
+    # procedural script that keeps replaying the opening.
+    joined = "\n".join(objectives)
+    for semantic_pressure in (
+        "live lobby choice",
+        "exact authored cast",
+        "catalogue",
+        "relationship",
+        "mission ends",
+    ):
+        assert semantic_pressure in joined
     rendered_objectives = build_character_state(iselle, checkpoint)[
         "character_current_objectives"
     ].lower()
-    for semantic_boundary in (
-        "at most one",
-        "synthesis material",
+    assert rendered_objectives == "\n".join(f"- {objective}" for objective in objectives)
+    for stale_instruction in (
         "same submitted turn",
         "already-open floor 1 gate",
+        "ask the master again",
     ):
-        assert semantic_boundary in rendered_objectives
+        assert stale_instruction not in rendered_objectives
+
+    rendered_personality = iselle.personality.lower()
+    for enforcement_boundary in (
+        "response opportunity is already spent",
+        "does not warn",
+        "physically seizes",
+        "through the open gate",
+        "cannot delay the action",
+        "condition is over and never repeats",
+    ):
+        assert enforcement_boundary in rendered_personality
 
 
 def test_opening_seed_has_no_stale_slime_guidance() -> None:
@@ -975,8 +1071,8 @@ def test_opening_seed_has_no_stale_slime_guidance() -> None:
     ).lower()
     guide_context = by_id["iselle_the_guide"].known_context.lower()
 
-    assert "goblin" in public_facts
-    assert "goblin" in guide_context
+    assert "live state" in guide_context
+    assert "floor scenarios" in public_facts
     assert "acid slime" not in public_facts
     assert "acid slime" not in guide_context
 
@@ -1405,9 +1501,9 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
     guide_objectives = "\n".join(
         iselle.private_state.current_objectives
     ).lower()
-    assert "synthesis" in guide_objectives
-    assert "drag" in guide_objectives
-    assert "consent" in guide_objectives
+    assert "live lobby choice" in guide_objectives
+    assert "catalogue" in guide_objectives
+    assert "mission ends" in guide_objectives
 
     # Old softening clauses must not silently reintroduce immunity.
     assert "treat it exactly like synthesis" not in hidden

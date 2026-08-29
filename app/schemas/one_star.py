@@ -129,22 +129,6 @@ class OneStarStandardSummonPool(BaseModel):
         return self
 
 
-class OneStarOpeningActorSummonPool(BaseModel):
-    """A free first-event acquisition of one exact existing actor."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    usage: Literal["opening_actor"]
-    character_id: str
-
-    @model_validator(mode="after")
-    def _clean(self) -> "OneStarOpeningActorSummonPool":
-        self.character_id = self.character_id.strip()
-        if not self.character_id:
-            raise ValueError("opening-actor summon pools require a character id")
-        return self
-
-
 class OneStarOpeningRosterFixedSlot(BaseModel):
     """One exact authored participant in a free opening roster."""
 
@@ -170,9 +154,28 @@ class OneStarOpeningRosterRandomExistingGradeSlot(BaseModel):
     birth_stars: int = Field(ge=1)
 
 
+class OneStarOpeningRosterBoundPlayerActorSlot(BaseModel):
+    """An exact player-authored actor which must be bound when resolved."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["bound_player_actor"]
+    character_id: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "OneStarOpeningRosterBoundPlayerActorSlot":
+        self.character_id = self.character_id.strip()
+        if not self.character_id:
+            raise ValueError(
+                "bound-player opening-roster slots require a character id"
+            )
+        return self
+
+
 OneStarOpeningRosterSlot = Annotated[
     OneStarOpeningRosterFixedSlot
-    | OneStarOpeningRosterRandomExistingGradeSlot,
+    | OneStarOpeningRosterRandomExistingGradeSlot
+    | OneStarOpeningRosterBoundPlayerActorSlot,
     Field(discriminator="kind"),
 ]
 
@@ -187,20 +190,25 @@ class OneStarOpeningRosterSummonPool(BaseModel):
     initial_deployment_requires_guide_handoff: bool = False
 
     @model_validator(mode="after")
-    def _validate_fixed_slots(self) -> "OneStarOpeningRosterSummonPool":
-        fixed_ids = [
+    def _validate_exact_slots(self) -> "OneStarOpeningRosterSummonPool":
+        exact_ids = [
             slot.character_id
             for slot in self.slots
-            if isinstance(slot, OneStarOpeningRosterFixedSlot)
+            if isinstance(
+                slot,
+                (
+                    OneStarOpeningRosterFixedSlot,
+                    OneStarOpeningRosterBoundPlayerActorSlot,
+                ),
+            )
         ]
-        if len(fixed_ids) != len(set(fixed_ids)):
-            raise ValueError("fixed opening-roster character ids must be unique")
+        if len(exact_ids) != len(set(exact_ids)):
+            raise ValueError("exact opening-roster character ids must be unique")
         return self
 
 
 OneStarSummonPool = Annotated[
     OneStarStandardSummonPool
-    | OneStarOpeningActorSummonPool
     | OneStarOpeningRosterSummonPool,
     Field(discriminator="usage"),
 ]
@@ -218,6 +226,47 @@ class OneStarFloorReward(BaseModel):
     def _valid_materials(self) -> "OneStarFloorReward":
         if any(not key.strip() or amount < 0 for key, amount in self.materials.items()):
             raise ValueError("floor reward materials must have non-empty ids and non-negative amounts")
+        return self
+
+
+class OneStarFloorScenario(BaseModel):
+    """Reviewed immutable mission authority for one configured floor."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mission_id: str
+    destination: str
+    premise: str
+    completion_declaration: str
+    failure_declaration: str
+    counters: list["OneStarMissionCounter"] = Field(min_length=1)
+    pressure_beats: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _clean(self) -> "OneStarFloorScenario":
+        self.mission_id = self.mission_id.strip()
+        self.destination = self.destination.strip()
+        self.premise = self.premise.strip()
+        self.completion_declaration = self.completion_declaration.strip()
+        self.failure_declaration = self.failure_declaration.strip()
+        self.pressure_beats = [beat.strip() for beat in self.pressure_beats]
+        if not all((
+            self.mission_id,
+            self.destination,
+            self.premise,
+            self.completion_declaration,
+            self.failure_declaration,
+        )):
+            raise ValueError("floor scenarios require every authored declaration")
+        if any(not beat for beat in self.pressure_beats):
+            raise ValueError("floor scenario pressure beats cannot be blank")
+        if len(set(self.pressure_beats)) != len(self.pressure_beats):
+            raise ValueError("floor scenario pressure beats must be distinct")
+        counter_ids = [counter.counter_id for counter in self.counters]
+        if len(counter_ids) != len(set(counter_ids)):
+            raise ValueError("floor scenario counter ids must be unique")
+        if any(counter.current != 0 for counter in self.counters):
+            raise ValueError("floor scenario counters must begin at zero")
         return self
 
 
@@ -386,6 +435,7 @@ class OneStarRulesConfig(BaseModel):
     max_summon_batch: int = Field(ge=1, le=20)
     progression: OneStarProgressionConfig
     floor_rewards: dict[int, OneStarFloorReward]
+    floor_scenarios: dict[int, OneStarFloorScenario]
     repeat_gold_numerator: int = Field(ge=0)
     repeat_gold_denominator: int = Field(ge=1)
     repeat_gold_minimum: int = Field(ge=0)
@@ -429,17 +479,6 @@ class OneStarRulesConfig(BaseModel):
                 "opening rosters exceed the configured maximum summon batch: "
                 + ", ".join(oversized_opening_rosters)
             )
-        guided_opening_rosters = [
-            pool_id
-            for pool_id, pool in self.summon_pools.items()
-            if isinstance(pool, OneStarOpeningRosterSummonPool)
-            and pool.initial_deployment_requires_guide_handoff
-        ]
-        if len(guided_opening_rosters) > 1:
-            raise ValueError(
-                "only one opening roster may require an initial deployment "
-                "guide handoff"
-            )
         if not self.star_level_caps or any(
             stars < 1 or cap < 1 for stars, cap in self.star_level_caps.items()
         ):
@@ -449,6 +488,17 @@ class OneStarRulesConfig(BaseModel):
             raise ValueError("star_level_caps must define every star grade in order")
         if any(floor < 1 for floor in self.floor_rewards):
             raise ValueError("floor reward keys must be positive")
+        if any(floor < 1 for floor in self.floor_scenarios):
+            raise ValueError("floor scenario keys must be positive")
+        if not set(self.floor_scenarios).issubset(self.floor_rewards):
+            raise ValueError(
+                "every floor scenario must have a configured floor reward"
+            )
+        mission_ids = [
+            scenario.mission_id for scenario in self.floor_scenarios.values()
+        ]
+        if len(mission_ids) != len(set(mission_ids)):
+            raise ValueError("floor scenario mission ids must be unique")
         if self.repeat_gold_numerator > self.repeat_gold_denominator:
             raise ValueError("repeat Gold fraction cannot exceed first-clear Gold")
         required_operation_kinds = {"deployment", "synthesis", "promotion"}
@@ -671,8 +721,13 @@ class OneStarMissionState(BaseModel):
         formation_ids = [entry.character_id for entry in self.formation_labels]
         if len(formation_ids) != len(set(formation_ids)):
             raise ValueError("mission formation character ids must be unique")
-        if not set(formation_ids).issubset(self.party_ids):
-            raise ValueError("mission formation ids must belong to the party")
+        if set(formation_ids) != set(self.party_ids):
+            raise ValueError(
+                "mission formation must map every party member exactly once"
+            )
+        formation_values = [entry.label for entry in self.formation_labels]
+        if len(formation_values) != len(set(formation_values)):
+            raise ValueError("mission formation labels must be distinct")
         counter_ids = [entry.counter_id for entry in self.counters]
         if not counter_ids or len(counter_ids) != len(set(counter_ids)):
             raise ValueError("mission counter ids must be non-empty and unique")
@@ -854,9 +909,10 @@ class OneStarAccountEnvelope(BaseModel):
         if (
             self.state.active_mission is not None
             and self.state.pending_operation is not None
+            and self.state.pending_operation.kind == "deployment"
         ):
             raise ValueError(
-                "an active mission and embodied pending operation cannot coexist"
+                "an active mission and a second deployment cannot coexist"
             )
         standard_pool_ids = {
             pool_id
@@ -997,12 +1053,25 @@ class OneStarMissionUpdateOperation(BaseModel):
     operation: Literal["mission_update"]
     mission_id: str
     counters: list[OneStarMissionCounter]
+    report_kind: Literal["critical", "boss_kill", "dialogue"] | None = None
+    report_credit: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_counters(self) -> "OneStarMissionUpdateOperation":
         counter_ids = [entry.counter_id for entry in self.counters]
         if not counter_ids or len(counter_ids) != len(set(counter_ids)):
             raise ValueError("mission update counter ids must be non-empty and unique")
+        self.report_credit = [
+            character_id.strip() for character_id in self.report_credit
+        ]
+        if any(not character_id for character_id in self.report_credit):
+            raise ValueError("mission report credit ids cannot be blank")
+        if len(self.report_credit) != len(set(self.report_credit)):
+            raise ValueError("mission report credit ids must be unique")
+        if (self.report_kind is None) != (not self.report_credit):
+            raise ValueError(
+                "mission report kind and credited party ids must appear together"
+            )
         return self
 
 
@@ -1013,6 +1082,16 @@ class OneStarMissionEndOperation(BaseModel):
     outcome: Literal["completed", "failed", "escaped"]
     return_destination: str
     escape_authority_id: str
+    mvp_character_id: str
+    mvp_evidence_event_id: str
+
+    @model_validator(mode="after")
+    def _clean_mvp(self) -> "OneStarMissionEndOperation":
+        self.mvp_character_id = self.mvp_character_id.strip()
+        self.mvp_evidence_event_id = self.mvp_evidence_event_id.strip()
+        if not self.mvp_character_id or not self.mvp_evidence_event_id:
+            raise ValueError("mission end requires an MVP and evidence event id")
+        return self
 
 
 class OneStarPendingOpenOperation(BaseModel):

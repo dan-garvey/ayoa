@@ -14,7 +14,7 @@ from app.engine.one_star_adapter import (
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import (
     OneStarCost,
-    OneStarOpeningActorSummonPool,
+    OneStarOpeningRosterBoundPlayerActorSlot,
     OneStarOpeningRosterFixedSlot,
     OneStarOpeningRosterRandomExistingGradeSlot,
     OneStarOpeningRosterSummonPool,
@@ -75,13 +75,13 @@ def _render_summon_pool(pool_id: str, pool: OneStarSummonPool) -> str:
             f"stars={pool.minimum_birth_stars}-{pool.maximum_birth_stars}; "
             f"rates[{_render_star_weights(pool.star_weights)}]; usage={pool.usage}"
         )
-    if isinstance(pool, OneStarOpeningActorSummonPool):
-        return f"- {pool_id}: usage={pool.usage}; count=1"
     if isinstance(pool, OneStarOpeningRosterSummonPool):
         slots: list[str] = []
         for slot_index, slot in enumerate(pool.slots, start=1):
             if isinstance(slot, OneStarOpeningRosterFixedSlot):
                 slots.append(f"{slot_index}=fixed")
+            elif isinstance(slot, OneStarOpeningRosterBoundPlayerActorSlot):
+                slots.append(f"{slot_index}=bound_player_actor")
             elif isinstance(slot, OneStarOpeningRosterRandomExistingGradeSlot):
                 slots.append(
                     f"{slot_index}=random_existing_grade:{slot.birth_stars}"
@@ -147,6 +147,20 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
         f"stamina_max={config.maximum_stamina}; "
         f"stamina_recovery_seconds={config.stamina_recovery_seconds}"
     )
+    lines.append("floor_scenarios:")
+    for floor, scenario in sorted(config.floor_scenarios.items()):
+        counters = ",".join(
+            f"{counter.counter_id}={counter.current}/{counter.target}"
+            for counter in scenario.counters
+        )
+        pressure = " | ".join(scenario.pressure_beats)
+        lines.append(
+            f"- floor={floor}; mission_id={scenario.mission_id}; "
+            f"destination={scenario.destination}; premise={scenario.premise}; "
+            f"completion={scenario.completion_declaration}; "
+            f"failure={scenario.failure_declaration}; counters[{counters}]; "
+            f"pressure_beats[{pressure}]"
+        )
     lines.append("embodied_operation_requirements:")
     for operation_kind, requirement in sorted(config.operation_requirements.items()):
         lines.append(
@@ -357,11 +371,6 @@ def render_one_star_repair_evidence(
                         f"cost_per_pull={_render_nonzero_resources(pool.cost)}; "
                         f"maximum_batch={config.max_summon_batch}"
                     )
-                elif isinstance(pool, OneStarOpeningActorSummonPool):
-                    authority = (
-                        f"usage={pool.usage}; cost_per_pull=free; "
-                        "required_count=1; first_event_only=true"
-                    )
                 else:
                     authority = (
                         f"usage={pool.usage}; cost_per_pull=free; "
@@ -444,6 +453,25 @@ def render_one_star_repair_evidence(
                 f"highest_unlocked={state.highest_unlocked_floor}; "
                 f"highest_cleared={state.highest_cleared_floor}"
             )
+            if update.kind == "mission_start":
+                try:
+                    floor = int(update.value)
+                except (TypeError, ValueError):
+                    floor = 0
+                scenario = config.floor_scenarios.get(floor)
+                if scenario is None:
+                    add(f"floor_scenario {floor}: nonexistent")
+                else:
+                    add(
+                        f"floor_scenario {floor}: mission_id={scenario.mission_id}; "
+                        f"destination={scenario.destination}; completion="
+                        f"{scenario.completion_declaration}; failure="
+                        f"{scenario.failure_declaration}; counters="
+                        + ",".join(
+                            f"{counter.counter_id}={counter.current}/{counter.target}"
+                            for counter in scenario.counters
+                        )
+                    )
         elif update.kind.startswith("pending_"):
             pending = state.pending_operation
             add(

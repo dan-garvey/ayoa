@@ -132,10 +132,20 @@ _PRIVATE_STORAGE_RE = re.compile(
     r"\bprivate_extractions[\\/][^\s\"')\]}]*",
     re.IGNORECASE,
 )
+_FORBIDDEN_TEXT_FIELD_KEYS = FORBIDDEN_MODULE_METADATA_KEYS - {"resources"}
 _FORBIDDEN_FIELD_RE = re.compile(
     r"\b(?:"
-    + "|".join(re.escape(key) for key in sorted(FORBIDDEN_MODULE_METADATA_KEYS))
+    + "|".join(re.escape(key) for key in sorted(_FORBIDDEN_TEXT_FIELD_KEYS))
     + r")\b\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|[^\s,;)}\]]+)",
+    re.IGNORECASE,
+)
+_STRUCTURED_RESOURCE_FIELD_RE = re.compile(
+    r"(?:"
+    r"\bresources\b\s*="
+    r"|[\"']resources[\"']\s*:"
+    r"|\bresources\b\s*:\s*(?=[\[{])"
+    r")\s*"
+    r"(?:\{[^\r\n]*\}|\[[^\r\n]*\]|\"[^\"]*\"|'[^']*'|[^\s,;)}\]]+)",
     re.IGNORECASE,
 )
 _COMPACT_CONTENT_REF_RE = re.compile(
@@ -172,6 +182,7 @@ _UNSAFE_TEXT_PATTERNS = (
     _PRIVATE_STORAGE_RE,
     _SOURCE_PDF_RE,
     _FORBIDDEN_FIELD_RE,
+    _STRUCTURED_RESOURCE_FIELD_RE,
     _WINDOWS_ABSOLUTE_PATH_RE,
     _UNIX_ABSOLUTE_PATH_RE,
     _REPO_INTERNAL_RELATIVE_PATH_RE,

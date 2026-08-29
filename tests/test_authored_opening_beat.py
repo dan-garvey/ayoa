@@ -97,31 +97,33 @@ def _opening_checkpoint(
         world_state=WorldState(
             opening=OpeningPolicy(
                 context="Introduce the two selected arrivals in the hall.",
-                authored_character_beat=AuthoredOpeningCharacterBeat(
-                    speaker_character_id="guide",
-                    required_participant_ids=(
-                        ["arrival_a", "arrival_b"]
-                        if required_participant_ids is None
-                        else required_participant_ids
-                    ),
-                    introduced_character_count=2,
-                    segments=[
-                        AuthoredOpeningDialogueSegment(
-                            audiences=["introduced_characters"],
-                            speaker_presentation=speaker_presentation,
-                            text=HERO_BRIEFING,
+                authored_character_beats=[
+                    AuthoredOpeningCharacterBeat(
+                        speaker_character_id="guide",
+                        required_participant_ids=(
+                            ["arrival_a", "arrival_b"]
+                            if required_participant_ids is None
+                            else required_participant_ids
                         ),
-                        AuthoredOpeningDialogueSegment(
-                            audiences=[
-                                "opening_players",
-                                "introduced_characters",
-                            ],
-                            speaker_presentation=speaker_presentation,
-                            text=PLAYER_BRIEFING,
-                        ),
-                    ],
-                    private_intent=PRIVATE_INTENT,
-                ),
+                        introduced_character_count=2,
+                        segments=[
+                            AuthoredOpeningDialogueSegment(
+                                audiences=["introduced_characters"],
+                                speaker_presentation=speaker_presentation,
+                                text=HERO_BRIEFING,
+                            ),
+                            AuthoredOpeningDialogueSegment(
+                                audiences=[
+                                    "opening_players",
+                                    "introduced_characters",
+                                ],
+                                speaker_presentation=speaker_presentation,
+                                text=PLAYER_BRIEFING,
+                            ),
+                        ],
+                        private_intent=PRIVATE_INTENT,
+                    )
+                ],
             )
         ),
     )
@@ -140,6 +142,109 @@ def _opening_router_output():
             {"character_id": "arrival_b", "location_label": "hall"},
         ],
     )
+
+
+def test_opening_policy_selects_exactly_one_authored_branch() -> None:
+    policy = OpeningPolicy(
+        context="Choose one authored introduction.",
+        authored_character_beats=[
+            AuthoredOpeningCharacterBeat(
+                speaker_character_id="guide",
+                required_participant_ids=["arrival_a", "arrival_b"],
+                introduced_character_count=2,
+                segments=[AuthoredOpeningDialogueSegment(
+                    audiences=["introduced_characters"],
+                    text="Welcome, both of you.",
+                )],
+                private_intent="Move the exact branch forward.",
+            ),
+            AuthoredOpeningCharacterBeat(
+                speaker_character_id="guide",
+                required_participant_ids=[],
+                introduced_character_count=1,
+                segments=[AuthoredOpeningDialogueSegment(
+                    audiences=["introduced_characters"],
+                    text="Welcome, lone arrival.",
+                )],
+                private_intent="Move the fallback branch forward.",
+            ),
+        ],
+    )
+
+    selected = policy.matching_authored_character_beat(
+        ["arrival_a", "arrival_b"]
+    )
+
+    assert selected is policy.authored_character_beats[0]
+    assert (
+        policy.matching_authored_character_beat(["unrelated", "arrival"])
+        is None
+    )
+
+
+def test_opening_policy_rejects_partial_or_ambiguous_authored_branches() -> None:
+    partial = _opening_checkpoint().world_state.opening
+    with pytest.raises(ValueError, match="missing required participants"):
+        partial.matching_authored_character_beat(["arrival_a"])
+
+    ambiguous = OpeningPolicy(
+        context="Ambiguous empty predicates are invalid at selection time.",
+        authored_character_beats=[
+            AuthoredOpeningCharacterBeat(
+                speaker_character_id="guide",
+                required_participant_ids=[],
+                introduced_character_count=1,
+                segments=[AuthoredOpeningDialogueSegment(
+                    audiences=["opening_players"],
+                    text=text,
+                )],
+                private_intent="Advance the opening.",
+            )
+            for text in ("First branch.", "Second branch.")
+        ],
+    )
+    with pytest.raises(ValueError, match="more than one authored"):
+        ambiguous.matching_authored_character_beat(["arrival"])
+
+
+def test_opening_policy_resolves_nested_trio_duo_and_newcomer_branches() -> None:
+    def beat(
+        required: list[str],
+        introduced_count: int,
+        text: str,
+    ) -> AuthoredOpeningCharacterBeat:
+        return AuthoredOpeningCharacterBeat(
+            speaker_character_id="guide",
+            required_participant_ids=required,
+            introduced_character_count=introduced_count,
+            segments=[AuthoredOpeningDialogueSegment(
+                audiences=["introduced_characters"],
+                text=text,
+            )],
+            private_intent="Advance the selected opening branch.",
+        )
+
+    trio = beat(["a", "b", "c"], 3, "Master trio.")
+    duo_quartet = beat(
+        ["newcomer", "a", "b", "c"],
+        4,
+        "Duo quartet.",
+    )
+    newcomer_only = beat(["newcomer"], 1, "Newcomer only.")
+    policy = OpeningPolicy(
+        context="Select the resolved opening roster.",
+        authored_character_beats=[trio, duo_quartet, newcomer_only],
+    )
+
+    assert policy.matching_authored_character_beat(["a", "b", "c"]) is trio
+    assert policy.matching_authored_character_beat(
+        ["newcomer", "a", "b", "c"]
+    ) is duo_quartet
+    assert policy.matching_authored_character_beat(
+        ["newcomer"]
+    ) is newcomer_only
+    with pytest.raises(ValueError, match="missing required participants"):
+        policy.matching_authored_character_beat(["a"])
 
 
 def _one_star_story_opening_source(*, session_id: str) -> CheckpointFile:
@@ -712,7 +817,12 @@ async def test_live_shaped_one_star_opening_gets_one_full_envelope_correction(
     ]
     assert "configured guide" in correction
     assert "authored opening arrival cannot request responders" in correction
-    authored = source.world_state.opening.authored_character_beat
+    assert "event_kind='state_change'" in correction
+    assert "requires_responders=false" in correction
+    assert "required_responders=[]" in correction
+    assert "routing_role='observe_only'" in correction
+    assert "frontier_observers=" in correction
+    authored = source.world_state.opening.authored_character_beats[0]
     assert authored is not None
     player_segment = next(
         segment.text

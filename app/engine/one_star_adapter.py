@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from collections.abc import Iterable, Mapping
 
@@ -26,14 +27,13 @@ from app.engine.one_star_progression import (
     scaled_by_grade,
 )
 from app.schemas.characters import (
-    CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
     is_player_authored_slot,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
-from app.schemas.event_router import SpawnRequest, WakeSignal
+from app.schemas.event_router import EventRouterOutput, SpawnRequest, WakeSignal
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_COMBATANT_KEY,
@@ -57,7 +57,7 @@ from app.schemas.one_star import (
     OneStarMissionStartOperation,
     OneStarMissionUpdateOperation,
     OneStarOperation,
-    OneStarOpeningActorSummonPool,
+    OneStarOpeningRosterBoundPlayerActorSlot,
     OneStarOpeningRosterFixedSlot,
     OneStarOpeningRosterSummonPool,
     OneStarPendingOperation,
@@ -163,6 +163,775 @@ class OneStarSummonDraw:
 
 def is_one_star_checkpoint(checkpoint: CheckpointFile) -> bool:
     return checkpoint.session.config.settings.ruleset_id == ONE_STAR_RULESET_ID
+
+
+def one_star_active_mission_has_bound_party_member(
+    checkpoint: CheckpointFile,
+) -> bool:
+    """Return whether a live One-Star mission includes a human-held Hero."""
+
+    if not is_one_star_checkpoint(checkpoint):
+        return False
+    try:
+        _owner, account = load_one_star_account(checkpoint)
+    except (OneStarTransactionError, ValidationError):
+        return False
+    mission = account.state.active_mission
+    return bool(
+        mission is not None
+        and set(mission.party_ids) & set(checkpoint.session.character_bindings)
+    )
+
+
+def one_star_master_has_human_led_mission(
+    checkpoint: CheckpointFile,
+    *,
+    actor_id: str,
+) -> bool:
+    """Return whether this Master turn must stay off a human-led floor."""
+
+    if not is_one_star_checkpoint(checkpoint):
+        return False
+    try:
+        owner, account = load_one_star_account(checkpoint)
+    except (OneStarTransactionError, ValidationError):
+        return False
+    mission = account.state.active_mission
+    return bool(
+        mission is not None
+        and actor_id.strip() == owner.character_id
+        and set(mission.party_ids) & set(checkpoint.session.character_bindings)
+    )
+
+
+def one_star_master_may_act_while_mission_responder_pinned(
+    checkpoint: CheckpointFile,
+    *,
+    actor_id: str,
+) -> bool:
+    """Admit the Master beside only live human mission-response pins."""
+
+    if not one_star_master_has_human_led_mission(
+        checkpoint,
+        actor_id=actor_id,
+    ):
+        return False
+    try:
+        _owner, account = load_one_star_account(checkpoint)
+    except (OneStarTransactionError, ValidationError):
+        return False
+    mission = account.state.active_mission
+    if mission is None:  # Guarded above; retain a narrow type-safe boundary.
+        return False
+    conflicting_ids = set(checkpoint.session.active_act_slots) - {actor_id}
+    if not conflicting_ids:
+        return False
+    bindings = checkpoint.session.character_bindings
+    open_events = {
+        event.event_id: event for event in checkpoint.session.open_cat_ii_events
+    }
+    for character_id in conflicting_ids:
+        slot = checkpoint.session.active_act_slots[character_id]
+        open_event = open_events.get(slot.cat_ii_event_id or "")
+        if (
+            character_id not in mission.party_ids
+            or character_id not in bindings
+            or slot.reason != "cat_ii_responder"
+            or open_event is None
+            or character_id not in open_event.required_responders
+            or character_id in open_event.collected_intentions
+        ):
+            return False
+    return True
+
+
+def _one_star_lobby_safe_locations(
+    config: OneStarRulesConfig,
+) -> set[str]:
+    return {
+        config.lobby_location_label,
+        *(
+            requirement.required_location
+            for kind, requirement in config.operation_requirements.items()
+            if kind != "deployment" and requirement.required_location
+        ),
+    }
+
+
+def _one_star_human_led_lobby_hero_is_safe(
+    checkpoint: CheckpointFile,
+    *,
+    character_id: str,
+    account: OneStarAccountEnvelope,
+    allowed_locations: set[str],
+) -> bool:
+    mission = account.state.active_mission
+    if mission is None or character_id in mission.party_ids:
+        return False
+    character = next(
+        (
+            candidate
+            for candidate in checkpoint.characters
+            if candidate.character_id == character_id
+        ),
+        None,
+    )
+    hero = load_one_star_hero(character) if character is not None else None
+    return bool(
+        character is not None
+        and character.status == CharacterStatus.active
+        and hero is not None
+        and hero.owner_lobby_id == account.config.lobby_id
+        and character.location in allowed_locations
+    )
+
+
+def _one_star_human_led_lobby_guide_is_safe(
+    checkpoint: CheckpointFile,
+    *,
+    character_id: str,
+    account: OneStarAccountEnvelope,
+    allowed_locations: set[str],
+) -> bool:
+    mission = account.state.active_mission
+    if (
+        mission is None
+        or character_id in mission.party_ids
+        or character_id not in account.state.guide_character_ids
+    ):
+        return False
+    character = next(
+        (
+            candidate
+            for candidate in checkpoint.characters
+            if candidate.character_id == character_id
+        ),
+        None,
+    )
+    return bool(
+        character is not None
+        and character.status == CharacterStatus.active
+        and character.location in allowed_locations
+    )
+
+
+def _one_star_human_led_lobby_recipient_is_safe(
+    checkpoint: CheckpointFile,
+    *,
+    character_id: str,
+    account: OneStarAccountEnvelope,
+    allowed_locations: set[str],
+) -> bool:
+    mission = account.state.active_mission
+    if mission is None or character_id in mission.party_ids:
+        return False
+    character = next(
+        (
+            candidate
+            for candidate in checkpoint.characters
+            if candidate.character_id == character_id
+        ),
+        None,
+    )
+    return bool(
+        character is not None
+        and character.status == CharacterStatus.active
+        and character.location in allowed_locations
+    )
+
+
+def _one_star_human_led_watch_query_is_safe(
+    result: EventRouterOutput,
+    *,
+    actor_id: str,
+    owner_id: str,
+) -> bool:
+    """Allow a zero-time Master view without creating floor-side fiction."""
+
+    owner_observer_only = bool(
+        len(result.observers) == 1
+        and result.observers[0].character_id == owner_id
+        and result.observers[0].routing_role == "observe_only"
+    )
+    owner_facts_only = all(
+        fact.audience == "only"
+        and fact.visible_to == [owner_id]
+        for fact in result.canonical_event.observable_facts
+    )
+
+    return bool(
+        actor_id == owner_id
+        and result.event_kind == "query_response"
+        and result.duration_s == 0
+        and owner_observer_only
+        and owner_facts_only
+        and not getattr(result, "state_updates", ())
+        and not result.requires_responders
+        and not result.required_responders
+        and not result.next_output_character_ids
+        and not result.perception_enrichment_character_ids
+        and not result.spawn
+        and not result.activate
+        and not result.dormant
+        and not result.cull
+        and not result.commitment_open.present
+        and not result.commitment_resolutions
+        and not result.commitment_interrupts
+        and not result.location_updates
+    )
+
+
+def validate_one_star_human_led_mission_result(
+    checkpoint: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> None:
+    """Keep every event in a Master-started beat off a human-led floor.
+
+    The guard lasts for the whole active mission, not only while a remote player
+    owns a Cat II responder slot. ``actor_id`` is the actual producer of this
+    event, so a routed guide may deliver a lobby tutorial without acquiring the
+    Master's broader management authority. Ordinary transaction preparation
+    still owns detailed costs and operation semantics; this helper proves that
+    every event in the beat remains on the disjoint lobby side. A zero-duration
+    Master query is the sole exception: it may observe or depict the party but
+    cannot route it or author any fictional or durable change.
+    """
+
+    if not is_one_star_checkpoint(checkpoint):
+        return
+    owner, account = load_one_star_account(checkpoint)
+    mission = account.state.active_mission
+    if (
+        mission is None
+        or not set(mission.party_ids) & set(checkpoint.session.character_bindings)
+    ):
+        raise OneStarTransactionError(
+            "human-led mission guard requires an active bound mission party"
+        )
+    party_ids = set(mission.party_ids)
+    safe_locations = _one_star_lobby_safe_locations(account.config)
+    clean_actor_id = actor_id.strip()
+    actor_is_owner = clean_actor_id == owner.character_id
+    actor_is_guide = _one_star_human_led_lobby_guide_is_safe(
+        checkpoint,
+        character_id=clean_actor_id,
+        account=account,
+        allowed_locations=safe_locations,
+    )
+    actor_is_lobby_hero = _one_star_human_led_lobby_hero_is_safe(
+        checkpoint,
+        character_id=clean_actor_id,
+        account=account,
+        allowed_locations=safe_locations,
+    )
+    if not (actor_is_owner or actor_is_guide or actor_is_lobby_hero):
+        raise OneStarTransactionError(
+            "human-led mission beat produced an event from a mission-party or "
+            "non-lobby actor"
+        )
+
+    if result.event_kind == "query_response":
+        if _one_star_human_led_watch_query_is_safe(
+            result,
+            actor_id=clean_actor_id,
+            owner_id=owner.character_id,
+        ):
+            return
+        raise OneStarTransactionError(
+            "human-led mission watch queries must be zero-duration, Master-only, "
+            "and free of routing, lifecycle, commitment, location, and state changes"
+        )
+
+    def require_safe_hero(character_id: str) -> None:
+        if not _one_star_human_led_lobby_hero_is_safe(
+            checkpoint,
+            character_id=character_id,
+            account=account,
+            allowed_locations=safe_locations,
+        ):
+            raise OneStarTransactionError(
+                "human-led mission lobby event targets a mission-party or "
+                "non-lobby Hero"
+            )
+
+    structured_character_ids = {
+        *result.required_responders,
+        *(observer.character_id for observer in result.observers),
+        *(
+            character_id
+            for fact in result.canonical_event.observable_facts
+            for character_id in (
+                *fact.visible_to,
+                *fact.visual_subject_ids,
+            )
+        ),
+    }
+    if party_ids & structured_character_ids:
+        raise OneStarTransactionError(
+            "human-led mission lobby event cannot observe, route, or depict "
+            "mission-party Heroes"
+        )
+    for character_id in result.required_responders:
+        require_safe_hero(character_id)
+    for character_id in result.next_output_character_ids:
+        if _one_star_human_led_lobby_guide_is_safe(
+            checkpoint,
+            character_id=character_id,
+            account=account,
+            allowed_locations=safe_locations,
+        ):
+            continue
+        require_safe_hero(character_id)
+
+    if (
+        result.spawn
+        or result.activate
+        or result.dormant
+        or result.cull
+        or result.commitment_open.present
+        or result.commitment_resolutions
+        or result.commitment_interrupts
+    ):
+        raise OneStarTransactionError(
+            "human-led mission lobby event cannot author generic lifecycle or "
+            "commitment changes"
+        )
+    for location_update in result.location_updates:
+        require_safe_hero(location_update.character_id)
+        if (
+            location_update.location_label not in safe_locations
+            or location_update.location_label == mission.destination
+        ):
+            raise OneStarTransactionError(
+                "human-led mission lobby movement must remain inside configured "
+                "lobby facilities"
+            )
+
+    for update in getattr(result, "state_updates", ()):
+        if update.kind == "tutorial_delivery":
+            if not actor_is_guide:
+                raise OneStarTransactionError(
+                    "human-led mission tutorial delivery must be authored by an "
+                    "active configured lobby guide"
+                )
+            details = _state_update_details(update)
+            recipient_ids = details.get("recipient", [])
+            if not recipient_ids or any(
+                not _one_star_human_led_lobby_recipient_is_safe(
+                    checkpoint,
+                    character_id=character_id,
+                    account=account,
+                    allowed_locations=safe_locations,
+                )
+                for character_id in recipient_ids
+            ):
+                raise OneStarTransactionError(
+                    "human-led mission tutorial recipients must be active "
+                    "non-party characters in configured lobby facilities"
+                )
+            continue
+        if not actor_is_owner:
+            raise OneStarTransactionError(
+                "human-led mission autonomous lobby followers cannot author "
+                "account or mission state changes"
+            )
+        if update.kind in {"catalogue_apply", "gem_purchase"}:
+            continue
+        if update.kind == "summon":
+            pool = account.config.summon_pools.get(update.target_id.strip())
+            if not isinstance(pool, OneStarStandardSummonPool):
+                raise OneStarTransactionError(
+                    "human-led mission lobby turns may use only standard summon pools"
+                )
+            continue
+        if update.kind == "equipment_move":
+            destination = update.value.strip()
+            if destination != "account":
+                require_safe_hero(destination)
+            holders = []
+            for character in checkpoint.characters:
+                hero = load_one_star_hero(character)
+                if hero is not None and any(
+                    item.item_id == update.target_id.strip()
+                    for item in hero.equipment
+                ):
+                    holders.append(character.character_id)
+            for holder_id in holders:
+                require_safe_hero(holder_id)
+            continue
+        if update.kind == "pending_open":
+            if update.value.strip() not in {"synthesis", "promotion"}:
+                raise OneStarTransactionError(
+                    "human-led mission lobby turns cannot open a deployment"
+                )
+            details = _state_update_details(update)
+            affected = {
+                *details.get("participant", []),
+                *details.get("target_id", []),
+            }
+            if not affected:
+                raise OneStarTransactionError(
+                    "human-led mission lobby operation must identify its affected Heroes"
+                )
+            for character_id in affected:
+                require_safe_hero(character_id)
+            continue
+        if update.kind in {"pending_resolve", "pending_cancel"}:
+            pending = account.state.pending_operation
+            if (
+                pending is None
+                or pending.operation_id != update.target_id.strip()
+                or pending.kind not in {"synthesis", "promotion"}
+            ):
+                raise OneStarTransactionError(
+                    "human-led mission lobby resolution must target the open "
+                    "lobby operation"
+                )
+            for character_id in {
+                *pending.participant_ids,
+                *([pending.target_id] if pending.target_id else []),
+            }:
+                require_safe_hero(character_id)
+            continue
+        raise OneStarTransactionError(
+            f"One-Star {update.kind} cannot commit during a human-led mission "
+            "Master beat"
+        )
+
+
+def validate_one_star_autonomous_mission_batch_result(
+    checkpoint: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> None:
+    """Keep a post-admission NPC mission batch on its active floor.
+
+    The initiating owner event is validated and committed before the batch is
+    admitted, so this guard applies only to subsequent agent turns and
+    router-owned continuations.  The owner may keep watching as an
+    ``observe_only`` recipient, but cannot become the fictional actor, a
+    response target, or the authority for another account operation.  Adapter-
+    authored terminal System notices may add their configured recipients after
+    this validation without widening the router-authored floor event.
+    """
+
+    if not is_one_star_checkpoint(checkpoint):
+        return
+    owner, account = load_one_star_account(checkpoint)
+    mission = account.state.active_mission
+    if (
+        mission is None
+        or set(mission.party_ids) & set(checkpoint.session.character_bindings)
+    ):
+        raise OneStarTransactionError(
+            "autonomous mission batch requires an active NPC-only party"
+        )
+
+    party_ids = set(mission.party_ids)
+    floor_character_ids = {
+        character.character_id
+        for character in checkpoint.characters
+        if (
+            character.status == CharacterStatus.active
+            and character.character_id != owner.character_id
+            and (
+                character.character_id in party_ids
+                or character.location == mission.destination
+            )
+        )
+    }
+    known_character_ids = {
+        character.character_id
+        for character in checkpoint.characters
+        if character.character_id
+    }
+    clean_actor_id = actor_id.strip()
+    if clean_actor_id and clean_actor_id not in floor_character_ids:
+        raise OneStarTransactionError(
+            "autonomous mission batch event actor must be router-owned or an "
+            "active floor character"
+        )
+
+    updates = tuple(getattr(result, "state_updates", ()))
+    terminal_report = any(
+        update.kind == "mission_end"
+        and update.target_id.strip() == mission.mission_id
+        for update in updates
+    )
+    passive_remote_ids = {owner.character_id}
+    if terminal_report:
+        passive_remote_ids.update(
+            one_star_mission_report_recipient_ids(checkpoint)
+        )
+    allowed_observer_ids = floor_character_ids | passive_remote_ids
+    observer_ids = {
+        observer.character_id
+        for observer in result.observers
+        if observer.character_id
+    }
+    unrelated_observers = observer_ids - allowed_observer_ids
+    if unrelated_observers:
+        raise OneStarTransactionError(
+            "autonomous mission batch event names non-floor observers: "
+            + ", ".join(sorted(unrelated_observers))
+        )
+    for observer in result.observers:
+        if (
+            observer.character_id in passive_remote_ids - floor_character_ids
+            and observer.routing_role != "observe_only"
+        ):
+            raise OneStarTransactionError(
+                "autonomous mission batch remote viewers must remain "
+                "observe_only"
+            )
+
+    routed_ids = {
+        *result.required_responders,
+        *result.next_output_character_ids,
+        *result.perception_enrichment_character_ids,
+    }
+    non_floor_routing = routed_ids - floor_character_ids
+    if non_floor_routing:
+        raise OneStarTransactionError(
+            "autonomous mission batch cannot route non-floor characters: "
+            + ", ".join(sorted(non_floor_routing))
+        )
+
+    remote_report_ids = (
+        passive_remote_ids - floor_character_ids - {owner.character_id}
+    )
+    for fact in result.canonical_event.observable_facts:
+        if fact.audience == "only":
+            unrelated_recipients = set(fact.visible_to) - allowed_observer_ids
+            if unrelated_recipients:
+                raise OneStarTransactionError(
+                    "autonomous mission batch fact names non-floor recipients: "
+                    + ", ".join(sorted(unrelated_recipients))
+                )
+        elif remote_report_ids:
+            report_observers = observer_ids & remote_report_ids
+            if report_observers:
+                raise OneStarTransactionError(
+                    "autonomous mission batch System report recipients cannot "
+                    "inherit broad floor facts"
+                )
+        non_floor_subjects = (
+            set(fact.visual_subject_ids) - floor_character_ids
+        )
+        if non_floor_subjects:
+            labels = sorted(
+                character_id
+                for character_id in non_floor_subjects
+                if character_id in known_character_ids
+            ) or sorted(non_floor_subjects)
+            raise OneStarTransactionError(
+                "autonomous mission batch cannot depict non-floor characters: "
+                + ", ".join(labels)
+            )
+
+    if (
+        result.spawn
+        or result.activate
+        or result.dormant
+        or result.cull
+        or result.commitment_open.present
+        or result.commitment_resolutions
+        or result.commitment_interrupts
+        or result.location_updates
+    ):
+        raise OneStarTransactionError(
+            "autonomous mission batch cannot author generic lifecycle, "
+            "commitment, or location changes"
+        )
+
+    for update in updates:
+        target_id = update.target_id.strip()
+        if update.kind in {"mission_update", "mission_end"}:
+            if target_id != mission.mission_id:
+                raise OneStarTransactionError(
+                    "autonomous mission batch update targets another mission"
+                )
+            continue
+        if update.kind == "hero_delta":
+            if target_id not in party_ids:
+                raise OneStarTransactionError(
+                    "autonomous mission batch Hero update targets a non-party "
+                    "character"
+                )
+            continue
+        raise OneStarTransactionError(
+            f"One-Star {update.kind} cannot commit during an autonomous "
+            "mission batch"
+        )
+
+
+def one_star_should_autonomous_mission_batch_after_result(
+    checkpoint: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+    user_input: str = "",
+) -> bool:
+    """Start one NPC mission cascade after an owner mutation or watch."""
+
+    if not is_one_star_checkpoint(checkpoint):
+        return False
+    try:
+        owner, account = load_one_star_account(checkpoint)
+    except (OneStarTransactionError, ValidationError):
+        return False
+    mission = account.state.active_mission
+    if (
+        mission is None
+        or actor_id.strip() != owner.character_id
+        or one_star_active_mission_has_bound_party_member(checkpoint)
+    ):
+        return False
+
+    # Finish an already-owed lobby handoff before the floor batch begins.
+    # The closing lobby event can admit the mission through its own compact
+    # state update without adding another scheduler state or dropping the
+    # selected lobby character's turn.
+    if set(result.next_output_character_ids) - set(mission.party_ids):
+        return False
+    if getattr(result, "state_updates", ()):
+        return True
+    if set(result.next_output_character_ids) & set(mission.party_ids):
+        return True
+
+    normalized = " ".join(user_input.lower().split())
+    if normalized in {"(defer)", "/defer", "defer"}:
+        return True
+    mission_terms = {
+        "mission",
+        "tower",
+        "floor",
+        "deployed",
+        "deployment",
+        "party",
+    }
+    watch_terms = {
+        "watch",
+        "observe",
+        "monitor",
+        "view",
+        "status",
+        "check",
+    }
+    words = set(re.findall(r"[a-z]+", normalized))
+    return bool(words & mission_terms and words & watch_terms)
+
+
+def one_star_standard_summon_guide_handoff_authority(
+    checkpoint: CheckpointFile,
+    *,
+    result: EventRouterOutput,
+) -> tuple[str, str] | None:
+    """Return owner and guide ids for an ordinary-summon handoff.
+
+    ``None`` means this event is outside the ordinary-summon contract.  Guide
+    availability is validated before commit; returning the configured target
+    rather than re-reading its post-event status lets beat pacing fail loudly
+    if that accepted target somehow becomes undispatchable.  Routing,
+    induction validation, and pacing therefore share one One-Star authority.
+    """
+
+    if not is_one_star_checkpoint(checkpoint):
+        return None
+    summon_pool_ids = [
+        str(getattr(update, "target_id", "") or "")
+        for update in getattr(result, "state_updates", ())
+        if getattr(update, "kind", "") == "summon"
+    ]
+    if not summon_pool_ids:
+        return None
+
+    owner, account = load_one_star_account(checkpoint)
+    if not any(
+        getattr(account.config.summon_pools.get(pool_id), "usage", "")
+        == "standard"
+        for pool_id in summon_pool_ids
+    ):
+        return None
+    if not account.state.guide_character_ids:
+        return None
+    return owner.character_id, account.state.guide_character_ids[0]
+
+
+def one_star_opening_account_owner_actor_id(
+    checkpoint: CheckpointFile,
+    participant_ids: Iterable[str],
+) -> str:
+    """Return the bound owner when the selected opening uses owner authority.
+
+    The user who presses ``/begin`` is only the interface trigger.  A mixed
+    opening roster containing authored non-player slots remains an account
+    acquisition and therefore uses the bound account owner as its semantic
+    actor.  Bound-player-only openings keep their triggering actor.
+    """
+
+    pool_id = one_star_opening_roster_pool_id(
+        checkpoint,
+        participant_ids,
+    )
+    if not pool_id:
+        return ""
+    owner, account = load_one_star_account(checkpoint)
+    pool = account.config.summon_pools[pool_id]
+    if any(
+        not isinstance(slot, OneStarOpeningRosterBoundPlayerActorSlot)
+        for slot in pool.slots
+    ):
+        return owner.character_id
+    return ""
+
+
+def one_star_opening_roster_pool_id(
+    checkpoint: CheckpointFile,
+    participant_ids: Iterable[str],
+) -> str:
+    """Select the one authored opening pool for the live bound roster."""
+
+    if not is_one_star_checkpoint(checkpoint):
+        return ""
+    owner, account = load_one_star_account(checkpoint)
+    participants = {
+        character_id.strip()
+        for character_id in participant_ids
+        if character_id.strip()
+    }
+    owner_present = owner.character_id in participants
+    bound_participant_ids = participants - {owner.character_id}
+    matching_pool_ids = [
+        pool_id
+        for pool_id, pool in account.config.summon_pools.items()
+        if isinstance(pool, OneStarOpeningRosterSummonPool)
+        and {
+            slot.character_id
+            for slot in pool.slots
+            if isinstance(slot, OneStarOpeningRosterBoundPlayerActorSlot)
+        }
+        == bound_participant_ids
+        and (
+            owner_present
+            == any(
+                not isinstance(
+                    slot,
+                    OneStarOpeningRosterBoundPlayerActorSlot,
+                )
+                for slot in pool.slots
+            )
+        )
+    ]
+    if len(matching_pool_ids) > 1:
+        raise OneStarTransactionError(
+            "the live opening participants match more than one authored "
+            "One-Star opening roster"
+        )
+    return matching_pool_ids[0] if matching_pool_ids else ""
 
 
 def find_one_star_account_owner(
@@ -432,30 +1201,61 @@ def _one_star_opening_roster_preview(
     pool_id: str,
     pool: OneStarOpeningRosterSummonPool,
 ) -> tuple[OneStarSummonDraw, ...]:
-    fixed_ids = {
+    exact_ids = {
         slot.character_id
         for slot in pool.slots
-        if isinstance(slot, OneStarOpeningRosterFixedSlot)
+        if isinstance(
+            slot,
+            (
+                OneStarOpeningRosterFixedSlot,
+                OneStarOpeningRosterBoundPlayerActorSlot,
+            ),
+        )
     }
-    fixed_heroes: dict[str, OneStarHeroState] = {}
-    for character_id in sorted(fixed_ids):
+    exact_heroes: dict[str, OneStarHeroState] = {}
+    for character_id in sorted(exact_ids):
+        slot = next(
+            candidate
+            for candidate in pool.slots
+            if getattr(candidate, "character_id", "") == character_id
+        )
+        is_bound_actor = isinstance(
+            slot,
+            OneStarOpeningRosterBoundPlayerActorSlot,
+        )
         _character, hero = _opening_existing_hero(
             checkpoint,
             character_id,
-            exclude_player_authored=True,
+            exclude_player_authored=not is_bound_actor,
         )
-        fixed_heroes[character_id] = hero
+        if is_bound_actor:
+            if not is_player_authored_slot(_character):
+                raise OneStarTransactionError(
+                    f"bound opening actor {character_id!r} is not a "
+                    "player-authored slot"
+                )
+            if character_id not in checkpoint.session.character_bindings:
+                raise OneStarTransactionError(
+                    f"bound opening actor {character_id!r} has no live player binding"
+                )
+        exact_heroes[character_id] = hero
 
     chosen_ids: set[str] = set()
     draws: list[OneStarSummonDraw] = []
     for slot_index, slot in enumerate(pool.slots):
-        if isinstance(slot, OneStarOpeningRosterFixedSlot):
+        if isinstance(
+            slot,
+            (
+                OneStarOpeningRosterFixedSlot,
+                OneStarOpeningRosterBoundPlayerActorSlot,
+            ),
+        ):
             character_id = slot.character_id
-            hero = fixed_heroes[character_id]
+            hero = exact_heroes[character_id]
         else:
             candidates: list[tuple[str, OneStarHeroState]] = []
             for character in checkpoint.characters:
-                if character.character_id in fixed_ids | chosen_ids:
+                if character.character_id in exact_ids | chosen_ids:
                     continue
                 hero = load_one_star_hero(character)
                 if hero is None or hero.birth_stars != slot.birth_stars:
@@ -535,21 +1335,6 @@ def _one_star_summon_result_preview(
             pool_id=pool_id,
             count=count,
         )
-    if isinstance(pool, OneStarOpeningActorSummonPool):
-        if count != 1:
-            raise OneStarTransactionError(
-                "opening-actor summon count must be exactly one"
-            )
-        _character, hero = _opening_existing_hero(
-            checkpoint,
-            pool.character_id,
-            exclude_player_authored=False,
-        )
-        return (OneStarSummonDraw(
-            slot=1,
-            birth_stars=hero.birth_stars,
-            existing_character_id=pool.character_id,
-        ),)
     if count != len(pool.slots):
         raise OneStarTransactionError(
             "opening-roster summon count must exactly match its configured slots"
@@ -602,10 +1387,12 @@ def _validate_state_update_detail_keys(
             "failure",
             "duration_s",
         }),
-        "mission_update": frozenset(),
+        "mission_update": frozenset({"report_kind", "report_credit"}),
         "mission_end": frozenset({
             "return_destination",
             "escape_authority_id",
+            "mvp_character_id",
+            "mvp_evidence_event_id",
         }),
         "pending_open": frozenset({
             "participant",
@@ -1018,6 +1805,11 @@ def one_star_state_updates_to_transaction(
             continue
 
         if kind == "mission_update":
+            report_kind = _single_detail(
+                details,
+                "report_kind",
+                default="",
+            )
             operations.append(OneStarMissionUpdateOperation(
                 operation=kind,
                 mission_id=target_id,
@@ -1026,6 +1818,8 @@ def one_star_state_updates_to_transaction(
                     for key, values in details.items()
                     if key.startswith("counter.")
                 ],
+                report_kind=report_kind or None,
+                report_credit=details.get("report_credit", []),
             ))
             continue
 
@@ -1043,6 +1837,11 @@ def one_star_state_updates_to_transaction(
                     details,
                     "escape_authority_id",
                     default="",
+                ),
+                mvp_character_id=_single_detail(details, "mvp_character_id"),
+                mvp_evidence_event_id=_single_detail(
+                    details,
+                    "mvp_evidence_event_id",
                 ),
             ))
             continue
@@ -1400,6 +2199,33 @@ def _system_window_recipients(
                 and characters[character_id].status == CharacterStatus.active
             )
         )
+    )
+
+
+def one_star_mission_report_recipient_ids(
+    checkpoint: CheckpointFile,
+) -> tuple[str, ...]:
+    """Return active POVs entitled to the terminal System mission report."""
+
+    if not is_one_star_checkpoint(checkpoint):
+        return ()
+    owner, account = load_one_star_account(checkpoint)
+    local_active_hero_ids = tuple(
+        character.character_id
+        for character in checkpoint.characters
+        if (
+            character.status == CharacterStatus.active
+            and (hero := load_one_star_hero(character)) is not None
+            and hero.owner_lobby_id == account.config.lobby_id
+        )
+    )
+    return _system_window_recipients(
+        checkpoint,
+        account.state,
+        account.config,
+        owner.character_id,
+        local_active_hero_ids,
+        include_management_observers=False,
     )
 
 
@@ -2049,12 +2875,6 @@ def preflight_one_star_account_updates(
                     "charged and no Gems were added.",
                     reason="one_star_gem_purchase_rejected",
                 )
-            if state.active_mission is not None:
-                raise PlayerActionRejected(
-                    "Gem purchases are unavailable while a Tower mission is "
-                    "active. Nothing was charged and no Gems were added.",
-                    reason="one_star_gem_purchase_rejected",
-                )
             packs = gem_quantity // authority.gems_granted
             funds_cost = packs * authority.funds_cost
             if state.discretionary_funds < funds_cost:
@@ -2102,13 +2922,6 @@ def preflight_one_star_account_updates(
                 "were summoned.",
                 reason="one_star_summon_rejected",
             )
-        if state.active_mission is not None:
-            raise PlayerActionRejected(
-                "Summoning is unavailable while a Tower mission is active. "
-                "Nothing was spent and no Heroes were summoned.",
-                reason="one_star_summon_rejected",
-            )
-
         total_cost = _multiply_cost(pool.cost, count)
         insufficient = (
             state.resources.gold < total_cost.gold
@@ -2181,37 +2994,6 @@ def _apply_summon(
             pool_id=operation.pool_id,
             count=len(operation.hero_ids),
         )
-    elif isinstance(pool, OneStarOpeningActorSummonPool):
-        _character, hero = _opening_existing_hero(
-            checkpoint,
-            pool.character_id,
-            exclude_player_authored=False,
-        )
-        expected_draws = (OneStarSummonDraw(
-            slot=1,
-            birth_stars=hero.birth_stars,
-            existing_character_id=pool.character_id,
-        ),)
-        if (
-            len(operation.hero_ids) != 1
-            or operation.hero_ids[0] != initiating_actor_id
-            or operation.hero_ids[0] != pool.character_id
-            or operation.hero_ids[0] not in activated_ids
-            or spawned_ids
-            or state.applied_event_fingerprints
-        ):
-            raise OneStarTransactionError(
-                "opening-actor summon must be the first event and activate only its actor"
-            )
-        if any(
-            character.status != CharacterStatus.culled
-            and (hero := load_one_star_hero(character)) is not None
-            and hero.owner_lobby_id == config.lobby_id
-            for character in checkpoint.characters
-        ):
-            raise OneStarTransactionError(
-                "opening-actor summon requires an account with no acquired Heroes"
-            )
     else:
         expected_draws = _one_star_opening_roster_preview(
             checkpoint,
@@ -2219,17 +3001,33 @@ def _apply_summon(
             pool=pool,
         )
         account_owner = find_one_star_account_owner(checkpoint.characters)
+        bound_actor_ids = {
+            slot.character_id
+            for slot in pool.slots
+            if isinstance(slot, OneStarOpeningRosterBoundPlayerActorSlot)
+        }
+        has_authored_non_bound_slot = any(
+            not isinstance(slot, OneStarOpeningRosterBoundPlayerActorSlot)
+            for slot in pool.slots
+        )
+        authorized_actor = (
+            (
+                account_owner is not None
+                and initiating_actor_id == account_owner.character_id
+            )
+            if has_authored_non_bound_slot
+            else initiating_actor_id in bound_actor_ids
+        )
         if (
             set(operation.hero_ids) != set(expected_summon_ids)
             or not set(operation.hero_ids).issubset(activated_ids)
             or spawned_ids
             or state.applied_event_fingerprints
-            or account_owner is None
-            or initiating_actor_id != account_owner.character_id
+            or not authorized_actor
         ):
             raise OneStarTransactionError(
-                "opening-roster summon must be the account owner's first event "
-                "and activate only its configured existing Heroes"
+                "opening-roster summon must be its authorized actor's first "
+                "event and activate only its configured existing Heroes"
             )
         if any(
             character.status != CharacterStatus.culled
@@ -2497,6 +3295,13 @@ def _apply_equipment_move(
         )
         if source_character.location != config.lobby_location_label:
             raise OneStarTransactionError("equipment moves require a lobby source Hero")
+        if (
+            state.active_mission is not None
+            and source_character.character_id in state.active_mission.party_ids
+        ):
+            raise OneStarTransactionError(
+                "active-mission equipment controls cannot affect mission party Heroes"
+            )
         source.equipment = [entry for entry in source.equipment if entry.item_id != item_id]
         state.stored_equipment.append(item.model_copy(deep=True))
         _store_hero(source_character, source)
@@ -2509,6 +3314,13 @@ def _apply_equipment_move(
     )
     if destination_character.location != config.lobby_location_label:
         raise OneStarTransactionError("equipment moves require a lobby destination Hero")
+    if (
+        state.active_mission is not None
+        and destination_character.character_id in state.active_mission.party_ids
+    ):
+        raise OneStarTransactionError(
+            "active-mission equipment controls cannot affect mission party Heroes"
+        )
     if source_kind == "hero":
         if source_character is None:  # pragma: no cover - source_kind guards it.
             raise OneStarTransactionError("equipment move has no Hero source")
@@ -2519,6 +3331,13 @@ def _apply_equipment_move(
         )
         if source_character.location != config.lobby_location_label:
             raise OneStarTransactionError("equipment moves require a lobby source Hero")
+        if (
+            state.active_mission is not None
+            and source_character.character_id in state.active_mission.party_ids
+        ):
+            raise OneStarTransactionError(
+                "active-mission equipment controls cannot affect mission party Heroes"
+            )
         if source_character.character_id == destination_character.character_id:
             raise OneStarTransactionError("equipment move cannot leave an item in place")
         source.equipment = [entry for entry in source.equipment if entry.item_id != item_id]
@@ -2561,9 +3380,25 @@ def _apply_mission_start(
         )
     if operation.mission.floor > state.highest_unlocked_floor:
         raise OneStarTransactionError("mission targets a locked Tower floor")
+    scenario = config.floor_scenarios.get(operation.mission.floor)
+    if scenario is None:
+        raise OneStarTransactionError(
+            "mission targets a floor with no reviewed scenario authority"
+        )
     if operation.mission.floor not in config.floor_rewards:
         raise OneStarTransactionError(
             "mission targets a floor with no reviewed reward authority"
+        )
+    if (
+        operation.mission.mission_id != scenario.mission_id
+        or operation.mission.destination != scenario.destination
+        or operation.mission.completion_declaration
+        != scenario.completion_declaration
+        or operation.mission.failure_declaration != scenario.failure_declaration
+        or operation.mission.counters != scenario.counters
+    ):
+        raise OneStarTransactionError(
+            "mission start must exactly match its reviewed floor scenario"
         )
     for hero_id in operation.mission.party_ids:
         character, _hero = _require_local_active_hero(
@@ -2613,7 +3448,86 @@ def _apply_mission_update(
         declared = current_counters[key]
         if counter.target != declared.target or counter.current < declared.current:
             raise OneStarTransactionError("mission counters cannot change targets or regress")
+    unknown_credit = set(operation.report_credit) - set(mission.party_ids)
+    if unknown_credit:
+        raise OneStarTransactionError(
+            "mission report credit must name only active party Heroes: "
+            + ", ".join(sorted(unknown_credit))
+        )
     mission.counters = list(operation.counters)
+
+
+def _mission_update_marker_from_state_update(
+    update: OneStarStateUpdate,
+    *,
+    mission_id: str,
+) -> tuple[str, tuple[str, ...]] | None:
+    if update.kind != "mission_update" or update.target_id.strip() != mission_id:
+        return None
+    details = _state_update_details(update)
+    kinds = details.get("report_kind", [])
+    credits = tuple(details.get("report_credit", []))
+    if not kinds and not credits:
+        return None
+    if (
+        len(kinds) != 1
+        or kinds[0] not in {"critical", "boss_kill", "dialogue"}
+        or not credits
+        or any(not character_id for character_id in credits)
+        or len(credits) != len(set(credits))
+    ):
+        raise OneStarTransactionError(
+            "canonical mission report marker has an invalid shape"
+        )
+    return kinds[0], credits
+
+
+def _mission_mvp_has_evidence(
+    *,
+    checkpoint: CheckpointFile,
+    mission_id: str,
+    nominee_id: str,
+    evidence_event_id: str,
+    current_event_id: str,
+    current_operations: Iterable[OneStarOperation],
+) -> bool:
+    if evidence_event_id == current_event_id:
+        return any(
+            isinstance(operation, OneStarMissionUpdateOperation)
+            and operation.mission_id == mission_id
+            and operation.report_kind is not None
+            and nominee_id in operation.report_credit
+            for operation in current_operations
+        )
+
+    latest_start_index = -1
+    for index, event in enumerate(checkpoint.canonical_events):
+        if any(
+            update.kind == "mission_start"
+            and update.target_id.strip() == mission_id
+            for update in getattr(event, "state_updates", ())
+        ):
+            latest_start_index = index
+    if latest_start_index < 0:
+        return False
+
+    matching_events = [
+        event
+        for event in checkpoint.canonical_events[latest_start_index:]
+        if event.event_id == evidence_event_id
+    ]
+    if len(matching_events) != 1:
+        return False
+    return any(
+        nominee_id in marker[1]
+        for update in getattr(matching_events[0], "state_updates", ())
+        if (
+            marker := _mission_update_marker_from_state_update(
+                update,
+                mission_id=mission_id,
+            )
+        ) is not None
+    )
 
 
 def _mission_xp_award(
@@ -2642,6 +3556,8 @@ def _apply_mission_end(
     now_s: int,
     pre_event_escape_authorities: Mapping[str, set[str]],
     owner_character_id: str,
+    event_id: str,
+    current_operations: Iterable[OneStarOperation],
 ) -> tuple[OneStarSystemConsequence, ...]:
     mission = state.active_mission
     if mission is None or mission.mission_id != operation.mission_id:
@@ -2664,6 +3580,20 @@ def _apply_mission_end(
             )
         if character.status == CharacterStatus.active:
             survivors.append((character, hero))
+    if operation.mvp_character_id not in mission.party_ids:
+        raise OneStarTransactionError("mission MVP must belong to the mission party")
+    if not _mission_mvp_has_evidence(
+        checkpoint=checkpoint,
+        mission_id=mission.mission_id,
+        nominee_id=operation.mvp_character_id,
+        evidence_event_id=operation.mvp_evidence_event_id,
+        current_event_id=event_id,
+        current_operations=current_operations,
+    ):
+        raise OneStarTransactionError(
+            "mission MVP evidence must cite a prior or current marked event "
+            "credited to the nominee"
+        )
     if operation.outcome == "escaped":
         authority_id = operation.escape_authority_id.strip()
         if not authority_id:
@@ -2681,6 +3611,8 @@ def _apply_mission_end(
         raise OneStarTransactionError(
             "a failed mission with living Heroes cannot return them through the sealed gate"
         )
+    system_consequences: list[OneStarSystemConsequence] = []
+    report_recipient_ids = one_star_mission_report_recipient_ids(checkpoint)
     if operation.outcome == "completed":
         incomplete_counters = [
             counter.counter_id
@@ -2696,11 +3628,14 @@ def _apply_mission_end(
         if reward is None:
             raise OneStarTransactionError("completed floor has no configured fixed reward")
         first_clear = mission.floor > state.highest_cleared_floor
+        unlocked_floor = 0
         if first_clear:
-            _add_resources(state.resources, OneStarCost.model_validate(reward.model_dump()))
+            reward_delta = OneStarCost.model_validate(reward.model_dump())
+            _add_resources(state.resources, reward_delta)
             state.highest_cleared_floor = mission.floor
             next_floor = mission.floor + 1
-            if next_floor in config.floor_rewards:
+            if next_floor in config.floor_scenarios:
+                unlocked_floor = next_floor
                 state.highest_unlocked_floor = max(
                     state.highest_unlocked_floor,
                     next_floor,
@@ -2709,8 +3644,44 @@ def _apply_mission_end(
             gold = reward.gold * config.repeat_gold_numerator // config.repeat_gold_denominator
             if reward.gold:
                 gold = max(config.repeat_gold_minimum, gold)
-            _add_resources(state.resources, OneStarCost(gold=gold, gems=0, building_resources=0, materials={}))
-    system_consequences: list[OneStarSystemConsequence] = []
+            reward_delta = OneStarCost(
+                gold=gold,
+                gems=0,
+                building_resources=0,
+                materials={},
+            )
+            _add_resources(state.resources, reward_delta)
+        balance = _resource_amount_text(OneStarCost.model_validate(
+            state.resources.model_dump()
+        ))
+        system_consequences.append(OneStarSystemConsequence(
+            text=(
+                f"System: Floor {mission.floor} "
+                f"{'first-clear' if first_clear else 'repeat-clear'} reward "
+                f"applied: {_resource_amount_text(reward_delta)}. "
+                f"Account resources now: {balance}."
+            ),
+            recipient_character_ids=report_recipient_ids,
+        ))
+        if unlocked_floor:
+            system_consequences.append(OneStarSystemConsequence(
+                text=f"System: Tower floor {unlocked_floor} unlocked.",
+                recipient_character_ids=report_recipient_ids,
+            ))
+    else:
+        system_consequences.append(OneStarSystemConsequence(
+            text=(
+                f"System: Floor {mission.floor} ended as "
+                f"{operation.outcome}; "
+                "no floor reward or unlock was granted."
+            ),
+            recipient_character_ids=report_recipient_ids,
+        ))
+    mvp = _require_character(checkpoint, operation.mvp_character_id)
+    system_consequences.append(OneStarSystemConsequence(
+        text=f"System: Mission report MVP is {mvp.name}.",
+        recipient_character_ids=report_recipient_ids,
+    ))
     if operation.outcome == "completed":
         for character, hero in survivors:
             award = _mission_xp_award(
@@ -2767,18 +3738,42 @@ def _apply_pending_open(
     config: OneStarRulesConfig,
     now_s: int,
 ) -> OneStarPendingOperation:
-    if state.active_mission is not None:
+    if state.active_mission is not None and operation.pending.kind == "deployment":
         raise OneStarTransactionError(
-            "cannot open a lobby operation while a Tower mission is active"
+            "cannot open a second deployment while a Tower mission is active"
         )
     selection = operation.pending
     validate_one_star_pending_operation_shape(selection)
     if selection.opened_at_s != now_s:
         raise OneStarTransactionError("pending operation must use canonical event time")
     for hero_id in selection.participant_ids:
-        _require_local_active_hero(checkpoint, hero_id, config)
+        character, _hero = _require_local_active_hero(
+            checkpoint,
+            hero_id,
+            config,
+        )
+        if state.active_mission is not None and (
+            hero_id in state.active_mission.party_ids
+            or character.location != config.lobby_location_label
+        ):
+            raise OneStarTransactionError(
+                "active-mission lobby operations require nonparty Heroes "
+                "physically in the lobby"
+            )
     if selection.kind in {"synthesis", "promotion"}:
-        _require_local_active_hero(checkpoint, selection.target_id, config)
+        target_character, _hero = _require_local_active_hero(
+            checkpoint,
+            selection.target_id,
+            config,
+        )
+        if state.active_mission is not None and (
+            selection.target_id in state.active_mission.party_ids
+            or target_character.location != config.lobby_location_label
+        ):
+            raise OneStarTransactionError(
+                "active-mission lobby operations require a nonparty target "
+                "physically in the lobby"
+            )
     if not selection.destination:
         raise OneStarTransactionError(
             "embodied operations require a physical destination"
@@ -2869,10 +3864,7 @@ def _restore_promotion_knowledge(
         if value
     )
     character.knowledge_tier = promoted_tier
-    hero = load_one_star_hero(character)
-    if hero is not None and hero.generated_for_summon:
-        character.agent_tier = CharacterAgentTier.standard
-    elif rung.agent_tier is not None:
+    if rung.agent_tier is not None:
         character.agent_tier = rung.agent_tier
 
 
@@ -3682,13 +4674,10 @@ def prepare_one_star_transaction(
                 f"only the account owner may initiate {operation_name}"
             )
 
+    processed_operations: list[OneStarOperation] = []
     for operation in transaction.operations:
         if isinstance(operation, OneStarCatalogueApplyOperation):
             require_account_owner("a catalogue operation")
-            if state.active_mission is not None:
-                raise OneStarTransactionError(
-                    "account catalogue controls are unavailable during an active mission"
-                )
             _apply_catalogue(operation, state, config)
         elif isinstance(operation, OneStarSummonOperation):
             if summon_ids:
@@ -3698,12 +4687,8 @@ def prepare_one_star_transaction(
                 raise OneStarTransactionError(
                     "summon references an unknown configured pool"
                 )
-            if pool.usage in {"standard", "opening_roster"}:
+            if pool.usage == "standard":
                 require_account_owner("an account summon")
-                if state.active_mission is not None:
-                    raise OneStarTransactionError(
-                        "account summons are unavailable during an active mission"
-                    )
             summon_ids.update(operation.hero_ids)
             _apply_summon(
                 operation,
@@ -3722,10 +4707,6 @@ def prepare_one_star_transaction(
             _apply_inventory_delta(operation, state)
         elif isinstance(operation, OneStarGemPurchaseOperation):
             require_account_owner("a Gem purchase")
-            if state.active_mission is not None:
-                raise OneStarTransactionError(
-                    "Gem purchases are unavailable during an active mission"
-                )
             _apply_gem_purchase(operation, state, config)
         elif isinstance(operation, OneStarHeroDeltaOperation):
             _apply_hero_delta(operation, after, config, event_id)
@@ -3750,6 +4731,8 @@ def prepare_one_star_transaction(
                 now_s,
                 pre_event_escape_authorities,
                 owner.character_id,
+                event_id,
+                processed_operations,
             ))
         elif isinstance(operation, OneStarPendingOpenOperation):
             require_account_owner("an embodied operation selection")
@@ -3795,10 +4778,6 @@ def prepare_one_star_transaction(
             _apply_pending_cancel(operation, state)
         elif isinstance(operation, OneStarEquipmentMoveOperation):
             require_account_owner("an equipment move")
-            if state.active_mission is not None:
-                raise OneStarTransactionError(
-                    "account equipment controls are unavailable during an active mission"
-                )
             _apply_equipment_move(operation, state, after, config)
         elif isinstance(operation, OneStarTutorialDeliveryOperation):
             if actor_id not in state.guide_character_ids:
@@ -3808,6 +4787,7 @@ def prepare_one_star_transaction(
             _apply_tutorial(operation, state, after)
         else:  # pragma: no cover - discriminated union prevents this at parse time.
             raise OneStarTransactionError(f"unsupported One-Star operation {operation!r}")
+        processed_operations.append(operation)
     if summon_ids != expected_summon_ids:
         raise OneStarTransactionError(
             "fresh spawns or unowned Hero activations require exactly one matching summon"

@@ -426,12 +426,14 @@ class TestEngineBridgeVisualNovelPresentation:
         mock_bridge.image_sidecar.wait_for_stage_discovery.assert_awaited_once_with(
             "session"
         )
-        mock_bridge.image_generation.wait_for_render_images.assert_awaited_once_with(
-            session_id="session",
-            rendered_event_ids_by_pov={
-                "alice": ["evt_first", "evt_second"]
-            },
-        )
+        wait_call = mock_bridge.image_generation.wait_for_render_images
+        wait_call.assert_awaited_once()
+        assert wait_call.await_args.kwargs["session_id"] == "session"
+        assert wait_call.await_args.kwargs["rendered_event_ids_by_pov"] == {
+            "alice": ["evt_first", "evt_second"]
+        }
+        wait_timeout = wait_call.await_args.kwargs["timeout"]
+        assert 0 < wait_timeout <= 20
         assert [
             invocation.kwargs["rendered_event_ids"]
             for invocation in (
@@ -450,6 +452,91 @@ class TestEngineBridgeVisualNovelPresentation:
                 assert image.convert("RGB").getpixel((5, 5)) == (221, 37, 73)
         with Image.open(wren_cards[0].image_path) as image:
             assert image.convert("RGB").getpixel((5, 5)) == (17, 199, 101)
+
+    def test_stage_wait_budget_does_not_cancel_background_discovery(
+        self,
+        mock_bridge: EngineBridge,
+    ):
+        async def exercise() -> None:
+            release = asyncio.Event()
+            projection_task = asyncio.create_task(release.wait())
+            mock_bridge.image_sidecar._projection_tasks["session"] = {
+                projection_task
+            }
+
+            ready = await mock_bridge.wait_for_visual_novel_stage_work(
+                session_id="session",
+                renders_by_pov={"alice": VisualNovelRender(segments=[
+                    VisualNovelRenderSegment(
+                        pages=[VisualNovelPage(kind="narration", text="Rain.")],
+                        rendered_event_id="evt_rain",
+                    )
+                ])},
+                timeout=0.01,
+            )
+
+            assert ready is False
+            assert projection_task.done() is False
+            release.set()
+            await projection_task
+
+        asyncio.run(exercise())
+
+    def test_deck_prewarm_and_stage_share_one_presentation_budget(
+        self,
+        mock_bridge: EngineBridge,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        checkpoint = CheckpointFile(
+            session=SessionState(session_id="session"),
+            world_state=WorldState(setting=StorySetting()),
+        )
+        mock_bridge.load_checkpoint = MagicMock(return_value=checkpoint)
+        monkeypatch.setattr(
+            "app.bot.engine_bridge.generated_portrait_prewarm_character_ids",
+            lambda **_kwargs: ("alice",),
+        )
+        monkeypatch.setattr(
+            "app.bot.engine_bridge._VISUAL_NOVEL_PRESENTATION_WAIT_SECONDS",
+            0.02,
+        )
+
+        async def blocked_prewarm(**_kwargs) -> None:
+            await asyncio.Event().wait()
+
+        mock_bridge._prewarm_visual_novel_sprites = AsyncMock(  # type: ignore[method-assign]
+            side_effect=blocked_prewarm
+        )
+        mock_bridge.wait_for_visual_novel_stage_work = AsyncMock(  # type: ignore[method-assign]
+            return_value=False
+        )
+        mock_bridge.image_generation.resolve_visual_novel_stage = MagicMock(
+            return_value=(
+                VisualNovelStageResolution(action="clear", artifact=None),
+                None,
+            )
+        )
+        rendered = object()
+        mock_bridge.visual_novel_renderer.render_deck = MagicMock(
+            return_value=rendered
+        )
+        render = VisualNovelRender(segments=[VisualNovelRenderSegment(
+            pages=[VisualNovelPage(kind="narration", text="Rain.")],
+            rendered_event_id="evt_rain",
+        )])
+
+        result = asyncio.run(mock_bridge.prepare_visual_novel_deck(
+            session_id="session",
+            checkpoint_id="ckpt_0001",
+            pov_character_id="alice",
+            render=render,
+        ))
+
+        assert result is rendered
+        mock_bridge._prewarm_visual_novel_sprites.assert_awaited_once()
+        stage_wait = mock_bridge.wait_for_visual_novel_stage_work
+        stage_wait.assert_awaited_once()
+        assert 0 <= stage_wait.await_args.kwargs["timeout"] < 0.01
 
     def test_identity_change_keeps_authored_pages_old_then_appends_reveal(
         self,
@@ -2243,6 +2330,28 @@ class TestRunBeginTurn:
             )
         )
 
+    def _seed_one_star_session(
+        self,
+        mock_bridge,
+        *,
+        bindings: dict[str, str],
+    ) -> CheckpointFile:
+        checkpoint_path = (
+            Path(__file__).resolve().parent.parent
+            / "app"
+            / "storage"
+            / "stories"
+            / "one_star_ascension_s1"
+            / "ckpt_0000.json"
+        )
+        ckpt = CheckpointFile.model_validate_json(
+            checkpoint_path.read_text(encoding="utf-8")
+        )
+        ckpt.session.session_id = "session"
+        ckpt.session.character_bindings = bindings
+        mock_bridge.checkpoint_mgr.load_latest = MagicMock(return_value=ckpt)
+        return ckpt
+
     def test_pristine_with_bound_player_fires_begin(self, mock_bridge):
         """One bound player + empty narrator history = the canonical
         first-call shape. `(begin)` lands at the orchestrator with
@@ -2261,6 +2370,49 @@ class TestRunBeginTurn:
         assert call_args.user_input == "(begin)"
         assert call_args.acting_character_id == "alice"
         assert response.beat_ended_reason == "state_change"
+
+    def test_one_star_duo_newcomer_trigger_uses_bound_owner_authority(
+        self,
+        mock_bridge,
+    ):
+        self._seed_one_star_session(
+            mock_bridge,
+            bindings={
+                "the_master": "master-user",
+                "one_star_newcomer": "newcomer-user",
+            },
+        )
+        self._stub_orchestrator(mock_bridge)
+
+        asyncio.run(mock_bridge.run_begin_turn(
+            session_id="session",
+            triggering_character_id="one_star_newcomer",
+        ))
+
+        call_args = mock_bridge.orchestrator.process_turn.call_args.args[0]
+        assert call_args.user_input == "(begin)"
+        assert call_args.acting_character_id == "the_master"
+        mock_bridge.orchestrator.process_turn.assert_awaited_once()
+
+    def test_one_star_newcomer_only_opening_keeps_newcomer_authority(
+        self,
+        mock_bridge,
+    ):
+        self._seed_one_star_session(
+            mock_bridge,
+            bindings={"one_star_newcomer": "newcomer-user"},
+        )
+        self._stub_orchestrator(mock_bridge)
+
+        asyncio.run(mock_bridge.run_begin_turn(
+            session_id="session",
+            triggering_character_id="one_star_newcomer",
+        ))
+
+        call_args = mock_bridge.orchestrator.process_turn.call_args.args[0]
+        assert call_args.user_input == "(begin)"
+        assert call_args.acting_character_id == "one_star_newcomer"
+        mock_bridge.orchestrator.process_turn.assert_awaited_once()
 
     def test_no_bound_players_raises(self, mock_bridge):
         """`(begin)` without any bound players is meaningless — the

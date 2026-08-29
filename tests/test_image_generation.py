@@ -4343,6 +4343,75 @@ async def test_cancelled_materializing_director_run_cannot_wedge_render_wait(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("reason", ["narrator_continued", "event_not_in_lineage"])
+async def test_cancelled_speculative_stage_run_is_not_current_transition(
+    tmp_path, reason,
+):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+    )
+    first_projection, first_run, _ = await _persist_finalized_visual_novel_job(
+        coordinator
+    )
+
+    _begin(coordinator, "tx_speculative")
+    speculative_projection = replace(
+        first_projection,
+        transaction_id="tx_speculative",
+        event_id="evt_speculative",
+        event_fingerprint=hashlib.sha256(b"evt_speculative").hexdigest(),
+        event_sequence=2,
+        source_turn_index=2,
+    )
+    speculative_run = coordinator.store.enqueue_director_run(
+        speculative_projection
+    )
+    claimed = coordinator.store.claim_next_director_run()
+    assert claimed is not None and claimed.run_id == speculative_run.run_id
+    _complete_director(
+        coordinator,
+        speculative_run.run_id,
+        ImageDirectorOutput(stage_action="reuse", requests=[]),
+    )
+    _finalize_director(
+        coordinator,
+        speculative_run.run_id,
+        projection=speculative_projection,
+        admitted_job_ids=[],
+    )
+    assert coordinator.store.commit_transaction(
+        "tx_speculative",
+        target_checkpoint_sha256="c" * 64,
+    )
+
+    if reason == "event_not_in_lineage":
+        coordinator.store.reconcile_lineage(
+            session_id="image_test",
+            event_fingerprints={first_projection.event_fingerprint},
+        )
+    else:
+        with coordinator.store._connect() as db:
+            db.execute(
+                """
+                UPDATE image_director_runs
+                SET status = 'cancelled', error_code = ?
+                WHERE run_id = ?
+                """,
+                (reason, speculative_run.run_id),
+            )
+
+    resolved = coordinator.store.resolve_visual_novel_stage(
+        session_id="image_test",
+        pov_character_id="alice",
+        rendered_event_ids=[first_projection.event_id, speculative_projection.event_id],
+    )
+    assert resolved.source_run_id == first_run.run_id
+    assert resolved.fallback_reason == "replacement_failed"
+
+
+@pytest.mark.asyncio
 async def test_capacity_rejects_new_event_without_fallback(tmp_path):
     worker = FakeImageWorker(wait=True)
     coordinator = ImageGenerationCoordinator(

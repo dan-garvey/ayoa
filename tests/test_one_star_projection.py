@@ -160,6 +160,7 @@ def _rules_config() -> OneStarRulesConfig:
             synthesis_skill_chance_basis_points=500,
         ),
         floor_rewards={},
+        floor_scenarios={},
         repeat_gold_numerator=1,
         repeat_gold_denominator=2,
         repeat_gold_minimum=1,

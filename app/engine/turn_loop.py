@@ -1352,21 +1352,20 @@ def _authored_opening_branch_matches(
     """
 
     policy = ckpt.world_state.opening
-    beat = policy.authored_character_beat if policy is not None else None
-    if beat is None:
+    if policy is None or not policy.authored_character_beats:
         return False
+    authored_speaker_ids = {
+        beat.speaker_character_id for beat in policy.authored_character_beats
+    }
     introduced_ids = {
         character_id
         for character_id in (
             *(request.character_id for request in event.spawn),
             *(signal.character_id for signal in event.activate),
         )
-        if character_id and character_id != beat.speaker_character_id
+        if character_id and character_id not in authored_speaker_ids
     }
-    return not beat.required_participant_ids or any(
-        character_id in introduced_ids
-        for character_id in beat.required_participant_ids
-    )
+    return policy.matching_authored_character_beat(introduced_ids) is not None
 
 
 def _validate_authored_opening_handoff(
@@ -1385,9 +1384,22 @@ def _validate_authored_opening_handoff(
     ):
         return
     if event.requires_responders or event.next_output_character_ids:
+        frontier_observers = [
+            (observer.character_id, observer.routing_role)
+            for observer in event.observers
+            if observer.routing_role != "observe_only"
+        ]
         raise ValueError(
             "authored opening arrival cannot request responders or "
-            "next_output; its exact character beat follows the closed arrival"
+            "next_output; its exact character beat follows the closed arrival. "
+            "Use the closed arrival event_kind='state_change', "
+            "requires_responders=false, required_responders=[], and "
+            "routing_role='observe_only' for every observer; do not select the "
+            "authored speaker. Received "
+            f"event_kind={event.event_kind!r}, "
+            f"requires_responders={event.requires_responders!r}, "
+            f"required_responders={event.required_responders!r}, "
+            f"frontier_observers={frontier_observers!r}"
         )
 
 
@@ -3146,6 +3158,63 @@ def _durable_checkpoint_copy(ckpt: CheckpointFile) -> CheckpointFile:
     ))
 
 
+def _restore_checkpoint_state(
+    ckpt: CheckpointFile,
+    snapshot: CheckpointFile,
+) -> None:
+    """Restore every durable checkpoint field from a pre-beat snapshot."""
+
+    for field_name in CheckpointFile.model_fields:
+        setattr(
+            ckpt,
+            field_name,
+            deepcopy(getattr(snapshot, field_name)),
+        )
+
+
+def _adopt_character_agent_state(
+    ckpt: CheckpointFile,
+    speculative: CheckpointFile,
+    *,
+    character_id: str,
+) -> None:
+    """Merge one successful isolated agent turn into live character state."""
+
+    live_character = next(
+        (
+            character
+            for character in ckpt.characters
+            if character.character_id == character_id
+        ),
+        None,
+    )
+    speculative_character = next(
+        (
+            character
+            for character in speculative.characters
+            if character.character_id == character_id
+        ),
+        None,
+    )
+    if live_character is None or speculative_character is None:
+        raise RuntimeError(
+            "isolated Cat II responder state disappeared for "
+            f"{character_id!r}"
+        )
+    for field_name in CharacterRecord.model_fields:
+        setattr(
+            live_character,
+            field_name,
+            deepcopy(getattr(speculative_character, field_name)),
+        )
+    if character_id in speculative.character_conversations:
+        ckpt.character_conversations[character_id] = deepcopy(
+            speculative.character_conversations[character_id]
+        )
+    else:
+        ckpt.character_conversations.pop(character_id, None)
+
+
 def _adopt_speculative_router_state(
     ckpt: CheckpointFile,
     speculative: CheckpointFile,
@@ -3201,6 +3270,7 @@ async def run_beat(
     resume_after_handoff: EventRouterOutput | None = None,
     resume_events_closed: int = 0,
     resume_event_actor_ids: list[str] | None = None,
+    one_star_human_led_mission_guard: bool = False,
 ) -> BeatResult:
     """Run one beat to completion.
 
@@ -3222,6 +3292,9 @@ async def run_beat(
       narrator render discards the prepared state but leaves the canonical
       semantic handoff resumable by `(defer)`, while narrator continue commits
       it immediately.
+    - Adapter-authorized opening and standard-summon guide handoffs complete
+      before narrator pacing because they close required onboarding rather
+      than offering an optional autonomous reaction.
     - Bound `next_output` targets and forced safety/rules boundaries render
       without speculative autonomous work.
     - Targetless events may request a router continuation when the narrator
@@ -3252,6 +3325,8 @@ async def run_beat(
     pending_result_submission: str = ""
     suppress_reaction_prompts = combat_reaction_event_id is not None
     prepared_event_objects: set[int] = set()
+    one_star_mission_batch_active = False
+    one_star_batch_continuation_after_agent_count = -1
 
     async def _prepare_event_once(
         event: EventRouterOutput,
@@ -3276,6 +3351,37 @@ async def run_beat(
         ruleset_actor_id: str | None = None,
         close_for_presentation: bool = True,
     ) -> list[str]:
+        autonomous_batch_checkpoint: CheckpointFile | None = None
+        if one_star_human_led_mission_guard:
+            from app.engine.one_star_adapter import (
+                OneStarTransactionError,
+                validate_one_star_human_led_mission_result,
+            )
+
+            try:
+                validate_one_star_human_led_mission_result(
+                    ckpt,
+                    actor_id=event_actor_id or actor_id,
+                    result=event,
+                )
+            except OneStarTransactionError as exc:
+                raise PlayerActionRejected(
+                    "That action would interfere with a human-led floor. "
+                    "Limit this turn to lobby management or a pure "
+                    "watch/query.",
+                    reason="one_star_human_led_mission_rejected",
+                ) from exc
+        if one_star_mission_batch_active:
+            from app.engine.one_star_adapter import (
+                validate_one_star_autonomous_mission_batch_result,
+            )
+
+            autonomous_batch_checkpoint = _durable_checkpoint_copy(ckpt)
+            validate_one_star_autonomous_mission_batch_result(
+                autonomous_batch_checkpoint,
+                actor_id=event_actor_id,
+                result=event,
+            )
         await _prepare_event_once(
             event,
             ruleset_actor_id=(
@@ -3284,6 +3390,27 @@ async def run_beat(
                 else ruleset_actor_id
             ),
         )
+        if autonomous_batch_checkpoint is not None:
+            # One-Star may repair only its compact update list during
+            # preparation and may append trusted, scoped System report facts.
+            # Re-check the prepared result against the pre-mutation mission so
+            # a repair cannot widen this autonomous floor transaction.
+            from app.engine.one_star_adapter import (
+                validate_one_star_autonomous_mission_batch_result,
+            )
+
+            try:
+                validate_one_star_autonomous_mission_batch_result(
+                    autonomous_batch_checkpoint,
+                    actor_id=event_actor_id,
+                    result=event,
+                )
+            except BaseException:
+                _restore_checkpoint_state(
+                    ckpt,
+                    autonomous_batch_checkpoint,
+                )
+                raise
         return broadcast_event(
             ckpt,
             event,
@@ -3294,21 +3421,26 @@ async def run_beat(
 
     async def _queue_router_continuation(
         prior_result: EventRouterOutput,
+        *,
+        source_actor_id: str | None = None,
     ) -> None:
         nonlocal pending_result, pending_result_is_continuation
         nonlocal pending_result_actor_id
         nonlocal pending_result_submission
+        continuation_actor_id = (
+            actor_id if source_actor_id is None else source_actor_id
+        )
         pending_result = await dispatcher.route_continuation(
             ckpt=ckpt,
-            actor_id=actor_id,
+            actor_id=continuation_actor_id,
             prior_result=prior_result,
             original_action=intention,
         )
         pending_result_is_continuation = True
-        pending_result_actor_id = actor_id
+        pending_result_actor_id = continuation_actor_id
         pending_result_submission = ""
         _log_router_rationale(
-            pending_result, actor_id, kind="continuation",
+            pending_result, continuation_actor_id, kind="continuation",
         )
 
     async def _prepare_speculative_next_output(
@@ -3347,7 +3479,8 @@ async def run_beat(
             target = agent_targets[0]
             if target.frame == "background":
                 if (
-                    background_thread_attempts
+                    not one_star_mission_batch_active
+                    and background_thread_attempts
                     >= MAX_BACKGROUND_THREADS_PER_BEAT
                 ):
                     return _SpeculativeNextOutput(
@@ -3463,9 +3596,78 @@ async def run_beat(
         resolved_cat_ii: OpenCatIIEvent | None = None,
     ) -> BeatResult | None:
         """Race narrator pacing against isolated autonomous next-output work."""
+        nonlocal one_star_mission_batch_active
+        nonlocal one_star_batch_continuation_after_agent_count
+
+        if (
+            not one_star_human_led_mission_guard
+            and not one_star_mission_batch_active
+        ):
+            from app.engine.one_star_adapter import (
+                one_star_should_autonomous_mission_batch_after_result,
+            )
+
+            one_star_mission_batch_active = (
+                one_star_should_autonomous_mission_batch_after_result(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                    user_input=intention,
+                )
+            )
+
+        from app.engine.one_star_adapter import (
+            one_star_standard_summon_guide_handoff_authority,
+        )
+
+        standard_summon_authority = (
+            one_star_standard_summon_guide_handoff_authority(
+                ckpt,
+                result=result,
+            )
+        )
+        standard_summon_guide_id = ""
+        standard_summon_guide_handoff = False
+        standard_summon_targets: list[tuple[str, str]] = []
+        if standard_summon_authority is not None:
+            owner_id, standard_summon_guide_id = standard_summon_authority
+            if event_actor_ids and event_actor_ids[-1] == owner_id:
+                if result.next_output_character_ids != [
+                    standard_summon_guide_id
+                ]:
+                    raise RuntimeError(
+                        "Accepted One-Star standard summon lost its sole "
+                        "configured-guide handoff."
+                    )
+                standard_summon_targets = (
+                    _binding_aware_next_output_targets(ckpt, result)
+                )
+                if standard_summon_targets == [
+                    ("bound", standard_summon_guide_id)
+                ]:
+                    return await _end_beat(
+                        ckpt,
+                        dispatcher,
+                        ended_reason="awaiting_player_turn",
+                        events_closed=events_closed,
+                        event_actor_ids=event_actor_ids,
+                        acting_player_id=actor_id,
+                        acting_player_input=intention,
+                        suppress_reaction_prompts=suppress_reaction_prompts,
+                    )
+                if standard_summon_targets != [
+                    ("autonomous", standard_summon_guide_id)
+                ]:
+                    raise RuntimeError(
+                        "Accepted One-Star standard summon guide is not "
+                        "dispatchable."
+                    )
+                standard_summon_guide_handoff = True
+
         if (
             events_closed >= max_events
             and default_ended_reason != "cat_ii_resolution"
+            and not standard_summon_guide_handoff
         ):
             return await _end_beat(
                 ckpt,
@@ -3477,6 +3679,95 @@ async def run_beat(
                 acting_player_input=intention,
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
+
+        if one_star_mission_batch_active:
+            from app.engine.one_star_adapter import load_one_star_account
+
+            _owner, account = load_one_star_account(ckpt)
+            mission = account.state.active_mission
+            if mission is None:
+                return await _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason=(
+                        default_ended_reason
+                        or _event_handoff_reason(result)
+                        or "mission_batch_terminal"
+                    ),
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=suppress_reaction_prompts,
+                )
+
+            targets = _binding_aware_next_output_targets(ckpt, result)
+            if targets and targets[0][0] == "bound":
+                return await _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason="awaiting_player_turn",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=suppress_reaction_prompts,
+                )
+            if targets:
+                prepared = await _prepare_speculative_next_output(
+                    result,
+                    targets,
+                )
+                if prepared.checkpoint is not None:
+                    _adopt_speculative_next_output(prepared)
+                if prepared.outcome == "queued":
+                    return None
+                if prepared.outcome == "cap":
+                    return await _end_for_cascade_cap()
+                if prepared.outcome == "human":
+                    return await _end_beat(
+                        ckpt,
+                        dispatcher,
+                        ended_reason="awaiting_player_turn",
+                        events_closed=events_closed,
+                        event_actor_ids=event_actor_ids,
+                        acting_player_id=actor_id,
+                        acting_player_input=intention,
+                        suppress_reaction_prompts=suppress_reaction_prompts,
+                    )
+
+            # Give the router one chance after each newly committed agent turn
+            # to select the next consequential mission actor. A continuation
+            # that still produces no dispatchable target ends the batch rather
+            # than spinning on router-only events.
+            if (
+                one_star_batch_continuation_after_agent_count
+                != agent_cascade_attempts
+            ):
+                one_star_batch_continuation_after_agent_count = (
+                    agent_cascade_attempts
+                )
+                await _queue_router_continuation(
+                    result,
+                    source_actor_id="",
+                )
+                return None
+
+            return await _end_beat(
+                ckpt,
+                dispatcher,
+                ended_reason=(
+                    default_ended_reason
+                    or _event_handoff_reason(result)
+                    or "mission_batch_exhausted"
+                ),
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
+                suppress_reaction_prompts=suppress_reaction_prompts,
+            )
+
         if (
             _is_begin_submission(intention)
             and events_closed == 1
@@ -3500,10 +3791,13 @@ async def run_beat(
                 acting_player_input=intention,
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
-        if _event_requires_forced_handoff(
-            result,
-            ckpt=ckpt,
-            resolved_cat_ii=resolved_cat_ii,
+        if (
+            not standard_summon_guide_handoff
+            and _event_requires_forced_handoff(
+                result,
+                ckpt=ckpt,
+                resolved_cat_ii=resolved_cat_ii,
+            )
         ):
             return await _end_beat(
                 ckpt,
@@ -3516,7 +3810,11 @@ async def run_beat(
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
 
-        targets = _binding_aware_next_output_targets(ckpt, result)
+        targets = (
+            standard_summon_targets
+            if standard_summon_guide_handoff
+            else _binding_aware_next_output_targets(ckpt, result)
+        )
         if targets and targets[0][0] == "bound":
             return await _end_beat(
                 ckpt,
@@ -3553,14 +3851,23 @@ async def run_beat(
                 event_actor_ids=event_actor_ids,
             )
         if targets and (
-            not has_narrator_target or opening_autonomous_handoff
+            not has_narrator_target
+            or opening_autonomous_handoff
+            or standard_summon_guide_handoff
         ):
-            # `(begin)` establishes the opening but is not itself a useful
-            # player decision when the router has explicitly selected an
-            # autonomous character to finish that opening. Carry through
-            # exactly that first handoff before offering the combined batch;
-            # ordinary narrator pacing resumes after the selected response.
+            # `(begin)` and an accepted standard summon each establish an owed
+            # guide response rather than a useful player decision. Carry
+            # through exactly that authorized handoff before offering the
+            # combined batch; ordinary narrator pacing resumes afterward.
             prepared = await _prepare_speculative_next_output(result, targets)
+            if (
+                standard_summon_guide_handoff
+                and prepared.outcome != "queued"
+            ):
+                raise RuntimeError(
+                    "Accepted One-Star standard summon guide did not produce "
+                    "the required routed induction."
+                )
             if prepared.checkpoint is not None:
                 _adopt_speculative_next_output(prepared)
             if prepared.outcome == "queued":
@@ -3728,6 +4035,7 @@ async def run_beat(
         # result instead of only the player render seeing it.
         await _commit_event(
             resolved,
+            event_actor_id=evt.initiator_id,
             ruleset_actor_id=evt.initiator_id,
         )
         if one_star_resolution:
@@ -3913,6 +4221,16 @@ async def run_beat(
         # Validate the semantic frontier before materializing spawns, opening
         # Cat II, pinning slots, or otherwise mutating beat state.
         _validate_non_social_hazard_routing(ckpt, result)
+        if one_star_mission_batch_active:
+            from app.engine.one_star_adapter import (
+                validate_one_star_autonomous_mission_batch_result,
+            )
+
+            validate_one_star_autonomous_mission_batch_result(
+                ckpt,
+                actor_id=result_actor_id,
+                result=result,
+            )
 
         opening_policy = ckpt.world_state.opening
         if (
@@ -3920,7 +4238,7 @@ async def run_beat(
             and events_closed == 0
             and not result_is_continuation
             and opening_policy is not None
-            and opening_policy.authored_character_beat is not None
+            and bool(opening_policy.authored_character_beats)
             and (
                 result.requires_responders
                 or bool(result.next_output_character_ids)
@@ -4054,87 +4372,149 @@ async def run_beat(
                     "Router continuation opened Cat II; continuation mode "
                     "must create a closed cue or pick a dispatchable NPC."
                 )
-            await _materialize_required_responder_spawns(
-                dispatcher,
-                ckpt,
-                result,
-                actor_id=result_actor_id,
-                required=required,
-            )
-            # Cat II: open the event, pin humans, request agent
-            # responder intentions immediately (they're fast).
-            # Filter: the initiator can never be their own responder,
-            # even if the router hallucinates it — would either double-
-            # pin them or overwrite the initiator slot.
-            if not required:
-                # The only "responder" was the initiator themselves; treat
-                # this as Cat I — there's nothing to contest. Broadcast the
-                # canonical event as-is and continue.
-                await _materialize_next_output_spawns(
+            # Everything from responder materialization through autonomous
+            # intention collection is one beat transaction. If a generation
+            # or agent call fails, the live checkpoint returns to the exact
+            # pre-Cat-II state: no speculative character memory, open event,
+            # pin, broadcast, or clock advance survives the failed beat.
+            cat_ii_snapshot = _durable_checkpoint_copy(ckpt)
+            try:
+                await _materialize_required_responder_spawns(
                     dispatcher,
                     ckpt,
                     result,
                     actor_id=result_actor_id,
+                    required=required,
                 )
+                # Cat II: open the event, pin humans, request agent
+                # responder intentions immediately (they're fast).
+                # Filter: the initiator can never be their own responder,
+                # even if the router hallucinates it — would either double-
+                # pin them or overwrite the initiator slot.
+                if not required:
+                    # The only "responder" was the initiator themselves; treat
+                    # this as Cat I — there's nothing to contest. Broadcast the
+                    # canonical event as-is and continue.
+                    await _materialize_next_output_spawns(
+                        dispatcher,
+                        ckpt,
+                        result,
+                        actor_id=result_actor_id,
+                    )
+                    await _commit_event(result, event_actor_id=result_actor_id)
+                    event_actor_ids.append(result_actor_id)
+                    events_closed += 1
+                    completed = await _advance_or_render(result)
+                    if completed is not None:
+                        return completed
+                    continue
+
+                _validate_cat_ii_open_participant_state(
+                    ckpt,
+                    result,
+                    initiator_id=result_actor_id,
+                    responder_ids=required,
+                )
+
+                evt = open_cat_ii(
+                    ckpt=ckpt,
+                    initiator_id=result_actor_id,
+                    initiator_intention=result_submission,
+                    required_responders=required,
+                    opening_event=result,
+                )
+
+                # The router's Cat II-open output is already the canonical
+                # attempt-in-progress: visible setup, dialogue, gestures,
+                # and fact-level visibility are all in `observable_facts`.
+                # Broadcast it before collecting responder intentions so
+                # every observer receives the same public attempt that the
+                # responder is reacting to. Pre-r12 synthesized an
+                # observerless stub here and dropped the router's facts.
+                result.event_kind = "cat_ii_open"
                 await _commit_event(result, event_actor_id=result_actor_id)
                 event_actor_ids.append(result_actor_id)
                 events_closed += 1
-                completed = await _advance_or_render(result)
-                if completed is not None:
-                    return completed
-                continue
 
-            _validate_cat_ii_open_participant_state(
-                ckpt,
-                result,
-                initiator_id=result_actor_id,
-                responder_ids=required,
-            )
+                # Install every human pin before dispatching any autonomous
+                # work. The branch snapshot below is shared semantically by
+                # all agents, and each agent receives its own deep copy so a
+                # draft cannot become another responder's observation.
+                from app.engine.context_builder import (
+                    is_unbound_player_authored_slot,
+                )
 
-            evt = open_cat_ii(
-                ckpt=ckpt,
-                initiator_id=result_actor_id,
-                initiator_intention=result_submission,
-                required_responders=required,
-                opening_event=result,
-            )
+                bindings = ckpt.session.character_bindings or {}
+                by_id = _character_by_id(ckpt)
+                autonomous_ids: list[str] = []
+                for rid in required:
+                    if rid in bindings:
+                        # Human — pin slot, wait.
+                        pin_cat_ii_responder(ckpt, rid, evt.event_id)
+                    else:
+                        if is_unbound_player_authored_slot(ckpt, by_id.get(rid)):
+                            raise ValueError(
+                                "Router required an absent player-authored slot "
+                                f"as a responder: {rid}"
+                            )
+                        autonomous_ids.append(rid)
 
-            # The router's Cat II-open output is already the canonical
-            # attempt-in-progress: visible setup, dialogue, gestures,
-            # and fact-level visibility are all in `observable_facts`.
-            # Broadcast it before collecting responder intentions so
-            # every observer receives the same public attempt that the
-            # responder is reacting to. Pre-r12 synthesized an
-            # observerless stub here and dropped the router's facts.
-            result.event_kind = "cat_ii_open"
-            await _commit_event(result, event_actor_id=result_actor_id)
-            event_actor_ids.append(result_actor_id)
-            events_closed += 1
+                responder_snapshot = _durable_checkpoint_copy(ckpt)
 
-            # Autonomous required responders intend immediately; their
-            # intentions are collected into the same Cat II event.
-            from app.engine.context_builder import is_unbound_player_authored_slot
-
-            bindings = ckpt.session.character_bindings or {}
-            by_id = _character_by_id(ckpt)
-            for rid in required:
-                if rid in bindings:
-                    # Human — pin slot, wait.
-                    pin_cat_ii_responder(ckpt, rid, evt.event_id)
-                else:
-                    if is_unbound_player_authored_slot(ckpt, by_id.get(rid)):
-                        raise ValueError(
-                            "Router required an absent player-authored slot "
-                            f"as a responder: {rid}"
-                        )
-                    # Agent — intend inline.
+                async def _collect_autonomous_responder(
+                    responder_id: str,
+                ) -> tuple[str, str, CheckpointFile]:
+                    branch = _durable_checkpoint_copy(responder_snapshot)
                     ai_intent = await dispatcher.agent_intend(
-                        ckpt=ckpt,
-                        character_id=rid,
+                        ckpt=branch,
+                        character_id=responder_id,
                     )
-                    collect_cat_ii_intention(
-                        ckpt, evt.event_id, rid, ai_intent
+                    if not isinstance(ai_intent, str) or not ai_intent.strip():
+                        raise RuntimeError(
+                            "Cat II autonomous responder returned no usable "
+                            f"intention: {responder_id}"
+                        )
+                    return responder_id, ai_intent, branch
+
+                collected = await asyncio.gather(
+                    *(
+                        _collect_autonomous_responder(responder_id)
+                        for responder_id in autonomous_ids
+                    ),
+                    return_exceptions=True,
+                )
+                failures = [
+                    item
+                    for item in collected
+                    if isinstance(item, BaseException)
+                ]
+                if failures:
+                    raise failures[0]
+
+                # `gather` preserves required order. Merge each isolated
+                # character's committed agent memory, then record intentions
+                # in that same required order on the live open event.
+                for item in collected:
+                    responder_id, ai_intent, branch = item
+                    _adopt_character_agent_state(
+                        ckpt,
+                        branch,
+                        character_id=responder_id,
                     )
+                    collected_event = collect_cat_ii_intention(
+                        ckpt,
+                        evt.event_id,
+                        responder_id,
+                        ai_intent,
+                    )
+                    if collected_event is None:
+                        raise RuntimeError(
+                            "Cat II event disappeared while collecting "
+                            f"responder {responder_id!r}"
+                        )
+            except BaseException:
+                _restore_checkpoint_state(ckpt, cat_ii_snapshot)
+                raise
 
             if cat_ii_is_ready(evt):
                 # No bound responders in the required list — resolve immediately.
@@ -4169,6 +4549,7 @@ async def run_beat(
                 # inbox fan-out.
                 await _commit_event(
                     resolved,
+                    event_actor_id=evt.initiator_id,
                     ruleset_actor_id=evt.initiator_id,
                 )
                 if one_star_resolution:

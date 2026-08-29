@@ -280,7 +280,7 @@ def build_checkpoint() -> CheckpointFile:
         "at the_masters_screen and show the operational lobby management view. "
         "Renna Holt, Mara Venn, Castor, and Iselle are already present in "
         "niflheim_lobby. The immediate choices are promotion and synthesis; do "
-        "not replay the tutorial, first summon, or opening wave."
+        "not replay the tutorial, first summon, or opening arrival."
     )
 
     rules = checkpoint.session.config.narrative_rules
@@ -289,12 +289,16 @@ def build_checkpoint() -> CheckpointFile:
         (
             "Starting point: this is the very beginning of the climb. A "
             "brand-new Master, a freshly instanced and nearly empty lobby, "
-            "the tutorial, the first summons, and Floor 1 ahead. Start the "
-            "cast small and raw: the party are fresh, wiped one-stars with "
-            "only surface personalities, not uniform obedience or competence. "
-            "Let depth, veterans, relationships, and the deeper questions "
-            "arrive through play, summons, and promotion rather than being "
-            "present on turn one."
+            "the tutorial, and the first five authored floors ahead. The "
+            "opening branches on the live seats: Master-only receives Renna "
+            "Holt, Mirelle Voss as the fixed authored three-star, and Edren "
+            "Marr; Master plus a player-chosen Newcomer receives that exact "
+            "trio plus the player-chosen Newcomer; Newcomer-only receives the "
+            "player-chosen Newcomer through the same opening-roster authority. "
+            "Renna and Edren are freshly wiped one-stars, while Mirelle retains "
+            "the deeper history appropriate to her grade. Let new relationships "
+            "and the deeper questions arrive through play, later summons, and "
+            "promotion rather than making any opening cast instantly loyal."
         ),
         (
             "Starting point: this focused playtest begins after initial lobby "
@@ -303,11 +307,6 @@ def build_checkpoint() -> CheckpointFile:
             "Master is choosing promotion and synthesis. Do not replay the "
             "tutorial or first summon."
         ),
-    )
-    rules = _replace_once(
-        rules,
-        "an operational Synthesis Chamber, and the sealed promotion and transformation chambers",
-        "operational Synthesis and Promotion Chambers, and the sealed Transformation Chamber",
     )
     checkpoint.session.config.narrative_rules = rules
 

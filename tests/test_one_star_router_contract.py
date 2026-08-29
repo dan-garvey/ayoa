@@ -23,6 +23,8 @@ from app.engine.turn_loop_dispatcher import (
     _validate_one_star_cat_ii_transaction,
     _validate_one_star_guide_routing,
     _validate_one_star_pending_response_routing,
+    _validate_one_star_standard_summon_guide_handoff,
+    _validate_one_star_standard_summon_induction,
     _validate_one_star_tutorial_routing,
 )
 from app.llm.client import LLMClient, _openai_strict_json_schema
@@ -31,7 +33,7 @@ from app.schemas.one_star import (
     OneStarEventRouterOutput,
     ONE_STAR_RULESET_ID,
     OneStarCost,
-    OneStarOpeningActorSummonPool,
+    OneStarOpeningRosterBoundPlayerActorSlot,
     OneStarOpeningRosterFixedSlot,
     OneStarOpeningRosterRandomExistingGradeSlot,
     OneStarOpeningRosterSummonPool,
@@ -287,6 +289,7 @@ def test_compact_mission_start_derives_canonical_timestamps_and_counters():
         details=[
             "pending_operation_id=deployment_1",
             "party=pip",
+            "formation.pip=front",
             "destination=tower_floor_1",
             "completion=defeat four goblins",
             "failure=no party member remains able to fight",
@@ -753,6 +756,9 @@ def test_one_star_repair_accepts_only_the_state_update_shape(monkeypatch):
         'value=""',
         "target_id",
         "details=[]",
+        "mission_update",
+        "complete declared counter set",
+        "including unchanged counters",
         "mission_start",
         "counter.<nonempty_id>=<current>/<target>",
     ):
@@ -1238,6 +1244,387 @@ def test_tutorial_delivery_requires_direct_visible_observation():
         _validate_one_star_tutorial_routing(ckpt, result)
 
 
+def test_standard_summon_requires_sole_direct_guide_handoff(monkeypatch):
+    from app.engine import one_star_adapter
+
+    ckpt = _one_star_checkpoint()
+    ckpt.characters.append(character_record("iselle", location="niflheim_lobby"))
+    account = SimpleNamespace(
+        config=SimpleNamespace(
+            summon_pools={
+                "basic": SimpleNamespace(usage="standard"),
+                "opening": SimpleNamespace(usage="opening_roster"),
+            },
+        ),
+        state=SimpleNamespace(guide_character_ids=["iselle"]),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_account",
+        lambda _: (ckpt.characters[0], account),
+    )
+    data = router_output(
+        observer_ids=["alice", "iselle"],
+        facts=[ObservableFact.only("A new Hero wakes.", ["alice", "iselle"])],
+    ).model_dump(mode="json")
+    data["state_updates"] = [
+        {
+            "kind": "summon",
+            "target_id": "basic",
+            "value": "1",
+            "details": [],
+        }
+    ]
+    result = OneStarEventRouterOutput.model_validate(data)
+
+    with pytest.raises(ValueError, match="immediate guide induction handoff"):
+        _validate_one_star_standard_summon_guide_handoff(
+            ckpt,
+            actor_id="alice",
+            result=result,
+        )
+
+    guide_observer = next(
+        observer
+        for observer in result.observers
+        if observer.character_id == "iselle"
+    )
+    guide_observer.routing_role = "next_output"
+    _validate_one_star_standard_summon_guide_handoff(
+        ckpt,
+        actor_id="alice",
+        result=result,
+    )
+
+    guide_observer.routing_role = "observe_only"
+    result.state_updates[0].target_id = "opening"
+    _validate_one_star_standard_summon_guide_handoff(
+        ckpt,
+        actor_id="alice",
+        result=result,
+    )
+
+
+def test_standard_summon_handoff_gets_one_full_routing_correction(monkeypatch):
+    from app.engine import one_star_adapter, turn_loop_dispatcher
+
+    _stub_one_star_router_context(monkeypatch)
+    ckpt = _one_star_checkpoint()
+    ckpt.characters.append(character_record("iselle", location="niflheim_lobby"))
+    account = SimpleNamespace(
+        config=SimpleNamespace(
+            summon_pools={"basic": SimpleNamespace(usage="standard")},
+        ),
+        state=SimpleNamespace(guide_character_ids=["iselle"]),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_account",
+        lambda _: (ckpt.characters[0], account),
+    )
+    monkeypatch.setattr(
+        turn_loop_dispatcher,
+        "_one_star_transaction_for_result",
+        lambda _checkpoint, _result: OneStarTransaction(
+            present=False,
+            operations=[],
+        ),
+    )
+
+    def summon_result(*, guide_role: str) -> OneStarEventRouterOutput:
+        data = router_output(
+            observer_ids=["alice", "iselle"],
+            facts=[
+                ObservableFact.only(
+                    "A new Hero wakes in the summoning circle.",
+                    ["alice", "iselle"],
+                )
+            ],
+        ).model_dump(mode="json")
+        data["state_updates"] = [
+            {
+                "kind": "summon",
+                "target_id": "basic",
+                "value": "1",
+                "details": [],
+            }
+        ]
+        parsed = OneStarEventRouterOutput.model_validate(data)
+        next(
+            observer
+            for observer in parsed.observers
+            if observer.character_id == "iselle"
+        ).routing_role = guide_role
+        return parsed
+
+    first = summon_result(guide_role="observe_only")
+    corrected = summon_result(guide_role="next_output")
+    dispatcher, client = _dispatcher(first, corrected)
+
+    result = asyncio.run(
+        dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="Use the basic summon circle once.",
+        )
+    )
+
+    assert result is corrected
+    assert client.complete.await_count == 2
+    correction = client.complete.await_args_list[1].kwargs["messages"][-1]["content"]
+    assert "immediate guide induction handoff" in correction
+    assert "sole immediate next_output" in correction
+    assert all(first.event_id not in message.content for message in ckpt.session_conversation)
+
+
+def _standard_summon_induction_case(monkeypatch, *, pool_usage="standard"):
+    from app.engine import one_star_adapter
+
+    ckpt = _one_star_checkpoint()
+    ckpt.characters.extend((
+        character_record("iselle", location="niflheim_lobby"),
+        character_record("fresh_hero", location="niflheim_lobby"),
+        character_record("reserve_hero", location="niflheim_lobby"),
+    ))
+    account = SimpleNamespace(
+        config=SimpleNamespace(
+            summon_pools={"basic": SimpleNamespace(usage=pool_usage)},
+        ),
+        state=SimpleNamespace(
+            guide_character_ids=["iselle"],
+            applied_event_fingerprints={},
+        ),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_account",
+        lambda _: (ckpt.characters[0], account),
+    )
+    data = router_output(
+        event_id="evt_standard_summon",
+        observer_ids=["alice", "iselle"],
+        agent_ids=["iselle"],
+        facts=[ObservableFact.only(
+            "Two summoned Heroes wake for Iselle to receive.",
+            ["iselle"],
+        )],
+        spawn=[{
+            "character_id": "fresh_hero",
+            "seed": {
+                "role": "newly summoned Hero",
+                "reason": "cold light resolves into a stranger",
+                "location": "niflheim_lobby",
+                "objectives": ["survive"],
+                "knowledge_tier": 1,
+            },
+        }],
+        activate=[{
+            "character_id": "reserve_hero",
+            "location_label": "niflheim_lobby",
+        }],
+    ).model_dump(mode="json")
+    data["state_updates"] = [{
+        "kind": "summon",
+        "target_id": "basic",
+        "value": "2",
+        "details": [],
+    }]
+    ckpt.canonical_events.append(
+        OneStarEventRouterOutput.model_validate(data)
+    )
+    return ckpt
+
+
+def _standard_summon_induction_result(
+    *,
+    event_id: str,
+    recipients: list[str] | None,
+    self_cascade: bool = False,
+) -> OneStarEventRouterOutput:
+    observer_ids = ["iselle", "fresh_hero", "reserve_hero", "pip"]
+    visible_to = recipients or ["iselle"]
+    data = router_output(
+        event_id=event_id,
+        observer_ids=observer_ids,
+        agent_ids=["iselle"] if self_cascade else [],
+        facts=[ObservableFact.only(
+            "Iselle delivers a compact Niflheim survival induction.",
+            visible_to,
+        )],
+    ).model_dump(mode="json")
+    data["state_updates"] = (
+        []
+        if recipients is None
+        else [{
+            "kind": "tutorial_delivery",
+            "target_id": "niflheim_survival_induction",
+            "value": "",
+            "details": [
+                f"recipient={character_id}"
+                for character_id in recipients
+            ],
+        }]
+    )
+    return OneStarEventRouterOutput.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("defect", "expected_error"),
+    (
+        ("omission", "exactly one tutorial_delivery"),
+        ("wrong_recipient", "recipients must exactly equal"),
+        ("self_cascade", "cannot select another next_output"),
+    ),
+)
+def test_standard_summon_induction_gets_one_full_routing_correction(
+    monkeypatch,
+    defect: str,
+    expected_error: str,
+):
+    _stub_one_star_router_context(monkeypatch)
+    ckpt = _standard_summon_induction_case(monkeypatch)
+    first = _standard_summon_induction_result(
+        event_id=f"evt_bad_induction_{defect}",
+        recipients=(
+            None
+            if defect == "omission"
+            else ["pip"]
+            if defect == "wrong_recipient"
+            else ["fresh_hero", "reserve_hero"]
+        ),
+        self_cascade=defect == "self_cascade",
+    )
+    corrected = _standard_summon_induction_result(
+        event_id=f"evt_corrected_induction_{defect}",
+        recipients=["fresh_hero", "reserve_hero"],
+    )
+    dispatcher, client = _dispatcher(first, corrected)
+
+    result = asyncio.run(
+        dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="iselle",
+            intention="I teach both arrivals what keeps them alive here.",
+        )
+    )
+
+    assert result is corrected
+    assert client.complete.await_count == 2
+    correction = client.complete.await_args_list[1].kwargs["messages"][-1]["content"]
+    assert "standard summon guide induction is incomplete" in correction
+    assert expected_error in correction
+    stored_history = "\n".join(
+        str(message.content) for message in ckpt.session_conversation
+    )
+    assert first.event_id not in stored_history
+    assert corrected.event_id in stored_history
+
+
+def test_standard_summon_induction_accepts_exact_arrival_set(monkeypatch):
+    ckpt = _standard_summon_induction_case(monkeypatch)
+    result = _standard_summon_induction_result(
+        event_id="evt_complete_induction",
+        recipients=["reserve_hero", "fresh_hero"],
+    )
+
+    _validate_one_star_standard_summon_induction(
+        ckpt,
+        actor_id="iselle",
+        result=result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("defect", "expected_error"),
+    (
+        ("cat_ii", "must remain Cat I"),
+        ("enrichment", "cannot request perception enrichment"),
+        ("extra_update", "exactly one state update"),
+    ),
+)
+def test_standard_summon_induction_rejects_extra_routing(
+    monkeypatch,
+    defect: str,
+    expected_error: str,
+):
+    ckpt = _standard_summon_induction_case(monkeypatch)
+    result = _standard_summon_induction_result(
+        event_id=f"evt_induction_{defect}",
+        recipients=["fresh_hero", "reserve_hero"],
+    )
+    if defect == "cat_ii":
+        result.requires_responders = True
+        result.required_responders = ["fresh_hero"]
+    elif defect == "enrichment":
+        next(
+            observer
+            for observer in result.observers
+            if observer.character_id == "reserve_hero"
+        ).routing_role = "perception_enrichment"
+    else:
+        result.state_updates.append(OneStarStateUpdate(
+            kind="hero_delta",
+            target_id="fresh_hero",
+            value="",
+            details=["hp_current=1"],
+        ))
+
+    with pytest.raises(ValueError, match=expected_error):
+        _validate_one_star_standard_summon_induction(
+            ckpt,
+            actor_id="iselle",
+            result=result,
+        )
+
+
+def test_standard_summon_induction_is_rechecked_before_prepare(monkeypatch):
+    ckpt = _standard_summon_induction_case(monkeypatch)
+    omitted = _standard_summon_induction_result(
+        event_id="evt_omitted_induction_before_prepare",
+        recipients=None,
+    )
+    dispatcher, client = _dispatcher()
+
+    with pytest.raises(ValueError, match="exactly one tutorial_delivery"):
+        asyncio.run(dispatcher.prepare_ruleset_event(
+            ckpt=ckpt,
+            actor_id="iselle",
+            result=omitted,
+        ))
+
+    assert client.complete.await_count == 0
+
+
+def test_standard_summon_induction_does_not_capture_other_routes(monkeypatch):
+    opening_ckpt = _standard_summon_induction_case(
+        monkeypatch,
+        pool_usage="opening_roster",
+    )
+    omitted = _standard_summon_induction_result(
+        event_id="evt_unrelated_route",
+        recipients=None,
+    )
+
+    _validate_one_star_standard_summon_induction(
+        opening_ckpt,
+        actor_id="iselle",
+        result=omitted,
+    )
+    non_guide_ckpt = _standard_summon_induction_case(monkeypatch)
+    _validate_one_star_standard_summon_induction(
+        non_guide_ckpt,
+        actor_id="pip",
+        result=omitted,
+    )
+    generic = checkpoint(characters=[character_record("iselle")])
+    generic.canonical_events.append(router_output(agent_ids=["iselle"]))
+    _validate_one_star_standard_summon_induction(
+        generic,
+        actor_id="iselle",
+        result=router_output(),
+    )
+
+
 def test_one_star_router_projections_split_static_rules_from_narrow_repair_evidence(
     monkeypatch,
 ):
@@ -1273,9 +1660,12 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
                 eligible_existing_ids=["private_reserve_candidate"],
                 fresh_generation_allowed=True,
             ),
-            "newcomer_opening": OneStarOpeningActorSummonPool(
-                usage="opening_actor",
-                character_id="one_star_newcomer",
+            "newcomer_opening": OneStarOpeningRosterSummonPool(
+                usage="opening_roster",
+                slots=[OneStarOpeningRosterBoundPlayerActorSlot(
+                    kind="bound_player_actor",
+                    character_id="one_star_newcomer",
+                )],
             ),
             "starter_roster": OneStarOpeningRosterSummonPool(
                 usage="opening_roster",
@@ -1331,6 +1721,19 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         maximum_stamina=5,
         stamina_recovery_seconds=1800,
         floor_rewards={1: cost(gold=4, building_resources=1)},
+        floor_scenarios={1: SimpleNamespace(
+            mission_id="tower_1",
+            destination="tower_floor_1",
+            premise="Reach the first-floor exit.",
+            completion_declaration="reach the exit",
+            failure_declaration="all party members fall",
+            counters=[SimpleNamespace(
+                counter_id="exit",
+                current=0,
+                target=1,
+            )],
+            pressure_beats=["The tower presses the party forward."],
+        )},
         repeat_gold_numerator=1,
         repeat_gold_denominator=4,
         repeat_gold_minimum=1,
@@ -1446,7 +1849,7 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         lambda character: hero if character.character_id == "pip" else None,
     )
     static = one_star_router_context.render_one_star_router_static_config(ckpt)
-    opening_actor_repair_evidence = (
+    newcomer_opening_repair_evidence = (
         one_star_router_context.render_one_star_repair_evidence(
             ckpt,
             state_updates=[
@@ -1560,7 +1963,10 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
     assert "synthesis_chamber_i" in static
     assert "stars=2-5" in static
     assert "rates[2=75%,3=23%,4=1.75%,5=0.25%]" in static
-    assert "newcomer_opening: usage=opening_actor; count=1" in static
+    assert (
+        "newcomer_opening: usage=opening_roster; "
+        "count=1; slots[1=bound_player_actor]"
+    ) in static
     assert (
         "starter_roster: usage=opening_roster; "
         "count=3; slots[1=fixed,2=random_existing_grade:3,3=fixed]"
@@ -1582,9 +1988,9 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         assert private_character_id not in static
     assert "eligible_existing_ids" not in static
     assert (
-        "summon_pool newcomer_opening: usage=opening_actor; "
+        "summon_pool newcomer_opening: usage=opening_roster; "
         "cost_per_pull=free; required_count=1; first_event_only=true"
-    ) in opening_actor_repair_evidence
+    ) in newcomer_opening_repair_evidence
     assert (
         "summon_pool starter_roster: usage=opening_roster; "
         "cost_per_pull=free; required_count=3; first_event_only=true"
@@ -1598,7 +2004,7 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         not in unflagged_opening_repair_evidence
     )
     for repair_evidence in (
-        opening_actor_repair_evidence,
+        newcomer_opening_repair_evidence,
         opening_repair_evidence,
         unflagged_opening_repair_evidence,
     ):

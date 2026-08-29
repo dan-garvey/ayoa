@@ -86,6 +86,7 @@ def _config(*, first_star_cap: int = 4) -> OneStarRulesConfig:
             synthesis_skill_chance_basis_points=500,
         ),
         floor_rewards={},
+        floor_scenarios={},
         repeat_gold_numerator=0,
         repeat_gold_denominator=1,
         repeat_gold_minimum=0,

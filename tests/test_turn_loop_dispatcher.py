@@ -767,7 +767,7 @@ class TestRouterContext:
             for character_id in unselected_birth_three_ids
         )
 
-    def test_one_star_opening_actor_branch_omits_dormant_master_roster(
+    def test_one_star_duo_begin_uses_bound_player_opening_roster(
         self,
         prompt_mgr: PromptManager,
     ):
@@ -777,7 +777,7 @@ class TestRouterContext:
         })
         draws = one_star_opening_roster_preview(
             ckpt,
-            "master_opening_roster",
+            "master_newcomer_opening_roster",
         )
 
         _system, opening = _render_one_star_begin(
@@ -789,11 +789,33 @@ class TestRouterContext:
         assert "## Authored Opening Participants" in opening
         assert "- the_master" in opening
         assert "- one_star_newcomer" in opening
-        assert "## Resolved One-Star Opening Roster" not in opening
-        assert all(
-            draw.existing_character_id not in opening
+        assert "Pool: master_newcomer_opening_roster" in opening
+        assert [
+            opening.index(f"{draw.slot}. {draw.existing_character_id}")
+            for draw in draws
+        ] == sorted(
+            opening.index(f"{draw.slot}. {draw.existing_character_id}")
             for draw in draws
         )
+
+    def test_one_star_newcomer_only_begin_uses_bound_only_roster(
+        self,
+        prompt_mgr: PromptManager,
+    ):
+        ckpt = _one_star_checkpoint(bindings={
+            "one_star_newcomer": "discord_2",
+        })
+
+        _system, opening = _render_one_star_begin(
+            prompt_mgr,
+            ckpt,
+            actor_id="one_star_newcomer",
+        )
+
+        assert "- one_star_newcomer" in opening
+        assert "Pool: newcomer_opening_roster" in opening
+        assert "1. one_star_newcomer" in opening
+        assert opening.count("Pool: ") == 1
 
     def test_arrive_carries_existing_dormant_character_identity(self):
         ckpt = _ckpt(bindings={"blank_arrival": "discord_1"})
@@ -2564,6 +2586,33 @@ class TestRouteIntention:
             message.get("role") == "assistant"
             and "front_signal ref=front/villain" in message.get("content", "")
             for message in messages
+        )
+
+    def test_router_owned_continuation_has_no_fallback_actor_attribution(
+        self,
+        prompt_mgr,
+        mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.player_character_id = "alice"
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_continuation(
+                ckpt=ckpt,
+                actor_id="",
+                prior_result=_router_output(),
+                original_action="I watch the floor team.",
+            )
+        )
+
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
+        assert "## Acting Character\n\n</turn_context>" in user_content
+        assert "## Acting Character\nalice" not in user_content
+        assert "source=- mode=continuation" in (
+            ckpt.session_conversation[-1].content
         )
 
     def test_failed_router_call_restores_engine_state_updates(

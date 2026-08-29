@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
@@ -18,6 +19,7 @@ from app.engine.orchestrator import (
     _with_pre_turn_resolutions,
 )
 from app.engine.turn_loop import BeatResult, broadcast_event
+from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.characters import CharacterStatus
 from app.schemas.conversation import ConversationMessage
@@ -35,7 +37,7 @@ from app.schemas.events import (
     WorldAdjudication,
 )
 from app.schemas.narrator import VisualNovelPage
-from app.schemas.one_star import OneStarEventRouterOutput
+from app.schemas.one_star import ONE_STAR_ACCOUNT_KEY, OneStarEventRouterOutput
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import VisualNovelRender, VisualNovelRenderSegment
 from app.schemas.state import (
@@ -60,6 +62,11 @@ from tests.support.factories import (
     gatehouse_checkpoint,
     router_output as _router_out,
 )
+from tests.test_one_star_atomicity import (
+    _checkpoint as _one_star_checkpoint,
+    _hero as _one_star_hero,
+    _mission as _one_star_mission,
+)
 
 
 def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
@@ -67,6 +74,119 @@ def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
         bindings=bindings or {"alice": "u1"},
         player_character_id="alice",
         pip_role="guard",
+    )
+
+
+class StatefulOneStarFakeDispatcher(FakeDispatcher):
+    """Use the production One-Star transaction hook with queued model output."""
+
+    async def prepare_ruleset_event(self, **kwargs) -> None:
+        await LLMDispatcher.prepare_ruleset_event(self, **kwargs)
+
+
+def _human_led_one_star_checkpoint(*, pin_party: bool) -> CheckpointFile:
+    party = _one_star_hero(location="tower_floor_1")
+    reserve = _one_star_hero(
+        status=CharacterStatus.dormant,
+        location="unsummoned_pool",
+        owner="",
+    )
+    reserve.character_id = "reserve"
+    reserve.name = "Reserve"
+    guide = character_record("iselle", name="Iselle", location="lobby")
+    ckpt = _one_star_checkpoint(
+        heroes=[party, reserve, guide],
+        active_mission=_one_star_mission(),
+    )
+    ckpt.session.character_bindings = {
+        "account_owner": "master-user",
+        "hero": "hero-user",
+    }
+    ckpt.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["state"][
+        "guide_character_ids"
+    ] = ["iselle"]
+    if pin_party:
+        ckpt.session.open_cat_ii_events.append(OpenCatIIEvent(
+            event_id="evt_floor_response",
+            initiator_id="floor_threat",
+            initiator_intention="The floor presses Hero for an answer.",
+            required_responders=["hero"],
+            collected_intentions={},
+        ))
+        ckpt.session.active_act_slots["hero"] = SlotEntry(
+            reason="cat_ii_responder",
+            cat_ii_event_id="evt_floor_response",
+        )
+    return ckpt
+
+
+def _one_star_router_out(
+    *,
+    event_id: str,
+    event_kind: str,
+    observer_ids: list[str],
+    agent_ids: list[str] | None = None,
+    facts: list[ObservableFact] | None = None,
+    state_updates: list[dict[str, object]] | None = None,
+) -> OneStarEventRouterOutput:
+    payload = _router_out(
+        event_id=event_id,
+        event_kind=event_kind,
+        observer_ids=observer_ids,
+        agent_ids=agent_ids,
+        facts=facts,
+    ).model_dump(mode="json")
+    payload["state_updates"] = state_updates or []
+    return OneStarEventRouterOutput.model_validate(payload)
+
+
+def _master_summon_with_guide_output() -> OneStarEventRouterOutput:
+    return _one_star_router_out(
+        event_id="evt_master_summon",
+        event_kind="state_change",
+        observer_ids=["account_owner", "iselle"],
+        agent_ids=["iselle"],
+        facts=[ObservableFact.only(
+            "The basic circle wakes Reserve for Iselle to receive.",
+            ["iselle"],
+            visual_subject_ids=["reserve"],
+        )],
+        state_updates=[{
+            "kind": "summon",
+            "target_id": "basic",
+            "value": "1",
+            "details": [],
+        }],
+    )
+
+
+def _master_visible_standard_summon(
+    *,
+    event_kind: str = "state_change",
+) -> OneStarEventRouterOutput:
+    summon = _master_summon_with_guide_output()
+    summon.event_kind = event_kind
+    summon.canonical_event.observable_facts.append(ObservableFact.only(
+        "The Master sees Reserve arrive in the lobby.",
+        ["account_owner"],
+    ))
+    return summon
+
+
+def _visible_guide_induction() -> OneStarEventRouterOutput:
+    return _one_star_router_out(
+        event_id="evt_iselle_induction",
+        event_kind="cascade_exhausted",
+        observer_ids=["account_owner", "iselle", "reserve"],
+        facts=[ObservableFact.all(
+            "Iselle gives Reserve the Niflheim survival induction."
+        )],
+        state_updates=[{
+            "kind": "tutorial_delivery",
+            "target_id": "niflheim_survival_induction",
+            "value": "",
+            "details": ["recipient=reserve"],
+        }],
     )
 
 
@@ -1038,6 +1158,748 @@ class TestSlotRejection:
         assert response.beat_ended_reason == "slot_rejected"
         assert mgr.save.call_count == 0
         assert FakeDispatcher.route_calls == []
+
+    @pytest.mark.asyncio
+    async def test_human_led_lobby_turn_preserves_remote_cat_ii_pin(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        from app.engine.one_star_adapter import (
+            load_one_star_account,
+            load_one_star_hero,
+        )
+
+        StatefulOneStarFakeDispatcher.reset()
+        monkeypatch.setattr(
+            "app.engine.orchestrator.LLMDispatcher",
+            StatefulOneStarFakeDispatcher,
+        )
+        ckpt = _human_led_one_star_checkpoint(pin_party=True)
+        original_open_event = ckpt.session.open_cat_ii_events[0].model_dump(
+            mode="json"
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+        StatefulOneStarFakeDispatcher.queue_route(
+            _master_summon_with_guide_output()
+        )
+        StatefulOneStarFakeDispatcher.queue_agent(
+            "I give Reserve the short Niflheim survival induction."
+        )
+        StatefulOneStarFakeDispatcher.queue_route(_one_star_router_out(
+            event_id="evt_iselle_induction",
+            event_kind="cascade_exhausted",
+            observer_ids=["iselle", "reserve"],
+            facts=[ObservableFact.only(
+                "Iselle teaches Reserve how to use the tower gate.",
+                ["reserve"],
+            )],
+            state_updates=[{
+                "kind": "tutorial_delivery",
+                "target_id": "niflheim_survival_induction",
+                "value": "",
+                "details": ["recipient=reserve"],
+            }],
+        ))
+        response = await orch.process_turn(TurnRequest(
+            session_id=ckpt.session.session_id,
+            user_input="Use the basic summon circle once.",
+            acting_character_id="account_owner",
+        ))
+
+        assert response.beat_ended_reason == "cascade_exhausted"
+        assert [
+            call["actor_id"]
+            for call in StatefulOneStarFakeDispatcher.route_calls
+        ] == ["account_owner", "iselle"]
+        assert ckpt.session.open_cat_ii_events[0].model_dump(mode="json") == (
+            original_open_event
+        )
+        assert ckpt.session.active_act_slots["hero"].cat_ii_event_id == (
+            "evt_floor_response"
+        )
+        assert "account_owner" not in ckpt.session.active_act_slots
+        reserve = next(
+            character
+            for character in ckpt.characters
+            if character.character_id == "reserve"
+        )
+        reserve_state = load_one_star_hero(reserve)
+        assert reserve.status is CharacterStatus.active
+        assert reserve.location == "lobby"
+        assert reserve_state is not None
+        assert reserve_state.owner_lobby_id == "lobby_a"
+        account = load_one_star_account(ckpt)[1]
+        assert account.state.tutorial_deliveries == {
+            "niflheim_survival_induction": ["reserve"]
+        }
+        assert [event.event_id for event in ckpt.canonical_events] == [
+            "evt_master_summon",
+            "evt_iselle_induction",
+        ]
+        assert mgr.save.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_human_led_lobby_summon_runs_only_guide_without_floor_pin(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        from app.engine.one_star_adapter import (
+            load_one_star_account,
+            load_one_star_hero,
+        )
+
+        StatefulOneStarFakeDispatcher.reset()
+        monkeypatch.setattr(
+            "app.engine.orchestrator.LLMDispatcher",
+            StatefulOneStarFakeDispatcher,
+        )
+        batch_admission_checks: list[bool] = []
+
+        def _would_admit_mission_batch(*_args, **_kwargs) -> bool:
+            batch_admission_checks.append(True)
+            return True
+
+        monkeypatch.setattr(
+            "app.engine.one_star_adapter."
+            "one_star_should_autonomous_mission_batch_after_result",
+            _would_admit_mission_batch,
+        )
+        ckpt = _human_led_one_star_checkpoint(pin_party=False)
+        mission_before = (
+            load_one_star_account(ckpt)[1]
+            .state.active_mission.model_dump(mode="json")
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+        StatefulOneStarFakeDispatcher.queue_route(
+            _master_summon_with_guide_output()
+        )
+        StatefulOneStarFakeDispatcher.queue_agent(
+            "I give Reserve the short Niflheim survival induction."
+        )
+        StatefulOneStarFakeDispatcher.queue_route(_one_star_router_out(
+            event_id="evt_iselle_induction",
+            event_kind="cascade_exhausted",
+            observer_ids=["iselle", "reserve"],
+            facts=[ObservableFact.only(
+                "Iselle teaches Reserve how to use the tower gate.",
+                ["reserve"],
+            )],
+            state_updates=[{
+                "kind": "tutorial_delivery",
+                "target_id": "niflheim_survival_induction",
+                "value": "",
+                "details": ["recipient=reserve"],
+            }],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id=ckpt.session.session_id,
+            user_input="Use the basic summon circle once.",
+            acting_character_id="account_owner",
+        ))
+
+        assert response.beat_ended_reason == "cascade_exhausted"
+        assert batch_admission_checks == []
+        assert [
+            call["actor_id"]
+            for call in StatefulOneStarFakeDispatcher.route_calls
+        ] == ["account_owner", "iselle"]
+        assert [
+            call["character_id"]
+            for call in StatefulOneStarFakeDispatcher.agent_calls
+        ] == ["iselle"]
+        assert ckpt.session.open_cat_ii_events == []
+        assert ckpt.session.active_act_slots == {}
+        reserve = next(
+            character
+            for character in ckpt.characters
+            if character.character_id == "reserve"
+        )
+        reserve_state = load_one_star_hero(reserve)
+        assert reserve.status is CharacterStatus.active
+        assert reserve.location == "lobby"
+        assert reserve_state is not None
+        assert reserve_state.owner_lobby_id == "lobby_a"
+        account = load_one_star_account(ckpt)[1]
+        assert account.state.active_mission is not None
+        assert account.state.active_mission.model_dump(mode="json") == (
+            mission_before
+        )
+        assert account.state.tutorial_deliveries == {
+            "niflheim_survival_induction": ["reserve"]
+        }
+        assert [event.event_id for event in ckpt.canonical_events] == [
+            "evt_master_summon",
+            "evt_iselle_induction",
+        ]
+        assert mgr.save.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_standard_summon_waits_for_guide_before_master_narration_closes(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        from app.engine.one_star_adapter import load_one_star_account
+
+        StatefulOneStarFakeDispatcher.reset()
+        monkeypatch.setattr(
+            "app.engine.orchestrator.LLMDispatcher",
+            StatefulOneStarFakeDispatcher,
+        )
+        original_agent_intend = StatefulOneStarFakeDispatcher.agent_intend
+        guide_started = asyncio.Event()
+
+        async def delayed_agent_intend(self, **kwargs):
+            guide_started.set()
+            await asyncio.sleep(0.05)
+            return await original_agent_intend(self, **kwargs)
+
+        monkeypatch.setattr(
+            StatefulOneStarFakeDispatcher,
+            "agent_intend",
+            delayed_agent_intend,
+        )
+        ckpt = _human_led_one_star_checkpoint(pin_party=False)
+        orch, _mgr = patched_orchestrator(ckpt)
+        StatefulOneStarFakeDispatcher.queue_route(
+            _master_visible_standard_summon()
+        )
+        StatefulOneStarFakeDispatcher.queue_agent(
+            "I give Reserve the short Niflheim survival induction."
+        )
+        StatefulOneStarFakeDispatcher.queue_route(_visible_guide_induction())
+
+        response = await orch.process_turn(TurnRequest(
+            session_id=ckpt.session.session_id,
+            user_input="Use the basic summon circle once.",
+            acting_character_id="account_owner",
+        ))
+
+        assert guide_started.is_set()
+        assert response.beat_ended_reason == "cascade_exhausted"
+        assert [
+            call["actor_id"]
+            for call in StatefulOneStarFakeDispatcher.route_calls
+        ] == ["account_owner", "iselle"]
+        assert [event.event_id for event in ckpt.canonical_events] == [
+            "evt_master_summon",
+            "evt_iselle_induction",
+        ]
+        assert load_one_star_account(ckpt)[1].state.tutorial_deliveries == {
+            "niflheim_survival_induction": ["reserve"]
+        }
+        assert len(StatefulOneStarFakeDispatcher.narrator_calls) == 1
+        assert [
+            buffered.event_id
+            for buffered in StatefulOneStarFakeDispatcher.narrator_calls[0][
+                "buffered_events"
+            ]
+        ] == ["evt_master_summon", "evt_iselle_induction"]
+
+    @pytest.mark.asyncio
+    async def test_standard_summon_guide_induction_overruns_one_event_cap(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        from app.engine.one_star_adapter import load_one_star_account
+
+        StatefulOneStarFakeDispatcher.reset()
+        monkeypatch.setattr(
+            "app.engine.orchestrator.LLMDispatcher",
+            StatefulOneStarFakeDispatcher,
+        )
+        ckpt = _human_led_one_star_checkpoint(pin_party=False)
+        ckpt.session.config.settings.max_events_per_beat = 1
+        orch, _mgr = patched_orchestrator(ckpt)
+        StatefulOneStarFakeDispatcher.queue_route(
+            _master_visible_standard_summon()
+        )
+        StatefulOneStarFakeDispatcher.queue_agent(
+            "I give Reserve the short Niflheim survival induction."
+        )
+        StatefulOneStarFakeDispatcher.queue_route(_visible_guide_induction())
+
+        response = await orch.process_turn(TurnRequest(
+            session_id=ckpt.session.session_id,
+            user_input="Use the basic summon circle once.",
+            acting_character_id="account_owner",
+        ))
+
+        assert response.beat_ended_reason == "max_events_cap"
+        assert [
+            call["actor_id"]
+            for call in StatefulOneStarFakeDispatcher.route_calls
+        ] == ["account_owner", "iselle"]
+        assert [
+            call["character_id"]
+            for call in StatefulOneStarFakeDispatcher.agent_calls
+        ] == ["iselle"]
+        assert [event.event_id for event in ckpt.canonical_events] == [
+            "evt_master_summon",
+            "evt_iselle_induction",
+        ]
+        assert load_one_star_account(ckpt)[1].state.tutorial_deliveries == {
+            "niflheim_survival_induction": ["reserve"]
+        }
+        assert [
+            buffered.event_id
+            for buffered in StatefulOneStarFakeDispatcher.narrator_calls[0][
+                "buffered_events"
+            ]
+        ] == ["evt_master_summon", "evt_iselle_induction"]
+
+    @pytest.mark.asyncio
+    async def test_standard_summon_guide_induction_precedes_forced_query_render(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        from app.engine.one_star_adapter import load_one_star_account
+
+        StatefulOneStarFakeDispatcher.reset()
+        monkeypatch.setattr(
+            "app.engine.orchestrator.LLMDispatcher",
+            StatefulOneStarFakeDispatcher,
+        )
+        ckpt = _human_led_one_star_checkpoint(pin_party=False)
+        ckpt.session.character_bindings = {
+            "account_owner": "master-user",
+        }
+        owner, account = load_one_star_account(ckpt)
+        account.state.active_mission = None
+        owner.mechanics = dict(owner.mechanics)
+        owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
+        orch, _mgr = patched_orchestrator(ckpt)
+        StatefulOneStarFakeDispatcher.queue_route(
+            _master_visible_standard_summon(event_kind="query_response")
+        )
+        StatefulOneStarFakeDispatcher.queue_agent(
+            "I give Reserve the short Niflheim survival induction."
+        )
+        StatefulOneStarFakeDispatcher.queue_route(_visible_guide_induction())
+
+        await orch.process_turn(TurnRequest(
+            session_id=ckpt.session.session_id,
+            user_input="Use the basic summon circle once.",
+            acting_character_id="account_owner",
+        ))
+
+        assert [
+            call["actor_id"]
+            for call in StatefulOneStarFakeDispatcher.route_calls
+        ] == ["account_owner", "iselle"]
+        assert [event.event_id for event in ckpt.canonical_events] == [
+            "evt_master_summon",
+            "evt_iselle_induction",
+        ]
+        assert load_one_star_account(ckpt)[1].state.tutorial_deliveries == {
+            "niflheim_survival_induction": ["reserve"]
+        }
+        assert [
+            buffered.event_id
+            for buffered in StatefulOneStarFakeDispatcher.narrator_calls[0][
+                "buffered_events"
+            ]
+        ] == ["evt_master_summon", "evt_iselle_induction"]
+
+    @pytest.mark.asyncio
+    async def test_standard_summon_errors_when_owed_guide_is_not_dispatchable(
+        self,
+    ):
+        from app.engine.turn_loop import run_beat
+
+        StatefulOneStarFakeDispatcher.reset()
+        ckpt = _human_led_one_star_checkpoint(pin_party=False)
+        ckpt.session.active_act_slots["iselle"] = SlotEntry(
+            reason="cat_ii_responder",
+            cat_ii_event_id="evt_unrelated",
+        )
+        dispatcher = StatefulOneStarFakeDispatcher()
+        StatefulOneStarFakeDispatcher.queue_route(
+            _master_visible_standard_summon()
+        )
+
+        with pytest.raises(
+            RuntimeError,
+            match="standard summon guide is not dispatchable",
+        ):
+            await run_beat(
+                ckpt=ckpt,
+                dispatcher=dispatcher,
+                actor_id="account_owner",
+                intention="Use the basic summon circle once.",
+                one_star_human_led_mission_guard=True,
+            )
+
+        assert StatefulOneStarFakeDispatcher.agent_calls == []
+        assert StatefulOneStarFakeDispatcher.narrator_calls == []
+
+    @pytest.mark.asyncio
+    async def test_standard_summon_empty_guide_turn_rolls_back(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        StatefulOneStarFakeDispatcher.reset()
+        monkeypatch.setattr(
+            "app.engine.orchestrator.LLMDispatcher",
+            StatefulOneStarFakeDispatcher,
+        )
+        ckpt = _human_led_one_star_checkpoint(pin_party=False)
+        orch, mgr = patched_orchestrator(ckpt)
+        StatefulOneStarFakeDispatcher.queue_route(
+            _master_visible_standard_summon()
+        )
+        StatefulOneStarFakeDispatcher.queue_agent("")
+
+        with pytest.raises(
+            RuntimeError,
+            match="guide did not produce the required routed induction",
+        ):
+            await orch.process_turn(TurnRequest(
+                session_id=ckpt.session.session_id,
+                user_input="Use the basic summon circle once.",
+                acting_character_id="account_owner",
+            ))
+
+        reserve = next(
+            character
+            for character in ckpt.characters
+            if character.character_id == "reserve"
+        )
+        assert reserve.status is CharacterStatus.dormant
+        assert ckpt.canonical_events == []
+        assert ckpt.session.active_act_slots == {}
+        assert StatefulOneStarFakeDispatcher.narrator_calls == []
+        assert mgr.save.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_human_led_follower_floor_progress_rolls_back_master_beat(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        from app.engine.one_star_adapter import (
+            load_one_star_account,
+            load_one_star_hero,
+        )
+
+        StatefulOneStarFakeDispatcher.reset()
+        monkeypatch.setattr(
+            "app.engine.orchestrator.LLMDispatcher",
+            StatefulOneStarFakeDispatcher,
+        )
+        ckpt = _human_led_one_star_checkpoint(pin_party=True)
+        original_open_event = ckpt.session.open_cat_ii_events[0].model_dump(
+            mode="json"
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+        StatefulOneStarFakeDispatcher.queue_route(
+            _master_summon_with_guide_output()
+        )
+        StatefulOneStarFakeDispatcher.queue_agent(
+            "I make the deployed Hero clear the floor while I teach Reserve."
+        )
+        StatefulOneStarFakeDispatcher.queue_route(_one_star_router_out(
+            event_id="evt_iselle_smuggles_floor_progress",
+            event_kind="state_change",
+            observer_ids=["iselle"],
+            state_updates=[{
+                "kind": "mission_update",
+                "target_id": "mission_1",
+                "value": "",
+                "details": [
+                    "counter=clear:1/1",
+                    "report_kind=progress",
+                    "credit=hero",
+                ],
+            }],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id=ckpt.session.session_id,
+            user_input="Use the basic summon circle once.",
+            acting_character_id="account_owner",
+        ))
+
+        assert response.beat_ended_reason == "one_star_human_led_mission_rejected"
+        assert "human-led floor" in response.output_text
+        assert [
+            call["actor_id"]
+            for call in StatefulOneStarFakeDispatcher.route_calls
+        ] == ["account_owner", "iselle"]
+        assert ckpt.canonical_events == []
+        assert ckpt.session.open_cat_ii_events[0].model_dump(mode="json") == (
+            original_open_event
+        )
+        assert set(ckpt.session.active_act_slots) == {"hero"}
+        reserve = next(
+            character
+            for character in ckpt.characters
+            if character.character_id == "reserve"
+        )
+        reserve_state = load_one_star_hero(reserve)
+        assert reserve.status is CharacterStatus.dormant
+        assert reserve.location == "unsummoned_pool"
+        assert reserve_state is not None
+        assert reserve_state.owner_lobby_id == ""
+        account = load_one_star_account(ckpt)[1]
+        assert account.state.resources.gold == 20
+        assert account.state.active_mission is not None
+        assert account.state.active_mission.counters[0].current == 0
+        assert mgr.save.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_human_led_floor_progress_is_rejected_without_a_pin(
+        self,
+        patched_orchestrator,
+    ):
+        from app.engine.one_star_adapter import load_one_star_account
+
+        ckpt = _human_led_one_star_checkpoint(pin_party=False)
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_one_star_router_out(
+            event_id="evt_smuggled_floor_progress",
+            event_kind="state_change",
+            observer_ids=["account_owner"],
+            state_updates=[{
+                "kind": "mission_update",
+                "target_id": "mission_1",
+                "value": "",
+                "details": [
+                    "counter=clear:1/1",
+                    "report_kind=progress",
+                    "credit=hero",
+                ],
+            }],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id=ckpt.session.session_id,
+            user_input="Advance the deployed Hero through the floor.",
+            acting_character_id="account_owner",
+        ))
+
+        assert response.beat_ended_reason == "one_star_human_led_mission_rejected"
+        assert "human-led floor" in response.output_text
+        account = load_one_star_account(ckpt)[1]
+        assert account.state.active_mission is not None
+        assert account.state.active_mission.counters[0].current == 0
+        assert ckpt.canonical_events == []
+        assert ckpt.session.active_act_slots == {}
+        assert mgr.save.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_human_led_mission_cross_front_result_rolls_back(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        from app.engine.one_star_adapter import OneStarTransactionError
+
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.open_cat_ii_events.append(OpenCatIIEvent(
+            event_id="evt_floor_response",
+            initiator_id="alice",
+            initiator_intention="Alice crosses the dangerous floor.",
+            required_responders=["alice"],
+            collected_intentions={},
+        ))
+        ckpt.session.active_act_slots["alice"] = SlotEntry(
+            reason="cat_ii_responder",
+            cat_ii_event_id="evt_floor_response",
+        )
+        monkeypatch.setattr(
+            "app.engine.one_star_adapter."
+            "one_star_master_has_human_led_mission",
+            lambda *_args, **_kwargs: True,
+        )
+        monkeypatch.setattr(
+            "app.engine.one_star_adapter."
+            "one_star_master_may_act_while_mission_responder_pinned",
+            lambda *_args, **_kwargs: True,
+        )
+
+        def _reject(*_args, **_kwargs):
+            raise OneStarTransactionError("cross-front mutation")
+
+        monkeypatch.setattr(
+            "app.engine.one_star_adapter."
+            "validate_one_star_human_led_mission_result",
+            _reject,
+        )
+        monkeypatch.setattr(
+            "app.engine.one_star_adapter."
+            "one_star_should_autonomous_mission_batch_after_result",
+            lambda *_args, **_kwargs: False,
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_router_out(
+            event_id="evt_invalid_cross_front",
+            event_kind="state_change",
+            observer_ids=["alice", "bob"],
+            facts=[ObservableFact.all("Bob reaches into Alice's floor.")],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I intervene on the floor.",
+            acting_character_id="bob",
+        ))
+
+        assert response.beat_ended_reason == "one_star_human_led_mission_rejected"
+        assert "human-led floor" in response.output_text
+        assert [event.event_id for event in ckpt.canonical_events] == []
+        assert ckpt.session.open_cat_ii_events[0].event_id == (
+            "evt_floor_response"
+        )
+        assert set(ckpt.session.active_act_slots) == {"alice"}
+        assert mgr.save.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_autonomous_mission_continuation_cannot_use_owner_authority(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        from app.engine.one_star_adapter import (
+            OneStarTransactionError,
+            load_one_star_account,
+        )
+
+        StatefulOneStarFakeDispatcher.reset()
+        monkeypatch.setattr(
+            "app.engine.orchestrator.LLMDispatcher",
+            StatefulOneStarFakeDispatcher,
+        )
+        ckpt = _one_star_checkpoint(
+            heroes=[_one_star_hero(location="tower_floor_1")],
+            active_mission=_one_star_mission(),
+        )
+        ckpt.session.character_bindings = {
+            "account_owner": "master-user",
+        }
+        account_before = load_one_star_account(ckpt)[1].model_dump(mode="json")
+        orch, mgr = patched_orchestrator(ckpt)
+        StatefulOneStarFakeDispatcher.queue_route(_one_star_router_out(
+            event_id="evt_master_watches_floor",
+            event_kind="query_response",
+            observer_ids=["account_owner"],
+            facts=[ObservableFact.only(
+                "The Master watches Hero on the first floor.",
+                ["account_owner"],
+                visual_subject_ids=["hero"],
+            )],
+        ))
+        StatefulOneStarFakeDispatcher.queue_route(_one_star_router_out(
+            event_id="evt_continuation_spends_as_master",
+            event_kind="state_change",
+            observer_ids=["account_owner", "hero"],
+            state_updates=[{
+                "kind": "catalogue_apply",
+                "target_id": "synthesis_chamber",
+                "value": "1",
+                "details": [],
+            }],
+        ))
+
+        with pytest.raises(
+            OneStarTransactionError,
+            match="catalogue_apply.*autonomous mission batch",
+        ):
+            await orch.process_turn(TurnRequest(
+                session_id=ckpt.session.session_id,
+                user_input="I watch the floor team.",
+                acting_character_id="account_owner",
+            ))
+
+        assert [
+            call["actor_id"]
+            for call in StatefulOneStarFakeDispatcher.route_calls
+        ] == ["account_owner", ""]
+        assert ckpt.canonical_events == []
+        assert ckpt.session_conversation == []
+        assert load_one_star_account(ckpt)[1].model_dump(mode="json") == (
+            account_before
+        )
+        assert mgr.save.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_npc_mission_batch_waits_for_summon_guide_handoff(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        from app.engine.one_star_adapter import load_one_star_account
+
+        StatefulOneStarFakeDispatcher.reset()
+        monkeypatch.setattr(
+            "app.engine.orchestrator.LLMDispatcher",
+            StatefulOneStarFakeDispatcher,
+        )
+        ckpt = _human_led_one_star_checkpoint(pin_party=False)
+        ckpt.session.character_bindings = {
+            "account_owner": "master-user",
+        }
+        orch, mgr = patched_orchestrator(ckpt)
+        StatefulOneStarFakeDispatcher.queue_route(
+            _master_summon_with_guide_output()
+        )
+        StatefulOneStarFakeDispatcher.queue_agent(
+            "I give Reserve the compact Niflheim survival induction."
+        )
+        StatefulOneStarFakeDispatcher.queue_route(_one_star_router_out(
+            event_id="evt_iselle_closes_induction",
+            event_kind="cascade_exhausted",
+            observer_ids=["iselle", "reserve"],
+            facts=[ObservableFact.only(
+                "Iselle gives Reserve the compact survival induction.",
+                ["iselle", "reserve"],
+            )],
+            state_updates=[{
+                "kind": "tutorial_delivery",
+                "target_id": "niflheim_survival_induction",
+                "value": "",
+                "details": ["recipient=reserve"],
+            }],
+        ))
+        StatefulOneStarFakeDispatcher.queue_route(_one_star_router_out(
+            event_id="evt_floor_batch_continues",
+            event_kind="cascade_exhausted",
+            observer_ids=["account_owner", "hero"],
+            facts=[ObservableFact.all(
+                "Hero presses deeper into the watched first floor."
+            )],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id=ckpt.session.session_id,
+            user_input="Use the basic summon circle once.",
+            acting_character_id="account_owner",
+        ))
+
+        assert response.beat_ended_reason == "cascade_exhausted"
+        assert [
+            call["actor_id"]
+            for call in StatefulOneStarFakeDispatcher.route_calls
+        ] == ["account_owner", "iselle", ""]
+        assert [
+            call["character_id"]
+            for call in StatefulOneStarFakeDispatcher.agent_calls
+        ] == ["iselle"]
+        assert [event.event_id for event in ckpt.canonical_events] == [
+            "evt_master_summon",
+            "evt_iselle_closes_induction",
+            "evt_floor_batch_continues",
+        ]
+        assert load_one_star_account(ckpt)[1].state.tutorial_deliveries == {
+            "niflheim_survival_induction": ["reserve"],
+        }
+        assert mgr.save.call_count >= 1
 
 
 class TestPendingCombatRolls:

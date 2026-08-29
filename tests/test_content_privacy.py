@@ -6,6 +6,7 @@ from app.schemas.content_privacy import (
     REDACTED_IMPORT_SENTINEL,
     redact_imported_asset_text,
     redact_imported_content_metadata_text,
+    sanitize_module_metadata,
 )
 
 
@@ -85,6 +86,57 @@ def test_content_metadata_redactor_preserves_ordinary_prose() -> None:
     )
 
     assert redact_imported_content_metadata_text(prose) == prose
+
+
+@pytest.mark.parametrize(
+    "redactor",
+    (redact_imported_asset_text, redact_imported_content_metadata_text),
+)
+@pytest.mark.parametrize(
+    "prose",
+    (
+        "[ Account resources: 44 Gold, 5 Gems, 4 Building Resources ]",
+        "Current resources: 3 torches, one rope, and a day of water.",
+    ),
+)
+def test_content_redactors_preserve_ordinary_resource_prose(
+    redactor,
+    prose: str,
+) -> None:
+    assert redactor(prose) == prose
+
+
+@pytest.mark.parametrize(
+    "private_metadata",
+    (
+        'resources={"informants": 2}',
+        '"resources": ["spy network"]',
+        "resources: {'hidden cache': 1}",
+    ),
+)
+def test_content_redactor_removes_structured_resource_metadata(
+    private_metadata: str,
+) -> None:
+    cleaned = redact_imported_asset_text(
+        f"Visible summary. {private_metadata}"
+    )
+
+    assert cleaned.startswith("Visible summary.")
+    assert REDACTED_IMPORT_SENTINEL in cleaned
+    assert "informants" not in cleaned
+    assert "spy network" not in cleaned
+    assert "hidden cache" not in cleaned
+
+
+def test_module_metadata_sanitizer_drops_resources_but_keeps_resource_prose() -> None:
+    sanitized = sanitize_module_metadata({
+        "summary": "Account resources: 44 Gold and 5 Gems.",
+        "resources": {"informants": 2},
+    })
+
+    assert sanitized == {
+        "summary": "Account resources: 44 Gold and 5 Gems.",
+    }
 
 
 @pytest.mark.parametrize(

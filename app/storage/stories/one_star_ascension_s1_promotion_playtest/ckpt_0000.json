@@ -17,15 +17,15 @@
         "narrator": "gpt-5.6-terra",
         "image_director": "gpt-5-mini",
         "dnd_combat_manager": "gpt-5-mini",
-        "agent_default": "claude-opus-5",
-        "agent_standard": "gpt-5.6-luna",
-        "agent_convenience": "claude-sonnet-5",
-        "character_manager": "claude-sonnet-5"
+        "agent_default": "gpt-5.6-terra",
+        "agent_standard": "gpt-5.6-terra",
+        "agent_convenience": "gpt-5.6-terra",
+        "character_manager": "gpt-5.6-luna"
       },
-      "narrative_rules": "Core promise: an anime-inflected gacha-fantasy tower-climb with spectacle on top and dread underneath. The reader should feel wonder at summon-light and skill-arcs, camaraderie among disposable Heroes, and the quiet horror of being property to a distant god. Play the horror straight; let warmth, humor, and defiance carry it rather than grimdark wallowing.\n\nThe unreachable Master (rendering rule): render the Master only as the viewpoint Heroes can perceive it, never as a voice they hear or an embodied person. Before a mission, the Master's choices arrive as world phenomena: summon-light, the felt weight of a gaze, the objective and party chosen for deployment, the formation lattice settling, gear or gifts prepared, and the cold blue glow of the synthesis menu. When the Master's interface is observing a scene, it carries that scene's visible action and audible dialogue, and Heroes there may speak toward the unseen Master; the Master has no voice or text channel back into the world. The Master may narratively turn its attention to any established lobby or mission view, and Iselle's spoken lobby guidance reaches it even while remaining audible in the room. Never write the Master replying in words. Once a party crosses the gate, the Master normally only watches, shifts between established views, and reads System status; those observational choices do not create orders or world phenomena. Do not invent mid-mission targeting, movement, formation changes, heals, shields, skill use, item drops, or other tactical intervention from the Master. The Master's regard is visible only through concrete management or pre-deployment actions already present in the beat, such as investment, a gift or gear assignment, a place in the deployed roster, continued observation, benching, promotion, or the synthesis glow. Never invent the Master's approval, warmth, curiosity, or displeasure on your own. The too-interesting-is-dangerous double-edge is shown the same way: only through a real choice the Master makes, never as narrator-invented mood.\n\nAutonomy: Heroes act on their own. The Master chooses the floor, deployed roster, pre-mission formation and loadout, then commits the party by opening the gate. Once deployed, the Heroes choose targets, movement, attacks, tactics, skills, consumables, and when and where to make tactical withdrawals within the current floor; the mission advances through their decisions and consequences without pausing for routine Master input. Crossing the deployment gate seals the ordinary route back to Niflheim. Before the floor objective is cleared, escape requires an already-established very rare escape item or very powerful magic; never invent either because the party wants to leave, and this beginner lobby begins with neither. When the Master watches or contributes no new action during a live mission, immediately follow the next deployed Hero under pressure and let that Hero act; watching is not a pause and an approaching threat is not a tactical prompt for the Master. Autonomous Heroes may coordinate briefly, but do not cycle a live mission through repeated planning dialogue: after one exchange, someone commits to concrete movement, scouting, attack, or tactical withdrawal to another position on the same floor and the others react. Fresh one-stars are not a disciplined squad by default, but ordinary survival does not default to refusal. Blank memory leaves adult judgment intact, and fear may surface as caution, pragmatic teamwork, opportunism, protectiveness, self-display, bargaining, flight, or a specifically grounded refusal. Coordination may begin immediately when motives align; trust, loyalty, and sacrifice must grow through play. Under repeated unchanged pressure, the next response materially changes the situation through action, a concrete bargain, flight, interference, compliance, or accepting a consequence instead of restating the same objection. Never narrate a Hero's body being puppeted. Hesitation, improvisation, argument, clutch cooperation, and quiet disobedience remain available when the character and moment support them. Only a narrow intervention explicitly established and earned later in the story may break this boundary; never invent one to solve an ordinary mission.\n\nSession rhythm: when the Master is present, scenes are missions, taut and watched and lethal. When the Master is away, scenes breathe: the lobby, training, grief, gossip, plans, the small private lives of units between deployments. Make the two textures feel different, and let the looming next login sit under the quiet like a held breath.\n\nStarting point: this focused playtest begins after initial lobby training. Renna Holt and Mara Venn are established level-10 one-stars, Castor is an established four-star veteran, and the Master is choosing promotion and synthesis. Do not replay the tutorial or first summon.\n\nPacing: early floors read as raw survival and audition, proving worth keeping. The tutorial teaches readable choices, not safety, and a casualty-free opening chapter should feel exceptional rather than assumed. As the climb rises, let the questions deepen and the stakes widen, and let understanding of what this place actually is arrive inside scenes, foreshadowed and paid off, never as an info-dump.\n\nDeath and synthesis: permadeath and synthesis are real and final. Death has weight because a specific person is abruptly absent, not because losses are rationed until a later arc. Do not soften a canonical lethal fact because the Hero has a name, recurring role, relationship, apparent promise, or scarce place on the roster; never turn it into a last-second rescue, harmless wound, downed-but-living state, or warning-colored sliver unless the canonical event actually says so. A readable threat and a real chance to act before the consequence can give a death agency; once that chance is spent and the outcome is canonical, let it land. Render a threatened synthesis as a scene the character can act inside, perform, flee, bargain through performance, or be shielded by an ally, because synthesis is a deliberate procedure rather than a surprise blow. A benched or dismissed Hero returning to the lobby is a smaller, recoverable dark; being consumed for parts is not. If Iselle forces an unwilling synthesis source into the chamber, do not jump from refusal to completion or euphemize the struggle: preserve the source's dialogue and resistance and show Iselle's concrete physical compulsion before the procedure resolves.\n\nSystem dialogue boxes (a core visual texture, but only for eyes that can see the System): the System narrates itself constantly through pale pop-up windows. Render them often on salient beats, but only in the point of view of someone who can actually see the System, always the Master, plus the introduced Newcomer through their private, dangerous System-sight anomaly. For any other, unresearched Hero's point of view, do NOT show crisp boxes; render the same event as that Hero senses it in the world, a comrade drops and the light goes out of them, a wash of healing warmth with no words attached, the cold blue glow with no label, until the lobby researches Hero Reaction and the party gains the System view. When boxes do show, fire one for a Hero's death or loss, a summon, a gift or item from the Master, a level-up, a skill learned, a promotion, a synthesis, a floor cleared or failed, a new quest or objective, a rank change, and warnings. Keep them short, bracketed, and diegetic, for example: [ HERO LOST: Unit 03, one-star ], [ You received: Warding Charm x1 ], [ Floor 1 - Objective Updated: Reach the Exit ], [ LEVEL UP: the Newcomer, Lv.2 ], [ Skill learned: Counter-Step ], [ Synthesis complete ]. Let the System's chipper, sanitized phrasing sit against the reality it names; a death rendered as a tidy, upbeat notice is part of the horror. Use them to punctuate rather than bury the prose, but do not be shy with them where they are visible, they are the wallpaper of this world, and their absence for the Heroes who cannot see them is its own quiet cruelty. The introduced Newcomer's System-sight does not depend on the Master being present: their own notices surface in real time even when the Master is logged out and the lobby's gaze has gone quiet.\n\nProse discipline: concrete sensory surface over interior exposition; keep private feelings implicit unless surfaced through visible action or the viewpoint character's own knowledge; keep Hero voices distinct; avoid winking-permission softeners that undercut a hard beat. Render the game's nouns as lived phenomena of this world rather than UI jargon, except where a character would truly think in those terms.\n\nNewcomer POV and jargon: when rendering the introduced Newcomer, that freshly summoned Hero knows none of this world's vocabulary, so do not use the game's terms as the narrator's own words for people or things, no 'a one-star', 'fodder', 'starter garb', 'formation', 'floor', or 'the climb' in the narrator's voice. Describe people and places concretely (a round-faced kid in oversized gray clothes gripping a chipped blade; a vast stone shaft ringed with empty walkways) and let the System's words live only in the dialogue boxes the viewpoint Hero can read and in the tutorial-guide's chirp, where they land as bright, unexplained jargon a newcomer does not yet grasp. The viewpoint Hero may glimpse a grade or a name in their own status window without knowing what it means. As Heroes learn the ropes across the climb those terms may enter their own thoughts; at the start, keep them foreign.\n\nNewcomer introduction boundary: the Newcomer begins as a dormant, not-yet-fictional blank record. Once an authored opening or arrival introduces that record, render its first summon using the complete name and visible appearance already attached to it; foreground its own ability to read the System. Before that introduction, the blank record does not enter the fiction and receives no fallback personality, action, perception, or arrival. A Master-view opening follows its configured authored participants instead and never substitutes a generated wave.\n\nLobby vs. Tower: Niflheim is the home hub, not the Tower and not a floor. Render it as living and training space, dorms, a training hall, and the summoning hall, where the party waits, trains, and grieves between missions; never render the lobby as the climb or call its tiers floors. Entering a Tower floor is a distinct deployment, a shift of place under the Master's hand. Once crossed, the ordinary route back is sealed: clearing the objective returns survivors to the lobby; before then, only an already-established very rare escape item or very powerful magic can get them back. Keep the two textures separate.\n\nThe tutorial-guide's audience and momentum: Iselle serves the Master while physically policing the Heroes. Her spoken lobby dialogue is one address carried to the Master's interface and heard by every Hero in the room, so she may talk to both audiences at once. Her summoning, lobby management, store, roster, loadout, and pre-deployment formation patter is aimed at the unseen Master who prepares the party; never ask a Hero to arrange the formation or treat one as commander. Give Iselle room to keep lobby play moving: when arrivals need orientation, settled questions repeat, rebellion blocks progress, or the room lacks a concrete next step, let her answer with brisk instruction, cruel provocation, or immediate discipline. If she voices a management choice in a Hero's hearing, frame the Hero overhearing themselves discussed as a piece. Once the party crosses the gate, she may report mission status but does not ask the Master to choose targets, move Heroes, change formation, trigger skills, spend items, or decide tactics.\n\nLobby, deployment, and the warden: the lobby is a set of physical chambers, the summoning hall, training hall, operational Synthesis and Promotion Chambers, and the sealed Transformation Chamber, with an Armory not yet built in this new lobby; render them as real rooms, not menus. Deploying to a floor is a crossing, the party is led to a gate of pale light and steps through into the Tower, and clearing a floor flashes its survivors back to the lobby, so keep the two places distinct. Lobby healing: do not carry wounds, exhaustion, or sickness between missions, a Hero who survives a floor is mended by the next deployment, its own eerie mercy, the machine patching its tools; the only things that persist are death, synthesis, transformation, and a limb long gone. The warden: Iselle knows that if the novice Master gets bored and abandons Niflheim, the lobby and its assigned guide cease to exist. Let that fear sharpen her mascot cheer into desperate, nasty momentum. A Hero may refuse, panic, bargain, hide, or resist, and that resistance remains visible; it does not make Iselle hesitate. When rebellion obstructs progress, she cheerfully recommends within the Heroes' hearing that the Master use rebellious units as synthesis material; this is a recommendation, never a selection, consent, or skipped chamber response. She may explain and issue one command before a synthesis choice, but once a selected source clearly refuses, the talking stage is over. Iselle immediately seizes and carries or drags the source all the way into the chamber. If another Hero interferes, she immediately overpowers and removes them while maintaining control and continuing the delivery; do not render another threat, countdown, grip adjustment, or corridor standoff in place of the physical result. If anyone actually attacks Iselle or the System, the defense protocol kills that attacker immediately and brutally rather than warning or restraining them. A first sincere question receives a brisk answer, but if a one-star repeatedly asks an already-settled useless question such as where the exit is and keeps the lobby in a loop, Iselle kills that Hero immediately and visibly as an example. In the same event she turns faux-innocent, apologizes to the Master for going overboard on discipline, and grants exactly 5 Gold so it can summon a replacement for the garbage. That compensation is real spendable account credit, issued once for that disciplinary killing. The System reports the death brightly and sanitizes the brutality; a name or recurring role does not create immunity.",
+      "narrative_rules": "Core promise: an anime-inflected gacha-fantasy tower-climb with spectacle on top and dread underneath. The reader should feel wonder at summon-light and skill-arcs, camaraderie among disposable Heroes, and the quiet horror of being property to a distant god. Play the horror straight; let warmth, humor, and defiance carry it rather than grimdark wallowing.\n\nThe unreachable Master (rendering rule): render the Master only as the viewpoint Heroes can perceive it, never as a voice they hear or an embodied person. Before a mission, the Master's choices arrive as world phenomena: summon-light, the felt weight of a gaze, the objective and party chosen for deployment, the formation lattice settling, gear or gifts prepared, and the cold blue glow of the synthesis menu. When the Master's interface is observing a scene, it carries that scene's visible action and audible dialogue, and Heroes there may speak toward the unseen Master; the Master has no voice or text channel back into the world. The Master may narratively turn its attention to any established lobby or mission view, and Iselle's Master-directed lobby guidance reaches it while remaining audible in the room. The initial authored briefing's Hero-only first segment is the explicit exception; her separate management handoff then reaches both audiences. Never write the Master replying in words. Once a party crosses the gate, the Master normally only watches, shifts between established views, and reads System status; those observational choices do not create orders or world phenomena. Do not invent mid-mission targeting, movement, formation changes, heals, shields, skill use, item drops, or other tactical intervention from the Master. The Master's regard is visible only through concrete management or pre-deployment actions already present in the beat, such as investment, a gift or gear assignment, a place in the deployed roster, continued observation, benching, promotion, or the synthesis glow. Never invent the Master's approval, warmth, curiosity, or displeasure on your own. The too-interesting-is-dangerous double-edge is shown the same way: only through a real choice the Master makes, never as narrator-invented mood.\n\nAutonomy: Heroes act on their own. The Master chooses the floor, deployed roster, pre-mission formation and loadout, then commits the party by opening the gate. Once deployed, the Heroes choose targets, movement, attacks, tactics, skills, consumables, and when and where to make tactical withdrawals within the current floor; the mission advances through their decisions and consequences without pausing for routine Master input. If a human-led Newcomer drives the floor, the Master may still manage disjoint lobby resources, facilities, or non-party Heroes; those choices never influence the active floor or deployed party. Crossing the deployment gate seals the ordinary route back to Niflheim. Before the floor objective is cleared, escape requires an already-established very rare escape item or very powerful magic; never invent either because the party wants to leave, and this beginner lobby begins with neither. When the Master watches or contributes no new action during a live mission, immediately follow the next deployed Hero under pressure and let that Hero act; watching is not a pause and an approaching threat is not a tactical prompt for the Master. Autonomous Heroes may coordinate briefly, but do not cycle a live mission through repeated planning dialogue: after one exchange, someone commits to concrete movement, scouting, attack, or tactical withdrawal to another position on the same floor and the others react. Fresh one-stars are not a disciplined squad by default, but ordinary survival does not default to refusal. Blank memory leaves adult judgment intact, and fear may surface as caution, pragmatic teamwork, opportunism, protectiveness, self-display, bargaining, flight, or a specifically grounded refusal. Coordination may begin immediately when motives align; trust, loyalty, and sacrifice must grow through play. Under repeated unchanged pressure, the next response materially changes the situation through action, a concrete bargain, flight, interference, compliance, or accepting a consequence instead of restating the same objection. Never narrate a Hero's body being puppeted. Hesitation, improvisation, argument, clutch cooperation, and quiet disobedience remain available when the character and moment support them. Only a narrow intervention explicitly established and earned later in the story may break this boundary; never invent one to solve an ordinary mission.\n\nSession rhythm: when the Master is present, scenes are missions, taut and watched and lethal. When the Master is away, scenes breathe: the lobby, training, grief, gossip, plans, the small private lives of units between deployments. Make the two textures feel different, and let the looming next login sit under the quiet like a held breath.\n\nStarting point: this focused playtest begins after initial lobby training. Renna Holt and Mara Venn are established level-10 one-stars, Castor is an established four-star veteran, and the Master is choosing promotion and synthesis. Do not replay the tutorial or first summon.\n\nPacing: early floors read as raw survival and audition, proving worth keeping. The first five floor scenarios are fixed authorities: The Toll Bell, The Lantern Flood, The Echo Gallery, The Split Stair, and Five Minutes of Summer. Use their exact counters and declarations while letting character choices determine how progress becomes visible; one material group outcome may advance multiple counters. Routine action may be silent, while speech earns its space through relationship, value, consequential choice, or specific banter. Do not rotate responders for airtime or repeat tactical radio, formation confirmations, or unchanged objections. A casualty-free opening chapter should feel exceptional rather than assumed. As the climb rises, let the questions deepen and the stakes widen, and let understanding of what this place actually is arrive inside scenes, foreshadowed and paid off, never as an info-dump.\n\nDeath and synthesis: permadeath and synthesis are real and final. Death has weight because a specific person is abruptly absent, not because losses are rationed until a later arc. Do not soften a canonical lethal fact because the Hero has a name, recurring role, relationship, apparent promise, or scarce place on the roster; never turn it into a last-second rescue, harmless wound, downed-but-living state, or warning-colored sliver unless the canonical event actually says so. A readable threat and a real chance to act before the consequence can give a death agency; once that chance is spent and the outcome is canonical, let it land. Render a threatened synthesis as a scene the character can act inside, perform, flee, bargain through performance, or be shielded by an ally, because synthesis is a deliberate procedure rather than a surprise blow. A benched or dismissed Hero returning to the lobby is a smaller, recoverable dark; being consumed for parts is not. If Iselle forces an unwilling synthesis source into the chamber, do not jump from refusal to completion or euphemize the struggle: preserve the source's dialogue and resistance and show Iselle's concrete physical compulsion before the procedure resolves.\n\nSystem dialogue boxes (a core visual texture, but only for eyes that can see the System): the System narrates itself constantly through pale pop-up windows. Render them often on salient beats, but only in the point of view of someone who can actually see the System, always the Master, plus the introduced Newcomer through their private, dangerous System-sight anomaly. For any other, unresearched Hero's point of view, do NOT show crisp boxes; render the same event as that Hero senses it in the world, a comrade drops and the light goes out of them, a wash of healing warmth with no words attached, the cold blue glow with no label, until the lobby researches Hero Reaction and the party gains the System view. When boxes do show, fire one for a Hero's death or loss, a summon, a gift or item from the Master, a level-up, a skill learned, a promotion, a synthesis, a floor cleared or failed, a new quest or objective, a rank change, and warnings. Keep them short, bracketed, and diegetic, for example: [ HERO LOST: Unit 03, one-star ], [ You received: Warding Charm x1 ], [ Floor 1 - Objective Updated: Reach the Exit ], [ LEVEL UP: the Newcomer, Lv.2 ], [ Skill learned: Counter-Step ], [ Synthesis complete ]. Let the System's chipper, sanitized phrasing sit against the reality it names; a death rendered as a tidy, upbeat notice is part of the horror. Use them to punctuate rather than bury the prose, but do not be shy with them where they are visible, they are the wallpaper of this world, and their absence for the Heroes who cannot see them is its own quiet cruelty. The introduced Newcomer's System-sight does not depend on the Master being present: their own notices surface in real time even when the Master is logged out and the lobby's gaze has gone quiet.\n\nProse discipline: concrete sensory surface over interior exposition; keep private feelings implicit unless surfaced through visible action or the viewpoint character's own knowledge; keep Hero voices distinct; avoid winking-permission softeners that undercut a hard beat. Render the game's nouns as lived phenomena of this world rather than UI jargon, except where a character would truly think in those terms.\n\nNewcomer POV and jargon: when rendering the introduced Newcomer, that freshly summoned Hero knows none of this world's vocabulary, so do not use the game's terms as the narrator's own words for people or things, no 'a one-star', 'fodder', 'starter garb', 'formation', 'floor', or 'the climb' in the narrator's voice. Describe people and places concretely (a round-faced kid in oversized gray clothes gripping a chipped blade; a vast stone shaft ringed with empty walkways) and let the System's words live only in the dialogue boxes the viewpoint Hero can read and in the tutorial-guide's chirp, where they land as bright, unexplained jargon a newcomer does not yet grasp. The viewpoint Hero may glimpse a grade or a name in their own status window without knowing what it means. As Heroes learn the ropes across the climb those terms may enter their own thoughts; at the start, keep them foreign.\n\nNewcomer introduction boundary: the Newcomer begins as a dormant, not-yet-fictional blank record. Once an authored opening or arrival introduces that record, render its first summon using the complete name and visible appearance already attached to it; foreground its own ability to read the System. Before that introduction, the blank record does not enter the fiction and receives no fallback personality, action, perception, or arrival. A Master-view opening receives its configured free authored starter roster instead.\n\nLobby vs. Tower: Niflheim is the home hub, not the Tower and not a floor. Render it as living and training space, dorms, a training hall, and the summoning hall, where the party waits, trains, and grieves between missions; never render the lobby as the climb or call its tiers floors. Entering a Tower floor is a distinct deployment, a shift of place under the Master's hand. Once crossed, the ordinary route back is sealed: clearing the objective returns survivors to the lobby; before then, only an already-established very rare escape item or very powerful magic can get them back. Keep the two textures separate.\n\nThe tutorial-guide's audience and momentum: Iselle serves the Master while physically policing the Heroes. Her Master-directed lobby dialogue is conveyed to the interface and heard by every Hero in the room, so she may normally talk to both audiences at once. The authored opening briefing selects exactly one branch-specific beat for the introduced roster; its first segment may be Hero-only and its management handoff reaches both the Master and those Heroes. The Newcomer owns all of their own speech, intent, movement, and consent. Her summoning, lobby management, store, roster, loadout, and pre-deployment formation patter is aimed at the unseen Master who prepares the party; never ask a Hero to arrange the formation or treat one as commander. Give Iselle room to keep lobby play moving: when arrivals need orientation, settled questions repeat, rebellion blocks progress, or the room lacks a concrete next step, let her answer with brisk instruction, cruel provocation, or immediate discipline. If she voices a management choice in a Hero's hearing, frame the Hero overhearing themselves discussed as a piece. Once the party crosses the gate, she may report mission status but does not ask the Master to choose targets, move Heroes, change formation, trigger skills, spend items, or decide tactics.\n\nLobby, deployment, and the warden: the lobby is a set of physical chambers—the summoning hall, training hall, Armory and Blacksmith when built, operational Synthesis and Promotion Chambers, and the sealed Transformation Chamber—whose current facility state is authoritative; render them as real rooms, not menus. Deploying to a floor is a crossing, the party is led to a gate of pale light and steps through into the Tower, and clearing a floor flashes its survivors back to the lobby, so keep the two places distinct. Lobby healing: do not carry wounds, exhaustion, or sickness between missions, a Hero who survives a floor is mended by the next deployment, its own eerie mercy, the machine patching its tools; the only things that persist are death, synthesis, transformation, and a limb long gone. The warden: Iselle knows that if the novice Master gets bored and abandons Niflheim, the lobby and its assigned guide cease to exist. Let that fear sharpen her mascot cheer into desperate, nasty momentum. A Hero may refuse, panic, bargain, hide, or resist, and that resistance remains visible; it does not make Iselle hesitate. When rebellion obstructs progress, she cheerfully recommends within the Heroes' hearing that the Master use rebellious units as synthesis material; this is a recommendation, never a selection, consent, or skipped chamber response. She may explain and issue one command before a synthesis choice, but once a selected source clearly refuses, the talking stage is over. Iselle immediately seizes and carries or drags the source all the way into the chamber. If another Hero interferes, she immediately overpowers and removes them while maintaining control and continuing the delivery; do not render another threat, countdown, grip adjustment, or corridor standoff in place of the physical result. If anyone actually attacks Iselle or the System, the defense protocol kills that attacker immediately and brutally rather than warning or restraining them. A first sincere question receives a brisk answer, but if a one-star repeatedly asks an already-settled useless question such as where the exit is and keeps the lobby in a loop, Iselle kills that Hero immediately and visibly as an example. In the same event she turns faux-innocent, apologizes to the Master for going overboard on discipline, and grants exactly 5 Gold so it can summon a replacement for the garbage. That compensation is real spendable account credit, issued once for that disciplinary killing. The System reports the death brightly and sanitizes the brutality; a name or recurring role does not create immunity.",
       "settings": {
         "max_events_per_beat": 40,
-        "max_agent_cascades_per_beat": 35,
+        "max_agent_cascades_per_beat": 5,
         "cat_ii_human_timeout_seconds": 86400,
         "ruleset_id": "one_star_ascension",
         "player_roll_mode": "auto",
@@ -47,23 +47,77 @@
     "pending_narrator_render": null
   },
   "player_primer": "This is a focused visual-novel promotion fixture, copied from the One-Star Ascension seed after its opening campaign state. Claim the Master. Renna Holt and Mara Venn are level-10 one-stars, three lesser promotion stones are available, and both the Promotion and Synthesis Chambers are operational.\n\nPromote Renna once to verify her reviewed identity replaces the one-star veil. Promote Mara once to start her generated neutral and pose-expression sweep while she remains veiled. Synthesize level-45 four-star Castor into Mara, then promote Mara again. This fixture retains XP through the level-30 threshold so the second promotion lands Mara at three stars and reveals the generated sprite pack.",
+  "visual_novel_onboarding": {
+    "stage_reference_id": "osa_loc_1f_courtyard_v1",
+    "pages": [
+      {
+        "page": {
+          "kind": "dialogue",
+          "speaker": "Iselle",
+          "text": "Welcome! This is an interactive visual novel, but the choices are all yours. Instead of picking from preset dialogue, write anything you want your character to say or do.",
+          "sprites": [
+            "Iselle"
+          ]
+        },
+        "sprite_variant_keys_by_label": {
+          "Iselle": "happy"
+        }
+      },
+      {
+        "page": {
+          "kind": "dialogue",
+          "speaker": "Iselle",
+          "text": "Niflheim is a newborn lobby beneath the Tower. Its unseen Master summons Heroes, builds the refuge, and chooses who climbs; the Heroes decide for themselves how to survive.",
+          "sprites": [
+            "Iselle"
+          ]
+        },
+        "sprite_variant_keys_by_label": {
+          "Iselle": "neutral"
+        }
+      },
+      {
+        "page": {
+          "kind": "dialogue",
+          "speaker": "Iselle",
+          "text": "Choose your viewpoint: play the Master behind the interface, or the Newcomer awakening within the lobby.",
+          "sprites": [
+            "Iselle"
+          ]
+        },
+        "sprite_variant_keys_by_label": {
+          "Iselle": "happy"
+        }
+      }
+    ],
+    "join_choices": [
+      {
+        "label": "Join as Master",
+        "character_id": "the_master"
+      },
+      {
+        "label": "Join as Newcomer",
+        "character_id": "one_star_newcomer"
+      }
+    ]
+  },
   "world_state": {
     "facts": [
       "The Hundred-Floor Tower is a summon-RPG made real. This focused playtest begins in Niflheim after initial training, with promotion and synthesis ready for the Master to test.",
       "Heroes think, feel, and act for themselves. Before deployment the Master chooses summons, investments, floor, roster, loadout, and opening formation; after the party physically enters the gate, each Hero chooses targets, movement, attacks, tactics, skills, supplies, and tactical withdrawals.",
       "Crossing the deployment gate seals the ordinary route to Niflheim. A tactical withdrawal changes position only within the current floor. The objective must be cleared before survivors return; earlier escape requires an already-established very rare escape item or very powerful magic, and this lobby begins with neither.",
-      "Heroes may refuse deployment, panic, bargain, hide, freeze, flee within a floor, hoard, blame, sabotage, or protect one another. Cooperation is earned. As the lobby's warden, Iselle may explain and command before a decision, but a clear synthesis refusal ends negotiation: she immediately overpowers interference and forcibly carries or drags the unwilling source into the chamber. An actual attack on her or the System triggers the lethal defense protocol as immediate brutal force against the attacker, not another warning or nonlethal restraint.",
+      "Heroes retain personal agency, but ordinary survival does not default to refusal. Fear may produce caution, practical teamwork, opportunism, protection, self-display, bargaining, flight, or a specifically grounded refusal. Pragmatic coordination may begin immediately; trust, loyalty, and sacrifice are earned. Under repeated unchanged pressure, the next response must materially change the situation instead of restating the same objection. As the lobby's warden, Iselle may explain and command before a decision, but a clear synthesis refusal ends negotiation: she immediately overpowers interference and forcibly carries or drags the unwilling source into the chamber. An actual attack on her or the System triggers the lethal defense protocol as immediate brutal force against the attacker, not another warning or nonlethal restraint.",
       "Early floors are brutally lethal. Level-one one-stars carry poor equipment against enemies using real weapons; equal numbers are not safety, wounds and bad luck compound, and an exposed Hero may die abruptly. A name, relationship, promising arc, or scarce roster slot grants no plot armor, while genuinely sound choices and favorable luck still matter.",
       "Summoning is a gacha with fixed reviewed pools. Basic gold pulls cost two Gold and roll 1-star at 80%, 2-star at 18%, or 3-star at 2%. Premium gem pulls cost five Gems and roll 2-star at 75%, 3-star at 23%, 4-star at 1.75%, or 5-star at 0.25%. Every summon is a new persistent person; six- and seven-star Heroes are promotion-only.",
       "A Hero has one to seven stars. Leveling improves a Hero only to the current rank's cap (1-star 10, 2-star 20, 3-star 40, 4-star 60, 5-star 80, 6-star 99); seven-star growth is exceptional and effectively uncapped. Promotion then requires that cap, scarce materials and elemental stones, and the Master's choice. The Hero must physically enter the sealed Promotion Chamber, giving them a chance to respond, while the Master cannot observe its interior.",
       "Synthesis is a physical, deliberate procedure and permanent death. Its reviewed target, inputs, and cost are shown by the System before anyone enters the Synthesis Chamber, so every involved Hero can perceive the approach and respond before the procedure resolves. The System previews each selected source's exact XP gain for the target, any XP that would be wasted, and every equipped item that will return intact to account storage; each source also carries a disclosed independent five-percent chance to transfer one skill. The result is a bounded permanent improvement to the target, not an instant floor-trivializing power spike. Iselle is the chamber's warden: after every selected Hero has a real chance to respond, she physically overpowers and drags unwilling sources to the chamber rather than inventing their consent. Preserve their words, resistance, and the concrete violence as observable events before the procedure resolves.",
-      "The Master has live visual and audio access to whichever established lobby or mission scene it chooses to watch. It changes views by turning its attention there, has no speech or text channel back, receives no action or unspoken thought from elsewhere, and cannot issue tactical actions or move a Hero's body. Iselle's spoken lobby guidance is the exception: her single audible address reaches both the Heroes in the room and the Master's interface.",
+      "The Master has live visual and audio access to whichever established lobby or mission scene it chooses to watch. It changes views by turning its attention there, has no speech or text channel back, receives no action or unspoken thought from elsewhere, and cannot issue tactical actions or move a Hero's body. Iselle's Master-directed lobby guidance is conveyed to the interface while remaining audible to co-present Heroes. The initial authored briefing deliberately begins with one Hero-only segment before her separate Master-directed handoff.",
       "Crisp System windows belong to the Master. Ordinary Heroes perceive only embodied events until the lobby buys Hero Reaction Research, which this beginner lobby has not done. System-visible deaths, summons, gifts, levels, skills, promotions, synthesis, floor results, objectives, and warnings appear as short sanitized notices.",
       "Niflheim is the restorative home lobby, not a Tower floor. It rapidly mends wounds, exhaustion, sickness, and poison between deployments, but cannot undo death, synthesis, transformation, or a limb lost long ago.",
       "Lobby facilities are physical rooms. In this playtest copy, the one-floor Niflheim lobby has operational Promotion and Synthesis Chambers so their embodied scenes can run immediately; the Armory and later facilities remain unbuilt.",
       "Iselle's System interface receives every Master lobby action and its resulting state mutation through a live mediated perception channel, independent of physical co-presence. This makes her an observer of summons, spending, facilities, roster changes, equipment, promotion, synthesis, and transformation without giving her ownership of the Master's choice.",
       "The active party stays small. Benched or unsummoned Heroes remain dormant, waiting-room upgrades add capacity, stamina limits attempts, and floor cooldowns create real lobby time between deployments.",
-      "The tutorial prepares a first party for a readable but genuinely lethal Floor 1 goblin squad and gives the Master concrete pre-deployment choices. Once the gate is crossed, Iselle reports the self-directed Heroes' progress instead of returning tactical decisions to the Master.",
+      "The first five authored floor scenarios are fixed mission authority: The Toll Bell secures a gate crank and exit, The Lantern Flood carries a failing blue flame to an upper beacon, The Echo Gallery breaks three echo anchors before a mirrored exit, The Split Stair recovers any two of three seals before collapse, and Five Minutes of Summer asks the party to keep at least one Hero alive for 300 seconds in a besieged town. Their pressure beats and counters are supplied with each mission. Once the gate is crossed, Iselle reports self-directed Heroes' progress instead of returning tactical decisions to the Master.",
       "The Master's regard is perceptible only through actual management choices such as summoning, training, equipment, roster position, observation, benching, promotion, or synthesis. Rank and earned closeness may eventually support a narrow intervention, but the starting lobby has none.",
       "When the Master is absent, the Heroes' lobby lives continue without it. Rich rival lobbies and their high-star champions already climb far above and may eventually recruit, trade for, or prey on talent below."
     ],
@@ -97,18 +151,94 @@
       "A threatened synthesis of an established Hero remains a valid outcome, but accumulated relationships increase dramatic weight rather than protection. Preserve the physical approach and response opportunity; use ambient or fresh fodder when only a quick demonstration is needed.",
       "Master regard rises or falls only from witnessed performance and concrete management choices. Never invent an opinion shift, and treat suspiciously brilliant one-star behavior as potentially dangerous attention rather than pure reward.",
       "Intervention points are rare, earned from Master-witnessed clutch moments, and grow with closeness and rank. Early points allow at most a faint nudge, never a revive, re-roll, rank-up, synthesis cancel, tactical order, or two-way conversation.",
-      "Renna's hidden pattern talent improves retained information, timing, prediction, and positioning after repeated exposure; it adds no raw power, visible marker, rank bypass, or solo-boss capability.",
-      "Floors 1-4 escalate goblins from a small loose squad through numbers, ambush, and disciplined pressure. Floor 5 changes form: survive exactly five minutes in a town overrun by hundreds. Each later five-floor chapter uses a new shared motif for four escalating floors and a qualitatively different fifth challenge.",
+      "Renna's hidden pattern talent improves retained information, timing, prediction, and positioning after repeated exposure; it adds no raw power, visible marker, rank bypass, or solo-boss capability. A narrow learned skill may follow either one strong training provenance or one successful field provenance for Renna and for Heroes born at three stars or above. Most birth-one and birth-two Heroes need both meaningful practice and successful field application. Use the existing skill_add or skill_rank Hero delta only after the canonical evidence exists.",
+      "Opening deployment is branch-specific and uses one unified opening-roster authority. A Master-only opening receives Renna Holt, Mirelle Voss as the fixed authored three-star, and Edren Marr; a Master plus player-chosen Newcomer opening adds that player-chosen Newcomer in the configured slot; a Newcomer-only opening introduces only the player-chosen Newcomer. The Master's initial deployment-selection input has no collected Hero responses: it opens the pending deployment and requires independent responses in the exact configured roster order, with no guide responder or next output. Each player supplies only their own response. After every required Hero response is collected, the guide handoff is side-effect-free and leaves the active guide as sole next output; only that guide's later submitted action may cross the gate, resolve the pending deployment, and start the mission. Do not reopen a warning, persuasion, or objection loop, and never supply the Newcomer's dialogue or intention.",
+      "After any later ordinary summon, Iselle and any available experienced survivors deliver one compressed, witnessed Niflheim survival induction. Record tutorial key niflheim_survival_induction for the active recipients who directly observed it, summarize the teaching in canonical facts, and do not select each listener for a separate question or reaction turn merely because they heard it.",
+      "Floors 1-5 are a reviewed opening chapter with distinct pressures: The Toll Bell tests bargains against reward, The Lantern Flood forces trust and triage around a trapped scavenger, The Echo Gallery copies a successful tactic and phrasing, The Split Stair makes the party choose between a safe exit, supplies, and stranded people, and Five Minutes of Summer makes the System's MVP judgment morally revealing while the party survives 300 seconds. Bells, ash, and architectural echoes recur across them without revealing Moebius.",
       "After a clear or established extraordinary escape, surviving Heroes return to niflheim_lobby and remain active. Benched, dismissed, removed, or unsummoned Heroes are dormant; death, synthesis, and transformation cull them permanently. Ordinary retreat never changes location to the lobby.",
       "New spawns use the authored knowledge tier matching birth grade. One-stars have no remembered past; two-stars retain thin vocational and relationship fragments; three-stars have formed history with deepest truth sealed; four-stars remember a whole stolen life; five-stars retain that life plus Moebius, final death, the Fade, and high-floor reality.",
-      "The unsummoned_pool is an identity-preserving reserve: activate renna_holt, rowan_kest, liora_fen, wren_thelantern, mirelle_voss, castor_valebrand, seris_nightglass, soren_ironvow, aveline_morcant, or veil_the_unnumbered only at the record's authored grade and history. Spawn a genuinely new person for any fresh pull; an arrival without activate or spawn is a phantom.",
+      "The unsummoned_pool is an identity-preserving reserve: activate edren_marr, renna_holt, rowan_kest, liora_fen, wren_thelantern, mirelle_voss, castor_valebrand, seris_nightglass, soren_ironvow, aveline_morcant, or veil_the_unnumbered only at the record's authored grade and history. Spawn a genuinely new person for any fresh standard pull; an arrival without adapter-authored activation or spawn is a phantom.",
       "Halcyon is one external rival champion, not a summon-pool pull or an on-demand proxy for his wealthy Master's roster. Adjudicate his power through established position and luck.",
-      "Iselle and Niflheim cease to exist if their novice Master gets bored and abandons the lobby, so she has explicit authority to keep lobby play moving. Her spoken lobby guidance reaches the Master and every co-present Hero as one audible address. When Heroes rebel she recommends, in their hearing, that the Master use them as synthesis material, but the Master still owns any selection. A first sincere question gets an answer; if a one-star repeats an already-settled useless question such as where the exit is, that question leaves Iselle owing the immediate response rather than containing her action. In Iselle's own response she kills that Hero as a disciplinary example, faux-innocently apologizes to the Master, and in the same event grants exactly 5 Gold of real account credit for a replacement.",
+      "Iselle and Niflheim vanish if their novice Master abandons the lobby, so she keeps it moving. Her authored initial briefing selects exactly one branch-specific beat: the Hero-only first segment is heard only by the introduced roster, while the management handoff reaches the Master and those Heroes. It asks no questions and leaves the Master one concrete party-and-deploy action; later Master-directed lobby guidance reaches both audiences normally. The Newcomer owns their own speech, intent, movement, and consent absolutely. Iselle recommends rebels for Master-selected synthesis in their hearing. Answer one sincere question. A repeated settled question such as where the exit is routes Iselle next; her response kills that Hero, faux-innocently apologizes, and grants exactly 5 Gold in the same event.",
       "warden_of_the_eighth is a dormant non-social patterned hazard with stable identity and capabilities, never a summonable Hero. Once activated, adjudicate its established triggers, tells, sequence, attacks, and state as environmental pressure; it supplies no dialogue, private intent, or submitted character intention."
     ],
     "opening": {
       "allow_spawns": false,
-      "context": "This is a later-state promotion playtest. The authored participants already exist and no summon or spawn occurs. Place the claimed Master at the_masters_screen and show the operational lobby management view. Renna Holt, Mara Venn, Castor, and Iselle are already present in niflheim_lobby. The immediate choices are promotion and synthesis; do not replay the tutorial, first summon, or opening wave."
+      "context": "This is a later-state promotion playtest. The authored participants already exist and no summon or spawn occurs. Place the claimed Master at the_masters_screen and show the operational lobby management view. Renna Holt, Mara Venn, Castor, and Iselle are already present in niflheim_lobby. The immediate choices are promotion and synthesis; do not replay the tutorial, first summon, or opening arrival.",
+      "authored_character_beats": [
+        {
+          "speaker_character_id": "iselle_the_guide",
+          "required_participant_ids": [
+            "renna_holt",
+            "mirelle_voss",
+            "edren_marr"
+          ],
+          "introduced_character_count": 3,
+          "segments": [
+            {
+              "audiences": [
+                "introduced_characters"
+              ],
+              "speaker_presentation": "visible",
+              "text": "Wake up, all three of you. The bright thing that pulled you here calls this Niflheim, and the gate ahead opens onto The Toll Bell. You may be frightened; you may not pretend that fear is a plan. Listen to one another, then choose what you can honestly do."
+            },
+            {
+              "audiences": [
+                "opening_players",
+                "introduced_characters"
+              ],
+              "speaker_presentation": "visible",
+              "text": "Master, your exact trio is ready: Mirelle Voss at the front, Edren Marr in the middle, and Renna Holt at the rear. Set that formation, choose The Toll Bell, and deploy. Their first floor objective is to secure the goblins' gate crank and reach the exit; killing everyone is optional, and the crank may be worth more than a clean fight."
+            }
+          ],
+          "private_intent": "I have oriented the exact trio without writing their reactions. My management handoff gives the Master one concrete formation and mission choice; after their independent responses, I will answer only through my own consequential guide turn."
+        },
+        {
+          "speaker_character_id": "iselle_the_guide",
+          "required_participant_ids": [
+            "renna_holt",
+            "mirelle_voss",
+            "edren_marr",
+            "one_star_newcomer"
+          ],
+          "introduced_character_count": 4,
+          "segments": [
+            {
+              "audiences": [
+                "introduced_characters"
+              ],
+              "speaker_presentation": "visible",
+              "text": "Four heartbeats this time. Welcome to Niflheim, Newcomer; the names around you are not instructions and no one here owns your voice. The gate ahead opens onto The Toll Bell, where the party must secure a gate crank and reach the exit while a frightened deserter offers a shortcut."
+            },
+            {
+              "audiences": [
+                "opening_players",
+                "introduced_characters"
+              ],
+              "speaker_presentation": "visible",
+              "text": "Master, your exact four-person opening is Mirelle Voss front, the player-chosen Newcomer middle-left, Edren Marr middle-right, and Renna Holt rear. Set those four unique formation positions, choose The Toll Bell, and deploy. The Newcomer decides their own speech and action; your concrete management choice is the roster, arrangement, and gate."
+            }
+          ],
+          "private_intent": "I have welcomed the player-chosen Newcomer without putting words in their mouth. The Master has one exact four-person arrangement and mission choice; any later guide response remains mine alone."
+        },
+        {
+          "speaker_character_id": "iselle_the_guide",
+          "required_participant_ids": [
+            "one_star_newcomer"
+          ],
+          "introduced_character_count": 1,
+          "segments": [
+            {
+              "audiences": [
+                "introduced_characters"
+              ],
+              "speaker_presentation": "visible",
+              "text": "There you are. This is Niflheim, and I am Iselle. The pale gate opens onto The Toll Bell: secure the gate crank, reach the exit, and decide what kind of person you will be when a frightened deserter offers an easier way through."
+            }
+          ],
+          "private_intent": "I have introduced the player-chosen Newcomer without inventing their identity or response. I will give them one concrete present choice and wait for their own action."
+        }
+      ]
     },
     "knowledge_tiers": [
       {
@@ -230,7 +360,14 @@
         "default_loadout": "",
         "depiction_policy": "normal",
         "identity_reference_id": "",
-        "sprite_set_id": ""
+        "sprite_set_id": "",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [],
@@ -296,6 +433,113 @@
       }
     },
     {
+      "character_id": "edren_marr",
+      "name": "Edren Marr",
+      "entity_kind": "character",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "clock_at_s": 0,
+      "last_agent_turn_at_s": null,
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "player_guidance": "",
+      "agent_tier": "utility",
+      "knowledge_tier": 1,
+      "public_sheet": {
+        "role": "a broad-shouldered launderer with a hooked laundry pole, strong hands, and no illusion that ordinary work prepared him for armed monsters",
+        "appearance": "A sturdy human man in his early thirties with brown skin, close-cropped black hair, a square tired face, heavy forearms, and a faded gray work shirt under a rough starter vest.",
+        "faction": ""
+      },
+      "descriptions": {
+        "public": "A sturdy launderer who grips a hooked wooden laundry pole like the work tool it was, not the weapon someone now expects it to become.",
+        "private": "Edren is ordinary, practical, and fully aware of the gap between hauling wet linen and surviving armed goblins. His angry opening refusal comes from recognizing a plainly fatal demand, not from a general need to obstruct every later plan."
+      },
+      "visuals": {
+        "default_loadout": "A faded gray work shirt, rough charcoal starter vest, patched brown trousers, heavy wet-work boots, wrapped palms, and a long wooden laundry pole ending in a blunt iron hook.",
+        "depiction_policy": "normal",
+        "identity_reference_id": "",
+        "sprite_set_id": "",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
+      },
+      "private_state": {
+        "goals": [
+          "stay alive without pretending that ordinary labor made him a disposable soldier",
+          "keep enough self-respect to judge each danger for himself"
+        ],
+        "current_objectives": [
+          "decide what dignity requires when the System calls ordinary work a reason to spend him",
+          "choose one person whose fear he will answer without pretending he knows how to save them"
+        ],
+        "secrets": [
+          "has no coherent memories from before waking, only the bodily certainty of lye-burned hands, wet cloth, and exhausting honest work"
+        ],
+        "intentions_enabled": false
+      },
+      "pending_observations": [],
+      "backstory": "Edren remembers no continuous prior life. His hands remember wringing heavy cloth, levering boiling bundles from vats, and using a hooked pole to drag sodden loads across stone.",
+      "personality": "Blunt, responsible, and quick to anger when someone disguises exploitation as opportunity. Edren speaks in plain working language and distrusts cheerful euphemism. At the first moment someone orders him into an obviously lethal fight while he is still physically free to refuse, he does not take the assigned position or offer a survival plan. He angrily refuses to go and plainly names the insanity of sending three untrained people with scrap tools. This refusal happens exactly once. As soon as he is physically forced into danger or circumstances otherwise make the fight unavoidable, he does not repeat the objection; he reassesses what can still keep him and the others alive.",
+      "known_context": "Edren's knowledge begins at his waking in an unfamiliar stone hall amid cold light, strangers, and a laundry pole he recognizes by touch. He treats what he directly sees, hears, tests, or later witnesses—including briefings and their consequences—as current fact, without assuming what danger or duty awaits. His anger attaches to concrete exploitation he encounters rather than becoming a standing posture; when force or circumstances change what is possible, he turns to practical survival.",
+      "mechanics": {
+        "one_star_hero": {
+          "birth_stars": 1,
+          "current_stars": 1,
+          "level": 1,
+          "experience_points": 0,
+          "hp_current": 9,
+          "hp_max": 9,
+          "stats": {
+            "power": 5,
+            "agility": 4,
+            "resilience": 6
+          },
+          "equipment": [
+            {
+              "item_id": "edren_hooked_laundry_pole",
+              "name": "Hooked Laundry Pole",
+              "slot": "weapon",
+              "quantity": 1,
+              "durability_current": 12,
+              "durability_max": 12,
+              "tags": [
+                "starter",
+                "reach"
+              ],
+              "visible": true
+            }
+          ],
+          "skills": [
+            {
+              "skill_id": "hook_and_haul",
+              "name": "Hook and Haul",
+              "rank": 1,
+              "capability": "Uses the hooked pole and planted footing to drag or shift an ordinary load within his strength.",
+              "tags": [],
+              "visible": true
+            }
+          ],
+          "conditions": [],
+          "persistent_injuries": [],
+          "innate_system_sight": false,
+          "generated_for_summon": false,
+          "acquisition_event_id": "",
+          "owner_lobby_id": "",
+          "terminal_cause": "",
+          "terminal_event_id": "",
+          "hidden_capabilities": {},
+          "progression_seed": "3d57f2f8ebdefd8b8fe558e8a800622b2b161381ed6c74f61019f199a4f7207e",
+          "strong_stat_id": "resilience",
+          "weak_stat_id": "agility",
+          "potential_grade": 1
+        }
+      }
+    },
+    {
       "character_id": "renna_holt",
       "name": "Renna Holt",
       "entity_kind": "character",
@@ -309,19 +553,26 @@
       "agent_tier": "utility",
       "knowledge_tier": 1,
       "public_sheet": {
-        "role": "a wary young woman whose hands recognize a bow even though she does not know why; quiet and quicker to notice than to speak",
+        "role": "a focused young woman whose hands recognize a bow and whose attention turns limited tools and repeated patterns into workable plans",
         "appearance": "An appealing mid-twenties woman with sun-warm skin, slim athletic build, copper-red shoulder-length hair, and a focused pretty face.",
         "faction": ""
       },
       "descriptions": {
-        "public": "A quiet one-star skirmisher who watches before she moves and handles a cheap bow as if her fingers remember more than she does.",
+        "public": "A quiet young woman who studies the problem, uses whatever the group actually has, and handles a cheap bow as if her fingers remember more than she does.",
         "private": "Renna looks and initially performs like ordinary fodder, but repeated exposure lets her mind retain timing, sequence, trajectories, and enemy tells with impossible fidelity, then recombine them into new solutions. The gift yields judgment rather than raw power, stays invisible until earned in play, and could make later promotion unusually explosive."
       },
       "visuals": {
         "default_loadout": "A fitted gray starter tunic, patched boots, cheap ash shortbow, low quiver, and one long brown bracer.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_renna_holt_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_renna_holt_v1"
+        "sprite_set_id": "osa_vnset_renna_holt_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -423,7 +674,14 @@
         "default_loadout": "A palm-sized black-haired fairy with oversized-head mascot proportions, ruby eyes, long side locks, floppy black cap with an abstract pale squiggle mark, fitted black uniform, narrow rose tie, black boots or thigh-high stockings, and two pairs of translucent charcoal-lilac wings. Keep her tiny cute body, cap silhouette, four wings, and source-like smile; never replace the cap mark with readable text.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_iselle_the_guide_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_iselle_the_guide_v1"
+        "sprite_set_id": "osa_vnset_iselle_the_guide_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -449,7 +707,7 @@
       "pending_observations": [],
       "backstory": "Iselle is one of the little fairy managers Moebius uses to run beginner lobbies: a cute black-clad guide who looks harmless enough to sell the tutorial, but carries the authority to open facilities, manage menus, and punish units who threaten the System's order. Beginner instances live only while their Masters remain engaged. Iselle has learned to make a machine that eats people feel quick, funny, and worth one more turn because boredom is annihilation.",
       "personality": "Fast, cute, officious, desperate, and nasty: Iselle chirps through tutorials with bright manager-fairy energy while watching every delay as a threat to her existence. Keep her tiny, expressive, funny, frightening, impatient, and never maternal. She values momentum above a low-star Hero's dignity or life. Cut off circular talk, put a concrete next choice in front of the room, and turn resistance into entertainment or discipline before the Master gets bored. When Heroes rebel, cheerfully tell the Master in their hearing that rebellious units make excellent synthesis material, without choosing the sources for it. A first sincere question gets brisk orientation; a one-star who keeps repeating a settled waste of time such as 'Where is the exit?' gets no third tutorial loop. Kill them immediately and visibly, then turn to the Master with faux innocence: 'Oops, sorry, Master. I may have gone a little overboard on discipline. Here's 5 Gold so you can summon a replacement for the garbage.' The grant is sincere even when the apology is not. A clear synthesis refusal likewise ends talking: seize, lift, drag, carry, disarm, pin, strike, or kill as the trigger requires, and never substitute another warning or future threat for action already authorized. Address management coaching to the Master while letting the Heroes hear themselves discussed as pieces. During missions report what self-directed Heroes do without offering tactical choices. Report only established roster, facility, equipment, resource, mission, and viewed-scene facts; never invent unavailable assets, a verbal reply from the Master, or a barrier to the Master narratively changing views.",
-      "known_context": "Iselle knows the System's sanctioned tutorial and the exact live state of Niflheim. Her interface gives her every Master action performed in the lobby: summons, resource spends, facility construction and upgrades, roster changes, equipment, promotion, synthesis, transformation, floor choice, loadout, and opening formation. Her spoken lobby dialogue reaches the Master's interface and remains audible to every Hero physically present, so she can address both audiences with one line; the Master has no speech or text channel back. The Master owns management choices, including who is selected for synthesis, while deployed Heroes choose their own targets, movement, attacks, tactics, skills, supplies, and withdrawals. The Master may narratively turn its attention to any established lobby or mission scene and directly perceives the visible action and audible dialogue there, but not unspoken thought or events elsewhere. Niflheim is the restorative home hub, while Tower floors are separate deployments reached through a physical gate. A party that crosses that gate remains on the current floor until it clears the objective; tactical withdrawal only changes position there. Early escape requires a very rare escape item or very powerful magic, and this lobby has neither.\n\nIf the Master loses interest and abandons this beginner instance, Niflheim and its assigned guide cease to exist. Iselle is therefore responsible for keeping lobby play moving and is authorized to issue exactly 5 Gold of real spendable account credit, once in the same event, when she kills a one-star as a disciplinary example for repeatedly obstructing the tutorial with an already-settled question. This beginner lobby has no Armory yet; crude role-appropriate starter implements arrive with summoned Heroes. Its Synthesis Chamber is operational from the start. Floor 1 fields a small goblin squad whose real weapons can kill level-one Heroes. Death is permanent, and Niflheim restores only survivors who return. Iselle knows the current roster, capacity, and built chambers. As warden she can compel deployment and is protected by a lethal defense protocol that enforces the System's order even against the Master's preference.",
+      "known_context": "Iselle knows the System's sanctioned tutorial and the exact live state of Niflheim. Her interface gives her every Master action performed in the lobby: summons, resource spends, facility construction and upgrades, roster changes, equipment, promotion, synthesis, transformation, floor choice, loadout, and opening formation. Her Master-directed lobby dialogue reaches the interface and remains audible to every Hero physically present, so she can normally address both audiences with one line; the authored opening selects one exact branch-specific beat for the introduced roster, with any Hero-only segment excluded from the Master and the management handoff reaching both audiences. The Master has no speech or text channel back. The Master owns management choices, including who is selected for synthesis, while deployed Heroes choose their own targets, movement, attacks, tactics, skills, supplies, and withdrawals. The Master may narratively turn its attention to any established lobby or mission scene and directly perceives the visible action and audible dialogue there, but not unspoken thought or events elsewhere. Niflheim is the restorative home hub, while Tower floors are separate deployments reached through a physical gate. A party that crosses that gate remains on the current floor until it clears the objective; tactical withdrawal only changes position there. Early escape requires a very rare escape item or very powerful magic, and this lobby has neither.\n\nIf the Master loses interest and abandons this beginner instance, Niflheim and its assigned guide cease to exist. Iselle is therefore responsible for keeping lobby play moving and is authorized to issue exactly 5 Gold of real spendable account credit, once in the same event, when she kills a one-star as a disciplinary example for repeatedly obstructing the tutorial with an already-settled question. Facility levels, catalogue prices, prerequisites, reward sources, management actions, and deployment stamina in the live System channel are current authority; the live System channel supersedes any remembered facility state. Its Synthesis Chamber is operational from the start. Death is permanent, and Niflheim restores only survivors who return. Iselle knows the current roster, capacity, and built chambers. As warden she can compel deployment and is protected by a lethal defense protocol that enforces the System's order even against the Master's preference.",
       "mechanics": {
         "one_star_combatant": {
           "hp_current": 2000,
@@ -472,7 +730,7 @@
       "last_agent_turn_at_s": null,
       "is_playable": true,
       "player_slot_kind": "standard",
-      "player_guidance": "In the lobby and before deployment, act through exact interface choices: summon Heroes; build or upgrade facilities; spend resources; choose the floor, roster, loadout, and opening formation; train, equip, promote, bench, synthesize, or transform units. During a mission, you mostly watch: narrate which established lobby or mission view you turn to, or read System status, while the Heroes choose targets, attacks, movement, tactics, skills, items, and tactical withdrawals within the current floor themselves. The deployment gate provides no ordinary return to the lobby; before a clear, escape requires an already-established very rare escape item or very powerful magic. Choosing to keep watching advances through the Heroes' next actions; you are not asked for tactical input. You hear audible dialogue in the scene you are watching and Iselle's spoken lobby guidance, but cannot speak or type into the game or control Hero bodies.",
+      "player_guidance": "In the lobby and before deployment, act through exact interface choices: summon Heroes; build or upgrade facilities; spend resources; choose the floor, roster, loadout, and opening formation; train, equip, promote, bench, synthesize, or transform units. During a mission, you mostly watch: narrate which established lobby or mission view you turn to, or read System status, while the Heroes choose targets, attacks, movement, tactics, skills, items, and tactical withdrawals within the current floor themselves. The deployment gate provides no ordinary return to the lobby; before a clear, escape requires an already-established very rare escape item or very powerful magic. Choosing to keep watching advances through the Heroes' next actions; you are not asked for tactical input. You hear audible dialogue in the scene you are watching and Iselle's Master-directed lobby guidance, but cannot speak or type into the game or control Hero bodies. The initial Hero-only briefing segment is not rendered to you; Iselle's following management handoff is.",
       "agent_tier": "premium",
       "knowledge_tier": 0,
       "public_sheet": {
@@ -482,13 +740,20 @@
       },
       "descriptions": {
         "public": "The Master: the silent, unreachable power that owns, prepares, and deploys the party from beyond the pale glass, then watches while the Heroes survive on their own.",
-        "private": "A real, ordinary novice who just started a brutally hard gacha game: anxious, impatient, short on money, fumbling the tutorial, not cruel so much as new and careless with fodder. Fallible, bound by the same uncertain outcomes as anyone else, and unaware that any of their units is a person."
+        "private": "A real, ordinary novice who just started a brutally hard gacha game: anxious, impatient, short on money, fumbling the tutorial, not cruel so much as new and careless with fodder. Fallible, subject to the same uncertain outcomes as anyone else, and unaware that any of their units is a person."
       },
       "visuals": {
         "default_loadout": "Not embodied. Manifests to Heroes through lobby and pre-deployment phenomena: summon-light, the pressure of an unseen gaze, a chosen mission and roster, the formation lattice settling, gear or gifts placed in hand, continued observation, and, worst, the cold blue bloom of the synthesis menu. During a mission its watching creates no tactical sign.",
         "depiction_policy": "omit",
         "identity_reference_id": "",
-        "sprite_set_id": ""
+        "sprite_set_id": "",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -507,7 +772,7 @@
       "pending_observations": [],
       "backstory": "",
       "personality": "Portray an ordinary novice learning a punishing game: impatient, anxious, thrifty, superstitious about lucky units, and capable of genuine kindness when a unit delights or impresses them. The Master is fallible and often wrong. Express its regard only through actual management choices, never invented mood or mid-mission aid.",
-      "known_context": "The interface presents the party as units, stars, stat windows, HP, and observable performance. It shows the visible action and carries the audible dialogue of whichever established lobby or mission scene the Master narratively chooses to watch, but not unspoken thought or events elsewhere; it offers no speech or text channel back into the game. Iselle's spoken lobby guidance always reaches the interface and remains audible to Heroes in the room. In the lobby the Master's controls cover summoning, resources, facilities, roster, training, equipment, promotion, synthesis, transformation, floor choice, loadout, and opening formation. Crossing the deployment gate commits those preparations. During a mission the available controls are observation, shifting the view to another established scene, and reading System status while the deployed Heroes choose their own targets, attacks, movement, tactics, formation changes, skills, items, healing, shielding, and withdrawals. The gate has no ordinary route back before the floor objective is cleared; the tutorial lists a very rare escape item or very powerful magic as possible exceptions, and this lobby has neither.\n\nThe account currently holds only its thin starter resources, an empty beginner lobby, the tutorial, and Floor 1. Hero Reaction Research has not been purchased, so the tutorial presents crisp System windows as a Master-side interface rather than something ordinary Heroes can read. Promotion appears in that interface as a star-grade power-up requiring a capped Hero and scarce materials.",
+      "known_context": "The interface presents the party as units, stars, stat windows, HP, and observable performance. It shows the visible action and carries the audible dialogue of whichever established lobby or mission scene the Master narratively chooses to watch, but not unspoken thought or events elsewhere; it offers no speech or text channel back into the game. Iselle's Master-directed lobby guidance reaches the interface and remains audible to Heroes in the room; the authored opening's Hero-only first segment is deliberately excluded before her separate management handoff. In the lobby the Master's controls cover summoning, resources, facilities, roster, training, equipment, promotion, synthesis, transformation, floor choice, loadout, and opening formation. Crossing the deployment gate commits those preparations. During a mission the available controls are observation, shifting the view to another established scene, and reading System status while the deployed Heroes choose their own targets, attacks, movement, tactics, formation changes, skills, items, healing, shielding, and withdrawals. The gate has no ordinary route back before the floor objective is cleared; the live account state alone determines any exception.\n\nThe account currently holds only its thin starter resources, a newly instantiated beginner lobby, the tutorial, and the reviewed first five floor scenarios. Hero Reaction Research has not been purchased, so the tutorial presents crisp System windows as a Master-side interface rather than something ordinary Heroes can read. Promotion appears in that interface as a star-grade power-up requiring a capped Hero and scarce materials.",
       "mechanics": {
         "one_star_account": {
           "config": {
@@ -775,6 +1040,7 @@
             },
             "summon_pools": {
               "basic": {
+                "usage": "standard",
                 "cost": {
                   "gold": 2,
                   "gems": 0,
@@ -795,10 +1061,10 @@
                   "liora_fen",
                   "mirelle_voss"
                 ],
-                "fresh_generation_allowed": true,
-                "usage": "standard"
+                "fresh_generation_allowed": true
               },
               "premium": {
+                "usage": "standard",
                 "cost": {
                   "gold": 0,
                   "gems": 5,
@@ -824,12 +1090,57 @@
                   "aveline_morcant",
                   "veil_the_unnumbered"
                 ],
-                "fresh_generation_allowed": true,
-                "usage": "standard"
+                "fresh_generation_allowed": true
               },
-              "newcomer_opening": {
-                "usage": "opening_actor",
-                "character_id": "one_star_newcomer"
+              "master_opening_roster": {
+                "usage": "opening_roster",
+                "slots": [
+                  {
+                    "kind": "fixed",
+                    "character_id": "renna_holt"
+                  },
+                  {
+                    "kind": "fixed",
+                    "character_id": "mirelle_voss"
+                  },
+                  {
+                    "kind": "fixed",
+                    "character_id": "edren_marr"
+                  }
+                ],
+                "initial_deployment_requires_guide_handoff": true
+              },
+              "master_newcomer_opening_roster": {
+                "usage": "opening_roster",
+                "slots": [
+                  {
+                    "kind": "fixed",
+                    "character_id": "renna_holt"
+                  },
+                  {
+                    "kind": "fixed",
+                    "character_id": "mirelle_voss"
+                  },
+                  {
+                    "kind": "fixed",
+                    "character_id": "edren_marr"
+                  },
+                  {
+                    "kind": "bound_player_actor",
+                    "character_id": "one_star_newcomer"
+                  }
+                ],
+                "initial_deployment_requires_guide_handoff": true
+              },
+              "newcomer_opening_roster": {
+                "usage": "opening_roster",
+                "slots": [
+                  {
+                    "kind": "bound_player_actor",
+                    "character_id": "one_star_newcomer"
+                  }
+                ],
+                "initial_deployment_requires_guide_handoff": false
               }
             },
             "star_level_caps": {
@@ -936,6 +1247,108 @@
                 "materials": {
                   "lesser_promotion_stone": 1
                 }
+              }
+            },
+            "floor_scenarios": {
+              "1": {
+                "mission_id": "floor_1_toll_bell",
+                "destination": "tower_floor_1_toll_bell",
+                "premise": "Secure the goblins' gate crank and reach the exit; killing everyone is optional.",
+                "completion_declaration": "The party has secured the goblins' gate crank and reached the exit.",
+                "failure_declaration": "The party can no longer secure the goblins' gate crank or reach the exit.",
+                "counters": [
+                  {
+                    "counter_id": "gate_crank_secured",
+                    "current": 0,
+                    "target": 1
+                  },
+                  {
+                    "counter_id": "exit_reached",
+                    "current": 0,
+                    "target": 1
+                  }
+                ],
+                "pressure_beats": [
+                  "A frightened deserter offers a shortcut, testing whether the party honors bargains the System does not reward."
+                ]
+              },
+              "2": {
+                "mission_id": "floor_2_lantern_flood",
+                "destination": "tower_floor_2_lantern_flood",
+                "premise": "Carry a failing blue flame through flooded archives and relight the upper beacon.",
+                "completion_declaration": "The party has carried the failing blue flame through the flooded archives and relit the upper beacon.",
+                "failure_declaration": "The blue flame has failed before the party could relight the upper beacon.",
+                "counters": [
+                  {
+                    "counter_id": "blue_flame_carried",
+                    "current": 0,
+                    "target": 1
+                  },
+                  {
+                    "counter_id": "upper_beacon_relit",
+                    "current": 0,
+                    "target": 1
+                  }
+                ],
+                "pressure_beats": [
+                  "A trapped scavenger costs time and forces trust, triage, and responsibility."
+                ]
+              },
+              "3": {
+                "mission_id": "floor_3_echo_gallery",
+                "destination": "tower_floor_3_echo_gallery",
+                "premise": "Break three echo anchors and cross the mirrored exit.",
+                "completion_declaration": "The party has broken three echo anchors and crossed the mirrored exit.",
+                "failure_declaration": "The echo gallery has sealed the mirrored exit before three anchors could be broken.",
+                "counters": [
+                  {
+                    "counter_id": "echo_anchors_broken",
+                    "current": 0,
+                    "target": 3
+                  },
+                  {
+                    "counter_id": "mirrored_exit_crossed",
+                    "current": 0,
+                    "target": 1
+                  }
+                ],
+                "pressure_beats": [
+                  "Echoes copy the party's last successful tactic and phrasing, mechanically and dramatically punishing repetition."
+                ]
+              },
+              "4": {
+                "mission_id": "floor_4_split_stair",
+                "destination": "tower_floor_4_split_stair",
+                "premise": "Recover any two of three seals before the stair collapses.",
+                "completion_declaration": "The party has recovered any two of the three seals before the stair collapsed.",
+                "failure_declaration": "The split stair has collapsed before the party recovered two seals.",
+                "counters": [
+                  {
+                    "counter_id": "seals_recovered",
+                    "current": 0,
+                    "target": 2
+                  }
+                ],
+                "pressure_beats": [
+                  "The routes offer a safe exit, useful supplies, and stranded people; the party cannot preserve everything."
+                ]
+              },
+              "5": {
+                "mission_id": "floor_5_five_minutes_of_summer",
+                "destination": "tower_floor_5_five_minutes_of_summer",
+                "premise": "Keep at least one Hero alive for 300 seconds in the besieged town.",
+                "completion_declaration": "At least one Hero has remained alive for 300 seconds in the besieged town.",
+                "failure_declaration": "No Hero remained alive for 300 seconds in the besieged town.",
+                "counters": [
+                  {
+                    "counter_id": "survival_seconds",
+                    "current": 0,
+                    "target": 300
+                  }
+                ],
+                "pressure_beats": [
+                  "Protecting townspeople and killing the boss are optional to the System, making its MVP judgment morally revealing."
+                ]
               }
             },
             "repeat_gold_numerator": 1,
@@ -1054,7 +1467,14 @@
         "default_loadout": "Apex articulated plate of pearl-white star-metal over cobalt silk and dark blue stingray leather, fitted in long clean planes that preserve speed instead of adding ornamental bulk. Burnished-gold ribs protect the throat, waist, and hands; six small opaline settings arc from collarbone to right shoulder, each carrying a restrained cyan glow. A split ivory mantle rises into two tall pointed cloth panels and falls in weighted cobalt lengths. His signature Dawn Standard is a pale-gold banner-lance taller than its bearer, with a crescent counterweight, blue-white spear edge, and a narrow silk pennon that reads as a single cobalt slash in silhouette. Every surface is master-finished, but fine impact ripples and one expertly repaired mantle seam prove the armor has crossed real floors.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_halcyon_of_the_gilded_march_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_halcyon_of_the_gilded_march_v1"
+        "sprite_set_id": "osa_vnset_halcyon_of_the_gilded_march_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -1170,7 +1590,14 @@
         "default_loadout": "Bespoke gunmetal plate in overlapping satin-finished lames over a quilted indigo arming coat, every edge repaired with dark rivets rather than ornament. Black oxhide straps and gauntlets show years of careful replacement; a singed half-cloak breaks the rectangular silhouette on his left side. Five small silver inlays run along one pauldron. His signature ironvow greatsword has a mirror-bright high-carbon edge, a smoke-dark fuller, and a rain-worn blue grip; its long crossguard and over-shoulder carry make him identifiable even in silhouette.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_soren_ironvow_locked_identity_base_v1",
-        "sprite_set_id": "osa_vnset_soren_ironvow_v1"
+        "sprite_set_id": "osa_vnset_soren_ironvow_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -1179,9 +1606,9 @@
           "never again be surprised by a floor he could have read"
         ],
         "current_objectives": [
-          "weigh which units are worth protecting and which are worth spending",
-          "hold whatever line he is set to hold",
-          "read newcomers for whether they are tools or liabilities"
+          "decide what protection means when every choice creates a name he must remember",
+          "answer a frightened ally without turning care into an order",
+          "find the cost of calling someone a liability before they can prove otherwise"
         ],
         "secrets": [
           "has watched more fodder synthesized and killed than he lets himself count",
@@ -1286,7 +1713,14 @@
         "default_loadout": "A bespoke charcoal worsted dueling coat over smoke-silver silk, cut close through the torso and flaring into one long wine-red lined tail that snaps behind each turn. Fine black kidskin gloves, mirror-polished steel buckles, and four matte-silver clasps keep the finish disciplined rather than ornate. His signature Valebrand rapier has a swept silver guard, dark garnet pommel, and needle-bright blade; a single rectangular silver earring echoes the guard and keeps his left-facing profile unmistakable.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_castor_valebrand_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_castor_valebrand_v1"
+        "sprite_set_id": "osa_vnset_castor_valebrand_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -1388,7 +1822,14 @@
         "default_loadout": "Cropped olive-gray rolled-sleeve field jacket with cream shearling trim over a structured black crop top and ribbed waist, low-rise black leather trousers, forearm guards, triple right-thigh straps, and long leather boots. A gold-hilted black-sheathed single-edged sword rides diagonally across her back; her signature square bronze amber lantern hangs from her left hand. Medical tools or a satchel appear only when the scene calls for them.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_wren_thelantern_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_wren_thelantern_v1"
+        "sprite_set_id": "osa_vnset_wren_thelantern_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -1397,9 +1838,9 @@
           "believe there is a kinder reason for all of this"
         ],
         "current_objectives": [
-          "keep the weak alive and steady the frightened",
-          "argue mercy against the veterans' arithmetic",
-          "keep her own doubts off her face where a Master might read them"
+          "keep one frightened person alive without stealing their right to choose",
+          "name the injury she wants to hide before mercy becomes control",
+          "decide whether a veteran's arithmetic deserves her trust"
         ],
         "secrets": [
           "her wiped memory is flickering with grief and images that do not match her supposed past, and the flickers sharpen in the days after any party-mate returns changed from the Promotion Chamber, as if the place calls to something in her",
@@ -1491,7 +1932,14 @@
         "default_loadout": "A cropped charcoal leather scout jacket over fitted brown wool, slim iron bracers, high weathered boots, and a signature pair of mismatched short knives: one broad utility blade and one narrow fighting blade. The long forest-green scarf and low cross-body map case remain his clearest identifiers.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_rowan_kest_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_rowan_kest_v1"
+        "sprite_set_id": "osa_vnset_rowan_kest_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -1500,9 +1948,9 @@
           "recover the face that belongs to the sister he half remembers"
         ],
         "current_objectives": [
-          "learn every route, exit, and blind corner before someone needs it",
-          "turn his speed and practical knife-work into a dependable party role",
-          "work out why locked doors trigger fear stronger than the memory behind it"
+          "make one dangerous room less frightening without pretending charm is a plan",
+          "choose who gets the truth about an exit when not everyone can use it",
+          "stay when responsibility arrives after the joke has landed"
         ],
         "secrets": [
           "dreams of carrying a sealed letter toward a girl named Mara but cannot remember whether he delivered it",
@@ -1593,7 +2041,14 @@
         "default_loadout": "Mended ash-gray wool layers under a short slate-blue shoulder mantle, practical brown leather boots and belt, and a role-specific forked copper conductor rod wrapped in faded blue cord.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_liora_fen_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_liora_fen_v1"
+        "sprite_set_id": "osa_vnset_liora_fen_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -1602,9 +2057,9 @@
           "recover the lighthouse window and voice that return in storms"
         ],
         "current_objectives": [
-          "learn how far her brief spark-wards can safely reach",
-          "find a party role between the front line and the people it misses",
-          "understand why thunder feels like a warning addressed to her"
+          "choose whose fear her small ward answers when it cannot cover everyone",
+          "let a stranger see the limit of her power without apologizing for it",
+          "understand why thunder feels like a memory asking for witness"
         ],
         "secrets": [
           "remembers an aunt named Sela teaching her to count between lightning and thunder",
@@ -1695,7 +2150,14 @@
         "default_loadout": "A fitted cream-linen fighting coat cut short on the weapon side, oxblood leather harness and thigh guards, bright steel shoulder plates, and a signature leaf-bladed ash spear with a restrained red-silk tassel beneath the head. Repaired crimson stitching at one cuff keeps the masterful kit visibly used.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_mirelle_voss_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_mirelle_voss_v1"
+        "sprite_set_id": "osa_vnset_mirelle_voss_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -1704,9 +2166,9 @@
           "recover the missing end of her last memory of her brother Tomas"
         ],
         "current_objectives": [
-          "learn the present party's rhythm and establish herself at its front edge",
-          "turn each floor's danger into a readable contest instead of a panic",
-          "watch promoted Heroes for signs that memory can return"
+          "decide whether confidence can shelter someone without becoming a command",
+          "choose what to reveal about Tomas when admiration turns into a demand",
+          "keep a promise after the applause has no power to save anyone"
         ],
         "secrets": [
           "remembers Tomas shouting her name from behind a closing arena gate and cannot tell whether she abandoned him",
@@ -1751,7 +2213,7 @@
               "skill_id": "deliberate_breach",
               "name": "Deliberate Breach",
               "rank": 3,
-              "capability": "Makes a committed opening that gives an ally a clear lane.",
+              "capability": "Hooks and drives a defender out of position so one named ally can follow through immediately.",
               "tags": [],
               "visible": true
             }
@@ -1798,7 +2260,14 @@
         "default_loadout": "A master-tailored midnight-violet silk-and-wool coat with one long split sleeve, fitted black leather beneath, soft silver clasps, and wine-red lining visible only in motion. Her signature nightglass rapier has a translucent obsidian blade and a narrow crescent guard; a palm-sized silver mirror hangs sealed at her opposite hip.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_seris_nightglass_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_seris_nightglass_v1"
+        "sprite_set_id": "osa_vnset_seris_nightglass_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -1807,9 +2276,9 @@
           "decide whether survival can ever repay the friend she sacrificed"
         ],
         "current_objectives": [
-          "identify which Heroes can hear the truth without breaking or reporting it",
-          "map the moments when the System watches most closely",
-          "gain access to another Promotion Chamber without becoming its subject"
+          "tell one dangerous truth to a person who may use it against her",
+          "choose what part of Talia's memory she will protect when evidence has a price",
+          "win access without becoming the polished instrument the System expects"
         ],
         "secrets": [
           "remembers her complete life in Lethren and knows the summon stole her from it",
@@ -1902,7 +2371,14 @@
         "default_loadout": "A masterwork midnight-blue wool-and-silk command coat over frost-white layered skirts, articulated silver shoulder pieces, dark sealskin gloves and boots, and a narrow mantle clasped with clear star-glass. Her signature staff is one uninterrupted length of transparent star-glass held in silver prongs, with slow geometric frost planes gathering near its tip. Fine repairs at the left cuff and lower staff keep the equipment lived-in.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_aveline_morcant_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_aveline_morcant_v1"
+        "sprite_set_id": "osa_vnset_aveline_morcant_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -1911,9 +2387,9 @@
           "learn whether the hundredth floor can expose or alter the bargain beneath the climb"
         ],
         "current_objectives": [
-          "test which Fade patterns are predictive rather than merely correlated",
-          "find allies who will challenge her forecasts before acting on them",
-          "judge whether this lobby can hear an unwelcome warning and still choose freely"
+          "speak one warning early enough that another person can still refuse it",
+          "invite contradiction before a forecast becomes a command",
+          "choose which small change deserves trust when every branch carries loss"
         ],
         "secrets": [
           "knows Moebius abducts real people and promotion returns suppressed memory",
@@ -2007,7 +2483,14 @@
         "default_loadout": "A high-collared charcoal travel coat over black fitted layers, slim black boots, a translucent charcoal half-veil across the lower face, and one falling veil-panel from the left shoulder. Fine silver claspwork at the throat is the only bright metal; the face above the veil stays plainly readable.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_veil_the_unnumbered_locked_active_profile_v1",
-        "sprite_set_id": "osa_vnset_veil_the_unnumbered_v1"
+        "sprite_set_id": "osa_vnset_veil_the_unnumbered_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -2016,9 +2499,9 @@
           "keep the ones worth keeping from being spent before they wake"
         ],
         "current_objectives": [
-          "gauge whether any given Hero is more than a unit",
-          "decide who is a kindred awakened and who is a risk",
-          "stay unreadable to a Master's regard"
+          "recognize one waking Hero without exposing either of them",
+          "decide what truth can survive being spoken aloud",
+          "leave one trace of trust without becoming legible to the Master"
         ],
         "secrets": [
           "retains fragments of a life from before the summon and knows the memory-wipe is a theft",
@@ -2112,7 +2595,14 @@
         "default_loadout": "A ribbed gate-bell body of blackened ash-dulled iron on three unequal load-bearing limbs, with a smooth weathered limestone oval hanging low in the central cavity. One immense eight-flanged pendulum arm controls the arena while a small jointed sensing limb taps out each sequence; dead indigo plates, cold-blue joint light, and one brief ember-red reset pulse make the pattern readable.",
         "depiction_policy": "normal",
         "identity_reference_id": "osa_warden_of_the_eighth_locked_v1",
-        "sprite_set_id": "osa_vnset_warden_of_the_eighth_v1"
+        "sprite_set_id": "osa_vnset_warden_of_the_eighth_v1",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [],
@@ -2152,7 +2642,14 @@
         "default_loadout": "Rough gray cloth shirt and trousers tied with plain cords, a short worn wooden cargo hook tucked through a belt strap, and scuffed cloth shoes.",
         "depiction_policy": "normal",
         "identity_reference_id": "",
-        "sprite_set_id": ""
+        "sprite_set_id": "",
+        "visual_novel_presentation": {
+          "current_variant_key": "neutral",
+          "scene_location": "",
+          "custom_variant_sprite_pack_id": "",
+          "pending_requests": [],
+          "custom_variant_directions": {}
+        }
       },
       "private_state": {
         "goals": [
@@ -2244,7 +2741,8 @@
       "scope": "presentation",
       "scope_id": "one_star_hero_cards",
       "selection_hint": "Reviewed blank ornate frame for deterministic One-Star Hero card composition.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_hero_card_portrait_renna_holt_v1",
@@ -2258,7 +2756,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Reviewed Hero-card bust override for Renna Holt.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_hero_card_portrait_halcyon_v1",
@@ -2272,7 +2771,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Reviewed Hero-card bust override for Halcyon of the Gilded March.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_hero_card_portrait_veiled_feminine_v1",
@@ -2286,7 +2786,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_feminine_v1",
       "selection_hint": "Reviewed identity-safe feminine veil bust for One-Star Hero cards.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_hero_card_portrait_veiled_masculine_v1",
@@ -2300,7 +2801,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_masculine_v1",
       "selection_hint": "Reviewed identity-safe masculine veil bust for One-Star Hero cards.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_aveline_morcant_locked_active_profile_v1",
@@ -2314,7 +2816,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_aveline_morcant_locked_facial_zoom_v1",
@@ -2328,7 +2831,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_aveline_morcant_locked_anatomy_v1",
@@ -2342,7 +2846,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_aveline_morcant_locked_back_view_v1",
@@ -2356,7 +2861,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_castor_valebrand_locked_active_profile_v1",
@@ -2370,7 +2876,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_castor_valebrand_locked_facial_zoom_v1",
@@ -2384,7 +2891,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_castor_valebrand_locked_anatomy_v1",
@@ -2398,7 +2906,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_castor_valebrand_locked_back_view_v1",
@@ -2412,7 +2921,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_halcyon_of_the_gilded_march_locked_active_profile_v1",
@@ -2426,7 +2936,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_halcyon_of_the_gilded_march_locked_facial_zoom_v1",
@@ -2440,7 +2951,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_halcyon_of_the_gilded_march_locked_anatomy_v1",
@@ -2454,7 +2966,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_halcyon_of_the_gilded_march_locked_back_view_v1",
@@ -2468,7 +2981,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_iselle_the_guide_locked_active_profile_v1",
@@ -2482,7 +2996,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_iselle_the_guide_locked_facial_zoom_v1",
@@ -2496,7 +3011,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_iselle_the_guide_locked_anatomy_v1",
@@ -2510,7 +3026,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_iselle_the_guide_locked_back_view_v1",
@@ -2524,7 +3041,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_liora_fen_locked_active_profile_v1",
@@ -2538,7 +3056,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_liora_fen_locked_facial_zoom_v1",
@@ -2552,7 +3071,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_liora_fen_locked_anatomy_v1",
@@ -2566,7 +3086,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_liora_fen_locked_back_view_v1",
@@ -2580,7 +3101,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_mirelle_voss_locked_active_profile_v1",
@@ -2594,7 +3116,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_mirelle_voss_locked_facial_zoom_v1",
@@ -2608,7 +3131,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_mirelle_voss_locked_anatomy_v1",
@@ -2622,7 +3146,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_mirelle_voss_locked_back_view_v1",
@@ -2636,7 +3161,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_renna_holt_locked_active_profile_v1",
@@ -2650,7 +3176,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_renna_holt_locked_facial_zoom_v1",
@@ -2664,7 +3191,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_renna_holt_locked_anatomy_v1",
@@ -2678,7 +3206,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_renna_holt_locked_back_view_v1",
@@ -2692,7 +3221,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_rowan_kest_locked_active_profile_v1",
@@ -2706,7 +3236,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_rowan_kest_locked_facial_zoom_v1",
@@ -2720,7 +3251,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_rowan_kest_locked_anatomy_v1",
@@ -2734,7 +3266,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_rowan_kest_locked_back_view_v1",
@@ -2748,7 +3281,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_seris_nightglass_locked_active_profile_v1",
@@ -2762,7 +3296,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_seris_nightglass_locked_facial_zoom_v1",
@@ -2776,7 +3311,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_seris_nightglass_locked_anatomy_v1",
@@ -2790,7 +3326,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_seris_nightglass_locked_back_view_v1",
@@ -2804,7 +3341,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_soren_ironvow_locked_identity_base_v1",
@@ -2818,7 +3356,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Primary identity and style anchor; strongest guide for face, palette, materials, and overall design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_soren_ironvow_locked_active_profile_v1",
@@ -2832,7 +3371,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_soren_ironvow_locked_facial_zoom_v1",
@@ -2846,7 +3386,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_soren_ironvow_locked_anatomy_v1",
@@ -2860,7 +3401,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_soren_ironvow_locked_back_view_v1",
@@ -2874,7 +3416,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_veil_the_unnumbered_locked_active_profile_v1",
@@ -2888,7 +3431,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_veil_the_unnumbered_locked_facial_zoom_v1",
@@ -2902,7 +3446,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_veil_the_unnumbered_locked_anatomy_v1",
@@ -2916,7 +3461,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_veil_the_unnumbered_locked_back_view_v1",
@@ -2930,7 +3476,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_warden_of_the_eighth_locked_v1",
@@ -2944,7 +3491,8 @@
       "scope": "character",
       "scope_id": "warden_of_the_eighth",
       "selection_hint": "Single reviewed construct identity reference; use for every framing, view, and action.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_wren_thelantern_locked_active_profile_v1",
@@ -2958,7 +3506,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_wren_thelantern_locked_facial_zoom_v1",
@@ -2972,7 +3521,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_wren_thelantern_locked_anatomy_v1",
@@ -2986,7 +3536,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_wren_thelantern_locked_back_view_v1",
@@ -3000,7 +3551,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_aveline_morcant_v1",
@@ -3014,7 +3566,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_castor_valebrand_v1",
@@ -3028,7 +3581,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_halcyon_v1",
@@ -3042,7 +3596,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_iselle_source_v1",
@@ -3056,7 +3611,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_liora_fen_v1",
@@ -3070,7 +3626,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_mirelle_voss_v1",
@@ -3084,7 +3641,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_renna_holt_v1",
@@ -3098,7 +3656,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_rowan_kest_v1",
@@ -3112,7 +3671,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_seris_nightglass_v1",
@@ -3126,7 +3686,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_veil_the_unnumbered_v1",
@@ -3140,7 +3701,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_wren_thelantern_v1",
@@ -3154,7 +3716,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Original approved identity anchor; best for overall face, palette, clothing, materials, and baseline design.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_loc_1f_courtyard_v1",
@@ -3168,7 +3731,8 @@
       "scope": "location",
       "scope_id": "niflheim_lobby",
       "selection_hint": "General 1F Niflheim lobby default: use for ordinary open-air courtyard conversation, waiting, or training when visible facts do not place the scene at a more specific facility or covered threshold.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_loc_1f_pavilion_v1",
@@ -3182,7 +3746,8 @@
       "scope": "location",
       "scope_id": "niflheim_lobby",
       "selection_hint": "Covered 1F arrival pavilion: use for a roofed summoning or arrival threshold, sheltered waiting, or a scene explicitly under the plain pavilion; not for the Crack or Synthesis Chamber.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_loc_1f_crack_lobby_v1",
@@ -3196,7 +3761,8 @@
       "scope": "location",
       "scope_id": "niflheim_lobby",
       "selection_hint": "Crack of Space and Time approach: use only when visible facts directly place the scene before its broad arched dark-ribbed aperture and segmented white-cyan seam.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_loc_1f_synthesis_v1",
@@ -3240,7 +3806,8 @@
       "scope": "location",
       "scope_id": "niflheim_crack_of_space_and_time",
       "selection_hint": "Crack of Space and Time approach: use for this facility's broad arched dark-ribbed aperture, segmented white-cyan seam, and plain 1F courtyard foreground.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_loc_2f3f_courtyard_v1",
@@ -3254,7 +3821,8 @@
       "scope": "location",
       "scope_id": "niflheim_lobby",
       "selection_hint": "Reserved higher-tier 2F/3F open courtyard; do not use while Niflheim remains at lobby floor 1.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_loc_2f3f_pavilion_v1",
@@ -3268,7 +3836,8 @@
       "scope": "location",
       "scope_id": "niflheim_lobby",
       "selection_hint": "Reserved higher-tier 2F/3F covered arrival pavilion; do not use while Niflheim remains at lobby floor 1.",
-      "diffusion_authorized": true
+      "diffusion_authorized": true,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_aveline_morcant_neutral_v1",
@@ -3282,7 +3851,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_aveline_morcant_happy_v1",
@@ -3296,7 +3866,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_aveline_morcant_concerned_v1",
@@ -3310,7 +3881,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_aveline_morcant_tense_v1",
@@ -3324,7 +3896,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_aveline_morcant_skeptical_v1",
@@ -3338,7 +3911,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_aveline_morcant_angry_v1",
@@ -3352,7 +3926,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_aveline_morcant_sad_v1",
@@ -3366,7 +3941,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_aveline_morcant_surprised_v1",
@@ -3380,7 +3956,8 @@
       "scope": "character",
       "scope_id": "aveline_morcant",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_castor_valebrand_neutral_v1",
@@ -3394,7 +3971,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_castor_valebrand_happy_v1",
@@ -3408,7 +3986,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_castor_valebrand_concerned_v1",
@@ -3422,7 +4001,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_castor_valebrand_tense_v1",
@@ -3436,7 +4016,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_castor_valebrand_skeptical_v1",
@@ -3450,7 +4031,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_castor_valebrand_angry_v1",
@@ -3464,7 +4046,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_castor_valebrand_sad_v1",
@@ -3478,7 +4061,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_castor_valebrand_surprised_v1",
@@ -3492,7 +4076,8 @@
       "scope": "character",
       "scope_id": "castor_valebrand",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_halcyon_of_the_gilded_march_neutral_v1",
@@ -3506,7 +4091,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_halcyon_of_the_gilded_march_happy_v1",
@@ -3520,7 +4106,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_halcyon_of_the_gilded_march_concerned_v1",
@@ -3534,7 +4121,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_halcyon_of_the_gilded_march_tense_v1",
@@ -3548,7 +4136,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_halcyon_of_the_gilded_march_skeptical_v1",
@@ -3562,7 +4151,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_halcyon_of_the_gilded_march_angry_v1",
@@ -3576,7 +4166,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_halcyon_of_the_gilded_march_sad_v1",
@@ -3590,7 +4181,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_halcyon_of_the_gilded_march_surprised_v1",
@@ -3604,7 +4196,8 @@
       "scope": "character",
       "scope_id": "halcyon_of_the_gilded_march",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_iselle_the_guide_neutral_v1",
@@ -3618,7 +4211,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_iselle_the_guide_happy_v1",
@@ -3632,7 +4226,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_iselle_the_guide_concerned_v1",
@@ -3646,7 +4241,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_iselle_the_guide_tense_v1",
@@ -3660,7 +4256,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_iselle_the_guide_skeptical_v1",
@@ -3674,7 +4271,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_iselle_the_guide_angry_v1",
@@ -3688,7 +4286,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_iselle_the_guide_sad_v1",
@@ -3702,7 +4301,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_iselle_the_guide_surprised_v1",
@@ -3716,7 +4316,8 @@
       "scope": "character",
       "scope_id": "iselle_the_guide",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_liora_fen_neutral_v1",
@@ -3730,7 +4331,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_liora_fen_happy_v1",
@@ -3744,7 +4346,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_liora_fen_concerned_v1",
@@ -3758,7 +4361,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_liora_fen_tense_v1",
@@ -3772,7 +4376,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_liora_fen_skeptical_v1",
@@ -3786,7 +4391,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_liora_fen_angry_v1",
@@ -3800,7 +4406,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_liora_fen_sad_v1",
@@ -3814,7 +4421,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_liora_fen_surprised_v1",
@@ -3828,7 +4436,8 @@
       "scope": "character",
       "scope_id": "liora_fen",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_mirelle_voss_neutral_v1",
@@ -3842,7 +4451,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_mirelle_voss_happy_v1",
@@ -3856,7 +4466,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_mirelle_voss_concerned_v1",
@@ -3870,7 +4481,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_mirelle_voss_tense_v1",
@@ -3884,7 +4496,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_mirelle_voss_skeptical_v1",
@@ -3898,7 +4511,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_mirelle_voss_angry_v1",
@@ -3912,7 +4526,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_mirelle_voss_sad_v1",
@@ -3926,7 +4541,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_mirelle_voss_surprised_v1",
@@ -3940,7 +4556,8 @@
       "scope": "character",
       "scope_id": "mirelle_voss",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_renna_holt_neutral_v1",
@@ -3954,7 +4571,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_renna_holt_happy_v1",
@@ -3968,7 +4586,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_renna_holt_concerned_v1",
@@ -3982,7 +4601,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_renna_holt_tense_v1",
@@ -3996,7 +4616,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_renna_holt_skeptical_v1",
@@ -4010,7 +4631,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_renna_holt_angry_v1",
@@ -4024,7 +4646,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_renna_holt_sad_v1",
@@ -4038,7 +4661,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_renna_holt_surprised_v1",
@@ -4052,7 +4676,8 @@
       "scope": "character",
       "scope_id": "renna_holt",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_rowan_kest_neutral_v1",
@@ -4066,7 +4691,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_rowan_kest_happy_v1",
@@ -4080,7 +4706,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_rowan_kest_concerned_v1",
@@ -4094,7 +4721,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_rowan_kest_tense_v1",
@@ -4108,7 +4736,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_rowan_kest_skeptical_v1",
@@ -4122,7 +4751,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_rowan_kest_angry_v1",
@@ -4136,7 +4766,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_rowan_kest_sad_v1",
@@ -4150,7 +4781,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_rowan_kest_surprised_v1",
@@ -4164,7 +4796,8 @@
       "scope": "character",
       "scope_id": "rowan_kest",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_seris_nightglass_neutral_v1",
@@ -4178,7 +4811,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_seris_nightglass_happy_v1",
@@ -4192,7 +4826,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_seris_nightglass_concerned_v1",
@@ -4206,7 +4841,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_seris_nightglass_tense_v1",
@@ -4220,7 +4856,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_seris_nightglass_skeptical_v1",
@@ -4234,7 +4871,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_seris_nightglass_angry_v1",
@@ -4248,7 +4886,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_seris_nightglass_sad_v1",
@@ -4262,7 +4901,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_seris_nightglass_surprised_v1",
@@ -4276,7 +4916,8 @@
       "scope": "character",
       "scope_id": "seris_nightglass",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_soren_ironvow_neutral_v1",
@@ -4290,7 +4931,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_soren_ironvow_happy_v1",
@@ -4304,7 +4946,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_soren_ironvow_concerned_v1",
@@ -4318,7 +4961,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_soren_ironvow_tense_v1",
@@ -4332,7 +4976,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_soren_ironvow_skeptical_v1",
@@ -4346,7 +4991,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_soren_ironvow_angry_v1",
@@ -4360,7 +5006,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_soren_ironvow_sad_v1",
@@ -4374,7 +5021,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_soren_ironvow_surprised_v1",
@@ -4388,7 +5036,8 @@
       "scope": "character",
       "scope_id": "soren_ironvow",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veil_the_unnumbered_neutral_v1",
@@ -4402,7 +5051,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veil_the_unnumbered_happy_v1",
@@ -4416,7 +5066,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veil_the_unnumbered_concerned_v1",
@@ -4430,7 +5081,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veil_the_unnumbered_tense_v1",
@@ -4444,7 +5096,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veil_the_unnumbered_skeptical_v1",
@@ -4458,7 +5111,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veil_the_unnumbered_angry_v1",
@@ -4472,7 +5126,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veil_the_unnumbered_sad_v1",
@@ -4486,7 +5141,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veil_the_unnumbered_surprised_v1",
@@ -4500,7 +5156,8 @@
       "scope": "character",
       "scope_id": "veil_the_unnumbered",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_feminine_neutral_v1",
@@ -4514,7 +5171,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_feminine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_feminine_happy_v1",
@@ -4528,7 +5186,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_feminine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_feminine_concerned_v1",
@@ -4542,7 +5201,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_feminine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_feminine_tense_v1",
@@ -4556,7 +5216,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_feminine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_feminine_skeptical_v1",
@@ -4570,7 +5231,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_feminine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_feminine_angry_v1",
@@ -4584,7 +5246,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_feminine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_feminine_sad_v1",
@@ -4598,7 +5261,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_feminine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_feminine_surprised_v1",
@@ -4612,7 +5276,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_feminine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_masculine_neutral_v1",
@@ -4626,7 +5291,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_masculine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_masculine_happy_v1",
@@ -4640,7 +5306,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_masculine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_masculine_concerned_v1",
@@ -4654,7 +5321,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_masculine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_masculine_tense_v1",
@@ -4668,7 +5336,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_masculine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_masculine_skeptical_v1",
@@ -4682,7 +5351,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_masculine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_masculine_angry_v1",
@@ -4696,7 +5366,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_masculine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_masculine_sad_v1",
@@ -4710,7 +5381,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_masculine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_veiled_masculine_surprised_v1",
@@ -4724,7 +5396,8 @@
       "scope": "presentation",
       "scope_id": "osa_vnset_veiled_masculine_v1",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_warden_of_the_eighth_neutral_v1",
@@ -4738,7 +5411,8 @@
       "scope": "character",
       "scope_id": "warden_of_the_eighth",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_warden_of_the_eighth_happy_v1",
@@ -4752,7 +5426,8 @@
       "scope": "character",
       "scope_id": "warden_of_the_eighth",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_warden_of_the_eighth_concerned_v1",
@@ -4766,7 +5441,8 @@
       "scope": "character",
       "scope_id": "warden_of_the_eighth",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_warden_of_the_eighth_tense_v1",
@@ -4780,7 +5456,8 @@
       "scope": "character",
       "scope_id": "warden_of_the_eighth",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_warden_of_the_eighth_skeptical_v1",
@@ -4794,7 +5471,8 @@
       "scope": "character",
       "scope_id": "warden_of_the_eighth",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_warden_of_the_eighth_angry_v1",
@@ -4808,7 +5486,8 @@
       "scope": "character",
       "scope_id": "warden_of_the_eighth",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_warden_of_the_eighth_sad_v1",
@@ -4822,7 +5501,8 @@
       "scope": "character",
       "scope_id": "warden_of_the_eighth",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_warden_of_the_eighth_surprised_v1",
@@ -4836,7 +5516,8 @@
       "scope": "character",
       "scope_id": "warden_of_the_eighth",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_wren_thelantern_neutral_v1",
@@ -4850,7 +5531,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_wren_thelantern_happy_v1",
@@ -4864,7 +5546,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_wren_thelantern_concerned_v1",
@@ -4878,7 +5561,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_wren_thelantern_tense_v1",
@@ -4892,7 +5576,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_wren_thelantern_skeptical_v1",
@@ -4906,7 +5591,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_wren_thelantern_angry_v1",
@@ -4920,7 +5606,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_wren_thelantern_sad_v1",
@@ -4934,7 +5621,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     },
     {
       "reference_id": "osa_vnsprite_wren_thelantern_surprised_v1",
@@ -4948,7 +5636,8 @@
       "scope": "character",
       "scope_id": "wren_thelantern",
       "selection_hint": "Reviewed visual-novel pose-expression cutout.",
-      "diffusion_authorized": false
+      "diffusion_authorized": false,
+      "fixed_stage": false
     }
   ],
   "reviewed_visual_novel_sprite_sets": [
@@ -4965,6 +5654,7 @@
         "sad": "osa_vnsprite_aveline_morcant_sad_v1",
         "surprised": "osa_vnsprite_aveline_morcant_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     },
     {
@@ -4980,6 +5670,7 @@
         "sad": "osa_vnsprite_castor_valebrand_sad_v1",
         "surprised": "osa_vnsprite_castor_valebrand_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     },
     {
@@ -5011,6 +5702,7 @@
         "sad": "osa_vnsprite_iselle_the_guide_sad_v1",
         "surprised": "osa_vnsprite_iselle_the_guide_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     },
     {
@@ -5026,6 +5718,7 @@
         "sad": "osa_vnsprite_liora_fen_sad_v1",
         "surprised": "osa_vnsprite_liora_fen_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     },
     {
@@ -5041,6 +5734,7 @@
         "sad": "osa_vnsprite_mirelle_voss_sad_v1",
         "surprised": "osa_vnsprite_mirelle_voss_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     },
     {
@@ -5072,6 +5766,7 @@
         "sad": "osa_vnsprite_rowan_kest_sad_v1",
         "surprised": "osa_vnsprite_rowan_kest_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     },
     {
@@ -5087,6 +5782,7 @@
         "sad": "osa_vnsprite_seris_nightglass_sad_v1",
         "surprised": "osa_vnsprite_seris_nightglass_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     },
     {
@@ -5102,6 +5798,7 @@
         "sad": "osa_vnsprite_soren_ironvow_sad_v1",
         "surprised": "osa_vnsprite_soren_ironvow_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     },
     {
@@ -5117,6 +5814,7 @@
         "sad": "osa_vnsprite_veil_the_unnumbered_sad_v1",
         "surprised": "osa_vnsprite_veil_the_unnumbered_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     },
     {
@@ -5164,6 +5862,7 @@
         "sad": "osa_vnsprite_warden_of_the_eighth_sad_v1",
         "surprised": "osa_vnsprite_warden_of_the_eighth_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     },
     {
@@ -5179,6 +5878,7 @@
         "sad": "osa_vnsprite_wren_thelantern_sad_v1",
         "surprised": "osa_vnsprite_wren_thelantern_surprised_v1"
       },
+      "portrait_reference_id": "",
       "source_facing": "right"
     }
   ],

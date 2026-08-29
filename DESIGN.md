@@ -13,10 +13,9 @@
   missing credentials for the configured live roles.
 * The LLM client is multi-provider (Anthropic Messages API and OpenAI
   Responses API) with per-role provider/model dispatch. Default models
-  are `gpt-5.6-terra` for both `event_router` and `narrator`,
-  `gpt-5-mini` for `dnd_combat_manager` and `content_manager`, Luna for
-  `agent_standard`, and Claude-family models for `agent`,
-  `agent_convenience`, and `character_manager`. Per-role
+  are `gpt-5.6-terra` for `event_router`, `narrator`, and every
+  character-agent tier; `gpt-5.6-luna` for `character_manager`; and
+  `gpt-5-mini` for `dnd_combat_manager` and `content_manager`. Per-role
   overrides go through `LLM_PROVIDER_<ROLE>` and `LLM_MODEL_<ROLE>`
   environment variables, or via the `LLM_ROLE_PROVIDERS` /
   `LLM_ROLE_MODELS` JSON env maps. A `provider:model` prefix on a
@@ -427,7 +426,7 @@ One-Star adapter commands (active when
 `ruleset_id == "one_star_ascension"`; see §15):
 
 * `/master status` — account resources, configured discretionary funds,
-  facilities, progression, stamina, mission, feed, and pending-operation state.
+  facilities, progression, stamina, active mission, and pending-operation state.
 * `/master heroes` — owned-Hero roster with core mechanics.
 * `/master hero <name|id|#>` — one owned Hero's visible full sheet.
 * `/master synthesis <target> from <source>[, <source>...]` — submit a
@@ -717,6 +716,13 @@ act slots, open Cat II responder state, and render buffers. Movement is not a
 roster side effect; arrivals, departures, and transfers must be written as
 `observable_facts`.
 
+When one router event requests multiple new characters, the manager first
+authors one compact casting plan for the whole requested wave. Every character
+branch receives all sibling briefs and the same immutable pre-wave checkpoint,
+then the independent authoring calls run concurrently. Results merge in request
+order only after every branch succeeds; one failed branch rejects the complete
+wave without partially mutating the live roster or its agent histories.
+
 ### 5.9 Synthetic Story Seeds
 
 Story authoring now starts from a checkpoint template instead of an LLM
@@ -738,13 +744,20 @@ New shipped story seeds under `app/storage/stories/` must also be allowlisted
 in `.gitignore`; session checkpoints and playtest reports remain ignored
 runtime outputs.
 
-Opening prose is not authored in the checkpoint. The first playable scene is
-composed later by the router on `(begin)` and rendered through the normal
-narrator path. A seed may optionally provide `world_state.opening` with
-router-only authored context and an explicit `allow_spawns` capability. The
-context shapes that canonical opening; it is not prewritten prose or a second
-opening engine. Missing or false spawn authority preserves the default that
-`(begin)` cannot create characters.
+The first playable situation is normally composed by the router on `(begin)`
+and rendered through the normal narrator path. A seed may optionally provide
+`world_state.opening` with router-only authored context and an explicit
+`allow_spawns` capability. Missing or false spawn authority preserves the
+default that `(begin)` cannot create characters.
+
+A story may also attach plural `authored_character_beats` to that one opening
+policy. Each beat is an exact NPC continuation selected by the complete set and
+count of characters materialized by the router-owned arrival. At most one
+branch may match. The selected beat is broadcast as an ordinary canonical
+event, delivered without narrator paraphrase, and appended to its NPC
+speaker's conversation with the authored private intent. This supports an
+exact briefing without making the beat a second roster authority or authoring
+speech for a player-controlled arrival.
 
 ### 5.10 Context Builder And Prompt Manager
 
@@ -784,11 +797,8 @@ Provider/model selection can be configured with model prefixes such as
 `anthropic:claude-sonnet-5`, explicit `role_providers`, or
 environment overrides like `LLM_PROVIDER_NARRATOR=openai` and
 `LLM_MODEL_NARRATOR=gpt-5.1`. Current defaults are OpenAI `gpt-5.6-terra`
-for both `event_router` and `narrator`, Anthropic
-`claude-opus-5` for premium `agent` calls, OpenAI
-`gpt-5.6-luna` for `agent_standard`, Anthropic `claude-sonnet-5`
-for `agent_convenience`, and Anthropic `claude-sonnet-5` for
-`character_manager`.
+for `event_router`, `narrator`, and every character-agent tier, with OpenAI
+`gpt-5.6-luna` for `character_manager`.
 
 Active live model roles are `event_router`, `narrator`, `agent`,
 `agent_standard`, `agent_convenience`, `dnd_combat_manager`,
@@ -849,7 +859,10 @@ Cat II flow:
 1. The router emits an attempt-in-progress event.
 2. The engine opens an `OpenCatIIEvent`.
 3. Bound responders are pinned in `active_act_slots`.
-4. Autonomous responders intend immediately.
+4. Autonomous responders intend concurrently from isolated copies of the same
+   post-open checkpoint. Only after all calls succeed does the engine merge
+   their agent histories and intentions in required-responder order; failure
+   rolls back the whole open/collection transaction.
 5. If all responders are present, the router resolves the event inline.
 6. If a ruleset adapter is active, final resolution may enter that
    ruleset's router-owned roll planning/finalization subflow. NPC/agent
@@ -1725,17 +1738,29 @@ Durable state stays on existing character records:
   lifecycle and location authority. The adapter does not duplicate the roster;
 * story-authored configuration owns costs, rewards, caps, facilities, summon
   pool weights, deterministic progression inputs, progression prerequisites,
-  physical operation requirements, and any fixed cash-to-Gem schedule. Engine
-  code contains no One-Star entity names or economy constants.
+  floor scenarios, physical operation requirements, and any fixed cash-to-Gem
+  schedule. Engine code contains no One-Star entity names or economy constants.
+
+Opening variants share one `usage="opening_roster"` pool contract rather than
+parallel Master/Newcomer schemas. Its ordered slots may be fixed authored
+characters, deterministic existing Heroes of an authored grade, or an exact
+`bound_player_actor`; the last kind is valid only when that actor is currently
+bound. The live player composition selects one complete pool, and the adapter
+resolves that ordered roster without a random draw. The generic opening policy's
+plural authored beats then select at most one briefing from the exact
+materialized participant set and count. The router still owns the arrival;
+the matched guide beat follows as canonical dialogue and durable guide history,
+without inventing a player character's response.
 
 The cached router addon receives compact immutable operation authority:
 catalogue costs/effects, physical-operation requirements, and standard-pool
 costs, star ranges, rates, and usage. Authored opening pools disclose only
 usage, required count, and non-identifying slot kind or grade. Their exact
-opening actor and resolved roster identities appear only in the branch-specific
-volatile `(begin)` tail. A configured Gem shop contributes only its immutable
-starting balance, periodic income schedule, and fixed pack exchange to that
-cached authority. Normal routes do not receive a second live ledger snapshot.
+fixed or bound-player character ids and resolved roster identities appear only
+in the branch-specific volatile `(begin)` tail. A configured Gem shop
+contributes only its immutable starting balance, periodic income schedule, and
+fixed pack exchange to that cached authority. Normal routes do not receive a
+second live ledger snapshot.
 Each accepted compact `state_updates` list is retained in the
 same prior-event history as its canonical fiction. State
 created independently of a router decision, such as a generated summon sheet,
@@ -1762,8 +1787,13 @@ result or future slate to the model. A successful atomic commit advances the
 pool counter, while failed validation and replay cannot reroll or double-
 advance. Freshly generated summon identities carry a durable origin marker and
 stay on the Luna-backed standard-agent role; activated seeded reserves retain
-their authored agent tier. Authored opening pools remain non-random and do not
-consume standard draws. Deployment, synthesis, and promotion are staged:
+their authored agent tier. The accepted event hands its exact arrivals directly
+to the active configured guide. That owed agent turn and its one exact survival
+induction event complete before narrator presentation can close the beat, so a
+fast render cannot strand an active unbriefed Hero; ordinary autonomous handoffs
+retain narrator-paced speculative behavior. Authored opening pools remain
+non-random and do not consume standard draws. Deployment, synthesis, and
+promotion are staged:
 selection opens a zero-side-effect pending operation, affected Heroes keep
 ordinary response ownership, and a synthesis selection also collects the
 configured lobby guide's own enforcement intention. A later event may resolve
@@ -1778,12 +1808,52 @@ agent projections. The router remains responsible for fictional damage, death,
 resistance, reward-worthy action, and character choices; it does not assign
 levels, XP totals, stats, HP maxima, or synthesis arithmetic.
 
+Each configured `floor_scenario` is reviewed seed authority for one mission's
+destination, premise, immutable completion and failure declarations, counters,
+and pressure beats. A mission start copies that authority into durable state and
+must provide a full formation: every party Hero appears exactly once and every
+formation label is unique. These adapter checks constrain mission bookkeeping;
+the generic router still judges how the party attempts the scenario and what
+fiction follows.
+
+Mission control is asymmetric and derives from bindings rather than a stored
+scene selector. If any deployed party Hero is human-bound, floor progression
+yields to that player and cannot run hidden autonomous mission turns. Every
+Master-started beat during that mission is guarded: the Master may manage the
+disjoint lobby, route an active lobby guide's bounded induction, or issue a pure
+zero-time watch/status query, but cannot advance or target the floor party.
+When a human Hero also owns a live Cat II responder slot, the Master receives
+concurrent-turn admission only if every conflicting slot is one of those live
+human pins. Each event in the admitted beat is then validated under its actual
+actor before commit; the guard rejects party routing, unsafe cross-boundary
+movement, mission updates, and unrelated lifecycle or commitment changes. The
+frontend lock and canonical event log still serialize accepted turns; this
+admission does not create simultaneous checkpoint writers.
+
+If the deployed party is entirely autonomous, an eligible Master management,
+watch, or defer turn may continue the existing router-selected agent cascade
+until the mission ends, a human handoff appears, no consequential target
+remains, or `max_agent_cascades_per_beat` is reached. A targetless result gets
+one grounded continuation attempt and then ends unless a newly committed agent
+turn creates a new frontier. This is the ordinary turn loop under a smaller
+story-configured cap, not a scheduler, scene variable, mission feed, or second
+combat loop.
+
+The router may mark a consequential mission update as `critical`, `boss_kill`,
+or `dialogue` and credit exact party Heroes. Mission end must nominate a party
+MVP and cite a marked canonical event that credited that Hero. The adapter
+validates those references; a deterministic projector then derives deaths,
+highlights, rewards, unlocks, and MVP evidence from canonical mission events.
+New reports are delivered as System prose or visual-novel panels only to bound
+eligible System POVs. They are presentation of committed truth, not a durable
+feed or another source of mission state.
+
 Character-agent, status, and image projections are viewer-scoped. The account
 owner sees the local account roster, public XP progress, and exact usable stored
 gear; Heroes see their own body at the authored System-detail level; configured
-guides receive lobby-management and tutorial state but not off-feed tactical
-omniscience; image prompts receive only visible current equipment. Narrator
-input remains canonical observable facts rather than raw adapter state.
+guides receive lobby-management and tutorial state but not mission-party facts
+they did not observe; image prompts receive only visible current equipment.
+Narrator input remains canonical observable facts rather than raw adapter state.
 
 The read-only `/master status`, `/master heroes`, and `/master hero` commands
 use the same viewer-scoped projection through `EngineBridge` in both CLI and
@@ -1921,6 +1991,11 @@ turns are sequential: one target produces public output, the router
 canonicalizes it, and only then can another target in that scene act with the
 updated context. This matches live table pacing better than parallel NPC
 fan-out, because later speakers know what earlier speakers just said or did.
+The exception is a set of independent autonomous Cat II responders: each must
+react to the same attempt rather than to a sibling's draft, so those intentions
+run concurrently on isolated snapshots and merge atomically in router-required
+order. Multi-character authoring uses the same isolation-and-atomic-merge
+principle. Neither case changes the sequential canonical-event order.
 
 This should not be framed as "returning player control" as a special runtime
 ontology. A human-bound character is a participant whose immediate output is

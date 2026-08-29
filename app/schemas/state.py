@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Any, Literal
 
@@ -16,10 +17,10 @@ class ModelConfig(BaseModel):
     narrator: str = "gpt-5.6-terra"
     image_director: str = "gpt-5-mini"
     dnd_combat_manager: str = "gpt-5-mini"
-    agent_default: str = "claude-opus-5"
-    agent_standard: str = "gpt-5.6-luna"
-    agent_convenience: str = "claude-sonnet-5"
-    character_manager: str = "claude-sonnet-5"
+    agent_default: str = "gpt-5.6-terra"
+    agent_standard: str = "gpt-5.6-terra"
+    agent_convenience: str = "gpt-5.6-terra"
+    character_manager: str = "gpt-5.6-luna"
 
 
 class SlotEntry(BaseModel):
@@ -895,7 +896,10 @@ class OpeningPolicy(BaseModel):
 
     allow_spawns: bool = False
     context: str = ""
-    authored_character_beat: AuthoredOpeningCharacterBeat | None = None
+    authored_character_beats: list[AuthoredOpeningCharacterBeat] = Field(
+        default_factory=list,
+        max_length=16,
+    )
 
     @model_validator(mode="after")
     def _validate_spawn_authority(self) -> "OpeningPolicy":
@@ -905,6 +909,55 @@ class OpeningPolicy(BaseModel):
                 "opening allow_spawns=true requires authored opening context"
             )
         return self
+
+    def matching_authored_character_beat(
+        self,
+        introduced_ids: Iterable[str],
+    ) -> AuthoredOpeningCharacterBeat | None:
+        """Resolve exactly zero or one authored beat for an opening roster.
+
+        Required ids are a branch trigger, not roster authority. A disjoint
+        required-id set skips that branch, while a partial set or a complete
+        set paired with the wrong introduced count is a malformed opening.
+        A branch with no required ids matches solely by exact count.
+        """
+
+        introduced = {
+            character_id.strip()
+            for character_id in introduced_ids
+            if character_id.strip()
+        }
+        matches: list[AuthoredOpeningCharacterBeat] = []
+        branch_errors: list[str] = []
+        for beat in self.authored_character_beats:
+            required = set(beat.required_participant_ids)
+            overlap = required & introduced
+            if required and not overlap:
+                continue
+            if required and overlap != required:
+                missing = ", ".join(sorted(required - introduced))
+                branch_errors.append(
+                    "authored opening beat is missing required participants: "
+                    + missing
+                )
+                continue
+            if len(introduced) != beat.introduced_character_count:
+                if required:
+                    branch_errors.append(
+                        "authored opening beat introduced-character count does "
+                        "not match the selected roster"
+                    )
+                continue
+            matches.append(beat)
+        if len(matches) > 1:
+            raise ValueError(
+                "opening roster matches more than one authored character beat"
+            )
+        if matches:
+            return matches[0]
+        if branch_errors:
+            raise ValueError(branch_errors[0])
+        return None
 
 
 class WorldState(BaseModel):

@@ -144,7 +144,7 @@ def test_claimed_newcomer_receives_existing_character_opening_contract() -> None
         state_updates=[
             OneStarStateUpdate(
                 kind="summon",
-                target_id="newcomer_opening",
+                target_id="newcomer_opening_roster",
                 value="1",
                 details=[],
             )
@@ -183,7 +183,7 @@ def test_claimed_newcomer_receives_existing_character_opening_contract() -> None
     assert result.state_updates == [
         OneStarStateUpdate(
             kind="summon",
-            target_id="newcomer_opening",
+            target_id="newcomer_opening_roster",
             value="1",
             details=[],
         )
@@ -465,10 +465,15 @@ async def test_claimed_newcomer_is_activated_without_materialization(
         )
     )
 
-    assert ckpt.canonical_events[-1].spawn == []
-    assert "Newcomer takes shape" in (
-        ckpt.canonical_events[-1].canonical_event.observable_facts[0].text
+    arrival_event = next(
+        event
+        for event in ckpt.canonical_events
+        if any(
+            "Newcomer takes shape" in fact.text
+            for fact in event.canonical_event.observable_facts
+        )
     )
+    assert arrival_event.spawn == []
     assert newcomer.status.value == "active"
     assert newcomer.location == "niflheim_lobby"
     assert spawn_manager.calls == 0

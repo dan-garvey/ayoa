@@ -3,7 +3,11 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.engine.character_agent import CharacterAgent, _extract_parenthetical
+from app.engine.character_agent import (
+    CharacterAgent,
+    CharacterAgentFormatError,
+    _extract_parenthetical,
+)
 from app.engine.context_builder import (
     build_character_packet,
     build_character_state,
@@ -18,6 +22,10 @@ from app.engine.turn_loop_contracts import (
     AGENT_TURN_HEADER,
 )
 from app.llm.client import LLMClient, LLMResponse
+from app.schemas.agents import (
+    CharacterAgentFormatRepair,
+    CharacterPresentationChoice,
+)
 from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
 from app.schemas.characters import (
     CharacterAgentTier,
@@ -53,7 +61,12 @@ def mock_client():
     return client
 
 
-def _llm_response(text: str) -> LLMResponse:
+def _llm_response(
+    text: str,
+    *,
+    usage: dict[str, int] | None = None,
+    parsed: object | None = None,
+) -> LLMResponse:
     """Build an LLMResponse for the prose-output agent (Commit 1).
 
     `text` is the raw assistant prose ending in a trailing parenthetical;
@@ -68,7 +81,13 @@ def _llm_response(text: str) -> LLMResponse:
     text_block.model_dump = lambda: {"type": "text", "text": text}
     raw.content = [text_block]
     raw.model = "gpt-5.6-luna"
-    return LLMResponse(parsed=None, raw_response=raw, content=text, model="gpt-5.6-luna")
+    return LLMResponse(
+        parsed=parsed,
+        raw_response=raw,
+        content=text,
+        model="gpt-5.6-luna",
+        usage=usage or {},
+    )
 
 
 @pytest.fixture
@@ -545,31 +564,84 @@ class TestCharacterAgent:
         agent = CharacterAgent(mock_client, prompt_manager)
         result = await agent.turn(guard_character, sample_checkpoint)
         assert result.character_id == "guard_17"
+        assert agent.last_usage["format_repairs"] == 0
 
     @pytest.mark.asyncio
-    async def test_missing_trailing_parenthetical_yields_empty_intent(
+    async def test_missing_trailing_parenthetical_gets_one_bounded_repair(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, caplog,
     ):
-        """Misbehaving model: omits the trailing parenthetical entirely.
-        Engine must NOT crash — it logs a warning, returns the raw
-        prose as `public_text`, and writes an empty `intent`. Routing
-        downstream still works on `public_text`; the lost parse only
-        means this turn's parenthetical-vs-prose split is fuzzy for
-        the few consumers that strip the trailing paren."""
+        """A malformed first response is repaired once before commit."""
         import logging
-        mock_client.complete.return_value = _llm_response(
-            'He nods curtly. "Move along."'
+        invalid = _llm_response(
+            'He nods curtly. "Move along."',
+            usage={
+                "prompt_tokens": 11,
+                "completion_tokens": 7,
+                "total_tokens": 18,
+            },
         )
+        repaired = _llm_response(
+            '{"observable_prose":"He nods curtly. \\"Move along.\\"",'
+            '"private_intent":"I will watch the gate.",'
+            '"presentation":{"use":"","request":""}}',
+            usage={
+                "prompt_tokens": 19,
+                "completion_tokens": 8,
+                "total_tokens": 27,
+            },
+            parsed=CharacterAgentFormatRepair(
+                observable_prose='He nods curtly. "Move along."',
+                private_intent="I will watch the gate.",
+                presentation=CharacterPresentationChoice(),
+            ),
+        )
+        mock_client.complete.side_effect = [invalid, repaired]
         agent = CharacterAgent(mock_client, prompt_manager)
         with caplog.at_level(logging.WARNING):
             result = await agent.turn(guard_character, sample_checkpoint)
         assert result.public_text  # full prose preserved
-        assert result.intent == ""
+        assert result.intent == "I will watch the gate."
+        assert mock_client.complete.await_count == 2
+        assert agent.last_usage["prompt_tokens"] == 30
+        assert agent.last_usage["completion_tokens"] == 15
+        assert agent.last_usage["total_tokens"] == 45
+        assert agent.last_usage["format_repairs"] == 1
+        repair_messages = mock_client.complete.await_args_list[1].kwargs[
+            "messages"
+        ]
+        assert mock_client.complete.await_args_list[1].kwargs["temperature"] == 0.0
+        assert (
+            mock_client.complete.await_args_list[1].kwargs["response_model"]
+            is CharacterAgentFormatRepair
+        )
+        assert any(
+            message["role"] == "assistant"
+            and message["content"] == invalid.content
+            for message in repair_messages
+        )
         assert any(
             "missing trailing parenthetical" in r.message
             for r in caplog.records
         )
+
+    @pytest.mark.asyncio
+    async def test_second_missing_trailing_parenthetical_fails_before_commit(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint,
+    ):
+        invalid = _llm_response('He nods curtly. "Move along."')
+        mock_client.complete.side_effect = [invalid, invalid]
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        with pytest.raises(CharacterAgentFormatError, match="non-empty"):
+            await agent.turn(guard_character, sample_checkpoint)
+
+        assert mock_client.complete.await_count == 2
+        assert not sample_checkpoint.character_conversations.get(
+            guard_character.character_id
+        )
+        assert guard_character.last_agent_turn_at_s is None
 
     @pytest.mark.asyncio
     async def test_prompt_contains_character_context(

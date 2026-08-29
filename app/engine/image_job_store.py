@@ -2397,6 +2397,17 @@ class ImageJobStore:
         runs: list[DurableDirectorRun] = []
         for row in rows:
             run = _director_run_from_row(row)
+            # A narrator-continuation candidate can be cancelled after its
+            # speculative stage work was queued, and lineage reconciliation
+            # cancels runs whose event is no longer in the accepted history.
+            # Neither is an accepted stage transition. Leaving either run in
+            # this ordered list would make it look like the current
+            # transition failed, or make a later reuse stop at a discarded
+            # candidate instead of the last accepted stage. Accepted failed
+            # runs remain represented by their non-cancelled status and still
+            # form the neutral safety barrier below.
+            if run.status == "cancelled":
+                continue
             if (
                 run.projection.presentation_mode == "visual_novel"
                 and pov_character_id in run.projection.viewer_character_ids

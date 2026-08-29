@@ -6,7 +6,10 @@ roster changes from event-router output, and LLM-powered character genesis.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+
+from pydantic import BaseModel, ConfigDict
 
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
@@ -17,6 +20,7 @@ from app.schemas.characters import (
     is_player_authored_slot,
 )
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.event_router import EventRouterOutput, SpawnRequest
 
 logger = logging.getLogger(__name__)
@@ -28,6 +32,7 @@ MAX_SPAWNS_PER_TURN = 3
 # against the same ceiling. Character authoring is a one-time call, and its
 # ruleset overlays are substantially larger than recurring character turns.
 CHARACTER_MANAGER_MAX_TOKENS = 8_000
+CASTING_PLAN_MAX_TOKENS = 2_000
 
 
 # Per-line cap for LLM-authored player-character summaries after newline
@@ -121,6 +126,33 @@ ONE_STAR_OUTPUT_SCHEMA_SUFFIX = r""",
       "description": "short private qualitative capability"
     }]
   }"""
+
+
+class CastingBrief(BaseModel):
+    """One compact, public-facing brief for a requested arrival."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    character_id: str
+    brief: str
+
+
+class CastingPlan(BaseModel):
+    """The complete cast plan returned before individual authoring calls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    briefs: list[CastingBrief]
+
+
+def _immutable_checkpoint_copy(checkpoint: CheckpointFile) -> CheckpointFile:
+    """Copy durable state without following process-local runtime handles."""
+
+    return CheckpointFile.model_validate_json(
+        checkpoint.model_dump_json(
+            context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
+        )
+    )
 
 
 def _normalize_router_summary(summary: str) -> str:
@@ -480,6 +512,128 @@ class CharacterManager:
             # already missing — cull + purge must be idempotent.
             purge_character_state(checkpoint, char_id)
 
+    @staticmethod
+    def _casting_plan_requests(
+        spawn_requests: list[SpawnRequest],
+    ) -> str:
+        lines: list[str] = []
+        for request in spawn_requests:
+            seed = request.seed
+            objectives = ", ".join(seed.objectives) or "none"
+            lines.append(
+                f"- id={request.character_id}; role={seed.role}; "
+                f"reason={seed.reason}; location={seed.location}; "
+                f"objectives={objectives}; knowledge_tier={seed.knowledge_tier}"
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _casting_plan_existing_characters(
+        checkpoint: CheckpointFile,
+    ) -> str:
+        # A casting plan is shared with every generation branch. Keep it to
+        # public identity anchors so a brief cannot smuggle a higher-tier
+        # character's private behavior into a lower-tier generation call.
+        return _existing_character_generation_lines(
+            checkpoint.characters,
+            bound_character_ids=set(
+                checkpoint.session.character_bindings or {}
+            ),
+            max_behavior_knowledge_tier=(
+                0 if checkpoint.world_state.knowledge_tiers else None
+            ),
+        )
+
+    async def _make_casting_plan(
+        self,
+        checkpoint: CheckpointFile,
+        spawn_requests: list[SpawnRequest],
+    ) -> list[CastingBrief]:
+        """Author one compact sibling-aware plan before character genesis."""
+        if self.client is None or self.prompt_manager is None:
+            raise RuntimeError("Character generation requires an LLM client")
+
+        messages = self.prompt_manager.render_messages(
+            "character_casting_plan",
+            setting_summary=_generation_setting_summary(
+                checkpoint,
+                knowledge_isolated=bool(checkpoint.world_state.knowledge_tiers),
+            ),
+            spawn_requests=self._casting_plan_requests(spawn_requests),
+            existing_characters=self._casting_plan_existing_characters(
+                checkpoint
+            ),
+        )
+        response = await self.client.complete(
+            role="character_manager",
+            messages=messages,
+            response_model=CastingPlan,
+            temperature=0.5,
+            max_tokens=CASTING_PLAN_MAX_TOKENS,
+            cache=True,
+            compact=True,
+        )
+        parsed = response.parsed
+        if parsed is None:
+            try:
+                parsed = CastingPlan.model_validate_json(response.content)
+            except Exception as exc:
+                raise ValueError(
+                    "Character casting plan did not contain valid structured "
+                    "output"
+                ) from exc
+        try:
+            plan = (
+                parsed
+                if isinstance(parsed, CastingPlan)
+                else CastingPlan.model_validate(parsed)
+            )
+        except Exception as exc:
+            raise ValueError("Character casting plan is invalid") from exc
+
+        request_ids = [request.character_id for request in spawn_requests]
+        briefs_by_id: dict[str, CastingBrief] = {}
+        for brief in plan.briefs:
+            character_id = brief.character_id.strip()
+            text = brief.brief.strip()
+            if not character_id or not text:
+                raise ValueError(
+                    "Character casting plan entries require a non-empty id "
+                    "and brief"
+                )
+            if character_id in briefs_by_id:
+                raise ValueError(
+                    "Character casting plan contains duplicate character ids: "
+                    f"{character_id}"
+                )
+            briefs_by_id[character_id] = CastingBrief(
+                character_id=character_id,
+                brief=text,
+            )
+        if set(briefs_by_id) != set(request_ids) or len(briefs_by_id) != len(
+            request_ids
+        ):
+            raise ValueError(
+                "Character casting plan must contain exactly one brief for "
+                "each requested character"
+            )
+        return [briefs_by_id[character_id] for character_id in request_ids]
+
+    @staticmethod
+    def _casting_briefs_block(briefs: list[CastingBrief]) -> str:
+        if not briefs:
+            return ""
+        lines = [
+            "## Sibling Casting Briefs",
+            "Treat these as shared public casting direction for this arrival "
+            "wave. Preserve each character's own request and knowledge tier; "
+            "do not copy another brief's private facts.",
+        ]
+        lines.extend(
+            f"- {brief.character_id}: {brief.brief}" for brief in briefs
+        )
+        return "\n".join(lines)
+
     async def spawn_characters(
         self,
         checkpoint: CheckpointFile,
@@ -578,16 +732,45 @@ class CharacterManager:
         if not spawn_requests:
             return []
 
-        spawned = []
-        for req in spawn_requests:
-            char, _router_summary = await self._spawn_one(
-                checkpoint,
-                req,
+        casting_briefs = (
+            await self._make_casting_plan(checkpoint, spawn_requests)
+            if len(spawn_requests) > 1
+            else []
+        )
+        briefs_block = self._casting_briefs_block(casting_briefs)
+
+        # Every branch starts from the same immutable roster/context snapshot.
+        # In particular, a fast first response must not become "existing
+        # character" context for a slower sibling. Nothing is accepted into
+        # the live roster until every branch has returned successfully.
+        generation_snapshot = _immutable_checkpoint_copy(checkpoint)
+
+        async def generate_one(
+            request: SpawnRequest,
+        ) -> tuple[CharacterRecord, str]:
+            branch = _immutable_checkpoint_copy(generation_snapshot)
+            return await self._spawn_one(
+                branch,
+                request,
                 default_location=acting_actor_location,
-                one_star_hero=req.character_id in hero_spawn_ids,
+                one_star_hero=request.character_id in hero_spawn_ids,
+                casting_plan_block=briefs_block,
             )
+
+        results = await asyncio.gather(
+            *(generate_one(request) for request in spawn_requests),
+            return_exceptions=True,
+        )
+        failures = [result for result in results if isinstance(result, BaseException)]
+        if failures:
+            # Branches never touched the live checkpoint. Re-raise the first
+            # failure after all siblings finish so no background generation is
+            # left running against a supposedly accepted wave.
+            raise failures[0]
+
+        spawned = [result[0] for result in results]
+        for char in spawned:
             checkpoint.characters.append(char)
-            spawned.append(char)
             logger.info(
                 "Spawned character: %s (%s)", char.name, char.character_id,
             )
@@ -599,6 +782,7 @@ class CharacterManager:
         *,
         default_location: str = "",
         one_star_hero: bool = False,
+        casting_plan_block: str = "",
     ) -> tuple[CharacterRecord, str]:
         """Generate a single character via LLM.
 
@@ -655,6 +839,10 @@ class CharacterManager:
             world_lore=world_lore,
             world_rules=world_rules,
         )
+        if casting_plan_block:
+            generation_context = (
+                f"{generation_context}\n\n{casting_plan_block}"
+            )
 
         existing = _existing_character_generation_lines(
             checkpoint.characters,
@@ -743,11 +931,7 @@ class CharacterManager:
         )
         authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
-        char.agent_tier = (
-            CharacterAgentTier.standard
-            if one_star_hero
-            else tier_agent_tier or CharacterAgentTier.utility
-        )
+        char.agent_tier = tier_agent_tier or CharacterAgentTier.utility
         char.knowledge_tier = req.seed.knowledge_tier
         if dnd_enabled:
             self._attach_dnd_spawn_mechanics(char, authored, req=req)

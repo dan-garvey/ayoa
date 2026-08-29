@@ -58,16 +58,16 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
     assert ckpt.session.config.models.image_director == "openai:gpt-5-mini"
 
 
-def test_runtime_model_config_defaults_label_mixed_provider_roles():
+def test_runtime_model_config_defaults_label_reviewed_openai_roles():
     models = runtime_model_config(LLMConfig())
 
     assert models.event_router == "openai:gpt-5.6-terra"
     assert models.narrator == "openai:gpt-5.6-terra"
     assert models.dnd_combat_manager == "openai:gpt-5-mini"
-    assert models.agent_default == "anthropic:claude-opus-5"
-    assert models.agent_standard == "openai:gpt-5.6-luna"
-    assert models.agent_convenience == "anthropic:claude-sonnet-5"
-    assert models.character_manager == "anthropic:claude-sonnet-5"
+    assert models.agent_default == "openai:gpt-5.6-terra"
+    assert models.agent_standard == "openai:gpt-5.6-terra"
+    assert models.agent_convenience == "openai:gpt-5.6-terra"
+    assert models.character_manager == "openai:gpt-5.6-luna"
     assert models.image_director == "openai:gpt-5-mini"
 
 

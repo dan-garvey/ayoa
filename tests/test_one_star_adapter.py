@@ -16,7 +16,11 @@ from app.schemas.characters import (
     CharacterStatus,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.one_star import OneStarStateUpdate, OneStarTransaction
+from app.schemas.one_star import (
+    OneStarRulesConfig,
+    OneStarStateUpdate,
+    OneStarTransaction,
+)
 from app.schemas.state import OpenCatIIEvent, SessionConfig, SessionSettings, SessionState
 
 
@@ -79,6 +83,17 @@ def _config() -> dict:
         },
         "floor_rewards": {
             "1": {"gold": 4, "gems": 0, "building_resources": 1, "materials": {}}
+        },
+        "floor_scenarios": {
+            "1": {
+                "mission_id": "mission_1",
+                "destination": "tower_floor_1",
+                "premise": "Clear the first floor.",
+                "completion_declaration": "the floor is cleared",
+                "failure_declaration": "the party is broken",
+                "counters": [{"counter_id": "clear", "current": 0, "target": 1}],
+                "pressure_beats": ["The floor presses the party forward."],
+            }
         },
         "repeat_gold_numerator": 1,
         "repeat_gold_denominator": 4,
@@ -157,6 +172,58 @@ def _checkpoint() -> CheckpointFile:
         ),
         characters=[master, reserve],
     )
+
+
+def test_floor_scenarios_may_be_a_reviewed_subset_of_rewarded_floors() -> None:
+    config = _config()
+    config["floor_rewards"]["2"] = {
+        "gold": 6,
+        "gems": 0,
+        "building_resources": 1,
+        "materials": {},
+    }
+
+    parsed = OneStarRulesConfig.model_validate(config)
+
+    assert set(parsed.floor_rewards) == {1, 2}
+    assert set(parsed.floor_scenarios) == {1}
+
+
+def test_floor_scenario_requires_a_matching_reward() -> None:
+    config = _config()
+    config["floor_scenarios"]["2"] = {
+        "mission_id": "mission_2",
+        "destination": "tower_floor_2",
+        "premise": "Clear the second floor.",
+        "completion_declaration": "the second floor is cleared",
+        "failure_declaration": "the party is broken",
+        "counters": [{"counter_id": "clear", "current": 0, "target": 1}],
+        "pressure_beats": ["The second floor presses the party forward."],
+    }
+
+    with pytest.raises(ValueError, match="must have a configured floor reward"):
+        OneStarRulesConfig.model_validate(config)
+
+
+def test_multiple_opening_rosters_may_require_guide_handoff() -> None:
+    config = _config()
+    config["summon_pools"].update({
+        "master_opening": {
+            "usage": "opening_roster",
+            "slots": [{"kind": "fixed", "character_id": "master_hero"}],
+            "initial_deployment_requires_guide_handoff": True,
+        },
+        "duo_opening": {
+            "usage": "opening_roster",
+            "slots": [{"kind": "fixed", "character_id": "duo_hero"}],
+            "initial_deployment_requires_guide_handoff": True,
+        },
+    })
+
+    parsed = OneStarRulesConfig.model_validate(config)
+
+    assert parsed.summon_pools["master_opening"].usage == "opening_roster"
+    assert parsed.summon_pools["duo_opening"].usage == "opening_roster"
 
 
 def test_transaction_requires_exact_present_shape() -> None:

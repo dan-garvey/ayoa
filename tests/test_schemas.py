@@ -27,6 +27,7 @@ from app.schemas.event_router import (
 from app.schemas.dnd_cat_ii import DndCombatManagerAdjudication, RulesAdjudication
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.content_pack import SafeAssetRevealPayload
+from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
 from app.schemas.narrator import (
     NarratorFinalOutput,
     VisualNovelBeatPages,
@@ -1353,6 +1354,55 @@ class TestTurnResponse:
         assert response.per_player_renders["alice"] == (
             "Alice follows the path and keeps watch."
         )
+
+    def test_player_output_preserves_account_resource_summary(self):
+        summary = (
+            "[ Account resources: 44 Gold, 5 Gems, "
+            "4 Building Resources ]"
+        )
+        response = TurnResponse(
+            session_id="abc",
+            output_text=summary,
+            per_player_renders={"account_owner": summary},
+            per_player_visual_novel_renders={
+                "account_owner": VisualNovelRender(segments=[
+                    VisualNovelRenderSegment(
+                        pages=[VisualNovelPage(
+                            kind="narration",
+                            text=summary,
+                        )],
+                        rendered_event_id="evt1",
+                    ),
+                ]),
+            },
+        )
+
+        assert response.output_text == summary
+        assert response.per_player_renders["account_owner"] == summary
+        page = (
+            response.per_player_visual_novel_renders["account_owner"]
+            .segments[0]
+            .pages[0]
+        )
+        assert page.text == summary
+
+    def test_player_output_redacts_structured_resource_metadata(self):
+        response = TurnResponse(
+            session_id="abc",
+            output_text=(
+                'Visible summary. resources={"informants": 2}'
+            ),
+            per_player_renders={
+                "alice": 'Visible POV. "resources": ["spy network"]',
+            },
+        )
+
+        assert response.output_text.startswith("Visible summary.")
+        assert REDACTED_IMPORT_SENTINEL in response.output_text
+        assert "informants" not in response.output_text
+        assert response.per_player_renders["alice"].startswith("Visible POV.")
+        assert REDACTED_IMPORT_SENTINEL in response.per_player_renders["alice"]
+        assert "spy network" not in response.per_player_renders["alice"]
 
     def test_player_output_preserves_http_urls_and_redacts_credentials(self):
         output_url = "https://example.com/public/hero.png"

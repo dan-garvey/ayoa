@@ -154,6 +154,7 @@ def _checkpoint() -> CheckpointFile:
             "synthesis_skill_chance_basis_points": 500,
         },
         "floor_rewards": {},
+        "floor_scenarios": {},
         "repeat_gold_numerator": 0,
         "repeat_gold_denominator": 1,
         "repeat_gold_minimum": 0,
@@ -447,19 +448,20 @@ def test_opening_roster_compact_update_owns_transaction_and_wake_identities() ->
     assert all(wake.location_label == "lobby" for wake in wakes)
 
 
-def test_opening_actor_compact_update_activates_its_exact_player_authored_slot() -> None:
+def test_bound_player_actor_roster_activates_its_exact_bound_slot() -> None:
     checkpoint = _checkpoint()
     config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
-    config["summon_pools"]["opening_actor"] = {
-        "usage": "opening_actor",
-        "character_id": "newcomer",
+    config["summon_pools"]["newcomer_opening"] = {
+        "usage": "opening_roster",
+        "slots": [{"kind": "bound_player_actor", "character_id": "newcomer"}],
     }
     newcomer = _hero("newcomer")
     newcomer.player_slot_kind = PlayerSlotKind.player_authored
     checkpoint.characters.append(newcomer)
+    checkpoint.session.character_bindings["newcomer"] = "player-1"
     update = OneStarStateUpdate(
         kind="summon",
-        target_id="opening_actor",
+        target_id="newcomer_opening",
         value="1",
         details=[],
     )
@@ -478,6 +480,38 @@ def test_opening_actor_compact_update_activates_its_exact_player_authored_slot()
     assert [(wake.character_id, wake.location_label) for wake in wakes] == [
         ("newcomer", "lobby"),
     ]
+
+
+@pytest.mark.parametrize(
+    ("player_authored", "bound", "error"),
+    [
+        (False, True, "not a player-authored slot"),
+        (True, False, "no live player binding"),
+    ],
+)
+def test_bound_player_actor_roster_requires_exact_authored_live_binding(
+    player_authored: bool,
+    bound: bool,
+    error: str,
+) -> None:
+    checkpoint = _checkpoint()
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["newcomer_opening"] = {
+        "usage": "opening_roster",
+        "slots": [{"kind": "bound_player_actor", "character_id": "newcomer"}],
+    }
+    newcomer = _hero("newcomer")
+    if player_authored:
+        newcomer.player_slot_kind = PlayerSlotKind.player_authored
+    checkpoint.characters.append(newcomer)
+    if bound:
+        checkpoint.session.character_bindings["newcomer"] = "player-1"
+    before = checkpoint.model_dump_json()
+
+    with pytest.raises(OneStarTransactionError, match=error):
+        one_star_opening_roster_preview(checkpoint, "newcomer_opening")
+
+    assert checkpoint.model_dump_json() == before
 
 
 def test_every_summon_rejects_router_authored_identity_details() -> None:

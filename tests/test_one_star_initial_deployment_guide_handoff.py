@@ -41,6 +41,14 @@ STORY_PATH = (
 )
 
 
+def _floor_one_scenario():
+    checkpoint = CheckpointFile.model_validate(
+        json.loads(STORY_PATH.read_text(encoding="utf-8"))
+    )
+    _owner, account = load_one_star_account(checkpoint)
+    return account.config.floor_scenarios[1]
+
+
 def _dispatcher(*responses: object) -> tuple[LLMDispatcher, MagicMock]:
     client = MagicMock(spec=LLMClient)
     client.complete = AsyncMock(
@@ -75,6 +83,7 @@ def _opening_roster_checkpoint(
         json.loads(STORY_PATH.read_text(encoding="utf-8"))
     )
     owner, account = load_one_star_account(ckpt)
+    scenario = account.config.floor_scenarios[1]
     pool_id = next(
         pool_id
         for pool_id, pool in account.config.summon_pools.items()
@@ -143,7 +152,7 @@ def _opening_roster_checkpoint(
         kind="deployment",
         participant_ids=roster_ids,
         target_id="",
-        destination="tower_floor_1",
+        destination=scenario.destination,
         opened_at_s=4,
         synthesis_preview=None,
     )
@@ -193,7 +202,7 @@ def _pending_open_output(
                 "value": "deployment",
                 "details": [
                     *(f"participant={character_id}" for character_id in roster_ids),
-                    "destination=tower_floor_1",
+                    f"destination={_floor_one_scenario().destination}",
                 ],
             }
         ],
@@ -227,7 +236,17 @@ def _deployment_resolution_output(
     event_id: str = "direct_deployment_resolution",
 ) -> OneStarEventRouterOutput:
     operation_id = "initial_floor_1_deployment"
-    mission_id = "floor_1_mission"
+    scenario = _floor_one_scenario()
+    formation_by_character_id = {
+        "mirelle_voss": "front",
+        "one_star_newcomer": (
+            "middle-left" if len(roster_ids) == 4 else "front"
+        ),
+        "edren_marr": (
+            "middle-right" if len(roster_ids) == 4 else "middle"
+        ),
+        "renna_holt": "rear",
+    }
     return _one_star_output(
         router_output(
             event_id=event_id,
@@ -236,7 +255,7 @@ def _deployment_resolution_output(
             location_updates=[
                 {
                     "character_id": character_id,
-                    "location_label": "tower_floor_1",
+                    "location_label": _floor_one_scenario().destination,
                 }
                 for character_id in roster_ids
             ],
@@ -252,23 +271,24 @@ def _deployment_resolution_output(
             },
             {
                 "kind": "mission_start",
-                "target_id": mission_id,
+                "target_id": scenario.mission_id,
                 "value": "1",
                 "details": [
                     f"pending_operation_id={operation_id}",
                     *(f"party={character_id}" for character_id in roster_ids),
                     *(
-                        f"formation.{character_id}={label}"
-                        for character_id, label in zip(
-                            roster_ids,
-                            ("front", "middle", "rear")[: len(roster_ids)],
-                            strict=True,
-                        )
+                        f"formation.{character_id}="
+                        f"{formation_by_character_id[character_id]}"
+                        for character_id in roster_ids
                     ),
-                    "destination=tower_floor_1",
-                    "completion=defeat the Floor 1 opposition",
-                    "failure=all deployed Heroes are dead",
-                    "counter.opponents_defeated=0/4",
+                    f"destination={scenario.destination}",
+                    f"completion={scenario.completion_declaration}",
+                    f"failure={scenario.failure_declaration}",
+                    *(
+                        f"counter.{counter.counter_id}="
+                        f"{counter.current}/{counter.target}"
+                        for counter in scenario.counters
+                    ),
                 ],
             },
         ],
@@ -319,6 +339,8 @@ def test_initial_deployment_responder_order_is_corrected_before_history(
         "content"
     ]
     assert "opening-roster slot order" in correction
+    assert f"expected={roster_ids!r}" in correction
+    assert f"received={list(reversed(roster_ids))!r}" in correction
     history = "\n".join(str(message.content) for message in ckpt.session_conversation)
     assert corrected.event_id in history
     assert invalid.event_id not in history
@@ -456,7 +478,7 @@ def test_later_guide_turn_may_resolve_and_start_the_mission(
             for character in ckpt.characters
             if character.character_id == character_id
         ).location
-        == "tower_floor_1"
+        == _floor_one_scenario().destination
         for character_id in roster_ids
     )
 
@@ -496,7 +518,7 @@ def test_newcomer_pool_does_not_trigger_opening_roster_guide_policy(
         kind="deployment",
         participant_ids=[newcomer_id],
         target_id="",
-        destination="tower_floor_1",
+        destination=_floor_one_scenario().destination,
         opened_at_s=4,
         synthesis_preview=None,
     )

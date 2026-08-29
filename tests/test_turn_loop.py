@@ -8,6 +8,7 @@ error-message formatting. A fake dispatcher stands in for LLM calls.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
@@ -132,6 +133,42 @@ class _SpeculativeBranchFake(FakeDispatcher):
     async def narrator_compose(self, **kw):
         await asyncio.wait_for(self.branch_ready.wait(), timeout=1)
         return await super().narrator_compose(**kw)
+
+
+class _ConcurrentCatIIResponderFake(FakeDispatcher):
+    """Pause autonomous responders until every isolated branch has started."""
+
+    def __init__(self, *, failing_id: str = ""):
+        super().__init__()
+        self.failing_id = failing_id
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+        self.branch_event_ids: dict[str, list[str]] = {}
+        self.branch_collected_intentions: dict[str, dict[str, str]] = {}
+
+    async def agent_intend(self, **kw) -> str:
+        self.agent_calls.append(kw)
+        character_id = kw["character_id"]
+        branch = kw["ckpt"]
+        self.branch_event_ids[character_id] = [
+            event.event_id for event in branch.canonical_events
+        ]
+        self.branch_collected_intentions[character_id] = dict(
+            branch.session.open_cat_ii_events[0].collected_intentions
+        )
+        if len(self.agent_calls) == 2:
+            self.started.set()
+        if character_id == self.failing_id:
+            self.release.set()
+            raise RuntimeError(f"responder failed: {character_id}")
+        await self.release.wait()
+        branch.character_conversations.setdefault(character_id, []).append(
+            ConversationMessage(
+                role="assistant",
+                content=f"draft from {character_id}",
+            )
+        )
+        return f"{character_id} commits to a distinct response."
 
 
 def _hidden_front_dossier(
@@ -1050,6 +1087,90 @@ class TestBeatCascade:
         assert len(fake.route_calls) == 2
         assert len(fake.agent_calls) == 1
 
+    def test_one_star_mission_batch_runs_to_existing_agent_cap(
+        self,
+        monkeypatch,
+    ):
+        from app.engine import one_star_adapter
+
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.max_agent_cascades_per_beat = 2
+        fake = FakeDispatcher()
+        for _ in range(3):
+            fake.queue_route(_router_out(
+                agent_ids=["pip"],
+                event_kind="beat_continues",
+            ))
+        fake.queue_agent("Pip advances the floor objective once.")
+        fake.queue_agent("Pip advances the floor objective twice.")
+        account = SimpleNamespace(
+            state=SimpleNamespace(active_mission=object()),
+        )
+        monkeypatch.setattr(
+            one_star_adapter,
+            "one_star_should_autonomous_mission_batch_after_result",
+            lambda *_args, **_kwargs: True,
+        )
+        monkeypatch.setattr(
+            one_star_adapter,
+            "load_one_star_account",
+            lambda _ckpt: (object(), account),
+        )
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="(defer)",
+        ))
+
+        assert result.ended_reason == "cascade_cap"
+        assert result.events_closed == 3
+        assert [
+            call["character_id"] for call in fake.agent_calls
+        ] == ["pip", "pip"]
+        assert fake.continuation_calls == []
+        assert len(fake.narrator_calls) == 1
+
+    def test_one_star_mission_batch_tries_one_targetless_continuation(
+        self,
+        monkeypatch,
+    ):
+        from app.engine import one_star_adapter
+
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(event_kind="state_change"))
+        fake.queue_route(_router_out(event_kind="state_change"))
+        account = SimpleNamespace(
+            state=SimpleNamespace(active_mission=object()),
+        )
+        monkeypatch.setattr(
+            one_star_adapter,
+            "one_star_should_autonomous_mission_batch_after_result",
+            lambda *_args, **_kwargs: True,
+        )
+        monkeypatch.setattr(
+            one_star_adapter,
+            "load_one_star_account",
+            lambda _ckpt: (object(), account),
+        )
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I watch the floor team.",
+        ))
+
+        assert result.events_closed == 2
+        assert len(fake.route_calls) == 1
+        assert len(fake.continuation_calls) == 1
+        assert fake.continuation_calls[0]["actor_id"] == ""
+        assert result.event_actor_ids == ["alice", ""]
+        assert fake.agent_calls == []
+        assert len(fake.narrator_calls) == 1
+
     def test_cat_i_dispatches_only_first_agent_pick_before_router_roundtrip(
         self,
     ):
@@ -1463,6 +1584,97 @@ class TestCatIIBeat:
         assert ckpt.session.open_cat_ii_events == []
         assert fake.narrator_calls[0]["handoff_policy"] == "forced"
         assert fake.continuation_calls == []
+
+    def test_cat_ii_autonomous_responders_use_same_snapshot_and_order(self):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="quill",
+                name="Quill",
+                location="gatehouse",
+                public_sheet=PublicSheet(role="scribe"),
+            )
+        )
+        fake = _ConcurrentCatIIResponderFake()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["pip", "quill"],
+            observer_ids=["alice", "pip", "quill"],
+            event_kind="cat_ii_open",
+        ))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+
+        async def exercise():
+            task = asyncio.create_task(run_beat(
+                ckpt=ckpt,
+                dispatcher=fake,
+                actor_id="alice",
+                intention="I challenge both witnesses.",
+            ))
+            await asyncio.wait_for(fake.started.wait(), timeout=1)
+            assert [call["character_id"] for call in fake.agent_calls] == [
+                "pip",
+                "quill",
+            ]
+            assert fake.branch_event_ids["pip"]
+            assert fake.branch_event_ids["quill"] == fake.branch_event_ids[
+                "pip"
+            ]
+            assert fake.branch_collected_intentions == {
+                "pip": {},
+                "quill": {},
+            }
+            fake.release.set()
+            return await task
+
+        result = asyncio.run(exercise())
+
+        assert result.ended_reason == "cat_ii_resolution"
+        assert ckpt.session.open_cat_ii_events == []
+        assert [
+            message.content
+            for message in ckpt.character_conversations["pip"]
+        ] == ["draft from pip"]
+        assert [
+            message.content
+            for message in ckpt.character_conversations["quill"]
+        ] == ["draft from quill"]
+        assert fake.route_calls[1]["cat_ii_event"].collected_intentions == {
+            "pip": "pip commits to a distinct response.",
+            "quill": "quill commits to a distinct response.",
+        }
+
+    def test_cat_ii_autonomous_responder_failure_rolls_back_collection(self):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="quill",
+                name="Quill",
+                location="gatehouse",
+                public_sheet=PublicSheet(role="scribe"),
+            )
+        )
+        fake = _ConcurrentCatIIResponderFake(failing_id="quill")
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["pip", "quill"],
+            observer_ids=["alice", "pip", "quill"],
+            event_kind="cat_ii_open",
+        ))
+
+        with pytest.raises(RuntimeError, match="responder failed: quill"):
+            asyncio.run(run_beat(
+                ckpt=ckpt,
+                dispatcher=fake,
+                actor_id="alice",
+                intention="I challenge both witnesses.",
+            ))
+
+        assert ckpt.canonical_events == []
+        assert ckpt.session.open_cat_ii_events == []
+        assert "pip" not in ckpt.session.active_act_slots
+        assert "quill" not in ckpt.session.active_act_slots
+        assert ckpt.character_conversations == {}
 
     def test_all_agent_cat_ii_resolution_still_yields_to_bound_next_output(
         self,

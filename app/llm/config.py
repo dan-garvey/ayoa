@@ -28,10 +28,10 @@ _NARRATOR_MODEL = "gpt-5.6-terra"
 _IMAGE_DIRECTOR_MODEL = "gpt-5-mini"
 _COMBAT_MANAGER_MODEL = "gpt-5-mini"
 _CONTENT_MANAGER_MODEL = "gpt-5-mini"
-_AGENT_MODEL = "claude-opus-5"
-_STANDARD_AGENT_MODEL = "gpt-5.6-luna"
-_CONVENIENCE_AGENT_MODEL = "claude-sonnet-5"
-_CHARACTER_MANAGER_MODEL = "claude-sonnet-5"
+_AGENT_MODEL = "gpt-5.6-terra"
+_STANDARD_AGENT_MODEL = "gpt-5.6-terra"
+_CONVENIENCE_AGENT_MODEL = "gpt-5.6-terra"
+_CHARACTER_MANAGER_MODEL = "gpt-5.6-luna"
 _DEFAULT_MODEL = "gpt-5.1"
 _ROLE_ENV_ALIASES = {
     "agent": ("AGENT",),
@@ -156,6 +156,12 @@ def _openai_role_api_key_env_names(role: str) -> tuple[str, ...]:
         return ("OPEN_AI_AGENT",)
 
     names: list[str] = []
+    if role == "character_manager":
+        # Character casting/generation belongs to the same cost center as
+        # character turns. Preserve the more specific aliases below as
+        # optional deployment overrides, but let the shared agent credential
+        # cover the reviewed OpenAI default.
+        names.append("OPEN_AI_AGENT")
 
     # Local cost-tracking keys may use short role names:
     # OPEN_AI_AGENT, OPEN_AI_ROUTER, OPEN_AI_NARRATOR, OPEN_AI_COMBAT_MANAGER.
@@ -238,6 +244,8 @@ class LLMConfig(BaseModel):
         "image_director": "low",
         "agent": "medium",
         "agent_standard": "medium",
+        "agent_convenience": "medium",
+        "character_manager": "medium",
     })
     # Raw OpenAI reasoning tokens are not exposed by the API. This optional
     # per-role setting requests provider-authored summaries instead.

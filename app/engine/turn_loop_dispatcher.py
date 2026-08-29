@@ -115,6 +115,9 @@ _ONE_STAR_LOBBY_MANAGEMENT_OPERATIONS = frozenset(
 _ONE_STAR_COMPACT_UPDATE_AUTHORITY = (
     'Compact state scalar authority: hero_delta, mission_update, '
     'pending_resolve, pending_cancel, and tutorial_delivery require value="". '
+    "Every mission_update repeats the complete declared counter set as "
+    "counter.<nonempty_id>=<current>/<target> details, including unchanged "
+    "counters. "
     "For pending_resolve and pending_cancel, put the pending operation id only "
     "in target_id and use details=[]. The mission_start update requires one or "
     "more unique counter.<nonempty_id>=<current>/<target> details."
@@ -364,31 +367,21 @@ def _one_star_initial_guided_roster(
         for update in getattr(event, "state_updates", ())
     ):
         return None
-    guided_pools = [
-        (pool_id, pool)
-        for pool_id, pool in account.config.summon_pools.items()
-        if isinstance(pool, OneStarOpeningRosterSummonPool)
-        and pool.initial_deployment_requires_guide_handoff
-    ]
-    if not guided_pools:
-        return None
-    if len(guided_pools) != 1:
-        raise ValueError(
-            "One-Star initial deployment guide handoff requires exactly one "
-            "configured opening-roster authority"
-        )
-    pool_id, pool = guided_pools[0]
-
     opening_event = ckpt.canonical_events[0]
     opening_summons = [
         update
         for update in getattr(opening_event, "state_updates", ())
         if getattr(update, "kind", "") == "summon"
     ]
+    if len(opening_summons) != 1:
+        return None
+    opening_summon = opening_summons[0]
+    pool_id = opening_summon.target_id.strip()
+    pool = account.config.summon_pools.get(pool_id)
     if (
-        len(opening_summons) != 1
-        or opening_summons[0].target_id != pool_id
-        or opening_summons[0].value != str(len(pool.slots))
+        not isinstance(pool, OneStarOpeningRosterSummonPool)
+        or not pool.initial_deployment_requires_guide_handoff
+        or opening_summon.value != str(len(pool.slots))
     ):
         return None
 
@@ -453,10 +446,14 @@ def _validate_one_star_initial_deployment_responder_order(
         or not result.requires_responders
         or result.required_responders != list(ordered_ids)
     ):
+        expected = list(ordered_ids)
         raise ValueError(
             "One-Star guided initial deployment must open Cat II with "
             "required_responders exactly equal to the opening-roster slot "
-            "order and no guide or extra responder"
+            "order and no guide or extra responder: "
+            f"expected={expected!r}; "
+            f"received={result.required_responders!r}; "
+            f"requires_responders={result.requires_responders!r}"
         )
 
 
@@ -931,6 +928,193 @@ def _validate_one_star_guide_routing(
             )
 
 
+def _validate_one_star_standard_summon_guide_handoff(
+    ckpt: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> None:
+    """Make a later standard summon hand directly to the configured guide.
+
+    Ordinary lobby mutations merely need mediated guide observation.  A new
+    Hero is different: the configured guide must immediately own the compact
+    survival induction so the arrival cannot be left active and unbriefed.
+    Opening rosters have their own authored handoff and never enter this path.
+    """
+
+    if not _one_star_router_enabled(ckpt) or not isinstance(
+        result,
+        (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+    ):
+        return
+
+    from app.engine.one_star_adapter import (
+        one_star_standard_summon_guide_handoff_authority,
+    )
+
+    authority = one_star_standard_summon_guide_handoff_authority(
+        ckpt,
+        result=result,
+    )
+    if authority is None:
+        return
+    owner_id, guide_id = authority
+    if actor_id != owner_id:
+        return
+
+    errors: list[str] = []
+    if result.requires_responders or result.required_responders:
+        errors.append("the summon handoff cannot request Cat II responders")
+    if result.next_output_character_ids != [guide_id]:
+        errors.append(
+            "the active configured guide must be the sole immediate next_output"
+        )
+    guide_observer = next(
+        (
+            observer
+            for observer in result.observers
+            if observer.character_id == guide_id
+        ),
+        None,
+    )
+    if (
+        guide_observer is None
+        or guide_observer.observation_level != "d"
+        or guide_observer.routing_role != "next_output"
+    ):
+        errors.append(
+            "the active configured guide must be a direct next_output observer"
+        )
+    if not any(
+        fact.is_visible_to(guide_id)
+        for fact in result.canonical_event.observable_facts
+    ):
+        errors.append(
+            "the guide must receive a visible fact identifying the standard "
+            "summon arrival"
+        )
+    if errors:
+        raise ValueError(
+            "One-Star standard summon requires an immediate guide induction "
+            "handoff:\n- " + "\n- ".join(errors)
+        )
+
+
+def _validate_one_star_standard_summon_induction(
+    ckpt: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> None:
+    """Close an accepted standard-summon handoff with one exact induction."""
+
+    if (
+        not _one_star_router_enabled(ckpt)
+        or not isinstance(
+            result,
+            (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+        )
+        or not ckpt.canonical_events
+    ):
+        return
+    prior = ckpt.canonical_events[-1]
+    if not isinstance(
+        prior,
+        (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+    ):
+        return
+    from app.engine.one_star_adapter import (
+        one_star_standard_summon_guide_handoff_authority,
+    )
+
+    authority = one_star_standard_summon_guide_handoff_authority(
+        ckpt,
+        result=prior,
+    )
+    if authority is None:
+        return
+    _owner_id, guide_id = authority
+    prior_guide_observer = next(
+        (
+            observer
+            for observer in prior.observers
+            if observer.character_id == guide_id
+        ),
+        None,
+    )
+    if (
+        not guide_id
+        or actor_id != guide_id
+        or prior.next_output_character_ids != [guide_id]
+        or prior_guide_observer is None
+        or prior_guide_observer.observation_level != "d"
+        or prior_guide_observer.routing_role != "next_output"
+    ):
+        return
+
+    arrival_ids = list(dict.fromkeys(
+        [request.character_id for request in prior.spawn]
+        + [signal.character_id for signal in prior.activate]
+    ))
+    errors: list[str] = []
+    if not arrival_ids:
+        errors.append(
+            "the accepted standard summon has no arrival lifecycle to induct"
+        )
+    if result.requires_responders or result.required_responders:
+        errors.append("the guide induction must remain Cat I")
+    if result.next_output_character_ids:
+        errors.append("the guide induction cannot select another next_output")
+    if result.perception_enrichment_character_ids:
+        errors.append("the guide induction cannot request perception enrichment")
+    if (
+        len(result.state_updates) != 1
+        or result.state_updates[0].kind != "tutorial_delivery"
+    ):
+        errors.append(
+            "the guide induction must contain exactly one state update: "
+            "its tutorial_delivery"
+        )
+
+    tutorial_updates = [
+        update
+        for update in result.state_updates
+        if update.kind == "tutorial_delivery"
+    ]
+    if len(tutorial_updates) != 1:
+        errors.append(
+            "the guide induction requires exactly one tutorial_delivery"
+        )
+    else:
+        tutorial = tutorial_updates[0]
+        if tutorial.target_id != "niflheim_survival_induction":
+            errors.append(
+                "the tutorial_delivery target must be "
+                "'niflheim_survival_induction'"
+            )
+        if tutorial.value != "":
+            errors.append("the tutorial_delivery value must be empty")
+        recipient_ids: list[str] = []
+        for entry in tutorial.details:
+            key, separator, value = entry.partition("=")
+            if separator and key.strip() == "recipient" and value.strip():
+                recipient_ids.append(value.strip())
+        if (
+            len(recipient_ids) != len(arrival_ids)
+            or set(recipient_ids) != set(arrival_ids)
+        ):
+            errors.append(
+                "the tutorial_delivery recipients must exactly equal the "
+                "standard summon arrivals: "
+                f"expected={arrival_ids!r}; received={recipient_ids!r}"
+            )
+    if errors:
+        raise ValueError(
+            "One-Star standard summon guide induction is incomplete:\n- "
+            + "\n- ".join(errors)
+        )
+
+
 def _validate_one_star_pending_response_routing(
     ckpt: CheckpointFile,
     *,
@@ -1285,38 +1469,16 @@ def _build_one_star_opening_roster_block(
         return ""
 
     from app.engine.one_star_adapter import (
-        load_one_star_account,
+        one_star_opening_roster_pool_id,
         one_star_opening_roster_preview,
     )
-    from app.schemas.one_star import (
-        OneStarOpeningActorSummonPool,
-        OneStarOpeningRosterSummonPool,
+
+    pool_id = one_star_opening_roster_pool_id(
+        checkpoint,
+        opening_participant_ids,
     )
-
-    owner, account = load_one_star_account(checkpoint)
-    opening_actor_ids = {
-        pool.character_id
-        for pool in account.config.summon_pools.values()
-        if isinstance(pool, OneStarOpeningActorSummonPool)
-    }
-    if opening_actor_ids & opening_participant_ids:
+    if not pool_id:
         return ""
-    if owner.character_id not in opening_participant_ids:
-        return ""
-
-    roster_pool_ids = [
-        pool_id
-        for pool_id, pool in account.config.summon_pools.items()
-        if isinstance(pool, OneStarOpeningRosterSummonPool)
-    ]
-    if not roster_pool_ids:
-        return ""
-    if len(roster_pool_ids) != 1:
-        raise ValueError(
-            "an authored One-Star opening requires exactly one opening-roster pool"
-        )
-
-    pool_id = roster_pool_ids[0]
     characters = {
         character.character_id: character for character in checkpoint.characters
     }
@@ -1538,6 +1700,16 @@ def _validate_one_star_guide_and_opening_envelope(
     errors: list[str] = []
     validators = (
         lambda: _validate_one_star_guide_routing(
+            checkpoint,
+            actor_id=actor_id,
+            result=result,
+        ),
+        lambda: _validate_one_star_standard_summon_guide_handoff(
+            checkpoint,
+            actor_id=actor_id,
+            result=result,
+        ),
+        lambda: _validate_one_star_standard_summon_induction(
             checkpoint,
             actor_id=actor_id,
             result=result,
@@ -2305,6 +2477,16 @@ class LLMDispatcher:
                 actor_id=actor_id,
                 result=result,
             )
+            _validate_one_star_standard_summon_guide_handoff(
+                ckpt,
+                actor_id=actor_id,
+                result=result,
+            )
+            _validate_one_star_standard_summon_induction(
+                ckpt,
+                actor_id=actor_id,
+                result=result,
+            )
 
         if result.spawn:
             try:
@@ -2431,6 +2613,16 @@ class LLMDispatcher:
                     result=result,
                 )
                 _validate_one_star_guide_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+                _validate_one_star_standard_summon_guide_handoff(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+                _validate_one_star_standard_summon_induction(
                     ckpt,
                     actor_id=actor_id,
                     result=result,
@@ -3030,6 +3222,7 @@ class LLMDispatcher:
             ctx = _build_router_context(
                 ckpt,
                 actor_id,
+                resolve_actor_fallback=bool(actor_id),
             )
             initial_roster_record = ctx.pop("initial_roster_block", "")
             if initial_roster_record:
@@ -3108,6 +3301,11 @@ class LLMDispatcher:
                     result=result,
                 )
                 _validate_one_star_guide_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+                _validate_one_star_standard_summon_guide_handoff(
                     ckpt,
                     actor_id=actor_id,
                     result=result,

@@ -1,9 +1,10 @@
 """Character agent output — engine-internal record after parse.
 
-The agent's LLM call no longer uses structured output. The model produces
-free-form prose followed by a single trailing parenthetical containing
-its private intent. The engine parses that into the two fields below at
-`CharacterAgent.turn`/`draft_turn` time:
+The agent's ordinary LLM call uses free-form prose followed by a single
+trailing parenthetical containing its private intent. The engine parses that
+into the fields below at `CharacterAgent.turn`/`draft_turn` time. If that
+surface format is malformed, one bounded repair uses the small
+`CharacterAgentFormatRepair` contract before anything is committed:
 
 - `public_text`: everything before the trailing parenthetical. This is
   what flows downstream to the router as `character_id: public_text`.
@@ -54,6 +55,16 @@ class CharacterPresentationChoice(BaseModel):
         self.use = self.use.strip().lower()
         self.request = " ".join(self.request.split()).strip()
         return self
+
+
+class CharacterAgentFormatRepair(BaseModel):
+    """Strict fallback for one malformed free-form character turn."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    observable_prose: str = Field(min_length=1, max_length=8000)
+    private_intent: str = Field(min_length=1, max_length=2000)
+    presentation: CharacterPresentationChoice
 
 
 class CharacterPerceptionOutput(BaseModel):

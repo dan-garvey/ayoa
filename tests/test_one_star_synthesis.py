@@ -28,7 +28,9 @@ from tests.test_one_star_atomicity import (
     _checkpoint,
     _config,
     _hero,
+    _marked_mission_update,
     _mission,
+    _mission_end,
     _transaction,
 )
 
@@ -472,13 +474,17 @@ def test_completed_mission_awards_each_living_survivor_with_overlevel_multiplier
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id="floor_one_complete",
-        transaction=_transaction({
-            "operation": "mission_end",
-            "mission_id": "mission_1",
-            "outcome": "completed",
-            "return_destination": "lobby",
-            "escape_authority_id": "",
-        }),
+        transaction=_transaction(
+            _marked_mission_update(
+                current=1,
+                credited_id="hero_1",
+            ),
+            _mission_end(
+                event_id="floor_one_complete",
+                outcome="completed",
+                mvp_character_id="hero_1",
+            ),
+        ),
     )
     by_id = {item.character_id: item for item in prepared.after_checkpoint.characters}
     multipliers = [100, 75, 50, 25, 10, 5, 0]
@@ -504,13 +510,13 @@ def test_first_and_repeat_completion_use_the_same_floor_xp_authority() -> None:
         prepared = prepare_one_star_transaction(
             checkpoint,
             event_id=f"complete_{already_cleared}",
-            transaction=_transaction({
-                "operation": "mission_end",
-                "mission_id": "mission_1",
-                "outcome": "completed",
-                "return_destination": "lobby",
-                "escape_authority_id": "",
-            }),
+            transaction=_transaction(
+                _marked_mission_update(current=1),
+                _mission_end(
+                    event_id=f"complete_{already_cleared}",
+                    outcome="completed",
+                ),
+            ),
         )
         return load_one_star_hero(next(
             item for item in prepared.after_checkpoint.characters if item.character_id == "hero"

@@ -468,7 +468,7 @@ def _authored_opening_requested(
     return bool(
         submission.strip().casefold() == "(begin)"
         and policy is not None
-        and policy.authored_character_beat is not None
+        and bool(policy.authored_character_beats)
     )
 
 
@@ -486,8 +486,7 @@ def _commit_authored_opening_character_beat(
     """
 
     policy = ckpt.world_state.opening
-    beat = policy.authored_character_beat if policy is not None else None
-    if beat is None:
+    if policy is None or not policy.authored_character_beats:
         return None
     if any(
         event.event_id.startswith("evt_authored_opening_")
@@ -502,15 +501,11 @@ def _commit_authored_opening_character_beat(
     opening_events = list(
         ckpt.canonical_events[-opening_result.events_closed:]
     )
-    event_id = _authored_opening_event_id(
-        ckpt,
-        speaker_character_id=beat.speaker_character_id,
-        opening_events=opening_events,
-    )
-    if any(event.event_id == event_id for event in ckpt.canonical_events):
-        return None
-
     opening_player_ids = sorted(collect_player_ids(ckpt))
+    authored_speaker_ids = {
+        authored_beat.speaker_character_id
+        for authored_beat in policy.authored_character_beats
+    }
     introduced_ids: list[str] = []
     for event in opening_events:
         for character_id in (
@@ -519,34 +514,21 @@ def _commit_authored_opening_character_beat(
         ):
             if (
                 character_id
-                and character_id != beat.speaker_character_id
+                and character_id not in authored_speaker_ids
                 and character_id not in introduced_ids
             ):
                 introduced_ids.append(character_id)
 
-    present_required = [
-        character_id
-        for character_id in beat.required_participant_ids
-        if character_id in introduced_ids
-    ]
-    if beat.required_participant_ids and not present_required:
+    beat = policy.matching_authored_character_beat(introduced_ids)
+    if beat is None:
         return None
-    missing_required = [
-        character_id
-        for character_id in beat.required_participant_ids
-        if character_id not in introduced_ids
-    ]
-    if missing_required:
-        raise ValueError(
-            "authored opening dialogue is missing required participants: "
-            + ", ".join(missing_required)
-        )
-    if len(introduced_ids) != beat.introduced_character_count:
-        raise ValueError(
-            "authored opening dialogue expected "
-            f"{beat.introduced_character_count} introduced characters but "
-            f"the opening materialized {len(introduced_ids)}"
-        )
+    event_id = _authored_opening_event_id(
+        ckpt,
+        speaker_character_id=beat.speaker_character_id,
+        opening_events=opening_events,
+    )
+    if any(event.event_id == event_id for event in ckpt.canonical_events):
+        return None
 
     characters = {character.character_id: character for character in ckpt.characters}
     speaker = characters.get(beat.speaker_character_id)
@@ -1308,6 +1290,16 @@ class Orchestrator:
             pending.acting_player_input,
         )
         event_runtime.defer_roster_acceptance = authored_opening_requested
+        from app.engine.one_star_adapter import (
+            one_star_master_has_human_led_mission,
+        )
+
+        one_star_human_led_mission_guard = (
+            one_star_master_has_human_led_mission(
+                ckpt,
+                actor_id=pending.acting_player_id,
+            )
+        )
         authored_opening_results: list[BeatResult] = []
         try:
             beat_result = await _end_beat(
@@ -1348,6 +1340,9 @@ class Orchestrator:
                     resume_after_handoff=prior_result,
                     resume_events_closed=pending.events_closed,
                     resume_event_actor_ids=list(pending.event_actor_ids),
+                    one_star_human_led_mission_guard=(
+                        one_star_human_led_mission_guard
+                    ),
                 )
             self._clear_pending_commitment_revision(ckpt, pending)
             authored_opening_results = (
@@ -1817,6 +1812,28 @@ class Orchestrator:
                 and blocked_entry.reason == "combat_blocked"
             )
             check = check_act_slot(ckpt, acting_id)
+            from app.engine.one_star_adapter import (
+                one_star_master_has_human_led_mission,
+            )
+
+            one_star_human_led_mission_guard = (
+                one_star_master_has_human_led_mission(
+                    ckpt,
+                    actor_id=acting_id,
+                )
+            )
+            pinned_mission_admission = False
+            if check.conflict == SlotConflict.CAT_II_OTHER_HELD:
+                from app.engine.one_star_adapter import (
+                    one_star_master_may_act_while_mission_responder_pinned,
+                )
+
+                pinned_mission_admission = (
+                    one_star_master_may_act_while_mission_responder_pinned(
+                        ckpt,
+                        actor_id=acting_id,
+                    )
+                )
 
             if (
                 was_combat_blocked
@@ -1840,7 +1857,11 @@ class Orchestrator:
                                   SlotConflict.CAT_II_OTHER_HELD,
                                   SlotConflict.COMBAT_REACTION_OTHER_HELD,
                                   SlotConflict.CAT_II_SELF_ROLL,
-                                  SlotConflict.SELF_BUSY):
+                                  SlotConflict.SELF_BUSY) and not (
+                                      pinned_mission_admission
+                                      and check.conflict
+                                      == SlotConflict.CAT_II_OTHER_HELD
+                                  ):
                 msg = format_slot_rejection(
                     check, ckpt, attempted_text=request.user_input,
                 )
@@ -1896,6 +1917,22 @@ class Orchestrator:
                 if check.conflict == SlotConflict.CAT_II_SELF_RESPONDER
                 else None
             )
+            if not one_star_human_led_mission_guard and cat_ii_event_id:
+                open_event = next(
+                    (
+                        event
+                        for event in ckpt.session.open_cat_ii_events
+                        if event.event_id == cat_ii_event_id
+                    ),
+                    None,
+                )
+                if open_event is not None:
+                    one_star_human_led_mission_guard = (
+                        one_star_master_has_human_led_mission(
+                            ckpt,
+                            actor_id=open_event.initiator_id,
+                        )
+                    )
 
             if was_combat_blocked and check.conflict == SlotConflict.FREE:
                 release_character_slot(ckpt, acting_id)
@@ -1967,6 +2004,9 @@ class Orchestrator:
                     cat_ii_event_id=cat_ii_event_id,
                     combat_reaction_event_id=combat_reaction_event_id,
                     resume_after_handoff=deferred_handoff,
+                    one_star_human_led_mission_guard=(
+                        one_star_human_led_mission_guard
+                    ),
                 )
                 if revision_before is not None:
                     current_revision = (

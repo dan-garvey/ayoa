@@ -98,29 +98,29 @@ class TestLLMConfig:
 
         assert "image_director" not in live_play_required_roles()
 
-    def test_defaults_use_gpt_router_narrator_and_anthropic_agents(self):
+    def test_defaults_use_reviewed_openai_models_for_live_roles(self):
         config = LLMConfig()
         assert config.default_provider == "openai"
         assert config.default_model == "gpt-5.1"
-        assert config.providers_in_use() == {"anthropic", "openai"}
+        assert config.providers_in_use() == {"openai"}
         assert config.role_models["event_router"] == "gpt-5.6-terra"
         assert config.role_models["narrator"] == "gpt-5.6-terra"
         assert config.role_models["dnd_combat_manager"] == "gpt-5-mini"
         assert config.role_models["content_manager"] == "gpt-5-mini"
         assert config.role_models["image_director"] == "gpt-5-mini"
-        assert config.role_models["agent"] == "claude-opus-5"
-        assert config.role_models["agent_standard"] == "gpt-5.6-luna"
-        assert config.role_models["agent_convenience"] == "claude-sonnet-5"
-        assert config.role_models["character_manager"] == "claude-sonnet-5"
+        assert config.role_models["agent"] == "gpt-5.6-terra"
+        assert config.role_models["agent_standard"] == "gpt-5.6-terra"
+        assert config.role_models["agent_convenience"] == "gpt-5.6-terra"
+        assert config.role_models["character_manager"] == "gpt-5.6-luna"
         assert config.provider_for_role("event_router") == "openai"
         assert config.provider_for_role("narrator") == "openai"
         assert config.provider_for_role("dnd_combat_manager") == "openai"
         assert config.provider_for_role("content_manager") == "openai"
         assert config.provider_for_role("image_director") == "openai"
-        assert config.provider_for_role("agent") == "anthropic"
+        assert config.provider_for_role("agent") == "openai"
         assert config.provider_for_role("agent_standard") == "openai"
-        assert config.provider_for_role("agent_convenience") == "anthropic"
-        assert config.provider_for_role("character_manager") == "anthropic"
+        assert config.provider_for_role("agent_convenience") == "openai"
+        assert config.provider_for_role("character_manager") == "openai"
         assert config.thinking_budget_for_role("agent") == 0
         assert config.thinking_budget_for_role("agent_standard") == 0
         assert config.thinking_budget_for_role("agent_convenience") == 0
@@ -192,6 +192,10 @@ class TestLLMConfig:
                 == "agent-openai-key"
             )
             assert (
+                config.api_key_for_provider("openai", role="character_manager")
+                == "agent-openai-key"
+            )
+            assert (
                 config.api_key_for_provider("openai", role="event_router")
                 == "router-openai-key"
             )
@@ -226,6 +230,10 @@ class TestLLMConfig:
             assert config.openai_role_api_key_env_names(role) == (
                 "OPEN_AI_AGENT",
             )
+
+        assert config.openai_role_api_key_env_names("character_manager")[0] == (
+            "OPEN_AI_AGENT"
+        )
 
     def test_dnd_combat_manager_does_not_reuse_router_openai_key(self):
         with patch.dict(
@@ -263,6 +271,11 @@ class TestLLMConfig:
         config = LLMConfig(
             api_key="anthropic-key",
             openai_role_api_keys={"narrator": "narrator-key"},
+            role_models={
+                "agent": "anthropic:claude-opus-5",
+                "event_router": "gpt-5.6-terra",
+                "narrator": "gpt-5.6-terra",
+            },
         )
 
         missing = config.missing_credentials(
@@ -288,7 +301,13 @@ class TestLLMConfig:
         assert "OPENAI_API_KEY" in missing[0].env_names
 
     def test_missing_credentials_reports_anthropic_role(self):
-        config = LLMConfig(openai_api_key="openai-key")
+        config = LLMConfig(
+            openai_api_key="openai-key",
+            role_models={
+                "agent": "anthropic:claude-opus-5",
+                "event_router": "gpt-5.6-terra",
+            },
+        )
 
         missing = config.missing_credentials({"agent", "event_router"})
 

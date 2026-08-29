@@ -1,9 +1,14 @@
 """Tests for character-manager behavior used by the orchestrator path."""
 
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.engine.character_manager import CharacterManager
+from app.engine.character_manager import (
+    CastingBrief,
+    CastingPlan,
+    CharacterManager,
+)
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
 from app.llm.config import LLMConfig
@@ -162,6 +167,131 @@ class TestCharacterManager:
         assert char.status == CharacterStatus.culled
 
 class TestCharacterSpawn:
+    @pytest.mark.asyncio
+    async def test_spawn_wave_plans_once_and_authors_in_parallel(
+        self, mock_client, sample_checkpoint,
+    ):
+        from app.schemas.takeover import AuthoredCharacter
+
+        requests = [
+            _spawn_request(character_id="first_arrival", seed={"role": "scout"}),
+            _spawn_request(character_id="second_arrival", seed={"role": "porter"}),
+        ]
+        plan = CastingPlan(
+            briefs=[
+                CastingBrief(character_id="first_arrival", brief="A wary scout with a blue scarf."),
+                CastingBrief(character_id="second_arrival", brief="A broad porter with a brass tally."),
+            ]
+        )
+        authored_by_id = {
+            request.character_id: AuthoredCharacter(
+                name=request.character_id,
+                location="courtyard",
+                role=request.seed.role,
+                appearance="Distinct appearance.",
+                default_loadout="Distinct loadout.",
+                faction="",
+                backstory="A concise history.",
+                personality="A distinct voice.",
+                known_context="",
+                goals=["Stay alive."],
+                current_objectives=["Find a foothold."],
+                secrets=[],
+                intentions_enabled=False,
+                router_summary="",
+            )
+            for request in requests
+        }
+        entered: list[str] = []
+        all_entered = asyncio.Event()
+        generation_messages: dict[str, list[dict]] = {}
+
+        async def complete(**kwargs):
+            if kwargs["response_model"] is CastingPlan:
+                return _llm_response(plan)
+            text = kwargs["messages"][-1]["content"]
+            character_id = next(
+                request.character_id
+                for request in requests
+                if f"Character ID: {request.character_id}" in text
+            )
+            generation_messages[character_id] = kwargs["messages"]
+            entered.append(character_id)
+            if len(entered) == len(requests):
+                all_entered.set()
+            await asyncio.wait_for(all_entered.wait(), timeout=1)
+            return _llm_response(authored_by_id[character_id])
+
+        mock_client.complete.side_effect = complete
+        manager = CharacterManager(mock_client, PromptManager("app/prompts"))
+        spawned = await manager.spawn_characters(sample_checkpoint, requests)
+
+        assert [character.character_id for character in spawned] == [
+            "first_arrival",
+            "second_arrival",
+        ]
+        assert [character.character_id for character in sample_checkpoint.characters] == [
+            "guard_17",
+            "first_arrival",
+            "second_arrival",
+        ]
+        assert mock_client.complete.await_count == 3
+        assert mock_client.complete.await_args_list[0].kwargs["response_model"] is CastingPlan
+        for messages in generation_messages.values():
+            prompt = messages[-1]["content"]
+            assert "first_arrival: A wary scout with a blue scarf." in prompt
+            assert "second_arrival: A broad porter with a brass tally." in prompt
+
+    @pytest.mark.asyncio
+    async def test_spawn_wave_failure_keeps_live_roster_unchanged(
+        self, mock_client, sample_checkpoint,
+    ):
+        requests = [
+            _spawn_request(character_id="successful_arrival", seed={"role": "scout"}),
+            _spawn_request(character_id="failed_arrival", seed={"role": "porter"}),
+        ]
+        plan = CastingPlan(
+            briefs=[
+                CastingBrief(character_id=request.character_id, brief="Distinct arrival.")
+                for request in requests
+            ]
+        )
+        from app.schemas.takeover import AuthoredCharacter
+
+        authored = AuthoredCharacter(
+            name="Successful",
+            location="courtyard",
+            role="scout",
+            appearance="Distinct appearance.",
+            default_loadout="Distinct loadout.",
+            faction="",
+            backstory="A concise history.",
+            personality="A distinct voice.",
+            known_context="",
+            goals=["Stay alive."],
+            current_objectives=["Find a foothold."],
+            secrets=[],
+            intentions_enabled=False,
+            router_summary="",
+        )
+
+        async def complete(**kwargs):
+            if kwargs["response_model"] is CastingPlan:
+                return _llm_response(plan)
+            if "failed_arrival" in kwargs["messages"][-1]["content"]:
+                raise RuntimeError("generation failed")
+            return _llm_response(authored)
+
+        mock_client.complete.side_effect = complete
+        manager = CharacterManager(mock_client, PromptManager("app/prompts"))
+
+        with pytest.raises(RuntimeError, match="generation failed"):
+            await manager.spawn_characters(sample_checkpoint, requests)
+
+        assert [character.character_id for character in sample_checkpoint.characters] == [
+            "guard_17",
+        ]
+
     @pytest.mark.asyncio
     async def test_spawn_character(self, mock_client, sample_checkpoint):
         from app.schemas.takeover import AuthoredCharacter

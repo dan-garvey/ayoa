@@ -22,7 +22,12 @@ from app.engine.one_star_adapter import (
 )
 from app.engine.one_star_progression import rebalance_hero
 from app.engine.one_star_visuals import one_star_identity_reveal_stars
-from app.schemas.characters import CharacterAgentTier, CharacterRecord, CharacterStatus
+from app.schemas.characters import (
+    CharacterAgentTier,
+    CharacterRecord,
+    CharacterStatus,
+    PlayerSlotKind,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.events import CanonicalEvent
 from app.schemas.event_router import CommitmentOpenSignal
@@ -105,6 +110,17 @@ def _config() -> dict:
         "floor_rewards": {
             "1": {"gold": 4, "gems": 0, "building_resources": 1, "materials": {}},
         },
+        "floor_scenarios": {
+            "1": {
+                "mission_id": "mission_1",
+                "destination": "tower_floor_1",
+                "premise": "Clear the first floor.",
+                "completion_declaration": "the floor is cleared",
+                "failure_declaration": "the party is broken",
+                "counters": [{"counter_id": "clear", "current": 0, "target": 1}],
+                "pressure_beats": ["The floor presses the party forward."],
+            }
+        },
         "repeat_gold_numerator": 1,
         "repeat_gold_denominator": 4,
         "repeat_gold_minimum": 1,
@@ -159,8 +175,8 @@ def _mission(*, destination: str = "tower_floor_1", party: list[str] | None = No
         floor=1,
         party_ids=party or ["hero"],
         formation_labels=[
-            {"character_id": cid, "label": "front"}
-            for cid in (party or ["hero"])
+            {"character_id": cid, "label": f"position_{index}"}
+            for index, cid in enumerate(party or ["hero"], start=1)
         ],
         destination=destination,
         completion_declaration="the floor is cleared",
@@ -169,6 +185,22 @@ def _mission(*, destination: str = "tower_floor_1", party: list[str] | None = No
         started_at_s=0,
         deadline_at_s=0,
     )
+
+
+@pytest.mark.parametrize("invalid_formation", ["missing", "duplicate_label"])
+def test_mission_formation_maps_every_party_member_to_a_distinct_position(
+    invalid_formation: str,
+) -> None:
+    payload = _mission(party=["hero", "ally"]).model_dump(mode="json")
+    if invalid_formation == "missing":
+        payload["formation_labels"] = payload["formation_labels"][:1]
+    else:
+        payload["formation_labels"][1]["label"] = payload[
+            "formation_labels"
+        ][0]["label"]
+
+    with pytest.raises(ValueError, match="formation"):
+        OneStarMissionState.model_validate(payload)
 
 
 def _checkpoint(
@@ -212,6 +244,39 @@ def _checkpoint(
 
 def _transaction(*operations: dict) -> OneStarTransaction:
     return OneStarTransaction.model_validate({"present": bool(operations), "operations": list(operations)})
+
+
+def _marked_mission_update(
+    *,
+    current: int,
+    credited_id: str = "hero",
+    report_kind: str = "critical",
+) -> dict:
+    return {
+        "operation": "mission_update",
+        "mission_id": "mission_1",
+        "counters": [{"counter_id": "clear", "current": current, "target": 1}],
+        "report_kind": report_kind,
+        "report_credit": [credited_id],
+    }
+
+
+def _mission_end(
+    *,
+    event_id: str,
+    outcome: str,
+    mvp_character_id: str = "hero",
+    escape_authority_id: str = "",
+) -> dict:
+    return {
+        "operation": "mission_end",
+        "mission_id": "mission_1",
+        "outcome": outcome,
+        "return_destination": "lobby" if outcome != "failed" else "",
+        "escape_authority_id": escape_authority_id,
+        "mvp_character_id": mvp_character_id,
+        "mvp_evidence_event_id": event_id,
+    }
 
 
 def _hero_delta(hero_id: str = "hero", **overrides: object) -> dict:
@@ -484,12 +549,16 @@ async def test_typed_repair_scalar_failure_gets_one_valid_full_correction() -> N
     assert 'pending_resolve, pending_cancel' in repair_packet
     assert 'require value=""' in repair_packet
     assert "counter.<nonempty_id>=<current>/<target>" in repair_packet
+    assert "complete declared counter set" in repair_packet
+    assert "including unchanged counters" in repair_packet
     correction_packet = client.complete.await_args_list[2].kwargs["messages"][-1][
         "content"
     ]
     assert "pending_resolve state update does not use value" in correction_packet
     assert 'require value=""' in correction_packet
     assert "counter.<nonempty_id>=<current>/<target>" in correction_packet
+    assert "complete declared counter set" in correction_packet
+    assert "including unchanged counters" in correction_packet
     assert "typed_repair_deployment" in checkpoint.session_conversation[-1].content
 
 
@@ -944,7 +1013,7 @@ def test_active_mission_party_cannot_cross_sealed_boundary_with_location_update(
 
 
 def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor() -> None:
-    pending = _pending("synthesis", target="hero", destination="synthesis_room")
+    pending = _pending("promotion", target="hero", destination="promotion_room")
     checkpoint = _checkpoint(
         heroes=[_hero(location="tower_floor_1")],
         active_mission=_mission(),
@@ -953,7 +1022,7 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
     returning_sheet["hp_current"] = 2
     returning_sheet["conditions"] = ["bleeding", "poisoned", "exhausted"]
     returning_sheet["persistent_injuries"] = ["missing fingertip"]
-    with pytest.raises(OneStarTransactionError, match="active"):
+    with pytest.raises(OneStarTransactionError, match="nonparty"):
         prepare_one_star_transaction(
             checkpoint,
             event_id="bad_open",
@@ -968,13 +1037,13 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
         prepare_one_star_transaction(
             checkpoint,
             event_id="premature_mission_complete",
-            transaction=_transaction({
-                "operation": "mission_end",
-                "mission_id": "mission_1",
-                "outcome": "completed",
-                "return_destination": "lobby",
-                "escape_authority_id": "",
-            }),
+            transaction=_transaction(
+                _marked_mission_update(current=0),
+                _mission_end(
+                    event_id="premature_mission_complete",
+                    outcome="completed",
+                ),
+            ),
             canonical_at_s=1,
         )
 
@@ -982,20 +1051,8 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
         checkpoint,
         event_id="mission_complete",
         transaction=_transaction(
-            {
-                "operation": "mission_update",
-                "mission_id": "mission_1",
-                "counters": [
-                    {"counter_id": "clear", "current": 1, "target": 1},
-                ],
-            },
-            {
-                "operation": "mission_end",
-                "mission_id": "mission_1",
-                "outcome": "completed",
-                "return_destination": "lobby",
-                "escape_authority_id": "",
-            },
+            _marked_mission_update(current=1),
+            _mission_end(event_id="mission_complete", outcome="completed"),
         ),
         canonical_at_s=1,
     )
@@ -1010,6 +1067,13 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
     assert account.state.active_mission is None
     assert account.state.highest_cleared_floor == 1
     assert account.state.highest_unlocked_floor == 1
+    consequence_text = "\n".join(
+        consequence.text for consequence in completed.system_consequences
+    )
+    assert "Floor 1 first-clear reward applied" in consequence_text
+    assert "Mission report MVP is Hero" in consequence_text
+    assert "mission_1" not in consequence_text
+    assert "mission_complete" not in consequence_text
 
 
 def test_active_mission_rejects_undeployed_reinforcement_and_party_dormancy() -> None:
@@ -1094,7 +1158,7 @@ def test_active_mission_rejects_lifecycle_and_summon_reinforcements() -> None:
         heroes=[party_hero.model_copy(deep=True), unowned_reserve],
         active_mission=_mission(),
     )
-    with pytest.raises(OneStarTransactionError, match="active mission"):
+    with pytest.raises(OneStarTransactionError, match="configured lobby"):
         prepare_one_star_transaction(
             reserve_checkpoint,
             event_id="summon_reinforcement",
@@ -1383,7 +1447,7 @@ def test_synthesis_resolve_derives_selected_source_culls() -> None:
             True,
             False,
             CharacterAgentTier.standard,
-            CharacterAgentTier.standard,
+            CharacterAgentTier.premium,
             True,
             id="generated-no-reviewed-art",
         ),
@@ -1407,7 +1471,7 @@ def test_synthesis_resolve_derives_selected_source_culls() -> None:
             True,
             True,
             CharacterAgentTier.standard,
-            CharacterAgentTier.standard,
+            CharacterAgentTier.premium,
             False,
             id="generated-reviewed-art",
         ),
@@ -1673,6 +1737,84 @@ def test_deployment_gate_crossing_requires_atomic_resolution_and_mission_start()
     ).location == "tower_floor_1"
 
 
+def test_mission_start_must_match_reviewed_floor_scenario() -> None:
+    pending = _pending(
+        "deployment",
+        participants=["hero"],
+        destination="tower_floor_1",
+    )
+    checkpoint = _checkpoint(pending_operation=pending)
+    drifted_mission = _mission().model_copy(
+        update={"completion_declaration": "some other victory"}
+    )
+    before = checkpoint.model_dump_json()
+
+    with pytest.raises(OneStarTransactionError, match="reviewed floor scenario"):
+        prepare_one_star_transaction(
+            checkpoint,
+            event_id="drifted_scenario",
+            transaction=_transaction(
+                {
+                    "operation": "pending_resolve",
+                    "operation_id": pending.operation_id,
+                },
+                {
+                    "operation": "mission_start",
+                    "mission": drifted_mission.model_dump(mode="json"),
+                    "pending_operation_id": pending.operation_id,
+                },
+            ),
+            location_updates={"hero": "tower_floor_1"},
+        )
+
+    assert checkpoint.model_dump_json() == before
+
+
+def test_active_mission_allows_one_nonparty_lobby_operation_but_no_deployment() -> None:
+    party = _hero(location="tower_floor_1")
+    reserve = _hero(location="lobby")
+    reserve.character_id = "reserve"
+    checkpoint = _checkpoint(
+        heroes=[party, reserve],
+        active_mission=_mission(),
+    )
+    promotion = _pending(
+        "promotion",
+        target="reserve",
+        destination="promotion_room",
+    )
+
+    opened = prepare_one_star_transaction(
+        checkpoint,
+        event_id="parallel_promotion_open",
+        transaction=_transaction({
+            "operation": "pending_open",
+            "pending": promotion.model_dump(mode="json"),
+        }),
+        initiating_actor_id="account_owner",
+    )
+    state = load_one_star_account(opened.after_checkpoint)[1].state
+    assert state.active_mission is not None
+    assert state.pending_operation is not None
+    assert state.pending_operation.operation_id == promotion.operation_id
+
+    deployment = _pending(
+        "deployment",
+        participants=["reserve"],
+        destination="tower_floor_1",
+    )
+    with pytest.raises(OneStarTransactionError, match="second deployment"):
+        prepare_one_star_transaction(
+            checkpoint,
+            event_id="parallel_deployment_open",
+            transaction=_transaction({
+                "operation": "pending_open",
+                "pending": deployment.model_dump(mode="json"),
+            }),
+            initiating_actor_id="account_owner",
+        )
+
+
 def test_deployment_resolution_does_not_infer_missing_party_movement() -> None:
     second_hero = _hero()
     second_hero.character_id = "second_hero"
@@ -1809,7 +1951,7 @@ def test_unselected_local_hero_cannot_preposition_beyond_pending_gate() -> None:
 
 
 @pytest.mark.parametrize("operation", ["catalogue", "summon"])
-def test_owner_lobby_controls_are_unavailable_during_active_mission(
+def test_owner_lobby_controls_remain_available_during_active_mission(
     operation: str,
 ) -> None:
     checkpoint = _checkpoint(
@@ -1817,9 +1959,20 @@ def test_owner_lobby_controls_are_unavailable_during_active_mission(
         active_mission=_mission(),
     )
     if operation == "catalogue":
+        account = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]
+        account["config"]["catalogue"]["lobby_supply"] = {
+            "kind": "purchase",
+            "cost": {
+                "gold": 1,
+                "gems": 0,
+                "building_resources": 0,
+                "materials": {},
+            },
+            "inventory_item_id": "lobby_supply",
+        }
         transaction = _transaction({
             "operation": "catalogue_apply",
-            "catalogue_id": "synthesis_chamber",
+            "catalogue_id": "lobby_supply",
             "quantity": 1,
         })
         kwargs: dict[str, object] = {}
@@ -1837,41 +1990,64 @@ def test_owner_lobby_controls_are_unavailable_during_active_mission(
             "activated_character_ids": ["reserve"],
             "activated_character_locations": {"reserve": "lobby"},
         }
-    with pytest.raises(OneStarTransactionError, match="active mission"):
-        prepare_one_star_transaction(
-            checkpoint,
-            event_id=f"mission_blocks_{operation}",
-            transaction=transaction,
-            initiating_actor_id="account_owner",
-            **kwargs,
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id=f"mission_allows_{operation}",
+        transaction=transaction,
+        initiating_actor_id="account_owner",
+        **kwargs,
+    )
+    account = load_one_star_account(prepared.after_checkpoint)[1]
+    assert account.state.active_mission is not None
+    if operation == "catalogue":
+        assert account.state.inventory["lobby_supply"] == 1
+    else:
+        reserve = next(
+            character
+            for character in prepared.after_checkpoint.characters
+            if character.character_id == "reserve"
         )
+        assert reserve.location == "lobby"
 
-def test_lobby_control_cannot_follow_mission_start_in_same_transaction() -> None:
+def test_lobby_control_can_follow_mission_start_in_same_transaction() -> None:
     pending = _pending("deployment", participants=["hero"], destination="tower_floor_1")
     checkpoint = _checkpoint(pending_operation=pending)
-    with pytest.raises(OneStarTransactionError, match="active mission"):
-        prepare_one_star_transaction(
-            checkpoint,
-            event_id="deploy_then_shop",
-            transaction=_transaction(
-                {
-                    "operation": "pending_resolve",
-                    "operation_id": pending.operation_id,
-                },
-                {
-                    "operation": "mission_start",
-                    "mission": _mission().model_dump(mode="json"),
-                    "pending_operation_id": pending.operation_id,
-                },
-                {
-                    "operation": "catalogue_apply",
-                    "catalogue_id": "synthesis_chamber",
-                    "quantity": 1,
-                },
-            ),
-            location_updates={"hero": "tower_floor_1"},
-            initiating_actor_id="account_owner",
-        )
+    account = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]
+    account["config"]["catalogue"]["lobby_supply"] = {
+        "kind": "purchase",
+        "cost": {
+            "gold": 1,
+            "gems": 0,
+            "building_resources": 0,
+            "materials": {},
+        },
+        "inventory_item_id": "lobby_supply",
+    }
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="deploy_then_shop",
+        transaction=_transaction(
+            {
+                "operation": "pending_resolve",
+                "operation_id": pending.operation_id,
+            },
+            {
+                "operation": "mission_start",
+                "mission": _mission().model_dump(mode="json"),
+                "pending_operation_id": pending.operation_id,
+            },
+            {
+                "operation": "catalogue_apply",
+                "catalogue_id": "lobby_supply",
+                "quantity": 1,
+            },
+        ),
+        location_updates={"hero": "tower_floor_1"},
+        initiating_actor_id="account_owner",
+    )
+    state = load_one_star_account(prepared.after_checkpoint)[1].state
+    assert state.active_mission is not None
+    assert state.inventory["lobby_supply"] == 1
 
 
 def _add_escape_skill() -> dict:
@@ -1892,14 +2068,13 @@ def test_escape_authority_added_in_same_mission_end_event_cannot_authorize_escap
             checkpoint,
             event_id="escape_with_new_skill",
             transaction=_transaction(
+                _marked_mission_update(current=0, report_kind="dialogue"),
                 _hero_delta(skills_add=[_add_escape_skill()]),
-                {
-                    "operation": "mission_end",
-                    "mission_id": "mission_1",
-                    "outcome": "escaped",
-                    "return_destination": "lobby",
-                    "escape_authority_id": "escape_skill",
-                },
+                _mission_end(
+                    event_id="escape_with_new_skill",
+                    outcome="escaped",
+                    escape_authority_id="escape_skill",
+                ),
             ),
         )
 
@@ -1911,13 +2086,14 @@ def test_preexisting_escape_authority_allows_escaped_mission_return() -> None:
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id="escape_with_old_skill",
-        transaction=_transaction({
-            "operation": "mission_end",
-            "mission_id": "mission_1",
-            "outcome": "escaped",
-            "return_destination": "lobby",
-            "escape_authority_id": "escape_skill",
-        }),
+        transaction=_transaction(
+            _marked_mission_update(current=0, report_kind="dialogue"),
+            _mission_end(
+                event_id="escape_with_old_skill",
+                outcome="escaped",
+                escape_authority_id="escape_skill",
+            ),
+        ),
     )
     assert next(item for item in prepared.after_checkpoint.characters if item.character_id == "hero").location == "lobby"
 
@@ -2082,14 +2258,16 @@ def test_non_owner_cannot_initiate_master_control_operations(operation: dict) ->
         )
 
 
-def test_opening_actor_pool_remains_available_to_the_exact_newcomer() -> None:
+def test_bound_player_actor_pool_remains_available_to_the_exact_newcomer() -> None:
     newcomer = _hero(status=CharacterStatus.dormant, location="not_yet", owner="")
     newcomer.character_id = "newcomer"
+    newcomer.player_slot_kind = PlayerSlotKind.player_authored
     checkpoint = _checkpoint(heroes=[newcomer])
+    checkpoint.session.character_bindings["newcomer"] = "player-1"
     config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
     config["summon_pools"]["opening"] = {
-        "usage": "opening_actor",
-        "character_id": "newcomer",
+        "usage": "opening_roster",
+        "slots": [{"kind": "bound_player_actor", "character_id": "newcomer"}],
     }
     prepared = prepare_one_star_transaction(
         checkpoint,
@@ -2115,6 +2293,64 @@ def test_opening_actor_pool_remains_available_to_the_exact_newcomer() -> None:
         load_one_star_account(prepared.after_checkpoint)[1]
         .state.summon_draw_counters
         == {}
+    )
+
+
+def test_mixed_bound_opening_roster_is_owned_by_account_actor() -> None:
+    authored = _hero(status=CharacterStatus.dormant, owner="")
+    authored.character_id = "authored"
+    newcomer = _hero(status=CharacterStatus.dormant, owner="")
+    newcomer.character_id = "newcomer"
+    newcomer.player_slot_kind = PlayerSlotKind.player_authored
+    checkpoint = _checkpoint(heroes=[authored, newcomer])
+    checkpoint.session.character_bindings["newcomer"] = "player-1"
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["duo_opening"] = {
+        "usage": "opening_roster",
+        "slots": [
+            {"kind": "fixed", "character_id": "authored"},
+            {"kind": "bound_player_actor", "character_id": "newcomer"},
+        ],
+    }
+    transaction = _transaction({
+        "operation": "summon",
+        "pool_id": "duo_opening",
+        "hero_ids": ["authored", "newcomer"],
+        "birth_stars": [1, 1],
+    })
+    lifecycle = {
+        "activated_character_ids": ["authored", "newcomer"],
+        "activated_character_locations": {
+            "authored": "lobby",
+            "newcomer": "lobby",
+        },
+    }
+
+    with pytest.raises(OneStarTransactionError, match="authorized actor"):
+        prepare_one_star_transaction(
+            checkpoint,
+            event_id="duo_wrong_actor",
+            transaction=transaction,
+            initiating_actor_id="newcomer",
+            **lifecycle,
+        )
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="duo_owner_actor",
+        transaction=transaction,
+        initiating_actor_id="account_owner",
+        **lifecycle,
+    )
+
+    acquired = {
+        character.character_id: load_one_star_hero(character)
+        for character in prepared.after_checkpoint.characters
+        if character.character_id in {"authored", "newcomer"}
+    }
+    assert set(acquired) == {"authored", "newcomer"}
+    assert all(
+        hero is not None and hero.owner_lobby_id == "lobby_a"
+        for hero in acquired.values()
     )
 
 
@@ -2218,13 +2454,13 @@ def test_repeat_reward_minimum_is_seed_authored(
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id=f"repeat_minimum_{minimum}",
-        transaction=_transaction({
-            "operation": "mission_end",
-            "mission_id": "mission_1",
-            "outcome": "completed",
-            "return_destination": "lobby",
-            "escape_authority_id": "",
-        }),
+        transaction=_transaction(
+            _marked_mission_update(current=1),
+            _mission_end(
+                event_id=f"repeat_minimum_{minimum}",
+                outcome="completed",
+            ),
+        ),
         canonical_at_s=1,
     )
     account = load_one_star_account(prepared.after_checkpoint)[1]

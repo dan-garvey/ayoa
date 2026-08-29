@@ -78,6 +78,17 @@ from app.engine.one_star_hero_cards import (
     one_star_hero_card_events_for_render,
     render_one_star_hero_card_boards,
 )
+from app.engine.one_star_adapter import (
+    one_star_mission_report_recipient_ids,
+    one_star_opening_account_owner_actor_id,
+)
+from app.engine.one_star_mission_reports import (
+    OneStarMissionReportError,
+    new_one_star_mission_reports,
+    one_star_mission_reports_for_render,
+    render_one_star_mission_report_accessibility,
+    render_one_star_mission_report_boards,
+)
 from app.engine.prompt_manager import PromptManager
 from app.engine.reviewed_visual_references import (
     freeze_story_visual_references,
@@ -285,6 +296,12 @@ def _coin_text(currency: dict[str, Any]) -> str:
 logger = logging.getLogger(__name__)
 
 
+# Dynamic stage work is best-effort presentation. A committed story turn must
+# not remain hidden behind a slow or unreachable image worker; director and
+# diffusion jobs are durable and continue after this player-facing budget.
+_VISUAL_NOVEL_PRESENTATION_WAIT_SECONDS = 20.0
+
+
 class EngineBridge:
     """Shared engine state for all Discord interactions.
 
@@ -386,20 +403,45 @@ class EngineBridge:
             viewer_character_id=pov_character_id,
             render=render,
         )
+        mission_reports = one_star_mission_reports_for_render(
+            checkpoint=checkpoint,
+            previous_checkpoint=previous_checkpoint,
+            viewer_character_id=pov_character_id,
+            render=render,
+        )
         required_portrait_ids = generated_portrait_prewarm_character_ids(
             checkpoint=checkpoint,
             viewer_character_id=pov_character_id,
             events=card_events,
         )
-        await self._prewarm_visual_novel_sprites(
-            session_id=session_id,
-            checkpoint=checkpoint,
-            required_visible_character_ids=required_portrait_ids,
-            await_required=True,
+        loop = asyncio.get_running_loop()
+        presentation_deadline = (
+            loop.time() + _VISUAL_NOVEL_PRESENTATION_WAIT_SECONDS
+        )
+        try:
+            await asyncio.wait_for(
+                self._prewarm_visual_novel_sprites(
+                    session_id=session_id,
+                    checkpoint=checkpoint,
+                    required_visible_character_ids=required_portrait_ids,
+                    await_required=True,
+                ),
+                timeout=_VISUAL_NOVEL_PRESENTATION_WAIT_SECONDS,
+            )
+        except TimeoutError:
+            logger.info(
+                "visual-novel sprite prewarm exceeded presentation budget "
+                "session=%s",
+                session_id,
+            )
+        remaining_presentation_wait = max(
+            0.0,
+            presentation_deadline - loop.time(),
         )
         await self.wait_for_visual_novel_stage_work(
             session_id=session_id,
             renders_by_pov={pov_character_id: render},
+            timeout=remaining_presentation_wait,
         )
         pages = tuple(
             page
@@ -423,6 +465,10 @@ class EngineBridge:
         sections: list[VisualNovelDeckSection] = []
         card_events_by_id = {event.event_id: event for event in card_events}
         inserted_card_event_ids: set[str] = set()
+        mission_reports_by_id = {
+            report.event_id: report for report in mission_reports
+        }
+        inserted_mission_report_ids: set[str] = set()
         final_stage_media = None
         for segment_index, segment in enumerate(render.segments, start=1):
             resolution, stage_media = self.image_generation.resolve_visual_novel_stage(
@@ -478,6 +524,27 @@ class EngineBridge:
                         card_style="system_panel",
                     ))
                 inserted_card_event_ids.add(card_event.event_id)
+            mission_report = mission_reports_by_id.get(
+                segment.rendered_event_id
+            )
+            if (
+                mission_report is not None
+                and mission_report.event_id
+                not in inserted_mission_report_ids
+            ):
+                for board in render_one_star_mission_report_boards(
+                    checkpoint=checkpoint,
+                    report=mission_report,
+                ):
+                    sections.append(VisualNovelDeckSection(
+                        pages=(VisualNovelPage(
+                            kind="narration",
+                            text=board.accessible_text,
+                        ),),
+                        stage_media=board.media,
+                        card_style="system_panel",
+                    ))
+                inserted_mission_report_ids.add(mission_report.event_id)
 
         if previous_checkpoint is not None:
             for transition in identity_transitions:
@@ -720,13 +787,108 @@ class EngineBridge:
             render=render,
         )
 
+    def _append_one_star_mission_report_prose(
+        self,
+        response: TurnResponse,
+        *,
+        acting_character_id: str = "",
+    ) -> None:
+        """Attach the deterministic terminal report to bound eligible POVs."""
+
+        if not response.checkpoint_id:
+            return
+        try:
+            checkpoint = self.load_checkpoint(
+                response.session_id,
+                response.checkpoint_id,
+            )
+        except FileNotFoundError:
+            return
+        previous = self._previous_visual_novel_checkpoint(
+            session_id=response.session_id,
+            checkpoint_id=response.checkpoint_id,
+        )
+        reports = new_one_star_mission_reports(checkpoint, previous)
+        if not reports:
+            return
+        report_text = "\n\n".join(
+            render_one_star_mission_report_accessibility(
+                checkpoint=checkpoint,
+                report=report,
+            )
+            for report in reports
+        )
+        bound_recipient_ids = (
+            set(one_star_mission_report_recipient_ids(checkpoint))
+            & set(checkpoint.session.character_bindings)
+        )
+        for character_id in bound_recipient_ids:
+            existing = response.per_player_renders.get(
+                character_id,
+                "",
+            ).rstrip()
+            response.per_player_renders[character_id] = "\n\n".join(
+                value for value in (existing, report_text) if value
+            )
+        if acting_character_id in bound_recipient_ids:
+            response.output_text = response.per_player_renders[
+                acting_character_id
+            ]
+
+    def _validate_one_star_mission_report_routing(
+        self,
+        response: TurnResponse,
+    ) -> None:
+        """Require each bound System POV to carry the report's end segment."""
+
+        if not response.checkpoint_id:
+            return
+        try:
+            checkpoint = self.load_checkpoint(
+                response.session_id,
+                response.checkpoint_id,
+            )
+        except FileNotFoundError:
+            return
+        if checkpoint.session.config.settings.presentation_mode != "visual_novel":
+            return
+        previous = self._previous_visual_novel_checkpoint(
+            session_id=response.session_id,
+            checkpoint_id=response.checkpoint_id,
+        )
+        if not new_one_star_mission_reports(checkpoint, previous):
+            return
+        bound_recipient_ids = (
+            set(one_star_mission_report_recipient_ids(checkpoint))
+            & set(checkpoint.session.character_bindings)
+        )
+        for character_id in bound_recipient_ids:
+            render = response.per_player_visual_novel_renders.get(character_id)
+            if render is None:
+                raise OneStarMissionReportError(
+                    "recipient_render_missing_mission_end"
+                )
+            one_star_mission_reports_for_render(
+                checkpoint=checkpoint,
+                previous_checkpoint=previous,
+                viewer_character_id=character_id,
+                render=render,
+            )
+
     async def wait_for_visual_novel_stage_work(
         self,
         *,
         session_id: str,
         renders_by_pov: dict[str, VisualNovelRender],
+        timeout: float | None = _VISUAL_NOVEL_PRESENTATION_WAIT_SECONDS,
     ) -> bool:
-        """Wait through sidecar discovery and all segment replacement jobs."""
+        """Wait briefly for stage work without blocking committed prose.
+
+        The sidecar's director and diffusion jobs are durable background work.
+        Timing out this presentation wait therefore does not cancel or discard
+        them; the current deck resolves against whichever reviewed or generated
+        stage is already available.
+        """
 
         rendered_event_ids_by_pov: dict[str, list[str]] = {}
         for pov_character_id, render in renders_by_pov.items():
@@ -740,11 +902,35 @@ class EngineBridge:
                 event_ids.append(event_id)
             rendered_event_ids_by_pov[pov_character_id] = event_ids
 
-        await self.image_sidecar.wait_for_stage_discovery(session_id)
-        return await self.image_generation.wait_for_render_images(
+        timeout = None if timeout is None else max(0.0, float(timeout))
+        loop = asyncio.get_running_loop()
+        deadline = None if timeout is None else loop.time() + timeout
+        try:
+            await asyncio.wait_for(
+                self.image_sidecar.wait_for_stage_discovery(session_id),
+                timeout=timeout,
+            )
+        except TimeoutError:
+            logger.info(
+                "visual-novel stage discovery exceeded presentation budget "
+                "session=%s",
+                session_id,
+            )
+            return False
+
+        remaining = None if deadline is None else max(0.0, deadline - loop.time())
+        ready = await self.image_generation.wait_for_render_images(
             session_id=session_id,
             rendered_event_ids_by_pov=rendered_event_ids_by_pov,
+            timeout=remaining,
         )
+        if not ready:
+            logger.info(
+                "visual-novel stage generation exceeded presentation budget "
+                "session=%s",
+                session_id,
+            )
+        return ready
 
     def load_visual_novel_deck(self, deck_id: str) -> VisualNovelDeck | None:
         return self.visual_novel_renderer.load_deck(deck_id)
@@ -3953,8 +4139,10 @@ class EngineBridge:
         Args:
             session_id: the session to open.
             triggering_character_id: the player who typed `/begin`.
-                Used as the `acting_character_id` in the router's
-                per-turn context. May be empty — the helper falls
+                Used as the default `acting_character_id` in the
+                router's per-turn context. A rules adapter may instead
+                select a bound semantic owner when the opening consumes
+                that owner's authority. May be empty — the helper falls
                 back to a deterministic pick from the bound roster
                 (sorted by id) so two simultaneous `/begin`s converge
                 on the same actor.
@@ -3996,10 +4184,14 @@ class EngineBridge:
                     "for any player binding after the opening."
                 )
 
-            actor_id = (
+            triggering_actor_id = (
                 triggering_character_id
                 if triggering_character_id in bound_ids
                 else bound_ids[0]
+            )
+            actor_id = (
+                one_star_opening_account_owner_actor_id(ckpt, bound_ids)
+                or triggering_actor_id
             )
             logger.info(
                 "run_begin_turn: session=%s actor=%s bound=%s",
@@ -4080,8 +4272,16 @@ class EngineBridge:
             *pre_turn,
             *(response.pre_turn_resolutions or []),
         ]
-        for resolved_response in [*response.pre_turn_resolutions, response]:
+        for resolved_response in response.pre_turn_resolutions:
+            self._append_one_star_mission_report_prose(resolved_response)
             self._validate_one_star_hero_card_routing(resolved_response)
+            self._validate_one_star_mission_report_routing(resolved_response)
+        self._append_one_star_mission_report_prose(
+            response,
+            acting_character_id=acting_character_id,
+        )
+        self._validate_one_star_hero_card_routing(response)
+        self._validate_one_star_mission_report_routing(response)
         await self._prewarm_visual_novel_sprites(session_id=session_id)
         return response
 

@@ -2001,10 +2001,6 @@ class CLIState:
                 logger.exception("One-Star synthesis command failed")
                 print(f"error: {player_safe_error_message(exc)}")
                 return
-            await self._wait_for_render_images(
-                response,
-                actor_id=self.current_actor or "",
-            )
             await self._print_turn_response(
                 response,
                 actor_id=self.current_actor or "",
@@ -2052,7 +2048,6 @@ class CLIState:
             return
         if actor_id:
             self.current_actor = actor_id
-        await self._wait_for_render_images(response, actor_id=actor_id)
         await self._print_turn_response(
             response,
             actor_id=actor_id,
@@ -2562,10 +2557,6 @@ class CLIState:
         else:
             print(f"claimed {display_name}. /as {display_name} to switch.")
         if join_result.response is not None:
-            await self._wait_for_render_images(
-                join_result.response,
-                actor_id=char_id,
-            )
             await self._print_turn_response(
                 join_result.response,
                 actor_id=char_id,
@@ -2775,10 +2766,6 @@ class CLIState:
             logger.exception("run_query failed")
             print(f"error: {player_safe_error_message(e, operation='that query')}")
             return
-        await self._wait_for_render_images(
-            response,
-            actor_id=self.current_actor,
-        )
         await self._print_turn_response(
             response,
             actor_id=self.current_actor,
@@ -3026,10 +3013,6 @@ class CLIState:
                 logger.exception("pending roll continuation failed")
                 print(f"error: {type(e).__name__}: {e}")
                 return
-            await self._wait_for_render_images(
-                response,
-                actor_id=result.actor_id,
-            )
             await self._print_turn_response(
                 response,
                 actor_id=result.actor_id,
@@ -3253,10 +3236,6 @@ class CLIState:
                     logger.exception("combat reaction defer failed")
                     print(f"error: {type(e).__name__}: {e}")
                     return
-                await self._wait_for_render_images(
-                    response,
-                    actor_id=self.current_actor,
-                )
                 await self._print_turn_response(
                     response,
                     actor_id=self.current_actor,
@@ -3300,10 +3279,6 @@ class CLIState:
             print(f"error: {player_safe_error_message(e)}")
             return
 
-        await self._wait_for_render_images(
-            response,
-            actor_id=self.current_actor,
-        )
         await self._print_turn_response(
             response,
             actor_id=self.current_actor,
@@ -3319,36 +3294,6 @@ class CLIState:
         if self.pov_filter:
             return {self.pov_filter} if self.pov_filter in self.claims else set()
         return set(self.claims or {})
-
-    async def _wait_for_render_images(
-        self,
-        response,
-        *,
-        actor_id: str,
-    ) -> None:
-        if not self.engine.image_generation.can_generate_render():
-            return
-        responses = [
-            *(getattr(response, "pre_turn_resolutions", None) or []),
-            response,
-        ]
-        for item in responses:
-            visual_renders = getattr(item, "per_player_visual_novel_renders", {}) or {}
-            renders = {
-                cid: render
-                for cid, render in visual_renders.items()
-                if cid == actor_id or cid in self._pov_claims()
-            }
-            if not renders:
-                continue
-            try:
-                async with _progress("illustrating"):
-                    await self.engine.wait_for_visual_novel_stage_work(
-                        session_id=self.session_id,
-                        renders_by_pov=renders,
-                    )
-            except Exception:
-                logger.exception("render image wait failed")
 
     async def _print_turn_response(
         self,
@@ -3479,12 +3424,21 @@ class CLIState:
             print(prose_fallback)
             return
         try:
-            deck = await self.engine.prepare_visual_novel_deck(
-                session_id=self.session_id,
-                checkpoint_id=response.checkpoint_id,
-                pov_character_id=character_id,
-                render=visual_render,
-            )
+            if self.engine.image_generation.can_generate_render():
+                async with _progress("illustrating"):
+                    deck = await self.engine.prepare_visual_novel_deck(
+                        session_id=self.session_id,
+                        checkpoint_id=response.checkpoint_id,
+                        pov_character_id=character_id,
+                        render=visual_render,
+                    )
+            else:
+                deck = await self.engine.prepare_visual_novel_deck(
+                    session_id=self.session_id,
+                    checkpoint_id=response.checkpoint_id,
+                    pov_character_id=character_id,
+                    render=visual_render,
+                )
             await self._play_visual_novel_deck(deck, character_id=character_id)
         except Exception:
             logger.exception("visual-novel CLI presentation failed")
