@@ -1,0 +1,17 @@
+{
+  "date": "2026-08-28",
+  "feedback": "Revision 02 is better, but its star-tier progression is too colorful",
+  "frozen_invariants": [
+    "Reference-guided generated bust plus frozen BiRefNet matte",
+    "Obsidian Orrery frame geometry",
+    "Bust above the border and below the nameplate and vector stars",
+    "Exact deterministic one-through-seven star counts",
+    "Enemy subject excluded from Hero cards"
+  ],
+  "options_requested": [
+    "A: neutral steel with brightness-only progression",
+    "B: obsidian and antique gold with restrained warm progression",
+    "C: blue-black Niflheim steel with one cool hue family"
+  ],
+  "status": "Palette review only; no production option selected"
+}
