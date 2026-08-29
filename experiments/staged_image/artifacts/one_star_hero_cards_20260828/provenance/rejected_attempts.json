@@ -1,0 +1,141 @@
+{
+  "attempts": [
+    {
+      "artifact": {
+        "alpha_extrema": null,
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/frames/01_obsidian_orrery_alpha_attempt.png",
+        "sha256": "b47b6647c77cafdeac8f64b787c4409ec25d5b81c731d244ebd2c9dc753b4004"
+      },
+      "preservation": "kept unchanged as failure evidence",
+      "prompt": "prompts/03_alpha_repair_attempt.md",
+      "reason": "The background-extraction follow-up returned another RGB PNG with a baked checkerboard instead of genuine alpha.",
+      "status": "rejected"
+    },
+    {
+      "artifact": {
+        "alpha_extrema": null,
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/frames/01_obsidian_orrery_raw.png",
+        "sha256": "bfb4bc2bbb836b0a343b82f51eb675712b7b1c9433e95b1778f9444720993dcc"
+      },
+      "preservation": "kept unchanged as the content source for the recorded BiRefNet matte",
+      "reason": "The image-generation result is RGB with a baked checkerboard rather than transparent RGBA.",
+      "status": "rejected as final overlay"
+    },
+    {
+      "artifact": {
+        "alpha_extrema": null,
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/frames/02_frostbound_archive_raw.png",
+        "sha256": "aa2f2022747dd1ff9cb29ddf1194b4a94d54a399e2a2f3d380421f5423948f03"
+      },
+      "preservation": "kept unchanged as the content source for the recorded BiRefNet matte",
+      "reason": "The image-generation result is RGB with a baked checkerboard rather than transparent RGBA.",
+      "status": "rejected as final overlay"
+    },
+    {
+      "artifact": {
+        "alpha_extrema": null,
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/frames/03_ashen_crown_raw.png",
+        "sha256": "17da3a4c671ccc75339f746a850579aafb583f0581ee697c3671c58904a659b4"
+      },
+      "preservation": "kept unchanged as the content source for the recorded BiRefNet matte",
+      "reason": "The image-generation result is RGB with a baked checkerboard rather than transparent RGBA.",
+      "status": "rejected as final overlay"
+    },
+    {
+      "artifact": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/renna_reference_guided_raw.png",
+        "sha256": "0278e938ae421c58568bede259d1f3c0703a3c948595596799ea9d2009ce140c"
+      },
+      "preservation": "kept unchanged as the content source for the recorded BiRefNet matte",
+      "reason": "The image-generation result is RGB with a baked checkerboard rather than transparent RGBA.",
+      "status": "rejected as final overlay"
+    },
+    {
+      "artifact": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1342,
+          1172
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/warden_reference_guided_raw.png",
+        "sha256": "549a1f881f9df317f9fdfd88d5ab2b6550c9d4689085f63f2f45caa8a3f8b9d5"
+      },
+      "preservation": "kept unchanged as the content source for the recorded BiRefNet matte",
+      "reason": "The image-generation result is RGB with a baked checkerboard rather than transparent RGBA.",
+      "status": "rejected as final overlay"
+    },
+    {
+      "artifact": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1086,
+          1448
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/halcyon_reference_guided_raw.png",
+        "sha256": "de9c25377c90ba3e999ba715e9c2f6bf69305fdf47fd3d2b14c9450393f5024e"
+      },
+      "preservation": "kept unchanged as the content source for the recorded BiRefNet matte",
+      "reason": "The image-generation result is RGB with a baked checkerboard rather than transparent RGBA.",
+      "status": "rejected as final overlay"
+    },
+    {
+      "artifact": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/veiled_feminine_reference_guided_raw.png",
+        "sha256": "919985d830632bcb6220149c6f5002ff8b9d92dfe366653f38c01d3919fb605d"
+      },
+      "preservation": "kept unchanged as the content source for the recorded BiRefNet matte",
+      "reason": "The image-generation result is RGB with a baked checkerboard rather than transparent RGBA.",
+      "status": "rejected as final overlay"
+    },
+    {
+      "artifact": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1118,
+          1407
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/veiled_masculine_reference_guided_raw.png",
+        "sha256": "5bd7c0335191155b663cd3d989438283c75b2b278c10512f69c68c7c74bdd248"
+      },
+      "preservation": "kept unchanged as the content source for the recorded BiRefNet matte",
+      "reason": "The image-generation result is RGB with a baked checkerboard rather than transparent RGBA.",
+      "status": "rejected as final overlay"
+    }
+  ],
+  "schema_version": 1
+}

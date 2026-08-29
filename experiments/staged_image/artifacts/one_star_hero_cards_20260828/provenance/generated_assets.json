@@ -1,0 +1,322 @@
+{
+  "frames": {
+    "ashen_crown": {
+      "accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/frames/03_ashen_crown_birefnet_rgba.png",
+        "sha256": "3275c24cca73a5a4ff891855bacd0cbbf2cfa4f96963d52a03943ffaacbaeb02"
+      },
+      "kind": "blank ornate frame candidate",
+      "matte": {
+        "alpha_extrema": null,
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "L",
+        "path": "inputs/masks/03_ashen_crown_birefnet_mask.png",
+        "sha256": "054667277addf68ba18198852d9848427add0c7122751bf94305b31f45d97efd"
+      },
+      "private_style_inputs": "see provenance/private_sources.json",
+      "production_status": "experiment-only; not promoted or bound",
+      "prompt": "prompts/01_frame_candidates.md",
+      "raw_generation": {
+        "alpha_extrema": null,
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/frames/03_ashen_crown_raw.png",
+        "sha256": "17da3a4c671ccc75339f746a850579aafb583f0581ee697c3671c58904a659b4"
+      },
+      "raw_generation_status": "rejected as an overlay because it is RGB with a baked checkerboard; accepted only as the content source for matting"
+    },
+    "frostbound_archive": {
+      "accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/frames/02_frostbound_archive_birefnet_rgba.png",
+        "sha256": "929d95eb1e82ea778a1df8038cbfe2f35e368fcb3a0b3bebdd88d25ef9be9741"
+      },
+      "kind": "blank ornate frame candidate",
+      "matte": {
+        "alpha_extrema": null,
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "L",
+        "path": "inputs/masks/02_frostbound_archive_birefnet_mask.png",
+        "sha256": "529c40361362a5240e76fdae2dabd97a547873826ed19747b54953ceffcb745e"
+      },
+      "private_style_inputs": "see provenance/private_sources.json",
+      "production_status": "experiment-only; not promoted or bound",
+      "prompt": "prompts/01_frame_candidates.md",
+      "raw_generation": {
+        "alpha_extrema": null,
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/frames/02_frostbound_archive_raw.png",
+        "sha256": "aa2f2022747dd1ff9cb29ddf1194b4a94d54a399e2a2f3d380421f5423948f03"
+      },
+      "raw_generation_status": "rejected as an overlay because it is RGB with a baked checkerboard; accepted only as the content source for matting"
+    },
+    "obsidian_orrery": {
+      "accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/frames/01_obsidian_orrery_birefnet_rgba.png",
+        "sha256": "cbf7ba2c9b4472f637f11b73c189c5278849b9e7ce175a418f8664d8059b70e1"
+      },
+      "kind": "blank ornate frame candidate",
+      "matte": {
+        "alpha_extrema": null,
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "L",
+        "path": "inputs/masks/01_obsidian_orrery_birefnet_mask.png",
+        "sha256": "ce2573dd4fb1317fbefc357d949681a57acbe4d99a7396cf82be02aefcb03f8f"
+      },
+      "private_style_inputs": "see provenance/private_sources.json",
+      "production_status": "experiment-only; not promoted or bound",
+      "prompt": "prompts/01_frame_candidates.md",
+      "raw_generation": {
+        "alpha_extrema": null,
+        "dimensions": [
+          992,
+          1586
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/frames/01_obsidian_orrery_raw.png",
+        "sha256": "bfb4bc2bbb836b0a343b82f51eb675712b7b1c9433e95b1778f9444720993dcc"
+      },
+      "raw_generation_status": "rejected as an overlay because it is RGB with a baked checkerboard; accepted only as the content source for matting"
+    }
+  },
+  "portraits": {
+    "halcyon": {
+      "accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          1086,
+          1448
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/portraits/halcyon_reference_guided_rgba.png",
+        "sha256": "20553fb725837246f6417e8ffb054493efaa5ff032cedcb04b91d5b788642448"
+      },
+      "kind": "reference-guided bust candidate",
+      "matte": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1086,
+          1448
+        ],
+        "mode": "L",
+        "path": "inputs/masks/halcyon_reference_guided_birefnet_mask.png",
+        "sha256": "6700e9776ad9b595d66a2a6ddd3ee84908fc84cc4dbc265a389755aebdc76c44"
+      },
+      "production_status": "experiment-only; not promoted or bound",
+      "prompt": "prompts/02_reference_guided_busts.md",
+      "raw_generation": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1086,
+          1448
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/halcyon_reference_guided_raw.png",
+        "sha256": "de9c25377c90ba3e999ba715e9c2f6bf69305fdf47fd3d2b14c9450393f5024e"
+      },
+      "raw_generation_status": "rejected as an overlay because it is RGB with a baked checkerboard; accepted only as the content source for matting"
+    },
+    "renna": {
+      "accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/portraits/renna_reference_guided_rgba.png",
+        "sha256": "2df3dc776a723a74f9d2d08aef737def587987093758fbb34bcf69a8f2c9145a"
+      },
+      "kind": "reference-guided bust candidate",
+      "matte": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "L",
+        "path": "inputs/masks/renna_reference_guided_birefnet_mask.png",
+        "sha256": "cb2917c0dd93f18aaec08f8c9ad62ea35aec676c6f0c37358b697dae05fbc3f8"
+      },
+      "production_status": "experiment-only; not promoted or bound",
+      "prompt": "prompts/02_reference_guided_busts.md",
+      "raw_generation": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/renna_reference_guided_raw.png",
+        "sha256": "0278e938ae421c58568bede259d1f3c0703a3c948595596799ea9d2009ce140c"
+      },
+      "raw_generation_status": "rejected as an overlay because it is RGB with a baked checkerboard; accepted only as the content source for matting"
+    },
+    "veiled_feminine": {
+      "accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/portraits/veiled_feminine_reference_guided_rgba.png",
+        "sha256": "cf48a48c8089ce90d662231897d8b636eb4a857aaba5e32bc954400648eeb691"
+      },
+      "kind": "reference-guided bust candidate",
+      "matte": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "L",
+        "path": "inputs/masks/veiled_feminine_reference_guided_birefnet_mask.png",
+        "sha256": "62bd0352ca9505c9c7de056a726f91ddab49f0df605c1ee2a0333fbaccf8c32f"
+      },
+      "production_status": "experiment-only; not promoted or bound",
+      "prompt": "prompts/02_reference_guided_busts.md",
+      "raw_generation": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/veiled_feminine_reference_guided_raw.png",
+        "sha256": "919985d830632bcb6220149c6f5002ff8b9d92dfe366653f38c01d3919fb605d"
+      },
+      "raw_generation_status": "rejected as an overlay because it is RGB with a baked checkerboard; accepted only as the content source for matting"
+    },
+    "veiled_masculine": {
+      "accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          1118,
+          1407
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/portraits/veiled_masculine_reference_guided_rgba.png",
+        "sha256": "10a3a6facea74fc368f562e1a4dcb55ed835f2668c50e8d727300a16f6125dfa"
+      },
+      "kind": "reference-guided bust candidate",
+      "matte": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1118,
+          1407
+        ],
+        "mode": "L",
+        "path": "inputs/masks/veiled_masculine_reference_guided_birefnet_mask.png",
+        "sha256": "bf00f01311f97d35c20ca4f925ca5725a3b24e43ae1424d9b3bdb6657a30946c"
+      },
+      "production_status": "experiment-only; not promoted or bound",
+      "prompt": "prompts/02_reference_guided_busts.md",
+      "raw_generation": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1118,
+          1407
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/veiled_masculine_reference_guided_raw.png",
+        "sha256": "5bd7c0335191155b663cd3d989438283c75b2b278c10512f69c68c7c74bdd248"
+      },
+      "raw_generation_status": "rejected as an overlay because it is RGB with a baked checkerboard; accepted only as the content source for matting"
+    },
+    "warden": {
+      "accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          1342,
+          1172
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/portraits/warden_reference_guided_rgba.png",
+        "sha256": "13829343cb542830b95713a26b9bf9b8dcf756380235e576c0a848214141fdeb"
+      },
+      "kind": "reference-guided bust candidate",
+      "matte": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1342,
+          1172
+        ],
+        "mode": "L",
+        "path": "inputs/masks/warden_reference_guided_birefnet_mask.png",
+        "sha256": "00d624fdedab19e2034618f4984833c5e8e125d078d4d4164204b1b7ecd001a3"
+      },
+      "production_status": "experiment-only; not promoted or bound",
+      "prompt": "prompts/02_reference_guided_busts.md",
+      "raw_generation": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1342,
+          1172
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/warden_reference_guided_raw.png",
+        "sha256": "549a1f881f9df317f9fdfd88d5ab2b6550c9d4689085f63f2f45caa8a3f8b9d5"
+      },
+      "raw_generation_status": "rejected as an overlay because it is RGB with a baked checkerboard; accepted only as the content source for matting"
+    }
+  },
+  "schema_version": 1
+}

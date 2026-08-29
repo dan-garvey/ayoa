@@ -1,0 +1,21 @@
+ONE-STAR HERO CARD VISUAL REVIEW — 2026-08-28
+
+Open the numbered PNG files in filename order, or open index.html for the
+contact-style browser view.
+
+01–03  Blank transparent-frame candidates on dark and light grounds
+04–08  Portrait method comparisons:
+       1. neutral VN sprite crop
+       2. locked facial/reference crop
+       3. reference-guided generated bust plus BiRefNet matte
+09     Exact 1 / 3 / 5 / 7 deterministic vector-star proofs
+10     Two-line, non-truncated long Unicode name proof
+11     Exact 1024 x 576 five-card board proof
+12     Contact sheet
+
+For both veiled defaults, no independent locked portrait exists. Their method-2
+column therefore uses the same reviewed neutral generic asset as method 1.
+
+The Warden is present only as a nonhuman silhouette and layout stress test; the
+five-card board is not a canonical party. Generated frames and busts remain
+experiment candidates and are not bound to production.

@@ -1,0 +1,34 @@
+{
+  "alpha_extrema": [
+    0,
+    255
+  ],
+  "dimensions": [
+    1118,
+    1407
+  ],
+  "foreground_bbox_at_32": [
+    145,
+    38,
+    1006,
+    1407
+  ],
+  "fringe_fraction": 0.473189,
+  "gateway": "http://127.0.0.1:8199",
+  "mask": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/inputs/masks/veiled_masculine_reference_guided_birefnet_mask.png",
+  "mask_sha256": "bf00f01311f97d35c20ca4f925ca5725a3b24e43ae1424d9b3bdb6657a30946c",
+  "model": "BiRefNet",
+  "model_file": "birefnet.safetensors",
+  "opaque_fraction": 0.010883,
+  "response_headers": {
+    "x-ayoa-matte-model": "birefnet.safetensors",
+    "x-ayoa-prompt-id": "897d50ef-f850-48b8-917c-1e23e9aa5383",
+    "x-ayoa-prototype": "background-matte",
+    "x-ayoa-worker": "http://127.0.0.1:8213"
+  },
+  "rgba": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/generated_raw/portraits/veiled_masculine_reference_guided_rgba.png",
+  "rgba_sha256": "10a3a6facea74fc368f562e1a4dcb55ed835f2668c50e8d727300a16f6125dfa",
+  "source": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/generated_raw/portraits/veiled_masculine_reference_guided_raw.png",
+  "source_sha256": "5bd7c0335191155b663cd3d989438283c75b2b278c10512f69c68c7c74bdd248",
+  "transparent_fraction": 0.515929
+}

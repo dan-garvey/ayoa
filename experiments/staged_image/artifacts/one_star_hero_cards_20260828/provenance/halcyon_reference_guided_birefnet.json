@@ -1,0 +1,34 @@
+{
+  "alpha_extrema": [
+    0,
+    255
+  ],
+  "dimensions": [
+    1086,
+    1448
+  ],
+  "foreground_bbox_at_32": [
+    64,
+    66,
+    1061,
+    1448
+  ],
+  "fringe_fraction": 0.527213,
+  "gateway": "http://127.0.0.1:8199",
+  "mask": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/inputs/masks/halcyon_reference_guided_birefnet_mask.png",
+  "mask_sha256": "6700e9776ad9b595d66a2a6ddd3ee84908fc84cc4dbc265a389755aebdc76c44",
+  "model": "BiRefNet",
+  "model_file": "birefnet.safetensors",
+  "opaque_fraction": 0.008771,
+  "response_headers": {
+    "x-ayoa-matte-model": "birefnet.safetensors",
+    "x-ayoa-prompt-id": "4193b8fa-7655-4371-b049-1df9244f9261",
+    "x-ayoa-prototype": "background-matte",
+    "x-ayoa-worker": "http://127.0.0.1:8211"
+  },
+  "rgba": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/generated_raw/portraits/halcyon_reference_guided_rgba.png",
+  "rgba_sha256": "20553fb725837246f6417e8ffb054493efaa5ff032cedcb04b91d5b788642448",
+  "source": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/generated_raw/portraits/halcyon_reference_guided_raw.png",
+  "source_sha256": "de9c25377c90ba3e999ba715e9c2f6bf69305fdf47fd3d2b14c9450393f5024e",
+  "transparent_fraction": 0.464017
+}

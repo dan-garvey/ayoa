@@ -1,0 +1,34 @@
+{
+  "alpha_extrema": [
+    0,
+    255
+  ],
+  "dimensions": [
+    1342,
+    1172
+  ],
+  "foreground_bbox_at_32": [
+    35,
+    19,
+    1338,
+    1172
+  ],
+  "fringe_fraction": 0.411933,
+  "gateway": "http://127.0.0.1:8199",
+  "mask": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/inputs/masks/warden_reference_guided_birefnet_mask.png",
+  "mask_sha256": "00d624fdedab19e2034618f4984833c5e8e125d078d4d4164204b1b7ecd001a3",
+  "model": "BiRefNet",
+  "model_file": "birefnet.safetensors",
+  "opaque_fraction": 0.038829,
+  "response_headers": {
+    "x-ayoa-matte-model": "birefnet.safetensors",
+    "x-ayoa-prompt-id": "d9b596eb-e30e-4a74-ad52-597d1758053d",
+    "x-ayoa-prototype": "background-matte",
+    "x-ayoa-worker": "http://127.0.0.1:8210"
+  },
+  "rgba": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/generated_raw/portraits/warden_reference_guided_rgba.png",
+  "rgba_sha256": "13829343cb542830b95713a26b9bf9b8dcf756380235e576c0a848214141fdeb",
+  "source": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/generated_raw/portraits/warden_reference_guided_raw.png",
+  "source_sha256": "549a1f881f9df317f9fdfd88d5ab2b6550c9d4689085f63f2f45caa8a3f8b9d5",
+  "transparent_fraction": 0.549238
+}

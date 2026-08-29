@@ -1,0 +1,34 @@
+{
+  "generated_asset_constraints": [
+    "single isolated subject or blank frame as applicable",
+    "no watermark or signature",
+    "no invented character class marker",
+    "no facial reveal for either veiled default"
+  ],
+  "pixel_and_manifest_exclusions": [
+    "private extraction paths and numeric source identifiers",
+    "source filenames and source hashes",
+    "generation prompt text and provider implementation details",
+    "baked character names, stars, emblem, logo, or readable text in frame overlays"
+  ],
+  "production_exclusions": [
+    "No generated frame or portrait is bound to production code, story seed, registry, or environment configuration.",
+    "No production asset was modified by this workstream.",
+    "The review directory contains proofs only, not source images or private provenance."
+  ],
+  "prompts": [
+    {
+      "path": "prompts/01_frame_candidates.md",
+      "sha256": "d781d414ac756f8196d42cb42ae7fa9649bf9ca5c10b95155dc8db6f0e713c6a"
+    },
+    {
+      "path": "prompts/02_reference_guided_busts.md",
+      "sha256": "87f828d2f7272e5843434361e4ba97fd213671f7a9e0bd1352b7e2470da0d931"
+    },
+    {
+      "path": "prompts/03_alpha_repair_attempt.md",
+      "sha256": "1582ba6faf30a4551872a532bbb83bc9c1f2641996263e71e17a1ad7be0bdf4e"
+    }
+  ],
+  "schema_version": 1
+}

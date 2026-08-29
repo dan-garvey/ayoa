@@ -1,0 +1,34 @@
+{
+  "alpha_extrema": [
+    0,
+    255
+  ],
+  "dimensions": [
+    992,
+    1586
+  ],
+  "foreground_bbox_at_32": [
+    11,
+    0,
+    981,
+    1578
+  ],
+  "fringe_fraction": 0.351131,
+  "gateway": "http://127.0.0.1:8199",
+  "mask": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/inputs/masks/03_ashen_crown_birefnet_mask.png",
+  "mask_sha256": "054667277addf68ba18198852d9848427add0c7122751bf94305b31f45d97efd",
+  "model": "BiRefNet",
+  "model_file": "birefnet.safetensors",
+  "opaque_fraction": 0.052175,
+  "response_headers": {
+    "x-ayoa-matte-model": "birefnet.safetensors",
+    "x-ayoa-prompt-id": "60de065e-f221-4bf8-a8cd-a8d8ce2b419d",
+    "x-ayoa-prototype": "background-matte",
+    "x-ayoa-worker": "http://127.0.0.1:8212"
+  },
+  "rgba": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/generated_raw/frames/03_ashen_crown_birefnet_rgba.png",
+  "rgba_sha256": "3275c24cca73a5a4ff891855bacd0cbbf2cfa4f96963d52a03943ffaacbaeb02",
+  "source": "experiments/staged_image/artifacts/one_star_hero_cards_20260828/generated_raw/frames/03_ashen_crown_raw.png",
+  "source_sha256": "17da3a4c671ccc75339f746a850579aafb583f0581ee697c3671c58904a659b4",
+  "transparent_fraction": 0.596695
+}

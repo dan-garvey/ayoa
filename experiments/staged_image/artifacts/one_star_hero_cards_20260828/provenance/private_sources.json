@@ -1,0 +1,55 @@
+{
+  "allowed_influence": "high-level vertical card grammar, dark metal material family, empty portrait aperture, top medallion placement, and lower plaque placement",
+  "excluded_content": [
+    "depicted characters or silhouettes",
+    "names or readable text",
+    "star rows or rank marks",
+    "medallion symbols, heraldry, logos, or emblems",
+    "exact ornaments, source identifiers, and extraction paths"
+  ],
+  "generation_input_order": "the same ordered set was supplied to all three frame requests",
+  "handling": "Experiment-private coding-time provenance. Do not copy this file, its paths, or its identifiers into review pixels, the public proof manifest, transcripts, or production assets.",
+  "schema_version": 1,
+  "sources": [
+    {
+      "dimensions": [
+        940,
+        1670
+      ],
+      "mode": "RGBA",
+      "path": "private_extractions/pick_me_up_style_lora/raw/0455_han_isratte_1_star_card_png.png",
+      "role": "coding-time style and composition reference 1",
+      "sha256": "fe298b515786a19e97ae34c06bbcfa85b37dbe307932bce648e242d89f619cb2"
+    },
+    {
+      "dimensions": [
+        425,
+        755
+      ],
+      "mode": "RGBA",
+      "path": "private_extractions/pick_me_up_style_lora/raw/0456_jenna_shirai_1_star_card_png.png",
+      "role": "coding-time style and composition reference 2",
+      "sha256": "92e8438cc68d3b9384b3febd11c12e9ea0302913cd7dfac2cfe3712336c73976"
+    },
+    {
+      "dimensions": [
+        940,
+        1670
+      ],
+      "mode": "RGBA",
+      "path": "private_extractions/pick_me_up_style_lora/raw/0454_han_isratte_2_star_card_png.png",
+      "role": "coding-time style and composition reference 3",
+      "sha256": "5770ca03e323ba27317b4a96ccae595e0cc71d45458f04d609ac1b9f88a9b3b7"
+    },
+    {
+      "dimensions": [
+        470,
+        836
+      ],
+      "mode": "RGBA",
+      "path": "private_extractions/pick_me_up_style_lora/raw/0670_han_isratte_3_star_card_png.png",
+      "role": "coding-time style and composition reference 4",
+      "sha256": "0917b3ac6a087e6c56110af47b251cb6e8b0ad7f8f84968b79bbfa294a4186b0"
+    }
+  ]
+}

@@ -1,0 +1,420 @@
+{
+  "method_labels": {
+    "method_1": "neutral VN sprite crop",
+    "method_2": "locked facial/reference crop",
+    "method_3": "reference-guided generated bust plus BiRefNet"
+  },
+  "schema_version": 1,
+  "subjects": {
+    "halcyon": {
+      "display_name": "Halcyon of the Gilded March",
+      "method_1_neutral_vn_sprite_crop": {
+        "dimensions": [
+          1100,
+          1500
+        ],
+        "mode": "RGBA",
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/halcyon_of_the_gilded_march/neutral.png",
+        "role": "deterministic neutral VN sprite crop",
+        "sha256": "5a440857b563700e2c085b3abd6298ac0fb04a4ccb196beb59bb1e2bba6188e1"
+      },
+      "method_2_locked_reference_crop": {
+        "dimensions": [
+          880,
+          1184
+        ],
+        "mode": "RGB",
+        "note": "distinct reviewed facial reference",
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/halcyon_of_the_gilded_march/facial_zoom.png",
+        "role": "deterministic locked reference crop",
+        "sha256": "64ca2b8eda2ccd43d14d4cba15ac2883237202f4a51d43cc98c83f600de594fd"
+      },
+      "method_3_accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          1086,
+          1448
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/portraits/halcyon_reference_guided_rgba.png",
+        "sha256": "20553fb725837246f6417e8ffb054493efaa5ff032cedcb04b91d5b788642448"
+      },
+      "method_3_birefnet_mask": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1086,
+          1448
+        ],
+        "mode": "L",
+        "path": "inputs/masks/halcyon_reference_guided_birefnet_mask.png",
+        "sha256": "6700e9776ad9b595d66a2a6ddd3ee84908fc84cc4dbc265a389755aebdc76c44"
+      },
+      "method_3_generated_content": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1086,
+          1448
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/halcyon_reference_guided_raw.png",
+        "sha256": "de9c25377c90ba3e999ba715e9c2f6bf69305fdf47fd3d2b14c9450393f5024e"
+      },
+      "method_3_reference_guided_generation_inputs": [
+        {
+          "dimensions": [
+            1100,
+            1500
+          ],
+          "mode": "RGBA",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/halcyon_of_the_gilded_march/neutral.png",
+          "role": "input 1: primary identity, silhouette, and outfit anchor",
+          "sha256": "5a440857b563700e2c085b3abd6298ac0fb04a4ccb196beb59bb1e2bba6188e1"
+        },
+        {
+          "dimensions": [
+            880,
+            1184
+          ],
+          "mode": "RGB",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/halcyon_of_the_gilded_march/facial_zoom.png",
+          "role": "input 2: reviewed facial identity anchor",
+          "sha256": "64ca2b8eda2ccd43d14d4cba15ac2883237202f4a51d43cc98c83f600de594fd"
+        },
+        {
+          "dimensions": [
+            880,
+            1184
+          ],
+          "mode": "RGB",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/halcyon_of_the_gilded_march/anatomy.png",
+          "role": "input 3: reviewed anatomy and outfit anchor",
+          "sha256": "3943b5b31f3c232127113d1289e0a745809393e427b8decf187b1c1fedfd3109"
+        }
+      ],
+      "scope_note": null
+    },
+    "renna": {
+      "display_name": "Renna Holt",
+      "method_1_neutral_vn_sprite_crop": {
+        "dimensions": [
+          1100,
+          1500
+        ],
+        "mode": "RGBA",
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/renna_holt/neutral.png",
+        "role": "deterministic neutral VN sprite crop",
+        "sha256": "42d2da0b4b66bf8beb4ca6dd8393f9631e22c8bb3276ca8532995606938363ef"
+      },
+      "method_2_locked_reference_crop": {
+        "dimensions": [
+          880,
+          1184
+        ],
+        "mode": "RGB",
+        "note": "distinct reviewed facial reference",
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/renna_holt/facial_zoom.png",
+        "role": "deterministic locked reference crop",
+        "sha256": "ec2cd7f386bc55e9d614aeb4e56d71872436f53848c747a9b15ac0027d711d29"
+      },
+      "method_3_accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/portraits/renna_reference_guided_rgba.png",
+        "sha256": "2df3dc776a723a74f9d2d08aef737def587987093758fbb34bcf69a8f2c9145a"
+      },
+      "method_3_birefnet_mask": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "L",
+        "path": "inputs/masks/renna_reference_guided_birefnet_mask.png",
+        "sha256": "cb2917c0dd93f18aaec08f8c9ad62ea35aec676c6f0c37358b697dae05fbc3f8"
+      },
+      "method_3_generated_content": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/renna_reference_guided_raw.png",
+        "sha256": "0278e938ae421c58568bede259d1f3c0703a3c948595596799ea9d2009ce140c"
+      },
+      "method_3_reference_guided_generation_inputs": [
+        {
+          "dimensions": [
+            1100,
+            1500
+          ],
+          "mode": "RGBA",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/renna_holt/neutral.png",
+          "role": "input 1: primary identity, silhouette, and outfit anchor",
+          "sha256": "42d2da0b4b66bf8beb4ca6dd8393f9631e22c8bb3276ca8532995606938363ef"
+        },
+        {
+          "dimensions": [
+            880,
+            1184
+          ],
+          "mode": "RGB",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/renna_holt/facial_zoom.png",
+          "role": "input 2: reviewed facial identity anchor",
+          "sha256": "ec2cd7f386bc55e9d614aeb4e56d71872436f53848c747a9b15ac0027d711d29"
+        },
+        {
+          "dimensions": [
+            880,
+            1184
+          ],
+          "mode": "RGB",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/renna_holt/anatomy.png",
+          "role": "input 3: reviewed anatomy and outfit anchor",
+          "sha256": "e7d8e884042b1487cebaa43f102739859445673f29ae0cc8e0a5d2f4aa6b42c6"
+        }
+      ],
+      "scope_note": null
+    },
+    "veiled_feminine": {
+      "display_name": "Veiled feminine default",
+      "method_1_neutral_vn_sprite_crop": {
+        "dimensions": [
+          1100,
+          1500
+        ],
+        "mode": "RGBA",
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/veiled_feminine/neutral.png",
+        "role": "deterministic neutral VN sprite crop",
+        "sha256": "8c4f4549c52be89f7754d1348f9d9621b6d847701d5cb02772f47ec224b15735"
+      },
+      "method_2_locked_reference_crop": {
+        "dimensions": [
+          1100,
+          1500
+        ],
+        "mode": "RGBA",
+        "note": "no independent locked portrait exists; method 2 intentionally uses the same reviewed neutral generic asset as method 1",
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/veiled_feminine/neutral.png",
+        "role": "deterministic locked reference crop",
+        "sha256": "8c4f4549c52be89f7754d1348f9d9621b6d847701d5cb02772f47ec224b15735"
+      },
+      "method_3_accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/portraits/veiled_feminine_reference_guided_rgba.png",
+        "sha256": "cf48a48c8089ce90d662231897d8b636eb4a857aaba5e32bc954400648eeb691"
+      },
+      "method_3_birefnet_mask": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "L",
+        "path": "inputs/masks/veiled_feminine_reference_guided_birefnet_mask.png",
+        "sha256": "62bd0352ca9505c9c7de056a726f91ddab49f0df605c1ee2a0333fbaccf8c32f"
+      },
+      "method_3_generated_content": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1122,
+          1402
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/veiled_feminine_reference_guided_raw.png",
+        "sha256": "919985d830632bcb6220149c6f5002ff8b9d92dfe366653f38c01d3919fb605d"
+      },
+      "method_3_reference_guided_generation_inputs": [
+        {
+          "dimensions": [
+            1100,
+            1500
+          ],
+          "mode": "RGBA",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/veiled_feminine/neutral.png",
+          "role": "input 1: sole reviewed identity-veiling and clothing anchor",
+          "sha256": "8c4f4549c52be89f7754d1348f9d9621b6d847701d5cb02772f47ec224b15735"
+        }
+      ],
+      "scope_note": null
+    },
+    "veiled_masculine": {
+      "display_name": "Veiled masculine default",
+      "method_1_neutral_vn_sprite_crop": {
+        "dimensions": [
+          1100,
+          1500
+        ],
+        "mode": "RGBA",
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/veiled_masculine/neutral.png",
+        "role": "deterministic neutral VN sprite crop",
+        "sha256": "5f69f2a956eb00d4b1d0863e96bbdc2504de59cc2cd5299d3d5d09497a52060b"
+      },
+      "method_2_locked_reference_crop": {
+        "dimensions": [
+          1100,
+          1500
+        ],
+        "mode": "RGBA",
+        "note": "no independent locked portrait exists; method 2 intentionally uses the same reviewed neutral generic asset as method 1",
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/veiled_masculine/neutral.png",
+        "role": "deterministic locked reference crop",
+        "sha256": "5f69f2a956eb00d4b1d0863e96bbdc2504de59cc2cd5299d3d5d09497a52060b"
+      },
+      "method_3_accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          1118,
+          1407
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/portraits/veiled_masculine_reference_guided_rgba.png",
+        "sha256": "10a3a6facea74fc368f562e1a4dcb55ed835f2668c50e8d727300a16f6125dfa"
+      },
+      "method_3_birefnet_mask": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1118,
+          1407
+        ],
+        "mode": "L",
+        "path": "inputs/masks/veiled_masculine_reference_guided_birefnet_mask.png",
+        "sha256": "bf00f01311f97d35c20ca4f925ca5725a3b24e43ae1424d9b3bdb6657a30946c"
+      },
+      "method_3_generated_content": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1118,
+          1407
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/veiled_masculine_reference_guided_raw.png",
+        "sha256": "5bd7c0335191155b663cd3d989438283c75b2b278c10512f69c68c7c74bdd248"
+      },
+      "method_3_reference_guided_generation_inputs": [
+        {
+          "dimensions": [
+            1100,
+            1500
+          ],
+          "mode": "RGBA",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/veiled_masculine/neutral.png",
+          "role": "input 1: sole reviewed identity-veiling and clothing anchor",
+          "sha256": "5f69f2a956eb00d4b1d0863e96bbdc2504de59cc2cd5299d3d5d09497a52060b"
+        }
+      ],
+      "scope_note": null
+    },
+    "warden": {
+      "display_name": "Warden of the Eighth",
+      "method_1_neutral_vn_sprite_crop": {
+        "dimensions": [
+          1100,
+          1500
+        ],
+        "mode": "RGBA",
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/warden_of_the_eighth/neutral.png",
+        "role": "deterministic neutral VN sprite crop",
+        "sha256": "7991595992b5dab4b6778d42cc9b7f4f4ee3c56b981bf023e590ddc459e1fb64"
+      },
+      "method_2_locked_reference_crop": {
+        "dimensions": [
+          768,
+          996
+        ],
+        "mode": "RGB",
+        "note": "distinct reviewed nonhuman identity reference",
+        "path": "app/storage/stories/one_star_ascension_s1/visual-references/warden_of_the_eighth.webp",
+        "role": "deterministic locked reference crop",
+        "sha256": "9cc80a075a99ee9169e4e2cbe10d34934d52c66a025f232ce3f2a8a83b0aa6a1"
+      },
+      "method_3_accepted_rgba_candidate": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "dimensions": [
+          1342,
+          1172
+        ],
+        "mode": "RGBA",
+        "path": "generated_raw/portraits/warden_reference_guided_rgba.png",
+        "sha256": "13829343cb542830b95713a26b9bf9b8dcf756380235e576c0a848214141fdeb"
+      },
+      "method_3_birefnet_mask": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1342,
+          1172
+        ],
+        "mode": "L",
+        "path": "inputs/masks/warden_reference_guided_birefnet_mask.png",
+        "sha256": "00d624fdedab19e2034618f4984833c5e8e125d078d4d4164204b1b7ecd001a3"
+      },
+      "method_3_generated_content": {
+        "alpha_extrema": null,
+        "dimensions": [
+          1342,
+          1172
+        ],
+        "mode": "RGB",
+        "path": "generated_raw/portraits/warden_reference_guided_raw.png",
+        "sha256": "549a1f881f9df317f9fdfd88d5ab2b6550c9d4689085f63f2f45caa8a3f8b9d5"
+      },
+      "method_3_reference_guided_generation_inputs": [
+        {
+          "dimensions": [
+            1100,
+            1500
+          ],
+          "mode": "RGBA",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/vn-sprites/warden_of_the_eighth/neutral.png",
+          "role": "input 1: primary nonhuman identity, silhouette, and anatomy anchor",
+          "sha256": "7991595992b5dab4b6778d42cc9b7f4f4ee3c56b981bf023e590ddc459e1fb64"
+        },
+        {
+          "dimensions": [
+            768,
+            996
+          ],
+          "mode": "RGB",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/warden_of_the_eighth.webp",
+          "role": "input 2: reviewed identity and material anchor",
+          "sha256": "9cc80a075a99ee9169e4e2cbe10d34934d52c66a025f232ce3f2a8a83b0aa6a1"
+        },
+        {
+          "dimensions": [
+            768,
+            996
+          ],
+          "mode": "RGB",
+          "path": "app/storage/stories/one_star_ascension_s1/visual-references/locked/warden_of_the_eighth/anatomy.png",
+          "role": "input 3: reviewed anatomy anchor; byte-identical to input 2",
+          "sha256": "9cc80a075a99ee9169e4e2cbe10d34934d52c66a025f232ce3f2a8a83b0aa6a1"
+        }
+      ],
+      "scope_note": "visual layout stress test only; not a summonable Hero"
+    }
+  }
+}

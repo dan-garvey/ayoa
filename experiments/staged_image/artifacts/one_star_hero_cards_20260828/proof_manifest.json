@@ -1,0 +1,359 @@
+{
+  "deterministic_layers": [
+    "frame resizing",
+    "portrait crop and layering",
+    "vector stars",
+    "fixed decorative Niflheim gate emblem",
+    "two-line shrink-to-fit name typography",
+    "card and board layout"
+  ],
+  "five_card_board": {
+    "artifact": "proofs/boards/five_card_board_1024x576.png",
+    "cards": [
+      {
+        "display_name": "Renna Holt",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Renna Holt"
+        ],
+        "portrait_method": "generated",
+        "star_count": 1
+      },
+      {
+        "display_name": "Halcyon",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Halcyon"
+        ],
+        "portrait_method": "generated",
+        "star_count": 6
+      },
+      {
+        "display_name": "Identity Veiled",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Identity Veiled"
+        ],
+        "portrait_method": "generated",
+        "star_count": 1
+      },
+      {
+        "display_name": "Identity Veiled",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Identity Veiled"
+        ],
+        "portrait_method": "generated",
+        "star_count": 1
+      },
+      {
+        "display_name": "Warden of the Eighth",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 44,
+        "name_lines": [
+          "Warden of",
+          "the Eighth"
+        ],
+        "portrait_method": "generated",
+        "star_count": 5
+      }
+    ],
+    "dimensions": [
+      1024,
+      576
+    ],
+    "sha256": "aa5eb885ead5e5fc1f79687206ab3ec0b40e32bab32a0a50af9ba4b1d3559fe5"
+  },
+  "frame_candidates": [
+    {
+      "artifact": "proofs/frames/01_obsidian_orrery_transparent_640x1024.png",
+      "dimensions": [
+        640,
+        1024
+      ],
+      "display_name": "Obsidian Orrery",
+      "mode": "RGBA",
+      "sha256": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f"
+    },
+    {
+      "artifact": "proofs/frames/02_frostbound_archive_transparent_640x1024.png",
+      "dimensions": [
+        640,
+        1024
+      ],
+      "display_name": "Frostbound Archive",
+      "mode": "RGBA",
+      "sha256": "5d6855691dadebc926bf59dc6a9319380740745cd696a2e3cc14143cb0ab6db9"
+    },
+    {
+      "artifact": "proofs/frames/03_ashen_crown_transparent_640x1024.png",
+      "dimensions": [
+        640,
+        1024
+      ],
+      "display_name": "Ashen Crown",
+      "mode": "RGBA",
+      "sha256": "1983e31c2c0ba448ee4589324d31e9e5bc8a4f109f9602ef7500a316d4960982"
+    }
+  ],
+  "long_name_proof": {
+    "display_name": "Aurelia \u00c6thelwyn of the Sevenfold Winter Gate",
+    "frame": "01_obsidian_orrery_transparent_640x1024.png",
+    "name_font_size": 31,
+    "name_lines": [
+      "Aurelia \u00c6thelwyn of the",
+      "Sevenfold Winter Gate"
+    ],
+    "portrait_method": "generated",
+    "sha256": "8e0880f5222d12790d07fa88db15db901b64ef767b9fcc9b81c3c6c0738d10ad",
+    "star_count": 7
+  },
+  "portrait_methods": {
+    "halcyon": {
+      "generated": {
+        "display_name": "Halcyon",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Halcyon"
+        ],
+        "portrait_method": "generated",
+        "sha256": "3b083422ddbb6feb2bfc396df4339c0b365e248c14f061edf23e089660037255",
+        "star_count": 6
+      },
+      "locked": {
+        "display_name": "Halcyon",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Halcyon"
+        ],
+        "portrait_method": "locked",
+        "sha256": "37a15b899f8a961550bc0461dabff1219f1ca59f789b49ac231a68442c28b2d5",
+        "star_count": 6
+      },
+      "neutral": {
+        "display_name": "Halcyon",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Halcyon"
+        ],
+        "portrait_method": "neutral",
+        "sha256": "aa78cf0810358834e382398e85fcce4b6941ee769402c1131cc43fbf1c74dd82",
+        "star_count": 6
+      }
+    },
+    "renna": {
+      "generated": {
+        "display_name": "Renna Holt",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Renna Holt"
+        ],
+        "portrait_method": "generated",
+        "sha256": "5841e2d87d3364f9751ffe6895c022533f0995659a1718abe15bfe08771626aa",
+        "star_count": 1
+      },
+      "locked": {
+        "display_name": "Renna Holt",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Renna Holt"
+        ],
+        "portrait_method": "locked",
+        "sha256": "57bf06666404d08c32f0ceec9690f193594c275c88136a079dc836ad2dc3290a",
+        "star_count": 1
+      },
+      "neutral": {
+        "display_name": "Renna Holt",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Renna Holt"
+        ],
+        "portrait_method": "neutral",
+        "sha256": "724da9589dbc0336c6ab9f1db3c63a8b073ec0207a425142ea14b5ef05caf995",
+        "star_count": 1
+      }
+    },
+    "veiled_feminine": {
+      "generated": {
+        "display_name": "Identity Veiled",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Identity Veiled"
+        ],
+        "portrait_method": "generated",
+        "sha256": "5e037ef7459af6dc298d9c1a7fa4a906b4cc06bf65637f3583f9c99abab0abe6",
+        "star_count": 1
+      },
+      "locked": {
+        "display_name": "Identity Veiled",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Identity Veiled"
+        ],
+        "portrait_method": "locked",
+        "sha256": "3a6956f06cdc3eec4ac66b8760c7b4b763fc6b2b33c990f122ec12581e0b927b",
+        "star_count": 1
+      },
+      "neutral": {
+        "display_name": "Identity Veiled",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Identity Veiled"
+        ],
+        "portrait_method": "neutral",
+        "sha256": "c8661b9c1ebd3aa69fad125c526d1966bd505b9a576e8037ed37bb2a7377389a",
+        "star_count": 1
+      }
+    },
+    "veiled_masculine": {
+      "generated": {
+        "display_name": "Identity Veiled",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Identity Veiled"
+        ],
+        "portrait_method": "generated",
+        "sha256": "b78d5714efeb8dd83b93a848b523679fbfd5aced38e59f129969cab5b333aa73",
+        "star_count": 1
+      },
+      "locked": {
+        "display_name": "Identity Veiled",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Identity Veiled"
+        ],
+        "portrait_method": "locked",
+        "sha256": "5a966701b448adb1f7a54f407dde7a2e7fe0d646ee0d1c724e32bd974eb07c8b",
+        "star_count": 1
+      },
+      "neutral": {
+        "display_name": "Identity Veiled",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 48,
+        "name_lines": [
+          "Identity Veiled"
+        ],
+        "portrait_method": "neutral",
+        "sha256": "f37fd3391cd6025e7938f78778aa448bca1b502cac2ecd47d5570166ab204cf9",
+        "star_count": 1
+      }
+    },
+    "warden": {
+      "generated": {
+        "display_name": "Warden of the Eighth",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 44,
+        "name_lines": [
+          "Warden of",
+          "the Eighth"
+        ],
+        "portrait_method": "generated",
+        "sha256": "e2e27c84f90929fcaa8107fddc6432daa062f4659ac89631536363aace1de796",
+        "star_count": 5
+      },
+      "locked": {
+        "display_name": "Warden of the Eighth",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 44,
+        "name_lines": [
+          "Warden of",
+          "the Eighth"
+        ],
+        "portrait_method": "locked",
+        "sha256": "9b779ad156651b93e884801e64947570931426f1fa4264a41dadef6e828ee625",
+        "star_count": 5
+      },
+      "neutral": {
+        "display_name": "Warden of the Eighth",
+        "frame": "01_obsidian_orrery_transparent_640x1024.png",
+        "name_font_size": 44,
+        "name_lines": [
+          "Warden of",
+          "the Eighth"
+        ],
+        "portrait_method": "neutral",
+        "sha256": "d228c0f073751ac6552a5e5362c6fb0c96e68e097604ea2b8d00ae4250aee743",
+        "star_count": 5
+      }
+    }
+  },
+  "review": [
+    "review/01_frame_obsidian_orrery.png",
+    "review/02_frame_frostbound_archive.png",
+    "review/03_frame_ashen_crown.png",
+    "review/04_methods_renna.png",
+    "review/05_methods_warden.png",
+    "review/06_methods_halcyon.png",
+    "review/07_methods_veiled_feminine.png",
+    "review/08_methods_veiled_masculine.png",
+    "review/09_star_count_proofs.png",
+    "review/10_long_unicode_name.png",
+    "review/11_five_card_board_1024x576.png",
+    "review/12_contact_sheet.png"
+  ],
+  "review_html": "review/index.html",
+  "schema_version": 1,
+  "selected_proof_frame": "01_obsidian_orrery_transparent_640x1024.png",
+  "star_proofs": [
+    {
+      "display_name": "Renna Holt",
+      "frame": "01_obsidian_orrery_transparent_640x1024.png",
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated",
+      "sha256": "5841e2d87d3364f9751ffe6895c022533f0995659a1718abe15bfe08771626aa",
+      "star_count": 1
+    },
+    {
+      "display_name": "Renna Holt",
+      "frame": "01_obsidian_orrery_transparent_640x1024.png",
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated",
+      "sha256": "b03fe1f72743a586ec1688fc0834dae5bd47b315778f4b375da1e9faba488984",
+      "star_count": 3
+    },
+    {
+      "display_name": "Renna Holt",
+      "frame": "01_obsidian_orrery_transparent_640x1024.png",
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated",
+      "sha256": "ce10ac9fea1dba3a544c367e3a68054a246c0bd484508a4bac62d1cc133c2ba9",
+      "star_count": 5
+    },
+    {
+      "display_name": "Renna Holt",
+      "frame": "01_obsidian_orrery_transparent_640x1024.png",
+      "name_font_size": 48,
+      "name_lines": [
+        "Renna Holt"
+      ],
+      "portrait_method": "generated",
+      "sha256": "a215413b6ba8db8791584f265386437c63d4ac662b646d13b62ec1cfa010396d",
+      "star_count": 7
+    }
+  ],
+  "status": "complete"
+}
