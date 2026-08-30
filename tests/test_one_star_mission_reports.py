@@ -103,8 +103,6 @@ def _completed_report_checkpoints():
                 "pending_operation_id=deployment_1",
                 "party=hero",
                 "party=fallen",
-                "formation.hero=front",
-                "formation.fallen=rear",
                 "destination=tower_floor_1",
                 "completion=the floor is cleared",
                 "failure=the party is broken",

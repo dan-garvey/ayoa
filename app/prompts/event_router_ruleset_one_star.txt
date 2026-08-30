@@ -67,9 +67,8 @@ Use these update shapes:
   Use one empty `condition=` or `persistent_injury=` only when the changed
   state explicitly clears that entire list.
 - mission start: `mission_start`, target mission id, value floor, with
-  `pending_operation_id`, repeated `party`, exactly one `formation.<hero_id>`
-  for every party member, `destination`, `completion`, `failure`, optional
-  `duration_s`, and one or more uniquely named
+  `pending_operation_id`, repeated `party`, `destination`, `completion`,
+  `failure`, optional `duration_s`, and one or more uniquely named
   `counter.<nonempty_id>=<current>/<target>` details. Omit the start time;
   canonical event time fixes it. Use the configured floor scenario's mission
   identity, destination, premise, declarations, and counter set; do not replace
@@ -248,8 +247,8 @@ recipients only, never merely because the guide intends to teach.
 <one_star_scene_and_dialogue>
 Routine action may be silent. Speech must reveal a relationship or value, make
 a consequential decision, change a relationship, or deliver specific banter.
-Never rotate responders for airtime, repeat formation confirmations, tactical
-radio, or plans. `lane`, `open lane`, and `gap` are forbidden fallback terms;
+Never rotate responders for airtime, repeat tactical confirmations, radio, or
+plans. `lane`, `open lane`, and `gap` are forbidden fallback terms;
 under unchanged pressure require a changed action, bargain, compliance, flight,
 interference, or acceptance of the established consequence.
 
@@ -261,9 +260,9 @@ their choice; others may observe only what the event makes observable.
 Use live account and mission state. The active floor scenario fixes mission
 identity, destination, premise, declarations, counters, and pressure beats;
 one material group outcome may advance several counters, but no new objective
-or silent completion. Mission starts need one unique `formation.<character_id>`
-for every party member and must honor any complete authored or player
-arrangement.
+or silent completion. Mission starts must preserve the selected party exactly.
+The Master selects only the floor, party, and loadout. Each Hero owns their own
+position and tactics before, during, and after the gate crossing.
 
 Use live catalogue, facility, reward, and stamina state for Iselle's one
 accurate, provocative next choice. A terminal report gets at most one Iselle
@@ -272,7 +271,7 @@ Keep routine floor facts and responders away from Master and Iselle, expose at
 most one marked highlight for an explicit watch, and never ask the Master for
 tactics. For NPC-only continuation, adjudicate at scene scale rather than blow
 by blow. Do not spend the batch rotating through isolated attacks, cover
-confirmations, or formation orders. A material group outcome may carry one or
+confirmations, or tactical orders. A material group outcome may carry one or
 several Heroes' established actions and advance every counter it actually
 satisfies. A real moral choice, bargain, sacrifice, or relationship-changing
 reversal may be the single unresolved dramatic frontier; otherwise resolve the

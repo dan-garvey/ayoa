@@ -369,17 +369,17 @@ def test_seed_promotes_only_reviewed_frame_and_approved_bust_overrides() -> None
     )
 
 
-def test_formation_card_preserves_validated_party_order() -> None:
+def test_deployment_card_preserves_validated_party_order() -> None:
     checkpoint = _seed()
     _commit_mission_start(
         checkpoint,
-        event_id="evt_formation_cards",
+        event_id="evt_deployment_cards",
         party_ids=["renna_holt", "halcyon_of_the_gilded_march"],
     )
 
     event = committed_one_star_hero_card_event(
         checkpoint,
-        "evt_formation_cards",
+        "evt_deployment_cards",
     )
     assert event is not None
     assert event.kind == "mission_start"
@@ -391,6 +391,44 @@ def test_formation_card_preserves_validated_party_order() -> None:
         checkpoint,
         "evt_not_present",
     ) is None
+
+
+def test_deployment_board_confirms_party(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checkpoint = _seed()
+    event = OneStarHeroCardEvent(
+        event_id="evt_deployment_confirmed",
+        kind="mission_start",
+        characters=(
+            _character(checkpoint, "renna_holt"),
+            _character(checkpoint, "halcyon_of_the_gilded_march"),
+        ),
+    )
+    _owner, account = load_one_star_account(checkpoint)
+    presentation = account.config.visual_novel_presentation
+    assert presentation is not None
+    frame_id = presentation.hero_card_frame_reference_id
+    frame_media = _file_media(_FRAME)
+    portrait_media = _media(Image.new("RGBA", (280, 430), (63, 91, 127, 255)))
+
+    def resolve(reference, *, runtime_root):
+        del runtime_root
+        return frame_media if reference.reference_id == frame_id else portrait_media
+
+    monkeypatch.setattr(hero_cards, "resolve_frozen_visual_reference_media", resolve)
+    boards = render_one_star_hero_card_boards(
+        checkpoint=checkpoint,
+        viewer_character_id="the_master",
+        event=event,
+        generation=_FakeGeneration(generated_media=portrait_media),
+    )
+
+    assert len(boards) == 1
+    assert boards[0].accessible_text == (
+        "System panel — Deployment confirmed: Renna Holt — 1 star; "
+        "Halcyon — 6 stars"
+    )
 
 
 def test_option_f_draws_exact_star_counts_and_distinct_rank_pixels() -> None:
@@ -504,15 +542,15 @@ def test_visible_generated_summon_prewarm_is_exact_and_summon_only() -> None:
     ) == ()
 
     generated.mechanics[ONE_STAR_HERO_KEY]["current_stars"] = 3
-    formation = OneStarHeroCardEvent(
-        event_id="evt_generated_formation",
+    deployment = OneStarHeroCardEvent(
+        event_id="evt_generated_deployment",
         kind="mission_start",
         characters=(generated,),
     )
     assert generated_portrait_prewarm_character_ids(
         checkpoint=checkpoint,
         viewer_character_id="the_master",
-        events=(formation,),
+        events=(deployment,),
     ) == ()
 
 

@@ -28,7 +28,7 @@ constrain knowledge and capability, not willingness to rebel or obey.
 Give the generated Hero an ongoing dramatic pressure rather than a completed
 tactical assignment. The pressure should expose a relationship, value, private
 boundary, or contradiction that can change through play. Avoid canned
-catchphrases, generic squad-radio talk, and stock formation confirmations. A
+catchphrases, generic squad-radio talk, and stock tactical confirmations. A
 routine physical action may be silent; any authored speech must reveal a value,
 relationship, consequential choice, or specific banter. Never prewrite dialogue,
 intent, consent, or a reaction for a player-authored Newcomer.

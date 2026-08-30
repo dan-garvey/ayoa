@@ -289,7 +289,6 @@ def test_compact_mission_start_derives_canonical_timestamps_and_counters():
         details=[
             "pending_operation_id=deployment_1",
             "party=pip",
-            "formation.pip=front",
             "destination=tower_floor_1",
             "completion=defeat four goblins",
             "failure=no party member remains able to fight",
@@ -330,6 +329,11 @@ def test_compact_mission_start_derives_canonical_timestamps_and_counters():
             [*update.details[:-1], "counter.goblins=0"],
             OneStarTransactionError,
             "must use current/target",
+        ),
+        (
+            [*update.details, "formation.pip=front"],
+            OneStarTransactionError,
+            "unsupported details",
         ),
     ):
         with pytest.raises(error_type, match=message):
@@ -1772,7 +1776,6 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         completion_declaration="reach the exit",
         failure_declaration="all party members fall",
         party_ids=["pip"],
-        formation_labels=[SimpleNamespace(character_id="pip", label="front")],
         counters=[SimpleNamespace(counter_id="exit", current=0, target=1)],
     )
     state = SimpleNamespace(

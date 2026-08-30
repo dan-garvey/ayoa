@@ -678,28 +678,12 @@ class OneStarMissionCounter(BaseModel):
         return self
 
 
-class OneStarFormationEntry(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    character_id: str
-    label: str
-
-    @model_validator(mode="after")
-    def _clean(self) -> "OneStarFormationEntry":
-        self.character_id = self.character_id.strip()
-        self.label = self.label.strip()
-        if not self.character_id or not self.label:
-            raise ValueError("mission formation entries require character id and label")
-        return self
-
-
 class OneStarMissionState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     mission_id: str
     floor: int = Field(ge=1)
     party_ids: list[str]
-    formation_labels: list[OneStarFormationEntry]
     destination: str
     completion_declaration: str
     failure_declaration: str
@@ -718,16 +702,6 @@ class OneStarMissionState(BaseModel):
             raise ValueError("mission requires immutable completion and failure declarations")
         if self.deadline_at_s and self.deadline_at_s < self.started_at_s:
             raise ValueError("mission deadline cannot precede start")
-        formation_ids = [entry.character_id for entry in self.formation_labels]
-        if len(formation_ids) != len(set(formation_ids)):
-            raise ValueError("mission formation character ids must be unique")
-        if set(formation_ids) != set(self.party_ids):
-            raise ValueError(
-                "mission formation must map every party member exactly once"
-            )
-        formation_values = [entry.label for entry in self.formation_labels]
-        if len(formation_values) != len(set(formation_values)):
-            raise ValueError("mission formation labels must be distinct")
         counter_ids = [entry.counter_id for entry in self.counters]
         if not counter_ids or len(counter_ids) != len(set(counter_ids)):
             raise ValueError("mission counter ids must be non-empty and unique")

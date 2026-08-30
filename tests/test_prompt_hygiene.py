@@ -115,3 +115,26 @@ def test_dnd_cat_ii_prompt_does_not_receive_runtime_control_policy():
     assert not leaks, "D&D Cat II prompt leaks runtime control policy: " + ", ".join(
         leaks
     )
+
+
+def test_one_star_prompts_do_not_restore_master_controlled_formations():
+    text = "\n".join(
+        (PROMPTS_DIR / filename).read_text()
+        for filename in (
+            "agent_ruleset_one_star.txt",
+            "character_gen_ruleset_one_star.txt",
+            "event_router_ruleset_one_star.txt",
+        )
+    ).lower()
+    forbidden = (
+        "formation.<",
+        "opening formation",
+        "formation lattice",
+        "formation orders",
+        "formation confirmations",
+    )
+
+    leaks = [term for term in forbidden if term in text]
+    assert not leaks, "One-Star prompts restore retired formation control: " + ", ".join(
+        leaks
+    )

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live CLI/EngineBridge proof for One-Star summon and formation cards.
+"""Live CLI/EngineBridge proof for One-Star summon and deployment cards.
 
 The run is isolated from production sessions.  It copies the reviewed story,
 claims the Master through the normal CLI contract, opens the authored summon,
@@ -484,23 +484,18 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         hero_names = [character.name for character in summon_event.characters]
         if not hero_names:
             raise RuntimeError("opening summon produced an empty roster")
-        formation_labels = ("front", "middle", "rear", "reserve", "reserve")
-        formation = ", ".join(
-            f"{name} in {formation_labels[index]}"
-            for index, name in enumerate(hero_names)
-        )
         line = (
             "I select Floor 1 and the newly summoned Heroes in their displayed "
-            f"order, set {formation}, and confirm the formation through the gate."
+            "order, then deploy that party through the gate."
         )
-        current = await execute("select_and_confirm_formation", line)
+        current = await execute("select_and_deploy_party", line)
         for attempt in range(1, args.max_followups + 1):
             if current["active_mission"] is not None:
                 break
-            current = await execute(f"formation_followup_{attempt}", "/defer")
+            current = await execute(f"deployment_followup_{attempt}", "/defer")
         if current["active_mission"] is None:
             raise RuntimeError(
-                "formation did not commit a mission after the allowed follow-ups"
+                "deployment did not commit a mission after the allowed follow-ups"
             )
     except Exception:
         error = traceback.format_exc()
@@ -549,7 +544,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         panel
         for panel in system_panels
         if panel["accessible_text"].startswith(
-            "System panel — Formation confirmed"
+            "System panel — Deployment confirmed"
         )
     ]
     frame_id = "osa_hero_card_frame_obsidian_orrery_v1"
@@ -609,14 +604,14 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         ),
         "opening_summon_committed": summon_event is not None,
         "mission_start_committed": mission_event is not None,
-        "formation_order_matches_active_mission": (
+        "deployment_order_matches_active_mission": (
             bool(mission_ids) and mission_ids == mission_party_ids
         ),
-        "formation_preserves_summon_order": (
+        "deployment_preserves_summon_order": (
             bool(summon_ids) and mission_ids == summon_ids
         ),
         "one_summon_board": len(summon_panels) == 1,
-        "one_formation_board": len(mission_panels) == 1,
+        "one_deployment_board": len(mission_panels) == 1,
         "boards_are_master_only": bool(system_panels)
         and all(panel["pov_character_id"] == MASTER_ID for panel in system_panels),
         "boards_follow_exact_render_segment": bool(system_panels)
@@ -645,7 +640,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
     }
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "run_kind": "live_cli_enginebridge_summon_and_formation",
+        "run_kind": "live_cli_enginebridge_summon_and_deployment",
         "session_id": SESSION_ID,
         "story_id": STORY_ID,
         "story_seed": {

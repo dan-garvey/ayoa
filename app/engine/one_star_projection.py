@@ -204,14 +204,7 @@ def _mission_lines(mission: OneStarMissionState | None) -> list[str]:
         f"destination {mission.destination}",
         f"Completion: {mission.completion_declaration}",
         f"Failure: {mission.failure_declaration}",
-        f"Mission party: {_join_values(mission.party_ids)}; formation "
-        + _join_values(
-            f"{entry.character_id}={entry.label}"
-            for entry in sorted(
-                mission.formation_labels,
-                key=lambda formation: formation.character_id,
-            )
-        ),
+        f"Mission party: {_join_values(mission.party_ids)}",
         "Mission counters: "
         f"{counters}; deadline "
         f"{mission.deadline_at_s if mission.deadline_at_s else 'untimed'}",

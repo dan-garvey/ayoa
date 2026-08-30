@@ -1541,9 +1541,43 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
         "choose the floor",
         "roster",
         "loadout",
-        "opening formation",
     ):
         assert management_choice in player_contract
+
+    # Positioning belongs to the embodied Heroes rather than a second tactical
+    # control surface for the disembodied Master.
+    opening_contract = "\n".join(
+        (
+            segment.text
+            for beat in ws.opening.authored_character_beats
+            for segment in beat.segments
+        )
+    )
+    master_management_surface = "\n".join(
+        (
+            checkpoint.session.config.narrative_rules,
+            "\n".join(ws.facts),
+            "\n".join(ws.hidden_facts),
+            ws.lore,
+            player_contract,
+            iselle.public_sheet.role,
+            iselle.personality,
+            iselle.known_context,
+            master.public_sheet.appearance,
+            master.visuals.default_loadout,
+            opening_contract,
+        )
+    ).lower()
+    for retired_formation_surface in (
+        "opening formation",
+        "formation lattice",
+        "set that formation",
+        "formation positions",
+        "pre-mission formation",
+        "pre-deployment formation",
+        "pre-deployment arrangement",
+    ):
+        assert retired_formation_surface not in master_management_surface
 
     # The human-facing Master contract permits narrative viewpoint shifts and
     # one-way audio while explicitly assigning mission choices to Heroes.

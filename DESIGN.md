@@ -1810,11 +1810,12 @@ levels, XP totals, stats, HP maxima, or synthesis arithmetic.
 
 Each configured `floor_scenario` is reviewed seed authority for one mission's
 destination, premise, immutable completion and failure declarations, counters,
-and pressure beats. A mission start copies that authority into durable state and
-must provide a full formation: every party Hero appears exactly once and every
-formation label is unique. These adapter checks constrain mission bookkeeping;
-the generic router still judges how the party attempts the scenario and what
-fiction follows.
+and pressure beats. A mission start copies that authority and the exact selected
+party into durable state. Starting positions and later repositioning are
+Hero-owned tactics carried by canonical fiction, not a durable Master-controlled
+formation variable. These adapter checks constrain mission bookkeeping; the
+generic router still judges how the party attempts the scenario and what fiction
+follows.
 
 Mission control is asymmetric and derives from bindings rather than a stored
 scene selector. If any deployed party Hero is human-bound, floor progression

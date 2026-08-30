@@ -237,16 +237,6 @@ def _deployment_resolution_output(
 ) -> OneStarEventRouterOutput:
     operation_id = "initial_floor_1_deployment"
     scenario = _floor_one_scenario()
-    formation_by_character_id = {
-        "mirelle_voss": "front",
-        "one_star_newcomer": (
-            "middle-left" if len(roster_ids) == 4 else "front"
-        ),
-        "edren_marr": (
-            "middle-right" if len(roster_ids) == 4 else "middle"
-        ),
-        "renna_holt": "rear",
-    }
     return _one_star_output(
         router_output(
             event_id=event_id,
@@ -276,11 +266,6 @@ def _deployment_resolution_output(
                 "details": [
                     f"pending_operation_id={operation_id}",
                     *(f"party={character_id}" for character_id in roster_ids),
-                    *(
-                        f"formation.{character_id}="
-                        f"{formation_by_character_id[character_id]}"
-                        for character_id in roster_ids
-                    ),
                     f"destination={scenario.destination}",
                     f"completion={scenario.completion_declaration}",
                     f"failure={scenario.failure_declaration}",
@@ -549,12 +534,6 @@ def test_newcomer_pool_does_not_trigger_opening_roster_guide_policy(
     direct.state_updates[1].details[0] = (
         "pending_operation_id=newcomer_deployment"
     )
-    direct.state_updates[1].details = [
-        detail
-        for detail in direct.state_updates[1].details
-        if not detail.startswith("formation.")
-    ]
-    direct.state_updates[1].details.append(f"formation.{newcomer_id}=front")
     direct.canonical_event.observable_facts.append(
         ObservableFact.only(
             "The System gives the guide the completed deployment state.",

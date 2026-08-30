@@ -59,6 +59,11 @@ HeroCardEventKind = Literal["summon", "mission_start"]
 PortraitSource = Literal["override", "neutral", "unavailable"]
 Color = tuple[int, int, int]
 
+_BOARD_TITLES: dict[HeroCardEventKind, tuple[str, str]] = {
+    "summon": ("HEROES ACQUIRED", "Heroes acquired"),
+    "mission_start": ("DEPLOYMENT CONFIRMED", "Deployment confirmed"),
+}
+
 
 class OneStarHeroCardError(RuntimeError):
     """A committed Hero-card presentation contract could not be fulfilled."""
@@ -373,11 +378,7 @@ def render_one_star_hero_card_boards(
         )
         data = _png_bytes(board)
         digest = hashlib.sha256(data).hexdigest()
-        title = (
-            "Heroes acquired"
-            if event.kind == "summon"
-            else "Formation confirmed"
-        )
+        title = _BOARD_TITLES[event.kind][1]
         entries = []
         for character, portrait in group:
             stars = _current_stars(character)
@@ -872,7 +873,7 @@ def _render_board(
     board = _gradient(BOARD_SIZE, (8, 19, 37), (2, 5, 13)).convert("RGBA")
     draw = ImageDraw.Draw(board)
     draw.rectangle((0, 0, 1023, 575), outline=(144, 116, 66, 170), width=3)
-    title = "HEROES ACQUIRED" if kind == "summon" else "FORMATION CONFIRMED"
+    title = _BOARD_TITLES[kind][0]
     draw.text(
         (38, 24),
         title,

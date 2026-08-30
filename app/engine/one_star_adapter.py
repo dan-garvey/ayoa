@@ -46,7 +46,6 @@ from app.schemas.one_star import (
     OneStarCombatantState,
     OneStarCost,
     OneStarEquipmentEntry,
-    OneStarFormationEntry,
     OneStarGemPurchaseConfig,
     OneStarGemPurchaseOperation,
     OneStarHeroDeltaOperation,
@@ -1411,7 +1410,7 @@ def _validate_state_update_detail_keys(
             "equipment_add.",
             "skill_add.",
         ),
-        "mission_start": ("counter.", "formation."),
+        "mission_start": ("counter.",),
         "mission_update": ("counter.",),
     }
     exact = exact_by_kind[update.kind]
@@ -1458,12 +1457,11 @@ def _validate_state_update_detail_keys(
                         f"One-Star hero_delta state update has empty detail id {key!r}"
                     )
 
-    for prefix in ("counter.", "formation."):
-        for key in details:
-            if key.startswith(prefix) and not key.removeprefix(prefix):
-                raise OneStarTransactionError(
-                    f"One-Star {update.kind} state update has empty detail id {key!r}"
-                )
+    for key in details:
+        if key.startswith("counter.") and not key.removeprefix("counter."):
+            raise OneStarTransactionError(
+                f"One-Star {update.kind} state update has empty detail id {key!r}"
+            )
 
 
 def _validate_state_update_scalar_shape(update: OneStarStateUpdate) -> None:
@@ -1767,14 +1765,6 @@ def one_star_state_updates_to_transaction(
                 for key, values in details.items()
                 if key.startswith("counter.")
             ]
-            formations = [
-                OneStarFormationEntry(
-                    character_id=key.removeprefix("formation."),
-                    label=_single_detail(details, key),
-                )
-                for key, values in details.items()
-                if key.startswith("formation.")
-            ]
             operations.append(OneStarMissionStartOperation(
                 operation=kind,
                 pending_operation_id=_single_detail(
@@ -1785,7 +1775,6 @@ def one_star_state_updates_to_transaction(
                     "mission_id": target_id,
                     "floor": _integer_update_value(update.value, label="mission floor"),
                     "party_ids": details.get("party", []),
-                    "formation_labels": formations,
                     "destination": _single_detail(details, "destination"),
                     "completion_declaration": _single_detail(details, "completion"),
                     "failure_declaration": _single_detail(details, "failure"),

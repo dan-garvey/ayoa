@@ -684,7 +684,6 @@ def test_active_mission_is_visible_to_owner_but_not_guide() -> None:
         mission_id="floor_two",
         floor=2,
         party_ids=["hero"],
-        formation_labels=[{"character_id": "hero", "label": "front"}],
         destination="tower_floor_2",
         completion_declaration="the last enemy falls",
         failure_declaration="the party is destroyed",
@@ -701,6 +700,8 @@ def test_active_mission_is_visible_to_owner_but_not_guide() -> None:
 
     assert "Active mission: floor_two" in owner_block
     assert "enemies 2/5" in owner_block
+    assert "Mission party: hero" in owner_block
+    assert "; formation " not in owner_block
     assert "Active mission:" not in guide_block
     assert "enemies 2/5" not in guide_block
 

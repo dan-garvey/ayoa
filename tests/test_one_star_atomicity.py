@@ -174,10 +174,6 @@ def _mission(*, destination: str = "tower_floor_1", party: list[str] | None = No
         mission_id="mission_1",
         floor=1,
         party_ids=party or ["hero"],
-        formation_labels=[
-            {"character_id": cid, "label": f"position_{index}"}
-            for index, cid in enumerate(party or ["hero"], start=1)
-        ],
         destination=destination,
         completion_declaration="the floor is cleared",
         failure_declaration="the party is broken",
@@ -185,22 +181,6 @@ def _mission(*, destination: str = "tower_floor_1", party: list[str] | None = No
         started_at_s=0,
         deadline_at_s=0,
     )
-
-
-@pytest.mark.parametrize("invalid_formation", ["missing", "duplicate_label"])
-def test_mission_formation_maps_every_party_member_to_a_distinct_position(
-    invalid_formation: str,
-) -> None:
-    payload = _mission(party=["hero", "ally"]).model_dump(mode="json")
-    if invalid_formation == "missing":
-        payload["formation_labels"] = payload["formation_labels"][:1]
-    else:
-        payload["formation_labels"][1]["label"] = payload[
-            "formation_labels"
-        ][0]["label"]
-
-    with pytest.raises(ValueError, match="formation"):
-        OneStarMissionState.model_validate(payload)
 
 
 def _checkpoint(
@@ -326,7 +306,6 @@ def _deployment_router_output(
         "details": [
             "pending_operation_id=deployment_1",
             "party=hero",
-            "formation.hero=front",
             "destination=tower_floor_1",
             "completion=the floor is cleared",
             "failure=the party is broken",
@@ -737,7 +716,6 @@ def test_pending_resolution_location_contract_is_exact_and_unambiguous(
                 "details": [
                     "pending_operation_id=deployment_1",
                     "party=hero",
-                    "formation.hero=front",
                     "destination=tower_floor_1",
                     "completion=the floor is cleared",
                     "failure=the party is broken",
