@@ -940,10 +940,10 @@ def test_floor_zero_start_and_summon_pool() -> None:
     assert renna.status.value == "dormant"
     assert renna.location == "unsummoned_pool"
     assert renna.is_playable is False
-    assert len(renna.backstory.split()) < 40
-    assert len(renna.personality.split()) < 55
+    assert renna.backstory.strip()
+    assert renna.personality.strip()
     assert renna.descriptions.private
-    assert len(renna.private_state.secrets) == 1
+    assert renna.private_state.secrets
     edren = by_id["edren_marr"]
     assert edren.name == "Edren Marr"
     assert edren.status.value == "dormant"
@@ -1800,11 +1800,10 @@ def test_seeded_rare_characters_scale_depth_and_public_visual_identity() -> None
         ):
             assert private_token not in public_visuals, (tier, private_token)
 
-    # The authored one-star exception remains intentionally sparse and visually
-    # shared even though its private growth ceiling is unusual.
+    # The authored one-star exception remains visually shared even when its
+    # wiped-life interior is deeper than a generated tier-one profile. Rank
+    # constrains world knowledge and mechanics, not an authored prose budget.
     renna = by_id["renna_holt"]
-    assert len(renna.backstory.split()) < backstory_depths[0] / 4
-    assert len(renna.personality.split()) < personality_depths[0] / 3
     assert len(
         (
             renna.public_sheet.appearance

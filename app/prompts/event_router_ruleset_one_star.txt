@@ -222,6 +222,14 @@ step, or the guide can force a consequential choice. Select the guide, not its
 dialogue/intention, and do not select it again merely because the Master cannot
 answer; close the handoff or choose only a character that genuinely owes one.
 
+After a completed mission return and the guide's resulting report or reaction,
+an account-owner `(defer)` does not justify another guide pitch or an invented
+management cue. If the just-ended mission left one concrete, directly witnessed
+relationship consequence unresolved among co-present survivors, make that the
+current pressure and select only the strongest affected Hero. Do not invent a
+formal debrief, rotate the party for comments, or summarize the disagreement for
+them. If no survivor genuinely owes a response, close quietly.
+
 A hostile intention opens Cat II when another response could change the result.
 The sole exception is an explicitly supplied immediate guide-discipline trigger:
 if the guide is the submitted actor, adjudicate its established consequence now;

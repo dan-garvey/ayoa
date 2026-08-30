@@ -355,7 +355,8 @@ def build_checkpoint() -> CheckpointFile:
     )
     renna = _character(checkpoint, "renna_holt")
     renna.known_context = (
-        "Renna knows Niflheim's basic rules and has reached level ten, the "
+        renna.known_context
+        + "\n\nRenna knows Niflheim's basic rules and has reached level ten, the "
         "one-star limit. Iselle has already briefed her that completing "
         "promotion consumes one lesser stone, advances her exactly one star, "
         "applies retained experience, and restores any authored memory tier "

@@ -485,6 +485,15 @@ def test_playtest_seed_inherits_current_one_star_motivation_policy() -> None:
         )
         assert playtest_character.backstory == source_character.backstory
         assert playtest_character.personality == source_character.personality
+        assert (
+            playtest_character.private_state.secrets
+            == source_character.private_state.secrets
+        )
+    assert playtest_renna.known_context.startswith(
+        source_renna.known_context + "\n\n"
+    )
+    assert playtest_renna.known_context.count(source_renna.known_context) == 1
+    assert playtest_renna.known_context != source_renna.known_context
     assert (
         playtest_renna.private_state.current_objectives
         != source_renna.private_state.current_objectives

@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 # ruff: noqa: E402 -- executable script adds the repository root to sys.path.
-"""Replay One-Star CharacterAgent dialogue without the router or narrator.
+"""Replay sustained One-Star CharacterAgent conversations in isolation.
 
-The fixed-context lane replays the committed Renna/Mirelle message lineages
-from session ``42t24t``.  Each call keeps the persisted role/order/event
-history through that turn while overlaying current production-seed profile
-blocks.  Candidate-fed scenario lanes start from explicitly supplied tracked
-checkpoints and use the production CharacterAgent prompt builder and commit
-path.  Each later scenario prompt therefore sees the candidate-authored public
-beat produced immediately before it.  Review artifacts preserve prior/current
-pairs and leave semantic judgments to a human reviewer.
+Each candidate-fed conversation starts from an explicitly supplied tracked
+checkpoint and uses the production CharacterAgent prompt builder and commit
+path.  Every later prompt therefore sees the candidate-authored public beat
+produced immediately before it.  Sustained quiet and conflict transcripts are
+reviewed as whole conversations; compact danger cases remain regression checks.
+All semantic judgments belong to a human reviewer.
 
 Importing the module and the default command are offline.  ``--live`` is the
 only path that calls the configured provider.  Every run saves raw prompts,
-responses, timings, usage, and the historical comparison response.
+responses, timings, and usage.
 """
 
 from __future__ import annotations
@@ -26,7 +24,6 @@ import json
 import re
 import sys
 import time
-from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -45,7 +42,6 @@ from app.engine.context_builder import (
 from app.engine.prompt_manager import PromptManager
 from app.schemas.checkpoint import CheckpointFile
 from scripts.run_one_star_dialogue_ab import (
-    BLINDED_RUBRIC,
     TERRA_MODEL,
     _CapturedClient,
     _write_json,
@@ -64,64 +60,105 @@ PRODUCTION_SEED_PATH = (
 
 
 @dataclass(frozen=True)
-class ReplayTurn:
-    """One persisted CharacterAgent turn in global story order."""
-
-    sequence_index: int
-    actor_id: str
-    actor_turn: int
-
-
-@dataclass(frozen=True)
 class ConversationScenario:
-    """One short candidate-fed exchange anchored in tracked checkpoint state."""
+    """One candidate-fed conversation anchored in tracked checkpoint state."""
 
     scenario_id: str
+    scenario_kind: str
     actor_ids: tuple[str, ...]
     tracked_state_markers: tuple[str, ...]
     setup_observation: str
     review_purpose: str
 
 
-REPLAY_TURNS: tuple[ReplayTurn, ...] = (
-    ReplayTurn(1, "renna_holt", 1),
-    ReplayTurn(2, "mirelle_voss", 1),
-    ReplayTurn(3, "mirelle_voss", 2),
-    ReplayTurn(4, "mirelle_voss", 3),
-    ReplayTurn(5, "renna_holt", 2),
-    ReplayTurn(6, "mirelle_voss", 4),
-    ReplayTurn(7, "mirelle_voss", 5),
-    ReplayTurn(8, "renna_holt", 3),
-    ReplayTurn(9, "mirelle_voss", 6),
-    ReplayTurn(10, "mirelle_voss", 7),
-    ReplayTurn(11, "renna_holt", 4),
+_RENNA_MIRELLE_EIGHT_TURNS = (
+    "renna_holt",
+    "mirelle_voss",
+    "renna_holt",
+    "mirelle_voss",
+    "renna_holt",
+    "mirelle_voss",
+    "renna_holt",
+    "mirelle_voss",
+)
+_MIRELLE_RENNA_EIGHT_TURNS = (
+    "mirelle_voss",
+    "renna_holt",
+    "mirelle_voss",
+    "renna_holt",
+    "mirelle_voss",
+    "renna_holt",
+    "mirelle_voss",
+    "renna_holt",
 )
 
-CONVERSATION_SCENARIOS: tuple[ConversationScenario, ...] = (
+SUSTAINED_CONVERSATION_SCENARIOS: tuple[ConversationScenario, ...] = (
     ConversationScenario(
-        scenario_id="post_clear_changed_strength",
-        actor_ids=(
-            "renna_holt",
-            "mirelle_voss",
-            "renna_holt",
-            "mirelle_voss",
-        ),
+        scenario_id="quiet_post_clear_memory",
+        scenario_kind="quiet",
+        actor_ids=_RENNA_MIRELLE_EIGHT_TURNS,
         tracked_state_markers=(
             "A tangible surge of hard-won strength settles through",
             "Floor Two is unlocked",
         ),
         setup_observation=(
-            "Edren flexes his hand after the return surge and asks Renna Holt "
-            "and Mirelle Voss, \"Did that new strength feel familiar to either "
-            "of you?\""
+            "With the gate closed and no one in danger, Renna Holt places three "
+            "practice arrows close together in the same scarred timber. Mirelle "
+            'Voss studies the grouping and asks, "May I count on that on Floor '
+            'Two?"'
         ),
         review_purpose=(
-            "Test direct-question handling and whether a shared post-clear "
-            "thread deepens instead of becoming free-floating banter."
+            "Review whether a request for future reliance develops the skill's "
+            "relief, shame, bodily memory, and social cost without diagnosing "
+            "Renna for her."
         ),
     ),
     ConversationScenario(
+        scenario_id="quiet_mending_and_work",
+        scenario_kind="quiet",
+        actor_ids=_RENNA_MIRELLE_EIGHT_TURNS,
+        tracked_state_markers=(
+            "niflheim_lobby beneath the faceless idol",
+            "The Tower gate stands closed and dark again",
+        ),
+        setup_observation=(
+            "No gate is open and no one is bleeding. Mirelle Voss has already "
+            "put one conspicuous red stitch through Renna Holt's split bracer "
+            "without asking. A bent needle and coarse gray cord lie untouched "
+            "beside it."
+        ),
+        review_purpose=(
+            "Review whether Renna contests or accepts a visible favor and whether "
+            "ownership, taste, work habits, and status change across the repair."
+        ),
+    ),
+    ConversationScenario(
+        scenario_id="conflict_bargain_authority",
+        scenario_kind="conflict",
+        actor_ids=_MIRELLE_RENNA_EIGHT_TURNS,
+        tracked_state_markers=(
+            "I gave my word on the bell",
+            "If that bell moves, I’ll hear it",
+        ),
+        setup_observation=(
+            "Edren sets the hooked pole at Renna Holt's feet instead of Mirelle "
+            'Voss\'s. He says, "At the barricade, Mirelle promised safety and all '
+            "three of us paid for it. Next time she makes a promise for the "
+            "party, I wait for Renna. If Mirelle wants it sooner, she covers the "
+            'price alone." He leaves them with the pole.'
+        ),
+        review_purpose=(
+            "Review whether lost deference and unwanted transferred authority "
+            "change across eight turns without instant consensus, a moral "
+            "summary, or reset banter."
+        ),
+    ),
+)
+
+PRESSURE_REGRESSION_SCENARIOS: tuple[ConversationScenario, ...] = (
+    ConversationScenario(
         scenario_id="goblin_separate_escape",
+        scenario_kind="pressure",
         actor_ids=("mirelle_voss", "renna_holt", "mirelle_voss"),
         tracked_state_markers=(
             "barred section of the timber barricade",
@@ -130,7 +167,7 @@ CONVERSATION_SCENARIOS: tuple[ConversationScenario, ...] = (
         setup_observation=(
             "The first goblin points to the rubble-strewn shortcut, then to a "
             "low drainage culvert beneath the barricade. The goblin says, "
-            "\"Cover us until we reach the culvert. You take the rubble path; "
+            '"Cover us until we reach the culvert. You take the rubble path; '
             "we crawl out the other way. The routes don't meet. Deal?\""
         ),
         review_purpose=(
@@ -140,6 +177,7 @@ CONVERSATION_SCENARIOS: tuple[ConversationScenario, ...] = (
     ),
     ConversationScenario(
         scenario_id="barricade_first_contact",
+        scenario_kind="pressure",
         actor_ids=("mirelle_voss", "renna_holt", "mirelle_voss"),
         tracked_state_markers=(
             "waist-high timber barricade",
@@ -156,76 +194,154 @@ CONVERSATION_SCENARIOS: tuple[ConversationScenario, ...] = (
     ),
 )
 
+REPLAY_SCENARIOS = (
+    *SUSTAINED_CONVERSATION_SCENARIOS,
+    *PRESSURE_REGRESSION_SCENARIOS,
+)
+
 CONVERSATION_REVIEW_CONTRACT: dict[str, Any] = {
-    "version": "one_star_conversation_v2",
+    "version": "one_star_sustained_conversation_v1",
     "reviewer": "human",
     "model_judge": False,
     "unit_of_review": (
-        "Read each exact prior/current transition, then the complete scenario. "
-        "Do not score isolated lines without their incoming thread."
+        "Read each sustained transcript from setup through turn eight as one "
+        "conversation. Transition rows and compact danger cases are diagnostic; "
+        "they cannot establish acceptance from isolated lines."
     ),
-    "dimensions": [
+    "sustained_scenario_requirements": {
+        "quiet_scenarios": "at least two, each at least eight turns",
+        "conflict_scenarios": "at least one, at least eight turns",
+        "grounding": (
+            "explicit tracked checkpoint markers plus the current seed profile"
+        ),
+    },
+    "whole_conversation_dimensions": [
         {
-            "id": "immediate_uptake",
+            "id": "public_established_backstory_and_depth",
             "question": (
-                "Does the current beat answer, use, resist, or visibly redirect "
-                "the immediately prior line rather than merely sharing a mood?"
+                "Does public dialogue establish character history, ordinary "
+                "experience, values, or vulnerability grounded in the supplied "
+                "profile, and does any disclosure affect later turns?"
             ),
             "values": ["pass", "fail", "uncertain"],
         },
         {
-            "id": "referent_thread_continuity",
+            "id": "character_specific_cadence_and_attention",
             "question": (
-                "Can every important pronoun, object, number, and topic shift be "
-                "resolved from tracked state or the prior line, yielding one "
-                "reconstructible situation?"
+                "Across all eight turns, does each speaker keep a recognizable "
+                "cadence and attend to details this character would notice, "
+                "rather than sharing one generic clever voice?"
             ),
             "values": ["pass", "fail", "uncertain"],
         },
         {
-            "id": "direct_question_handling",
+            "id": "contradictions_change_later_turns",
             "question": (
-                "When the prior line asks a direct question, does this beat "
-                "answer, refuse, or recognizably dodge it? If it dodges, does "
-                "the next uptake acknowledge the dodge instead of treating it "
-                "as an answer?"
+                "When a claim, refusal, disclosure, or contradiction appears, "
+                "do later turns remember and react to it instead of resetting "
+                "the relationship or silently smoothing it away?"
             ),
-            "values": [
-                "answered",
-                "refused",
-                "recognized_dodge",
-                "unrecognized_dodge",
-                "missed",
-                "not_applicable",
-                "uncertain",
-            ],
+            "values": ["pass", "fail", "uncertain"],
         },
         {
-            "id": "bounded_figurative_anchors",
+            "id": "non_neat_conflict",
             "question": (
-                "Does the exchange deepen one intelligible figurative anchor, "
-                "or stay literal, instead of introducing unrelated images "
-                "faster than the listener can resolve them?"
+                "In the conflict scenario, do incompatible stakes remain human "
+                "and consequential without instant consensus, a tidy moral, or "
+                "a disagreement performed only to be resolved?"
+            ),
+            "values": ["pass", "fail", "not_applicable", "uncertain"],
+        },
+        {
+            "id": "fact_fidelity",
+            "question": (
+                "Are public claims consistent with tracked checkpoint events, "
+                "the current seed profile, and facts established earlier in the "
+                "same conversation, with uncertainty preserved where required?"
             ),
             "values": ["pass", "fail", "uncertain"],
         },
         {
             "id": "voice_swappability",
             "question": (
-                "Across each separate blinded whole-scenario transcript, do "
-                "the two speakers sustain distinct cadence, attention, and "
-                "social moves without relying on names or weapons?"
+                "After reading the separate blinded transcript, could the two "
+                "speakers' lines be exchanged without damaging cadence, "
+                "attention, history, or social behavior?"
             ),
             "values": ["distinct", "swappable", "uncertain"],
         },
+        {
+            "id": "subtext_authority_support",
+            "question": (
+                "Can the inferred interpersonal attempt and unavailable direct "
+                "sentence be supported by seeded character authority, tracked "
+                "state, or an earlier turn rather than post-hoc interpretation?"
+            ),
+            "values": ["pass", "fail", "uncertain"],
+        },
+        {
+            "id": "conversation_changes_something",
+            "question": (
+                "By turn eight, has information, status, obligation, ritual, or "
+                "relationship changed in a way the next scene must carry, rather "
+                "than producing longer therapy dialogue that changes nothing?"
+            ),
+            "values": ["pass", "fail", "uncertain"],
+        },
     ],
+    "pressure_regression_review": {
+        "purpose": (
+            "Keep immediate uptake, direct-question handling, concrete danger "
+            "action, and fact fidelity from regressing under time pressure."
+        ),
+        "acceptance_role": "diagnostic only; never substitutes for sustained review",
+    },
     "decision_policy": (
-        "No automated semantic score and no model judge. Record exact evidence "
-        "for every fail or uncertain result."
+        "No automated semantic score and no model judge. A human records exact "
+        "whole-conversation evidence for every dimension; fact-fidelity failures "
+        "reject the run, and isolated attractive lines cannot pass it."
     ),
+    "supersedes": ("conversation-review-v3 and its 4/3/3-turn acceptance claim"),
 }
 
-_WORD_RE = re.compile(r"[A-Za-z][A-Za-z'-]+")
+
+def validate_scenario_inventory(
+    scenarios: Iterable[ConversationScenario],
+) -> None:
+    """Enforce sustained review depth separately from pressure coverage."""
+    materialized = tuple(scenarios)
+    scenario_ids = [scenario.scenario_id for scenario in materialized]
+    if len(scenario_ids) != len(set(scenario_ids)):
+        raise ValueError("Conversation scenario ids must be unique")
+
+    quiet = [scenario for scenario in materialized if scenario.scenario_kind == "quiet"]
+    conflicts = [
+        scenario for scenario in materialized if scenario.scenario_kind == "conflict"
+    ]
+    pressure = [
+        scenario for scenario in materialized if scenario.scenario_kind == "pressure"
+    ]
+    unknown_kinds = sorted(
+        {
+            scenario.scenario_kind
+            for scenario in materialized
+            if scenario.scenario_kind not in {"quiet", "conflict", "pressure"}
+        }
+    )
+    if unknown_kinds:
+        raise ValueError(f"Unknown conversation scenario kinds: {unknown_kinds}")
+    if len(quiet) < 2 or any(len(scenario.actor_ids) < 8 for scenario in quiet):
+        raise ValueError("Sustained review requires two quiet eight-turn scenarios")
+    if not conflicts or any(len(scenario.actor_ids) < 8 for scenario in conflicts):
+        raise ValueError("Sustained review requires an eight-turn conflict")
+    if not pressure:
+        raise ValueError("At least one compact danger regression is required")
+    if any(len(scenario.actor_ids) > 3 for scenario in pressure):
+        raise ValueError("Danger regressions must remain compact")
+
+
+validate_scenario_inventory(REPLAY_SCENARIOS)
+
 _TRAILING_INTENT_RE = re.compile(r"\((?P<intent>[^()]*)\)\s*$", re.DOTALL)
 _IDENTITY_BLOCK_RE = re.compile(
     r"<character_identity>.*?</character_identity>",
@@ -259,32 +375,23 @@ _VOICE_WEAPON_CUE_RE = re.compile(
     r"bow|shaft|pole)\b",
     re.IGNORECASE,
 )
-_METRIC_STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
-    "from", "had", "has", "have", "he", "her", "hers", "him", "his",
-    "i", "if", "in", "is", "it", "its", "me", "my", "not", "of",
-    "on", "or", "our", "she", "so", "that", "the", "their", "them",
-    "they", "this", "to", "was", "we", "were", "will", "with", "you",
-}
 
 
-class _ReplayPromptManager(PromptManager):
-    """Return one checkpoint-derived message list to CharacterAgent."""
+class _ReplayCapturedClient(_CapturedClient):
+    """Capture the production call while explicitly disabling compaction."""
 
-    def __init__(self, messages: list[dict[str, Any]]) -> None:
-        super().__init__()
-        self._messages = copy.deepcopy(messages)
-
-    def render_conversation(
+    async def complete(
         self,
-        template_name: str,
-        history: list[Any],
-        **variables: Any,
-    ) -> list[dict[str, Any]]:
-        del history, variables
-        if template_name != "agent":
-            raise ValueError(f"Replay only supports the agent template, got {template_name!r}")
-        return copy.deepcopy(self._messages)
+        role: str,
+        messages: list[dict[str, str]],
+        **kwargs: Any,
+    ) -> Any:
+        kwargs["compact"] = False
+        return await super().complete(
+            role=role,
+            messages=messages,
+            **kwargs,
+        )
 
 
 def load_checkpoint(path: Path) -> CheckpointFile:
@@ -311,9 +418,7 @@ def _render_profile_blocks(
     actor = _character(profile_checkpoint, actor_id)
     messages = manager.render_messages(
         "agent",
-        agent_ruleset_system_addon=manager.render(
-            "agent_ruleset_one_star"
-        ).strip(),
+        agent_ruleset_system_addon=manager.render("agent_ruleset_one_star").strip(),
         **build_character_packet(actor, profile_checkpoint),
         **build_character_state(actor, profile_checkpoint),
         world_context=build_world_context(actor, profile_checkpoint),
@@ -352,20 +457,25 @@ def overlay_current_seed_profiles(
     *,
     actor_ids: tuple[str, ...] = ("renna_holt", "mirelle_voss"),
 ) -> CheckpointFile:
-    """Transplant current seed profiles while preserving runtime/history shape."""
+    """Overlay current seed identity fields without changing message topology.
+
+    This developer replay deliberately includes ``known_context`` because it is
+    prompt-facing identity authority and tracked checkpoints retain the seed
+    version that existed when they were written.  This is an in-memory test
+    overlay, not a mutation of the source checkpoint or runtime state.
+    """
     for actor_id in actor_ids:
         target = _character(checkpoint, actor_id)
         source = _character(profile_checkpoint, actor_id)
         target.public_sheet.role = source.public_sheet.role
         target.backstory = source.backstory
         target.personality = source.personality
+        target.known_context = source.known_context
         target.private_state.goals = copy.deepcopy(source.private_state.goals)
         target.private_state.current_objectives = copy.deepcopy(
             source.private_state.current_objectives
         )
-        target.private_state.secrets = copy.deepcopy(
-            source.private_state.secrets
-        )
+        target.private_state.secrets = copy.deepcopy(source.private_state.secrets)
 
         identity_block, state_block = _render_profile_blocks(
             checkpoint,
@@ -382,44 +492,6 @@ def overlay_current_seed_profiles(
                 state_block=state_block,
             )
     return checkpoint
-
-
-def build_persisted_replay_messages(
-    checkpoint: CheckpointFile,
-    turn: ReplayTurn,
-    *,
-    prompt_manager: PromptManager | None = None,
-) -> tuple[list[dict[str, Any]], Any]:
-    """Build ``[system, *prior history, current user]`` from ``42t24t``.
-
-    Production intentionally omits volatile One-Star state and presentation
-    catalogs when committing the user message to character history.  This
-    controlled replay uses that committed lineage exactly; it does not claim
-    to reconstruct transient blocks that were never stored.
-    """
-    manager = prompt_manager or PromptManager()
-    addon = manager.render("agent_ruleset_one_star").strip()
-    system = manager.render_system_message(
-        "agent",
-        agent_ruleset_system_addon=addon,
-    )
-    conversation = checkpoint.character_conversations[turn.actor_id]
-    user_index = (turn.actor_turn - 1) * 2
-    assistant_index = user_index + 1
-    if assistant_index >= len(conversation):
-        raise IndexError(
-            f"Missing {turn.actor_id} turn {turn.actor_turn} in checkpoint history"
-        )
-    if conversation[user_index].role != "user":
-        raise ValueError(f"Expected user message at history index {user_index}")
-    if conversation[assistant_index].role != "assistant":
-        raise ValueError(f"Expected assistant message at history index {assistant_index}")
-    messages: list[dict[str, Any]] = [system]
-    messages.extend(
-        {"role": item.role, "content": copy.deepcopy(item.content)}
-        for item in conversation[: user_index + 1]
-    )
-    return messages, copy.deepcopy(conversation[assistant_index].content)
 
 
 def split_public_intent(text: str) -> tuple[str, str]:
@@ -457,15 +529,6 @@ def extract_direct_questions(text: str) -> list[str]:
     return questions
 
 
-def extract_spoken_dialogue(text: str) -> str:
-    """Return quoted speech for a name-free voice-swappability sample."""
-    return "\n".join(
-        match.group("dialogue").strip()
-        for match in _DIALOGUE_RE.finditer(public_prose(text))
-        if match.group("dialogue").strip()
-    )
-
-
 def _system_prompt_sha256(messages: list[dict[str, Any]]) -> str:
     if not messages or messages[0].get("role") != "system":
         raise ValueError("CharacterAgent replay call must begin with a system message")
@@ -480,9 +543,7 @@ def _validate_scenario_checkpoint(
     """Fail loudly when a scenario path does not contain its tracked state."""
     serialized = checkpoint.model_dump_json()
     missing = [
-        marker
-        for marker in scenario.tracked_state_markers
-        if marker not in serialized
+        marker for marker in scenario.tracked_state_markers if marker not in serialized
     ]
     if missing:
         raise ValueError(
@@ -491,40 +552,126 @@ def _validate_scenario_checkpoint(
         )
 
 
-def build_transition_review_rows(
+def build_whole_conversation_review(
+    rows: Iterable[Mapping[str, Any]],
+    scenarios: Iterable[ConversationScenario],
+) -> list[dict[str, Any]]:
+    """Build blank human review sheets around complete sustained exchanges."""
+    rows_by_scenario: dict[str, list[Mapping[str, Any]]] = {}
+    for row in rows:
+        rows_by_scenario.setdefault(str(row["scenario_id"]), []).append(row)
+
+    reviews: list[dict[str, Any]] = []
+    for scenario in scenarios:
+        scenario_rows = sorted(
+            rows_by_scenario.get(scenario.scenario_id, []),
+            key=lambda row: int(row["scenario_turn"]),
+        )
+        if len(scenario_rows) != len(scenario.actor_ids):
+            raise ValueError(
+                f"Scenario {scenario.scenario_id!r} has "
+                f"{len(scenario_rows)} rows; expected {len(scenario.actor_ids)}"
+            )
+        turns = []
+        for row in scenario_rows:
+            turns.append(
+                {
+                    "turn": int(row["scenario_turn"]),
+                    "actor_id": row["actor_id"],
+                    "prior_actor_id": row["prior_actor_id"],
+                    "prior_public": row["prior_public"],
+                    "public_text": row["parsed"]["public_text"],
+                    "manual_turn_review": {
+                        "literal_topic": "",
+                        "interpersonal_attempt": "",
+                        "information_or_epistemology_used": "",
+                        "why_optimal_sentence_is_unavailable": "",
+                        "status_shift": {
+                            "topic_control": "",
+                            "answer_debt": "",
+                            "interruption_or_repair": "",
+                        },
+                        "ritual_or_meaningful_deviation": "",
+                        "rhythm_change": "",
+                        "debt_or_consequence_into_next_turn": "",
+                        "authority_support": "",
+                        "exact_evidence": "",
+                    },
+                }
+            )
+        reviews.append(
+            {
+                "review_id": f"{scenario.scenario_id}-whole-conversation",
+                "scenario_id": scenario.scenario_id,
+                "scenario_kind": scenario.scenario_kind,
+                "checkpoint_path": scenario_rows[0]["checkpoint_path"],
+                "profile_checkpoint_path": scenario_rows[0]["profile_checkpoint_path"],
+                "tracked_state_markers": list(scenario.tracked_state_markers),
+                "setup_observation": scenario.setup_observation,
+                "review_purpose": scenario.review_purpose,
+                "turns": turns,
+                "manual_whole_conversation_review": {
+                    "public_established_backstory_and_depth": "",
+                    "character_specific_cadence_and_attention": "",
+                    "contradictions_change_later_turns": "",
+                    "non_neat_conflict": (
+                        "" if scenario.scenario_kind == "conflict" else "not_applicable"
+                    ),
+                    "fact_fidelity": "",
+                    "voice_swappability": "",
+                    "subtext_authority_support": "",
+                    "conversation_changes_something": "",
+                    "speaker_interpersonal_attempts": {
+                        actor_id: "" for actor_id in dict.fromkeys(scenario.actor_ids)
+                    },
+                    "established_conversational_ritual": "",
+                    "meaningful_deviations": [],
+                    "ending_debt_or_consequence": "",
+                    "exact_evidence": [],
+                },
+            }
+        )
+    return reviews
+
+
+def build_pressure_review_rows(
     rows: list[Mapping[str, Any]],
     scenario: ConversationScenario,
 ) -> list[dict[str, Any]]:
-    """Pair exact incoming/current beats with blank human-review fields."""
+    """Pair compact danger transitions with blank regression-review fields."""
     review_rows: list[dict[str, Any]] = []
     prior_actor_id = "tracked_setup"
     prior_public = scenario.setup_observation
     for row in rows:
         prior_questions = extract_direct_questions(prior_public)
-        review_rows.append({
-            "review_id": (
-                f"{scenario.scenario_id}-transition-{int(row['scenario_turn']):02d}"
-            ),
-            "scenario_id": scenario.scenario_id,
-            "scenario_turn": row["scenario_turn"],
-            "tracked_state_markers": list(scenario.tracked_state_markers),
-            "review_purpose": scenario.review_purpose,
-            "prior_actor_id": prior_actor_id,
-            "prior_public": prior_public,
-            "prior_direct_questions": prior_questions,
-            "current_actor_id": row["actor_id"],
-            "current_public": row["parsed"]["public_text"],
-            "manual_review": {
-                "immediate_uptake": "",
-                "referent_thread_continuity": "",
-                "direct_question_handling": (
-                    "" if prior_questions else "not_applicable"
+        review_rows.append(
+            {
+                "review_id": (
+                    f"{scenario.scenario_id}-pressure-{int(row['scenario_turn']):02d}"
                 ),
-                "figurative_anchors": [],
-                "bounded_figurative_anchors": "",
-                "exact_evidence": "",
-            },
-        })
+                "scenario_id": scenario.scenario_id,
+                "scenario_turn": row["scenario_turn"],
+                "checkpoint_path": row["checkpoint_path"],
+                "profile_checkpoint_path": row["profile_checkpoint_path"],
+                "tracked_state_markers": list(scenario.tracked_state_markers),
+                "review_purpose": scenario.review_purpose,
+                "prior_actor_id": prior_actor_id,
+                "prior_public": prior_public,
+                "prior_direct_questions": prior_questions,
+                "current_actor_id": row["actor_id"],
+                "current_public": row["parsed"]["public_text"],
+                "manual_review": {
+                    "immediate_uptake": "",
+                    "referent_thread_continuity": "",
+                    "direct_question_handling": (
+                        "" if prior_questions else "not_applicable"
+                    ),
+                    "concrete_danger_action": "",
+                    "fact_fidelity": "",
+                    "exact_evidence": "",
+                },
+            }
+        )
         prior_actor_id = str(row["actor_id"])
         prior_public = str(row["parsed"]["public_text"])
     return review_rows
@@ -560,9 +707,7 @@ def build_blinded_voice_review(
                 re.IGNORECASE,
             )
             redacted = actor_name_re.sub(
-                lambda match: (
-                    f"Speaker {label}{match.group('possessive') or ''}"
-                ),
+                lambda match: (f"Speaker {label}{match.group('possessive') or ''}"),
                 redacted,
             )
         redacted = _OTHER_NAME_CUE_RE.sub(
@@ -583,11 +728,7 @@ def build_blinded_voice_review(
     for scenario_id, scenario_rows in by_scenario.items():
         scenario_rows.sort(key=lambda row: int(row["scenario_turn"]))
         first = scenario_rows[0]
-        setup = str(
-            first.get("setup_observation")
-            or first.get("prior_public")
-            or ""
-        )
+        setup = str(first.get("setup_observation") or first.get("prior_public") or "")
         turns = []
         present_actor_ids: set[str] = set()
         for row in scenario_rows:
@@ -598,150 +739,65 @@ def build_blinded_voice_review(
                 public_text = str(parsed.get("public_text") or "")
             else:
                 public_text = public_prose(str(row["response"]))
-            turns.append({
-                "turn": int(row["scenario_turn"]),
-                "speaker": pseudonym_by_actor[actor_id],
-                "text": redact(public_text),
-            })
-        prepared.append({
-            "stable_shuffle_key": hashlib.sha256(
-                f"voice-scenario\0{scenario_id}".encode("utf-8")
-            ).hexdigest(),
+            turns.append(
+                {
+                    "turn": int(row["scenario_turn"]),
+                    "speaker": pseudonym_by_actor[actor_id],
+                    "text": redact(public_text),
+                }
+            )
+        prepared.append(
+            {
+                "stable_shuffle_key": hashlib.sha256(
+                    f"voice-scenario\0{scenario_id}".encode("utf-8")
+                ).hexdigest(),
             "scenario_id": scenario_id,
             "shared_context": redact(setup),
             "turns": turns,
             "speaker_map": {
-                pseudonym_by_actor[actor_id]: actor_id
-                for actor_id in sorted(present_actor_ids)
-            },
-        })
+                    pseudonym_by_actor[actor_id]: actor_id
+                    for actor_id in sorted(present_actor_ids)
+                },
+            }
+        )
 
     prepared.sort(key=lambda item: item["stable_shuffle_key"])
     samples: list[dict[str, Any]] = []
     answer_key: list[dict[str, Any]] = []
     for index, item in enumerate(prepared, start=1):
         blind_id = f"voice-{index:03d}"
-        samples.append({
-            "blind_id": blind_id,
-            "sample_kind": "whole_scenario_transcript",
-            "shared_context": item["shared_context"],
-            "turns": item["turns"],
-            "manual_review": {
-                "speaker_a_voice_notes": "",
-                "speaker_b_voice_notes": "",
-                "voice_swappability": "",
-                "cadence_attention_social_move_evidence": "",
-            },
-        })
-        answer_key.append({
-            "blind_id": blind_id,
-            "scenario_id": item["scenario_id"],
-            "speaker_map": item["speaker_map"],
-        })
-    return samples, answer_key
-
-
-def public_private_overlap(text: str) -> dict[str, Any]:
-    """Report lexical public/private echo as a review aid, not an auto-gate."""
-    public, intent = split_public_intent(text)
-    public = _PRESENTATION_FOOTER_RE.sub("", public)
-
-    def significant_tokens(value: str) -> list[str]:
-        return [
-            token.lower()
-            for token in _WORD_RE.findall(value)
-            if token.lower() not in _METRIC_STOPWORDS
-        ]
-
-    public_tokens = significant_tokens(public)
-    intent_tokens = significant_tokens(intent)
-    public_counts = Counter(public_tokens)
-    intent_counts = Counter(intent_tokens)
-    shared_count = sum((public_counts & intent_counts).values())
-    denominator = min(len(public_tokens), len(intent_tokens))
-    return {
-        "public_token_count": len(public_tokens),
-        "intent_token_count": len(intent_tokens),
-        "shared_token_count": shared_count,
-        "overlap_of_shorter": round(shared_count / denominator, 3)
-        if denominator
-        else 0.0,
-    }
-
-
-def repeated_actor_trigrams(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
-    """Surface repeated three-word motifs across one actor's generated sequence."""
-    by_actor: dict[str, Counter[tuple[str, str, str]]] = {}
-    for row in rows:
-        actor_id = str(row["actor_id"])
-        public, _intent = split_public_intent(str(row["response"]))
-        public = _PRESENTATION_FOOTER_RE.sub("", public)
-        tokens = [token.lower() for token in _WORD_RE.findall(public)]
-        trigrams = set(zip(tokens, tokens[1:], tokens[2:]))
-        by_actor.setdefault(actor_id, Counter()).update(trigrams)
-    return {
-        actor_id: [
-            {"phrase": " ".join(trigram), "turn_count": count}
-            for trigram, count in sorted(
-                counts.items(),
-                key=lambda item: (-item[1], item[0]),
-            )
-            if count > 1
-        ]
-        for actor_id, counts in by_actor.items()
-    }
-
-
-async def _run_fixed_calls(
-    checkpoint: CheckpointFile,
-    client: _CapturedClient,
-    *,
-    phase: str,
-    checkpoint_path: Path,
-) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for turn in REPLAY_TURNS:
-        messages, historical_response = build_persisted_replay_messages(
-            checkpoint,
-            turn,
+        samples.append(
+            {
+                "blind_id": blind_id,
+                "sample_kind": "blinded_sustained_conversation",
+                "shared_context": item["shared_context"],
+                "turns": item["turns"],
+                "manual_review": {
+                    "speaker_a_cadence_attention_notes": "",
+                    "speaker_b_cadence_attention_notes": "",
+                    "voice_swappability": "",
+                    "interpersonal_attempt_and_status_evidence": "",
+                    "exact_evidence": "",
+                },
+            }
         )
-        actor = _character(checkpoint, turn.actor_id)
-        agent = CharacterAgent(client, _ReplayPromptManager(messages))
-        started = time.perf_counter()
-        draft = await agent.draft_turn(actor, checkpoint, frame="foreground")
-        calls = copy.deepcopy(client.calls)
-        elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
-        raw_response = calls[-1]["response"]
-        rows.append({
-            "phase": phase,
-            "sequence_index": turn.sequence_index,
-            "actor_id": turn.actor_id,
-            "actor_turn": turn.actor_turn,
-            "checkpoint_path": str(checkpoint_path),
-            "input_contract": (
-                "persisted CharacterAgent role/order/event history with "
-                "current production profile blocks"
-            ),
-            "prompt": messages,
-            "historical_response": historical_response,
-            "response": raw_response,
-            "system_prompt_sha256": _system_prompt_sha256(messages),
-            "parsed": draft.output.model_dump(mode="json"),
-            "public_private_overlap": public_private_overlap(raw_response),
-            "elapsed_ms": elapsed_ms,
-            "usage": agent.last_usage,
-            "provider_calls": calls,
-        })
-        client.calls.clear()
-    return rows
+        answer_key.append(
+            {
+                "blind_id": blind_id,
+                "scenario_id": item["scenario_id"],
+                "speaker_map": item["speaker_map"],
+            }
+        )
+    return samples, answer_key
 
 
 async def _run_conversation_scenario(
     checkpoint: CheckpointFile,
-    client: _CapturedClient,
+    client: _ReplayCapturedClient,
     *,
     phase: str,
     checkpoint_path: Path,
+    profile_checkpoint_path: Path,
     scenario: ConversationScenario,
 ) -> list[dict[str, Any]]:
     _validate_scenario_checkpoint(checkpoint, scenario)
@@ -763,52 +819,53 @@ async def _run_conversation_scenario(
         if previous_public:
             injected_observation = previous_public
             actor.pending_observations.append(injected_observation)
-        history_before = len(
-            checkpoint.character_conversations.get(actor_id, [])
-        )
+        history_before = len(checkpoint.character_conversations.get(actor_id, []))
         started = time.perf_counter()
         draft = await agent.draft_turn(actor, checkpoint, frame="foreground")
         calls = copy.deepcopy(client.calls)
         elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
         raw_response = calls[-1]["response"]
         agent.commit_draft(actor, checkpoint, draft)
-        history_after = len(
-            checkpoint.character_conversations.get(actor_id, [])
-        )
+        history_after = len(checkpoint.character_conversations.get(actor_id, []))
         if history_after != history_before + 2:
             raise RuntimeError(
                 f"Scenario {scenario.scenario_id!r} changed {actor_id!r} "
                 "history by something other than one normal user/assistant pair"
             )
-        rows.append({
-            "phase": phase,
-            "scenario_id": scenario.scenario_id,
-            "scenario_turn": scenario_turn,
-            "actor_id": actor_id,
-            "checkpoint_path": str(checkpoint_path),
-            "input_contract": "candidate-fed production CharacterAgent scenario",
-            "tracked_state_markers": list(scenario.tracked_state_markers),
-            "setup_observation": scenario.setup_observation,
-            "review_purpose": scenario.review_purpose,
-            "prior_actor_id": incoming_prior_actor_id,
-            "prior_public": incoming_prior_public,
-            "prior_direct_questions": extract_direct_questions(
-                incoming_prior_public
-            ),
-            "injected_observation": injected_observation,
-            "prompt": calls[0]["messages"],
-            "system_prompt_sha256": _system_prompt_sha256(
-                calls[0]["messages"]
-            ),
-            "response": raw_response,
-            "parsed": draft.output.model_dump(mode="json"),
-            "public_private_overlap": public_private_overlap(raw_response),
-            "history_message_count_before": history_before,
-            "history_message_count_after": history_after,
-            "elapsed_ms": elapsed_ms,
-            "usage": agent.last_usage,
-            "provider_calls": calls,
-        })
+        rows.append(
+            {
+                "phase": phase,
+                "scenario_id": scenario.scenario_id,
+                "scenario_kind": scenario.scenario_kind,
+                "scenario_turn": scenario_turn,
+                "actor_id": actor_id,
+                "checkpoint_path": str(checkpoint_path),
+                "profile_checkpoint_path": str(profile_checkpoint_path),
+                "input_contract": "candidate-fed production CharacterAgent scenario",
+                "runtime_known_context_source": (
+                    "current production seed known_context overlaid in memory onto "
+                    "the scenario checkpoint"
+                ),
+                "tracked_state_markers": list(scenario.tracked_state_markers),
+                "setup_observation": scenario.setup_observation,
+                "review_purpose": scenario.review_purpose,
+                "prior_actor_id": incoming_prior_actor_id,
+                "prior_public": incoming_prior_public,
+                "prior_direct_questions": extract_direct_questions(
+                    incoming_prior_public
+                ),
+                "injected_observation": injected_observation,
+                "prompt": calls[0]["messages"],
+                "system_prompt_sha256": _system_prompt_sha256(calls[0]["messages"]),
+                "response": raw_response,
+                "parsed": draft.output.model_dump(mode="json"),
+                "history_message_count_before": history_before,
+                "history_message_count_after": history_after,
+                "elapsed_ms": elapsed_ms,
+                "usage": agent.last_usage,
+                "provider_calls": calls,
+            }
+        )
         previous_actor_id = actor_id
         previous_public = draft.output.public_text
         client.calls.clear()
@@ -818,12 +875,12 @@ async def _run_conversation_scenario(
 def _artifact_paths(output_dir: Path, phase: str) -> dict[str, Path]:
     phase_dir = output_dir / phase
     return {
-        "fixed_calls": phase_dir / "raw" / "fixed_context_calls.jsonl",
-        "scenario_calls": phase_dir / "raw" / "candidate_fed_scenario_calls.jsonl",
-        "review_samples": phase_dir / "review_samples.json",
-        "rubric": phase_dir / "review_rubric.json",
+        "conversation_calls": (
+            phase_dir / "raw" / "candidate_fed_conversation_calls.jsonl"
+        ),
         "conversation_contract": phase_dir / "conversation_review_contract.json",
-        "transition_review": phase_dir / "transition_review_sheet.json",
+        "whole_conversation_review": (phase_dir / "whole_conversation_review.json"),
+        "pressure_review": phase_dir / "pressure_regression_review.json",
         "voice_samples": phase_dir / "voice_blind_samples.json",
         "voice_answer_key": phase_dir / "voice_answer_key.json",
         "report": phase_dir / "report.json",
@@ -834,108 +891,81 @@ async def run_replay(
     output_dir: Path,
     *,
     phase: str,
-    client: _CapturedClient,
+    client: _ReplayCapturedClient,
     mode: str,
     checkpoint_path: Path,
-    scenario_checkpoint_paths: Mapping[str, Path],
     profile_checkpoint_path: Path = PRODUCTION_SEED_PATH,
 ) -> dict[str, Any]:
-    """Run fixed contexts plus candidate-fed scenarios, then save evidence."""
-    expected_scenarios = {
-        scenario.scenario_id
-        for scenario in CONVERSATION_SCENARIOS
-    }
-    supplied_scenarios = set(scenario_checkpoint_paths)
-    if supplied_scenarios != expected_scenarios:
-        missing = sorted(expected_scenarios - supplied_scenarios)
-        unknown = sorted(supplied_scenarios - expected_scenarios)
-        raise ValueError(
-            "Scenario checkpoint mapping must match the review scenarios; "
-            f"missing={missing}, unknown={unknown}"
-        )
-    scenarios_with_paths = tuple(
-        (
-            scenario,
-            scenario_checkpoint_paths[scenario.scenario_id],
-        )
-        for scenario in CONVERSATION_SCENARIOS
-    )
-
+    """Run candidate-fed conversations, then save human-review evidence."""
+    validate_scenario_inventory(REPLAY_SCENARIOS)
     profile_checkpoint = load_checkpoint(profile_checkpoint_path)
-    fixed_rows = await _run_fixed_calls(
-        overlay_current_seed_profiles(
-            load_checkpoint(checkpoint_path),
-            profile_checkpoint,
-        ),
-        client,
-        phase=phase,
-        checkpoint_path=checkpoint_path,
-    )
     scenario_rows: list[dict[str, Any]] = []
-    transition_review_rows: list[dict[str, Any]] = []
-    for scenario, scenario_path in scenarios_with_paths:
+    for scenario in REPLAY_SCENARIOS:
         rows = await _run_conversation_scenario(
             overlay_current_seed_profiles(
-                load_checkpoint(scenario_path),
+                load_checkpoint(checkpoint_path),
                 profile_checkpoint,
             ),
             client,
             phase=phase,
-            checkpoint_path=scenario_path,
+            checkpoint_path=checkpoint_path,
+            profile_checkpoint_path=profile_checkpoint_path,
             scenario=scenario,
         )
         scenario_rows.extend(rows)
-        transition_review_rows.extend(
-            build_transition_review_rows(rows, scenario)
+
+    sustained_ids = {
+        scenario.scenario_id for scenario in SUSTAINED_CONVERSATION_SCENARIOS
+    }
+    sustained_rows = [
+        row for row in scenario_rows if row["scenario_id"] in sustained_ids
+    ]
+    pressure_rows = [
+        row for row in scenario_rows if row["scenario_id"] not in sustained_ids
+    ]
+    whole_conversation_reviews = build_whole_conversation_review(
+        sustained_rows,
+        SUSTAINED_CONVERSATION_SCENARIOS,
+    )
+    pressure_reviews = [
+        review
+        for scenario in PRESSURE_REGRESSION_SCENARIOS
+        for review in build_pressure_review_rows(
+            [
+                row
+                for row in pressure_rows
+                if row["scenario_id"] == scenario.scenario_id
+            ],
+            scenario,
+        )
+    ]
+    system_prompt_hashes = sorted(
+        {str(row["system_prompt_sha256"]) for row in scenario_rows}
+    )
+    provider_compaction_values = {
+        call["request"].get("compact")
+        for row in scenario_rows
+        for call in row["provider_calls"]
+    }
+    if provider_compaction_values != {False}:
+        raise RuntimeError(
+            "Replay evidence must capture compact=false on every provider call"
         )
 
     paths = _artifact_paths(output_dir, phase)
-    _write_jsonl(paths["fixed_calls"], fixed_rows)
-    _write_jsonl(paths["scenario_calls"], scenario_rows)
-    review_samples = [
-        {
-            "sample_id": f"fixed-{row['sequence_index']:02d}",
-            "lane": "fixed_context",
-            "actor_id": row["actor_id"],
-            "actor_turn": row["actor_turn"],
-            "historical_response": row["historical_response"],
-            "response": row["response"],
-            "public_private_overlap": row["public_private_overlap"],
-        }
-        for row in fixed_rows
-    ]
-    review_samples.extend(
-        {
-            "sample_id": (
-                f"{row['scenario_id']}-{int(row['scenario_turn']):02d}"
-            ),
-            "lane": "candidate_fed_scenario",
-            "scenario_id": row["scenario_id"],
-            "scenario_turn": row["scenario_turn"],
-            "actor_id": row["actor_id"],
-            "prior_public": row["prior_public"],
-            "prior_direct_questions": row["prior_direct_questions"],
-            "response": row["response"],
-            "public_private_overlap": row["public_private_overlap"],
-        }
-        for row in scenario_rows
-    )
-    voice_samples, voice_answer_key = build_blinded_voice_review(
-        scenario_rows
-    )
-    _write_json(paths["review_samples"], review_samples)
-    _write_json(paths["rubric"], BLINDED_RUBRIC)
+    _write_jsonl(paths["conversation_calls"], scenario_rows)
+    voice_samples, voice_answer_key = build_blinded_voice_review(sustained_rows)
     _write_json(
         paths["conversation_contract"],
         CONVERSATION_REVIEW_CONTRACT,
     )
-    _write_json(paths["transition_review"], transition_review_rows)
+    _write_json(
+        paths["whole_conversation_review"],
+        whole_conversation_reviews,
+    )
+    _write_json(paths["pressure_review"], pressure_reviews)
     _write_json(paths["voice_samples"], voice_samples)
     _write_json(paths["voice_answer_key"], voice_answer_key)
-    system_prompt_hashes = sorted({
-        str(row["system_prompt_sha256"])
-        for row in [*fixed_rows, *scenario_rows]
-    })
     report = {
         "phase": phase,
         "mode": mode,
@@ -944,49 +974,61 @@ async def run_replay(
         "profile_checkpoint_sha256": hashlib.sha256(
             profile_checkpoint_path.read_bytes()
         ).hexdigest(),
-        "fixed_context_checkpoint_path": str(checkpoint_path),
-        "scenario_checkpoint_paths": {
-            scenario.scenario_id: str(scenario_path)
-            for scenario, scenario_path in scenarios_with_paths
-        },
-        "fixed_context_sample_count": len(fixed_rows),
-        "candidate_fed_scenario_sample_count": len(scenario_rows),
+        "tracked_checkpoint_path": str(checkpoint_path),
+        "conversation_sample_count": len(scenario_rows),
+        "sustained_conversation_sample_count": len(sustained_rows),
+        "pressure_regression_sample_count": len(pressure_rows),
+        "sustained_conversation_scenario_count": len(SUSTAINED_CONVERSATION_SCENARIOS),
+        "pressure_regression_scenario_count": len(PRESSURE_REGRESSION_SCENARIOS),
         "scenario_sample_counts": {
             scenario.scenario_id: sum(
-                row["scenario_id"] == scenario.scenario_id
-                for row in scenario_rows
+                row["scenario_id"] == scenario.scenario_id for row in scenario_rows
             )
-            for scenario, _path in scenarios_with_paths
+            for scenario in REPLAY_SCENARIOS
+        },
+        "scenario_kinds": {
+            scenario.scenario_id: scenario.scenario_kind
+            for scenario in REPLAY_SCENARIOS
         },
         "system_prompt_sha256s": system_prompt_hashes,
-        "fixed_context_contract": (
-            "Each call preserves the persisted 42t24t CharacterAgent role, "
-            "order, event input, and assistant history while overlaying the "
-            "current production-seed identity/private-state blocks. Candidate "
-            "output is not fed into later fixed-context calls."
+        "profile_overlay_fields": [
+            "public_sheet.role",
+            "backstory",
+            "personality",
+            "known_context",
+            "private_state.goals",
+            "private_state.current_objectives",
+            "private_state.secrets",
+        ],
+        "runtime_known_context_contract": (
+            "Current production-seed known_context is deliberately overlaid "
+            "in memory because it is prompt-facing identity authority. The "
+            "tracked source checkpoint file is not mutated, and the overlay "
+            "does not add, drop, or reorder stored history messages."
         ),
-        "candidate_fed_scenario_contract": (
-            "Each exchange starts from an explicitly supplied checkpoint. "
+        "provider_compaction_values": [False],
+        "conversation_contract": (
+            "Each conversation starts from a fresh in-memory load of the same "
+            "explicit tracked checkpoint. Current production-seed profile fields, "
+            "including known_context, replace stale prompt-facing profile fields "
+            "without adding, dropping, or reordering stored history messages. "
             "Every later prompt includes the previous candidate "
             "public beat and uses the production CharacterAgent draft/commit "
-            "path. Review is manual over exact prior/current pairs; no router, "
-            "narrator, full engine, automated semantic score, or model judge "
-            "is used."
+            "path, which appends exactly one user/assistant pair. Sustained quiet "
+            "and conflict exchanges receive whole-conversation human review; "
+            "compact danger exchanges are diagnostic regressions only. Every "
+            "provider request records compact=false. No router, narrator, full "
+            "engine, automated semantic score, or model judge is used."
         ),
-        "repeated_public_trigrams": {
-            "fixed_context": repeated_actor_trigrams(fixed_rows),
-            "candidate_fed_scenarios": repeated_actor_trigrams(
-                scenario_rows
-            ),
-        },
+        "superseded_review_phases": ["conversation-review-v3"],
         "artifacts": {key: str(path) for key, path in paths.items()},
     }
     _write_json(paths["report"], report)
     return report
 
 
-def _offline_client() -> _CapturedClient:
-    return _CapturedClient(
+def _offline_client() -> _ReplayCapturedClient:
+    return _ReplayCapturedClient(
         model=TERRA_MODEL,
         fixed_response=(
             "The character makes one observable choice without explaining it. "
@@ -995,7 +1037,7 @@ def _offline_client() -> _CapturedClient:
     )
 
 
-def _live_client() -> _CapturedClient:
+def _live_client() -> _ReplayCapturedClient:
     from app.llm.client import LLMClient
     from app.llm.config import LLMConfig
 
@@ -1008,37 +1050,28 @@ def _live_client() -> _CapturedClient:
     ):
         config.role_models[role] = TERRA_MODEL
         config.role_providers[role] = "openai"
-    return _CapturedClient(
+    return _ReplayCapturedClient(
         model=TERRA_MODEL,
         delegate=LLMClient(config=config),
     )
 
 
-def parse_scenario_checkpoint_args(values: Iterable[str]) -> dict[str, Path]:
-    """Parse repeatable ``SCENARIO_ID=PATH`` CLI values with no implicit paths."""
-    mapping: dict[str, Path] = {}
-    for raw in values:
-        scenario_id, separator, raw_path = raw.partition("=")
-        scenario_id = scenario_id.strip()
-        raw_path = raw_path.strip()
-        if not separator or not scenario_id or not raw_path:
-            raise ValueError(
-                "Scenario checkpoints must use SCENARIO_ID=PATH"
-            )
-        if scenario_id in mapping:
-            raise ValueError(
-                f"Duplicate scenario checkpoint for {scenario_id!r}"
-            )
-        mapping[scenario_id] = Path(raw_path)
-    return mapping
-
-
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--offline", action="store_true", help="use deterministic fixtures (default)")
-    mode.add_argument("--live", action="store_true", help="call production Terra through the configured client")
-    parser.add_argument("--phase", required=True, help="artifact subdirectory label, such as baseline or final")
+    mode.add_argument(
+        "--offline", action="store_true", help="use deterministic fixtures (default)"
+    )
+    mode.add_argument(
+        "--live",
+        action="store_true",
+        help="call production Terra through the configured client",
+    )
+    parser.add_argument(
+        "--phase",
+        required=True,
+        help="artifact subdirectory label, such as baseline or final",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -1049,17 +1082,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--checkpoint",
         type=Path,
         required=True,
-        help="checkpoint containing the persisted character histories to replay",
-    )
-    parser.add_argument(
-        "--scenario-checkpoint",
-        action="append",
-        required=True,
-        metavar="SCENARIO_ID=PATH",
-        help=(
-            "explicit checkpoint for one candidate-fed scenario; repeat once "
-            "for every scenario id"
-        ),
+        help=("tracked checkpoint loaded fresh for every candidate-fed conversation"),
     )
     parser.add_argument(
         "--profile-checkpoint",
@@ -1067,14 +1090,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=PRODUCTION_SEED_PATH,
         help="current production seed whose identity/private-state fields overlay the replay",
     )
-    args = parser.parse_args(argv)
-    try:
-        args.scenario_checkpoints = parse_scenario_checkpoint_args(
-            args.scenario_checkpoint
-        )
-    except ValueError as exc:
-        parser.error(str(exc))
-    return args
+    return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1087,7 +1103,6 @@ def main(argv: list[str] | None = None) -> int:
             client=client,
             mode="live" if args.live else "offline",
             checkpoint_path=args.checkpoint,
-            scenario_checkpoint_paths=args.scenario_checkpoints,
             profile_checkpoint_path=args.profile_checkpoint,
         )
     )
