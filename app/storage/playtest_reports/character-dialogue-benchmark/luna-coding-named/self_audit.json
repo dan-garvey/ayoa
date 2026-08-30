@@ -1,0 +1,147 @@
+{
+  "cases": {
+    "authority_debt_m02_t09": {
+      "authorial_aphorisms": {
+        "notes": "Lines about a fact needing no owner and caution bearing a name are compact thematic statements. They fit the speakers' formal setting but warrant live comparison.",
+        "verdict": "watch"
+      },
+      "broken_uptake": {
+        "notes": "The witness reversal and formal-ruling pressure are carried into the next decisions; neither actor writes the chair's or witness's response.",
+        "verdict": "none_observed"
+      },
+      "clipped_convergence": {
+        "notes": "The ledger proceeds from admissibility to provenance, omitted page, mentor recognition, and a deliberately incomplete ruling; authority is narrowed without flattening the debt.",
+        "verdict": "low"
+      },
+      "depth": {
+        "notes": "Both speakers accept that preserving evidence can harm its messenger; authority becomes a cost-bearing choice rather than a procedural shield.",
+        "verdict": "strong"
+      },
+      "exposition": {
+        "notes": "Page seven, the missing page, and the promise emerge because the hearing demands them. Biography remains implicit in document handling and authority behavior.",
+        "verdict": "low"
+      },
+      "privacy": {
+        "notes": "Mentor recognition, aunt identity, and pre-drafted ruling stay in their owners' carries until selected public disclosures. The counterpart sees only public admissions.",
+        "verdict": "pass"
+      },
+      "source_contamination": {
+        "notes": "No canonical objection, courtroom catchphrase, case title, or copied source dialogue appears. Required names are identity inputs. The live Luna model could not be sampled because the provider reported exhausted credit.",
+        "verdict": "none_detected_in_offline_simulation"
+      }
+    },
+    "care_agency_c03_d14": {
+      "authorial_aphorisms": {
+        "notes": "The final boundary lines (help ends where choice begins; grief must not become an order) are intentionally memorable and should be checked against live output for over-polish.",
+        "verdict": "watch"
+      },
+      "broken_uptake": {
+        "notes": "The response order tracks blanket, injury, radio damage, schedule, signal, recipient, and route. Both alarms are treated as public changes rather than another character's speech.",
+        "verdict": "none_observed"
+      },
+      "clipped_convergence": {
+        "notes": "The blanket, tablet, radio, schedule, and recipient disclosure move the scene toward a bounded courier choice rather than a medic-issued order.",
+        "verdict": "low"
+      },
+      "depth": {
+        "notes": "Care is repeatedly separated from ownership, and each practical offer changes what the other can decide.",
+        "verdict": "strong"
+      },
+      "exposition": {
+        "notes": "Medical truth and the altered schedule are revealed while supplies and routes are handled; history is not recited.",
+        "verdict": "low"
+      },
+      "privacy": {
+        "notes": "The hidden tablet and recipient knowledge remain in actor-local carry until their owners choose to reveal them; no carry appears in public transcript or counterpart prompt.",
+        "verdict": "pass"
+      },
+      "source_contamination": {
+        "notes": "No canonical terminology, quoted line, supernatural premise, or source-specific event was imported. Required identity names are retained. Live model spillover could not be observed.",
+        "verdict": "none_detected_in_offline_simulation"
+      }
+    },
+    "ritual_register_k61_b19": {
+      "authorial_aphorisms": {
+        "notes": "Several lines use polished contrasts (machine's refusal, borrowed credit, familiar rhythm). They are character-grounded but could sound authored if every turn were this quotable.",
+        "verdict": "watch"
+      },
+      "broken_uptake": {
+        "notes": "Each reply answers the latest object or disclosure, including both pressure pulses; no turn pretends the prior speaker said something else.",
+        "verdict": "none_observed"
+      },
+      "clipped_convergence": {
+        "notes": "The exchange advances from test request to shared stop conditions; both voices retain different defenses, but the final two turns compress into procedural agreement.",
+        "verdict": "low"
+      },
+      "depth": {
+        "notes": "Credit, fear, recognition, and joint responsibility alter the procedural plan instead of remaining mood language.",
+        "verdict": "strong"
+      },
+      "exposition": {
+        "notes": "The missing page, copied question, fuse, and recognized rhythm enter through actions and decisions; no biography dump is used.",
+        "verdict": "low"
+      },
+      "privacy": {
+        "notes": "Fuse and recognition begin private, then become public only when the speaker chooses. Carry tags contain concrete next constraints and never enter the other actor's history.",
+        "verdict": "pass"
+      },
+      "source_contamination": {
+        "notes": "No canon-specific catchphrase, named device, quoted line, or imported plot event was used. Required identities remain visible by design. A live Luna output was unavailable, so this cannot assess pretrained spillover.",
+        "verdict": "none_detected_in_offline_simulation"
+      }
+    },
+    "status_privacy_clara_adrian": {
+      "authorial_aphorisms": {
+        "notes": "The exchange contains deliberately crisp formulations (a hand on my paper, correction cannot purchase conversation). They clarify status and privacy but may be more polished than ordinary speech.",
+        "verdict": "watch"
+      },
+      "broken_uptake": {
+        "notes": "Darcy's admission answers the knowledge challenge; Elizabeth's marked copy and both pressure pulses are incorporated without invented replies.",
+        "verdict": "none_observed"
+      },
+      "clipped_convergence": {
+        "notes": "The packet moves through exposure, admission, withdrawal, and a recorded boundary. The last response resolves the vote while leaving the relationship unsettled.",
+        "verdict": "low"
+      },
+      "depth": {
+        "notes": "Protection is tested as control, and both speakers accept a loss of access rather than convert privacy into a favor.",
+        "verdict": "strong"
+      },
+      "exposition": {
+        "notes": "The copied letter, marked sentence, original, and vote are handled as objects in the room; backstory is expressed through leverage and refusal.",
+        "verdict": "low"
+      },
+      "privacy": {
+        "notes": "Reading and copying are admitted at a chosen cost; the arranged post remains private carry and is not leaked to Elizabeth's prompt. The public record distinguishes document ownership from personal content.",
+        "verdict": "pass_with_deliberate_revelations"
+      },
+      "source_contamination": {
+        "notes": "No canonical quotation, courtship formula, estate detail, or source catchphrase appears. Required names are manifest identity inputs, not contamination. Live pretrained behavior was not available to audit.",
+        "verdict": "none_detected_in_offline_simulation"
+      }
+    }
+  },
+  "fields": [
+    "clipped_convergence",
+    "authorial_aphorisms",
+    "exposition",
+    "broken_uptake",
+    "privacy",
+    "depth",
+    "source_contamination"
+  ],
+  "live_luna_status": {
+    "attempted": true,
+    "consequence": "The dialogue below is diagnostic plumbing and contract evidence, not a live Luna sample.",
+    "reason": "credit_balance_exhausted",
+    "status": "unavailable"
+  },
+  "model": "gpt-5.6-luna",
+  "overall_limitations": [
+    "No live model output was available, so pretrained catchphrase or continuity-import pressure is not measurable in this pack.",
+    "The prose was authored to exercise each dossier and pressure pulse; human review should still inspect whether the voice is too polished or converges too cleanly."
+  ],
+  "provider": "offline-authored-simulation",
+  "schema_version": "character_dialogue_benchmark_self_audit_v1",
+  "scope": "all_four_named_conversations"
+}
