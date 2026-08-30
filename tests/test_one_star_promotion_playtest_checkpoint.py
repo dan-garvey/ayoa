@@ -470,10 +470,21 @@ def test_playtest_seed_inherits_current_one_star_motivation_policy() -> None:
     assert source_hero is not None
     assert playtest_hero is not None
 
-    # Promotion-specific objectives stay local to this fixture while Renna's
-    # stable motives, action style, and concealed capability remain canonical.
-    assert playtest_renna.private_state.goals == source_renna.private_state.goals
-    assert playtest_renna.personality == source_renna.personality
+    # The focused fixture keeps each Hero's durable authored profile but may
+    # replace objectives with work that only exists in the promotion scenario.
+    for character_id in ("renna_holt", "mirelle_voss"):
+        source_character = _character(source, character_id)
+        playtest_character = _character(checkpoint, character_id)
+        assert (
+            playtest_character.public_sheet.role
+            == source_character.public_sheet.role
+        )
+        assert (
+            playtest_character.private_state.goals
+            == source_character.private_state.goals
+        )
+        assert playtest_character.backstory == source_character.backstory
+        assert playtest_character.personality == source_character.personality
     assert (
         playtest_renna.private_state.current_objectives
         != source_renna.private_state.current_objectives

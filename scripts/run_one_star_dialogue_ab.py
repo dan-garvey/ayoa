@@ -157,33 +157,42 @@ BLINDED_RUBRIC: dict[str, Any] = {
     "blind_fields": ["variant_id", "model"],
     "dimensions": [
         {
-            "id": "voice",
-            "label": "identifiable voice",
-            "question": "Does the response sound like this character rather than a generic squad member?",
+            "id": "speakability",
+            "label": "speakability and naturalness",
+            "question": "Could a person plausibly say this aloud in this moment without sounding like polished story analysis?",
         },
         {
-            "id": "action",
-            "label": "material action",
-            "question": "Does somebody make a concrete choice that changes the situation?",
+            "id": "subtext",
+            "label": "subtext",
+            "question": "Do public words and actions leave room for the private motive instead of restating or explaining it?",
         },
         {
-            "id": "dramatic_function",
-            "label": "dramatic function",
-            "question": "Does the response expose a value, relationship, boundary, or consequence?",
+            "id": "voice_without_schtick",
+            "label": "voice without schtick",
+            "question": "Is the character recognizable through choices and rhythm without leaning on a repeated catchphrase, metaphor, or gimmick?",
         },
         {
-            "id": "non_repetition",
-            "label": "non-repetition",
-            "question": "Does it avoid recycled tactical radio, filler, and unchanged objections?",
+            "id": "chemistry",
+            "label": "conversational chemistry",
+            "question": "Does the beat notice what another person actually did and leave them something specific to answer, resist, or misread?",
         },
         {
-            "id": "dialogue",
-            "label": "natural dialogue",
-            "question": "If it speaks, does the line earn its place through value, relationship, decision, or specific banter?",
+            "id": "multi_turn_variety",
+            "label": "multi-turn variety",
+            "question": "Across this character's sequence, do sentence shapes, gestures, motifs, and kinds of response change with the moment?",
         },
     ],
-    "scale": "Score each dimension 1-5. A sample passes at 4 or better on every dimension.",
-    "variant_gate": "A variant passes when at least 80% of its blinded samples pass; Iselle must have no material voice or control regression.",
+    "scale": (
+        "When an actor has multiple samples, score each dimension 1-5 after "
+        "reading that actor's whole sequence and note exact repeated shapes or "
+        "public/private echoes. For a lone sample, mark multi-turn variety not "
+        "applicable and score the remaining dimensions."
+    ),
+    "variant_gate": (
+        "A variant passes when every actor sequence scores at least 4 on each "
+        "applicable dimension and no character-level sequence regresses "
+        "materially; Iselle must have no material voice or control regression."
+    ),
     "selection_rule": "Use Luna when both pass, Terra when only Terra passes, and evaluate Sol only when both A/B variants fail.",
 }
 
