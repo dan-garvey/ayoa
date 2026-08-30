@@ -444,7 +444,8 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
         "materials": {"lesser_promotion_stone": 1},
     }
     assert set(config.floor_scenarios) == {1, 2, 3, 4, 5}
-    assert config.floor_scenarios[1].model_dump() == {
+    floor_one = config.floor_scenarios[1]
+    assert floor_one.model_dump(exclude={"pressure_beats"}) == {
         "mission_id": "floor_1_toll_bell",
         "destination": "tower_floor_1_toll_bell",
         "premise": (
@@ -461,10 +462,13 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
             {"counter_id": "gate_crank_secured", "current": 0, "target": 1},
             {"counter_id": "exit_reached", "current": 0, "target": 1},
         ],
-        "pressure_beats": [
-            "A frightened deserter offers a shortcut, testing whether the party honors bargains the System does not reward."
-        ],
     }
+    assert len(floor_one.pressure_beats) == 1
+    floor_one_pressure = floor_one.pressure_beats[0]
+    assert "frightened deserter" in floor_one_pressure
+    assert "shortcut" in floor_one_pressure
+    assert "separate drainage culvert" in floor_one_pressure
+    assert "away from the party's route" in floor_one_pressure
     assert config.floor_scenarios[2].counters[0].current == 0
     assert config.floor_scenarios[2].counters[0].target == 1
     assert "trapped scavenger" in config.floor_scenarios[2].pressure_beats[0]
