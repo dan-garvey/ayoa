@@ -1,0 +1,411 @@
+{
+  "direction": "rarity_crescendo",
+  "five_pull_page_count_with_one_special": 8,
+  "frontend_contract": "static semantic pages at 1024x576",
+  "frozen_invariants": {
+    "batch_rarity_signal": "none",
+    "card_frame": "approved Obsidian Orrery geometry",
+    "card_rank_style": "approved Option F metal milestones",
+    "exact_rank_before_result": "withheld",
+    "excluded_subjects": [
+      "Eighth Warden"
+    ],
+    "extra_omen_threshold": "3 stars and above",
+    "fakeouts": "none",
+    "identity_rules": "existing veils remain active",
+    "portrait_layering": "portrait over border, under nameplate and stars"
+  },
+  "metal_bands": {
+    "gold": {
+      "containment": 3,
+      "glow": [
+        245,
+        183,
+        51
+      ],
+      "glow_alpha": 158,
+      "highlight": [
+        255,
+        224,
+        130
+      ],
+      "key": "gold",
+      "label": "GOLD",
+      "mid": [
+        145,
+        101,
+        28
+      ],
+      "range_label": "5\u20136 stars",
+      "shadow": [
+        27,
+        20,
+        8
+      ]
+    },
+    "iron": {
+      "containment": 1,
+      "glow": [
+        105,
+        118,
+        132
+      ],
+      "glow_alpha": 38,
+      "highlight": [
+        119,
+        130,
+        142
+      ],
+      "key": "iron",
+      "label": "IRON",
+      "mid": [
+        44,
+        49,
+        57
+      ],
+      "range_label": "1\u20132 stars",
+      "shadow": [
+        7,
+        9,
+        12
+      ]
+    },
+    "silver": {
+      "containment": 2,
+      "glow": [
+        170,
+        205,
+        226
+      ],
+      "glow_alpha": 108,
+      "highlight": [
+        235,
+        244,
+        250
+      ],
+      "key": "silver",
+      "label": "SILVER",
+      "mid": [
+        105,
+        115,
+        126
+      ],
+      "range_label": "3\u20134 stars",
+      "shadow": [
+        15,
+        18,
+        22
+      ]
+    },
+    "white_gold": {
+      "containment": 4,
+      "glow": [
+        255,
+        233,
+        155
+      ],
+      "glow_alpha": 222,
+      "highlight": [
+        255,
+        255,
+        239
+      ],
+      "key": "white_gold",
+      "label": "WHITE GOLD",
+      "mid": [
+        211,
+        179,
+        92
+      ],
+      "range_label": "7 stars",
+      "shadow": [
+        39,
+        31,
+        10
+      ]
+    }
+  },
+  "opening_sequence": [
+    "01_opening_01_batch_sealed.png",
+    "02_opening_02_renna_direct.png",
+    "03_opening_03_silver_omen.png",
+    "04_opening_04_mirelle_reveal.png",
+    "05_opening_05_edren_direct.png",
+    "06_opening_06_results.png"
+  ],
+  "production_binding": false,
+  "rank_to_pre_reveal_omen": {
+    "1": "direct",
+    "2": "direct",
+    "3": "silver",
+    "4": "silver",
+    "5": "gold",
+    "6": "gold",
+    "7": "white_gold"
+  },
+  "result_cards": [
+    {
+      "dimensions": [
+        640,
+        1024
+      ],
+      "role": "renna",
+      "sha256": "8b61481baba1dc11778a198ca1c762bde115e3e51332b75d0b31fcf3dc69734f",
+      "stars": 1
+    },
+    {
+      "dimensions": [
+        640,
+        1024
+      ],
+      "role": "mirelle",
+      "sha256": "cce4f130a7ee5ba0c8ab67c6388c7d74040fd4147b43a8c619c0dab3434117a6",
+      "stars": 3
+    },
+    {
+      "dimensions": [
+        640,
+        1024
+      ],
+      "role": "edren",
+      "sha256": "8ccb8926b9cbb368bd3b699270f05e8107a10a8c0634943e6172134245851f82",
+      "stars": 1
+    }
+  ],
+  "review": [
+    {
+      "accessible_text": "SYSTEM ACQUISITION; THREE SIGNATURES SEALED; BATCH 01; SIGNATURE 1; SIGNATURE 2; SIGNATURE 3; No batch-level rarity signal",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "01_opening_01_batch_sealed.png",
+      "label": "Opening 01 Batch Sealed",
+      "sha256": "09882a25d2caf3096d5f5e623dfd05348e597093587f41d2d33ab95b681e31df",
+      "visible_text": [
+        "SYSTEM ACQUISITION",
+        "THREE SIGNATURES SEALED",
+        "BATCH 01",
+        "SIGNATURE 1",
+        "SIGNATURE 2",
+        "SIGNATURE 3",
+        "No batch-level rarity signal"
+      ]
+    },
+    {
+      "accessible_text": "HERO ACQUIRED; RENNA HOLT; PULL 1 / 3; RANK RESOLVED; 1-STAR HERO; \u2605; SYSTEM VEIL ACTIVE; The Hero is named. The face remains withheld until promotion.; NEXT SIGNATURE",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "02_opening_02_renna_direct.png",
+      "label": "Opening 02 Renna Direct",
+      "sha256": "ecff11f5d7018e51b4d8f9eba2b80f3b1304a90878cf8a9cb82aeae412caed7a",
+      "visible_text": [
+        "HERO ACQUIRED",
+        "RENNA HOLT",
+        "PULL 1 / 3",
+        "RANK RESOLVED",
+        "1-STAR HERO",
+        "\u2605",
+        "SYSTEM VEIL ACTIVE",
+        "The Hero is named. The face remains withheld until promotion.",
+        "NEXT SIGNATURE"
+      ]
+    },
+    {
+      "accessible_text": "SIGNATURE ANOMALY; THE SEAL RESISTS; PULL 2 / 3; SEALED; METAL RESPONSE DETECTED; EXACT RANK WITHHELD",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "03_opening_03_silver_omen.png",
+      "label": "Opening 03 Silver Omen",
+      "sha256": "5769359654462d4ea0b2dd302909339b5e3bb8de6aa95f05c1e3d51a62cfda14",
+      "visible_text": [
+        "SIGNATURE ANOMALY",
+        "THE SEAL RESISTS",
+        "PULL 2 / 3",
+        "SEALED",
+        "METAL RESPONSE DETECTED",
+        "EXACT RANK WITHHELD"
+      ]
+    },
+    {
+      "accessible_text": "HERO ACQUIRED; MIRELLE VOSS; PULL 2 / 3; RANK RESOLVED; 3-STAR HERO; \u2605\u2605\u2605; IDENTITY REVEALED; The contained signature resolves into a reviewed Hero portrait.; NEXT SIGNATURE",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "04_opening_04_mirelle_reveal.png",
+      "label": "Opening 04 Mirelle Reveal",
+      "sha256": "4af0e2fd97bd4a53c30a84df77554b3af95d4eb634da8d0bd13ee4d8d8a8aefa",
+      "visible_text": [
+        "HERO ACQUIRED",
+        "MIRELLE VOSS",
+        "PULL 2 / 3",
+        "RANK RESOLVED",
+        "3-STAR HERO",
+        "\u2605\u2605\u2605",
+        "IDENTITY REVEALED",
+        "The contained signature resolves into a reviewed Hero portrait.",
+        "NEXT SIGNATURE"
+      ]
+    },
+    {
+      "accessible_text": "HERO ACQUIRED; EDREN MARR; PULL 3 / 3; RANK RESOLVED; 1-STAR HERO; \u2605; SYSTEM VEIL ACTIVE; The Hero is named. The face remains withheld until promotion.; VIEW RESULTS",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "05_opening_05_edren_direct.png",
+      "label": "Opening 05 Edren Direct",
+      "sha256": "f9b6afa746ac505e00a4f7d0ad3d43902afcbde04e23cb4f10b26aa7fdd58983",
+      "visible_text": [
+        "HERO ACQUIRED",
+        "EDREN MARR",
+        "PULL 3 / 3",
+        "RANK RESOLVED",
+        "1-STAR HERO",
+        "\u2605",
+        "SYSTEM VEIL ACTIVE",
+        "The Hero is named. The face remains withheld until promotion.",
+        "VIEW RESULTS"
+      ]
+    },
+    {
+      "accessible_text": "HEROES ACQUIRED; CURRENT HERO RANK; Renna Holt; Mirelle Voss; Edren Marr",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "06_opening_06_results.png",
+      "label": "Opening 06 Results",
+      "sha256": "c64d3e0f46e682a5ad7e0568d9d540bd6cc88037b9078b3fcccfced86e985993",
+      "visible_text": [
+        "HEROES ACQUIRED",
+        "CURRENT HERO RANK",
+        "Renna Holt",
+        "Mirelle Voss",
+        "Edren Marr"
+      ]
+    },
+    {
+      "accessible_text": "PROOF  //  PER-CARD OMEN; ONE PALETTE, FOUR CONTAINMENT STATES; EXACT RANK STAYS SEALED; IRON; 1\u20132 stars; CONTAINMENT 1; SILVER; 3\u20134 stars; CONTAINMENT 2; GOLD; 5\u20136 stars; CONTAINMENT 3; WHITE GOLD; 7 stars; CONTAINMENT 4; Hue remains metal-only; geometry and light carry the escalation.",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "07_metal_band_escalation.png",
+      "label": "Metal Band Escalation",
+      "sha256": "ec3410661bf109b15ea9d709d8616213946034ad44862a8da17c8b64c153e05c",
+      "visible_text": [
+        "PROOF  //  PER-CARD OMEN",
+        "ONE PALETTE, FOUR CONTAINMENT STATES",
+        "EXACT RANK STAYS SEALED",
+        "IRON",
+        "1\u20132 stars",
+        "CONTAINMENT 1",
+        "SILVER",
+        "3\u20134 stars",
+        "CONTAINMENT 2",
+        "GOLD",
+        "5\u20136 stars",
+        "CONTAINMENT 3",
+        "WHITE GOLD",
+        "7 stars",
+        "CONTAINMENT 4",
+        "Hue remains metal-only; geometry and light carry the escalation."
+      ]
+    },
+    {
+      "accessible_text": "PROOF  //  RARITY INFORMATION; THE OMEN PROMISES A BAND, NOT AN EXACT RESULT; NO FAKEOUTS; SILVER OMEN; 3\u2605 POSSIBLE; 4\u2605 POSSIBLE; IDENTICAL PRE-REVEAL ART; GOLD OMEN; 5\u2605 POSSIBLE; 6\u2605 POSSIBLE; IDENTICAL PRE-REVEAL ART",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "08_rank_ambiguity_contract.png",
+      "label": "Rank Ambiguity Contract",
+      "sha256": "38110d622c1b33c7b917f1f14ea958ae6752e1d3fd1e8495fb5e7a419615d5e1",
+      "visible_text": [
+        "PROOF  //  RARITY INFORMATION",
+        "THE OMEN PROMISES A BAND, NOT AN EXACT RESULT",
+        "NO FAKEOUTS",
+        "SILVER OMEN",
+        "3\u2605 POSSIBLE",
+        "4\u2605 POSSIBLE",
+        "IDENTICAL PRE-REVEAL ART",
+        "GOLD OMEN",
+        "5\u2605 POSSIBLE",
+        "6\u2605 POSSIBLE",
+        "IDENTICAL PRE-REVEAL ART"
+      ]
+    },
+    {
+      "accessible_text": "PROOF  //  PAGING; FIVE PULLS, ONE SPECIAL: EIGHT PRESENTATION PAGES; FRONTEND-AGNOSTIC; BATCH SEALED; PULL 1; PULL 2; SPECIAL OMEN; PULL 3 REVEAL; PULL 4; PULL 5; RESULTS; Only 3\u2605+ inserts an omen page; direct pulls still receive a full result beat.",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "09_five_pull_pacing.png",
+      "label": "Five Pull Pacing",
+      "sha256": "696c08e12a9c6d86259d5de1b6c7f9c6ee248062435c1429f076cefc409e4ba0",
+      "visible_text": [
+        "PROOF  //  PAGING",
+        "FIVE PULLS, ONE SPECIAL: EIGHT PRESENTATION PAGES",
+        "FRONTEND-AGNOSTIC",
+        "BATCH SEALED",
+        "PULL 1",
+        "PULL 2",
+        "SPECIAL OMEN",
+        "PULL 3 REVEAL",
+        "PULL 4",
+        "PULL 5",
+        "RESULTS",
+        "Only 3\u2605+ inserts an omen page; direct pulls still receive a full result beat."
+      ]
+    },
+    {
+      "accessible_text": "SIGNATURE ANOMALY; CONTAINMENT AT ITS LIMIT; PULL 5 / 5; SEALED; METAL RESPONSE DETECTED; EXACT RANK WITHHELD",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "10_white_gold_peak_omen.png",
+      "label": "White Gold Peak Omen",
+      "sha256": "6ec5c2196ac73f52cfde9c86a619fab7673972e9da57b672e9561568a5a439fb",
+      "visible_text": [
+        "SIGNATURE ANOMALY",
+        "CONTAINMENT AT ITS LIMIT",
+        "PULL 5 / 5",
+        "SEALED",
+        "METAL RESPONSE DETECTED",
+        "EXACT RANK WITHHELD"
+      ]
+    },
+    {
+      "accessible_text": "ONE-STAR SUMMON REVEAL; REVIEW CONTACT SHEET; 10 PROOFS; Review the six opening pages in order before the supporting contract sheets.",
+      "dimensions": [
+        1024,
+        576
+      ],
+      "filename": "11_contact_sheet.png",
+      "label": "Contact Sheet",
+      "sha256": "832ed6cd000609c82893f26714e3a9c18c6468f79c85958a5092c02e708b23cb",
+      "visible_text": [
+        "ONE-STAR SUMMON REVEAL",
+        "REVIEW CONTACT SHEET",
+        "10 PROOFS",
+        "Review the six opening pages in order before the supporting contract sheets."
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "source_hashes": {
+    "reviewed_mirelle_neutral_sprite": "e0f70522d1adb64d7f938dd66064d26934619b493ece444047b6753b8dfdcf57",
+    "reviewed_orrery_frame": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f",
+    "reviewed_veiled_feminine_bust": "cf48a48c8089ce90d662231897d8b636eb4a857aaba5e32bc954400648eeb691",
+    "reviewed_veiled_masculine_bust": "10a3a6facea74fc368f562e1a4dcb55ed835f2668c50e8d727300a16f6125dfa"
+  },
+  "status": "visual_review_only"
+}

@@ -1,0 +1,395 @@
+{
+  "check_count": 33,
+  "checks": [
+    {
+      "detail": "071a1295b49048176b527870400349926e49179c330cb9d8360865b6d5fddbb8",
+      "name": "public manifest matches proof manifest",
+      "passed": true
+    },
+    {
+      "detail": {
+        "direction": "rarity_crescendo",
+        "frontend_contract": "static semantic pages at 1024x576",
+        "production_binding": false,
+        "schema_version": 1,
+        "status": "visual_review_only"
+      },
+      "name": "review-only contract",
+      "passed": true
+    },
+    {
+      "detail": {
+        "batch_rarity_signal": "none",
+        "card_frame": "approved Obsidian Orrery geometry",
+        "card_rank_style": "approved Option F metal milestones",
+        "exact_rank_before_result": "withheld",
+        "excluded_subjects": [
+          "Eighth Warden"
+        ],
+        "extra_omen_threshold": "3 stars and above",
+        "fakeouts": "none",
+        "identity_rules": "existing veils remain active",
+        "portrait_layering": "portrait over border, under nameplate and stars"
+      },
+      "name": "frozen approved visual contract",
+      "passed": true
+    },
+    {
+      "detail": [
+        "01_opening_01_batch_sealed.png",
+        "02_opening_02_renna_direct.png",
+        "03_opening_03_silver_omen.png",
+        "04_opening_04_mirelle_reveal.png",
+        "05_opening_05_edren_direct.png",
+        "06_opening_06_results.png"
+      ],
+      "name": "opening sequence order",
+      "passed": true
+    },
+    {
+      "detail": {
+        "five_pull_pages": 8,
+        "rank_to_pre_reveal_omen": {
+          "1": "direct",
+          "2": "direct",
+          "3": "silver",
+          "4": "silver",
+          "5": "gold",
+          "6": "gold",
+          "7": "white_gold"
+        }
+      },
+      "name": "rank omen ambiguity",
+      "passed": true
+    },
+    {
+      "detail": {
+        "containment": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "glow_alpha": [
+          38,
+          108,
+          158,
+          222
+        ]
+      },
+      "name": "containment and light escalate",
+      "passed": true
+    },
+    {
+      "detail": [
+        "1\u20132 stars",
+        "3\u20134 stars",
+        "5\u20136 stars",
+        "7 stars"
+      ],
+      "name": "band labels",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_opening_01_batch_sealed.png",
+        "02_opening_02_renna_direct.png",
+        "03_opening_03_silver_omen.png",
+        "04_opening_04_mirelle_reveal.png",
+        "05_opening_05_edren_direct.png",
+        "06_opening_06_results.png",
+        "07_metal_band_escalation.png",
+        "08_rank_ambiguity_contract.png",
+        "09_five_pull_pacing.png",
+        "10_white_gold_peak_omen.png",
+        "11_contact_sheet.png",
+        "SHA256SUMS.txt",
+        "index.html",
+        "manifest.json"
+      ],
+      "name": "exact ordered review set",
+      "passed": true
+    },
+    {
+      "detail": [
+        "01_opening_01_batch_sealed.png",
+        "02_opening_02_renna_direct.png",
+        "03_opening_03_silver_omen.png",
+        "04_opening_04_mirelle_reveal.png",
+        "05_opening_05_edren_direct.png",
+        "06_opening_06_results.png",
+        "07_metal_band_escalation.png",
+        "08_rank_ambiguity_contract.png",
+        "09_five_pull_pacing.png",
+        "10_white_gold_peak_omen.png",
+        "11_contact_sheet.png"
+      ],
+      "name": "eleven review images",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "09882a25d2caf3096d5f5e623dfd05348e597093587f41d2d33ab95b681e31df",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 01_opening_01_batch_sealed.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "ecff11f5d7018e51b4d8f9eba2b80f3b1304a90878cf8a9cb82aeae412caed7a",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 02_opening_02_renna_direct.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "5769359654462d4ea0b2dd302909339b5e3bb8de6aa95f05c1e3d51a62cfda14",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 03_opening_03_silver_omen.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "4af0e2fd97bd4a53c30a84df77554b3af95d4eb634da8d0bd13ee4d8d8a8aefa",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 04_opening_04_mirelle_reveal.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "f9b6afa746ac505e00a4f7d0ad3d43902afcbde04e23cb4f10b26aa7fdd58983",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 05_opening_05_edren_direct.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "c64d3e0f46e682a5ad7e0568d9d540bd6cc88037b9078b3fcccfced86e985993",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 06_opening_06_results.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "ec3410661bf109b15ea9d709d8616213946034ad44862a8da17c8b64c153e05c",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 07_metal_band_escalation.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "38110d622c1b33c7b917f1f14ea958ae6752e1d3fd1e8495fb5e7a419615d5e1",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 08_rank_ambiguity_contract.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "696c08e12a9c6d86259d5de1b6c7f9c6ee248062435c1429f076cefc409e4ba0",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 09_five_pull_pacing.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "6ec5c2196ac73f52cfde9c86a619fab7673972e9da57b672e9561568a5a439fb",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 10_white_gold_peak_omen.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "metadata": {},
+        "mode": "RGB",
+        "sha256": "832ed6cd000609c82893f26714e3a9c18c6468f79c85958a5092c02e708b23cb",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "review image 11_contact_sheet.png",
+      "passed": true
+    },
+    {
+      "detail": {
+        "mode": "RGBA",
+        "size": [
+          640,
+          1024
+        ],
+        "stars": 1,
+        "visible_stars": 1
+      },
+      "name": "result card renna",
+      "passed": true
+    },
+    {
+      "detail": {
+        "mode": "RGBA",
+        "size": [
+          640,
+          1024
+        ],
+        "stars": 3,
+        "visible_stars": 3
+      },
+      "name": "result card mirelle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "mode": "RGBA",
+        "size": [
+          640,
+          1024
+        ],
+        "stars": 1,
+        "visible_stars": 1
+      },
+      "name": "result card edren",
+      "passed": true
+    },
+    {
+      "detail": "e0f70522d1adb64d7f938dd66064d26934619b493ece444047b6753b8dfdcf57",
+      "name": "source hash reviewed_mirelle_neutral_sprite",
+      "passed": true
+    },
+    {
+      "detail": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f",
+      "name": "source hash reviewed_orrery_frame",
+      "passed": true
+    },
+    {
+      "detail": "cf48a48c8089ce90d662231897d8b636eb4a857aaba5e32bc954400648eeb691",
+      "name": "source hash reviewed_veiled_feminine_bust",
+      "passed": true
+    },
+    {
+      "detail": "10a3a6facea74fc368f562e1a4dcb55ed835f2668c50e8d727300a16f6125dfa",
+      "name": "source hash reviewed_veiled_masculine_bust",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual": 14,
+        "expected": 14
+      },
+      "name": "review hash inventory",
+      "passed": true
+    },
+    {
+      "detail": [],
+      "name": "no public source identifiers",
+      "passed": true
+    },
+    {
+      "detail": [],
+      "name": "no source identifiers declared in pixels",
+      "passed": true
+    },
+    {
+      "detail": {
+        "directory": "/mnt/c/Users/danim/Pictures/Ayoa/OneStarPullRevealReview_20260831",
+        "files": [
+          "00_START_HERE.txt",
+          "01_opening_01_batch_sealed.png",
+          "02_opening_02_renna_direct.png",
+          "03_opening_03_silver_omen.png",
+          "04_opening_04_mirelle_reveal.png",
+          "05_opening_05_edren_direct.png",
+          "06_opening_06_results.png",
+          "07_metal_band_escalation.png",
+          "08_rank_ambiguity_contract.png",
+          "09_five_pull_pacing.png",
+          "10_white_gold_peak_omen.png",
+          "11_contact_sheet.png",
+          "SHA256SUMS.txt",
+          "index.html",
+          "manifest.json"
+        ]
+      },
+      "name": "Windows review copy",
+      "passed": true
+    },
+    {
+      "detail": [],
+      "name": "no production binding changes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "after_count": 23,
+        "before_count": 23,
+        "changed": [],
+        "returncode": 0,
+        "stderr": ""
+      },
+      "name": "deterministic rebuild",
+      "passed": true
+    }
+  ],
+  "failure_count": 0,
+  "passed": true,
+  "schema_version": 1
+}

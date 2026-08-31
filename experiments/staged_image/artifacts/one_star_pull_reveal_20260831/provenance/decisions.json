@@ -1,0 +1,18 @@
+{
+  "approved_card_treatment": "Option F metal milestones",
+  "approved_reveal_direction": "rarity crescendo",
+  "batch_signal": "neutral",
+  "horror_motif": "containment geometry",
+  "image_generation_calls": 0,
+  "omen_threshold": 3,
+  "per_card_omen": true,
+  "portrait_changes": false,
+  "production_binding": false,
+  "rejected_attempts": [
+    {
+      "artifact_preserved": false,
+      "issue": "font-dependent rank stars rendered as missing-glyph boxes",
+      "resolution": "replaced all large result stars with deterministic vector geometry"
+    }
+  ]
+}
