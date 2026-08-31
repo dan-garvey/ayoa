@@ -1,0 +1,20 @@
+ONE-STAR PULL REVEAL — ANIMATION PROOF REVISION
+
+Open the four GIFs side by side or use index.html. They intentionally loop in
+this review folder. A production animation would play once, hold its sealed
+ending, and hand off to the existing static Hero result board.
+
+01  UNDER 3 STARS // PLAIN IRON RESPONSE  1.24s  1.50 MiB
+02  3-4 STARS // SILVER RESPONSE  1.83s  3.43 MiB
+03  5-6 STARS // GOLD RESPONSE  2.21s  4.38 MiB
+04  7 STARS // WHITE-GOLD RESPONSE  2.75s  6.04 MiB
+
+READING THE LADDER
+- Under 3 stars: one restrained scan and pulse; no anomaly locks or flare.
+- 3-4 stars: two silver containment locks and a cold flash.
+- 5-6 stars: three gold locks, tightening chains, sparks, and a larger flare.
+- 7 stars: four white-gold locks, maximum cage response, and the longest peak.
+
+The GIFs never reveal identity or exact rank. Animation carries no required
+state: the following static result board remains authoritative and accessible.
+There is deliberately no file-size acceptance cap in this proof revision.

@@ -1,0 +1,12 @@
+{
+  "animation_scope": "sealed pre-result transition only",
+  "approved_card_treatment": "Option F metal milestones",
+  "file_size_limit": null,
+  "image_generation_calls": 0,
+  "low_rarity_motion": "short plain scan and pulse",
+  "production_binding": false,
+  "production_playback": "once then static handoff",
+  "rank_information_in_animation": false,
+  "review_loops": true,
+  "static_result_authoritative": true
+}

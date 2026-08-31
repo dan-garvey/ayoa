@@ -132,8 +132,16 @@ def exact_star_components(
 
 def artifact_hashes() -> dict[str, str]:
     paths = sorted(REVIEW.iterdir())
-    paths.extend(sorted(PROOFS.rglob("*.png")))
-    paths.extend(sorted(PROVENANCE.iterdir()))
+    paths.extend(sorted((PROOFS / "result_cards").glob("*.png")))
+    paths.extend(
+        PROVENANCE / filename
+        for filename in (
+            "SHA256SUMS.txt",
+            "decisions.json",
+            "source_hashes.json",
+            "validation_report.json",
+        )
+    )
     paths.append(MANIFEST)
     return {
         path.relative_to(ROOT).as_posix(): sha256(path)

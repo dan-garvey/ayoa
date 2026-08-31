@@ -1,0 +1,116 @@
+{
+  "direction": "animated_rarity_crescendo",
+  "file_size_cap_bytes": null,
+  "invariants": {
+    "animation_required_for_comprehension": false,
+    "exact_rank_before_result": "withheld",
+    "fakeouts": "none",
+    "first_frame": "sealed",
+    "identity_before_result": "withheld",
+    "image_generation_calls": 0,
+    "last_frame": "sealed",
+    "semantic_fallback": "existing static result board",
+    "sound": "not evaluated"
+  },
+  "production_binding": false,
+  "production_intent": "play_once_then_hold",
+  "rank_bands": {
+    "3_to_4": "silver",
+    "5_to_6": "gold",
+    "7": "white_gold",
+    "under_3": "iron_plain"
+  },
+  "review_encoding": "loop",
+  "schema_version": 1,
+  "source_hashes": {
+    "reviewed_card_frame": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f"
+  },
+  "status": "visual_review_only",
+  "storyboard": {
+    "dimensions": [
+      1024,
+      576
+    ],
+    "filename": "05_start_peak_end_storyboard.png",
+    "sha256": "832d94a5086ce71d1eecec05770e193ac2912c5dbe00f8fe591949184988e1a4"
+  },
+  "tiers": [
+    {
+      "accessible_text": "UNDER 3 STARS // PLAIN IRON RESPONSE; sealed acquisition animation; exact rank withheld; static result follows",
+      "byte_count": 1571008,
+      "containment_locks": 0,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 1240,
+      "filename": "01_iron_plain_under_3.gif",
+      "final_hold_ms": 340,
+      "frame_count": 16,
+      "frame_ms": 60,
+      "label": "UNDER 3 STARS // PLAIN IRON RESPONSE",
+      "production_intent": "play_once",
+      "review_loop": true,
+      "sha256": "89c1fa97804901798fe9c6279cb43784e44169f3d6713781202f460f448e1564",
+      "visual_intensity": 1
+    },
+    {
+      "accessible_text": "3-4 STARS // SILVER RESPONSE; sealed acquisition animation; exact rank withheld; static result follows",
+      "byte_count": 3592581,
+      "containment_locks": 2,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 1830,
+      "filename": "02_silver_omen_3_to_4.gif",
+      "final_hold_ms": 480,
+      "frame_count": 28,
+      "frame_ms": 50,
+      "label": "3-4 STARS // SILVER RESPONSE",
+      "production_intent": "play_once",
+      "review_loop": true,
+      "sha256": "6d14722c9c16c5c4c0829a7697d2272b8d1f4bfb90bdbcefcf0366744ab6caeb",
+      "visual_intensity": 2
+    },
+    {
+      "accessible_text": "5-6 STARS // GOLD RESPONSE; sealed acquisition animation; exact rank withheld; static result follows",
+      "byte_count": 4590125,
+      "containment_locks": 3,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 2210,
+      "filename": "03_gold_omen_5_to_6.gif",
+      "final_hold_ms": 560,
+      "frame_count": 34,
+      "frame_ms": 50,
+      "label": "5-6 STARS // GOLD RESPONSE",
+      "production_intent": "play_once",
+      "review_loop": true,
+      "sha256": "e72c0a4404937d448414af6e2e94b27bfdc2c2a8613df9d53b64a6414498a1ff",
+      "visual_intensity": 3
+    },
+    {
+      "accessible_text": "7 STARS // WHITE-GOLD RESPONSE; sealed acquisition animation; exact rank withheld; static result follows",
+      "byte_count": 6335412,
+      "containment_locks": 4,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 2750,
+      "filename": "04_white_gold_omen_7.gif",
+      "final_hold_ms": 700,
+      "frame_count": 42,
+      "frame_ms": 50,
+      "label": "7 STARS // WHITE-GOLD RESPONSE",
+      "production_intent": "play_once",
+      "review_loop": true,
+      "sha256": "07cdc65e9128f270235f6776ba6206c916c3ae13fa3a3369d065309e4020bfaf",
+      "visual_intensity": 4
+    }
+  ],
+  "transport_contract": "optional non-semantic motion before static result"
+}

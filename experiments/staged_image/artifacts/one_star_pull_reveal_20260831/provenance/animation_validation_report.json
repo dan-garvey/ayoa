@@ -1,0 +1,757 @@
+{
+  "check_count": 46,
+  "checks": [
+    {
+      "detail": "d1482dbe19d3e3ea57d33c876050ac6aef91d4b14e3552c036b6e6e52ed58941",
+      "name": "review manifest is canonical manifest",
+      "passed": true
+    },
+    {
+      "detail": {
+        "direction": "animated_rarity_crescendo",
+        "production_binding": false,
+        "production_intent": "play_once_then_hold",
+        "review_encoding": "loop",
+        "schema_version": 1,
+        "status": "visual_review_only",
+        "transport_contract": "optional non-semantic motion before static result"
+      },
+      "name": "review-only optional-motion contract",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "no file-size cap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "3_to_4": "silver",
+        "5_to_6": "gold",
+        "7": "white_gold",
+        "under_3": "iron_plain"
+      },
+      "name": "all rarity bands represented",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animation_required_for_comprehension": false,
+        "exact_rank_before_result": "withheld",
+        "fakeouts": "none",
+        "first_frame": "sealed",
+        "identity_before_result": "withheld",
+        "image_generation_calls": 0,
+        "last_frame": "sealed",
+        "semantic_fallback": "existing static result board",
+        "sound": "not evaluated"
+      },
+      "name": "animation is non-semantic",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_iron_plain_under_3.gif",
+        "02_silver_omen_3_to_4.gif",
+        "03_gold_omen_5_to_6.gif",
+        "04_white_gold_omen_7.gif",
+        "05_start_peak_end_storyboard.png",
+        "SHA256SUMS.txt",
+        "index.html",
+        "manifest.json"
+      ],
+      "name": "review set is exact",
+      "passed": true
+    },
+    {
+      "detail": 4,
+      "name": "four animation tiers",
+      "passed": true
+    },
+    {
+      "detail": [
+        "01_iron_plain_under_3.gif",
+        "02_silver_omen_3_to_4.gif",
+        "03_gold_omen_5_to_6.gif",
+        "04_white_gold_omen_7.gif"
+      ],
+      "name": "tier file order",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          0,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ]
+      ],
+      "name": "containment ladder",
+      "passed": true
+    },
+    {
+      "detail": {
+        "durations_ms": [
+          1240,
+          1830,
+          2210,
+          2750
+        ],
+        "frame_counts": [
+          16,
+          28,
+          34,
+          42
+        ]
+      },
+      "name": "duration and frame count rise with rarity",
+      "passed": true
+    },
+    {
+      "detail": {
+        "accessible_text": "UNDER 3 STARS // PLAIN IRON RESPONSE; sealed acquisition animation; exact rank withheld; static result follows",
+        "byte_count": 1571008,
+        "containment_locks": 0,
+        "dimensions": [
+          1024,
+          576
+        ],
+        "duration_ms": 1240,
+        "filename": "01_iron_plain_under_3.gif",
+        "final_hold_ms": 340,
+        "frame_count": 16,
+        "frame_ms": 60,
+        "label": "UNDER 3 STARS // PLAIN IRON RESPONSE",
+        "production_intent": "play_once",
+        "review_loop": true,
+        "sha256": "89c1fa97804901798fe9c6279cb43784e44169f3d6713781202f460f448e1564",
+        "visual_intensity": 1
+      },
+      "name": "low tier is short and plain",
+      "passed": true
+    },
+    {
+      "detail": [
+        1571008,
+        3592581,
+        4590125,
+        6335412
+      ],
+      "name": "size recorded without enforcement cap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "expected_size": [
+          1024,
+          576
+        ],
+        "format": "GIF",
+        "frame_count": 16,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "under_three GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        340
+      ],
+      "name": "under_three GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max_motion": 1.5211,
+        "mean_motion": 0.7126,
+        "unique_frames": 16
+      },
+      "name": "under_three has real motion",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 1571008,
+        "actual_hash": "89c1fa97804901798fe9c6279cb43784e44169f3d6713781202f460f448e1564",
+        "manifest_bytes": 1571008,
+        "manifest_hash": "89c1fa97804901798fe9c6279cb43784e44169f3d6713781202f460f448e1564"
+      },
+      "name": "under_three manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "accessible_text": "UNDER 3 STARS // PLAIN IRON RESPONSE; sealed acquisition animation; exact rank withheld; static result follows",
+        "production_intent": "play_once",
+        "review_loop": true
+      },
+      "name": "under_three playback contract",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "expected_size": [
+          1024,
+          576
+        ],
+        "format": "GIF",
+        "frame_count": 28,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "three_to_four GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        480
+      ],
+      "name": "three_to_four GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max_motion": 31.4127,
+        "mean_motion": 7.1796,
+        "unique_frames": 28
+      },
+      "name": "three_to_four has real motion",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 3592581,
+        "actual_hash": "6d14722c9c16c5c4c0829a7697d2272b8d1f4bfb90bdbcefcf0366744ab6caeb",
+        "manifest_bytes": 3592581,
+        "manifest_hash": "6d14722c9c16c5c4c0829a7697d2272b8d1f4bfb90bdbcefcf0366744ab6caeb"
+      },
+      "name": "three_to_four manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "accessible_text": "3-4 STARS // SILVER RESPONSE; sealed acquisition animation; exact rank withheld; static result follows",
+        "production_intent": "play_once",
+        "review_loop": true
+      },
+      "name": "three_to_four playback contract",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "expected_size": [
+          1024,
+          576
+        ],
+        "format": "GIF",
+        "frame_count": 34,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "five_to_six GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        560
+      ],
+      "name": "five_to_six GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max_motion": 27.8592,
+        "mean_motion": 7.5706,
+        "unique_frames": 34
+      },
+      "name": "five_to_six has real motion",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 4590125,
+        "actual_hash": "e72c0a4404937d448414af6e2e94b27bfdc2c2a8613df9d53b64a6414498a1ff",
+        "manifest_bytes": 4590125,
+        "manifest_hash": "e72c0a4404937d448414af6e2e94b27bfdc2c2a8613df9d53b64a6414498a1ff"
+      },
+      "name": "five_to_six manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "accessible_text": "5-6 STARS // GOLD RESPONSE; sealed acquisition animation; exact rank withheld; static result follows",
+        "production_intent": "play_once",
+        "review_loop": true
+      },
+      "name": "five_to_six playback contract",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "expected_size": [
+          1024,
+          576
+        ],
+        "format": "GIF",
+        "frame_count": 42,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "seven GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        700
+      ],
+      "name": "seven GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max_motion": 32.2706,
+        "mean_motion": 12.0527,
+        "unique_frames": 42
+      },
+      "name": "seven has real motion",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 6335412,
+        "actual_hash": "07cdc65e9128f270235f6776ba6206c916c3ae13fa3a3369d065309e4020bfaf",
+        "manifest_bytes": 6335412,
+        "manifest_hash": "07cdc65e9128f270235f6776ba6206c916c3ae13fa3a3369d065309e4020bfaf"
+      },
+      "name": "seven manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "accessible_text": "7 STARS // WHITE-GOLD RESPONSE; sealed acquisition animation; exact rank withheld; static result follows",
+        "production_intent": "play_once",
+        "review_loop": true
+      },
+      "name": "seven playback contract",
+      "passed": true
+    },
+    {
+      "detail": [
+        15.012,
+        88.778,
+        105.746,
+        150.368
+      ],
+      "name": "peak brightness rises with rarity",
+      "passed": true
+    },
+    {
+      "detail": {
+        "plain_max_motion": 1.52110516583478,
+        "plain_peak_luma": 15.011815388997396,
+        "silver_max_motion": 31.41274967900029,
+        "silver_peak_luma": 88.77845764160156
+      },
+      "name": "plain tier motion remains gentler",
+      "passed": true
+    },
+    {
+      "detail": [
+        "five_to_six_end.png",
+        "five_to_six_peak.png",
+        "five_to_six_start.png",
+        "seven_end.png",
+        "seven_peak.png",
+        "seven_start.png",
+        "three_to_four_end.png",
+        "three_to_four_peak.png",
+        "three_to_four_start.png",
+        "under_three_end.png",
+        "under_three_peak.png",
+        "under_three_start.png"
+      ],
+      "name": "exact start peak end keyframes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "five_to_six_end.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "five_to_six_peak.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "five_to_six_start.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "seven_end.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "seven_peak.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "seven_start.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "three_to_four_end.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "three_to_four_peak.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "three_to_four_start.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "under_three_end.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "under_three_peak.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "under_three_start.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        }
+      },
+      "name": "keyframe format",
+      "passed": true
+    },
+    {
+      "detail": {
+        "format": "PNG",
+        "mode": "RGB",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "storyboard format",
+      "passed": true
+    },
+    {
+      "detail": {
+        "reviewed_card_frame": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f"
+      },
+      "name": "reviewed frame is the only image source",
+      "passed": true
+    },
+    {
+      "detail": {
+        "reviewed_card_frame": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f"
+      },
+      "name": "source hash provenance matches",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_iron_plain_under_3.gif",
+        "02_silver_omen_3_to_4.gif",
+        "03_gold_omen_5_to_6.gif",
+        "04_white_gold_omen_7.gif",
+        "05_start_peak_end_storyboard.png",
+        "index.html",
+        "manifest.json"
+      ],
+      "name": "review checksum set",
+      "passed": true
+    },
+    {
+      "detail": {
+        "00_START_HERE.txt": "de052e71cb49896385a4711a8b6bc64109457a0d236a5574c1ab66d34e749076",
+        "01_iron_plain_under_3.gif": "89c1fa97804901798fe9c6279cb43784e44169f3d6713781202f460f448e1564",
+        "02_silver_omen_3_to_4.gif": "6d14722c9c16c5c4c0829a7697d2272b8d1f4bfb90bdbcefcf0366744ab6caeb",
+        "03_gold_omen_5_to_6.gif": "e72c0a4404937d448414af6e2e94b27bfdc2c2a8613df9d53b64a6414498a1ff",
+        "04_white_gold_omen_7.gif": "07cdc65e9128f270235f6776ba6206c916c3ae13fa3a3369d065309e4020bfaf",
+        "05_start_peak_end_storyboard.png": "832d94a5086ce71d1eecec05770e193ac2912c5dbe00f8fe591949184988e1a4",
+        "index.html": "d8b8c3da01cb9248a893e2bc157152d29d66bd37b6622484b64823c6bb2d50c9",
+        "manifest.json": "d1482dbe19d3e3ea57d33c876050ac6aef91d4b14e3552c036b6e6e52ed58941"
+      },
+      "name": "review checksums",
+      "passed": true
+    },
+    {
+      "detail": [],
+      "name": "public privacy scan",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_iron_plain_under_3.gif",
+        "02_silver_omen_3_to_4.gif",
+        "03_gold_omen_5_to_6.gif",
+        "04_white_gold_omen_7.gif",
+        "05_start_peak_end_storyboard.png",
+        "SHA256SUMS.txt",
+        "index.html",
+        "manifest.json"
+      ],
+      "name": "Windows review set is exact",
+      "passed": true
+    },
+    {
+      "detail": {
+        "00_START_HERE.txt": [
+          "de052e71cb49896385a4711a8b6bc64109457a0d236a5574c1ab66d34e749076",
+          "de052e71cb49896385a4711a8b6bc64109457a0d236a5574c1ab66d34e749076"
+        ],
+        "01_iron_plain_under_3.gif": [
+          "89c1fa97804901798fe9c6279cb43784e44169f3d6713781202f460f448e1564",
+          "89c1fa97804901798fe9c6279cb43784e44169f3d6713781202f460f448e1564"
+        ],
+        "02_silver_omen_3_to_4.gif": [
+          "6d14722c9c16c5c4c0829a7697d2272b8d1f4bfb90bdbcefcf0366744ab6caeb",
+          "6d14722c9c16c5c4c0829a7697d2272b8d1f4bfb90bdbcefcf0366744ab6caeb"
+        ],
+        "03_gold_omen_5_to_6.gif": [
+          "e72c0a4404937d448414af6e2e94b27bfdc2c2a8613df9d53b64a6414498a1ff",
+          "e72c0a4404937d448414af6e2e94b27bfdc2c2a8613df9d53b64a6414498a1ff"
+        ],
+        "04_white_gold_omen_7.gif": [
+          "07cdc65e9128f270235f6776ba6206c916c3ae13fa3a3369d065309e4020bfaf",
+          "07cdc65e9128f270235f6776ba6206c916c3ae13fa3a3369d065309e4020bfaf"
+        ],
+        "05_start_peak_end_storyboard.png": [
+          "832d94a5086ce71d1eecec05770e193ac2912c5dbe00f8fe591949184988e1a4",
+          "832d94a5086ce71d1eecec05770e193ac2912c5dbe00f8fe591949184988e1a4"
+        ],
+        "SHA256SUMS.txt": [
+          "1647a18def83b402173e5eda637c4ae8bc533e65c7e9070b72937aa4d4c22c6e",
+          "1647a18def83b402173e5eda637c4ae8bc533e65c7e9070b72937aa4d4c22c6e"
+        ],
+        "index.html": [
+          "d8b8c3da01cb9248a893e2bc157152d29d66bd37b6622484b64823c6bb2d50c9",
+          "d8b8c3da01cb9248a893e2bc157152d29d66bd37b6622484b64823c6bb2d50c9"
+        ],
+        "manifest.json": [
+          "d1482dbe19d3e3ea57d33c876050ac6aef91d4b14e3552c036b6e6e52ed58941",
+          "d1482dbe19d3e3ea57d33c876050ac6aef91d4b14e3552c036b6e6e52ed58941"
+        ]
+      },
+      "name": "Windows review is byte-identical",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "no production binding changes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "changed": {},
+        "returncode": 0,
+        "stderr": ""
+      },
+      "name": "deterministic rebuild",
+      "passed": true
+    }
+  ],
+  "failures": [],
+  "passed": true,
+  "schema_version": 1
+}

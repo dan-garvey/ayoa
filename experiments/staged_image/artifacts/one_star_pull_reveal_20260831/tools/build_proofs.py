@@ -1357,7 +1357,7 @@ def write_hashes() -> Path:
         encoding="utf-8",
     )
     provenance_path = PROVENANCE / "SHA256SUMS.txt"
-    root_entries = sorted(PROOFS.rglob("*.png"))
+    root_entries = sorted((PROOFS / "result_cards").glob("*.png"))
     root_entries.extend((ROOT / "proof_manifest.json", PROVENANCE / "decisions.json"))
     provenance_path.write_text(
         "".join(
