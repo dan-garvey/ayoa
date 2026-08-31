@@ -2,9 +2,9 @@ from app.engine.turn_loop_contracts import (
     ACTOR_SUBMISSION_HEADER,
     ROUTER_CONTINUATION_HEADER,
     UNANSWERED_RESPONDERS_SUBHEADER,
-    format_agent_turn_body,
     format_actor_submission,
     format_cat_ii_resolution_block,
+    format_character_moment,
     format_router_continuation_block,
 )
 
@@ -72,21 +72,37 @@ class TestRouterContinuationBlock:
 
 
 class TestAgentModeContract:
-    """Contract helpers that build the user-message bodies for agent modes."""
+    """Contract helpers that build volatile character input."""
 
-    def test_background_turn_body_renders_location_and_instruction(self):
-        body = format_agent_turn_body(
+    def test_background_moment_renders_location_and_local_context(self):
+        body = format_character_moment(
             frame="background",
-            location_context="Location: Library (id: library)\nDusty stacks.",
+            location="Library",
+            local_context="Dusty stacks.",
         )
-        assert "background" in body
-        assert "## Where You Are" in body
-        assert "## What You Do" in body
         assert "Library" in body
-        assert "single tight beat" in body
+        assert "Dusty stacks." in body
+        assert "## AGENT-TURN" not in body
+        assert "## PERCEPTION" not in body
+        assert "## Turn Frame" not in body
+        assert not any(
+            line.strip() in {"foreground", "background", "private"}
+            for line in body.splitlines()
+        )
 
-    def test_foreground_turn_body_does_not_carry_removed_context_blocks(self):
-        body = format_agent_turn_body(frame="foreground", location_context="x")
+    def test_foreground_moment_contains_only_immediate_local_context(self):
+        body = format_character_moment(
+            frame="foreground",
+            local_context="Aldric strains against the building.",
+        )
+        assert "Aldric strains against the building." in body
         assert "## Scene" not in body
         assert "## What You Observe This Turn" not in body
         assert "## Other Characters' Responses This Turn" not in body
+        assert "## AGENT-TURN" not in body
+        assert "## PERCEPTION" not in body
+        assert "## Turn Frame" not in body
+        assert not any(
+            line.strip() in {"foreground", "background", "private"}
+            for line in body.splitlines()
+        )

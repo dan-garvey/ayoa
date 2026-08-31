@@ -151,63 +151,63 @@ class TestPromptManagerWithRealTemplates:
         assert "Planned Actions" in result
         assert "alice" in result
 
-    def test_agent_renders(self):
-        # v11: unified on-stage + tick template. The mode-specific
-        # body lives in `mode_block` (caller-assembled string from
-        # `format_agent_*_body`) and the first-token mode signal
-        # lives in `mode_header`. The on-stage-specific location /
-        # presence / observed-facts / prior-responders surfaces moved
-        # OUT of the template's variable list and INTO mode_block;
-        # the system prefix is now identical between respond and
-        # tick so a single cache lineage covers both modes.
-        #
-        # v11-r10 (2026-04): the agent template no longer surfaces a
-        # `## Player Characters` block. That section explicitly told
-        # the model "these are the human-played characters at the
-        # keyboard, treat them as protagonists" — a sycophancy primer
-        # that fought the entire reason we run agents (authentic NPC
-        # POV). The render kwargs `acting_character_name` and
-        # `player_characters_block` are no longer required by the
-        # template; this test stops asserting on the dropped block.
+    def test_agent_turn_renders(self):
+        # Character turns and perception now have separate prompt contracts.
+        # The complete actor/current-input packet is volatile user content;
+        # only the generic contract and rules guidance are cacheable.
         mgr = PromptManager(prompts_dir="app/prompts")
-        on_stage_body = (
-            "## What Reached You This Turn\n"
-            "Aldric strains against the building.\n\n"
-            "## Other Characters' Responses This Turn\n"
-            "No other characters have responded yet."
+        request_packet = (
+            "<identity>\n"
+            "You are Captain Vero.\n"
+            "You have served for twenty years.\n"
+            "You know the hidden passage.\n"
+            "</identity>\n\n"
+            "Aldric strains against the building.\n"
+            "The current exchange asks for your next observable choice.\n\n"
+            '<presentation_catalog current="neutral">\n'
+            "- neutral: standing still\n"
+            "</presentation_catalog>"
         )
-        result = mgr.render(
-            "agent",
-            agent_ruleset_system_addon="",
-            character_name="Captain Vero",
-            character_role="guard captain",
-            character_appearance="Tall, scarred",
-            character_faction="City Watch",
-            character_backstory="Twenty years of service.",
-            character_personality="Stoic but caring.",
-            character_goals="- maintain order",
-            character_current_objectives="- monitor the new arrival",
-            character_secrets="- knows the hidden passage",
-            world_context="Genre: fantasy",
-            character_id="guard_17",
-            pending_observations_block="",
-            mode_header="## ON-STAGE",
-            mode_block=on_stage_body,
+        ruleset_guidance = (
+            "<ruleset_guidance>\n"
+            "Use only the supplied mechanics as constraints.\n"
+            "</ruleset_guidance>"
         )
-        assert "Captain Vero" in result
-        # The character_id kwarg is silently ignored — v11 dropped the
-        # surface (it was a debug echo, never the LLM's hook) but the
-        # engine still passes the kwarg for symmetry with the rest of
-        # the character packet.
-        assert "hidden passage" in result
-        # Mode header AND body markers both present; the agent's
-        # "Mode Routing" section keys off the header line.
-        assert "## ON-STAGE" in result
-        assert "## What Reached You This Turn" in result
+        messages = mgr.render_messages(
+            "agent_turn",
+            ruleset_guidance=ruleset_guidance,
+            request_packet=request_packet,
+        )
+        system = messages[0]["content"]
+        user = messages[1]["content"]
+
+        for value in (
+            "Captain Vero",
+            "twenty years",
+            "hidden passage",
+            "Aldric strains against the building",
+        ):
+            assert value not in system
+            assert value in user
+        assert re.search(r"\bYou are\b[^\n]*Captain Vero", user)
+        assert ruleset_guidance in system
+        assert ruleset_guidance not in user
+        assert '<presentation_catalog current="neutral">' in user
+        assert '<presentation_catalog current="neutral">' not in system
+
+        # These were routing labels, not character-facing input.  Their
+        # retirement must be visible in the actual rendered messages.
+        for legacy_marker in (
+            "## AGENT-TURN",
+            "## PERCEPTION",
+            "## Turn Frame",
+            "\nforeground\n",
+        ):
+            assert legacy_marker not in system + "\n" + user
         # Sycophancy guard: the dropped block must not reappear.
-        assert "## Player Characters" not in result
-        assert "human-played" not in result
-        assert "human at the keyboard" not in result
+        assert "## Player Characters" not in system + "\n" + user
+        assert "human-played" not in system + "\n" + user
+        assert "human at the keyboard" not in system + "\n" + user
 
     def test_render_messages_requires_delimiter(self):
         mgr = PromptManager(prompts_dir="app/prompts")

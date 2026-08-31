@@ -1,36 +1,33 @@
 """Tests for the Character Agent engine (rolling-conversation architecture)."""
 
+import re
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.engine.character_agent import (
     CharacterAgent,
-    CharacterAgentFormatError,
-    _extract_parenthetical,
+    CharacterAgentOutputError,
+    _parse_agent_turn_response,
+    sanitize_character_public_text,
 )
 from app.engine.context_builder import (
-    build_character_packet,
-    build_character_state,
-    build_world_context,
+    build_character_self_packet,
+    build_visible_self_packet,
     format_elapsed_agent_turn_block,
     format_pending_observations_block,
     resolve_location_for_character,
 )
 from app.engine.prompt_manager import PromptManager
-from app.engine.turn_loop_contracts import (
-    AGENT_PERCEPTION_HEADER,
-    AGENT_TURN_HEADER,
-)
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import (
-    CharacterAgentFormatRepair,
     CharacterPresentationChoice,
 )
 from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
 from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
     CharacterAgentTier,
     CharacterRecord,
-    PrivateState,
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
@@ -67,13 +64,7 @@ def _llm_response(
     usage: dict[str, int] | None = None,
     parsed: object | None = None,
 ) -> LLMResponse:
-    """Build an LLMResponse for the prose-output agent (Commit 1).
-
-    `text` is the raw assistant prose ending in a trailing parenthetical;
-    the engine parses it into `(public_text, intent)` via
-    `_extract_parenthetical`. We mirror that on `raw_response.content` so
-    `append_turn_to_conversation` can persist the verbatim text.
-    """
+    """Build an LLMResponse for the free-form character-agent output."""
     raw = MagicMock()
     text_block = MagicMock()
     text_block.type = "text"
@@ -101,13 +92,25 @@ def guard_character():
             appearance="Tall, scarred, in polished armor",
             faction="City Watch",
         ),
-        private_state=PrivateState(
-            goals=["maintain order", "protect the estate"],
-            secrets=["knows about the hidden passage"],
-            intentions_enabled=True,
+        actor=ActorRecord(
+            may_act_offstage=True,
+            facts=[
+                ActorFact(
+                    text=(
+                        "You served the estate for twenty years and rose "
+                        "from foot soldier to captain."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You maintain order and protect the estate. You use "
+                        "dry humor, speak formally, and your right hand "
+                        "twitches when you lie."
+                    )
+                ),
+                ActorFact(text="You know about the hidden passage."),
+            ],
         ),
-        backstory="Served the estate for twenty years. Rose from foot soldier to captain.",
-        personality="Disciplined guard captain with dry humor, clipped and formal speech. Stoic exterior hiding genuine care for those under his protection. His right hand twitches when he's lying. Respects competence.",
     )
 
 
@@ -128,61 +131,64 @@ def sample_checkpoint():
 
 @pytest.fixture
 def sample_agent_text():
-    """Raw prose-+-parenthetical the LLM returns (Commit 1 contract).
-
-    Intentionally exercises every shape the engine cares about:
-    - Mid-prose action ("steps closer, hand resting on...") that must
-      stay in `public_text`.
-    - Inline dialogue verbatim.
-    - Trailing parenthetical `(...)` that must be split off as `intent`
-      and never reach other agents or the narrator.
-    """
+    """Ordinary observable character prose."""
     return (
         'He steps closer, hand resting on sword pommel. His eyes narrow '
         'slightly, scanning the perimeter. "You\'ll want to head inside. '
-        "Storm's coming.\" "
-        "(Watch this newcomer more closely — the timing is wrong.)"
+        "Storm's coming.\""
+    )
+
+
+def _message_text(message: dict) -> str:
+    """Flatten one model message for boundary assertions."""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            str(block.get("text", ""))
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return ""
+
+
+def _assert_no_legacy_character_markers(messages: list[dict]) -> None:
+    """Routing labels must never reach any model-facing message."""
+    rendered = "\n".join(_message_text(message) for message in messages)
+    for marker in ("## AGENT-TURN", "## PERCEPTION", "## Turn Frame"):
+        assert marker not in rendered
+    assert not re.search(
+        r"(?im)^\s*(?:foreground|background|private)\s*$", rendered
     )
 
 
 # --- Context builder tests ---
 
 class TestContextBuilder:
-    def test_build_character_packet_identity(self, guard_character):
-        packet = build_character_packet(guard_character)
-        assert packet["character_id"] == "guard_17"
-        assert packet["character_name"] == "Captain Vero"
-        assert "twenty years" in packet["character_backstory"]
-        assert "right hand twitches" in packet["character_personality"]
+    def test_build_character_self_packet_is_second_person(self, guard_character):
+        rendered = build_character_self_packet(guard_character)
+        assert "You are Captain Vero." in rendered
+        for expected in (
+            "guard captain",
+            "twenty years",
+            "right hand twitches",
+            "maintain order",
+            "hidden passage",
+        ):
+            assert expected in rendered
 
-    def test_build_character_state_dynamic(self, guard_character):
-        state = build_character_state(guard_character)
-        assert "maintain order" in state["character_goals"]
-        assert "hidden passage" in state["character_secrets"]
+    def test_build_visible_self_packet_excludes_private_life(self, guard_character):
+        rendered = build_visible_self_packet(guard_character)
+        assert "You are Captain Vero." in rendered
+        assert "polished armor" in rendered
+        assert "right hand twitches" not in rendered
+        assert "twenty years" not in rendered
+        assert "hidden passage" not in rendered
 
-    def test_build_character_state_empty(self):
+    def test_build_character_self_packet_keeps_identity_without_facts(self):
         char = CharacterRecord(character_id="minimal", name="Nobody")
-        state = build_character_state(char)
-        assert state["character_goals"] == "None specified."
-        assert state["character_secrets"] == "None."
-
-    def test_build_world_context_empty_does_not_leak_global_lore(
-        self, sample_checkpoint, guard_character,
-    ):
-        assert guard_character.known_context == ""
-        context = build_world_context(guard_character, sample_checkpoint)
-        assert context
-        assert "fantasy" not in context
-        assert "fountain is dry" not in context
-
-    def test_build_world_context_uses_envelope(self, sample_checkpoint, guard_character):
-        """When the character carries a known_context envelope, that IS the
-        world context — global lore doesn't bleed in."""
-        guard_character.known_context = "The courtyard is wet. You heard shouting earlier."
-        context = build_world_context(guard_character, sample_checkpoint)
-        assert context == guard_character.known_context
-        # Global lore/premise absent
-        assert "fantasy" not in context
+        assert build_character_self_packet(char) == "You are Nobody."
 
     def test_format_pending_empty(self, guard_character):
         assert format_pending_observations_block(guard_character) == ""
@@ -193,7 +199,6 @@ class TestContextBuilder:
             "[Turn 4] Footsteps receding.",
         ]
         block = format_pending_observations_block(guard_character)
-        assert "Since your last response" in block
         assert "shout in the hall" in block
         assert "Footsteps receding" in block
 
@@ -217,7 +222,6 @@ class TestContextBuilder:
             guard_character, sample_checkpoint,
         )
 
-        assert "Time Since Your Last Turn" in block
         assert "1 minute and 10 seconds" in block
 
 
@@ -375,15 +379,36 @@ class TestCharacterAgent:
         result = await agent.turn(guard_character, sample_checkpoint)
 
         assert result.character_id == "guard_17"
-        # Dialogue + actions live in public_text; intent is split off
-        # into the private parenthetical and MUST not bleed into public.
+        # Dialogue and actions remain observable prose in both the public
+        # result and the actor's assistant history.
         assert "storm" in result.public_text.lower()
         assert "steps closer" in result.public_text
-        assert "Watch this newcomer" in result.intent
-        assert "Watch this newcomer" not in result.public_text
+        assert result.is_silence is False
+        saved = sample_checkpoint.character_conversations["guard_17"][1]
+        saved_text = saved.content[0]["text"]
+        assert saved_text == result.public_text
 
     @pytest.mark.asyncio
-    async def test_visual_novel_presentation_is_character_owned_and_private(
+    async def test_deliberate_silence_commits_without_answering_a_demand(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        guard_character.pending_observations = [
+            'The captain points at the empty chair. "Answer me now."'
+        ]
+        mock_client.complete.return_value = _llm_response("<silence/>")
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        result = await agent.turn(guard_character, sample_checkpoint)
+
+        assert result.public_text == ""
+        assert result.is_silence is True
+        assert guard_character.pending_observations == []
+        history = sample_checkpoint.character_conversations["guard_17"]
+        assert history[1].content[0]["text"] == "<silence/>"
+        assert guard_character.last_agent_turn_at_s is not None
+
+    @pytest.mark.asyncio
+    async def test_visual_novel_presentation_is_character_owned_and_stripped_from_history(
         self, mock_client, prompt_manager, guard_character, sample_checkpoint,
     ):
         sample_checkpoint.session.config.settings.presentation_mode = (
@@ -391,8 +416,7 @@ class TestCharacterAgent:
         )
         response = (
             'He tilts his head. "That does not follow."\n'
-            '<presentation>{"use":"skeptical","request":""}</presentation>\n'
-            "(He wants to see whether she changes her story.)"
+            '<presentation>{"use":"skeptical","request":""}</presentation>'
         )
         mock_client.complete.return_value = _llm_response(response)
         agent = CharacterAgent(mock_client, prompt_manager)
@@ -402,7 +426,6 @@ class TestCharacterAgent:
         assert result.public_text == (
             'He tilts his head. "That does not follow."'
         )
-        assert result.intent == "He wants to see whether she changes her story."
         assert result.presentation.use == "skeptical"
         assert (
             guard_character.visuals.visual_novel_presentation.current_variant_key
@@ -413,22 +436,35 @@ class TestCharacterAgent:
         ]
         assert '<presentation_catalog current="neutral">' in live_user
         saved = sample_checkpoint.character_conversations["guard_17"]
-        assert "presentation_catalog" not in saved[0].content
+        catalog_start = live_user.index("<presentation_catalog")
+        catalog_end = live_user.index("</presentation_catalog>") + len(
+            "</presentation_catalog>"
+        )
+        catalog = live_user[catalog_start:catalog_end]
+        assert catalog not in saved[0].content
+        assert saved[0].content == live_user.replace(catalog, "", 1)
+        for value in (
+            "Captain Vero",
+            "twenty years",
+            "hidden passage",
+        ):
+            assert value in live_user
+            assert value in saved[0].content
+        _assert_no_legacy_character_markers(mock_client.complete.await_args.kwargs["messages"])
         saved_assistant = saved[1].content[0]["text"]
         assert "<presentation>" not in saved_assistant
         assert "skeptical" not in saved_assistant
-        assert result.public_text in saved_assistant
-        assert result.intent in saved_assistant
+        assert saved_assistant == result.public_text
 
     @pytest.mark.asyncio
-    async def test_visual_novel_footer_after_intent_is_stripped_without_leak(
+    async def test_visual_novel_footer_is_stripped_without_leak(
         self, mock_client, prompt_manager, guard_character, sample_checkpoint,
     ):
         sample_checkpoint.session.config.settings.presentation_mode = (
             "visual_novel"
         )
         response = (
-            "He braces beside the gate. (He expects an attack.)\n"
+            "He braces beside the gate.\n"
             '<presentation>{"use":"tense","request":""}</presentation>'
         )
         mock_client.complete.return_value = _llm_response(response)
@@ -439,7 +475,8 @@ class TestCharacterAgent:
         )
 
         assert result.public_text == "He braces beside the gate."
-        assert result.intent == "He expects an attack."
+        saved = sample_checkpoint.character_conversations["guard_17"][1]
+        assert saved.content[0]["text"] == result.public_text
         assert "presentation" not in result.public_text
         assert (
             guard_character.visuals.visual_novel_presentation.current_variant_key
@@ -502,27 +539,32 @@ class TestCharacterAgent:
                 },
             )
         }
-        guard_character.backstory = (
-            "A careful expedition custodian. Pack marker "
-            f"{pack_id}; stat.garret_levistusson."
-        )
-        guard_character.personality = (
-            f"Uses reviewed notes, not {compact_ref}, to stay grounded."
-        )
-        guard_character.known_context = (
-            "Garret knows the party route. Reviewed content refs known to this "
-            f"agent: {compact_ref}. Start near loc.barrier_peaks_route."
+        guard_character.actor = ActorRecord(
+            may_act_offstage=True,
+            facts=[
+                ActorFact(
+                    text=(
+                        "You are a careful expedition custodian. Pack marker "
+                        f"{pack_id}; stat.garret_levistusson."
+                    )
+                ),
+                ActorFact(
+                    text=f"You use reviewed notes, not {compact_ref}, to stay grounded."
+                ),
+                ActorFact(
+                    text=(
+                        "Garret knows the party route. Reviewed content refs known "
+                        f"to you: {compact_ref}. Start near loc.barrier_peaks_route."
+                    )
+                ),
+                ActorFact(text=f"Protect the folios tied to {pack_id}."),
+                ActorFact(
+                    text="Use area.c2_enhanced_sphinx only when the route reaches it."
+                ),
+                ActorFact(text=f"The source fingerprint is {content_hash}."),
+            ],
         )
         guard_character.location = "loc.barrier_peaks_route"
-        guard_character.private_state.goals = [
-            f"Protect the folios tied to {pack_id}.",
-        ]
-        guard_character.private_state.current_objectives = [
-            "Use area.c2_enhanced_sphinx only when the route reaches it.",
-        ]
-        guard_character.private_state.secrets = [
-            f"The source fingerprint is {content_hash}.",
-        ]
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
@@ -535,7 +577,7 @@ class TestCharacterAgent:
             if isinstance(message.get("content"), str)
         )
         assert "Garret knows the party route" in flat
-        assert "Location: Barrier Peaks Route" in flat
+        assert "Barrier Peaks Route" in flat
         forbidden = [
             pack_id,
             compact_ref,
@@ -559,85 +601,109 @@ class TestCharacterAgent:
         that resembled another character, the schema's `character_id` field
         is set by the engine, not parsed from prose. Smoke that contract."""
         mock_client.complete.return_value = _llm_response(
-            'A flicker of irritation. "Storm\'s coming." (Stalling.)'
+            'A flicker of irritation. "Storm\'s coming."'
         )
         agent = CharacterAgent(mock_client, prompt_manager)
         result = await agent.turn(guard_character, sample_checkpoint)
         assert result.character_id == "guard_17"
-        assert agent.last_usage["format_repairs"] == 0
+        assert "format_repairs" not in agent.last_usage
 
     @pytest.mark.asyncio
-    async def test_missing_trailing_parenthetical_gets_one_bounded_repair(
-        self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, caplog,
-    ):
-        """A malformed first response is repaired once before commit."""
-        import logging
-        invalid = _llm_response(
-            'He nods curtly. "Move along."',
-            usage={
-                "prompt_tokens": 11,
-                "completion_tokens": 7,
-                "total_tokens": 18,
-            },
-        )
-        repaired = _llm_response(
-            '{"observable_prose":"He nods curtly. \\"Move along.\\"",'
-            '"private_intent":"I will watch the gate.",'
-            '"presentation":{"use":"","request":""}}',
-            usage={
-                "prompt_tokens": 19,
-                "completion_tokens": 8,
-                "total_tokens": 27,
-            },
-            parsed=CharacterAgentFormatRepair(
-                observable_prose='He nods curtly. "Move along."',
-                private_intent="I will watch the gate.",
-                presentation=CharacterPresentationChoice(),
-            ),
-        )
-        mock_client.complete.side_effect = [invalid, repaired]
-        agent = CharacterAgent(mock_client, prompt_manager)
-        with caplog.at_level(logging.WARNING):
-            result = await agent.turn(guard_character, sample_checkpoint)
-        assert result.public_text  # full prose preserved
-        assert result.intent == "I will watch the gate."
-        assert mock_client.complete.await_count == 2
-        assert agent.last_usage["prompt_tokens"] == 30
-        assert agent.last_usage["completion_tokens"] == 15
-        assert agent.last_usage["total_tokens"] == 45
-        assert agent.last_usage["format_repairs"] == 1
-        repair_messages = mock_client.complete.await_args_list[1].kwargs[
-            "messages"
-        ]
-        assert mock_client.complete.await_args_list[1].kwargs["temperature"] == 0.0
-        assert (
-            mock_client.complete.await_args_list[1].kwargs["response_model"]
-            is CharacterAgentFormatRepair
-        )
-        assert any(
-            message["role"] == "assistant"
-            and message["content"] == invalid.content
-            for message in repair_messages
-        )
-        assert any(
-            "missing trailing parenthetical" in r.message
-            for r in caplog.records
-        )
-
-    @pytest.mark.asyncio
-    async def test_second_missing_trailing_parenthetical_fails_before_commit(
+    async def test_ordinary_prose_is_one_call(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint,
     ):
-        invalid = _llm_response('He nods curtly. "Move along."')
-        mock_client.complete.side_effect = [invalid, invalid]
+        mock_client.complete.return_value = _llm_response(
+            'He nods curtly. "Move along."',
+        )
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        with pytest.raises(CharacterAgentFormatError, match="non-empty"):
+        result = await agent.turn(guard_character, sample_checkpoint)
+
+        assert result.public_text == 'He nods curtly. "Move along."'
+        assert result.is_silence is False
+        assert mock_client.complete.await_count == 1
+        assert "response_model" not in mock_client.complete.await_args.kwargs
+        assert "format_repairs" not in agent.last_usage
+
+    @pytest.mark.asyncio
+    async def test_retired_private_marker_fails_before_commit(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint,
+    ):
+        mock_client.complete.return_value = _llm_response(
+            'He nods curtly. <private_carry>I will watch the gate.'
+        )
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        with pytest.raises(CharacterAgentOutputError, match="retired"):
             await agent.turn(guard_character, sample_checkpoint)
 
-        assert mock_client.complete.await_count == 2
+        assert mock_client.complete.await_count == 1
+        assert not sample_checkpoint.character_conversations.get(
+            guard_character.character_id
+        )
+        assert guard_character.last_agent_turn_at_s is None
+
+    @pytest.mark.asyncio
+    async def test_retired_private_marker_fails_before_history_or_inbox_mutation(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint,
+    ):
+        guard_character.pending_observations = ["A bell rings outside."]
+        mock_client.complete.return_value = _llm_response(
+            "<private_carry>I will ask who rang it.</private_carry>"
+        )
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        with pytest.raises(CharacterAgentOutputError, match="retired"):
+            await agent.turn(guard_character, sample_checkpoint)
+
+        assert not sample_checkpoint.character_conversations.get(
+            guard_character.character_id
+        )
+        assert guard_character.pending_observations == ["A bell rings outside."]
+        assert guard_character.last_agent_turn_at_s is None
+
+    @pytest.mark.asyncio
+    async def test_retired_private_marker_after_presentation_fails_before_commit(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint,
+    ):
+        response = (
+            'He nods curtly.\n'
+            '<presentation>{"use":"stern","request":""}</presentation>\n'
+            '<private_carry>I will watch the gate.</private_carry>'
+        )
+        sample_checkpoint.session.config.settings.presentation_mode = (
+            "visual_novel"
+        )
+        mock_client.complete.return_value = _llm_response(response)
+
+        with pytest.raises(CharacterAgentOutputError, match="retired"):
+            await CharacterAgent(mock_client, prompt_manager).turn(
+                guard_character,
+                sample_checkpoint,
+            )
+
+        assert not sample_checkpoint.character_conversations.get(
+            guard_character.character_id
+        )
+        assert guard_character.last_agent_turn_at_s is None
+
+    @pytest.mark.asyncio
+    async def test_misplaced_retired_private_marker_never_leaks(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint,
+    ):
+        mock_client.complete.return_value = _llm_response(
+            '<private_carry>secret</private_carry>\nHe says this publicly.'
+        )
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        with pytest.raises(CharacterAgentOutputError, match="retired"):
+            await agent.turn(guard_character, sample_checkpoint)
+
         assert not sample_checkpoint.character_conversations.get(
             guard_character.character_id
         )
@@ -653,17 +719,21 @@ class TestCharacterAgent:
 
         await agent.turn(guard_character, sample_checkpoint)
 
-        call_args = mock_client.complete.call_args
-        prompt = "\n".join(
-            m["content"] for m in call_args.kwargs["messages"]
-            if isinstance(m["content"], str)
-        )
-        assert "Captain Vero" in prompt
-        assert "guard captain" in prompt
-        assert "clipped and formal" in prompt
-        assert "hidden passage" in prompt
-        assert "twenty years" in prompt
-        assert "right hand twitches" in prompt
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        system_text = _message_text(messages[0])
+        user_text = _message_text(messages[-1])
+        for value in (
+            "Captain Vero",
+            "guard captain",
+            "dry humor, speak formally",
+            "hidden passage",
+            "twenty years",
+            "right hand twitches",
+        ):
+            assert value not in system_text
+            assert value in user_text
+        assert re.search(r"\bYou are\b[^\n]*Captain Vero", user_text)
+        _assert_no_legacy_character_markers(messages)
 
     @pytest.mark.asyncio
     async def test_elapsed_turn_context_is_user_tail_only(
@@ -682,7 +752,6 @@ class TestCharacterAgent:
         system_text = messages[0]["content"]
         user_text = messages[-1]["content"]
         assert "Time Since Your Last Turn" not in system_text
-        assert "Time Since Your Last Turn" in user_text
         assert "1 minute" in user_text
 
     @pytest.mark.asyncio
@@ -700,7 +769,7 @@ class TestCharacterAgent:
         assert guard_character.last_agent_turn_at_s == 35
 
     @pytest.mark.asyncio
-    async def test_dnd_ruleset_addon_is_cached_system_prefix(
+    async def test_dnd_ruleset_addon_stays_in_stable_system_prefix(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -711,14 +780,20 @@ class TestCharacterAgent:
         await agent.turn(guard_character, sample_checkpoint)
 
         messages = mock_client.complete.call_args.kwargs["messages"]
-        system_text = messages[0]["content"]
-        user_text = messages[-1]["content"]
-        assert "<ruleset_addon>" in system_text
-        assert system_text.index("<ruleset_addon>") < system_text.index("<role>")
-        assert "Captain Vero" not in system_text
-        assert "Captain Vero" in user_text
+        system_text = _message_text(messages[0])
+        user_text = _message_text(messages[-1])
+        ruleset = prompt_manager.render("agent_ruleset_dnd5e").strip()
+        assert ruleset in system_text
+        assert ruleset not in user_text
+        for value in (
+            "Captain Vero",
+            "twenty years",
+            "hidden passage",
+        ):
+            assert value not in system_text
+            assert value in user_text
         assert "Active D&D 5e initiative is running" not in system_text
-        assert "Active D&D 5e initiative is running" not in user_text
+        _assert_no_legacy_character_markers(messages)
 
     @pytest.mark.asyncio
     async def test_dnd_player_identity_species_is_live_user_context(
@@ -753,7 +828,6 @@ class TestCharacterAgent:
         user_text = messages[-1]["content"]
         assert "D&D Player Character Identities" not in system_text
         assert "Hill Dwarf" not in system_text
-        assert "D&D Player Character Identities" in user_text
         assert "Lyra: Hill Dwarf; Cleric 3" in user_text
 
     @pytest.mark.asyncio
@@ -903,11 +977,11 @@ class TestCharacterAgent:
         ][0].content
         assert isinstance(persisted_user, str)
         assert "## D&D Combat" in persisted_user
-        assert "## Tactical Map" not in persisted_user
-        assert "Gatehouse" not in persisted_user
+        assert "## Tactical Map" in persisted_user
+        assert "Gatehouse" in persisted_user
 
     @pytest.mark.asyncio
-    async def test_foreground_local_context_is_live_only_not_saved(
+    async def test_foreground_local_context_is_preserved_in_saved_history(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -925,15 +999,18 @@ class TestCharacterAgent:
         )
 
         live_user = mock_client.complete.call_args.kwargs["messages"][-1]["content"]
-        assert "## Local Context" in live_user
         assert "choose one listed action" in live_user
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        assert "choose one listed action" not in messages[0]["content"]
+        assert "Captain Vero" in live_user
+        assert "Captain Vero" not in messages[0]["content"]
 
         saved_user = sample_checkpoint.character_conversations[
             "guard_17"
         ][0].content
-        assert "## Local Context" not in saved_user
-        assert "choose one listed action" not in saved_user
-        assert "## Turn Frame\nforeground" in saved_user
+        assert "choose one listed action" in saved_user
+        assert "Captain Vero" in saved_user
+        _assert_no_legacy_character_markers(messages)
 
     @pytest.mark.asyncio
     async def test_pending_observations_carry_in_scene_perception(
@@ -958,8 +1035,12 @@ class TestCharacterAgent:
         call_args = mock_client.complete.call_args
         user_msg = call_args.kwargs["messages"][-1]["content"]
         user_text = user_msg if isinstance(user_msg, str) else user_msg[0]["text"]
+        system_text = call_args.kwargs["messages"][0]["content"]
         assert "picks up a rock" in user_text
         assert "throws the rock" in user_text
+        assert "picks up a rock" not in system_text
+        assert "throws the rock" not in system_text
+        _assert_no_legacy_character_markers(call_args.kwargs["messages"])
 
     @pytest.mark.asyncio
     async def test_uses_agent_role(
@@ -973,11 +1054,10 @@ class TestCharacterAgent:
 
         call_args = mock_client.complete.call_args
         assert call_args.kwargs["role"] == "agent"
-        # Commit 1: the agent emits prose + parenthetical, NOT structured
-        # JSON. response_model is intentionally absent so the LLM is free
-        # to write natural language.
+        # Character turns are free-form prose with optional terminal markers,
+        # not structured JSON; provider compaction is deliberately disabled.
         assert "response_model" not in call_args.kwargs
-        assert call_args.kwargs["compact"] is True
+        assert call_args.kwargs["compact"] is False
 
     @pytest.mark.asyncio
     async def test_standard_agent_uses_luna_role(
@@ -1021,6 +1101,30 @@ class TestCharacterAgent:
         assert len(convo) == 2
         assert convo[0].role == "user"
         assert convo[1].role == "assistant"
+
+    @pytest.mark.asyncio
+    async def test_sanitizes_text_block_while_preserving_provider_blocks(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        response = _llm_response(sample_agent_text)
+        response.assistant_content = [
+            {"type": "text", "text": sample_agent_text},
+            {"type": "compaction", "id": "provider-state"},
+        ]
+        mock_client.complete.return_value = response
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        result = await agent.turn(guard_character, sample_checkpoint)
+
+        saved = sample_checkpoint.character_conversations["guard_17"][1]
+        assert saved.content == [
+            {
+                "type": "text",
+                "text": result.public_text,
+            },
+            {"type": "compaction", "id": "provider-state"},
+        ]
 
     @pytest.mark.asyncio
     async def test_pending_observations_flushed_and_cleared(
@@ -1070,169 +1174,221 @@ class TestCharacterAgent:
         assert messages[2]["role"] == "assistant"
         assert messages[3]["role"] == "user"
 
-
-class TestExtractParenthetical:
-    """Direct unit coverage of the parser the engine uses to split agent
-    prose from its trailing parenthetical.
-
-    The agent's freshest interior is exactly what the parenthetical
-    encloses, and a wrong split is one of two failure shapes:
-      - intent leaks into public_text → router/narrator/other agents
-        see another character's interior. Information-asymmetry
-        regression (see DESIGN.md §4.5 "Agents Author Intentions, Not
-        State" — the per-character interior asymmetry rule).
-      - public prose gets eaten as intent → the cascade or narrator
-        sees a silent beat from a character that actually spoke.
-
-    These tests pin the corner cases so neither failure mode can
-    silently re-enter via a parser tweak.
-    """
-
-    def test_simple_trailing_parenthetical(self):
-        public, intent = _extract_parenthetical(
-            'He nods. "Move along." (Watching the gate.)'
+    @pytest.mark.asyncio
+    async def test_historical_user_projection_keeps_turn_evidence_without_dossiers(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        first = (
+            'He looks toward the fountain. "I heard that crack."'
         )
-        assert public == 'He nods. "Move along."'
-        assert intent == "Watching the gate."
+        second = 'He takes one step back. "Not again."'
+        mock_client.complete.side_effect = [
+            _llm_response(first),
+            _llm_response(second),
+        ]
+        agent = CharacterAgent(mock_client, prompt_manager)
 
-    def test_no_trailing_paren_returns_text_and_empty(self):
-        # Misbehaving model: omits the parenthetical entirely. Engine
-        # gets the prose back as `public_text`; intent is "" so no
-        # downstream consumer sees fabricated interior.
-        public, intent = _extract_parenthetical("He nods curtly.")
-        assert public == "He nods curtly."
-        assert intent == ""
+        guard_character.pending_observations = ["The fountain cracks again."]
+        await agent.turn(guard_character, sample_checkpoint)
+        first_messages = mock_client.complete.await_args_list[0].kwargs[
+            "messages"
+        ]
+        first_user = first_messages[-1]["content"]
+        guard_character.pending_observations = ["Rain starts falling."]
+        await agent.turn(guard_character, sample_checkpoint)
 
-    def test_empty_string(self):
-        public, intent = _extract_parenthetical("")
+        messages = mock_client.complete.await_args_list[1].kwargs["messages"]
+        system_text = _message_text(messages[0])
+        historical_user = _message_text(messages[1])
+        current_user = _message_text(messages[-1])
+        for value in (
+            "Captain Vero",
+            "twenty years",
+            "right hand twitches",
+            "hidden passage",
+        ):
+            assert value not in system_text
+            assert value in first_user
+            assert value in historical_user
+            assert value in current_user
+        assert "The fountain cracks again." in first_user
+        assert "The fountain cracks again." in historical_user
+        assert "Rain starts falling." in current_user
+        assert historical_user == first_user
+        assert "<private_state>" not in system_text + "\n" + current_user
+        assert "<your_life>" not in system_text + "\n" + current_user
+        historical_user = sample_checkpoint.character_conversations[
+            "guard_17"
+        ][0].content
+        assert historical_user == first_user
+        _assert_no_legacy_character_markers(messages)
+        assert "## Current System Account State" not in historical_user
+
+
+class TestCharacterAgentTurnParser:
+    def test_plain_prose_is_public_and_has_no_private_surface(self):
+        public, is_silence, presentation = _parse_agent_turn_response(
+            'He says, "The gate is open."'
+        )
+        assert public == 'He says, "The gate is open."'
+        assert is_silence is False
+        assert presentation == CharacterPresentationChoice()
+
+    def test_parenthetical_remains_observable_prose(self):
+        public, is_silence, _presentation = _parse_agent_turn_response(
+            'He says, "The gate is open." (He keeps one hand on the latch.)'
+        )
+        assert public == (
+            'He says, "The gate is open." (He keeps one hand on the latch.)'
+        )
+        assert is_silence is False
+
+    def test_public_sanitizer_removes_presentation(self):
+        text = (
+            'He says, "The gate is open."\n'
+            '<presentation>{"use":"stern","request":""}</presentation>'
+        )
+        assert sanitize_character_public_text(text) == (
+            'He says, "The gate is open."'
+        )
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "<private_carry>secret</private_carry> after",
+            "before <private_carry>secret</private_carry> after",
+            "before <private_carry>secret",
+            "before </private_carry>",
+            "before <PRIVATE_CARRY>secret</PRIVATE_CARRY>",
+            "before <private_carry></private_carry>",
+            (
+                'before\n'
+                '<presentation>{"use":"stern","request":""}</presentation>\n'
+                '<private_carry>secret</private_carry>'
+            ),
+        ],
+    )
+    def test_retired_private_marker_is_rejected(self, text):
+        with pytest.raises(CharacterAgentOutputError, match="retired"):
+            _parse_agent_turn_response(text)
+
+    def test_exact_silence_commits_but_empty_is_rejected(self):
+        silent = _parse_agent_turn_response("<silence/>")
+        assert silent[0] == ""
+        assert silent[1] is True
+        assert silent[2] == CharacterPresentationChoice()
+        with pytest.raises(CharacterAgentOutputError, match="observable"):
+            _parse_agent_turn_response("")
+
+    @pytest.mark.asyncio
+    async def test_empty_turn_does_not_consume_inbox_or_actor_time(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        guard_character.pending_observations = ["A key turns in the outer door."]
+        mock_client.complete.return_value = _llm_response("")
+
+        with pytest.raises(CharacterAgentOutputError, match="observable"):
+            await CharacterAgent(mock_client, prompt_manager).turn(
+                guard_character,
+                sample_checkpoint,
+            )
+
+        assert guard_character.pending_observations == [
+            "A key turns in the outer door."
+        ]
+        assert guard_character.last_agent_turn_at_s is None
+        assert guard_character.character_id not in (
+            sample_checkpoint.character_conversations
+        )
+
+    def test_silence_with_presentation_is_stored_without_footer(self):
+        public, is_silence, presentation = _parse_agent_turn_response(
+            '<silence/>\n<presentation>{"use":"quiet","request":""}</presentation>'
+        )
         assert public == ""
-        assert intent == ""
+        assert is_silence is True
+        assert presentation.use == "quiet"
 
-    def test_whitespace_only(self):
-        # Trailing whitespace is trimmed before the )-detection runs;
-        # an all-whitespace string still has no closing paren so it's
-        # treated as a missing trailing parenthetical.
-        public, intent = _extract_parenthetical("   \n  \t ")
-        assert intent == ""
-        # We don't promise an exact public_text shape for this
-        # degenerate input — just that no parse explosion happens.
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "<silence />",
+            "<silence/> then speaks",
+            "He speaks <silence/>",
+            "<SILENCE/>",
+        ],
+    )
+    def test_silence_marker_must_be_exact(self, text):
+        with pytest.raises(CharacterAgentOutputError, match="exact"):
+            _parse_agent_turn_response(text)
 
-    def test_mid_prose_paren_not_treated_as_intent(self):
-        # Stage directions inside prose ("she pauses (just long enough
-        # to be noticed)") must NOT be split off — only the FINAL
-        # group at the very end of the trimmed text counts as intent.
-        text = (
-            "She pauses (just long enough to be noticed) and turns her "
-            'head. "Yes?" (Trying to seem unbothered.)'
-        )
-        public, intent = _extract_parenthetical(text)
-        assert intent == "Trying to seem unbothered."
-        # The mid-prose stage direction stays in public_text.
-        assert "(just long enough to be noticed)" in public
-        # And the trailing parenthetical's contents are stripped from
-        # public_text — no double-render.
-        assert "Trying to seem unbothered" not in public
 
-    def test_nested_parens_in_intent(self):
-        # Balanced nesting at the end. The parser walks ) depth so a
-        # nested pair inside the trailing group must be preserved
-        # verbatim rather than truncating intent at the first '('.
-        text = (
-            'He shrugs. (Plan: stall (until the bell rings) and then '
-            "slip out the side door.)"
-        )
-        public, intent = _extract_parenthetical(text)
-        assert public == "He shrugs."
-        # Whole nested expression survives as intent.
-        assert intent == (
-            "Plan: stall (until the bell rings) and then slip out "
-            "the side door."
-        )
+class TestCharacterAgentTurnHistory:
+    """Character turn frames share one turn prompt and one actor history.
 
-    def test_unbalanced_trailing_paren_warns_and_returns_text(self):
-        # `)` at the end with no matching `(` upstream — the parser
-        # walks back, never finds depth==0, logs a warning, and
-        # returns the raw text. The model's malformed output doesn't
-        # crash the engine and doesn't fabricate an empty intent
-        # cluster.
-        public, intent = _extract_parenthetical(
-            'He looks up. "Strange weather, that.")'
-        )
-        assert intent == ""
-        # Public text is the raw original (un-stripped of the dangling
-        # `)`) — losing the prose would be a worse failure than
-        # leaving the malformed char in place.
-        assert public.endswith(")")
-
-    def test_multiline_trailing_parenthetical(self):
-        # Trailing paren can span newlines (e.g. agents writing out
-        # a multi-clause interior). The split point must still be the
-        # final `(` matching the closing `)` at end of the trimmed
-        # text — newlines are not balance markers.
-        text = (
-            'He bows his head. "As you wish."\n'
-            "(Two thoughts at once: keep her placated,\n"
-            "and find the steward before sundown.)"
-        )
-        public, intent = _extract_parenthetical(text)
-        assert public == 'He bows his head. "As you wish."'
-        assert "Two thoughts at once" in intent
-        assert "find the steward" in intent
-        # Parenthetical body's leading newline is stripped (the
-        # parser uses `.strip()` on the inner span).
-        assert not intent.startswith("\n")
-
-    def test_trailing_whitespace_after_paren_is_tolerated(self):
-        # Some models append a stray newline or trailing space after
-        # the closing `)`. The parser rstrips before the `endswith`
-        # check, so the parse still succeeds.
-        text = 'He nods. (Stalling for time.)   \n'
-        public, intent = _extract_parenthetical(text)
-        assert public == "He nods."
-        assert intent == "Stalling for time."
-
-    def test_empty_parenthetical_yields_empty_intent(self):
-        # `(...)` that contains nothing → intent is "", which short-
-        # circuits any "agent had no interior this turn" downstream
-        # check without misclassifying as a missing trailing paren.
-        text = 'He shrugs. ()'
-        public, intent = _extract_parenthetical(text)
-        assert public == "He shrugs."
-        assert intent == ""
-
-class TestUnifiedAgentCacheLineage:
-    """v11 cache-trail invariant: agent turn frames share ONE system
-    prompt, while rolling histories remain per character.
-
-    Pre-v11 the engine had two separate templates (an `agent` and
-    separate prompt pair) for foreground and background calls. Both
-    rendered into the same `character_conversations[id]` history,
-    but each had a DIFFERENT system prefix — so every mode switch
-    invalidated the Anthropic prompt cache for that character. On a
-    long session the same character pays for two cache lineages and
-    eats a cache-write per mode flip.
-
-    The v11 fix is a single unified prompt with a first-token
-    turn marker plus a user-tail frame. These
-    tests pin that fix:
-
-      - **Same template name**: both frames load `agent`.
-      - **Identical system prefix**: byte-for-byte equality between
-        modes and between characters under the same ruleset. This is
-        THE invariant — if it regresses, the cache trail re-splits and
-        the bug is back.
-      - **Mode header is the first user-message line**: the prompt's
-        "Mode Routing" section keys off the first token of the user
-        message; if the marker drifts off line 1 the agent's mode
-        signal is buried mid-message.
+    Every user turn is a complete actor/current-input packet.  It stays in the
+    rolling conversation verbatim (apart from the disposable presentation
+    catalog), and provider-side context compaction is intentionally disabled.
     """
+
+    @pytest.mark.asyncio
+    async def test_full_actor_packet_repeats_without_compaction_or_self_stripping(
+        self,
+        mock_client,
+        prompt_manager,
+        guard_character,
+        sample_checkpoint,
+        sample_agent_text,
+    ):
+        actor_fact = "You suspect the footman accepted a bribe before dusk."
+        guard_character.actor.facts.append(ActorFact(text=actor_fact))
+        mock_client.complete.side_effect = [
+            _llm_response(sample_agent_text),
+            _llm_response(sample_agent_text),
+        ]
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        guard_character.pending_observations = ["First unique observation."]
+        await agent.turn(guard_character, sample_checkpoint)
+        first_messages = mock_client.complete.await_args_list[0].kwargs[
+            "messages"
+        ]
+        first_system = _message_text(first_messages[0])
+        first_user = _message_text(first_messages[-1])
+        assert actor_fact not in first_system
+        assert actor_fact in first_user
+        assert "Captain Vero" not in first_system
+        assert "Captain Vero" in first_user
+        assert "First unique observation." not in first_system
+        assert "First unique observation." in first_user
+        assert re.search(r"\bYou are\b[^\n]*Captain Vero", first_user)
+        assert mock_client.complete.await_args_list[0].kwargs["compact"] is False
+        _assert_no_legacy_character_markers(first_messages)
+
+        guard_character.pending_observations = ["Second unique observation."]
+        await agent.turn(guard_character, sample_checkpoint)
+        second_messages = mock_client.complete.await_args_list[1].kwargs[
+            "messages"
+        ]
+        second_system = _message_text(second_messages[0])
+        historical_user = _message_text(second_messages[1])
+        second_user = _message_text(second_messages[-1])
+        assert actor_fact not in second_system
+        for user_text in (historical_user, second_user):
+            assert actor_fact in user_text
+            assert "Captain Vero" in user_text
+        assert "First unique observation." in historical_user
+        assert "Second unique observation." in second_user
+        assert historical_user == first_user
+        assert mock_client.complete.await_args_list[1].kwargs["compact"] is False
+        _assert_no_legacy_character_markers(second_messages)
 
     @pytest.mark.asyncio
     async def test_foreground_and_background_share_same_system_prefix(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
-        # Run a foreground turn, capture system message.
+        # Run a turn, capture the stable generic contract.
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
         await agent.turn(guard_character, sample_checkpoint)
@@ -1240,24 +1396,32 @@ class TestUnifiedAgentCacheLineage:
         turn_system = turn_messages[0]
         assert turn_system["role"] == "system"
 
-        # Reset call captures and run a background turn on the SAME character
-        # + checkpoint. The path must produce a byte-identical
-        # system message — that's the cache-trail invariant.
+        # A background frame uses the same stable turn contract; only the
+        # current user packet differs.
         mock_client.complete.reset_mock()
         mock_client.complete.return_value = _llm_response(sample_agent_text)
-        await agent.turn(guard_character, sample_checkpoint, frame="background")
+        await agent.turn(
+            guard_character,
+            sample_checkpoint,
+            frame="background",
+            local_context="Background-only location cue.",
+        )
         background_messages = mock_client.complete.call_args.kwargs["messages"]
         background_system = background_messages[0]
         assert background_system["role"] == "system"
 
-        # Byte-equality: the system prompts MUST match across modes.
-        # Any divergence (a stray newline, a mode-conditional line)
-        # invalidates the Anthropic prompt cache and resurrects the
-        # cache-trail proliferation bug.
+        # The actor packet, frame-specific cue, and legacy-marker retirement
+        # all belong to the user-facing boundary.
         assert background_system["content"] == turn_system["content"]
+        assert "Captain Vero" not in turn_system["content"]
+        assert "Captain Vero" not in background_system["content"]
+        assert "Background-only location cue." in background_messages[-1]["content"]
+        assert "Background-only location cue." not in background_system["content"]
+        _assert_no_legacy_character_markers(turn_messages)
+        _assert_no_legacy_character_markers(background_messages)
 
     @pytest.mark.asyncio
-    async def test_different_characters_share_same_system_prefix(
+    async def test_different_characters_keep_stable_system_and_full_user_identity(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -1269,14 +1433,26 @@ class TestUnifiedAgentCacheLineage:
             appearance="Silver mask and black gloves",
             faction="House Vale",
         )
-        other.private_state = PrivateState(
-            goals=["control the household intelligence network"],
-            current_objectives=["identify who bribed the footman"],
-            secrets=["keeps a second ledger in the chapel wall"],
-            intentions_enabled=True,
+        other.actor = ActorRecord(
+            may_act_offstage=True,
+            facts=[
+                ActorFact(
+                    text=(
+                        "You were raised in the archive rooms and trusted by "
+                        "no one."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You control the household intelligence network and "
+                        "keep a second ledger in the chapel wall."
+                    )
+                ),
+                ActorFact(
+                    text="You speak softly, precisely, and without hurry."
+                ),
+            ],
         )
-        other.backstory = "Raised in the archive rooms and trusted by no one."
-        other.personality = "Soft-spoken, precise, and impossible to hurry."
 
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
@@ -1290,52 +1466,66 @@ class TestUnifiedAgentCacheLineage:
 
         guard_system = guard_messages[0]["content"]
         other_system = other_messages[0]["content"]
+        guard_user = guard_messages[-1]["content"]
+        other_user = other_messages[-1]["content"]
         assert guard_system == other_system
         assert "Captain Vero" not in guard_system
         assert "Mistress Vale" not in other_system
-        assert "Captain Vero" in guard_messages[-1]["content"]
-        assert "Mistress Vale" in other_messages[-1]["content"]
+        assert "Captain Vero" in guard_user
+        assert "Mistress Vale" in other_user
+        assert "You control the household intelligence network" not in guard_user
+        assert "You know about the hidden passage." not in other_user
+        assert re.search(r"\bYou are\b[^\n]*Captain Vero", guard_user)
+        assert re.search(r"\bYou are\b[^\n]*Mistress Vale", other_user)
+        _assert_no_legacy_character_markers(guard_messages)
+        _assert_no_legacy_character_markers(other_messages)
 
     @pytest.mark.asyncio
-    async def test_turn_user_message_starts_with_agent_turn_header(
+    async def test_turn_user_message_contains_full_packet_without_legacy_labels(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
+        guard_character.pending_observations = ["A unique current observation."]
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
         await agent.turn(guard_character, sample_checkpoint)
         messages = mock_client.complete.call_args.kwargs["messages"]
         user_content = messages[-1]["content"]
-        # First non-empty line must be the mode header — the
-        # prompt's "Mode Routing" section keys off this exact
-        # first-token signal.
-        first_line = next(
-            ln for ln in user_content.splitlines() if ln.strip()
-        )
-        assert first_line == AGENT_TURN_HEADER
-        assert "## Turn Frame\nforeground" in user_content
+        system_content = messages[0]["content"]
+        assert "Captain Vero" not in system_content
+        assert "Captain Vero" in user_content
+        assert "A unique current observation." not in system_content
+        assert "A unique current observation." in user_content
+        assert re.search(r"\bYou are\b[^\n]*Captain Vero", user_content)
         assert "## Scene" not in user_content
         assert "## What You Observe This Turn" not in user_content
         assert "## Other Characters' Responses This Turn" not in user_content
+        _assert_no_legacy_character_markers(messages)
 
     @pytest.mark.asyncio
-    async def test_background_user_message_uses_background_frame(
+    async def test_background_user_message_keeps_frame_data_out_of_system(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
-        await agent.turn(guard_character, sample_checkpoint, frame="background")
+        await agent.turn(
+            guard_character,
+            sample_checkpoint,
+            frame="background",
+            local_context="Background-only location cue.",
+        )
         messages = mock_client.complete.call_args.kwargs["messages"]
         user_content = messages[-1]["content"]
-        first_line = next(
-            ln for ln in user_content.splitlines() if ln.strip()
-        )
-        assert first_line == AGENT_TURN_HEADER
-        assert "## Turn Frame\nbackground" in user_content
+        system_content = messages[0]["content"]
+        assert "Background-only location cue." in user_content
+        assert "Background-only location cue." not in system_content
+        assert "Captain Vero" in user_content
+        assert "Captain Vero" not in system_content
+        _assert_no_legacy_character_markers(messages)
 
     @pytest.mark.asyncio
-    async def test_background_local_context_is_live_only_not_saved(
+    async def test_background_local_context_is_preserved_in_saved_history(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -1352,16 +1542,16 @@ class TestUnifiedAgentCacheLineage:
             ),
         )
 
+        messages = mock_client.complete.call_args.kwargs["messages"]
         live_user = mock_client.complete.call_args.kwargs["messages"][-1]["content"]
-        assert "## Local Context" in live_user
         assert "Steward Lysa" in live_user
 
         saved_user = sample_checkpoint.character_conversations[
             "guard_17"
         ][0].content
-        assert "## Local Context" not in saved_user
-        assert "Steward Lysa" not in saved_user
-        assert "## Turn Frame\nbackground" in saved_user
+        assert "Steward Lysa" in saved_user
+        assert "Captain Vero" in saved_user
+        _assert_no_legacy_character_markers(messages)
 
     @pytest.mark.asyncio
     async def test_background_turn_appends_to_same_rolling_conversation_as_foreground(
@@ -1377,7 +1567,7 @@ class TestUnifiedAgentCacheLineage:
 
         await agent.turn(guard_character, sample_checkpoint)
         mock_client.complete.return_value = _llm_response(
-            'He stands by the window. (Watching the gate.)'
+            "He stands by the window."
         )
         await agent.turn(guard_character, sample_checkpoint, frame="background")
 
@@ -1388,37 +1578,33 @@ class TestUnifiedAgentCacheLineage:
         convo = sample_checkpoint.character_conversations["guard_17"]
         # 2 user/assistant pairs = 4 messages total.
         assert len(convo) == 4
-        # Sequence: foreground user, foreground asst, background user,
-        # background asst.
+        # Sequence: first user, first assistant, background user,
+        # background assistant.
         assert convo[0].role == "user"
-        assert AGENT_TURN_HEADER in convo[0].content
-        assert "## Turn Frame\nforeground" in convo[0].content
+        assert "Captain Vero" in convo[0].content
         assert convo[2].role == "user"
-        assert AGENT_TURN_HEADER in convo[2].content
-        assert "## Turn Frame\nbackground" in convo[2].content
+        assert "Captain Vero" in convo[2].content
+        assert convo[0].content != convo[2].content
 
 
 class TestPerceptionMode:
-    """v11-r8a: PERCEPTION mode — observer-agnostic visual loadout.
+    """Observer-agnostic visual loadout with a public-only user packet.
 
     Fired by the observation-harvest fork in run_beat (and reachable
     later from /query for "what does X look like?" questions). Three
     load-bearing properties distinguish perception from normal agent turns:
 
-      1. The user-message FIRST LINE is `## PERCEPTION`. The agent
-         prompt's "Mode Routing" section keys off this exact token to
-         flip into Perception Mode rules; if the marker drifts off
-         line 1 the agent's mode signal is buried mid-message.
+      1. The user message carries only the public identity and visible
+         presentation input; actor facts and turn observations stay out.
       2. Perception calls append to the same rolling conversation.
          A character should remember what they established about their
          visual presentation in the scene.
-      3. Cache lineage with normal agent turns is preserved: the system
-         prompt is byte-identical across all three modes for the
-         same ruleset.
+      3. Perception has a separate system contract because it has a
+         different output job from a normal agent turn.
     """
 
     def _llm_text_only(self, text: str) -> LLMResponse:
-        # Perception output is plain prose, no parenthetical.
+        # Perception output is plain exterior prose.
         raw = MagicMock()
         text_block = MagicMock()
         text_block.type = "text"
@@ -1443,6 +1629,35 @@ class TestPerceptionMode:
         agent = CharacterAgent(mock_client, prompt_manager)
         result = await agent.perceive(guard_character, sample_checkpoint)
         assert result.public_text == loadout
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "response, error_match",
+        (
+            ("Visible coat. <private_carry>hidden</private_carry>", "retired"),
+            ("<silence/>", "perception"),
+        ),
+    )
+    async def test_perception_rejects_turn_controls_before_history_mutation(
+        self,
+        response,
+        error_match,
+        mock_client,
+        prompt_manager,
+        guard_character,
+        sample_checkpoint,
+    ):
+        mock_client.complete.return_value = self._llm_text_only(response)
+
+        with pytest.raises(CharacterAgentOutputError, match=error_match):
+            await CharacterAgent(mock_client, prompt_manager).perceive(
+                guard_character,
+                sample_checkpoint,
+            )
+
+        assert guard_character.character_id not in (
+            sample_checkpoint.character_conversations
+        )
 
     @pytest.mark.asyncio
     async def test_perception_commits_private_visual_novel_choice(
@@ -1470,27 +1685,55 @@ class TestPerceptionMode:
             guard_character.visuals.visual_novel_presentation.current_variant_key
             == "happy"
         )
+        live_messages = mock_client.complete.await_args.kwargs["messages"]
+        live_user = live_messages[-1]["content"]
+        catalog_start = live_user.index("<presentation_catalog")
+        catalog_end = live_user.index("</presentation_catalog>") + len(
+            "</presentation_catalog>"
+        )
+        catalog = live_user[catalog_start:catalog_end]
         saved = sample_checkpoint.character_conversations["guard_17"]
-        assert "presentation_catalog" not in saved[0].content
+        assert catalog not in saved[0].content
+        assert saved[0].content == live_user.replace(catalog, "", 1)
+        assert "Captain Vero" in saved[0].content
+        assert "guard captain" in saved[0].content
+        assert "hidden passage" not in saved[0].content
+        _assert_no_legacy_character_markers(live_messages)
         assert "presentation" not in saved[1].content[0]["text"]
 
     @pytest.mark.asyncio
-    async def test_perceive_user_message_starts_with_perception_header(
+    async def test_perceive_user_message_contains_only_public_surface(
         self, mock_client, prompt_manager, guard_character, sample_checkpoint,
     ):
+        guard_character.pending_observations = [
+            "A private incoming observation that perception must not receive."
+        ]
         mock_client.complete.return_value = self._llm_text_only("loadout")
         agent = CharacterAgent(mock_client, prompt_manager)
         await agent.perceive(guard_character, sample_checkpoint)
         messages = mock_client.complete.call_args.kwargs["messages"]
-        user_content = messages[-1]["content"]
-        first_line = next(
-            ln for ln in user_content.splitlines() if ln.strip()
+        system_content = _message_text(messages[0])
+        user_content = _message_text(messages[-1])
+        public_values = (
+            "Captain Vero",
+            "guard captain",
+            "Tall, scarred, in polished armor",
+            "City Watch",
         )
-        assert first_line == AGENT_PERCEPTION_HEADER
-        # Other mode markers must not also appear (mutually exclusive).
-        assert AGENT_TURN_HEADER not in user_content
-        assert "Hard prose constraint" in user_content
-        assert "with the [quality] of someone/people who" in user_content
+        private_values = (
+            "twenty years",
+            "dry humor, speak formally",
+            "hidden passage",
+            "A private incoming observation",
+        )
+        for value in public_values:
+            assert value not in system_content
+            assert value in user_content
+        for value in private_values:
+            assert value not in system_content
+            assert value not in user_content
+        assert re.search(r"\bYou are\b[^\n]*Captain Vero", user_content)
+        _assert_no_legacy_character_markers(messages)
 
     @pytest.mark.asyncio
     async def test_perceive_appends_to_rolling_history(
@@ -1506,7 +1749,12 @@ class TestPerceptionMode:
         convo = sample_checkpoint.character_conversations["guard_17"]
         assert len(convo) == 2
         assert convo[0].role == "user"
-        assert AGENT_PERCEPTION_HEADER in convo[0].content
+        assert "Captain Vero" in convo[0].content
+        assert "guard captain" in convo[0].content
+        assert "hidden passage" not in convo[0].content
+        _assert_no_legacy_character_markers(
+            [{"role": message.role, "content": message.content} for message in convo]
+        )
         assert convo[1].role == "assistant"
         assert "Polished armor" in convo[1].content[0]["text"]
 
@@ -1533,29 +1781,49 @@ class TestPerceptionMode:
         # contents (no priming).
         messages = mock_client.complete.call_args.kwargs["messages"]
         user_content = messages[-1]["content"]
+        system_content = messages[0]["content"]
         assert "shout in the courtyard" not in user_content
         assert "Bells ring" not in user_content
+        assert "shout in the courtyard" not in system_content
+        assert "Bells ring" not in system_content
+        _assert_no_legacy_character_markers(messages)
 
     @pytest.mark.asyncio
     async def test_perceive_shares_system_prefix_with_turn(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
-        # Cache-lineage invariant: turn and perceive must yield
-        # byte-identical system prompts so the Anthropic prompt cache
-        # hits across modes.
+        # Turn and perception have separate stable contracts.  The D&D rules
+        # addon belongs to the turn's stable system contract; perception stays
+        # narrower and receives only its public surface.  Both calls explicitly
+        # avoid provider compaction.
+        sample_checkpoint.session.config.settings.ruleset_id = "dnd5e_basic"
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
         await agent.turn(guard_character, sample_checkpoint)
         turn_system = mock_client.complete.call_args.kwargs["messages"][0]
+        turn_user = mock_client.complete.call_args.kwargs["messages"][-1]
 
         mock_client.complete.reset_mock()
         mock_client.complete.return_value = self._llm_text_only("loadout")
         await agent.perceive(guard_character, sample_checkpoint)
         perceive_system = mock_client.complete.call_args.kwargs["messages"][0]
+        perceive_user = mock_client.complete.call_args.kwargs["messages"][-1]
 
         assert perceive_system["role"] == "system"
-        assert perceive_system["content"] == turn_system["content"]
+        assert perceive_system["content"] != turn_system["content"]
+        ruleset = prompt_manager.render("agent_ruleset_dnd5e").strip()
+        assert ruleset in turn_system["content"]
+        assert ruleset not in turn_user["content"]
+        assert ruleset not in perceive_system["content"]
+        assert ruleset not in perceive_user["content"]
+        for system in (turn_system["content"], perceive_system["content"]):
+            assert "Captain Vero" not in system
+            assert "twenty years" not in system
+        _assert_no_legacy_character_markers(
+            [turn_system, turn_user, perceive_system, perceive_user]
+        )
+        assert mock_client.complete.await_args.kwargs["compact"] is False
 
     @pytest.mark.asyncio
     async def test_perceive_does_not_render_or_update_elapsed_turn_context(
