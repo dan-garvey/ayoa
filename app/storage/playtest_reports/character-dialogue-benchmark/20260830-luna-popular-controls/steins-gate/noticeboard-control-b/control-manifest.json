@@ -1,0 +1,201 @@
+{
+  "schema_version": "character_dialogue_benchmark_manifest_v7",
+  "description": "Frozen clean-room two-scene Steins;Gate-inspired social ritual control for the production observable-prose CharacterAgent boundary. It uses source names and broad relationship architecture only; all scene material and added precedents are original, with no authored dialogue, predetermined actor move, or predetermined outcome.",
+  "cases": [
+    {
+      "case_id": "sg_noticeboard_ritual",
+      "title": "The Friday card",
+      "suite": "pressure",
+      "source_metadata": {
+        "control_status": "frozen clean-room noticeboard control; no dialogue generated",
+        "control_scope": "One Steins;Gate-inspired three-person control using sparse public roles, concrete noncanonical precedents, actor-local observations, and an ordinary social situation.",
+        "model_facing_boundary": "source_metadata is provenance and audit material only; it is not rendered to any actor prompt",
+        "source_urls": [
+          "https://steinsgate.jp/sgflash.html",
+          "https://steinsgate.jp/reboot/en-us/",
+          "https://news.mynavi.jp/article/20110602-steinsgate/2",
+          "https://www.famitsu.com/news/201809/26164205.html",
+          "https://www.famitsu.com/news/201809/26164194.html",
+          "https://www.famitsu.com/news/201910/15185083.html"
+        ],
+        "canon_supported_public_premises": {
+          "okabe_rintaro": [
+            "Official character material describes Okabe as a university student who founded the Future Gadget Laboratory in Akihabara.",
+            "Official character material describes Okabe as performing a theatrical mad-scientist persona and inventing gadgets of unclear purpose."
+          ],
+          "kurisu_makise": [
+            "Official character material describes Kurisu as an exceptionally young brain-science researcher who graduated early.",
+            "Official character material describes Kurisu as curious and scientifically minded, pursuing questions that interest her."
+          ],
+          "mayuri_shiina": [
+            "Official character material describes Mayuri as Okabe's childhood friend and a maker of cosplay outfits.",
+            "Official character material connects Mayuri's childhood memory of her grandmother and the night sky to a recurring reaching gesture."
+          ]
+        },
+        "noncanonical_control_authored_precedents": {
+          "status": "noncanonical; authored solely for this benchmark control",
+          "okabe_rintaro": [
+            "During your first semester, you promised a classmate you would return a borrowed notebook on Monday and found it in your bag on Wednesday; the apology was accepted, but the date still bothers you.",
+            "A club member left a half-finished circuit on your desk before moving away; you kept its loose parts in a labeled envelope and never learned whether it had worked."
+          ],
+          "kurisu_makise": [
+            "A senior colleague once made your age the subject instead of your result; you kept the original measurements and later showed which objection they answered.",
+            "On your first independent project, a result changed after the room cooled overnight; the original graph is still folded inside your notebook."
+          ],
+          "mayuri_shiina": [
+            "You once left a friend's place open so long that everyone treated it as theirs; when you finally asked for it back, the request changed how you shared the room afterward.",
+            "A friend once changed the time of a meeting after you had already arrived; you kept the message and never learned what prompted the change."
+          ]
+        },
+        "noncanonical_actor_local_material": {
+          "status": "noncanonical; actor-local facts authored solely for this benchmark control",
+          "okabe_rintaro": [
+            "Before the first meeting, you saw Kurisu turn her phone face down after a message arrived; you did not read it and do not know what it said."
+          ],
+          "kurisu_makise": [
+            "You received an invitation to join a university research project next week, with a reply due before the next Friday noticeboard entry; you have not decided whether to accept."
+          ],
+          "mayuri_shiina": [
+            "A costume piece you made for a friend was never collected; the unfinished sleeve remains in a drawer with the thread still on the needle."
+          ]
+        },
+        "copyright_boundary": "No source dialogue, catchphrase list, canonical scene, plot reveal, or imitation instruction is part of this manifest. The source names identify the control actors; every scene and added precedent is original benchmark material."
+      },
+      "actors": [
+        {
+          "character_id": "okabe_rintaro",
+          "name": "Rintaro Okabe",
+          "location": "community_center_side_room",
+          "public_sheet": {
+            "role": "a university student who founded a small invention laboratory"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "During your first semester, you promised a classmate you would return a borrowed notebook on Monday and found it in your bag on Wednesday; the apology was accepted, but the date still bothers you."
+              },
+              {
+                "origin": "lived",
+                "text": "A club member left a half-finished circuit on your desk before moving away; you kept its loose parts in a labeled envelope and never learned whether it had worked."
+              },
+              {
+                "origin": "witnessed",
+                "text": "Before the first meeting, you saw Kurisu turn her phone face down after a message arrived; you did not read it and do not know what it said."
+              }
+            ]
+          }
+        },
+        {
+          "character_id": "kurisu_makise",
+          "name": "Kurisu Makise",
+          "location": "community_center_side_room",
+          "public_sheet": {
+            "role": "a young brain-science researcher"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "A senior colleague once made your age the subject instead of your result; you kept the original measurements and later showed which objection they answered."
+              },
+              {
+                "origin": "lived",
+                "text": "On your first independent project, a result changed after the room cooled overnight; the original graph is still folded inside your notebook."
+              },
+              {
+                "origin": "lived",
+                "text": "You received an invitation to join a university research project next week, with a reply due before the next Friday noticeboard entry; you have not decided whether to accept."
+              }
+            ]
+          }
+        },
+        {
+          "character_id": "mayuri_shiina",
+          "name": "Mayuri Shiina",
+          "location": "community_center_side_room",
+          "public_sheet": {
+            "role": "a university student and maker of cosplay outfits"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "A costume piece you made for a friend was never collected; the unfinished sleeve remains in a drawer with the thread still on the needle."
+              },
+              {
+                "origin": "lived",
+                "text": "You once left a friend's place open so long that everyone treated it as theirs; when you finally asked for it back, the request changed how you shared the room afterward."
+              },
+              {
+                "origin": "witnessed",
+                "text": "A friend once changed the time of a meeting after you had already arrived; you kept the message and never learned what prompted the change."
+              }
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "friday_card_setup",
+          "title": "The first Friday card",
+          "frame": "Friday late afternoon in a side room of a neighborhood community center. A folding noticeboard stands behind a narrow table. For the previous three Fridays, the three of you have made one small noticeboard entry together: a date card, one instant photograph, and three names beneath the neutral header Contributors. Without anyone assigning it, Mayuri has usually written the date, Okabe has handled the venue camera, and Kurisu has checked the written names. That sequence is a habit, not a requirement. Today the board is empty. On the table are a blank date card, a venue-owned instant camera, a black marker, a clear photo sleeve, a roll of tape, three equal blank name strips, and one spare blank strip from venue stock. Kurisu's phone lies face down beside her chair. Mayuri is seated at the west side of the table, Kurisu stands at the north side, and Okabe stands between the table and the board. Nothing has been touched, no role has been assigned, and nobody is required to write, photograph, disclose anything, or leave.",
+          "turn_order": [
+            "mayuri_shiina",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "mayuri_shiina",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "mayuri_shiina",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "mayuri_shiina",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "mayuri_shiina",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "mayuri_shiina",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ],
+          "pressure_pulses": [
+            {
+              "pulse_id": "kurisu_phone_vibration",
+              "after_turn": 6,
+              "text": "Kurisu's face-down phone vibrates once and goes quiet; its screen remains turned away from everyone."
+            }
+          ]
+        },
+        {
+          "scene_id": "next_friday_card",
+          "title": "The next Friday card",
+          "frame": "The following Friday in the same side room. The noticeboard is available for another entry. A clear sleeve bearing the previous Friday's date is pinned at eye level, with its paper turned toward the board so its writing cannot be read from the room. On the table are a fresh blank date card, the same venue camera, marker, tape, clear photo sleeve, three equal blank name strips, and one spare blank strip. Kurisu's phone is face down at the left edge of the table. Mayuri stands at the near side, Kurisu stands at the left side, and Okabe sits in the chair beside the board. Today's materials are untouched. No role is assigned, and nothing requires anyone to repeat the old order, explain the previous entry, disclose a message, or make a new one.",
+          "between_scene_public_history": "Several days pass. The three continue ordinary school and laboratory routines, and the community center keeps the noticeboard available for another Friday entry. No later witnessed exchange among them settles what was chosen, left blank, or left unsaid at the first meeting.",
+          "turn_order": [
+            "kurisu_makise",
+            "mayuri_shiina",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "mayuri_shiina",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "mayuri_shiina",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "mayuri_shiina",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "mayuri_shiina",
+            "okabe_rintaro"
+          ],
+          "pressure_pulses": []
+        }
+      ]
+    }
+  ]
+}
