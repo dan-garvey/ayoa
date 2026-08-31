@@ -1,0 +1,18 @@
+ONE-STAR PULL REVEAL — FORGED CHAIN V3
+
+V3 keeps V2's outward lock ejection and held pre-reveal flash, but replaces
+the necklace-like chain treatment. Gold and white-gold now use fewer, heavier
+forged links: alternating face-on and edge-on pieces, dark beveled metal,
+contact shadows, taut wrapping, coherent broken halves, and open snapped links.
+
+01  UNDER 3 STARS // PLAIN RELEASE  1.28s  1.52 MiB
+02  3-4 STARS // SILVER LOCK RELEASE  1.87s  3.23 MiB
+03  5-6 STARS // FORGED GOLD CHAINBREAK  2.37s  3.98 MiB
+04  7 STARS // FORGED WHITE-GOLD CHAINBREAK  2.97s  5.53 MiB
+
+Review the bound and break moments closely in 03 and 04. The links should read
+as weight on the card, then as two chain segments pulled apart—not a string of
+independent glowing ovals. V1 and V2 remain preserved for comparison.
+
+The GIFs loop only for review. Production intent remains one play, a held
+flash, then the authoritative static identity/rank result.

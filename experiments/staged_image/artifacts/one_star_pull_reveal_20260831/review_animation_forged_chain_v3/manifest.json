@@ -1,0 +1,195 @@
+{
+  "chain_revision": {
+    "fracture": "explicit open broken-link halves",
+    "link_orientation": "alternating face-on and edge-on",
+    "new_read": "heavy forged interlocking restraint",
+    "old_read": "repeated bright oval links",
+    "placement": "taut across card face with contact shadow",
+    "release": "coherent rigid halves",
+    "surface": "dark bevel with restrained rank-metal edge"
+  },
+  "direction": "outward_release_forged_chain",
+  "file_size_cap_bytes": null,
+  "invariants": {
+    "animation_required_for_comprehension": false,
+    "exact_rank_before_static_result": "withheld",
+    "fakeouts": "none",
+    "held_pre_reveal_flash": true,
+    "identity_before_static_result": "withheld",
+    "image_generation_calls": 0,
+    "outward_lock_motion": true,
+    "semantic_fallback": "existing static result board",
+    "v1_preserved": true,
+    "v2_preserved": true
+  },
+  "production_binding": false,
+  "production_intent": "play_once_hold_flash_then_static_result",
+  "rank_bands": {
+    "3_to_4": "silver",
+    "5_to_6": "gold",
+    "7": "white_gold",
+    "under_3": "iron_plain"
+  },
+  "review_encoding": "loop",
+  "schema_version": 3,
+  "source_hashes": {
+    "reviewed_card_frame": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f"
+  },
+  "status": "visual_review_only",
+  "storyboard": {
+    "dimensions": [
+      1024,
+      576
+    ],
+    "filename": "05_forged_chain_bound_break_flash.png",
+    "sha256": "9db015e6d39471d7faeebed815c06b3b55b71b33599456eba09729f16ad0d039"
+  },
+  "supersedes_for_review": "outward_release_v2_chain_treatment",
+  "tiers": [
+    {
+      "accessible_text": "UNDER 3 STARS // PLAIN RELEASE; forged chains break outward where present; pre-reveal flash; static result follows",
+      "byte_count": 1595433,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 1280,
+      "filename": "01_iron_plain_release_under_3.gif",
+      "final_frame": "held_pre_reveal_flash",
+      "final_hold_ms": 380,
+      "frame_count": 16,
+      "frame_ms": 60,
+      "label": "UNDER 3 STARS // PLAIN RELEASE",
+      "production_intent": "play_once_then_static_result",
+      "release_geometry": {
+        "chain_break_displacement_px": 0,
+        "chain_count": 0,
+        "chain_motion": "none",
+        "chain_segment_motion": "none",
+        "chain_start_layer": "none",
+        "chain_visual_style": "none",
+        "contact_shadow": false,
+        "fracture_shape": "none",
+        "lock_count": 0,
+        "lock_end_distances_px": [],
+        "lock_motion": "outward",
+        "lock_start_distance_px": null
+      },
+      "review_loop": true,
+      "sha256": "a3fa6b572745dbf26627f754eee5dbc1e090753369ac09cb3cf54d3f2e207335",
+      "visual_intensity": 1
+    },
+    {
+      "accessible_text": "3-4 STARS // SILVER LOCK RELEASE; forged chains break outward where present; pre-reveal flash; static result follows",
+      "byte_count": 3392113,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 1870,
+      "filename": "02_silver_lock_release_3_to_4.gif",
+      "final_frame": "held_pre_reveal_flash",
+      "final_hold_ms": 520,
+      "frame_count": 28,
+      "frame_ms": 50,
+      "label": "3-4 STARS // SILVER LOCK RELEASE",
+      "production_intent": "play_once_then_static_result",
+      "release_geometry": {
+        "chain_break_displacement_px": 0,
+        "chain_count": 0,
+        "chain_motion": "none",
+        "chain_segment_motion": "none",
+        "chain_start_layer": "none",
+        "chain_visual_style": "none",
+        "contact_shadow": false,
+        "fracture_shape": "none",
+        "lock_count": 2,
+        "lock_end_distances_px": [
+          396,
+          409
+        ],
+        "lock_motion": "outward",
+        "lock_start_distance_px": 150
+      },
+      "review_loop": true,
+      "sha256": "a88a806ab01f851bf934126715963340bd6cf0cdc5378f83e016f86d7b659008",
+      "visual_intensity": 2
+    },
+    {
+      "accessible_text": "5-6 STARS // FORGED GOLD CHAINBREAK; forged chains break outward where present; pre-reveal flash; static result follows",
+      "byte_count": 4174164,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 2370,
+      "filename": "03_gold_forged_chainbreak_5_to_6.gif",
+      "final_frame": "held_pre_reveal_flash",
+      "final_hold_ms": 620,
+      "frame_count": 36,
+      "frame_ms": 50,
+      "label": "5-6 STARS // FORGED GOLD CHAINBREAK",
+      "production_intent": "play_once_then_static_result",
+      "release_geometry": {
+        "chain_break_displacement_px": 185,
+        "chain_count": 2,
+        "chain_motion": "split_and_eject_outward",
+        "chain_segment_motion": "coherent_rigid_halves",
+        "chain_start_layer": "wrapped_across_card_face",
+        "chain_visual_style": "heavy_forged_interlocking_links",
+        "contact_shadow": true,
+        "fracture_shape": "two_open_broken_link_halves",
+        "lock_count": 3,
+        "lock_end_distances_px": [
+          406,
+          419,
+          432
+        ],
+        "lock_motion": "outward",
+        "lock_start_distance_px": 150
+      },
+      "review_loop": true,
+      "sha256": "d2c485cbc1ac4cae162a5d9050462c78268b3dcbcbd792e983c1d640f9abdebb",
+      "visual_intensity": 3
+    },
+    {
+      "accessible_text": "7 STARS // FORGED WHITE-GOLD CHAINBREAK; forged chains break outward where present; pre-reveal flash; static result follows",
+      "byte_count": 5803844,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 2970,
+      "filename": "04_white_gold_forged_chainbreak_7.gif",
+      "final_frame": "held_pre_reveal_flash",
+      "final_hold_ms": 820,
+      "frame_count": 44,
+      "frame_ms": 50,
+      "label": "7 STARS // FORGED WHITE-GOLD CHAINBREAK",
+      "production_intent": "play_once_then_static_result",
+      "release_geometry": {
+        "chain_break_displacement_px": 204,
+        "chain_count": 3,
+        "chain_motion": "split_and_eject_outward",
+        "chain_segment_motion": "coherent_rigid_halves",
+        "chain_start_layer": "wrapped_across_card_face",
+        "chain_visual_style": "heavy_forged_interlocking_links",
+        "contact_shadow": true,
+        "fracture_shape": "two_open_broken_link_halves",
+        "lock_count": 4,
+        "lock_end_distances_px": [
+          416,
+          429,
+          442,
+          455
+        ],
+        "lock_motion": "outward",
+        "lock_start_distance_px": 150
+      },
+      "review_loop": true,
+      "sha256": "05d903a6117f16e5af867bbaccf914094315c836e3a50c3834670db9ed067af6",
+      "visual_intensity": 4
+    }
+  ],
+  "transport_contract": "optional motion before authoritative static result"
+}

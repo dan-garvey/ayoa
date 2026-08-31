@@ -1,0 +1,978 @@
+{
+  "check_count": 55,
+  "checks": [
+    {
+      "detail": "f580ce5594c8bbd30811b802d23f53aaca6f323151ec81fc073d726393d1cd48",
+      "name": "review manifest is canonical manifest",
+      "passed": true
+    },
+    {
+      "detail": {
+        "direction": "outward_release_forged_chain",
+        "production_binding": false,
+        "production_intent": "play_once_hold_flash_then_static_result",
+        "schema_version": 3,
+        "status": "visual_review_only",
+        "supersedes_for_review": "outward_release_v2_chain_treatment"
+      },
+      "name": "V3 forged-chain review contract",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "no file-size cap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "fracture": "explicit open broken-link halves",
+        "link_orientation": "alternating face-on and edge-on",
+        "new_read": "heavy forged interlocking restraint",
+        "old_read": "repeated bright oval links",
+        "placement": "taut across card face with contact shadow",
+        "release": "coherent rigid halves",
+        "surface": "dark bevel with restrained rank-metal edge"
+      },
+      "name": "forged-chain design contract",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animation_required_for_comprehension": false,
+        "exact_rank_before_static_result": "withheld",
+        "fakeouts": "none",
+        "held_pre_reveal_flash": true,
+        "identity_before_static_result": "withheld",
+        "image_generation_calls": 0,
+        "outward_lock_motion": true,
+        "semantic_fallback": "existing static result board",
+        "v1_preserved": true,
+        "v2_preserved": true
+      },
+      "name": "V2 release semantics preserved",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_iron_plain_release_under_3.gif",
+        "02_silver_lock_release_3_to_4.gif",
+        "03_gold_forged_chainbreak_5_to_6.gif",
+        "04_white_gold_forged_chainbreak_7.gif",
+        "05_forged_chain_bound_break_flash.png",
+        "SHA256SUMS.txt",
+        "index.html",
+        "manifest.json"
+      ],
+      "name": "review set is exact",
+      "passed": true
+    },
+    {
+      "detail": 4,
+      "name": "four animation tiers",
+      "passed": true
+    },
+    {
+      "detail": [
+        "01_iron_plain_release_under_3.gif",
+        "02_silver_lock_release_3_to_4.gif",
+        "03_gold_forged_chainbreak_5_to_6.gif",
+        "04_white_gold_forged_chainbreak_7.gif"
+      ],
+      "name": "tier file order",
+      "passed": true
+    },
+    {
+      "detail": {
+        "durations_ms": [
+          1280,
+          1870,
+          2370,
+          2970
+        ],
+        "frame_counts": [
+          16,
+          28,
+          36,
+          44
+        ]
+      },
+      "name": "duration and frame count rise with rarity",
+      "passed": true
+    },
+    {
+      "detail": [
+        0,
+        0,
+        2,
+        3
+      ],
+      "name": "chains only on gold and white-gold",
+      "passed": true
+    },
+    {
+      "detail": [
+        {
+          "chain_break_displacement_px": 185,
+          "chain_count": 2,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "two_open_broken_link_halves",
+          "lock_count": 3,
+          "lock_end_distances_px": [
+            406,
+            419,
+            432
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        },
+        {
+          "chain_break_displacement_px": 204,
+          "chain_count": 3,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "two_open_broken_link_halves",
+          "lock_count": 4,
+          "lock_end_distances_px": [
+            416,
+            429,
+            442,
+            455
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        }
+      ],
+      "name": "forged chains are heavy and interlocked",
+      "passed": true
+    },
+    {
+      "detail": [
+        {
+          "chain_break_displacement_px": 185,
+          "chain_count": 2,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "two_open_broken_link_halves",
+          "lock_count": 3,
+          "lock_end_distances_px": [
+            406,
+            419,
+            432
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        },
+        {
+          "chain_break_displacement_px": 204,
+          "chain_count": 3,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "two_open_broken_link_halves",
+          "lock_count": 4,
+          "lock_end_distances_px": [
+            416,
+            429,
+            442,
+            455
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        }
+      ],
+      "name": "chain halves release coherently",
+      "passed": true
+    },
+    {
+      "detail": [
+        {
+          "chain_break_displacement_px": 185,
+          "chain_count": 2,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "two_open_broken_link_halves",
+          "lock_count": 3,
+          "lock_end_distances_px": [
+            406,
+            419,
+            432
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        },
+        {
+          "chain_break_displacement_px": 204,
+          "chain_count": 3,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "two_open_broken_link_halves",
+          "lock_count": 4,
+          "lock_end_distances_px": [
+            416,
+            429,
+            442,
+            455
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        }
+      ],
+      "name": "fractures use open snapped links",
+      "passed": true
+    },
+    {
+      "detail": [
+        {
+          "chain_break_displacement_px": 0,
+          "chain_count": 0,
+          "chain_motion": "none",
+          "chain_segment_motion": "none",
+          "chain_start_layer": "none",
+          "chain_visual_style": "none",
+          "contact_shadow": false,
+          "fracture_shape": "none",
+          "lock_count": 0,
+          "lock_end_distances_px": [],
+          "lock_motion": "outward",
+          "lock_start_distance_px": null
+        },
+        {
+          "chain_break_displacement_px": 0,
+          "chain_count": 0,
+          "chain_motion": "none",
+          "chain_segment_motion": "none",
+          "chain_start_layer": "none",
+          "chain_visual_style": "none",
+          "contact_shadow": false,
+          "fracture_shape": "none",
+          "lock_count": 2,
+          "lock_end_distances_px": [
+            396,
+            409
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        },
+        {
+          "chain_break_displacement_px": 185,
+          "chain_count": 2,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "two_open_broken_link_halves",
+          "lock_count": 3,
+          "lock_end_distances_px": [
+            406,
+            419,
+            432
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        },
+        {
+          "chain_break_displacement_px": 204,
+          "chain_count": 3,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "two_open_broken_link_halves",
+          "lock_count": 4,
+          "lock_end_distances_px": [
+            416,
+            429,
+            442,
+            455
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        }
+      ],
+      "name": "locks still travel outward",
+      "passed": true
+    },
+    {
+      "detail": [
+        "held_pre_reveal_flash",
+        "held_pre_reveal_flash",
+        "held_pre_reveal_flash",
+        "held_pre_reveal_flash"
+      ],
+      "name": "every tier ends on held flash",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "format": "GIF",
+        "frame_count": 16,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "under_three GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        380
+      ],
+      "name": "under_three GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max_motion": 38.7418,
+        "mean_motion": 7.2327,
+        "unique_frames": 16
+      },
+      "name": "under_three has real motion",
+      "passed": true
+    },
+    {
+      "detail": {
+        "final_luma": 113.371,
+        "max_luma": 113.371,
+        "start_luma": 13.987
+      },
+      "name": "under_three final frame is brightness peak",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 1595433,
+        "actual_hash": "a3fa6b572745dbf26627f754eee5dbc1e090753369ac09cb3cf54d3f2e207335",
+        "manifest_bytes": 1595433,
+        "manifest_hash": "a3fa6b572745dbf26627f754eee5dbc1e090753369ac09cb3cf54d3f2e207335"
+      },
+      "name": "under_three manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "format": "GIF",
+        "frame_count": 28,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "three_to_four GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        520
+      ],
+      "name": "three_to_four GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max_motion": 38.8252,
+        "mean_motion": 7.5925,
+        "unique_frames": 28
+      },
+      "name": "three_to_four has real motion",
+      "passed": true
+    },
+    {
+      "detail": {
+        "final_luma": 183.987,
+        "max_luma": 183.987,
+        "start_luma": 21.446
+      },
+      "name": "three_to_four final frame is brightness peak",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 3392113,
+        "actual_hash": "a88a806ab01f851bf934126715963340bd6cf0cdc5378f83e016f86d7b659008",
+        "manifest_bytes": 3392113,
+        "manifest_hash": "a88a806ab01f851bf934126715963340bd6cf0cdc5378f83e016f86d7b659008"
+      },
+      "name": "three_to_four manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "format": "GIF",
+        "frame_count": 36,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "five_to_six GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        620
+      ],
+      "name": "five_to_six GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max_motion": 40.5697,
+        "mean_motion": 7.7489,
+        "unique_frames": 36
+      },
+      "name": "five_to_six has real motion",
+      "passed": true
+    },
+    {
+      "detail": {
+        "final_luma": 220.82,
+        "max_luma": 220.82,
+        "start_luma": 24.767
+      },
+      "name": "five_to_six final frame is brightness peak",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 4174164,
+        "actual_hash": "d2c485cbc1ac4cae162a5d9050462c78268b3dcbcbd792e983c1d640f9abdebb",
+        "manifest_bytes": 4174164,
+        "manifest_hash": "d2c485cbc1ac4cae162a5d9050462c78268b3dcbcbd792e983c1d640f9abdebb"
+      },
+      "name": "five_to_six manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "format": "GIF",
+        "frame_count": 44,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "seven GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        820
+      ],
+      "name": "seven GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "max_motion": 44.7304,
+        "mean_motion": 9.9092,
+        "unique_frames": 44
+      },
+      "name": "seven has real motion",
+      "passed": true
+    },
+    {
+      "detail": {
+        "final_luma": 249.122,
+        "max_luma": 249.122,
+        "start_luma": 34.904
+      },
+      "name": "seven final frame is brightness peak",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 5803844,
+        "actual_hash": "05d903a6117f16e5af867bbaccf914094315c836e3a50c3834670db9ed067af6",
+        "manifest_bytes": 5803844,
+        "manifest_hash": "05d903a6117f16e5af867bbaccf914094315c836e3a50c3834670db9ed067af6"
+      },
+      "name": "seven manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "01_iron_plain_release_under_3.gif": {
+          "v2": "a3fa6b572745dbf26627f754eee5dbc1e090753369ac09cb3cf54d3f2e207335",
+          "v3": "a3fa6b572745dbf26627f754eee5dbc1e090753369ac09cb3cf54d3f2e207335"
+        },
+        "02_silver_lock_release_3_to_4.gif": {
+          "v2": "a88a806ab01f851bf934126715963340bd6cf0cdc5378f83e016f86d7b659008",
+          "v3": "a88a806ab01f851bf934126715963340bd6cf0cdc5378f83e016f86d7b659008"
+        }
+      },
+      "name": "non-chain tiers are byte-identical to V2",
+      "passed": true
+    },
+    {
+      "detail": {
+        "03_gold_forged_chainbreak_5_to_6.gif": {
+          "v2": "c8580a0387bd9630563c1f96c603f2dee08b6ee40541497b98c8c861bf15587a",
+          "v3": "d2c485cbc1ac4cae162a5d9050462c78268b3dcbcbd792e983c1d640f9abdebb"
+        },
+        "04_white_gold_forged_chainbreak_7.gif": {
+          "v2": "1fbf282b08c5ee382298151dd7e29020b139f34efabe8fdffa00602f521535d6",
+          "v3": "05d903a6117f16e5af867bbaccf914094315c836e3a50c3834670db9ed067af6"
+        }
+      },
+      "name": "chain tiers differ from V2",
+      "passed": true
+    },
+    {
+      "detail": [
+        113.371,
+        183.987,
+        220.82,
+        249.122
+      ],
+      "name": "flash brightness rises with rarity",
+      "passed": true
+    },
+    {
+      "detail": [
+        "five_to_six_bound.png",
+        "five_to_six_break.png",
+        "five_to_six_flash.png",
+        "seven_bound.png",
+        "seven_break.png",
+        "seven_flash.png",
+        "three_to_four_bound.png",
+        "three_to_four_break.png",
+        "three_to_four_flash.png",
+        "under_three_bound.png",
+        "under_three_break.png",
+        "under_three_flash.png"
+      ],
+      "name": "exact bound break flash keyframes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "five_to_six_bound.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "five_to_six_break.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "five_to_six_flash.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "seven_bound.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "seven_break.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "seven_flash.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "three_to_four_bound.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "three_to_four_break.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "three_to_four_flash.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "under_three_bound.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "under_three_break.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "under_three_flash.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        }
+      },
+      "name": "keyframe format",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bound_luma": 15.469,
+        "break_difference": 4.276,
+        "flash_luma": 114.92
+      },
+      "name": "under_three visual stages differ",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bound_luma": 22.83,
+        "break_difference": 11.444,
+        "flash_luma": 186.22
+      },
+      "name": "three_to_four visual stages differ",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bound_luma": 26.168,
+        "break_difference": 16.161,
+        "flash_luma": 221.827
+      },
+      "name": "five_to_six visual stages differ",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bound_luma": 36.515,
+        "break_difference": 30.213,
+        "flash_luma": 250.17
+      },
+      "name": "seven visual stages differ",
+      "passed": true
+    },
+    {
+      "detail": {
+        "format": "PNG",
+        "mode": "RGB",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "storyboard format",
+      "passed": true
+    },
+    {
+      "detail": {
+        "reviewed_card_frame": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f"
+      },
+      "name": "reviewed frame is the only image source",
+      "passed": true
+    },
+    {
+      "detail": {
+        "reviewed_card_frame": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f"
+      },
+      "name": "source provenance matches",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_iron_plain_release_under_3.gif",
+        "02_silver_lock_release_3_to_4.gif",
+        "03_gold_forged_chainbreak_5_to_6.gif",
+        "04_white_gold_forged_chainbreak_7.gif",
+        "05_forged_chain_bound_break_flash.png",
+        "index.html",
+        "manifest.json"
+      ],
+      "name": "review checksum set",
+      "passed": true
+    },
+    {
+      "detail": {
+        "00_START_HERE.txt": "def3fd51e752603054e611f6aec0781a35c03da59cefebfaec4fba42cea76aa6",
+        "01_iron_plain_release_under_3.gif": "a3fa6b572745dbf26627f754eee5dbc1e090753369ac09cb3cf54d3f2e207335",
+        "02_silver_lock_release_3_to_4.gif": "a88a806ab01f851bf934126715963340bd6cf0cdc5378f83e016f86d7b659008",
+        "03_gold_forged_chainbreak_5_to_6.gif": "d2c485cbc1ac4cae162a5d9050462c78268b3dcbcbd792e983c1d640f9abdebb",
+        "04_white_gold_forged_chainbreak_7.gif": "05d903a6117f16e5af867bbaccf914094315c836e3a50c3834670db9ed067af6",
+        "05_forged_chain_bound_break_flash.png": "9db015e6d39471d7faeebed815c06b3b55b71b33599456eba09729f16ad0d039",
+        "index.html": "99ae64a11be14c4bab7fe2829a44af5fcf1618a5db35cda07f2216fe35e8a529",
+        "manifest.json": "f580ce5594c8bbd30811b802d23f53aaca6f323151ec81fc073d726393d1cd48"
+      },
+      "name": "review checksums",
+      "passed": true
+    },
+    {
+      "detail": [],
+      "name": "public privacy scan",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_iron_plain_release_under_3.gif",
+        "02_silver_lock_release_3_to_4.gif",
+        "03_gold_forged_chainbreak_5_to_6.gif",
+        "04_white_gold_forged_chainbreak_7.gif",
+        "05_forged_chain_bound_break_flash.png",
+        "SHA256SUMS.txt",
+        "index.html",
+        "manifest.json"
+      ],
+      "name": "Windows review set is exact",
+      "passed": true
+    },
+    {
+      "detail": {
+        "00_START_HERE.txt": [
+          "def3fd51e752603054e611f6aec0781a35c03da59cefebfaec4fba42cea76aa6",
+          "def3fd51e752603054e611f6aec0781a35c03da59cefebfaec4fba42cea76aa6"
+        ],
+        "01_iron_plain_release_under_3.gif": [
+          "a3fa6b572745dbf26627f754eee5dbc1e090753369ac09cb3cf54d3f2e207335",
+          "a3fa6b572745dbf26627f754eee5dbc1e090753369ac09cb3cf54d3f2e207335"
+        ],
+        "02_silver_lock_release_3_to_4.gif": [
+          "a88a806ab01f851bf934126715963340bd6cf0cdc5378f83e016f86d7b659008",
+          "a88a806ab01f851bf934126715963340bd6cf0cdc5378f83e016f86d7b659008"
+        ],
+        "03_gold_forged_chainbreak_5_to_6.gif": [
+          "d2c485cbc1ac4cae162a5d9050462c78268b3dcbcbd792e983c1d640f9abdebb",
+          "d2c485cbc1ac4cae162a5d9050462c78268b3dcbcbd792e983c1d640f9abdebb"
+        ],
+        "04_white_gold_forged_chainbreak_7.gif": [
+          "05d903a6117f16e5af867bbaccf914094315c836e3a50c3834670db9ed067af6",
+          "05d903a6117f16e5af867bbaccf914094315c836e3a50c3834670db9ed067af6"
+        ],
+        "05_forged_chain_bound_break_flash.png": [
+          "9db015e6d39471d7faeebed815c06b3b55b71b33599456eba09729f16ad0d039",
+          "9db015e6d39471d7faeebed815c06b3b55b71b33599456eba09729f16ad0d039"
+        ],
+        "SHA256SUMS.txt": [
+          "bf3814c636226a42e3050eca04737a185f0e96d5ffc3d1e9460bc3a437fe7872",
+          "bf3814c636226a42e3050eca04737a185f0e96d5ffc3d1e9460bc3a437fe7872"
+        ],
+        "index.html": [
+          "99ae64a11be14c4bab7fe2829a44af5fcf1618a5db35cda07f2216fe35e8a529",
+          "99ae64a11be14c4bab7fe2829a44af5fcf1618a5db35cda07f2216fe35e8a529"
+        ],
+        "manifest.json": [
+          "f580ce5594c8bbd30811b802d23f53aaca6f323151ec81fc073d726393d1cd48",
+          "f580ce5594c8bbd30811b802d23f53aaca6f323151ec81fc073d726393d1cd48"
+        ]
+      },
+      "name": "Windows review is byte-identical",
+      "passed": true
+    },
+    {
+      "detail": {
+        "v1": true,
+        "v2": true
+      },
+      "name": "V1 and V2 comparisons remain present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "no production binding changes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "changed": {},
+        "returncode": 0,
+        "stderr": ""
+      },
+      "name": "deterministic rebuild",
+      "passed": true
+    }
+  ],
+  "failures": [],
+  "passed": true,
+  "schema_version": 3
+}

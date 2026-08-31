@@ -1,0 +1,14 @@
+{
+  "chain_interlock": "alternating face-on and edge-on links",
+  "chain_mass": "heavy dark forged metal",
+  "chain_motion": "coherent broken halves",
+  "chain_placement": "taut across card with contact shadow",
+  "fracture_shape": "open snapped link arcs",
+  "image_generation_calls": 0,
+  "outward_locks_unchanged": true,
+  "pre_reveal_flash_unchanged": true,
+  "production_binding": false,
+  "revision": "V3 forged chain treatment",
+  "v1_disposition": "preserved",
+  "v2_disposition": "preserved comparison"
+}

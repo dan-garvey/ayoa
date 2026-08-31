@@ -13,6 +13,7 @@ import html
 import json
 import math
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -568,6 +569,8 @@ def animation_frame(
     sealed: Image.Image,
     *,
     progress: float,
+    chain_renderer: Callable[..., tuple[Image.Image, Image.Image, Image.Image]]
+    | None = None,
 ) -> Image.Image:
     band = base.BANDS[tier.band_key]
     canvas = base.system_canvas()
@@ -582,7 +585,8 @@ def animation_frame(
     card_top = CARD_CENTER[1] - card_height // 2
     card_box = (card_left, card_top, card_left + card_width, card_top + card_height)
 
-    back_chains, front_chains, fracture = wrapped_chains(
+    render_chains = wrapped_chains if chain_renderer is None else chain_renderer
+    back_chains, front_chains, fracture = render_chains(
         tier,
         progress=progress,
         card_box=card_box,
