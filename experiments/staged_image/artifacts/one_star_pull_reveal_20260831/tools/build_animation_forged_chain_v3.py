@@ -259,6 +259,8 @@ def forged_chains(
     *,
     progress: float,
     card_box: tuple[int, int, int, int],
+    strain: float = 0.0,
+    strain_phase: float = 0.0,
 ) -> tuple[Image.Image, Image.Image, Image.Image]:
     back = Image.new("RGBA", base.BOARD_SIZE, (0, 0, 0, 0))
     front = Image.new("RGBA", base.BOARD_SIZE, (0, 0, 0, 0))
@@ -297,6 +299,15 @@ def forged_chains(
                 base_y
                 + slope * (raw_x - center_x)
                 + (1.0 - normalized_x**2) * 4
+            )
+            strain_amount = min(1.0, abs(strain))
+            raw_x += (
+                -1 if raw_x < center_x else 1
+            ) * strain_amount * (3 + tier.intensity)
+            raw_y += (
+                math.sin(link_index * 1.18 + strain_phase + chain_index * 0.7)
+                * strain
+                * (2.2 + tier.intensity * 0.65)
             )
             side = -1 if raw_x < break_x else 1
             relative_x = raw_x - break_x

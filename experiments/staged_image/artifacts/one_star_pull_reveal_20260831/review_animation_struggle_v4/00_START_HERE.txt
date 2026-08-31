@@ -1,0 +1,20 @@
+ONE-STAR PULL REVEAL — UNSEALING STRUGGLE V4
+
+V4 preserves V3's forged chains, outward release, and held flash. Before the
+final break, the seal now visibly resists: locks tug away and recoil, chains
+tighten and ripple, the card shudders, and each pulse escalates by rarity.
+
+01  UNDER 3 STARS // ONE RESTRAINED PULSE  1.40s  1.73 MiB
+02  3-4 STARS // TWO LOCK TUGS  2.27s  4.25 MiB
+03  5-6 STARS // THREE CHAIN STRAINS  2.87s  5.38 MiB
+04  7 STARS // FOUR ESCALATING STRAINS  3.57s  7.38 MiB
+
+PULSE LADDER
+- Under 3 stars: one restrained system pulse before the plain release.
+- 3-4 stars: two lock tugs, with the second stronger than the first.
+- 5-6 stars: three escalating strains through the forged chains and locks.
+- 7 stars: four increasingly violent strains before one decisive snap.
+
+These are mechanical anticipation beats, not rarity fakeouts. No lock opens
+and no chain breaks until the final release. Review GIFs loop; production
+intent is one play, held flash, then the authoritative static result.

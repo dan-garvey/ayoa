@@ -571,6 +571,8 @@ def animation_frame(
     progress: float,
     chain_renderer: Callable[..., tuple[Image.Image, Image.Image, Image.Image]]
     | None = None,
+    lock_renderer: Callable[..., Image.Image] | None = None,
+    card_offset: tuple[int, int] = (0, 0),
 ) -> Image.Image:
     band = base.BANDS[tier.band_key]
     canvas = base.system_canvas()
@@ -581,8 +583,8 @@ def animation_frame(
     scale += math.sin(progress * math.tau * 1.2) * 0.0025
     card_width = round(CARD_NOMINAL_SIZE[0] * scale)
     card_height = round(CARD_NOMINAL_SIZE[1] * scale)
-    card_left = CARD_CENTER[0] - card_width // 2
-    card_top = CARD_CENTER[1] - card_height // 2
+    card_left = CARD_CENTER[0] - card_width // 2 + card_offset[0]
+    card_top = CARD_CENTER[1] - card_height // 2 + card_offset[1]
     card_box = (card_left, card_top, card_left + card_width, card_top + card_height)
 
     render_chains = wrapped_chains if chain_renderer is None else chain_renderer
@@ -597,8 +599,9 @@ def animation_frame(
     canvas.alpha_composite(front_chains)
     canvas.alpha_composite(release_scan(tier, progress=progress, card_box=card_box))
     canvas.alpha_composite(fracture)
+    render_locks = ejected_locks if lock_renderer is None else lock_renderer
     canvas.alpha_composite(
-        ejected_locks(tier, progress=progress, card_box=card_box)
+        render_locks(tier, progress=progress, card_box=card_box)
     )
     canvas.alpha_composite(release_sparks(tier, progress=progress))
 

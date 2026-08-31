@@ -1,0 +1,285 @@
+{
+  "direction": "escalating_struggle_then_outward_release",
+  "file_size_cap_bytes": null,
+  "invariants": {
+    "animation_required_for_comprehension": false,
+    "exact_rank_before_static_result": "withheld",
+    "fakeouts": "none",
+    "forged_chain_style": true,
+    "held_pre_reveal_flash": true,
+    "identity_before_static_result": "withheld",
+    "image_generation_calls": 0,
+    "outward_lock_motion": true,
+    "semantic_fallback": "existing static result board",
+    "v1_v2_v3_preserved": true
+  },
+  "motion_revision": {
+    "card": "small restrained shudder",
+    "chains": "tighten and ripple without breaking",
+    "locks": "wiggle and tug without opening",
+    "pre_release": "tug recoil pulse sequence",
+    "principle": "anticipation through escalating resistance",
+    "rank_fakeout": false,
+    "release": "one decisive outward snap"
+  },
+  "production_binding": false,
+  "production_intent": "play_once_hold_flash_then_static_result",
+  "rank_bands": {
+    "3_to_4": "silver",
+    "5_to_6": "gold",
+    "7": "white_gold",
+    "under_3": "iron_plain"
+  },
+  "review_encoding": "loop",
+  "schema_version": 4,
+  "source_hashes": {
+    "reviewed_card_frame": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f"
+  },
+  "status": "visual_review_only",
+  "storyboard": {
+    "dimensions": [
+      1024,
+      576
+    ],
+    "filename": "05_bound_strain_break_flash_storyboard.png",
+    "sha256": "96939df3c4bb1771a2ad4775d828584d548159077ccddcc5dd71845a93248fcd"
+  },
+  "supersedes_for_review": "forged_chain_v3_motion_timing",
+  "tiers": [
+    {
+      "accessible_text": "UNDER 3 STARS // ONE RESTRAINED PULSE; seal strains and recoils before outward release; pre-reveal flash; static result follows",
+      "byte_count": 1810338,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 1400,
+      "filename": "01_iron_plain_strain_release_under_3.gif",
+      "final_frame": "held_pre_reveal_flash",
+      "final_hold_ms": 380,
+      "frame_count": 18,
+      "frame_ms": 60,
+      "label": "UNDER 3 STARS // ONE RESTRAINED PULSE",
+      "production_intent": "play_once_then_static_result",
+      "release_geometry": {
+        "chain_break_displacement_px": 0,
+        "chain_count": 0,
+        "chain_motion": "none",
+        "chain_segment_motion": "none",
+        "chain_start_layer": "none",
+        "chain_visual_style": "none",
+        "contact_shadow": false,
+        "fracture_shape": "none",
+        "lock_count": 0,
+        "lock_end_distances_px": [],
+        "lock_motion": "outward",
+        "lock_start_distance_px": null
+      },
+      "review_loop": true,
+      "sha256": "2e307325deda304f1d9eb48e3234a85c36f73896cb471a45e915489bc466c222",
+      "struggle": {
+        "card_shake_px": 1.0,
+        "chain_wiggle": 0.0,
+        "final_release": "single_decisive_outward_snap",
+        "lock_wiggle_px": 0.0,
+        "pulse_centers": [
+          0.25
+        ],
+        "pulse_count": 1,
+        "pulse_pattern": "tug_recoil_then_stronger_tug",
+        "pulse_tugs": [
+          0.1
+        ],
+        "pulse_widths": [
+          0.09
+        ],
+        "release_start": 0.46
+      },
+      "visual_intensity": 1
+    },
+    {
+      "accessible_text": "3-4 STARS // TWO LOCK TUGS; seal strains and recoils before outward release; pre-reveal flash; static result follows",
+      "byte_count": 4460470,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 2270,
+      "filename": "02_silver_lock_struggle_3_to_4.gif",
+      "final_frame": "held_pre_reveal_flash",
+      "final_hold_ms": 520,
+      "frame_count": 36,
+      "frame_ms": 50,
+      "label": "3-4 STARS // TWO LOCK TUGS",
+      "production_intent": "play_once_then_static_result",
+      "release_geometry": {
+        "chain_break_displacement_px": 0,
+        "chain_count": 0,
+        "chain_motion": "none",
+        "chain_segment_motion": "none",
+        "chain_start_layer": "none",
+        "chain_visual_style": "none",
+        "contact_shadow": false,
+        "fracture_shape": "none",
+        "lock_count": 2,
+        "lock_end_distances_px": [
+          396,
+          409
+        ],
+        "lock_motion": "outward",
+        "lock_start_distance_px": 150
+      },
+      "review_loop": true,
+      "sha256": "37235bde70747244aa675ed83d574dd9fb8092b3ce0cfa0458d7c0a3effe7751",
+      "struggle": {
+        "card_shake_px": 1.5,
+        "chain_wiggle": 0.0,
+        "final_release": "single_decisive_outward_snap",
+        "lock_wiggle_px": 2.5,
+        "pulse_centers": [
+          0.18,
+          0.4
+        ],
+        "pulse_count": 2,
+        "pulse_pattern": "tug_recoil_then_stronger_tug",
+        "pulse_tugs": [
+          0.07,
+          0.135
+        ],
+        "pulse_widths": [
+          0.072,
+          0.078
+        ],
+        "release_start": 0.56
+      },
+      "visual_intensity": 2
+    },
+    {
+      "accessible_text": "5-6 STARS // THREE CHAIN STRAINS; seal strains and recoils before outward release; pre-reveal flash; static result follows",
+      "byte_count": 5646272,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 2870,
+      "filename": "03_gold_chain_struggle_5_to_6.gif",
+      "final_frame": "held_pre_reveal_flash",
+      "final_hold_ms": 620,
+      "frame_count": 46,
+      "frame_ms": 50,
+      "label": "5-6 STARS // THREE CHAIN STRAINS",
+      "production_intent": "play_once_then_static_result",
+      "release_geometry": {
+        "chain_break_displacement_px": 185,
+        "chain_count": 2,
+        "chain_motion": "split_and_eject_outward",
+        "chain_segment_motion": "coherent_rigid_halves",
+        "chain_start_layer": "wrapped_across_card_face",
+        "chain_visual_style": "heavy_forged_interlocking_links",
+        "contact_shadow": true,
+        "fracture_shape": "open_ends_attached_to_receding_segments",
+        "lock_count": 3,
+        "lock_end_distances_px": [
+          406,
+          419,
+          432
+        ],
+        "lock_motion": "outward",
+        "lock_start_distance_px": 150
+      },
+      "review_loop": true,
+      "sha256": "2cbe3ed80178f8e51e848daea34539104376895b4055bdfe8d13faf2e69b8c5a",
+      "struggle": {
+        "card_shake_px": 2.0,
+        "chain_wiggle": 0.72,
+        "final_release": "single_decisive_outward_snap",
+        "lock_wiggle_px": 3.5,
+        "pulse_centers": [
+          0.15,
+          0.34,
+          0.53
+        ],
+        "pulse_count": 3,
+        "pulse_pattern": "tug_recoil_then_stronger_tug",
+        "pulse_tugs": [
+          0.06,
+          0.1,
+          0.15
+        ],
+        "pulse_widths": [
+          0.057,
+          0.062,
+          0.068
+        ],
+        "release_start": 0.62
+      },
+      "visual_intensity": 3
+    },
+    {
+      "accessible_text": "7 STARS // FOUR ESCALATING STRAINS; seal strains and recoils before outward release; pre-reveal flash; static result follows",
+      "byte_count": 7737227,
+      "dimensions": [
+        1024,
+        576
+      ],
+      "duration_ms": 3570,
+      "filename": "04_white_gold_chain_struggle_7.gif",
+      "final_frame": "held_pre_reveal_flash",
+      "final_hold_ms": 820,
+      "frame_count": 56,
+      "frame_ms": 50,
+      "label": "7 STARS // FOUR ESCALATING STRAINS",
+      "production_intent": "play_once_then_static_result",
+      "release_geometry": {
+        "chain_break_displacement_px": 204,
+        "chain_count": 3,
+        "chain_motion": "split_and_eject_outward",
+        "chain_segment_motion": "coherent_rigid_halves",
+        "chain_start_layer": "wrapped_across_card_face",
+        "chain_visual_style": "heavy_forged_interlocking_links",
+        "contact_shadow": true,
+        "fracture_shape": "open_ends_attached_to_receding_segments",
+        "lock_count": 4,
+        "lock_end_distances_px": [
+          416,
+          429,
+          442,
+          455
+        ],
+        "lock_motion": "outward",
+        "lock_start_distance_px": 150
+      },
+      "review_loop": true,
+      "sha256": "bef73ca26c4714c5fa68dd320e2f2b150f54aa092cf9e39cb4dabf53a1b304e7",
+      "struggle": {
+        "card_shake_px": 2.7,
+        "chain_wiggle": 1.0,
+        "final_release": "single_decisive_outward_snap",
+        "lock_wiggle_px": 4.5,
+        "pulse_centers": [
+          0.12,
+          0.29,
+          0.46,
+          0.6
+        ],
+        "pulse_count": 4,
+        "pulse_pattern": "tug_recoil_then_stronger_tug",
+        "pulse_tugs": [
+          0.05,
+          0.08,
+          0.12,
+          0.16
+        ],
+        "pulse_widths": [
+          0.046,
+          0.051,
+          0.056,
+          0.061
+        ],
+        "release_start": 0.67
+      },
+      "visual_intensity": 4
+    }
+  ],
+  "transport_contract": "optional motion before authoritative static result"
+}

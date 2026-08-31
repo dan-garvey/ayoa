@@ -1,0 +1,1072 @@
+{
+  "check_count": 55,
+  "checks": [
+    {
+      "detail": "bd3a5e8cfbfe7505203521591f47d8e9623c1cf86594933b10758968865e3aa7",
+      "name": "review manifest is canonical manifest",
+      "passed": true
+    },
+    {
+      "detail": {
+        "direction": "escalating_struggle_then_outward_release",
+        "production_binding": false,
+        "production_intent": "play_once_hold_flash_then_static_result",
+        "schema_version": 4,
+        "status": "visual_review_only",
+        "supersedes_for_review": "forged_chain_v3_motion_timing"
+      },
+      "name": "V4 struggle review contract",
+      "passed": true
+    },
+    {
+      "detail": null,
+      "name": "no file-size cap",
+      "passed": true
+    },
+    {
+      "detail": {
+        "card": "small restrained shudder",
+        "chains": "tighten and ripple without breaking",
+        "locks": "wiggle and tug without opening",
+        "pre_release": "tug recoil pulse sequence",
+        "principle": "anticipation through escalating resistance",
+        "rank_fakeout": false,
+        "release": "one decisive outward snap"
+      },
+      "name": "anticipation design contract",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animation_required_for_comprehension": false,
+        "exact_rank_before_static_result": "withheld",
+        "fakeouts": "none",
+        "forged_chain_style": true,
+        "held_pre_reveal_flash": true,
+        "identity_before_static_result": "withheld",
+        "image_generation_calls": 0,
+        "outward_lock_motion": true,
+        "semantic_fallback": "existing static result board",
+        "v1_v2_v3_preserved": true
+      },
+      "name": "visual and semantic invariants",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_iron_plain_strain_release_under_3.gif",
+        "02_silver_lock_struggle_3_to_4.gif",
+        "03_gold_chain_struggle_5_to_6.gif",
+        "04_white_gold_chain_struggle_7.gif",
+        "05_bound_strain_break_flash_storyboard.png",
+        "SHA256SUMS.txt",
+        "index.html",
+        "manifest.json"
+      ],
+      "name": "review set is exact",
+      "passed": true
+    },
+    {
+      "detail": 4,
+      "name": "four animation tiers",
+      "passed": true
+    },
+    {
+      "detail": [
+        "01_iron_plain_strain_release_under_3.gif",
+        "02_silver_lock_struggle_3_to_4.gif",
+        "03_gold_chain_struggle_5_to_6.gif",
+        "04_white_gold_chain_struggle_7.gif"
+      ],
+      "name": "tier file order",
+      "passed": true
+    },
+    {
+      "detail": {
+        "durations_ms": [
+          1400,
+          2270,
+          2870,
+          3570
+        ],
+        "frame_counts": [
+          18,
+          36,
+          46,
+          56
+        ]
+      },
+      "name": "duration and frame count rise with rarity",
+      "passed": true
+    },
+    {
+      "detail": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "name": "pulse count rises by rarity",
+      "passed": true
+    },
+    {
+      "detail": [
+        [
+          0.1
+        ],
+        [
+          0.07,
+          0.135
+        ],
+        [
+          0.06,
+          0.1,
+          0.15
+        ],
+        [
+          0.05,
+          0.08,
+          0.12,
+          0.16
+        ]
+      ],
+      "name": "pulse tugs escalate within every tier",
+      "passed": true
+    },
+    {
+      "detail": [
+        0.46,
+        0.56,
+        0.62,
+        0.67
+      ],
+      "name": "release delay rises by rarity",
+      "passed": true
+    },
+    {
+      "detail": {
+        "chain_wiggle": [
+          0.0,
+          0.0,
+          0.72,
+          1.0
+        ],
+        "lock_wiggle_px": [
+          0.0,
+          2.5,
+          3.5,
+          4.5
+        ]
+      },
+      "name": "chain and lock struggle rises by rarity",
+      "passed": true
+    },
+    {
+      "detail": {
+        "five_to_six": {
+          "detected_pulses": 3,
+          "expected_pulses": 3,
+          "final_motion_progress": 1.0,
+          "no_early_break": true,
+          "post_release_monotonic": true,
+          "pulse_center_motion": [
+            0.16435488637619106,
+            0.20987180282873738,
+            0.255
+          ]
+        },
+        "seven": {
+          "detected_pulses": 4,
+          "expected_pulses": 4,
+          "final_motion_progress": 1.0,
+          "no_early_break": true,
+          "post_release_monotonic": true,
+          "pulse_center_motion": [
+            0.1532238832490173,
+            0.18779111991276062,
+            0.2324037455106221,
+            0.255
+          ]
+        },
+        "three_to_four": {
+          "detected_pulses": 2,
+          "expected_pulses": 2,
+          "final_motion_progress": 1.0,
+          "no_early_break": true,
+          "post_release_monotonic": true,
+          "pulse_center_motion": [
+            0.17578631019106794,
+            0.24785717918392186
+          ]
+        },
+        "under_three": {
+          "detected_pulses": 1,
+          "expected_pulses": 1,
+          "final_motion_progress": 1.0,
+          "no_early_break": true,
+          "post_release_monotonic": true,
+          "pulse_center_motion": [
+            0.20978260869565218
+          ]
+        }
+      },
+      "name": "motion profiles tug recoil then release",
+      "passed": true
+    },
+    {
+      "detail": [
+        {
+          "chain_break_displacement_px": 0,
+          "chain_count": 0,
+          "chain_motion": "none",
+          "chain_segment_motion": "none",
+          "chain_start_layer": "none",
+          "chain_visual_style": "none",
+          "contact_shadow": false,
+          "fracture_shape": "none",
+          "lock_count": 0,
+          "lock_end_distances_px": [],
+          "lock_motion": "outward",
+          "lock_start_distance_px": null
+        },
+        {
+          "chain_break_displacement_px": 0,
+          "chain_count": 0,
+          "chain_motion": "none",
+          "chain_segment_motion": "none",
+          "chain_start_layer": "none",
+          "chain_visual_style": "none",
+          "contact_shadow": false,
+          "fracture_shape": "none",
+          "lock_count": 2,
+          "lock_end_distances_px": [
+            396,
+            409
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        },
+        {
+          "chain_break_displacement_px": 185,
+          "chain_count": 2,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "open_ends_attached_to_receding_segments",
+          "lock_count": 3,
+          "lock_end_distances_px": [
+            406,
+            419,
+            432
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        },
+        {
+          "chain_break_displacement_px": 204,
+          "chain_count": 3,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "open_ends_attached_to_receding_segments",
+          "lock_count": 4,
+          "lock_end_distances_px": [
+            416,
+            429,
+            442,
+            455
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        }
+      ],
+      "name": "forged chains remain on high tiers",
+      "passed": true
+    },
+    {
+      "detail": [
+        {
+          "chain_break_displacement_px": 0,
+          "chain_count": 0,
+          "chain_motion": "none",
+          "chain_segment_motion": "none",
+          "chain_start_layer": "none",
+          "chain_visual_style": "none",
+          "contact_shadow": false,
+          "fracture_shape": "none",
+          "lock_count": 0,
+          "lock_end_distances_px": [],
+          "lock_motion": "outward",
+          "lock_start_distance_px": null
+        },
+        {
+          "chain_break_displacement_px": 0,
+          "chain_count": 0,
+          "chain_motion": "none",
+          "chain_segment_motion": "none",
+          "chain_start_layer": "none",
+          "chain_visual_style": "none",
+          "contact_shadow": false,
+          "fracture_shape": "none",
+          "lock_count": 2,
+          "lock_end_distances_px": [
+            396,
+            409
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        },
+        {
+          "chain_break_displacement_px": 185,
+          "chain_count": 2,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "open_ends_attached_to_receding_segments",
+          "lock_count": 3,
+          "lock_end_distances_px": [
+            406,
+            419,
+            432
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        },
+        {
+          "chain_break_displacement_px": 204,
+          "chain_count": 3,
+          "chain_motion": "split_and_eject_outward",
+          "chain_segment_motion": "coherent_rigid_halves",
+          "chain_start_layer": "wrapped_across_card_face",
+          "chain_visual_style": "heavy_forged_interlocking_links",
+          "contact_shadow": true,
+          "fracture_shape": "open_ends_attached_to_receding_segments",
+          "lock_count": 4,
+          "lock_end_distances_px": [
+            416,
+            429,
+            442,
+            455
+          ],
+          "lock_motion": "outward",
+          "lock_start_distance_px": 150
+        }
+      ],
+      "name": "locks still release outward",
+      "passed": true
+    },
+    {
+      "detail": [
+        "held_pre_reveal_flash",
+        "held_pre_reveal_flash",
+        "held_pre_reveal_flash",
+        "held_pre_reveal_flash"
+      ],
+      "name": "every tier ends on held flash",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "format": "GIF",
+        "frame_count": 18,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "under_three GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        60,
+        380
+      ],
+      "name": "under_three GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "active_transitions": 3,
+        "max_motion": 2.0567,
+        "pre_release_frames": 7
+      },
+      "name": "under_three has visible pre-release struggle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "final_luma": 113.289,
+        "max_luma": 113.289,
+        "start_luma": 14.185
+      },
+      "name": "under_three final frame is brightness peak",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 1810338,
+        "actual_hash": "2e307325deda304f1d9eb48e3234a85c36f73896cb471a45e915489bc466c222",
+        "manifest_bytes": 1810338,
+        "manifest_hash": "2e307325deda304f1d9eb48e3234a85c36f73896cb471a45e915489bc466c222"
+      },
+      "name": "under_three manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "format": "GIF",
+        "frame_count": 36,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "three_to_four GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        520
+      ],
+      "name": "three_to_four GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "active_transitions": 14,
+        "max_motion": 4.9438,
+        "pre_release_frames": 19
+      },
+      "name": "three_to_four has visible pre-release struggle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "final_luma": 184.487,
+        "max_luma": 184.487,
+        "start_luma": 22.0
+      },
+      "name": "three_to_four final frame is brightness peak",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 4460470,
+        "actual_hash": "37235bde70747244aa675ed83d574dd9fb8092b3ce0cfa0458d7c0a3effe7751",
+        "manifest_bytes": 4460470,
+        "manifest_hash": "37235bde70747244aa675ed83d574dd9fb8092b3ce0cfa0458d7c0a3effe7751"
+      },
+      "name": "three_to_four manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "format": "GIF",
+        "frame_count": 46,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "five_to_six GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        620
+      ],
+      "name": "five_to_six GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "active_transitions": 22,
+        "max_motion": 5.7387,
+        "pre_release_frames": 27
+      },
+      "name": "five_to_six has visible pre-release struggle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "final_luma": 220.529,
+        "max_luma": 220.529,
+        "start_luma": 25.505
+      },
+      "name": "five_to_six final frame is brightness peak",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 5646272,
+        "actual_hash": "2cbe3ed80178f8e51e848daea34539104376895b4055bdfe8d13faf2e69b8c5a",
+        "manifest_bytes": 5646272,
+        "manifest_hash": "2cbe3ed80178f8e51e848daea34539104376895b4055bdfe8d13faf2e69b8c5a"
+      },
+      "name": "five_to_six manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "animated": true,
+        "format": "GIF",
+        "frame_count": 56,
+        "loop": 0,
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "seven GIF structure",
+      "passed": true
+    },
+    {
+      "detail": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        820
+      ],
+      "name": "seven GIF timing",
+      "passed": true
+    },
+    {
+      "detail": {
+        "active_transitions": 31,
+        "max_motion": 12.3534,
+        "pre_release_frames": 36
+      },
+      "name": "seven has visible pre-release struggle",
+      "passed": true
+    },
+    {
+      "detail": {
+        "final_luma": 249.119,
+        "max_luma": 249.119,
+        "start_luma": 36.353
+      },
+      "name": "seven final frame is brightness peak",
+      "passed": true
+    },
+    {
+      "detail": {
+        "actual_bytes": 7737227,
+        "actual_hash": "bef73ca26c4714c5fa68dd320e2f2b150f54aa092cf9e39cb4dabf53a1b304e7",
+        "manifest_bytes": 7737227,
+        "manifest_hash": "bef73ca26c4714c5fa68dd320e2f2b150f54aa092cf9e39cb4dabf53a1b304e7"
+      },
+      "name": "seven manifest hash and bytes",
+      "passed": true
+    },
+    {
+      "detail": [
+        113.289,
+        184.487,
+        220.529,
+        249.119
+      ],
+      "name": "flash brightness rises with rarity",
+      "passed": true
+    },
+    {
+      "detail": [
+        "five_to_six_bound.png",
+        "five_to_six_break.png",
+        "five_to_six_flash.png",
+        "five_to_six_strain.png",
+        "seven_bound.png",
+        "seven_break.png",
+        "seven_flash.png",
+        "seven_strain.png",
+        "three_to_four_bound.png",
+        "three_to_four_break.png",
+        "three_to_four_flash.png",
+        "three_to_four_strain.png",
+        "under_three_bound.png",
+        "under_three_break.png",
+        "under_three_flash.png",
+        "under_three_strain.png"
+      ],
+      "name": "exact bound strain break flash keyframes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "five_to_six_bound.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "five_to_six_break.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "five_to_six_flash.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "five_to_six_strain.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "seven_bound.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "seven_break.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "seven_flash.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "seven_strain.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "three_to_four_bound.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "three_to_four_break.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "three_to_four_flash.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "three_to_four_strain.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "under_three_bound.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "under_three_break.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "under_three_flash.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        },
+        "under_three_strain.png": {
+          "format": "PNG",
+          "mode": "RGB",
+          "size": [
+            1024,
+            576
+          ]
+        }
+      },
+      "name": "keyframe format",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bound_luma": 15.575,
+        "break_difference": 4.013,
+        "flash_luma": 114.911,
+        "strain_difference": 2.272
+      },
+      "name": "under_three visual stages differ",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bound_luma": 23.464,
+        "break_difference": 10.604,
+        "flash_luma": 186.216,
+        "strain_difference": 6.246
+      },
+      "name": "three_to_four visual stages differ",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bound_luma": 27.034,
+        "break_difference": 15.152,
+        "flash_luma": 221.829,
+        "strain_difference": 8.816
+      },
+      "name": "five_to_six visual stages differ",
+      "passed": true
+    },
+    {
+      "detail": {
+        "bound_luma": 37.85,
+        "break_difference": 27.53,
+        "flash_luma": 250.17,
+        "strain_difference": 15.267
+      },
+      "name": "seven visual stages differ",
+      "passed": true
+    },
+    {
+      "detail": {
+        "format": "PNG",
+        "mode": "RGB",
+        "size": [
+          1024,
+          576
+        ]
+      },
+      "name": "storyboard format",
+      "passed": true
+    },
+    {
+      "detail": {
+        "reviewed_card_frame": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f"
+      },
+      "name": "reviewed frame is the only image source",
+      "passed": true
+    },
+    {
+      "detail": {
+        "reviewed_card_frame": "4821ca5eac1ca0b6a49dc2b310f1d59964b16e6295cfdb497147c8fd04fe2c8f"
+      },
+      "name": "source provenance matches",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_iron_plain_strain_release_under_3.gif",
+        "02_silver_lock_struggle_3_to_4.gif",
+        "03_gold_chain_struggle_5_to_6.gif",
+        "04_white_gold_chain_struggle_7.gif",
+        "05_bound_strain_break_flash_storyboard.png",
+        "index.html",
+        "manifest.json"
+      ],
+      "name": "review checksum set",
+      "passed": true
+    },
+    {
+      "detail": {
+        "00_START_HERE.txt": "b2b000399ece2be10f176b2d1cfb935fc83615073de6e7489c998af051da35ec",
+        "01_iron_plain_strain_release_under_3.gif": "2e307325deda304f1d9eb48e3234a85c36f73896cb471a45e915489bc466c222",
+        "02_silver_lock_struggle_3_to_4.gif": "37235bde70747244aa675ed83d574dd9fb8092b3ce0cfa0458d7c0a3effe7751",
+        "03_gold_chain_struggle_5_to_6.gif": "2cbe3ed80178f8e51e848daea34539104376895b4055bdfe8d13faf2e69b8c5a",
+        "04_white_gold_chain_struggle_7.gif": "bef73ca26c4714c5fa68dd320e2f2b150f54aa092cf9e39cb4dabf53a1b304e7",
+        "05_bound_strain_break_flash_storyboard.png": "96939df3c4bb1771a2ad4775d828584d548159077ccddcc5dd71845a93248fcd",
+        "index.html": "df500afac9b09dbcb7e048c653a956356816a7aa33e8ad125bb1a6b10d013944",
+        "manifest.json": "bd3a5e8cfbfe7505203521591f47d8e9623c1cf86594933b10758968865e3aa7"
+      },
+      "name": "review checksums",
+      "passed": true
+    },
+    {
+      "detail": [],
+      "name": "public privacy scan",
+      "passed": true
+    },
+    {
+      "detail": [
+        "00_START_HERE.txt",
+        "01_iron_plain_strain_release_under_3.gif",
+        "02_silver_lock_struggle_3_to_4.gif",
+        "03_gold_chain_struggle_5_to_6.gif",
+        "04_white_gold_chain_struggle_7.gif",
+        "05_bound_strain_break_flash_storyboard.png",
+        "SHA256SUMS.txt",
+        "index.html",
+        "manifest.json"
+      ],
+      "name": "Windows review set is exact",
+      "passed": true
+    },
+    {
+      "detail": {
+        "00_START_HERE.txt": [
+          "b2b000399ece2be10f176b2d1cfb935fc83615073de6e7489c998af051da35ec",
+          "b2b000399ece2be10f176b2d1cfb935fc83615073de6e7489c998af051da35ec"
+        ],
+        "01_iron_plain_strain_release_under_3.gif": [
+          "2e307325deda304f1d9eb48e3234a85c36f73896cb471a45e915489bc466c222",
+          "2e307325deda304f1d9eb48e3234a85c36f73896cb471a45e915489bc466c222"
+        ],
+        "02_silver_lock_struggle_3_to_4.gif": [
+          "37235bde70747244aa675ed83d574dd9fb8092b3ce0cfa0458d7c0a3effe7751",
+          "37235bde70747244aa675ed83d574dd9fb8092b3ce0cfa0458d7c0a3effe7751"
+        ],
+        "03_gold_chain_struggle_5_to_6.gif": [
+          "2cbe3ed80178f8e51e848daea34539104376895b4055bdfe8d13faf2e69b8c5a",
+          "2cbe3ed80178f8e51e848daea34539104376895b4055bdfe8d13faf2e69b8c5a"
+        ],
+        "04_white_gold_chain_struggle_7.gif": [
+          "bef73ca26c4714c5fa68dd320e2f2b150f54aa092cf9e39cb4dabf53a1b304e7",
+          "bef73ca26c4714c5fa68dd320e2f2b150f54aa092cf9e39cb4dabf53a1b304e7"
+        ],
+        "05_bound_strain_break_flash_storyboard.png": [
+          "96939df3c4bb1771a2ad4775d828584d548159077ccddcc5dd71845a93248fcd",
+          "96939df3c4bb1771a2ad4775d828584d548159077ccddcc5dd71845a93248fcd"
+        ],
+        "SHA256SUMS.txt": [
+          "270b7ba2c1cd60c179917f4f4974681b399cc14e6945f042dc535664c87119aa",
+          "270b7ba2c1cd60c179917f4f4974681b399cc14e6945f042dc535664c87119aa"
+        ],
+        "index.html": [
+          "df500afac9b09dbcb7e048c653a956356816a7aa33e8ad125bb1a6b10d013944",
+          "df500afac9b09dbcb7e048c653a956356816a7aa33e8ad125bb1a6b10d013944"
+        ],
+        "manifest.json": [
+          "bd3a5e8cfbfe7505203521591f47d8e9623c1cf86594933b10758968865e3aa7",
+          "bd3a5e8cfbfe7505203521591f47d8e9623c1cf86594933b10758968865e3aa7"
+        ]
+      },
+      "name": "Windows review is byte-identical",
+      "passed": true
+    },
+    {
+      "detail": {
+        "review_animation": true,
+        "review_animation_forged_chain_v3": true,
+        "review_animation_release_v2": true
+      },
+      "name": "V1 through V3 comparisons remain present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "no production binding changes",
+      "passed": true
+    },
+    {
+      "detail": {
+        "changed": {},
+        "returncode": 0,
+        "stderr": ""
+      },
+      "name": "deterministic rebuild",
+      "passed": true
+    }
+  ],
+  "failures": [],
+  "passed": true,
+  "schema_version": 4
+}
