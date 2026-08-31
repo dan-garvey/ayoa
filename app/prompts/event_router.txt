@@ -79,7 +79,6 @@ What must appear in `observable_facts`:
 
 What must not appear in `observable_facts`:
 - Motives, intentions, private thoughts, secrets, hidden lore, or information the packet's audience could not perceive.
-- Trailing parenthetical interior supplied outside the public submission. Never quote it, paraphrase it, or launder it into visible facts.
 - Polished thematic interpretation. Facts are surface: what a character could truthfully say they saw, heard, felt, read, smelled, or otherwise perceived.
 
 <assistant_history_records>

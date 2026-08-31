@@ -7,10 +7,10 @@ from typing import Any
 
 from app.engine.content_pack_compiler import SCHEMA_VERSION as CONTENT_PACK_SCHEMA_VERSION
 from app.schemas.characters import (
+    ActorRecord,
     CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
-    PrivateState,
     PublicSheet,
 )
 from app.schemas.content import (
@@ -20,7 +20,6 @@ from app.schemas.content import (
     PendingContentSignal,
 )
 from app.schemas.content_pack import (
-    AgentContextSliceRecord,
     ActorDossierRecord,
     ContentPackDomainCatalog,
     ContentPackDomainRecord,
@@ -58,7 +57,6 @@ def build_content_pack_projection_artifact(
     field_start_router_lookup_refs: Sequence[str] = (),
     active_front_refs: Sequence[str] = (),
     active_character_ids: Sequence[str] = (),
-    intentions_enabled_character_ids: Sequence[str] = (),
     character_overrides: Mapping[str, Mapping[str, Any]] | None = None,
     checkpoint: ContentCheckpointProjection | Mapping[str, Any] | None = None,
     field_start: ContentFieldStartProjection | Mapping[str, Any] | None = None,
@@ -86,48 +84,23 @@ def build_content_pack_projection_artifact(
     _validate_runtime_cards(cards_by_ref, records_by_ref)
 
     active_ids = {item for item in (_clean_token(value) for value in active_character_ids) if item}
-    intent_ids = {
-        item
-        for item in (_clean_token(value) for value in intentions_enabled_character_ids)
-        if item
-    }
-    overrides = {
-        _clean_token(key): dict(value)
-        for key, value in (character_overrides or {}).items()
-        if _clean_token(key)
-    }
-    contexts_by_ref = {
-        context.ref: context for context in domain_catalog.agent_context_slices
-    }
-    contexts_by_actor: dict[str, list[AgentContextSliceRecord]] = {}
-    for context in domain_catalog.agent_context_slices:
-        contexts_by_actor.setdefault(context.actor_ref, []).append(context)
+    overrides = _character_overrides(character_overrides)
 
     characters: list[ContentCharacterProjection] = []
     knowledge_map: list[ContentKnowledgeProjection] = []
     for actor in domain_catalog.actor_dossiers:
         _assert_runtime_record(actor)
         character_id = actor.character_id_hint or actor.ref.replace(".", "_")
-        context = _context_for_actor(
-            actor,
-            contexts_by_ref=contexts_by_ref,
-            contexts_by_actor=contexts_by_actor,
-        )
-        if context is not None:
-            _assert_runtime_record(context)
         projection_refs = [
             _projection_ref(cards_by_ref, ref)
-            for ref in _refs_for_actor(actor, context, records_by_ref=records_by_ref)
+            for ref in _refs_for_actor(actor)
         ]
         known_refs = [ref.compact() for ref in projection_refs]
         character_projection = _character_projection(
             actor,
-            context,
-            records_by_ref=records_by_ref,
             known_refs=known_refs,
             character_id=character_id,
             active_character_ids=active_ids,
-            intentions_enabled_character_ids=intent_ids,
             overrides=overrides.get(character_id, {}),
         )
         characters.append(character_projection)
@@ -329,16 +302,13 @@ def character_record_from_projection(
             role=character.public_role,
             appearance=character.appearance,
             faction=character.faction,
+            public_context=character.public_context,
         ),
-        private_state=PrivateState(
-            goals=list(character.goals),
-            current_objectives=list(character.current_objectives),
-            secrets=list(character.secrets),
-            intentions_enabled=character.intentions_enabled,
+        actor=(
+            character.actor.model_copy(deep=True)
+            if character.actor is not None
+            else None
         ),
-        backstory=character.backstory,
-        personality=character.personality,
-        known_context=character.known_context,
         mechanics=dict(mechanics or {}),
     )
 
@@ -423,10 +393,6 @@ def _apply_character_patch(
         character.status = CharacterStatus(patch.status)
     if patch.location:
         character.location = patch.location
-    if patch.known_context:
-        character.known_context = patch.known_context
-    if patch.current_objectives:
-        character.private_state.current_objectives = list(patch.current_objectives)
 
 
 def _records_by_ref(
@@ -521,57 +487,33 @@ def _projection_ref(
     )
 
 
-def _context_for_actor(
-    actor: ActorDossierRecord,
-    *,
-    contexts_by_ref: Mapping[str, AgentContextSliceRecord],
-    contexts_by_actor: Mapping[str, list[AgentContextSliceRecord]],
-) -> AgentContextSliceRecord | None:
-    if actor.agent_context_slice_ref:
-        context = contexts_by_ref.get(actor.agent_context_slice_ref)
-        if context is None:
-            raise ContentProjectionBuildError(
-                f"actor {actor.ref} references missing context slice "
-                f"{actor.agent_context_slice_ref}"
-            )
-        return context
-    contexts = contexts_by_actor.get(actor.ref, [])
-    return contexts[0] if contexts else None
-
-
 def _refs_for_actor(
     actor: ActorDossierRecord,
-    context: AgentContextSliceRecord | None,
-    *,
-    records_by_ref: Mapping[str, ContentPackDomainRecord],
 ) -> list[str]:
     refs = [
         actor.ref,
-        actor.agent_context_slice_ref,
         *actor.home_location_refs,
         *actor.front_refs,
         *actor.knowledge_channel_refs,
-        *(
-            edge.target_ref
-            for edge in actor.relationship_edges
-            if edge.target_ref in records_by_ref
-        ),
     ]
-    if context is not None:
-        refs.extend(context.local_context_refs)
-        refs.extend(context.graph_edge_refs)
     return _unique_refs(refs)
+
+
+def _actor_record_from_dossier(actor: ActorDossierRecord) -> ActorRecord:
+    """Compile reviewed import facts once into the runtime actor contract."""
+
+    return ActorRecord(
+        may_act_offstage=actor.may_act_offstage,
+        facts=[fact.model_copy(deep=True) for fact in actor.facts],
+    )
 
 
 def _character_projection(
     actor: ActorDossierRecord,
-    context: AgentContextSliceRecord | None,
     *,
-    records_by_ref: Mapping[str, ContentPackDomainRecord],
     known_refs: Sequence[str],
     character_id: str,
     active_character_ids: set[str],
-    intentions_enabled_character_ids: set[str],
     overrides: Mapping[str, Any],
 ) -> ContentCharacterProjection:
     display_name = _clean_text(overrides.get("name")) or actor.title or character_id
@@ -582,17 +524,6 @@ def _character_projection(
         _clean_text(overrides.get("location"))
         or (actor.home_location_refs[0] if actor.home_location_refs else "")
     )
-    current_objectives = (
-        _list_text(overrides.get("current_objectives"))
-        or (list(context.current_agenda) if context is not None else [])
-    )
-    secrets: list[str] = []
-    if context is not None and context.private_state:
-        secrets.append(context.private_state)
-    secrets.extend(_relationship_context_lines(actor, records_by_ref, public=False))
-    if actor.constraints:
-        secrets.append("Constraints: " + "; ".join(actor.constraints))
-    secrets.extend(_list_text(overrides.get("secrets")))
 
     return ContentCharacterProjection(
         character_id=character_id,
@@ -600,103 +531,18 @@ def _character_projection(
         status=status,
         location=location,
         actor_ref=actor.ref,
-        agent_context_ref=context.ref if context is not None else "",
         public_role=_clean_text(overrides.get("public_role"))
         or actor.actor_kind.replace("_", " "),
         appearance=_clean_text(overrides.get("appearance"))
         or "A reviewed NPC from the imported module.",
         faction=_clean_text(overrides.get("faction")) or "",
-        backstory=_safe_character_text(
-            _clean_text(overrides.get("backstory"))
-            or (context.backstory if context is not None else "")
-            or actor.summary
+        public_context=_safe_character_text(
+            _clean_text(overrides.get("public_context"))
+            or actor.public_context
         ),
-        personality=_safe_character_text(
-            _clean_text(overrides.get("personality"))
-            or (context.personality if context is not None else "")
-            or (
-                "Play the reviewed module role concretely. Keep pressure "
-                "bounded by the router's scene framing and table balance."
-            )
-        ),
-        known_context=_compose_known_context(
-            context,
-            actor=actor,
-            records_by_ref=records_by_ref,
-        ),
-        goals=list(actor.goals),
-        current_objectives=current_objectives,
-        secrets=[_safe_character_text(secret) for secret in secrets],
-        intentions_enabled=bool(
-            overrides.get("intentions_enabled", character_id in intentions_enabled_character_ids)
-        ),
+        actor=_actor_record_from_dossier(actor),
         known_refs=list(known_refs),
     )
-
-
-def _compose_known_context(
-    context: AgentContextSliceRecord | None,
-    *,
-    actor: ActorDossierRecord,
-    records_by_ref: Mapping[str, ContentPackDomainRecord],
-) -> str:
-    relationships = "; ".join(
-        _relationship_context_lines(actor, records_by_ref, public=True)
-    )
-    resources = "; ".join(actor.resources)
-    if context is None:
-        text = " ".join(
-            part
-            for part in (
-                f"Relationships: {relationships}." if relationships else "",
-                f"Useful assets include: {resources}." if resources else "",
-            )
-            if part
-        )
-        return _safe_character_text(text)
-    beliefs = "; ".join(context.beliefs)
-    uncertainties = "; ".join(context.uncertainties)
-    boundaries = "; ".join(context.hard_boundaries)
-    text = " ".join(
-        part
-        for part in (
-            context.known_context,
-            f"Relationships: {relationships}." if relationships else "",
-            f"Useful assets include: {resources}." if resources else "",
-            f"Beliefs: {beliefs}." if beliefs else "",
-            f"Uncertainties: {uncertainties}." if uncertainties else "",
-            f"Boundaries: {boundaries}." if boundaries else "",
-        )
-        if part
-    )
-    return _safe_character_text(text)
-
-
-def _relationship_context_lines(
-    actor: ActorDossierRecord,
-    records_by_ref: Mapping[str, ContentPackDomainRecord],
-    *,
-    public: bool,
-) -> list[str]:
-    lines: list[str] = []
-    for edge in actor.relationship_edges:
-        if edge.public is not public:
-            continue
-        target = records_by_ref.get(edge.target_ref)
-        target_label = _safe_character_text(_value(target, "title")) if target else ""
-        if not target_label:
-            target_label = "reviewed target"
-        stance = _safe_character_text(edge.stance)
-        summary = _safe_character_text(edge.summary).rstrip(".")
-        if stance and summary:
-            lines.append(f"{stance}: {summary}")
-        elif summary:
-            lines.append(summary)
-        elif stance:
-            lines.append(f"{target_label} ({stance})")
-        elif target_label:
-            lines.append(target_label)
-    return lines
 
 
 def _coerce_checkpoint(
@@ -837,7 +683,6 @@ def _catalog_group_names() -> tuple[str, ...]:
         "tactical_map_templates",
         "front_dossiers",
         "actor_dossiers",
-        "agent_context_slices",
         "knowledge_graph_edges",
         "statblocks",
         "trap_hazards",
@@ -845,6 +690,44 @@ def _catalog_group_names() -> tuple[str, ...]:
         "encounter_templates",
         "cross_refs",
     )
+
+
+_CHARACTER_OVERRIDE_FIELDS = frozenset(
+    {
+        "name",
+        "status",
+        "location",
+        "public_role",
+        "appearance",
+        "faction",
+        "public_context",
+    }
+)
+
+
+def _character_overrides(
+    raw_overrides: Mapping[str, Mapping[str, Any]] | None,
+) -> dict[str, dict[str, Any]]:
+    """Validate the small public overlay accepted by content projections."""
+
+    result: dict[str, dict[str, Any]] = {}
+    for raw_character_id, raw_values in (raw_overrides or {}).items():
+        character_id = _clean_token(raw_character_id)
+        if not character_id:
+            raise ContentProjectionBuildError("character override needs character id")
+        if not isinstance(raw_values, Mapping):
+            raise ContentProjectionBuildError(
+                f"character override {character_id} must be a mapping"
+            )
+        values = dict(raw_values)
+        unsupported = sorted(set(values) - _CHARACTER_OVERRIDE_FIELDS)
+        if unsupported:
+            raise ContentProjectionBuildError(
+                f"character override {character_id} has unsupported fields: "
+                + ", ".join(unsupported)
+            )
+        result[character_id] = values
+    return result
 
 
 def _unique_refs(refs: Iterable[str]) -> list[str]:

@@ -73,6 +73,10 @@ def test_router_fallback_statblock_becomes_dnd_mechanics():
     assert rat.location == "cellar"
     assert rat.is_playable is False
     assert rat.public_sheet.role == "Tiny beast"
+    assert (
+        rat.public_sheet.public_context
+        == "A small rat snaps at exposed ankles."
+    )
     mechanics = rat.mechanics
     assert mechanics["ruleset_id"] == "dnd5e_basic"
     assert mechanics["armor_class"] == 10

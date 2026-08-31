@@ -33,12 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from app.engine.character_agent import CharacterAgent
-from app.engine.context_builder import (
-    build_character_packet,
-    build_character_state,
-    build_world_context,
-)
+from app.engine.character_agent import CharacterAgent, sanitize_character_public_text
 from app.engine.prompt_manager import PromptManager
 from app.schemas.checkpoint import CheckpointFile
 from scripts.run_one_star_dialogue_ab import (
@@ -342,19 +337,6 @@ def validate_scenario_inventory(
 
 validate_scenario_inventory(REPLAY_SCENARIOS)
 
-_TRAILING_INTENT_RE = re.compile(r"\((?P<intent>[^()]*)\)\s*$", re.DOTALL)
-_IDENTITY_BLOCK_RE = re.compile(
-    r"<character_identity>.*?</character_identity>",
-    re.DOTALL,
-)
-_CURRENT_STATE_BLOCK_RE = re.compile(
-    r"<current_state>.*?</current_state>",
-    re.DOTALL,
-)
-_PRESENTATION_FOOTER_RE = re.compile(
-    r"<presentation>.*?</presentation>",
-    re.DOTALL,
-)
 _DIALOGUE_RE = re.compile(r'[“"](?P<dialogue>[^”"\n]+)[”"]')
 _OTHER_NAME_CUE_RE = re.compile(
     r"\b(?:Edren Marr|Edren)(?P<possessive>['’]s)?\b",
@@ -407,105 +389,31 @@ def _character(checkpoint: CheckpointFile, actor_id: str) -> Any:
     )
 
 
-def _render_profile_blocks(
-    profile_checkpoint: CheckpointFile,
-    actor_id: str,
-    *,
-    prompt_manager: PromptManager | None = None,
-) -> tuple[str, str]:
-    """Render identity/private-state blocks through the production template."""
-    manager = prompt_manager or PromptManager()
-    actor = _character(profile_checkpoint, actor_id)
-    messages = manager.render_messages(
-        "agent",
-        agent_ruleset_system_addon=manager.render("agent_ruleset_one_star").strip(),
-        **build_character_packet(actor, profile_checkpoint),
-        **build_character_state(actor, profile_checkpoint),
-        world_context=build_world_context(actor, profile_checkpoint),
-        pending_observations_block="",
-        mode_header="## AGENT-TURN",
-        mode_block="## Turn Frame\nforeground",
-    )
-    user_content = messages[-1]["content"]
-    identity_match = _IDENTITY_BLOCK_RE.search(user_content)
-    state_match = _CURRENT_STATE_BLOCK_RE.search(user_content)
-    if identity_match is None or state_match is None:
-        raise ValueError(f"Could not render current profile blocks for {actor_id}")
-    return identity_match.group(0), state_match.group(0)
-
-
-def _replace_profile_blocks(
-    content: str,
-    *,
-    identity_block: str,
-    state_block: str,
-) -> str:
-    """Replace blocks in-place without adding, dropping, or reordering messages."""
-    updated, identity_count = _IDENTITY_BLOCK_RE.subn(identity_block, content)
-    updated, state_count = _CURRENT_STATE_BLOCK_RE.subn(state_block, updated)
-    if identity_count != 1 or state_count != 1:
-        raise ValueError(
-            "Persisted CharacterAgent user message must contain exactly one "
-            "identity block and one current-state block"
-        )
-    return updated
-
-
 def overlay_current_seed_profiles(
     checkpoint: CheckpointFile,
     profile_checkpoint: CheckpointFile,
     *,
     actor_ids: tuple[str, ...] = ("renna_holt", "mirelle_voss"),
 ) -> CheckpointFile:
-    """Overlay current seed identity fields without changing message topology.
+    """Overlay current seed actor material without changing message history.
 
-    This developer replay deliberately includes ``known_context`` because it is
-    prompt-facing identity authority and tracked checkpoints retain the seed
-    version that existed when they were written.  This is an in-memory test
-    overlay, not a mutation of the source checkpoint or runtime state.
+    This developer replay deliberately uses the current actor record because
+    tracked checkpoints retain the seed version that existed when they were
+    written.  This is an in-memory test overlay, not a mutation of the source
+    checkpoint or runtime state.
     """
     for actor_id in actor_ids:
         target = _character(checkpoint, actor_id)
         source = _character(profile_checkpoint, actor_id)
-        target.public_sheet.role = source.public_sheet.role
-        target.backstory = source.backstory
-        target.personality = source.personality
-        target.known_context = source.known_context
-        target.private_state.goals = copy.deepcopy(source.private_state.goals)
-        target.private_state.current_objectives = copy.deepcopy(
-            source.private_state.current_objectives
-        )
-        target.private_state.secrets = copy.deepcopy(source.private_state.secrets)
+        target.public_sheet = copy.deepcopy(source.public_sheet)
+        target.actor = copy.deepcopy(source.actor)
 
-        identity_block, state_block = _render_profile_blocks(
-            checkpoint,
-            actor_id,
-        )
-        for message in checkpoint.character_conversations.get(actor_id, []):
-            if message.role != "user":
-                continue
-            if not isinstance(message.content, str):
-                raise ValueError("CharacterAgent user history must be plain text")
-            message.content = _replace_profile_blocks(
-                message.content,
-                identity_block=identity_block,
-                state_block=state_block,
-            )
     return checkpoint
 
 
-def split_public_intent(text: str) -> tuple[str, str]:
-    """Split the final private intent for review metrics without engine mutation."""
-    match = _TRAILING_INTENT_RE.search(text or "")
-    if match is None:
-        return (text or "").strip(), ""
-    return (text or "")[: match.start()].rstrip(), match.group("intent").strip()
-
-
 def public_prose(text: str) -> str:
-    """Return only observable prose, excluding presentation and private intent."""
-    public, _intent = split_public_intent(text)
-    return _PRESENTATION_FOOTER_RE.sub("", public).strip()
+    """Return only observable prose under the production actor contract."""
+    return sanitize_character_public_text(text)
 
 
 def extract_direct_questions(text: str) -> list[str]:
@@ -842,8 +750,8 @@ async def _run_conversation_scenario(
                 "checkpoint_path": str(checkpoint_path),
                 "profile_checkpoint_path": str(profile_checkpoint_path),
                 "input_contract": "candidate-fed production CharacterAgent scenario",
-                "runtime_known_context_source": (
-                    "current production seed known_context overlaid in memory onto "
+                "runtime_actor_source": (
+                    "current production seed actor record overlaid in memory onto "
                     "the scenario checkpoint"
                 ),
                 "tracked_state_markers": list(scenario.tracked_state_markers),
@@ -992,16 +900,11 @@ async def run_replay(
         },
         "system_prompt_sha256s": system_prompt_hashes,
         "profile_overlay_fields": [
-            "public_sheet.role",
-            "backstory",
-            "personality",
-            "known_context",
-            "private_state.goals",
-            "private_state.current_objectives",
-            "private_state.secrets",
+            "public_sheet",
+            "actor",
         ],
-        "runtime_known_context_contract": (
-            "Current production-seed known_context is deliberately overlaid "
+        "runtime_actor_contract": (
+            "The current production-seed actor record is deliberately overlaid "
             "in memory because it is prompt-facing identity authority. The "
             "tracked source checkpoint file is not mutated, and the overlay "
             "does not add, drop, or reorder stored history messages."
@@ -1009,8 +912,8 @@ async def run_replay(
         "provider_compaction_values": [False],
         "conversation_contract": (
             "Each conversation starts from a fresh in-memory load of the same "
-            "explicit tracked checkpoint. Current production-seed profile fields, "
-            "including known_context, replace stale prompt-facing profile fields "
+            "explicit tracked checkpoint. Current production-seed actor material "
+            "replaces stale prompt-facing profile material "
             "without adding, dropping, or reordering stored history messages. "
             "Every later prompt includes the previous candidate "
             "public beat and uses the production CharacterAgent draft/commit "
@@ -1031,8 +934,8 @@ def _offline_client() -> _ReplayCapturedClient:
     return _ReplayCapturedClient(
         model=TERRA_MODEL,
         fixed_response=(
-            "The character makes one observable choice without explaining it. "
-            "(I keep the motive private and carry it into the next beat.)"
+            "The character makes one observable choice and stops where the "
+            "other person can answer."
         ),
     )
 

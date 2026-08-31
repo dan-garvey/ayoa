@@ -470,8 +470,8 @@ def test_playtest_seed_inherits_current_one_star_motivation_policy() -> None:
     assert source_hero is not None
     assert playtest_hero is not None
 
-    # The focused fixture keeps each Hero's durable authored profile but may
-    # replace objectives with work that only exists in the promotion scenario.
+    # The focused fixture keeps each Hero's durable actor record and may append
+    # scenario-specific facts that are actually learned or chosen in play.
     for character_id in ("renna_holt", "mirelle_voss"):
         source_character = _character(source, character_id)
         playtest_character = _character(checkpoint, character_id)
@@ -479,25 +479,16 @@ def test_playtest_seed_inherits_current_one_star_motivation_policy() -> None:
             playtest_character.public_sheet.role
             == source_character.public_sheet.role
         )
-        assert (
-            playtest_character.private_state.goals
-            == source_character.private_state.goals
-        )
-        assert playtest_character.backstory == source_character.backstory
-        assert playtest_character.personality == source_character.personality
-        assert (
-            playtest_character.private_state.secrets
-            == source_character.private_state.secrets
-        )
-    assert playtest_renna.known_context.startswith(
-        source_renna.known_context + "\n\n"
-    )
-    assert playtest_renna.known_context.count(source_renna.known_context) == 1
-    assert playtest_renna.known_context != source_renna.known_context
-    assert (
-        playtest_renna.private_state.current_objectives
-        != source_renna.private_state.current_objectives
-    )
+        assert source_character.actor is not None
+        assert playtest_character.actor is not None
+        source_facts = source_character.actor.facts
+        playtest_facts = playtest_character.actor.facts
+        assert playtest_facts[: len(source_facts)] == source_facts
+    assert source_renna.actor is not None
+    assert playtest_renna.actor is not None
+    renna_grants = playtest_renna.actor.facts[len(source_renna.actor.facts) :]
+    assert renna_grants
+    assert all(fact.origin.value == "told" for fact in renna_grants)
     assert playtest_hero.hidden_capabilities == source_hero.hidden_capabilities
     assert set(playtest_hero.hidden_capabilities) == {"pattern_retention"}
 
@@ -520,11 +511,9 @@ def test_one_star_seeds_have_no_forced_resistance_quota() -> None:
         renna = _character(checkpoint, "renna_holt")
         model_visible_bias_surfaces = "\n".join((
             checkpoint.session.config.narrative_rules,
-            tier_one.generation_guidance.personality_depth,
-            renna.personality,
-            renna.known_context,
-            *renna.private_state.goals,
-            *renna.private_state.current_objectives,
+            tier_one.generation_guidance.actor_fact_guidance,
+            renna.public_sheet.public_context,
+            *(fact.text for fact in (renna.actor.facts if renna.actor else [])),
         )).lower()
         for obsolete_cue in obsolete_resistance_cues:
             assert obsolete_cue not in model_visible_bias_surfaces

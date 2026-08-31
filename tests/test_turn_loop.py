@@ -38,6 +38,7 @@ from app.engine.turn_loop import (
     _end_dnd_combat_from_router_signal,
 )
 from app.schemas.characters import (
+    ActorRecord,
     CharacterRecord,
     CharacterVisuals,
     PlayerSlotKind,
@@ -3356,6 +3357,35 @@ class TestFilterPicksForDispatch:
         assert _filter_routed_agents_for_dispatch(ckpt, ["alice", "bob", "pip"]) == [
             "pip"
         ]
+
+    def test_unobserved_remote_pick_requires_actor_offstage_policy(self):
+        from app.engine.turn_loop import _filter_routed_agents_for_dispatch
+
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.characters.extend(
+            [
+                CharacterRecord(
+                    character_id="offstage_allowed",
+                    name="Offstage Allowed",
+                    location="distant_archive",
+                    public_sheet=PublicSheet(role="remote watcher"),
+                    actor=ActorRecord(may_act_offstage=True),
+                ),
+                CharacterRecord(
+                    character_id="offstage_blocked",
+                    name="Offstage Blocked",
+                    location="distant_archive",
+                    public_sheet=PublicSheet(role="local guard"),
+                ),
+            ]
+        )
+        event = _router_out(event_kind="state_change", observer_ids=[])
+
+        assert _filter_routed_agents_for_dispatch(
+            ckpt,
+            ["offstage_allowed", "offstage_blocked"],
+            event=event,
+        ) == ["offstage_allowed"]
 
 
 class TestSchemaValidators:

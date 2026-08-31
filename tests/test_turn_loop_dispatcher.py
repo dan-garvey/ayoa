@@ -39,6 +39,8 @@ from app.engine.turn_loop_dispatcher import (
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput, CharacterPerceptionOutput
 from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
     CharacterRecord,
     FictionalEntityKind,
     PlayerSlotKind,
@@ -1459,7 +1461,13 @@ class TestRouteIntention:
             name="Sera Vale",
             role="cartographer",
             location="courtyard",
-            personality="Keeps a forbidden private ledger.",
+            actor=ActorRecord(
+                facts=[
+                    ActorFact(
+                        text="You keep a forbidden private ledger.",
+                    )
+                ]
+            ),
         )
 
         assert refresh_router_history_record(
@@ -2869,7 +2877,6 @@ class TestAgentIntend:
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text='He plants himself in the doorway. "Hold there."',
-                intent="Cover the threshold.",
             )
 
         monkeypatch.setattr(
@@ -2886,7 +2893,7 @@ class TestAgentIntend:
         assert "Hold there." in out
         assert "Cover the threshold" not in out
 
-    def test_silent_beat_returns_sentinel_when_intent_present(
+    def test_silent_beat_returns_sentinel_only_when_explicitly_marked(
         self,
         prompt_mgr,
         mock_client,
@@ -2905,7 +2912,7 @@ class TestAgentIntend:
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text="",
-                intent="Watching to see who notices my silence.",
+                is_silence=True,
             )
 
         monkeypatch.setattr(

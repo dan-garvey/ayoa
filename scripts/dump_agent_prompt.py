@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""Dump the full agent prompt for a single character at a checkpoint.
+"""Dump a character prompt and its saved conversation at a checkpoint.
 
-Renders the system prompt the same way `CharacterAgent._run_beat` does
-(template + character-derived variables), then prints the conversation
-history exactly as it was at the time of the checkpoint. The LATEST user
-message in the conversation is the user-message body that the LLM saw on
-that turn (mode header + mode body + pending observations +
-acting-character framing).
+Renders the generic system prompt and a representative current user packet,
+then prints the conversation history exactly as it was at the checkpoint. The
+latest saved user message is the actual packet from that turn, apart from the
+disposable presentation catalog that is intentionally omitted from history.
 
 This is a debug tool: load the checkpoint AFTER the turn you want to
 inspect (e.g. ckpt_0027 to see what Ashara was sent during turn 27).
@@ -42,31 +40,38 @@ def _content_text(content) -> str:
 
 
 def _render_system_and_user_template(checkpoint, character) -> tuple[str, str]:
-    """Render the agent template the way CharacterAgent does, then split
-    it on `<<<USER>>>` to separate the cached system prefix from the
-    per-turn user-message template.
-
-    The system text is byte-identical regardless of mode_block — only
-    the user message changes per turn. We inject placeholders for
-    `mode_header` and `mode_block` so the per-turn-only fields are
-    obvious in the user template dump (the LATEST user message in
-    history shows the real values for the most recent turn).
-    """
+    """Render the generic system prefix and one representative user packet."""
     from app.engine.context_builder import (
-        build_character_packet,
-        build_character_state,
-        build_world_context,
+        build_character_turn_request_packet,
+        build_dnd_character_identity_sentence,
+        build_dnd_player_identities_block,
         format_elapsed_agent_turn_block,
         format_pending_observations_block,
     )
     from app.engine.prompt_manager import PromptManager
+    from app.engine.turn_loop_contracts import format_character_moment
 
     pm = PromptManager()
-    char_identity = build_character_packet(character, checkpoint)
-    char_state = build_character_state(character, checkpoint)
-    pending_block = (
-        format_elapsed_agent_turn_block(character, checkpoint)
-        + format_pending_observations_block(character)
+    current_moment = "\n\n".join(
+        block.strip()
+        for block in (
+            build_dnd_character_identity_sentence(checkpoint, character),
+            build_dnd_player_identities_block(checkpoint),
+            format_elapsed_agent_turn_block(character, checkpoint),
+            format_pending_observations_block(character),
+            format_character_moment(
+                frame="foreground",
+                local_context="<<IMMEDIATE_CIRCUMSTANCE_PLACEHOLDER>>",
+            ),
+            "<<ACTIVE_RULESET_STATE_WHEN_APPLICABLE>>",
+            "<<PRESENTATION_CATALOG_WHEN_AVAILABLE>>",
+        )
+        if block.strip()
+    )
+    request_packet = build_character_turn_request_packet(
+        character,
+        checkpoint,
+        current_moment,
     )
     ruleset_id = str(
         getattr(
@@ -75,21 +80,17 @@ def _render_system_and_user_template(checkpoint, character) -> tuple[str, str]:
             "",
         ) or ""
     )
-    ruleset_addon = (
-        pm.render("agent_ruleset_dnd5e").strip()
-        if ruleset_id == "dnd5e_basic"
-        else ""
-    )
+    if ruleset_id == "dnd5e_basic":
+        ruleset_guidance = pm.render("agent_ruleset_dnd5e").strip()
+    elif ruleset_id == "one_star_ascension":
+        ruleset_guidance = pm.render("agent_ruleset_one_star").strip()
+    else:
+        ruleset_guidance = ""
 
     msgs = pm.render_messages(
-        "agent",
-        agent_ruleset_system_addon=ruleset_addon,
-        **char_identity,
-        **char_state,
-        world_context=build_world_context(character, checkpoint),
-        pending_observations_block=pending_block,
-        mode_header="<<MODE_HEADER_PLACEHOLDER>>",
-        mode_block="<<MODE_BLOCK_PLACEHOLDER>>",
+        "agent_turn",
+        ruleset_guidance=ruleset_guidance,
+        request_packet=request_packet,
     )
     return msgs[0]["content"], msgs[1]["content"]
 
@@ -145,17 +146,17 @@ def main() -> int:
         print()
         print("#" * 80)
         print(f"# SYSTEM PROMPT  ({len(sys_text)} chars, ~{len(sys_text)//4} tokens)")
-        print("# Sent as `system=` to the API. Cached on every call (byte-identical")
-        print("# between turns for this character).")
+        print("# Sent as `system=` to the API. Cached for characters using the")
+        print("# same active ruleset guidance.")
         print("#" * 80)
         print(sys_text)
         print()
         print("#" * 80)
         print(
-            f"# PER-TURN USER-MESSAGE TEMPLATE  "
+            f"# CURRENT USER PACKET  "
             f"({len(user_template)} chars, ~{len(user_template)//4} tokens, with placeholders)"
         )
-        print("# Re-rendered every turn with fresh mode_header/mode_block + state.")
+        print("# Re-rendered every turn with current self and circumstance.")
         print("# The LATEST exchange below shows the actual filled-in version.")
         print("#" * 80)
         print(user_template)

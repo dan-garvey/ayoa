@@ -26,7 +26,7 @@ from app.engine.content_pack_compiler import (
 )
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
-from app.schemas.characters import CharacterStatus
+from app.schemas.characters import ActorFact, ActorRecord, CharacterStatus
 from app.schemas.content import (
     ContentKnowledgeEntityState,
     ContentPackState,
@@ -140,6 +140,38 @@ def test_candidate_turn_entities_include_only_active_roster_characters():
     candidates = build_candidate_turn_entities_from_checkpoint(ckpt)
 
     assert set(candidates) == {"active_npc"}
+
+
+def test_candidate_turn_entities_do_not_expose_actor_facts_or_offstage_policy():
+    ckpt = checkpoint(
+        characters=[
+            character_record(
+                "active_npc",
+                status=CharacterStatus.active,
+                actor=ActorRecord(
+                    may_act_offstage=True,
+                    facts=[
+                        ActorFact(
+                            origin="lived",
+                            text="PRIVATE ACTOR FACT",
+                        )
+                    ],
+                ),
+            )
+        ],
+    )
+
+    candidates = build_candidate_turn_entities_from_checkpoint(ckpt)
+    block = build_candidate_turn_entities_block(candidates)
+
+    assert candidates["active_npc"] == {
+        "name": "Active_Npc",
+        "role": "npc",
+        "location": "gatehouse",
+        "status": "active",
+    }
+    assert "PRIVATE ACTOR FACT" not in block
+    assert "may_act_offstage" not in block
 
 
 def test_candidate_turn_entities_skip_unresolved_combat_spawns():

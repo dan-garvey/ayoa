@@ -2758,10 +2758,6 @@ def _authored_identity_reroll_input(
                     300,
                 ),
                 is_playable=character.is_playable,
-                recurring_actor=(
-                    character.private_state.intentions_enabled
-                    and not character.is_playable
-                ),
             ),
         ),
         story_genre=_bounded_text(setting.genre, 300),

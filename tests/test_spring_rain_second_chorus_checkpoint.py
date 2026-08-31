@@ -97,10 +97,8 @@ def test_story_seed_has_depth_without_dnd_mechanics() -> None:
     assert "story driver" in checkpoint.session.config.narrative_rules
 
     for character in checkpoint.characters:
-        assert character.backstory.strip(), character.character_id
-        assert character.personality.strip(), character.character_id
-        assert character.known_context.strip(), character.character_id
-        assert character.descriptions.public.strip(), character.character_id
-        assert character.descriptions.private.strip(), character.character_id
+        assert character.actor is not None, character.character_id
+        assert character.actor.facts, character.character_id
+        assert character.public_sheet.public_context.strip(), character.character_id
         assert character.visuals.default_loadout.strip(), character.character_id
         assert character.mechanics == {}, character.character_id

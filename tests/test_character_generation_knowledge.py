@@ -10,6 +10,8 @@ from app.engine.character_manager import CharacterManager
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
     CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
@@ -33,7 +35,7 @@ from app.schemas.takeover import AuthoredCharacter
 
 def _authored(
     *,
-    known_context: str = "Knows only the granted public duty",
+    fact_text: str = "You know only the granted public duty.",
     **overrides: object,
 ) -> AuthoredCharacter:
     fields: dict[str, object] = {
@@ -41,15 +43,13 @@ def _authored(
         "location": "lower_hall",
         "role": "scout",
         "appearance": "A wiry adult with cropped black hair.",
+        "public_context": "",
         "default_loadout": "Plain wool layers and a worn walking staff.",
         "faction": "",
-        "backstory": "She remembers waking in the lower hall.",
-        "personality": "Wary and direct; counts exits before speaking.",
-        "known_context": known_context,
-        "goals": ["Survive without abandoning the people beside her."],
-        "current_objectives": ["Understand the sealed gate."],
-        "secrets": [],
-        "intentions_enabled": True,
+        "actor": {
+            "may_act_offstage": False,
+            "facts": [{"origin": "told", "text": fact_text}],
+        },
         "router_summary": "",
     }
     fields.update(overrides)
@@ -91,8 +91,9 @@ def _checkpoint(*, tiered: bool = True) -> CheckpointFile:
                     "know the sealed brass gate does not reopen from inside."
                 ),
                 generation_guidance=CharacterGenerationGuidance(
-                    backstory_depth="One sentence beginning with this arrival.",
-                    personality_depth="One temperament and one survival strategy.",
+                    actor_fact_guidance=(
+                        "At most one fact may come from this arrival's life."
+                    ),
                     public_visual_detail="Two ordinary first-look details.",
                     loadout_detail="Plain cloth and one worn tool.",
                     visual_salience="Low ensemble salience.",
@@ -166,7 +167,9 @@ def _checkpoint(*, tiered: bool = True) -> CheckpointFile:
     return checkpoint
 
 
-def _request(*, tier: int, reason: str = "A new scout wakes in the lower hall") -> SpawnRequest:
+def _request(
+    *, tier: int, reason: str = "A new scout wakes in the lower hall"
+) -> SpawnRequest:
     return SpawnRequest(
         character_id="mara_venn",
         seed={
@@ -216,26 +219,24 @@ async def test_tier_one_receives_grant_without_broader_story_truth() -> None:
 
 
 @pytest.mark.asyncio
-async def test_existing_cast_behavior_is_compact_and_user_tail_only() -> None:
+async def test_existing_private_actor_facts_never_enter_generation_context() -> None:
     checkpoint = _checkpoint()
     local_guide = checkpoint.characters[0]
     local_guide.knowledge_tier = 1
-    local_guide.personality = "P" * 240 + " PERSONALITY_TAIL"
-    local_guide.private_state.current_objectives = [
-        "A" * 160 + " OBJECTIVE_ONE_TAIL",
-        "B" * 160 + " OBJECTIVE_TWO_TAIL",
-        "THIRD_OBJECTIVE_MUST_NOT_APPEAR",
-    ]
-    local_guide.backstory = "BACKSTORY_MUST_NOT_APPEAR"
-    local_guide.known_context = "KNOWN_CONTEXT_MUST_NOT_APPEAR"
-    local_guide.private_state.secrets = ["SECRET_MUST_NOT_APPEAR"]
-    local_guide.mechanics = {
-        "hidden_fixture": {"value": "MECHANICS_MUST_NOT_APPEAR"},
-    }
+    local_guide.public_sheet.public_context = "Carries the lower-hall keys."
+    local_guide.actor = ActorRecord(
+        facts=[
+            ActorFact(
+                origin="lived",
+                text="You hold PRIVATE_ACTOR_FACT_MARKER close to your chest.",
+            )
+        ]
+    )
+    local_guide.mechanics = {"hidden_fixture": {"value": "MECHANICS_MARKER"}}
     checkpoint.characters.append(
         CharacterRecord(
             character_id="unbound_newcomer",
-            name="UNBOUND_PLAYER_SLOT_MUST_NOT_APPEAR",
+            name="UNBOUND_PLAYER_SLOT_MARKER",
             location="lower_hall",
             is_playable=True,
             player_slot_kind=PlayerSlotKind.player_authored,
@@ -248,24 +249,13 @@ async def test_existing_cast_behavior_is_compact_and_user_tail_only() -> None:
     ).spawn_characters(checkpoint, [_request(tier=1)])
 
     system, user = _rendered_call(client)
-    assert "P" * 240 in user
-    assert "A" * 160 in user
-    assert "B" * 160 in user
-    assert "P" * 240 not in system
-    assert "A" * 160 not in system
-    assert "B" * 160 not in system
+    assert "Carries the lower-hall keys." in user
     assert all(
         marker not in f"{system}\n{user}"
         for marker in (
-            "PERSONALITY_TAIL",
-            "OBJECTIVE_ONE_TAIL",
-            "OBJECTIVE_TWO_TAIL",
-            "THIRD_OBJECTIVE_MUST_NOT_APPEAR",
-            "BACKSTORY_MUST_NOT_APPEAR",
-            "KNOWN_CONTEXT_MUST_NOT_APPEAR",
-            "SECRET_MUST_NOT_APPEAR",
-            "MECHANICS_MUST_NOT_APPEAR",
-            "UNBOUND_PLAYER_SLOT_MUST_NOT_APPEAR",
+            "PRIVATE_ACTOR_FACT_MARKER",
+            "MECHANICS_MARKER",
+            "UNBOUND_PLAYER_SLOT_MARKER",
         )
     )
     assert "The Cartel Prince" not in user
@@ -277,9 +267,7 @@ async def test_tiered_generation_does_not_inspect_or_retry_model_output() -> Non
     checkpoint = _checkpoint()
     client = _client(
         _authored(
-            known_context=(
-                "The Glass Synthesis Chamber consumes identities."
-            ),
+            fact_text="You were told the Glass Synthesis Chamber consumes identities."
         ),
     )
 
@@ -288,8 +276,9 @@ async def test_tiered_generation_does_not_inspect_or_retry_model_output() -> Non
     ).spawn_characters(checkpoint, [_request(tier=1)])
 
     assert client.complete.await_count == 1
-    assert spawned[0].known_context == (
-        "The Glass Synthesis Chamber consumes identities."
+    assert spawned[0].actor is not None
+    assert spawned[0].actor.facts[0].text == (
+        "You were told the Glass Synthesis Chamber consumes identities."
     )
 
 
@@ -297,7 +286,9 @@ async def test_tiered_generation_does_not_inspect_or_retry_model_output() -> Non
 async def test_higher_tier_and_explicit_spawn_facts_remain_available() -> None:
     higher_checkpoint = _checkpoint()
     higher_client = _client(
-        _authored(known_context="The Glass Synthesis Chamber consumes identities."),
+        _authored(
+            fact_text="You were told the Glass Synthesis Chamber consumes identities."
+        ),
     )
     await CharacterManager(
         higher_client, PromptManager("app/prompts"),
@@ -308,16 +299,20 @@ async def test_higher_tier_and_explicit_spawn_facts_remain_available() -> None:
 
     explicit_checkpoint = _checkpoint()
     explicit_client = _client(
-        _authored(known_context="The Glass Synthesis Chamber needs a scout."),
+        _authored(
+            fact_text="You were told the Glass Synthesis Chamber needs a scout."
+        ),
     )
     await CharacterManager(
         explicit_client, PromptManager("app/prompts"),
     ).spawn_characters(
         explicit_checkpoint,
-        [_request(
-            tier=1,
-            reason="The Glass Synthesis Chamber explicitly summoned this scout",
-        )],
+        [
+            _request(
+                tier=1,
+                reason="The Glass Synthesis Chamber explicitly summoned this scout",
+            )
+        ],
     )
     assert explicit_client.complete.await_count == 1
 
@@ -325,7 +320,9 @@ async def test_higher_tier_and_explicit_spawn_facts_remain_available() -> None:
 @pytest.mark.asyncio
 async def test_tier_zero_in_tiered_story_gets_no_ladder_knowledge() -> None:
     checkpoint = _checkpoint()
-    client = _client(_authored(known_context="Only this unfamiliar hall is apparent."))
+    client = _client(
+        _authored(fact_text="You know only this unfamiliar hall is apparent.")
+    )
 
     await CharacterManager(
         client, PromptManager("app/prompts"),
@@ -355,20 +352,16 @@ async def test_untiered_story_retains_full_generation_context() -> None:
     assert "credit refinery" in rendered
     assert "glass synthesis chamber" in rendered
     assert "mnemonic forge" in rendered
-    assert "## Knowledge Budget (authoritative)" not in user
+    assert "## Knowledge Boundary (authoritative)" not in user
     assert "The Cartel Prince" in user
 
 
 @pytest.mark.asyncio
 async def test_one_star_tier_one_render_excludes_later_system_concepts() -> None:
-    checkpoint_path = Path(
-        "app/storage/stories/one_star_ascension_s1/ckpt_0000.json"
-    )
+    checkpoint_path = Path("app/storage/stories/one_star_ascension_s1/ckpt_0000.json")
     checkpoint = CheckpointFile.model_validate_json(checkpoint_path.read_text())
     client = _client(
-        _authored(
-            known_context="Only cold light and an unfamiliar hall are apparent.",
-        ),
+        _authored(fact_text="You know only cold light and an unfamiliar hall.")
     )
     request = SpawnRequest(
         character_id="knowledge_boundary_fixture",
@@ -414,12 +407,10 @@ async def test_one_star_tier_one_render_excludes_later_system_concepts() -> None
 
 @pytest.mark.asyncio
 async def test_one_star_summon_membership_selects_hero_generation_overlay() -> None:
-    checkpoint_path = Path(
-        "app/storage/stories/one_star_ascension_s1/ckpt_0000.json"
-    )
+    checkpoint_path = Path("app/storage/stories/one_star_ascension_s1/ckpt_0000.json")
     checkpoint = CheckpointFile.model_validate_json(checkpoint_path.read_text())
     authored_data = _authored(
-        known_context="Only cold light and an unfamiliar hall are apparent.",
+        fact_text="You know only cold light and an unfamiliar hall."
     ).model_dump(mode="json")
     authored_data["one_star_hero"] = {
         "strong_stat_id": "power",

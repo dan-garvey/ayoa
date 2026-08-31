@@ -20,7 +20,6 @@ from app.engine.turn_loop_dispatcher import (
     refresh_router_history_record,
 )
 from app.schemas.characters import (
-    CharacterDescriptions,
     CharacterRecord,
     CharacterVisuals,
     PublicSheet,
@@ -79,9 +78,7 @@ class RecordingCharacterManager:
                 public_sheet=PublicSheet(
                     role=role,
                     appearance=f"Visible appearance for {name}.",
-                ),
-                descriptions=CharacterDescriptions(
-                    public=f"Player-safe public identity for {name}.",
+                    public_context=f"Player-safe public identity for {name}.",
                 ),
                 visuals=CharacterVisuals(default_loadout=loadout),
             ))
@@ -472,7 +469,7 @@ async def test_failed_render_persists_inactive_records_and_restart_reuses_them(
         for character in ckpt.characters
         if character.character_id == "alice"
     )
-    alice.descriptions.public = "The summoner who called the trio here."
+    alice.public_sheet.public_context = "The summoner who called the trio here."
     alice.visuals.default_loadout = (
         "A weathered blue coat hangs over a silver summoning sash."
     )

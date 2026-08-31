@@ -17,7 +17,6 @@ from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,
     PublicSheet,
-    PrivateState,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import SpawnRequest
@@ -49,7 +48,6 @@ def sample_checkpoint():
                 name="Captain Vero",
                 location="courtyard",
                 public_sheet=PublicSheet(role="guard captain"),
-                private_state=PrivateState(),
             ),
         ],
     )
@@ -189,15 +187,10 @@ class TestCharacterSpawn:
                 location="courtyard",
                 role=request.seed.role,
                 appearance="Distinct appearance.",
+                public_context="",
                 default_loadout="Distinct loadout.",
                 faction="",
-                backstory="A concise history.",
-                personality="A distinct voice.",
-                known_context="",
-                goals=["Stay alive."],
-                current_objectives=["Find a foothold."],
-                secrets=[],
-                intentions_enabled=False,
+                actor={"may_act_offstage": False, "facts": []},
                 router_summary="",
             )
             for request in requests
@@ -263,15 +256,10 @@ class TestCharacterSpawn:
             location="courtyard",
             role="scout",
             appearance="Distinct appearance.",
+            public_context="",
             default_loadout="Distinct loadout.",
             faction="",
-            backstory="A concise history.",
-            personality="A distinct voice.",
-            known_context="",
-            goals=["Stay alive."],
-            current_objectives=["Find a foothold."],
-            secrets=[],
-            intentions_enabled=False,
+            actor={"may_act_offstage": False, "facts": []},
             router_summary="",
         )
 
@@ -300,10 +288,8 @@ class TestCharacterSpawn:
             name="Tom the Stablehand",
             location="courtyard",
             role="stablehand",
-            appearance="", default_loadout="", faction="", backstory="",
-            personality="Nervous, avoids eye contact.",
-            known_context="", goals=[], current_objectives=[],
-            secrets=[], intentions_enabled=False,
+            appearance="", public_context="", default_loadout="", faction="",
+            actor={"may_act_offstage": False, "facts": []},
             router_summary="Nervous stablehand at the courtyard, watching the gate.",
         )
         mock_client.complete.return_value = _llm_response(authored)
@@ -322,14 +308,14 @@ class TestCharacterSpawn:
         assert kwargs["role"] == "character_manager"
         assert kwargs["response_model"] is AuthoredCharacter
         assert "dnd_statblock" not in _messages_text(kwargs["messages"])
-        assert "## Authored Generation Budget" not in kwargs["messages"][1]["content"]
-        assert "## Knowledge Budget" not in kwargs["messages"][1]["content"]
+        assert "## Tier Authoring Guidance" not in kwargs["messages"][1]["content"]
+        assert "## Knowledge Boundary" not in kwargs["messages"][1]["content"]
         assert "gacha" not in _messages_text(kwargs["messages"]).lower()
         # Should be added to checkpoint
         assert mgr.get_character(sample_checkpoint, "stablehand_01") is not None
 
     @pytest.mark.asyncio
-    async def test_story_authored_generation_budget_renders_in_user_tail(
+    async def test_story_authoring_guidance_renders_in_user_tail(
         self, mock_client, sample_checkpoint,
     ):
         from app.schemas.takeover import AuthoredCharacter
@@ -341,8 +327,9 @@ class TestCharacterSpawn:
                 personal_depth="Remembers a household apprenticeship.",
                 world_knowledge="Knows the public etiquette of the river court.",
                 generation_guidance=CharacterGenerationGuidance(
-                    backstory_depth="Three connected formative episodes.",
-                    personality_depth="A layered public voice and one live contradiction.",
+                    actor_fact_guidance=(
+                        "Use only a few concrete facts justified by this rung."
+                    ),
                     public_visual_detail="A stable face, build, palette, and silhouette.",
                     loadout_detail="Weathered silk with one carefully finished tool.",
                     visual_salience="A clear secondary figure in ensemble scenes.",
@@ -356,15 +343,10 @@ class TestCharacterSpawn:
             location="courtyard",
             role="court initiate",
             appearance="",
+            public_context="",
             default_loadout="",
             faction="",
-            backstory="",
-            personality="",
-            known_context="",
-            goals=[],
-            current_objectives=[],
-            secrets=[],
-            intentions_enabled=False,
+            actor={"may_act_offstage": False, "facts": []},
             router_summary="",
         )
         mock_client.complete.return_value = _llm_response(authored)
@@ -386,10 +368,10 @@ class TestCharacterSpawn:
         messages = mock_client.complete.call_args.kwargs["messages"]
         system_text = messages[0]["content"]
         user_text = messages[1]["content"]
-        assert "## Authored Generation Budget (authoritative)" in user_text
-        assert "Three connected formative episodes." in user_text
+        assert "## Tier Authoring Guidance (authoritative)" in user_text
+        assert "Use only a few concrete facts justified by this rung." in user_text
         assert "Weathered silk with one carefully finished tool." in user_text
-        assert "Three connected formative episodes." not in system_text
+        assert "Use only a few concrete facts justified by this rung." not in system_text
         assert "Weathered silk with one carefully finished tool." not in system_text
         assert spawned[0].agent_tier == CharacterAgentTier.standard
 
@@ -406,15 +388,10 @@ class TestCharacterSpawn:
             location="courtyard",
             role="custodian",
             appearance="",
+            public_context="",
             default_loadout="",
             faction="",
-            backstory="",
-            personality="",
-            known_context="",
-            goals=[],
-            current_objectives=[],
-            secrets=[],
-            intentions_enabled=False,
+            actor={"may_act_offstage": False, "facts": []},
             router_summary="Custodian at the courtyard.",
             dnd_statblock=_dnd_statblock(),
         )
@@ -467,10 +444,8 @@ class TestCharacterSpawn:
         mock_client.complete = AsyncMock()
         authored = AuthoredCharacter(
             name="NPC", location="courtyard",
-            role="", appearance="", default_loadout="", faction="", backstory="",
-            personality="", known_context="",
-            goals=[], current_objectives=[], secrets=[],
-            intentions_enabled=False,
+            role="", appearance="", public_context="", default_loadout="", faction="",
+            actor={"may_act_offstage": False, "facts": []},
             router_summary="Generic walk-on at the courtyard.",
         )
         mock_client.complete.return_value = _llm_response(authored)
@@ -507,11 +482,8 @@ class TestCharacterSpawn:
             name="Sera the Cartographer",
             location="courtyard",
             role="cartographer",
-            appearance="", default_loadout="", faction="", backstory="",
-            personality="Quiet, watchful.",
-            known_context="",
-            goals=[], current_objectives=[],
-            secrets=[], intentions_enabled=False,
+            appearance="", public_context="", default_loadout="", faction="",
+            actor={"may_act_offstage": False, "facts": []},
             router_summary=(
                 "Exiled cartographer who has just stepped into the courtyard, "
                 "looking for the steward to plead her family's case."
@@ -561,10 +533,8 @@ class TestCharacterSpawn:
             name="Tom the Stablehand",
             location="courtyard",
             role="stablehand",
-            appearance="", default_loadout="", faction="", backstory="",
-            personality="", known_context="",
-            goals=[], current_objectives=[], secrets=[],
-            intentions_enabled=False,
+            appearance="", public_context="", default_loadout="", faction="",
+            actor={"may_act_offstage": False, "facts": []},
             router_summary="Stablehand at the courtyard.",
         )
         mock_client.complete.return_value = _llm_response(authored)
@@ -644,10 +614,8 @@ class TestCharacterSpawn:
             name="Courier",
             location="ignored_by_engine",
             role="messenger",
-            appearance="", default_loadout="", faction="", backstory="",
-            personality="", known_context="",
-            goals=[], current_objectives=[], secrets=[],
-            intentions_enabled=False,
+            appearance="", public_context="", default_loadout="", faction="",
+            actor={"may_act_offstage": False, "facts": []},
             router_summary="A courier.",
         )
         mock_client.complete.return_value = _llm_response(authored)
@@ -673,10 +641,8 @@ class TestCharacterSpawn:
         mock_client.complete = AsyncMock()
         authored = AuthoredCharacter(
             name="Steward", location="ignored_by_engine", role="steward",
-            appearance="", default_loadout="", faction="", backstory="",
-            personality="", known_context="",
-            goals=[], current_objectives=[], secrets=[],
-            intentions_enabled=False, router_summary="Steward.",
+            appearance="", public_context="", default_loadout="", faction="",
+            actor={"may_act_offstage": False, "facts": []}, router_summary="Steward.",
         )
         mock_client.complete.return_value = _llm_response(authored)
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))

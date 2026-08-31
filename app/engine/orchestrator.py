@@ -640,9 +640,6 @@ def _commit_authored_opening_character_beat(
 
     introduced_names = [characters[character_id].name for character_id in introduced_ids]
     public_text = "\n\n".join(segment.text for segment in beat.segments)
-    private_intent = beat.private_intent
-    if not (private_intent.startswith("(") and private_intent.endswith(")")):
-        private_intent = f"({private_intent})"
     history_messages = (
         ConversationMessage(
             role="user",
@@ -654,7 +651,7 @@ def _commit_authored_opening_character_beat(
         ),
         ConversationMessage(
             role="assistant",
-            content=f"{public_text}\n\n{private_intent}",
+            content=public_text,
         ),
     )
 

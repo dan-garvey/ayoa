@@ -37,7 +37,7 @@ from app.engine.turn_loop import run_beat
 from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
+from app.schemas.characters import ActorFact, ActorRecord, CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
@@ -187,15 +187,15 @@ def _char(
             role=role,
             appearance="adventuring gear, visibly armed",
         ),
-        private_state=PrivateState(
-            goals=["Survive the fight and keep agency over the situation."],
-            current_objectives=["Respond coherently to immediate danger."],
-            secrets=[],
-            intentions_enabled=False,
-        ),
-        known_context=(
-            "This is a D&D-style scene. Physical contests should respect "
-            "positioning, character capabilities, and visible intent."
+        actor=ActorRecord(
+            facts=[
+                ActorFact(
+                    text=(
+                        "You want to survive the fight and keep agency over "
+                        "the immediate danger."
+                    )
+                )
+            ],
         ),
         mechanics=mechanics,
     )

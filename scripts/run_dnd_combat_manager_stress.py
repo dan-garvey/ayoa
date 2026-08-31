@@ -59,7 +59,7 @@ from app.engine.dnd_combat_harness import (
 )
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
+from app.schemas.characters import ActorFact, ActorRecord, CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_spatial import (
     DndAreaTemplate,
@@ -325,13 +325,15 @@ def _character(spec: CharacterSpec) -> CharacterRecord:
             appearance="combat-ready",
             faction=spec.faction,
         ),
-        private_state=PrivateState(
-            goals=["Resolve the isolated stress-combat action."],
-            current_objectives=["Act according to the stress scenario."],
-            secrets=[],
-        ),
-        known_context=(
-            "A focused D&D 5e combat-manager stress scenario is active."
+        actor=ActorRecord(
+            facts=[
+                ActorFact(
+                    text=(
+                        "You are in a focused combat stress scenario and want "
+                        "to resolve the immediate action."
+                    )
+                )
+            ],
         ),
         mechanics=_mechanics(spec),
     )

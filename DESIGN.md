@@ -34,8 +34,8 @@
 * `app/llm/` — multi-provider LLM client wrapper (Anthropic + OpenAI),
   per-role provider/model dispatch, prompt caching, conditional
   compaction, structured output normalization.
-* `app/prompts/` — prompt templates (`event_router.txt`, `agent.txt`,
-  `narrator_phase2.txt`, `character_gen.txt`, `takeover.txt`, plus
+* `app/prompts/` — prompt templates (`event_router.txt`, `agent_turn.txt`,
+  `agent_perception.txt`, `narrator_phase2.txt`, `character_gen.txt`, `takeover.txt`, plus
   ruleset addons such as `agent_ruleset_dnd5e.txt` and
   `dnd_cat_ii_router.txt`). Prompt history lives in git, not in
   filename suffixes; use `git log <file>` to read the version history.
@@ -184,11 +184,11 @@ the prevalidated side effects and closes the event without a response frontier.
 
 ### 4.5 Agents Author Intentions, Not State
 
-Character agents produce free-form public prose plus one trailing
-parenthetical containing their private intent. The public prose becomes
-the next intention that the router canonicalizes. The parenthetical stays
-only in that agent's rolling history and is stripped at every cross-role
-boundary.
+Character agents produce one free-form observable contribution or explicit
+silence. The contribution becomes the next intention that the router
+canonicalizes. There is no hidden turn summary or parallel intent channel:
+continuity comes from the actor's full causal history, durable authored private
+state, and later witnessed consequences.
 
 Agents do not write canonical events, mutate roster state, move characters,
 or send hidden directives. If an NPC's private plan should affect the world, it
@@ -197,7 +197,7 @@ turn, or a later observable fact the router canonicalizes.
 
 This asymmetry is structural, not stylistic. Collapsing it back into a
 shared schema field — a `last_intent` mirror on `CharacterRecord`, an
-agent's parenthetical piped into the router, narrator, or another
+agent's hidden summary piped into the router, narrator, or another
 agent's context — recovers the worse single-LLM-pretending-to-be-many
 shape that per-actor calls were designed to avoid. Cross-actor signal
 must surface through in-fiction events the router canonicalizes (a
@@ -588,30 +588,40 @@ dropping those fields during validation.
 ### 5.6 Character Agents
 
 Each character has one rolling conversation in
-`checkpoint.character_conversations[character_id]`. The same prompt is
-used for:
+`checkpoint.character_conversations[character_id]`. `agent_turn.txt` handles
+foreground, private, and background choices. `agent_perception.txt` is a
+separate, narrower exterior-description contract that receives only public
+identity and visible loadout, never actor facts.
 
-* agent-turn mode, framed as foreground, private, or background
-* perception/loadout mode
+For a turn, the system message contains only the generic acting, knowledge,
+agency, and observable-output contract plus any static ruleset guidance. The
+current user packet contains a `<you>` projection with that character's public
+identity and sparse second-person actor facts, followed by a `<now>` projection
+with witnessed observations, elapsed time, location or immediate circumstance,
+and any current rules state. Actor names, actor facts, routing frames, and live
+observations never enter the generic system contract.
 
-Agent-turn outputs are free prose followed by a trailing parenthetical.
-Those exchanges append the raw output, including the
-parenthetical, to the character's own rolling history. The engine parses the
+Each accepted user packet is retained intact in that character's history,
+apart from the disposable presentation catalog, and the full per-character
+conversation is replayed without provider compaction. The engine parses the
 assistant output into:
 
 ```json
 {
   "character_id": "rashid",
   "public_text": "Rashid sets his glass down. 'Say that again.'",
-  "intent": "force the claim into the open without revealing his own source"
+  "is_silence": false
 }
 ```
 
-Only `public_text` leaves the agent. `intent` remains private continuity
-inside that character's own history.
+The assistant history stores exactly the observable contribution. `<silence/>`
+records a chosen observable silence without inventing filler dialogue. Hidden
+plans are not synthesized after each response; durable private facts remain in
+the character record, while changed relationships and obligations must become
+legible through what the actor witnessed and did.
 
-Perception/loadout mode is different: it does not require a trailing
-parenthetical and does not drain `pending_observations`. It still appends the
+Perception/loadout mode does not accept turn metadata and does not drain
+`pending_observations`. It still appends the
 perception exchange to the character's rolling history so future agent calls
 remember what the character established about their current visual
 self-presentation. It is used for observation harvest and private query
@@ -755,7 +765,7 @@ policy. Each beat is an exact NPC continuation selected by the complete set and
 count of characters materialized by the router-owned arrival. At most one
 branch may match. The selected beat is broadcast as an ordinary canonical
 event, delivered without narrator paraphrase, and appended to its NPC
-speaker's conversation with the authored private intent. This supports an
+speaker's conversation with the exact authored public contribution. This supports an
 exact briefing without making the beat a second roster authority or authoring
 speech for a player-controlled arrival.
 
@@ -767,8 +777,11 @@ partials, strips HTML comments, splits system/user sections on
 `<<<USER>>>`, and renders rolling conversations.
 
 `turn_loop_contracts.py` owns exact prompt-code markers such as
-`## Cat II Resolution`, `## Continuation Required`,
-`## AGENT-TURN`, `## PERCEPTION`, and the partial-render marker.
+`## Cat II Resolution`, `## Continuation Required`, and the partial-render
+marker. Character turns and exterior-perception requests use separate prompt
+templates because they have different knowledge and output authority, but the
+model does not receive engine routing names such as foreground, background,
+agent-turn, or perception.
 When code branches on a prompt mode, the marker should live there rather than
 as an ad hoc string in the prompt or caller.
 
@@ -944,7 +957,7 @@ discarded. A substantive next player action supersedes that semantic frontier;
 deferral remains the submitted player input for the next narrator judgment, so
 its pacing history records that the previous handoff was declined. If the
 narrator chooses `continue`, the engine commits the prepared agent turn, strips
-private parentheticals, routes the public result back through the router, and
+presentation metadata, routes the public result back through the router, and
 lets the router decide whether another target is still needed.
 Additional `next_output` observers are ordered backlog or fallback candidates,
 not a simultaneous response group.
@@ -969,9 +982,10 @@ a transient local-context block with current location and same-location active
 characters; that block is not persisted in the agent's rolling conversation.
 
 Dormancy is explicit story state, not an inference from "has never appeared
-on-stage." An unseen antagonist with `status=active` and
-`intentions_enabled=true` may be picked by the router; a dormant character
-does not act until a router/spawn/authored state change activates them.
+on-stage." An unseen autonomous person with `status=active`, an actor record,
+and `actor.may_act_offstage=true` may be picked by the router; a dormant
+character does not act until a router/spawn/authored state change activates
+them.
 
 ### 6.8 Begin, Arrive, Defer, And Query
 
@@ -1101,18 +1115,19 @@ Important fields:
   "public_sheet": {
     "role": "host",
     "appearance": "",
-    "faction": ""
+    "faction": "",
+    "public_context": ""
   },
-  "private_state": {
-    "goals": [],
-    "current_objectives": [],
-    "secrets": [],
-    "intentions_enabled": true
+  "actor": {
+    "may_act_offstage": true,
+    "facts": [
+      {
+        "origin": "lived",
+        "text": "You have hosted the winter assembly three times."
+      }
+    ]
   },
   "pending_observations": [],
-  "backstory": "",
-  "personality": "",
-  "known_context": "",
   "mechanics": {}
 }
 ```
@@ -1121,6 +1136,19 @@ Important fields:
 human-controlled." Human control is determined by
 `session.character_bindings` and the legacy `session.player_character_id`
 fallback.
+
+`actor` is the one private authoring surface for an autonomous fictional
+person. It is optional and deliberately sparse: zero facts is valid, and two
+characters need not have matching categories or fact counts. Each fact records
+authoring provenance (`lived`, `witnessed`, `told`, or `inferred`) for audit,
+while its second-person text carries any uncertainty or source boundary the
+person experiences. The CharacterAgent sees the fact text but not the
+provenance label. Narrator, router, perception, and public roster projections
+do not receive actor facts.
+
+`actor.may_act_offstage` is an engine scheduling policy, not a personality
+trait or model instruction. A player-authored blank seat or an intentionally
+exterior-only walk-on may have `actor: null`.
 
 `mechanics` is the rules-adapter scratch dict. It defaults to `{}` and
 is left empty for narrative-only sessions. The D&D 5e adapter reads a
@@ -1144,9 +1172,10 @@ agent-turn prompt.
 
 ### 8.3 Private Continuity
 
-Mutable interior continuity lives in each agent's rolling conversation,
-primarily in the private trailing parenthetical. It is not mirrored onto
-the character record as `private_updates`, `last_intent`, or directives.
+Mutable continuity lives in each agent's rolling causal conversation. Public
+choices, unanswered questions, and consequences carry it. It is not mirrored
+onto the character record as `private_updates`, `last_intent`, or directives,
+and the runtime does not ask the model to write a hidden recap after each turn.
 
 ## 9. Context Management
 
@@ -1157,19 +1186,24 @@ Router context:
 * system prompt contains stable role contract, schema contract, setting,
   world lore/rules, hidden lore, and hidden facts
 * initial NPC roster appears only on the first router call
-* seed-authored NPC goals/objectives are surfaced in the initial roster
+* the initial roster carries only established public identity; private actor
+  facts never enter router context
 * router-authored context relies on router history
 * external engine changes surface once through `pending_engine_state_updates`
 * actor inbox entries surface only when building that character's agent turn
 
 Agent context:
 
-* stable character identity and current state are in the per-turn user tail
-  so model-tier cache prefixes can be shared across characters
-* per-turn user message carries pending observations and mode body
-* per-character `known_context` is the world-context source for agents; an
-  empty envelope means no world knowledge has been established and never
-  falls back to global lore
+* the system message is actor-independent: generic turn or exterior authority
+  plus an optional static ruleset addon
+* the current user message carries a second-person self packet (`You are ...`;
+  `You ...` facts) and the current witnessed and rules frame
+* every accepted user packet remains in the complete causal per-character
+  history, with only the disposable presentation catalog removed; history is
+  replayed without provider compaction
+* cache reuse is an optimization, not a reason to distort or summarize input
+* an absent or empty actor record means no private life or world knowledge has
+  been established; the agent never falls back to global hidden lore
 * there is no repeating "Characters Present" block
 * local arrivals and exits arrive through the observation inbox
 
@@ -1197,21 +1231,24 @@ instead of silently dropping requested spawns. It renders the prompt with
 setting/lore/rules/location/existing roster context and expects the shared
 `AuthoredCharacter` flat schema.
 
-The generated `CharacterRecord` is appended to the roster. Its
-`router_summary` is not stored on the record and is ignored for router-authored
-NPC spawns. If the router or caller supplied a location, that location
-overrides the LLM-authored location. Fresh NPCs also receive a small pending
-observation of their own location so their first dispatch has a concrete
-self-position.
+The generated `CharacterRecord` is appended to the roster. Its authoring result
+contains public identity, visuals, one sparse `ActorRecord`, and an optional
+frontend `router_summary`; the summary is not stored on the record and is
+ignored for router-authored NPC spawns. If the router or caller supplied a
+location, that location overrides the LLM-authored location. Fresh NPCs also
+receive a small pending observation of their own location so their first
+dispatch has a concrete self-position.
 
 Stories may optionally author `world_state.knowledge_tiers`. Knowledge grants
 remain cumulative through the selected rung: remembered personal depth and
 world/plot knowledge from lower rungs are included. The exact selected rung may
-also carry `generation_guidance`, a non-cumulative target for backstory depth;
-personality, voice, and contradiction depth; public visual specificity;
-loadout complexity and material finish; intended visual salience; and
-story-local presentation guidance. `character_gen.txt` treats that target as
-authoritative, including when it asks for less detail than the generic default.
+also carry `generation_guidance`, a non-cumulative target for sparse actor
+facts, public visual specificity, loadout complexity and material finish,
+intended visual salience, and story-local presentation guidance.
+`character_gen.txt` treats that target as authoritative, including when it
+asks for less detail than the generic default. Actor guidance is one open
+instruction rather than paired biography/personality quotas, so it cannot
+become a mandatory private-dossier checklist.
 The target is rendered in the volatile user tail because the selected rung
 changes per spawn.
 
@@ -1230,10 +1267,10 @@ not a second model role.
 ### 10.2 LLM-Free Custom Player Characters
 
 `EngineBridge.create_player_character_simple()` creates a player-authored
-character directly from name, appearance, and optional backstory. It
-leaves location and deeper interior blank, binds the user, and queues a
-state-change line telling the router to infer a concrete story role and
-immediate on-ramp.
+character directly from name, appearance, and at most one optional lived fact.
+It leaves location and all other actor material blank, binds the user, and
+queues a state-change line telling the router to infer a concrete story role
+and immediate on-ramp.
 
 The router must turn that on-ramp into in-fiction observable facts for
 the NPCs who would plausibly know. For example, in a production-show
@@ -1244,8 +1281,9 @@ contestant has been added and must be made to work.
 
 Takeover paths bind a human to an existing or LLM-authored character and
 surface the change to the router through the same state-change queue.
-When a player leaves, the engine can synthesize enough personality from
-their rolling play history for the agent to take the character back over.
+When a player leaves, the engine may synthesize a sparse actor record from
+that character's own observable rolling contributions before the agent takes
+the character back over. It never mines historical user prompt snapshots.
 
 The takeover/custom-PC authoring prompt is a frontend authoring flow, not an
 on-stage agent. It uses the `takeover` prompt but currently calls the LLM under
@@ -1260,11 +1298,11 @@ There are four related paths:
   queues the router summary with a `[player-bound]` tag.
 * replacement: mode `suggest` returns candidate NPC slots without mutation;
   mode `replace` grafts the authored character onto the picked id, preserving
-  circumstances such as location, status, pending observations, and current
-  objectives while overwriting identity/interior fields and clearing that id's
-  rolling conversation.
+  circumstances such as location, status, and pending observations while
+  replacing public identity and the actor record and clearing that id's rolling
+  conversation.
 * LLM-free custom character: `create_player_character_simple()` builds a sparse
-  record directly from user-supplied name/appearance/backstory, binds it, and
+  record directly from user-supplied name/appearance/one lived fact, binds it, and
   relies on the `(arrive)` router turn to place the character in fiction.
 
 ## 11. Discord Session Behavior
@@ -1380,7 +1418,8 @@ Prompt files are source. Current prompt files include:
 Core narrative engine:
 
 * `event_router.txt`
-* `agent.txt`
+* `agent_turn.txt`
+* `agent_perception.txt`
 * `narrator_phase2.txt`
 * `character_gen.txt`
 * `takeover.txt`
@@ -1571,8 +1610,8 @@ adjudication.
 ### 15.4 Prompt Files
 
 * `app/prompts/agent_ruleset_dnd5e.txt` — system-prompt addon spliced
-  into character-agent calls when `ruleset_id == "dnd5e_basic"`. Adds
-  combat-aware behavior on top of the rules-neutral `agent.txt`.
+  into character-agent turns when `ruleset_id == "dnd5e_basic"`. Adds
+  combat-aware behavior on top of the rules-neutral `agent_turn.txt`.
 * `app/prompts/dnd_cat_ii_router.txt` — Cat II-flavored router prompt
   used by `DndCatIIResolver`. Two phases: PLAN_ROLLS emits a
   `RollPlan`; FINALIZE_OUTCOME emits a `RulesAdjudication`.
@@ -2025,27 +2064,16 @@ cap on `pending_observations` length is the obvious place to add one.
 
 ### 18.4 Rolling agent conversations across prompt-version boundaries
 
-`character_conversations[character_id]` is a rolling list of
-`ConversationMessage` entries that the agent's next call replays
-verbatim. Old assistant entries from pre-v11 sessions used the
-structured-output schema (JSON-shaped agent replies); v11 agents
-emit prose with a trailing parenthetical and are not instructed to
-ignore legacy JSON shapes in their own history. Resuming a session
-whose conversation was written by an older agent prompt could let
-the new agent see those legacy entries on replay and imitate them,
-silently regressing format and tone.
+`character_conversations[character_id]` is a rolling list of causal
+`ConversationMessage` entries replayed on the actor's next call. Before the
+release-candidate migration boundary, old local sessions are not a compatibility
+contract: prompt/schema changes may deliberately make their legacy agent
+history unsupported. Do not add format reminders, rewrite queues, or shadow
+readers merely to preserve experimental parenthetical or JSON-shaped replies.
 
-This is not a current production problem (sessions are not yet shipped
-across prompt-version boundaries), but it becomes one the moment they
-are. Two defensive moves are cheap:
-
-* tag each appended assistant message with a prompt-version id and on
-  resume either filter or rewrite anything older than the current
-  generation; or
-* add a one-line format reminder to the system prompt so the LLM
-  ignores legacy shapes regardless.
-
-Pick one before the first patched-mid-session resume goes out.
+When release-candidate save compatibility becomes a product requirement, make
+the migration boundary explicit and deterministic. Until then, current seeds
+and tests use one contract: observable prose or exact silence.
 
 ## 19. Engineering Discipline
 
@@ -2201,7 +2229,7 @@ The current engine is healthy when:
 6. Remote or mediated observers are listed only when a concrete perceptual
    channel makes the event available to them; private partial channels use
    scoped `audience="only"` facts.
-7. NPC agents do not receive another agent's parenthetical intent.
+7. NPC agents receive no actor-local hidden summary from another agent.
 8. The narrator renders from visible observable facts without adding
    unsupported action or attitude.
 9. Router-created spawns, dormancy, and culls persist

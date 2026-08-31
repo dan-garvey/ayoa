@@ -14,7 +14,6 @@ from app.engine.content_pack_projections import (
     content_pack_state_from_projection,
 )
 from app.schemas.content_pack import (
-    AgentContextSliceRecord,
     ActorDossierRecord,
     CompiledContentCard,
     ContentPackDomainCatalog,
@@ -45,7 +44,6 @@ def test_projection_builder_emits_import_owned_runtime_slices():
         field_start_router_lookup_refs=["loc.route"],
         active_front_refs=["front.clock"],
         active_character_ids=["villain"],
-        intentions_enabled_character_ids=["villain"],
         character_overrides={"villain": {"name": "The Villain"}},
         checkpoint={
             "player_primer": "Open at the patron's table.",
@@ -82,18 +80,27 @@ def test_projection_builder_emits_import_owned_runtime_slices():
     character = projection.characters[0]
     assert character.name == "The Villain"
     assert character.status == "active"
-    assert character.intentions_enabled is True
+    assert character.actor is not None
+    assert character.actor.may_act_offstage is True
+    assert [fact.model_dump(mode="json") for fact in character.actor.facts] == [
+        {
+            "origin": "lived",
+            "text": "You need the map before the route is exposed.",
+        },
+        {
+            "origin": "told",
+            "text": "Scout supplies current reports.",
+        },
+        {
+            "origin": "inferred",
+            "text": "You suspect the route cache matters more than admitted.",
+        },
+    ]
+    assert character.public_context == "A known fixture at the entry gate."
     assert "pack:actor.villain@hash-actor-villain" in character.known_refs
-    assert "pack:actor.scout@hash-actor-scout" in character.known_refs
-    assert "pack:loc.route@hash-loc-route" in character.known_refs
     assert "pack:kg.villain.route@hash-kg-route" in character.known_refs
-    assert "commands: Scout supplies current reports." in character.known_context
-    assert "Useful assets include: informants." in character.known_context
-    assert "Route" not in character.known_context
-    assert "secret route" in character.secrets[1]
-    assert "agent_context" not in character.known_context
-    assert "actor.scout" not in character.known_context
-    assert "hash-" not in character.known_context
+    assert not hasattr(character, "known_context")
+    assert not hasattr(character, "private_state")
 
     state = content_pack_state_from_projection(
         projection,
@@ -141,6 +148,18 @@ def test_projection_builder_rejects_missing_runtime_refs():
             catalog,
             runtime_cards=_cards(catalog),
             initial_router_lookup_refs=["loc.missing"],
+        )
+
+
+def test_projection_builder_rejects_retired_actor_overrides():
+    catalog = _catalog()
+
+    with pytest.raises(ContentProjectionBuildError, match="unsupported fields"):
+        build_content_pack_projection_artifact(
+            catalog,
+            runtime_cards=_cards(catalog),
+            initial_router_lookup_refs=["actor.villain"],
+            character_overrides={"villain": {"intentions_enabled": True}},
         )
 
 
@@ -255,27 +274,25 @@ def _catalog(
         "spoiler_class": "none",
         "actor_kind": "villain",
         "character_id_hint": "villain",
-        "front_refs": ["front.clock"],
-        "home_location_refs": ["loc.entry"],
-        "agent_context_slice_ref": "agent_context.villain.startup",
-        "goals": ["Recover the map"],
-        "constraints": ["Do not overrun the startup scene"],
-        "resources": ["informants"],
-        "knowledge_channel_refs": ["kg.villain.route"],
-        "relationship_edges": [
+        "public_context": "A known fixture at the entry gate.",
+        "may_act_offstage": True,
+        "facts": [
             {
-                "target_ref": "actor.scout",
-                "stance": "commands",
-                "summary": "Scout supplies current reports.",
-                "public": True,
+                "origin": "lived",
+                "text": "You need the map before the route is exposed.",
             },
             {
-                "target_ref": "loc.route",
-                "stance": "secret route",
-                "summary": "Knows the route cache matters more than admitted.",
-                "public": False,
+                "origin": "told",
+                "text": "Scout supplies current reports.",
+            },
+            {
+                "origin": "inferred",
+                "text": "You suspect the route cache matters more than admitted.",
             },
         ],
+        "front_refs": ["front.clock"],
+        "home_location_refs": ["loc.entry"],
+        "knowledge_channel_refs": ["kg.villain.route"],
     }
     actor_data.update(actor_updates or {})
     return ContentPackDomainCatalog(
@@ -306,26 +323,6 @@ def _catalog(
                 actor_kind="npc",
                 character_id_hint="scout",
             ),
-        ],
-        agent_context_slices=[
-            AgentContextSliceRecord(
-                ref="agent_context.villain.startup",
-                content_hash="hash-agent-context",
-                title="Villain Startup Context",
-                summary="Reviewed character seed.",
-                review_status="approved",
-                gate_status="runtime_ready",
-                spoiler_class="none",
-                actor_ref="actor.villain",
-                known_context="Knows the map matters.",
-                private_state="Wants reports before direct action.",
-                current_agenda=["Watch the entry"],
-                beliefs=["The route can still be recovered"],
-                uncertainties=["Who has the map"],
-                hard_boundaries=["Do not act beyond reviewed locations"],
-                local_context_refs=["loc.entry"],
-                graph_edge_refs=["kg.villain.route"],
-            )
         ],
         knowledge_graph_edges=[
             KnowledgeGraphEdgeRecord(

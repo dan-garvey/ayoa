@@ -13,10 +13,10 @@ from app.engine.visual_context import (
 )
 from app.schemas.characters import (
     CharacterAgentTier,
-    CharacterDescriptions,
     CharacterRecord,
     CharacterVisuals,
     PlayerSlotKind,
+    PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
@@ -223,8 +223,8 @@ def test_narrator_first_meeting_excludes_public_bio_without_exterior():
             CharacterRecord(
                 character_id="korva",
                 name="Korva",
-                descriptions=CharacterDescriptions(
-                    public="Korva is an S-rank guild quartermaster."
+                public_sheet=PublicSheet(
+                    public_context="Korva is an S-rank guild quartermaster."
                 ),
             ),
         ],

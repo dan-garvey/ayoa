@@ -16,9 +16,9 @@ from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
 from app.llm.config import LLMConfig
 from app.schemas.characters import (
+    ActorRecord,
     CharacterRecord,
     CharacterStatus,
-    PrivateState,
     PublicSheet,
 )
 from app.schemas.event_router import ClosedEventRouterOutput
@@ -53,7 +53,7 @@ def _command_checkpoint():
         name="Edric",
         location="lobby",
         public_sheet=PublicSheet(role="guard"),
-        private_state=PrivateState(),
+        actor=ActorRecord(),
         mechanics={ONE_STAR_HERO_KEY: donor_state.model_dump(mode="json")},
     )
     checkpoint.characters.append(donor)

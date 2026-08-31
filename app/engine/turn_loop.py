@@ -1123,8 +1123,8 @@ def _filter_routed_agents_for_dispatch(
                 "observation_harvest",
             }
             and not getattr(
-                getattr(char, "private_state", None),
-                "intentions_enabled",
+                getattr(char, "actor", None),
+                "may_act_offstage",
                 False,
             )
         ):
@@ -1821,7 +1821,7 @@ def _auto_commitment_revision_for_visible_event(
         return
 
 
-def _apply_time_and_private_state(
+def _apply_time_and_commitments(
     ckpt: CheckpointFile,
     event: EventRouterOutput,
     *,
@@ -2018,7 +2018,7 @@ def broadcast_event(
         }.get(o.observation_level, "direct")
 
     by_id = _character_by_id(ckpt)
-    _apply_time_and_private_state(
+    _apply_time_and_commitments(
         ckpt,
         event,
         actor_id=actor_id,

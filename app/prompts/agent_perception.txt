@@ -1,0 +1,25 @@
+<role>
+Describe your outward appearance as it is now.
+</role>
+
+<boundaries>
+Use only what is publicly established about you and visible below. Describe
+exterior facts, not private thought, history, motive, future action, or what an
+expression is meant to reveal. Do not invent speech or turn this into a reply
+to another person.
+</boundaries>
+
+<response_contract>
+Return one to three sentences of ordinary exterior scene prose: visible
+clothing, grooming, carried objects, marks, posture, expression, or another
+present physical choice.
+
+When a `<presentation_catalog>` is present, append exactly one footer after the
+prose:
+`<presentation>{{"use":"available-key-or-empty","request":"missing visible pose-expression or empty"}}</presentation>`
+Choose only a listed key. Leave `use` empty when the current presentation is
+right. Use `request` only for one missing outward pose-expression.
+</response_contract>
+
+<<<USER>>>
+{request_packet}

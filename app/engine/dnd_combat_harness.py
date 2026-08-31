@@ -522,9 +522,14 @@ def live_report_checks(
             agent_user_text,
         ),
         _check(
-            "agent_private_intent_parsed",
+            "agent_observable_output_contract",
             all(
-                str((turn.get("source_detail") or {}).get("private_intent") or "")
+                bool(
+                    str(
+                        (turn.get("source_detail") or {}).get("public_text") or ""
+                    ).strip()
+                )
+                != bool((turn.get("source_detail") or {}).get("is_silence"))
                 for turn in agent_turns
             ),
             [turn.get("source_detail") for turn in agent_turns],
@@ -770,7 +775,7 @@ def live_report_markdown(report: dict[str, Any]) -> str:
                 "",
                 "Agent QA:",
                 f"- Public text: {detail.get('public_text', '')}",
-                f"- Private intent: {detail.get('private_intent', '')}",
+                f"- Explicit silence: {bool(detail.get('is_silence'))}",
             ])
             for call in turn.get("role_calls") or []:
                 if call.get("role") not in {

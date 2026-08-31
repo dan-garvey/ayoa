@@ -29,13 +29,13 @@ D&D mechanics. Do not copy its D&D assumptions into rules-neutral stories.
 7. Fill `player_primer` with a short spoiler-free onboarding brief. This is
    shown by `/story start`; it is not opening prose. The opening scene is
    generated through the normal `(begin)` router and narrator path.
-8. Add `characters` with stable ids and complete public/private fields. Every
-   important NPC should have `backstory`, `personality`, `known_context`,
-   `descriptions.public`, `descriptions.private`, and
-   `visuals.default_loadout`.
+8. Add `characters` with stable ids. Put player-safe identity in
+   `public_sheet` and visible first-look material in `visuals.default_loadout`.
+   Give a character an `actor` record only when authored private facts or
+   offstage agency are warranted; zero facts and `actor: null` are valid.
 9. Mark only actual player slots with `is_playable: true`. A blank player slot
-   may intentionally have empty `backstory`, `personality`, `known_context`,
-   and `mechanics` when those will be supplied by the player.
+   may intentionally have `actor: null` and empty `mechanics` when identity
+   will be supplied by the player.
 10. For D&D stories, set `session.config.settings.ruleset_id` to
    `dnd5e_basic`. Leave rules-neutral stories at `narrative`.
 11. Validate before handoff:
@@ -58,18 +58,16 @@ PY
 `hidden_facts` may contain spoilers, conspiracies, and secrets, but never put
 player-facing onboarding text there.
 
-`CharacterRecord.descriptions.public` is player-safe identity context. It must
-not include secrets, hidden allegiances, author-only labels, motives, or private
-body details. Put those in `descriptions.private`, `private_state.secrets`,
-`backstory`, or `known_context` as appropriate.
+`CharacterRecord.public_sheet.public_context` is player-safe identity context.
+It must not include secrets, hidden allegiances, author-only labels, motives,
+or private body details.
 
-`private_state.goals` are existential drives. `private_state.current_objectives`
-are what the character is trying to do now. `intentions_enabled` should be true
-for characters whose goals should keep moving when the player is elsewhere.
-
-`known_context` is per-character knowledge, not omniscient lore. Write it in a
-shape useful to that character's future agent calls: what they know, what they
-believe, what they misunderstand, and what they are trying not to reveal.
+`CharacterRecord.actor.facts` is a sparse list of concrete second-person facts
+owned by that character. Each fact records `origin` as `lived`, `witnessed`,
+`told`, or `inferred`; uncertainty belongs in the text. Do not pad characters
+to a common fact count or force biography, motive, secret, voice, and objective
+categories. Set `actor.may_act_offstage` only for people who can sustain
+independent pressure away from the current scene.
 
 `mechanics` stays `{}` for rules-neutral stories. For D&D stories, player
 characters can still intentionally start with `{}` so `/attach` can import the

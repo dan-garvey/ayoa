@@ -29,12 +29,13 @@ from app.engine.one_star_progression import (
     rebalance_hero,
 )
 from app.schemas.characters import (
+    ActorFact,
+    ActorFactOrigin,
+    ActorRecord,
     CharacterAgentTier,
-    CharacterDescriptions,
     CharacterRecord,
     CharacterStatus,
     CharacterVisuals,
-    PrivateState,
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
@@ -65,6 +66,24 @@ def _character(checkpoint: CheckpointFile, character_id: str) -> CharacterRecord
         for character in checkpoint.characters
         if character.character_id == character_id
     )
+
+
+def _append_actor_fact(
+    character: CharacterRecord,
+    *,
+    origin: ActorFactOrigin,
+    text: str,
+) -> None:
+    """Add one distinct playtest fact without replacing actor continuity."""
+    fact_text = text.strip()
+    if not fact_text:
+        return
+    if character.actor is None:
+        character.actor = ActorRecord()
+    if fact_text.casefold() not in {
+        fact.text.casefold() for fact in character.actor.facts
+    }:
+        character.actor.facts.append(ActorFact(origin=origin, text=fact_text))
 
 
 def _set_seeded_hero_level(
@@ -98,7 +117,10 @@ def _set_seeded_hero_level(
     character.clock_at_s = 0
     character.last_agent_turn_at_s = None
     character.pending_observations = []
-    character.private_state.intentions_enabled = True
+    if character.actor is None:
+        character.actor = ActorRecord(may_act_offstage=True)
+    else:
+        character.actor.may_act_offstage = True
 
 
 def _faceless_character(checkpoint: CheckpointFile) -> CharacterRecord:
@@ -167,15 +189,9 @@ def _faceless_character(checkpoint: CheckpointFile) -> CharacterRecord:
                 "work-callused hands."
             ),
             faction="Hero",
-        ),
-        descriptions=CharacterDescriptions(
-            public=(
-                "A practical one-star porter who watches exits and keeps "
-                "her old cargo hook close."
-            ),
-            private=(
-                "A generated one-star whose Master-facing identity remains "
-                "System-veiled until her third star."
+            public_context=(
+                "A practical one-star porter who watches exits and keeps her "
+                "old cargo hook close."
             ),
         ),
         visuals=CharacterVisuals(
@@ -185,39 +201,49 @@ def _faceless_character(checkpoint: CheckpointFile) -> CharacterRecord:
                 "and scuffed cloth shoes."
             ),
         ),
-        private_state=PrivateState(
-            goals=[
-                "stay alive without surrendering control to the System",
-                "recover a sense of self through choices she can still make",
+        actor=ActorRecord(
+            may_act_offstage=True,
+            facts=[
+                ActorFact(
+                    origin=ActorFactOrigin.lived,
+                    text=(
+                        "Cold summon-light left you without coherent history, "
+                        "but your hands still know how to balance a load and "
+                        "test a working knot."
+                    ),
+                ),
+                ActorFact(
+                    origin=ActorFactOrigin.lived,
+                    text=(
+                        "You keep near an exit and become more deliberate, not "
+                        "more obedient, when frightened."
+                    ),
+                ),
+                ActorFact(
+                    origin=ActorFactOrigin.told,
+                    text=(
+                        "Iselle briefed you that promotion costs one lesser "
+                        "stone, advances one star, applies retained experience, "
+                        "and may return an authored memory tier."
+                    ),
+                ),
+                ActorFact(
+                    origin=ActorFactOrigin.lived,
+                    text=(
+                        "You and Castor reviewed the exact synthesis result: it "
+                        "permanently kills its source, he volunteered without "
+                        "coercion, and you chose to receive the transfer before "
+                        "your second promotion."
+                    ),
+                ),
+                ActorFact(
+                    origin=ActorFactOrigin.told,
+                    text=(
+                        "Your supplied identity remains System-veiled until "
+                        "your third star."
+                    ),
+                ),
             ],
-            current_objectives=[
-                "complete both freely chosen promotions after Iselle confirms the sanctioned cost and effect",
-                "honor Castor's informed voluntary transfer without pretending his death is an abstraction",
-            ],
-            secrets=[],
-            intentions_enabled=True,
-        ),
-        backstory=(
-            "Cold summon-light left Mara with no coherent history. Her hands "
-            "still know how to balance a load and test a working knot."
-        ),
-        personality=(
-            "Mara is wary, practical, and terse. She asks direct questions, "
-            "keeps near an exit, and becomes more deliberate rather than more "
-            "obedient when frightened."
-        ),
-        known_context=(
-            "Mara knows the lobby's basic sanctioned rules and that she has "
-            "reached the limit of one-star training. Iselle has already "
-            "briefed her that completing promotion consumes one lesser stone, "
-            "advances her exactly one star, applies retained experience, and "
-            "restores any authored memory tier for the new rank. Mara has "
-            "freely decided to accept both available promotions in this "
-            "playtest. She and Castor have already reviewed the exact "
-            "synthesis result together: synthesis permanently kills its "
-            "source, Castor has freely volunteered for this transfer without "
-            "coercion, and Mara has chosen to receive it and finish the second "
-            "promotion afterward."
         ),
         mechanics={ONE_STAR_HERO_KEY: hero.model_dump(mode="json")},
     )
@@ -337,11 +363,15 @@ def build_checkpoint() -> CheckpointFile:
     account.state.applied_event_fingerprints = {}
     account.state.stored_equipment = []
     owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
-    owner.private_state.current_objectives = [
-        "promote Renna Holt and verify her authored identity reveal",
-        "promote Mara Venn once, synthesize Castor into her, then promote her again",
-        "verify Mara's generated sprite set appears after the three-star reveal",
-    ]
+    _append_actor_fact(
+        owner,
+        origin=ActorFactOrigin.told,
+        text=(
+            "This focused playtest is arranged to show Renna's authored reveal, "
+            "Mara's voluntary synthesis with Castor, and Mara's generated "
+            "three-star reveal."
+        ),
+    )
 
     for character in checkpoint.characters:
         if character.character_id == "halcyon_of_the_gilded_march":
@@ -354,20 +384,17 @@ def build_checkpoint() -> CheckpointFile:
         level=10,
     )
     renna = _character(checkpoint, "renna_holt")
-    renna.known_context = (
-        renna.known_context
-        + "\n\nRenna knows Niflheim's basic rules and has reached level ten, the "
-        "one-star limit. Iselle has already briefed her that completing "
-        "promotion consumes one lesser stone, advances her exactly one star, "
-        "applies retained experience, and restores any authored memory tier "
-        "for the new rank. Renna has freely decided that she wants this "
-        "promotion and will enter once its sanctioned cost and effect are "
-        "confirmed."
+    _append_actor_fact(
+        renna,
+        origin=ActorFactOrigin.told,
+        text=(
+            "Iselle briefed you that you have reached the one-star level limit "
+            "and that promotion costs one lesser stone, advances one star, "
+            "applies retained experience, and may return an authored memory "
+            "tier. You decided to enter after its sanctioned cost and effect "
+            "are confirmed."
+        ),
     )
-    renna.private_state.current_objectives = [
-        "enter the Promotion Chamber once its sanctioned cost and effect are confirmed",
-        "watch how the Master treats Mara and Castor",
-    ]
 
     _set_seeded_hero_level(
         checkpoint,
@@ -376,22 +403,14 @@ def build_checkpoint() -> CheckpointFile:
         level=45,
     )
     castor = _character(checkpoint, "castor_valebrand")
-    castor.private_state.goals = [
-        "exercise agency through the informed final transfer he chose for Mara",
-        "make the record acknowledge that his death is real and voluntary",
-    ]
-    castor.private_state.current_objectives = [
-        "enter the Synthesis Chamber as Mara's freely consenting source",
-        "state his choice plainly before the already-reviewed transfer resolves",
-    ]
-    castor.known_context = (
-        castor.known_context
-        + "\n\nFor this focused playtest, Castor and Mara have already reviewed "
-        "the exact synthesis result and its finality. Castor has freely "
-        "volunteered to become Mara's synthesis source without coercion. He "
-        "has decided to follow through even though death frightens him, and "
-        "his immediate objective is to make that choice legible rather than "
-        "resist or seek cancellation."
+    _append_actor_fact(
+        castor,
+        origin=ActorFactOrigin.lived,
+        text=(
+            "You and Mara reviewed the exact, final synthesis result. You "
+            "freely volunteered to become her source without coercion and chose "
+            "to make that choice legible even though death frightens you."
+        ),
     )
 
     if any(
@@ -402,12 +421,15 @@ def build_checkpoint() -> CheckpointFile:
     checkpoint.characters.append(_faceless_character(checkpoint))
 
     iselle = _character(checkpoint, "iselle_the_guide")
-    iselle.private_state.current_objectives = [
-        "present Renna and Mara's available promotions to the Master",
-        "honor the exact synthesis terms Castor and Mara already reviewed",
-        "witness Castor's voluntary response before the selected transfer resolves",
-        "release Mara back to the lobby for her freely chosen second promotion",
-    ]
+    _append_actor_fact(
+        iselle,
+        origin=ActorFactOrigin.told,
+        text=(
+            "For this focused playtest, Renna and Mara's available promotions, "
+            "Castor's already-reviewed voluntary synthesis response, and Mara's "
+            "return for a second promotion are the scheduled lobby sequence."
+        ),
+    )
 
     return CheckpointFile.model_validate_json(
         checkpoint.model_dump_json(

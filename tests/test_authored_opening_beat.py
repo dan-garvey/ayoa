@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 import app.engine.orchestrator as orchestrator_module
 from app.bot.engine_bridge import EngineBridge
@@ -35,11 +36,21 @@ from tests.support.factories import (
 
 HERO_BRIEFING = "You arrived together. The danger beyond the gate is real."
 PLAYER_BRIEFING = "Patron, arrange this group and send them through the gate."
-PRIVATE_INTENT = (
-    "I have delivered the rules. The Patron has one concrete action, no "
-    "question queue is open, and obstruction will meet an immediate "
-    "physical consequence."
-)
+
+
+def test_authored_opening_beat_rejects_retired_private_carry_field() -> None:
+    with pytest.raises(ValidationError, match="private_carry"):
+        AuthoredOpeningCharacterBeat(
+            speaker_character_id="guide",
+            introduced_character_count=1,
+            segments=[
+                AuthoredOpeningDialogueSegment(
+                    audiences=["opening_players"],
+                    text="Welcome.",
+                )
+            ],
+            private_carry="retired",
+        )
 
 
 class OneStarOpeningRouterDispatcher(LLMDispatcher, ClassFakeDispatcher):
@@ -121,7 +132,6 @@ def _opening_checkpoint(
                                 text=PLAYER_BRIEFING,
                             ),
                         ],
-                        private_intent=PRIVATE_INTENT,
                     )
                 ],
             )
@@ -156,7 +166,6 @@ def test_opening_policy_selects_exactly_one_authored_branch() -> None:
                     audiences=["introduced_characters"],
                     text="Welcome, both of you.",
                 )],
-                private_intent="Move the exact branch forward.",
             ),
             AuthoredOpeningCharacterBeat(
                 speaker_character_id="guide",
@@ -166,7 +175,6 @@ def test_opening_policy_selects_exactly_one_authored_branch() -> None:
                     audiences=["introduced_characters"],
                     text="Welcome, lone arrival.",
                 )],
-                private_intent="Move the fallback branch forward.",
             ),
         ],
     )
@@ -198,7 +206,6 @@ def test_opening_policy_rejects_partial_or_ambiguous_authored_branches() -> None
                     audiences=["opening_players"],
                     text=text,
                 )],
-                private_intent="Advance the opening.",
             )
             for text in ("First branch.", "Second branch.")
         ],
@@ -221,7 +228,6 @@ def test_opening_policy_resolves_nested_trio_duo_and_newcomer_branches() -> None
                 audiences=["introduced_characters"],
                 text=text,
             )],
-            private_intent="Advance the selected opening branch.",
         )
 
     trio = beat(["a", "b", "c"], 3, "Master trio.")
@@ -391,9 +397,9 @@ async def test_prose_authored_opening_has_text_without_visual_novel_render(
 
     history = saved.character_conversations["guide"]
     assert [message.role for message in history] == ["user", "assistant"]
-    assert HERO_BRIEFING in history[-1].content
-    assert PLAYER_BRIEFING in history[-1].content
-    assert history[-1].content.endswith(f"({PRIVATE_INTENT})")
+    assert history[-1].content == (
+        f"{HERO_BRIEFING}\n\n{PLAYER_BRIEFING}"
+    )
     authored_history = [
         message.content
         for message in saved.session_conversation

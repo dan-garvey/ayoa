@@ -2593,11 +2593,11 @@ class CLIState:
         if not appearance:
             print("(cancelled — empty appearance)")
             return
-        backstory_resp = await _prompt("backstory (optional): ")
-        if backstory_resp is None:
+        lived_fact_resp = await _prompt("one lived detail (optional): ")
+        if lived_fact_resp is None:
             print("(cancelled)")
             return
-        backstory = backstory_resp.strip()
+        lived_fact = lived_fact_resp.strip()
         uid = self._next_user_id
         try:
             new_char = await self.engine.create_player_character_simple(
@@ -2605,7 +2605,7 @@ class CLIState:
                 uid,
                 name=name,
                 appearance=appearance,
-                backstory=backstory,
+                lived_fact=lived_fact,
             )
         except ValueError as e:
             print(f"error: {e}")
@@ -2660,7 +2660,7 @@ class CLIState:
             print(f"not claimed: {target}")
             return
 
-        # Shared endpoint: synthesizes personality (if empty) then unbinds.
+        # Shared endpoint: synthesizes actor facts when needed, then unbinds.
         # Both frontends take this path so the agent-handoff behavior is
         # identical whether you leave via CLI or Discord.
         try:

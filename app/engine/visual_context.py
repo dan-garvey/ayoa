@@ -175,8 +175,10 @@ def _default_loadout(character: CharacterRecord) -> str:
 
 
 def _public_context(character: CharacterRecord) -> str:
-    descriptions = getattr(character, "descriptions", None)
-    return _safe_visual_context(getattr(descriptions, "public", "") or "")
+    public_sheet = getattr(character, "public_sheet", None)
+    return _safe_visual_context(
+        getattr(public_sheet, "public_context", "") or ""
+    )
 
 
 def _safe_visual_context(value: object) -> str:

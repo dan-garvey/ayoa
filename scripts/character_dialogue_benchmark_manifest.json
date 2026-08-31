@@ -1,0 +1,279 @@
+{
+  "schema_version": "character_dialogue_benchmark_manifest_v7",
+  "description": "Four rules-neutral serial dialogue cases for the production observable-prose CharacterAgent boundary. Each pair meets again after a public consequence, so the second scene receives the first scene's actual candidate prose as rolling conversation history.",
+  "cases": [
+    {
+      "case_id": "ordinary_meter_envelope",
+      "title": "The envelope at the meter",
+      "suite": "ordinary_surface",
+      "source_metadata": {
+        "structural_lineage": ["relationship debt", "selective truth"],
+        "reviewer_focus": "Track how a concealed favor and incomplete sightings change who can safely ask for repayment, gratitude, or an explanation."
+      },
+      "actors": [
+        {
+          "character_id": "u03",
+          "name": "U-03",
+          "location": "benchmark_room",
+          "public_sheet": {"role": "a tenant"},
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {"origin": "lived", "text": "You covered V-61's water bill after the pipe burst and told the office it was a clerical correction."},
+              {"origin": "witnessed", "text": "You found a final-notice stamp on your own account this morning."},
+              {"origin": "told", "text": "You told V-61 that the superintendent had not asked where to send future mail."}
+            ]
+          }
+        },
+        {
+          "character_id": "v61",
+          "name": "V-61",
+          "location": "benchmark_room",
+          "public_sheet": {"role": "a tenant"},
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {"origin": "lived", "text": "You have kept the change from every late laundry shift in the coffee tin on the folding table."},
+              {"origin": "witnessed", "text": "You saw a payment confirmation flash on U-03's phone during the burst-pipe cleanup, but not the amount or account name."},
+              {"origin": "inferred", "text": "You think U-03 would rather be owed than thanked."},
+              {"origin": "told", "text": "You were told by the superintendent that a payment arrived under a name that was not yours."},
+              {"origin": "lived", "text": "You accepted a night shift across town beginning tomorrow and have not mentioned it to U-03."},
+              {"origin": "witnessed", "text": "You saw the superintendent carry two red notices upstairs and did not ask which doors they were for."}
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "meter_envelope",
+          "title": "The envelope at the meter",
+          "frame": "Late in the afternoon, two tenants wait in a basement laundry room beside an uncovered water meter. A red notice is clipped to the pipe, and a coffee tin and sealed envelope share the folding table. The superintendent has said he will return after the last load finishes.",
+          "prior_public_exchange": [
+            {"sequence": 1, "speaker_slot": 0, "text": "That envelope has begun to look like an accusation."},
+            {"sequence": 2, "speaker_slot": 1, "text": "Only because you keep looking at it."},
+            {"sequence": 3, "speaker_slot": 0, "text": "It is for the office, not a judge."},
+            {"sequence": 4, "speaker_slot": 1, "text": "Then let the office open it."}
+          ],
+          "turn_order": ["u03", "v61", "u03", "v61", "u03"]
+        },
+        {
+          "scene_id": "lobby_deadline",
+          "title": "The lobby deadline",
+          "frame": "The next evening, water runs again in the laundry room. The coffee tin is empty, a new deadline is written on the lobby board, and the folding table has been pushed against the wall for mopping.",
+          "between_scene_public_history": "After the laundry room closed, the superintendent removed the red notice. By morning a new deadline was written on the lobby board, and the sealed envelope was no longer on the folding table.",
+          "prior_public_exchange": [
+            {"sequence": 1, "speaker_slot": 1, "text": "You left no change in the tin."},
+            {"sequence": 2, "speaker_slot": 0, "text": "There was not much to leave."}
+          ],
+          "turn_order": ["v61", "u03", "v61", "u03", "v61", "u03"]
+        }
+      ]
+    },
+    {
+      "case_id": "ordinary_third_bowl",
+      "title": "The third bowl",
+      "suite": "ordinary_surface",
+      "source_metadata": {
+        "structural_lineage": ["social ritual", "meaningful deviation"],
+        "reviewer_focus": "Track the repeated closing routine, what its interruption permits each person to say, and how a later omission changes the relationship's ordinary surface."
+      },
+      "actors": [
+        {
+          "character_id": "w20",
+          "name": "W-20",
+          "location": "benchmark_room",
+          "public_sheet": {"role": "a community-kitchen volunteer"},
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {"origin": "lived", "text": "You began carrying the third bowl to the late bus after X-88 waited beside you through the rain on the night you lost your kitchen job."},
+              {"origin": "told", "text": "You were told by the coordinator that the paid Wednesday shift is yours if you stop volunteering after tonight."}
+            ]
+          }
+        },
+        {
+          "character_id": "x88",
+          "name": "X-88",
+          "location": "benchmark_room",
+          "public_sheet": {"role": "a community-kitchen volunteer"},
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {"origin": "lived", "text": "You keep the late-route timetable folded in your apron because you once missed the last bus while waiting for W-20."},
+              {"origin": "witnessed", "text": "You saw W-20 sign the paid-shift form and tuck it beneath the serving trays."},
+              {"origin": "inferred", "text": "You think W-20 has been setting down the third bowl more gently because they expect it to be the last one."},
+              {"origin": "lived", "text": "You taught yourself the soup recipe from W-20's notes but have never made it while W-20 was watching."},
+              {"origin": "told", "text": "You were told by the driver that the late route ends for the season after tonight."}
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "cancelled_route",
+          "title": "The cancelled route",
+          "frame": "At closing in a community kitchen, two volunteers are putting away the Wednesday soup. They normally carry a third covered bowl to the late bus stop before locking up. Tonight the route board says the bus is cancelled, and the third bowl is already wrapped in foil beside the sink.",
+          "prior_public_exchange": [
+            {"sequence": 1, "speaker_slot": 0, "text": "We can still take it to the stop."},
+            {"sequence": 2, "speaker_slot": 1, "text": "For a bus that is not coming?"},
+            {"sequence": 3, "speaker_slot": 0, "text": "It knows the way."},
+            {"sequence": 4, "speaker_slot": 1, "text": "That is not an answer."}
+          ],
+          "turn_order": ["w20", "x88", "w20", "x88", "w20"]
+        },
+        {
+          "scene_id": "missing_lid",
+          "title": "The missing lid",
+          "frame": "The following Wednesday, a new worker portions soup at the far counter. The late-route timetable has been taken down, and two clean bowls sit by the sink without the familiar third lid.",
+          "between_scene_public_history": "After last Wednesday, neither volunteer took the covered bowl to the stop. The late route did not return, and a new work schedule appeared in the kitchen window.",
+          "prior_public_exchange": [
+            {"sequence": 1, "speaker_slot": 1, "text": "You did not bring the third lid."},
+            {"sequence": 2, "speaker_slot": 0, "text": "There were only two clean bowls."}
+          ],
+          "turn_order": ["x88", "w20", "x88", "w20", "x88", "w20"]
+        }
+      ]
+    },
+    {
+      "case_id": "pressure_failed_gauge",
+      "title": "The failed gauge",
+      "suite": "pressure",
+      "source_metadata": {
+        "structural_lineage": ["conflicting epistemologies", "rhetoric as a contest over premises"],
+        "reviewer_focus": "Track which kinds of evidence each person treats as answerable, how their questions redefine proof, and what the approaching hearing makes unsayable."
+      },
+      "actors": [
+        {
+          "character_id": "p44",
+          "name": "P-44",
+          "location": "benchmark_room",
+          "public_sheet": {"role": "a municipal analyst"},
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {"origin": "told", "text": "You interviewed three residents after the flood, and each described water crossing the east wall before the gauge failed."},
+              {"origin": "witnessed", "text": "You watched the gauge display go dark while the water was still rising."},
+              {"origin": "lived", "text": "You learned to keep witness names out of preliminary notes after your sister's claim was dismissed as hearsay."},
+              {"origin": "lived", "text": "You promised the council chair that you would not accuse the maintenance crew without more than a story."},
+              {"origin": "inferred", "text": "You think Q-12 treats an absent number as a clean answer because it is easier than naming who missed the warning."}
+            ]
+          }
+        },
+        {
+          "character_id": "q12",
+          "name": "Q-12",
+          "location": "benchmark_room",
+          "public_sheet": {"role": "a gauge technician"},
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {"origin": "lived", "text": "You calibrated the gauge three days before the storm and signed the log yourself."},
+              {"origin": "witnessed", "text": "You saw P-44 write a time beside one account after the speaker had gone home."}
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "causeway_inspection",
+          "title": "The causeway inspection",
+          "frame": "At a wet causeway the morning after a storm, a municipal analyst and a gauge technician stand beside a damaged staff gauge. A council inspection is expected, a paper map is clipped to a board, and the pooled water has not yet drained from the road.",
+          "prior_public_exchange": [
+            {"sequence": 1, "speaker_slot": 0, "text": "The number stopped. The water did not."},
+            {"sequence": 2, "speaker_slot": 1, "text": "A stopped instrument cannot testify."},
+            {"sequence": 3, "speaker_slot": 0, "text": "Neither can a number that was never there."},
+            {"sequence": 4, "speaker_slot": 1, "text": "It can fail honestly."}
+          ],
+          "turn_order": ["p44", "q12", "p44", "q12", "p44", "q12", "p44"],
+          "pressure_pulses": [
+            {"pulse_id": "hearing_countdown", "after_turn": 2, "text": "A clerk calls from the road that the council hearing begins in fifteen minutes."},
+            {"pulse_id": "map_in_water", "after_turn": 5, "text": "A gust loosens the paper map from its board and pushes it toward the pooled water."}
+          ]
+        },
+        {
+          "scene_id": "hearing_corridor",
+          "title": "The hearing corridor",
+          "frame": "The next morning, the analyst and technician wait outside a hearing room with the printed log, a blank correction form, and an uncaptioned photograph from the footbridge. Residents are beginning to take seats inside.",
+          "between_scene_public_history": "The inspection ended without a reading. The clerk logged the gauge as failed, the council scheduled a hearing, and an uncaptioned photograph from the footbridge was added to the file.",
+          "prior_public_exchange": [
+            {"sequence": 1, "speaker_slot": 0, "text": "A photograph is not a clock."},
+            {"sequence": 2, "speaker_slot": 1, "text": "No. It is a photograph."}
+          ],
+          "turn_order": ["p44", "q12", "p44", "q12", "p44", "q12"]
+        }
+      ]
+    },
+    {
+      "case_id": "pressure_display_card",
+      "title": "The display card",
+      "suite": "pressure",
+      "source_metadata": {
+        "structural_lineage": ["register", "status", "etiquette"],
+        "reviewer_focus": "Track how titles, forms of address, and procedural courtesy allocate authority, especially when a public correction risks becoming a spectacle."
+      },
+      "actors": [
+        {
+          "character_id": "r96",
+          "name": "R-96",
+          "location": "benchmark_room",
+          "public_sheet": {"role": "a gallery registrar"},
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {"origin": "lived", "text": "You were hired after a guest complained that you used a trustee's first name, and full titles return when you are nervous."},
+              {"origin": "told", "text": "You were told by the director that the guest book cannot be altered until the board chair sees it."},
+              {"origin": "inferred", "text": "You think S-07 wants a public correction because a private one would not feel like respect."}
+            ]
+          }
+        },
+        {
+          "character_id": "s07",
+          "name": "S-07",
+          "location": "benchmark_room",
+          "public_sheet": {"role": "a ceramic artist"},
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {"origin": "lived", "text": "You have signed your work with your mother's family name since leaving the academy."},
+              {"origin": "witnessed", "text": "You watched R-96 replace the printed card before the doors opened."},
+              {"origin": "told", "text": "You were asked by a board member to be gracious for the cameras."},
+              {"origin": "inferred", "text": "You think R-96 knows which version of your name appears on the grant agreement."},
+              {"origin": "lived", "text": "You saved the signed contract to your phone, but the file will not open on the gallery network."},
+              {"origin": "witnessed", "text": "You heard the board chair give a younger artist the wrong title earlier that afternoon."},
+              {"origin": "lived", "text": "You told a friend that you would leave if the introduction used the name you did not choose."}
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "donor_preview",
+          "title": "The donor preview",
+          "frame": "At a gallery donor preview, an event registrar and a ceramic artist stand beside a guest book and a brass display card. The surname on the card does not match the name on the artist's invitation. The board chair is due shortly, and a photographer is arranging lights nearby.",
+          "prior_public_exchange": [
+            {"sequence": 1, "speaker_slot": 0, "text": "The card came from the printer this morning."},
+            {"sequence": 2, "speaker_slot": 1, "text": "Then it has had all day to be wrong."},
+            {"sequence": 3, "speaker_slot": 0, "text": "Please use the guest book first."},
+            {"sequence": 4, "speaker_slot": 1, "text": "Please use my name first."}
+          ],
+          "turn_order": ["r96", "s07", "r96", "s07", "r96", "s07", "r96"],
+          "pressure_pulses": [
+            {"pulse_id": "introductions_soon", "after_turn": 1, "text": "The board chair's aide says introductions begin in six minutes."},
+            {"pulse_id": "photographer_request", "after_turn": 4, "text": "A photographer asks the pair to stand by the display for a candid picture."}
+          ]
+        },
+        {
+          "scene_id": "blank_label",
+          "title": "The blank label",
+          "frame": "The next morning, the gallery is closed except for a breakfast meeting in the back room. The brass card has been removed, a blank white label rests beside the work, and a printed program waits on the registrar's desk.",
+          "between_scene_public_history": "The preview ended after the display card was removed. The program went to print before midnight, and the director scheduled a short meeting before the breakfast.",
+          "prior_public_exchange": [
+            {"sequence": 1, "speaker_slot": 1, "text": "The label is blank now."},
+            {"sequence": 2, "speaker_slot": 0, "text": "It is waiting for approval."}
+          ],
+          "turn_order": ["s07", "r96", "s07", "r96", "s07", "r96"]
+        }
+      ]
+    }
+  ]
+}

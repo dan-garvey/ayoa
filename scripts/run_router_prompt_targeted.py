@@ -42,7 +42,12 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
+from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
+    CharacterRecord,
+    PublicSheet,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput
@@ -105,9 +110,7 @@ def _char(
     name: str,
     role: str,
     appearance: str = "",
-    personality: str = "",
-    goals: list[str] | None = None,
-    objectives: list[str] | None = None,
+    actor_facts: list[str] | None = None,
     location: str = "",
     playable: bool = False,
 ) -> CharacterRecord:
@@ -117,11 +120,9 @@ def _char(
         location=location,
         is_playable=playable,
         public_sheet=PublicSheet(role=role, appearance=appearance),
-        personality=personality,
-        private_state=PrivateState(
-            goals=goals or [],
-            current_objectives=objectives or [],
-            intentions_enabled=True,
+        actor=ActorRecord(
+            may_act_offstage=True,
+            facts=[ActorFact(text=fact) for fact in actor_facts or ()],
         ),
     )
 
@@ -140,36 +141,41 @@ def _base_characters() -> list[CharacterRecord]:
             character_id="ashara",
             name="Ashara Vel Kothren",
             role="sharp dinner-table rival seated near Dan",
-            personality="controlled, direct, politically dangerous",
-            goals=["Protect her leverage without becoming visibly rattled."],
-            objectives=["Answer only when the exchange gives her advantage."],
+            actor_facts=[
+                "You are controlled, direct, and protective of your leverage.",
+                "You answer only when the exchange gives you an advantage.",
+            ],
             location="dinner hall",
         ),
         _char(
             character_id="rashid",
             name="Rashid Vel Amara",
             role="dinner-table observer with reasons to test Ashara",
-            personality="cool, analytical, willing to speak past the speaker",
-            goals=["Expose false alliances at the table."],
-            objectives=["Pressure Ashara when a useful opening appears."],
+            actor_facts=[
+                "You are cool and analytical and often speak past the speaker.",
+                "You want to expose false alliances at the table.",
+                "You pressure Ashara when a useful opening appears.",
+            ],
             location="dinner hall",
         ),
         _char(
             character_id="thessaly",
             name="Thessaly Morrow",
             role="quiet dinner-table specialist",
-            personality="careful, slow to speak, precise when addressed",
-            goals=["Learn what the room is hiding."],
-            objectives=["Watch for magical or social tells."],
+            actor_facts=[
+                "You are careful, slow to speak, and precise when addressed.",
+                "You watch for what the room hides in magical or social tells.",
+            ],
             location="dinner hall",
         ),
         _char(
             character_id="dante",
             name="Dante Vale",
             role="show host with an earpiece and responsibility for pacing",
-            personality="warm on camera, ruthless about keeping the show alive",
-            goals=["Keep contestants oriented and the show moving."],
-            objectives=["Give clear in-fiction prompts when the room stalls."],
+            actor_facts=[
+                "You are warm on camera and ruthless about keeping the show alive.",
+                "You give clear in-fiction prompts when the room stalls.",
+            ],
             location="great hall",
         ),
         _char(
@@ -177,9 +183,11 @@ def _base_characters() -> list[CharacterRecord]:
             name="Britney Spears",
             role="late-arriving contestant in pod B with live audio only",
             appearance="glamorous, composed, camera-aware",
-            personality="famous, funny, guarded, quick to puncture nonsense",
-            goals=["Understand why production put her here."],
-            objectives=["Find out whether Dan is a real ally or a setup."],
+            actor_facts=[
+                "You are famous, funny, guarded, and quick to puncture nonsense.",
+                "You want to know why production put you here.",
+                "You are testing whether Dan is a real ally or a setup.",
+            ],
             location="pod B",
             playable=True,
         ),
@@ -187,18 +195,20 @@ def _base_characters() -> list[CharacterRecord]:
             character_id="maya",
             name="Maya Cross",
             role="producer in the control room with camera, audio, and talkback",
-            personality="decisive, pragmatic, willing to manufacture a cue",
-            goals=["Turn production chaos into playable television."],
-            objectives=["Feed Dante useful direction without appearing on stage."],
+            actor_facts=[
+                "You are decisive, pragmatic, and willing to manufacture a cue.",
+                "You feed Dante useful direction without appearing on stage.",
+            ],
             location="control room",
         ),
         _char(
             character_id="pip",
             name="Pip Arlen",
             role="volatile security worker in the annex",
-            personality="jumps to force quickly but is still an ordinary human",
-            goals=["Stop contestants from breaching restricted doors."],
-            objectives=["Block Dan from getting past the security desk."],
+            actor_facts=[
+                "You jump to force quickly but remain an ordinary human.",
+                "You intend to block Dan from getting past the security desk.",
+            ],
             location="security annex",
         ),
     ]

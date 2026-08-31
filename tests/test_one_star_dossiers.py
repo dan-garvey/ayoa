@@ -10,14 +10,11 @@ import pytest
 
 from app.bot.engine_bridge import EngineBridge
 from app.engine.context_builder import (
-    build_character_packet,
-    build_character_state,
-    build_world_context,
+    build_character_turn_request_packet,
     format_pending_observations_block,
 )
 from app.engine.one_star_adapter import load_one_star_account
 from app.engine.prompt_manager import PromptManager
-from app.engine.turn_loop_contracts import AGENT_TURN_HEADER, format_agent_turn_body
 from app.schemas.checkpoint import CheckpointFile
 
 
@@ -77,10 +74,8 @@ def test_claimed_newcomer_dossier_keeps_authored_identity_and_control_contract(
         for character in checkpoint.characters
         if character.character_id == "one_star_newcomer"
     )
-    assert not newcomer.backstory
-    assert not newcomer.personality
-    assert not newcomer.known_context
-    assert newcomer.private_state.secrets == []
+    assert newcomer.actor is None
+    assert newcomer.public_sheet.public_context == ""
 
     asyncio.run(bridge.claim_player_character(
         SESSION_ID,
@@ -103,7 +98,7 @@ def test_claimed_newcomer_dossier_keeps_authored_identity_and_control_contract(
     assert "## Your Backstory" not in dossier
 
 
-def test_playable_dossiers_exclude_agent_portrayal_and_keep_known_interior(
+def test_playable_dossiers_render_their_own_actor_facts(
     bridge: EngineBridge,
 ) -> None:
     checkpoint = bridge.load_latest(SESSION_ID)
@@ -120,19 +115,14 @@ def test_playable_dossiers_exclude_agent_portrayal_and_keep_known_interior(
         dossier = bridge.build_character_dossier(SESSION_ID, character_id)
 
         assert character.player_guidance in dossier
-        assert character.personality not in dossier
-        assert "## How You Think & Feel" not in dossier
-        if character.backstory:
-            assert character.backstory in dossier
-        if character.known_context:
-            assert character.known_context in dossier
-        for secret in character.private_state.secrets:
-            assert secret in dossier
+        assert character.actor is not None
+        assert "## What You Know Of Yourself" in dossier
+        for fact in character.actor.facts:
+            assert fact.text in dossier
 
     master_dossier = bridge.build_character_dossier(SESSION_ID, "the_master")
     assert "## Your Backstory" not in master_dossier
     assert "## What You Keep To Yourself" not in master_dossier
-    assert by_id["the_master"].descriptions.private not in master_dossier
 
     halcyon_dossier = bridge.build_character_dossier(
         SESSION_ID,
@@ -148,41 +138,28 @@ def test_seed_fields_respect_character_awareness_boundaries() -> None:
         for character in checkpoint.characters
     }
     for character in checkpoint.characters:
-        known = character.known_context.lower()
-        assert "never invent" not in known
-        assert "do not " not in known
-        assert "should never" not in known
-        assert "unless such a means" not in known
+        if character.actor is None:
+            continue
+        actor_text = "\n".join(fact.text for fact in character.actor.facts).lower()
+        assert "never invent" not in actor_text
+        assert "should never" not in actor_text
 
     master = by_id["the_master"]
-    assert master.backstory == ""
-    assert master.private_state.secrets == []
+    assert master.actor is not None
 
     renna = by_id["renna_holt"]
-    assert not any(
-        "potential" in secret.lower() or "talent" in secret.lower()
-        for secret in renna.private_state.secrets
-    )
-    assert renna.descriptions.private
+    assert renna.actor is not None
+    assert renna.actor.facts
 
     iselle = by_id["iselle_the_guide"]
-    assert not any(
-        "not a person" in secret.lower()
-        or "scripted interface" in secret.lower()
-        for secret in iselle.private_state.secrets
-    )
+    assert iselle.actor is not None
+    assert iselle.actor.facts
 
     warden = by_id["warden_of_the_eighth"]
     assert warden.entity_kind.value == "hazard"
     assert warden.is_playable is False
     assert warden.player_guidance == ""
-    assert warden.backstory == ""
-    assert warden.personality == ""
-    assert warden.private_state.goals == []
-    assert warden.private_state.current_objectives == []
-    assert warden.private_state.secrets == []
-    assert warden.private_state.intentions_enabled is False
-    assert warden.known_context == ""
+    assert warden.actor is None
 
 
 def _render_foreground_agent(
@@ -194,15 +171,14 @@ def _render_foreground_agent(
         if item.character_id == character_id
     )
     return PromptManager("app/prompts").render_conversation(
-        "agent",
+        "agent_turn",
         history=[],
-        agent_ruleset_system_addon="",
-        **build_character_packet(character, checkpoint),
-        **build_character_state(character, checkpoint),
-        world_context=build_world_context(character, checkpoint),
-        pending_observations_block=format_pending_observations_block(character),
-        mode_header=AGENT_TURN_HEADER,
-        mode_block=format_agent_turn_body(frame="foreground"),
+        ruleset_guidance="",
+        request_packet=build_character_turn_request_packet(
+            character,
+            checkpoint,
+            format_pending_observations_block(character),
+        ),
     )
 
 
@@ -239,6 +215,5 @@ def test_birth_one_star_learns_tutorial_only_from_witnessed_dialogue(
     instructed = _render_foreground_agent(checkpoint, character.character_id)
     assert instructed[0]["content"] == initial_system
     instructed_user = instructed[-1]["content"].casefold()
-    assert "since your last response" in instructed_user
     for witnessed_fact in ("unseen master", "climb the tower", "deployment gate"):
         assert witnessed_fact in instructed_user

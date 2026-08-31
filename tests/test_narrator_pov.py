@@ -22,7 +22,8 @@ from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient
 from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
 from app.schemas.characters import (
-    CharacterDescriptions,
+    ActorFact,
+    ActorRecord,
     CharacterRecord,
     CharacterStatus,
     CharacterVisuals,
@@ -1211,13 +1212,17 @@ class TestComposePovRender:
                         "Japanese, tall, quick posture. Wears the Crown's "
                         "blue Hero livery over a close-fitting white shirt."
                     ),
-                ),
-                descriptions=CharacterDescriptions(
-                    public=(
-                        "Sora is the cohort's informal leader; his blue "
-                        "sun-crest tabard marks Crown Hero livery."
+                    public_context=(
+                        "Sora is the cohort's informal leader; his blue sun-crest "
+                        "tabard marks Crown Hero livery."
                     ),
-                    private="Sora is also quietly watching the defective summon.",
+                ),
+                actor=ActorRecord(
+                    facts=[
+                        ActorFact(
+                            text="You are quietly watching the defective summon."
+                        )
+                    ]
                 ),
                 visuals=CharacterVisuals(
                     default_loadout=(
@@ -1496,7 +1501,7 @@ class TestComposePovRender:
         assert ckpt.session.visual_introductions == {"alice": ["pip"]}
 
     @pytest.mark.asyncio
-    async def test_public_context_does_not_use_raw_sheet_or_private_description(
+    async def test_first_meeting_context_omits_raw_sheet_and_private_actor_facts(
         self,
         mock_client,
         prompt_manager,
@@ -1512,10 +1517,19 @@ class TestComposePovRender:
                         "Plain travel leathers. Hidden horns are tucked under her hair."
                     ),
                     faction="Public Guild. Private demonic court.",
+                    public_context=(
+                        "Korva is an S-rank Guild adventurer usually found near the "
+                        "contract board."
+                    ),
                 ),
-                descriptions=CharacterDescriptions(
-                    public="Korva is an S-rank Guild adventurer usually found near the contract board.",
-                    private="Korva is the Demon Lord's daughter with hidden horns.",
+                actor=ActorRecord(
+                    facts=[
+                        ActorFact(
+                            text=(
+                                "You are the Demon Lord's daughter with hidden horns."
+                            )
+                        )
+                    ]
                 ),
                 location="gatehouse",
             )

@@ -53,6 +53,12 @@ def _synthetic_ddb_export():
                     "racialTraits": [],
                 },
                 "background": {"definition": {"name": "Custom Background"}},
+                "notes": {
+                    "backstory": "Learned clockwork magic while guarding a remote archive.",
+                },
+                "traits": {
+                    "personalityTraits": "Methodical, skeptical, and protective of friends.",
+                },
                 "classes": [
                     {
                         "id": 10,
@@ -311,6 +317,18 @@ def test_character_record_from_snapshot_and_detailed_roll_modifiers():
     assert record.character_id == "test_hexblade"
     assert record.is_playable is True
     assert "Warlock 2" in record.public_sheet.role
+    assert record.actor is not None
+    assert [fact.origin.value for fact in record.actor.facts] == ["lived", "lived"]
+    assert [fact.text for fact in record.actor.facts] == [
+        (
+            "You remember this account as your own history: "
+            + snapshot["identity"]["backstory"]
+        ),
+        (
+            "You recognize this description in yourself: "
+            + snapshot["identity"]["personality"]
+        ),
+    ]
 
     arcana = PlannedRoll(
         roll_id="roll_1",

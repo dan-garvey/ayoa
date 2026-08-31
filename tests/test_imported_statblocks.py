@@ -39,7 +39,10 @@ def test_imported_statblock_ref_resolves_combat_ready_character_and_combatant():
 
     assert character.character_id == "guardian_1"
     assert character.location == "entry hall"
-    assert character.descriptions.public == "A combat-ready synthetic guardian."
+    assert (
+        character.public_sheet.public_context
+        == "A combat-ready synthetic guardian."
+    )
     assert combatant.armor_class == 15
     assert combatant.hit_points_current == 33
     assert combatant.hit_points_max == 33
@@ -206,7 +209,10 @@ def test_ref_only_spawn_resolves_from_content_state_catalog():
     assert character.character_id == "guardian_1"
     assert character.name == "Synthetic Guardian"
     assert character.location == "entry hall"
-    assert character.descriptions.public == "A combat-ready synthetic guardian."
+    assert (
+        character.public_sheet.public_context
+        == "A combat-ready synthetic guardian."
+    )
     assert character.mechanics["source"] == "imported_statblock_catalog"
     assert character.mechanics["armor_class"] == 15
     assert character.mechanics["imported_statblock"]["ref"] == "stat.guardian"

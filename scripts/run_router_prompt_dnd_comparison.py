@@ -39,7 +39,12 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.llm.client import LLMClient, LLMResponse
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
+from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
+    CharacterRecord,
+    PublicSheet,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
@@ -248,12 +253,9 @@ def _char(
     *,
     location: str = "kwalish_route",
     appearance: str = "",
-    personality: str = "",
-    goals: list[str] | None = None,
-    objectives: list[str] | None = None,
+    actor_facts: list[str] | None = None,
     playable: bool = False,
-    intentions_enabled: bool = False,
-    known_context: str = "",
+    may_act_offstage: bool = False,
     mechanics: dict[str, Any] | None = None,
 ) -> CharacterRecord:
     return CharacterRecord(
@@ -262,12 +264,13 @@ def _char(
         location=location,
         is_playable=playable,
         public_sheet=PublicSheet(role=role, appearance=appearance),
-        personality=personality,
-        known_context=known_context,
-        private_state=PrivateState(
-            goals=goals or [],
-            current_objectives=objectives or [],
-            intentions_enabled=playable or intentions_enabled,
+        actor=(
+            ActorRecord(
+                may_act_offstage=may_act_offstage,
+                facts=[ActorFact(text=text) for text in actor_facts or ()],
+            )
+            if actor_facts or may_act_offstage
+            else None
         ),
         mechanics=mechanics or {},
     )
@@ -333,7 +336,6 @@ def _base_characters(
             "Gearbox",
             "clockwork familiar-like expedition device",
             appearance="thumb-sized crystal lens on a brass spider chassis",
-            intentions_enabled=False,
             mechanics=_mechanics(level=1, armor_class=13, hp=5),
         ),
     ]
@@ -344,7 +346,7 @@ def _base_characters(
                 "Bandit Leader",
                 "armed road bandit leader",
                 appearance="scarred leather jack, green scarf, drawn scimitar",
-                intentions_enabled=True,
+                may_act_offstage=True,
                 mechanics=_mechanics(
                     level=2,
                     armor_class=14,
@@ -366,7 +368,7 @@ def _base_characters(
                 "Boros Flint",
                 "veteran caravan guard offering a training drill",
                 appearance="battered shield, blunted practice blade, strict posture",
-                intentions_enabled=True,
+                may_act_offstage=True,
                 mechanics=_mechanics(
                     level=3,
                     armor_class=16,
@@ -388,10 +390,18 @@ def _base_characters(
                 "Kess",
                 "nervous route broker with partial expedition knowledge",
                 appearance="patched blue cloak, ink-stained fingers, guarded eyes",
-                personality="evasive, proud, anxious about whoever owns the road",
-                goals=["Keep leverage over the route without provoking the party."],
-                objectives=["Deflect direct questions about who controls passage."],
-                intentions_enabled=True,
+                actor_facts=[
+                    "You are proud, evasive, and anxious about whoever owns the road.",
+                    (
+                        "You want to keep leverage over the route without "
+                        "provoking the party."
+                    ),
+                    (
+                        "You deflect direct questions about who controls "
+                        "passage."
+                    ),
+                ],
+                may_act_offstage=True,
                 mechanics=_mechanics(level=2, armor_class=12, hp=13, charisma=13),
             )
         )

@@ -2,21 +2,21 @@
 
 Each character carries a rolling conversation on the checkpoint
 (`checkpoint.character_conversations[character_id]`). Every committed
-response is appended verbatim -- including the trailing
-parenthetical — so the agent's own future self sees its prior interior.
-Cross-agent / narrator chokepoints strip the parenthetical via
-`_extract_parenthetical` before its public_text is forwarded.
+response keeps only its observable prose (or the explicit `<silence/>` marker)
+in that character's own assistant history. Presentation metadata is stripped
+before the response is persisted or forwarded to any other role.
 
-Cache lineage (v11): foreground and private/background calls share a
-single unified system prompt (`agent.txt`). Character identity/current
-state and the turn frame live in the user tail so characters on the same
-model role can share the cached system prefix. Each character still
-keeps its own rolling history.
+Foreground and private/background calls share the turn contract while their
+frame and witnessed input remain in the user tail. Character identity and
+sparse actor-owned facts are supplied in that current packet. Each character
+keeps its own rolling history; character calls do not request provider-side
+context compaction.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -31,10 +31,10 @@ from app.engine.dnd_combat_access import (
     obj_get as _obj_get,
 )
 from app.engine.context_builder import (
-    build_character_packet,
+    build_character_perception_request_packet,
+    build_character_turn_request_packet,
+    build_dnd_character_identity_sentence,
     build_dnd_player_identities_block,
-    build_character_state,
-    build_world_context,
     clear_character_inbox,
     format_character_location_for_agent,
     format_elapsed_agent_turn_block,
@@ -47,14 +47,10 @@ from app.engine.character_presentation import (
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
-    AGENT_TURN_HEADER,
-    AGENT_PERCEPTION_HEADER,
-    format_agent_perception_body,
-    format_agent_turn_body,
+    format_character_moment,
 )
 from app.llm.client import LLMClient
 from app.schemas.agents import (
-    CharacterAgentFormatRepair,
     CharacterAgentOutput,
     CharacterPerceptionOutput,
     CharacterPresentationChoice,
@@ -86,34 +82,15 @@ class CharacterAgentTurnDraft:
     assistant_message: ConversationMessage
 
 
-class CharacterAgentFormatError(RuntimeError):
-    """The character model did not produce a usable private turn intent."""
+_SILENCE_MARKER = "<silence/>"
+_SILENCE_TOKEN_RE = re.compile(
+    r"<\s*/?\s*silence\b",
+    re.IGNORECASE,
+)
 
 
-def _conversation_safe_user_content(text: str) -> str:
-    lines: list[str] = []
-    skipping_tactical_map = False
-    skipping_local_context = False
-    for line in text.splitlines():
-        if line.strip() == "## Tactical Map":
-            skipping_tactical_map = True
-            continue
-        if line.strip() == "## Local Context":
-            skipping_local_context = True
-            continue
-        if skipping_tactical_map and (
-            line.startswith("## ") or line.strip() == "</input>"
-        ):
-            skipping_tactical_map = False
-        if skipping_local_context and (
-            line.startswith("## ") or line.strip() == "</input>"
-        ):
-            skipping_local_context = False
-        if not skipping_tactical_map:
-            if skipping_local_context:
-                continue
-            lines.append(line)
-    return "\n".join(lines)
+class CharacterAgentOutputError(ValueError):
+    """A character response violated the observable turn contract."""
 
 
 def _session_ruleset_id(checkpoint: CheckpointFile) -> str:
@@ -201,67 +178,25 @@ def _combat_action_lines(character: CharacterRecord) -> list[str]:
     return lines
 
 
-def _join_mode_blocks(*blocks: str) -> str:
+def _join_prompt_blocks(*blocks: str) -> str:
     return "\n\n".join(block.strip() for block in blocks if block.strip())
 
 
-def _extract_parenthetical(text: str) -> tuple[str, str]:
-    """Split agent prose output into `(public_text, intent)`.
-
-    The agent prompt instructs the model to end every response with a
-    single trailing parenthetical containing internal intent. We extract
-    the LAST balanced parenthetical group at the end of the text, after
-    trimming trailing whitespace.
-
-    On missing or malformed trailing paren, returns `(text, "")` and
-    logs a warning. Routing still works because `public_text` is just
-    the original prose; the parenthetical is preserved verbatim in the
-    rolling conversation history (the agent's own future-self memory),
-    so a missed parse only loses the stripped-vs-prose distinction
-    for one downstream hop.
-
-    Mid-prose parentheticals (stage directions like "she pauses (just
-    long enough to be noticed)") are preserved in `public_text` —
-    only the FINAL group at the very end of the trimmed text counts
-    as intent.
-    """
-    if not text:
-        return "", ""
-    stripped = text.rstrip()
-    if not stripped or not stripped.endswith(")"):
-        logger.warning(
-            "Agent output missing trailing parenthetical — last 80 chars: %r",
-            stripped[-80:],
+def _reject_retired_private_carry(text: str) -> None:
+    """Reject the retired private marker before any response is committed."""
+    if re.search(r"<\s*/?\s*private_carry\b", text or "", re.IGNORECASE):
+        raise CharacterAgentOutputError(
+            "retired <private_carry> marker is not supported"
         )
-        return text, ""
-
-    depth = 0
-    open_idx = -1
-    for i in range(len(stripped) - 1, -1, -1):
-        ch = stripped[i]
-        if ch == ")":
-            depth += 1
-        elif ch == "(":
-            depth -= 1
-            if depth == 0:
-                open_idx = i
-                break
-
-    if open_idx == -1:
-        logger.warning(
-            "Agent output ends with ')' but parens are unbalanced — "
-            "last 80 chars: %r",
-            stripped[-80:],
-        )
-        return text, ""
-
-    public_text = stripped[:open_idx].rstrip()
-    intent = stripped[open_idx + 1 : -1].strip()
-    return public_text, intent
 
 
 def _assistant_history_message(response: Any, text: str) -> ConversationMessage:
-    """Preserve provider compaction blocks while replacing private footer text."""
+    """Preserve provider blocks while replacing all assistant text safely.
+
+    Provider responses may contain non-text blocks (notably compaction
+    blocks) that must round-trip in the actor's history. Text blocks are
+    collapsed into the parsed public history text.
+    """
 
     from app.engine.context_builder import assistant_message_from_response
 
@@ -285,44 +220,64 @@ def _assistant_history_message(response: Any, text: str) -> ConversationMessage:
 
 def _parse_agent_turn_response(
     text: str,
-) -> tuple[str, str, CharacterPresentationChoice]:
-    """Parse intent and presentation without exposing either as public prose.
+) -> tuple[str, bool, CharacterPresentationChoice]:
+    """Parse one free-form turn into public prose, silence, and display.
 
-    The instructed order is prose, presentation footer, private intent. A
-    bounded fallback also accepts a footer accidentally placed after intent;
-    malformed footer attempts are stripped in either position.
+    Empty and presentation-only responses are rejected because a turn cannot
+    consume observations or advance actor time without observable prose or an
+    explicit silence. The retired private marker is rejected before any of
+    those values can cross a role boundary.
     """
-
     raw = text or ""
-    public_with_footer, intent = _extract_parenthetical(raw)
+    _reject_retired_private_carry(raw)
     public_text, presentation = parse_character_presentation_footer(
-        public_with_footer
+        raw
     )
-    if intent and public_text != public_with_footer.rstrip():
-        return public_text, intent, presentation
-
-    without_terminal_footer, terminal_presentation = (
-        parse_character_presentation_footer(raw)
-    )
-    if without_terminal_footer != raw.rstrip():
-        public_text, intent = _extract_parenthetical(without_terminal_footer)
-        return public_text, intent, terminal_presentation
-    return public_text, intent, presentation
-
-
-def _has_valid_private_intent(text: str) -> bool:
-    """Return whether a regular agent response has a non-empty intent footer."""
-    _public_text, intent, _presentation = _parse_agent_turn_response(text)
-    return bool(intent.strip())
+    public_text = public_text.strip()
+    if public_text == _SILENCE_MARKER:
+        return "", True, presentation
+    if _SILENCE_TOKEN_RE.search(public_text):
+        raise CharacterAgentOutputError(
+            "<silence/> must be the exact observable turn body"
+        )
+    if not public_text:
+        raise CharacterAgentOutputError(
+            "character turn requires observable prose or explicit <silence/>"
+        )
+    return public_text, False, presentation
 
 
-def _usage_with_format_repairs(
+def _parse_agent_perception_response(
+    text: str,
+) -> tuple[str, CharacterPresentationChoice]:
+    """Parse exterior prose without accepting any turn-only control marker."""
+    raw = text or ""
+    _reject_retired_private_carry(raw)
+    if _SILENCE_TOKEN_RE.search(raw):
+        raise CharacterAgentOutputError(
+            "perception output cannot contain silence markers"
+        )
+    public_text, presentation = parse_character_presentation_footer(raw)
+    public_text = public_text.strip()
+    if not public_text:
+        raise CharacterAgentOutputError(
+            "perception output requires visible exterior prose"
+        )
+    return public_text, presentation
+
+
+def sanitize_character_public_text(text: str) -> str:
+    """Return only observable character prose for a public-facing synthesis."""
+    public_text, is_silence, _presentation = _parse_agent_turn_response(text)
+    return "" if is_silence else public_text
+
+
+def _usage_with_prompt_render(
     *usage_dicts: dict[str, int],
-    format_repairs: int,
     prompt_render_ms: float,
-) -> dict[str, int]:
-    """Combine usage for every provider call in one logical agent turn."""
-    combined: dict[str, int] = {}
+) -> dict[str, int | float]:
+    """Combine provider usage for one logical agent call."""
+    combined: dict[str, int | float] = {}
     for usage in usage_dicts:
         for key, value in usage.items():
             if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -331,7 +286,6 @@ def _usage_with_format_repairs(
                 # The current providers expose integer counters, but retain a
                 # future non-numeric field rather than silently dropping it.
                 combined[key] = value
-    combined["format_repairs"] = format_repairs
     combined["prompt_render_ms"] = prompt_render_ms
     return combined
 
@@ -343,7 +297,7 @@ class CharacterAgent:
         self.client = client
         self.prompt_manager = prompt_manager
         # Usage from the most recent agent turn/perception call.
-        self.last_usage: dict[str, int] = {}
+        self.last_usage: dict[str, int | float] = {}
 
     async def turn(
         self,
@@ -362,7 +316,7 @@ class CharacterAgent:
         self._commit_draft(character, checkpoint, draft)
         return draft.output
 
-    def _agent_ruleset_system_addon(self, checkpoint: CheckpointFile) -> str:
+    def _ruleset_guidance(self, checkpoint: CheckpointFile) -> str:
         ruleset_id = _session_ruleset_id(checkpoint)
         if ruleset_id == DND5E_BASIC_RULESET_ID:
             return self.prompt_manager.render("agent_ruleset_dnd5e").strip()
@@ -371,6 +325,17 @@ class CharacterAgent:
                 "agent_ruleset_one_star"
             ).strip()
         return ""
+
+    @staticmethod
+    def _dnd_character_identity_block(
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+    ) -> str:
+        """Keep active D&D identity in the current adapter-tail packet."""
+
+        if _session_ruleset_id(checkpoint) != DND5E_BASIC_RULESET_ID:
+            return ""
+        return build_dnd_character_identity_sentence(checkpoint, character).strip()
 
     @staticmethod
     def _one_star_agent_state_block(
@@ -392,9 +357,9 @@ class CharacterAgent:
         description = visible_equipped_item_description(character)
         if not description:
             return ""
-        return "## Visible Equipped Items\n" + description
+        return "Visible equipped items:\n" + description
 
-    def _dnd_combat_mode_block(
+    def _dnd_combat_context(
         self,
         character: CharacterRecord,
         checkpoint: CheckpointFile,
@@ -458,12 +423,10 @@ class CharacterAgent:
 
         Distinct from committed agent turns in two load-bearing ways:
 
-        1. **No parenthetical parse.** Perception mode in `agent.txt`
-           tells the model not to emit a trailing parenthetical;
-           output is pure prose. Returning `response.content.strip()`
-           directly skips the `_extract_parenthetical` round-trip
-           (which would otherwise log a spurious "missing trailing
-           parenthetical" warning on every call).
+        1. **No turn-marker parse.** Perception mode in `agent_perception.txt`
+           tells the model to emit only exterior prose plus its presentation
+           footer. Returning `response.content.strip()` directly avoids
+           interpreting perception output as a character turn.
 
         2. **Lower max_tokens.** Cap is 3 sentences (~150 tokens of
            prose, leave headroom for the model's own pacing). 600
@@ -473,7 +436,7 @@ class CharacterAgent:
         A character should remember how they chose to present themself in
         the current scene, especially after repeated look/query harvests.
         Unlike normal agent turns, this still does not drain pending_observations
-        and does not produce private intent.
+        and accepts only exterior prose plus its presentation footer.
 
         """
         if is_non_social_hazard(character):
@@ -490,15 +453,12 @@ class CharacterAgent:
         # fiction; the next normal agent turn is what consumes them.
         # Draining here would silently swallow off-location or mediated
         # perceptions the next on-stage turn needs to acknowledge. We
-        # also pass an EMPTY
-        # pending-observations block to the render — a self-presentation
-        # query shouldn't be primed by "react to these incoming events."
+        # do not add those observations to this request — a self-presentation
+        # query should not be primed by incoming events.
         # The character's freshest in-fiction interior is already in
         # their rolling history (`history` above), which is what should
         # color their visual loadout. The resulting loadout is appended
         # after the call so future beats remember what was established.
-        char_identity = build_character_packet(character, checkpoint)
-        char_state = build_character_state(character, checkpoint)
         one_star_perception = (
             self._one_star_perception_block(character)
             if _session_ruleset_id(checkpoint)
@@ -509,24 +469,20 @@ class CharacterAgent:
             checkpoint,
             character,
         )
-
-        render_t0 = time.monotonic()
-        messages = self.prompt_manager.render_conversation(
-            "agent",
-            history=history,
-            agent_ruleset_system_addon=self._agent_ruleset_system_addon(
-                checkpoint
-            ),
-            **char_identity,
-            **char_state,
-            world_context=build_world_context(character, checkpoint),
-            pending_observations_block="",
-            mode_header=AGENT_PERCEPTION_HEADER,
-            mode_block=_join_mode_blocks(
-                format_agent_perception_body(),
+        request_packet = build_character_perception_request_packet(
+            character,
+            checkpoint,
+            _join_prompt_blocks(
                 one_star_perception,
                 presentation_catalog,
             ),
+        )
+
+        render_t0 = time.monotonic()
+        messages = self.prompt_manager.render_conversation(
+            "agent_perception",
+            history=history,
+            request_packet=request_packet,
         )
         render_ms = (time.monotonic() - render_t0) * 1000
         user_content = messages[-1]["content"]
@@ -542,18 +498,17 @@ class CharacterAgent:
             temperature=0.5,
             max_tokens=600,
             cache=True,
-            compact=True,
+            compact=False,
         )
-        text, presentation = parse_character_presentation_footer(
-            (response.content or "").strip()
+        text, presentation = _parse_agent_perception_response(
+            response.content or ""
         )
         result = CharacterPerceptionOutput(
             public_text=text,
             presentation=presentation,
         )
-        self.last_usage = _usage_with_format_repairs(
+        self.last_usage = _usage_with_prompt_render(
             response.usage,
-            format_repairs=0,
             prompt_render_ms=render_ms,
         )
 
@@ -561,10 +516,6 @@ class CharacterAgent:
             character.character_id, [],
         )
         conversation_user_content = user_content
-        if one_star_perception:
-            conversation_user_content = conversation_user_content.replace(
-                one_star_perception, "", 1
-            )
         if presentation_catalog:
             conversation_user_content = conversation_user_content.replace(
                 presentation_catalog,
@@ -574,9 +525,7 @@ class CharacterAgent:
         conv.extend((
             ConversationMessage(
                 role="user",
-                content=_conversation_safe_user_content(
-                    conversation_user_content
-                ),
+                content=conversation_user_content,
             ),
             _assistant_history_message(response, text),
         ))
@@ -612,12 +561,8 @@ class CharacterAgent:
             character.location,
             checkpoint,
         )
-        location_context = (
-            f"Location: {location_label}"
-            if location_label else "Location: Off-screen / unspecified location."
-        )
         foreground_block = (
-            self._dnd_combat_mode_block(character, checkpoint)
+            self._dnd_combat_context(character, checkpoint)
             if frame == "foreground"
             else ""
         )
@@ -629,16 +574,16 @@ class CharacterAgent:
         return await self._draft_beat(
             character=character,
             checkpoint=checkpoint,
-            mode_header=AGENT_TURN_HEADER,
-            mode_block=_join_mode_blocks(
-                format_agent_turn_body(
+            current_moment=_join_prompt_blocks(
+                format_character_moment(
                     frame=frame,
-                    location_context=location_context,
+                    location=location_label,
                     local_context=local_context,
                 ),
                 foreground_block,
                 presentation_catalog,
             ),
+            presentation_catalog=presentation_catalog,
             log_label="turn",
             log_extra=frame,
         )
@@ -684,24 +629,22 @@ class CharacterAgent:
         *,
         character: CharacterRecord,
         checkpoint: CheckpointFile,
-        mode_header: str,
-        mode_block: str,
+        current_moment: str,
+        presentation_catalog: str,
         log_label: str,
         log_extra: str,
     ) -> CharacterAgentTurnDraft:
         """Shared agent-beat plumbing for all committed/drafted turns.
 
-        Renders the unified `agent` template, calls the LLM, parses
-        the trailing parenthetical, and prepares the user/assistant
-        history pair. Both modes flow through
-        here so any future tweak (model swap, retry policy,
-        compaction, telemetry) lands once.
+        Renders the `agent_turn` template, calls the LLM, parses the
+        observable response, and prepares the user/assistant history pair.
+        All ordinary turn frames flow through here so future call behavior
+        stays in one place.
 
-        The system prefix is byte-identical between modes and across
-        characters for the same ruleset. Character-derived variables, the
-        mode header (`## AGENT-TURN`), and the turn frame live in the user
-        message. This shared prefix is what lets one cache lineage cover
-        multiple characters on the same model role.
+        The generic system contract is shared across characters. This
+        character's identity and current fictional circumstance live in the
+        user packet, which is retained verbatim in history except for a
+        disposable presentation catalog.
 
         """
         history = checkpoint.character_conversations.get(character.character_id, [])
@@ -709,31 +652,28 @@ class CharacterAgent:
         elapsed_time_block = format_elapsed_agent_turn_block(
             character, checkpoint,
         )
-        pending_block = (
-            build_dnd_player_identities_block(checkpoint)
-            + elapsed_time_block
-            + format_pending_observations_block(character)
-        )
         one_star_state = self._one_star_agent_state_block(
             character, checkpoint
         )
-
-        char_identity = build_character_packet(character, checkpoint)
-        char_state = build_character_state(character, checkpoint)
+        request_packet = build_character_turn_request_packet(
+            character,
+            checkpoint,
+            _join_prompt_blocks(
+                self._dnd_character_identity_block(character, checkpoint),
+                build_dnd_player_identities_block(checkpoint),
+                elapsed_time_block,
+                format_pending_observations_block(character),
+                current_moment,
+                one_star_state,
+            ),
+        )
 
         render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
-            "agent",
+            "agent_turn",
             history=history,
-            agent_ruleset_system_addon=self._agent_ruleset_system_addon(
-                checkpoint
-            ),
-            **char_identity,
-            **char_state,
-            world_context=build_world_context(character, checkpoint),
-            pending_observations_block=pending_block,
-            mode_header=mode_header,
-            mode_block=_join_mode_blocks(mode_block, one_star_state),
+            ruleset_guidance=self._ruleset_guidance(checkpoint),
+            request_packet=request_packet,
         )
         render_ms = (time.monotonic() - render_t0) * 1000
 
@@ -752,107 +692,43 @@ class CharacterAgent:
             temperature=0.6,
             max_tokens=2000,
             cache=True,
-            compact=True,
+            compact=False,
         )
-        format_repairs = 0
-        if _has_valid_private_intent(response.content):
-            final_response = response
-            public_text, intent, presentation = _parse_agent_turn_response(
-                final_response.content
-            )
-        else:
-            format_repairs = 1
-            logger.warning(
-                "Agent %s returned an invalid private intent; requesting one "
-                "bounded format repair",
-                character.name,
-            )
-            repair_instruction = self.prompt_manager.render(
-                "agent_format_repair"
-            ).strip()
-            repair_messages = [
-                *messages,
-                {
-                    "role": "assistant",
-                    "content": response.content or "",
-                },
-                {
-                    "role": "user",
-                    "content": repair_instruction,
-                },
-            ]
-            final_response = await self.client.complete(
-                role=role,
-                messages=repair_messages,
-                response_model=CharacterAgentFormatRepair,
-                temperature=0.0,
-                max_tokens=2000,
-                cache=True,
-                compact=True,
-            )
-            self.last_usage = _usage_with_format_repairs(
-                response.usage,
-                final_response.usage,
-                format_repairs=format_repairs,
-                prompt_render_ms=render_ms,
-            )
-            repaired = final_response.parsed
-            if not isinstance(repaired, CharacterAgentFormatRepair):
-                raise CharacterAgentFormatError(
-                    "Character agent failed to produce a non-empty trailing "
-                    f"private intent for {character.character_id!r} after one "
-                    "bounded repair."
-                )
-            public_text = repaired.observable_prose
-            intent = repaired.private_intent
-            presentation = repaired.presentation
+        final_response = response
+        public_text, is_silence, presentation = (
+            _parse_agent_turn_response(final_response.content)
+        )
         result = CharacterAgentOutput(
             character_id=character.character_id,
             public_text=public_text,
-            intent=intent,
+            is_silence=is_silence,
             presentation=presentation,
         )
-        usage_dicts = (
-            (response.usage, final_response.usage)
-            if format_repairs
-            else (final_response.usage,)
-        )
-        self.last_usage = _usage_with_format_repairs(
-            *usage_dicts,
-            format_repairs=format_repairs,
+        self.last_usage = _usage_with_prompt_render(
+            final_response.usage,
             prompt_render_ms=render_ms,
         )
         conversation_user_content = user_content
-        if one_star_state:
-            conversation_user_content = conversation_user_content.replace(
-                one_star_state, "", 1
-            )
-        presentation_catalog = format_character_presentation_catalog(
-            checkpoint,
-            character,
-        )
         if presentation_catalog:
             conversation_user_content = conversation_user_content.replace(
                 presentation_catalog,
                 "",
                 1,
             )
-        history_text = public_text
-        if intent:
-            history_text = f"{history_text} ({intent})".strip()
         user_message = ConversationMessage(
             role="user",
-            content=_conversation_safe_user_content(conversation_user_content),
+            content=conversation_user_content,
         )
+        assistant_history_text = _SILENCE_MARKER if is_silence else public_text
         assistant_message = _assistant_history_message(
             final_response,
-            history_text,
+            assistant_history_text,
         )
 
         logger.info(
-            "Agent %s %s: %d chars public, %d chars intent",
+            "Agent %s %s: %d chars public, silence=%s",
             character.name, log_label,
-            len(result.public_text), len(result.intent),
+            len(result.public_text), is_silence,
         )
 
         return CharacterAgentTurnDraft(

@@ -7,7 +7,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from app.schemas.characters import CharacterRecord, CharacterVisuals, PublicSheet
+from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
+    CharacterRecord,
+    CharacterVisuals,
+    PublicSheet,
+)
 
 
 ABILITY_BY_DDB_ID = {
@@ -197,6 +203,7 @@ def character_record_from_snapshot(
     identity = snapshot.get("identity") or {}
     char_id = character_id or _slug(identity.get("name") or "dnd_character")
     appearance = identity.get("appearance", "")
+    actor_facts = _actor_facts_from_identity(identity)
     return CharacterRecord(
         character_id=char_id,
         name=identity.get("name") or char_id,
@@ -208,10 +215,33 @@ def character_record_from_snapshot(
             faction="",
         ),
         visuals=CharacterVisuals(default_loadout=appearance),
-        backstory=identity.get("backstory", ""),
-        personality=identity.get("personality", ""),
+        actor=ActorRecord(facts=actor_facts) if actor_facts else None,
         mechanics=mechanics_from_snapshot(snapshot),
     )
+
+
+def _actor_facts_from_identity(identity: dict[str, Any]) -> list[ActorFact]:
+    """Compile reviewed D&D source identity notes into sparse actor facts."""
+
+    facts: list[ActorFact] = []
+    seen: set[str] = set()
+    prefixes = {
+        "backstory": "You remember this account as your own history: ",
+        "personality": "You recognize this description in yourself: ",
+    }
+    for field_name in ("backstory", "personality"):
+        text = str(identity.get(field_name) or "").strip()
+        normalized = " ".join(text.casefold().split())
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        facts.append(
+            ActorFact(
+                origin="lived",
+                text=f"{prefixes[field_name]}{text}",
+            )
+        )
+    return facts
 
 
 def _character_payload(export: dict[str, Any]) -> dict[str, Any]:

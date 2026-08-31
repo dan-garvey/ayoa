@@ -782,7 +782,7 @@ class StorySetting(BaseModel):
 
 
 class CharacterGenerationGuidance(BaseModel):
-    """Story-authored target depth and presentation for one generation tier.
+    """Story-authored actor and presentation guidance for one generation tier.
 
     These fields describe a budget, not generic engine rankings. A story may
     use tiers for social station, dramatic importance, supernatural maturity,
@@ -790,8 +790,10 @@ class CharacterGenerationGuidance(BaseModel):
     character generation unchanged.
     """
 
-    backstory_depth: str = ""
-    personality_depth: str = ""
+    # One deliberately unstructured instruction for the amount and kind of
+    # actor-owned material warranted at this rung. It must not become a fixed
+    # checklist: sparse facts and uneven people are valid outcomes.
+    actor_fact_guidance: str = ""
     public_visual_detail: str = ""
     loadout_detail: str = ""
     visual_salience: str = ""
@@ -810,8 +812,8 @@ class KnowledgeTier(BaseModel):
     A rung may also carry a non-cumulative `generation_guidance` target for how
     fully that tier should be authored and presented.
     High rungs may name otherwise-hidden plot facts; the assembled budget
-    reaches only the spawned character's own agent context (their
-    known_context/secrets), never the narrator or lower-tier agents.
+    reaches only the spawned character's own actor facts, never the narrator
+    or lower-tier agents.
     `agent_tier`, when set, overrides the default spawn agent tier for this
     rung, so a plot-bearing high-tier summon can be voiced by a stronger model
     than disposable fodder. An empty ladder leaves spawn behavior unchanged.
@@ -861,6 +863,8 @@ class AuthoredOpeningCharacterBeat(BaseModel):
     opening governed by this policy.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     speaker_character_id: str = Field(min_length=1)
     required_participant_ids: list[str] = Field(default_factory=list)
     introduced_character_count: int = Field(ge=1, le=32)
@@ -868,7 +872,6 @@ class AuthoredOpeningCharacterBeat(BaseModel):
         min_length=1,
         max_length=16,
     )
-    private_intent: str = Field(min_length=1, max_length=2_000)
 
     @model_validator(mode="after")
     def _clean_beat(self) -> "AuthoredOpeningCharacterBeat":
@@ -878,11 +881,8 @@ class AuthoredOpeningCharacterBeat(BaseModel):
             for character_id in self.required_participant_ids
             if character_id.strip()
         ))
-        self.private_intent = self.private_intent.strip()
         if not self.speaker_character_id:
             raise ValueError("authored opening speaker id cannot be blank")
-        if not self.private_intent:
-            raise ValueError("authored opening private intent cannot be blank")
         return self
 
 

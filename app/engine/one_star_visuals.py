@@ -45,7 +45,7 @@ def _veiled_presentation(character: CharacterRecord) -> str | None:
     player_safe_exterior = " ".join((
         character.public_sheet.role,
         character.public_sheet.appearance,
-        character.descriptions.public,
+        character.public_sheet.public_context,
     ))
     feminine = bool(_FEMININE_PRESENTATION_RE.search(player_safe_exterior))
     masculine = bool(_MASCULINE_PRESENTATION_RE.search(player_safe_exterior))

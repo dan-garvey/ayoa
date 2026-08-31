@@ -15,14 +15,17 @@ from app.engine.frontend_views import CharacterSummary
 from app.engine.context_builder import (
     collect_player_ids,
 )
+from app.llm.client import LLMResponse
 from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
     CharacterRecord,
     CharacterStatus,
     PlayerSlotKind,
-    PrivateState,
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 from app.schemas.state import SessionState, WorldState
 
 
@@ -52,20 +55,27 @@ def _make_checkpoint() -> CheckpointFile:
                     "Control Aldric's body, speech, and choices. "
                     "You can read the trail signs he recognizes."
                 ),
-                backstory="Raised by wolves.",
-                personality="MODEL-ONLY: Keep his voice clipped and quiet.",
-                known_context="The north trail is safe at dawn.",
-                private_state=PrivateState(
-                    goals=["survive"],
-                    secrets=["knows the royal sigil"],
+                actor=ActorRecord(
+                    facts=[
+                        ActorFact(
+                            origin="lived",
+                            text="You were raised by wolves.",
+                        ),
+                        ActorFact(
+                            origin="told",
+                            text="You were told the north trail is safe at dawn.",
+                        ),
+                        ActorFact(
+                            origin="witnessed",
+                            text="You saw the royal sigil on the old gate.",
+                        ),
+                    ],
                 ),
             ),
             CharacterRecord(
                 character_id="sera",
                 name="Sera Vance",
                 public_sheet=PublicSheet(role="thief", appearance="wiry"),
-                backstory="Grew up on the docks.",
-                private_state=PrivateState(secrets=["owes the guild"]),
             ),
             CharacterRecord(
                 character_id="thane",
@@ -106,9 +116,8 @@ class TestSummaries:
         by_id = {s.character_id: s for s in summaries}
         # All roster entries surfaced.
         assert set(by_id) == {"aldric", "sera", "thane", "vex"}
-        # Public fields only — no secrets field on CharacterSummary.
-        assert not hasattr(by_id["sera"], "secrets")
-        assert not hasattr(by_id["sera"], "backstory")
+        # Public fields only — no private actor record on CharacterSummary.
+        assert not hasattr(by_id["sera"], "actor")
         # Dormant/culled status comes through.
         assert by_id["thane"].status == "dormant"
         assert by_id["vex"].status == "culled"
@@ -240,6 +249,77 @@ class TestBindUnbind:
     async def test_unbind_no_binding_returns_none(self, bridge: EngineBridge):
         assert await bridge.unbind_user(SESSION_ID, 999) is None
 
+    async def test_actor_record_synthesis_rejects_legacy_hidden_marker_content(
+        self,
+        bridge: EngineBridge,
+    ) -> None:
+        ckpt = bridge.load_latest(SESSION_ID)
+        ckpt.character_conversations["sera"] = [
+            ConversationMessage(
+                role="user",
+                content=(
+                    "The harbor bell rings twice; Sera sees the guild mark.\n"
+                    "<one_star_account>Gold: 9000</one_star_account>\n"
+                    "## Local Context\nThe account owner hid a second key."
+                ),
+            ),
+            ConversationMessage(
+                role="assistant",
+                content=(
+                    "Sera pockets the token and asks who rang the bell.\n"
+                    "<private_carry>She recognizes her creditor's mark and "
+                    "will conceal it.</private_carry>"
+                ),
+            ),
+        ]
+        bridge.checkpoint_mgr.save(ckpt)
+        bridge.client.complete = AsyncMock(return_value=LLMResponse(
+            content='{"facts":[]}',
+            model="fixture",
+            usage={},
+        ))
+
+        with pytest.raises(ValueError, match="retired <private_carry>"):
+            await bridge.synthesize_actor_record(SESSION_ID, "sera")
+
+        bridge.client.complete.assert_not_awaited()
+
+    async def test_actor_record_synthesis_writes_sparse_provenanced_facts(
+        self,
+        bridge: EngineBridge,
+    ) -> None:
+        ckpt = bridge.load_latest(SESSION_ID)
+        ckpt.character_conversations["sera"] = [
+            ConversationMessage(
+                role="assistant",
+                content="Sera leaves the harbor token beneath the bell.",
+            )
+        ]
+        bridge.checkpoint_mgr.save(ckpt)
+        bridge.client.complete = AsyncMock(
+            return_value=LLMResponse(
+                content=(
+                    '{"facts":[{"origin":"lived","text":'
+                    '"You left the harbor token beneath the bell."}]}'
+                ),
+                model="fixture",
+                usage={},
+            )
+        )
+
+        updated = await bridge.synthesize_actor_record(SESSION_ID, "sera")
+
+        actor = next(
+            character.actor
+            for character in updated.characters
+            if character.character_id == "sera"
+        )
+        assert actor is not None
+        assert actor.may_act_offstage is False
+        assert [(fact.origin.value, fact.text) for fact in actor.facts] == [
+            ("lived", "You left the harbor token beneath the bell.")
+        ]
+
 
 class TestStrictPlayerJoin:
     @staticmethod
@@ -341,7 +421,7 @@ class TestStrictPlayerJoin:
         slot.location = "gatehouse"
         bridge.checkpoint_mgr.save(ckpt)
         synthesize = AsyncMock()
-        monkeypatch.setattr(bridge, "synthesize_personality", synthesize)
+        monkeypatch.setattr(bridge, "synthesize_actor_record", synthesize)
 
         freed = await bridge.leave_character(SESSION_ID, 42)
 
@@ -379,7 +459,7 @@ class TestStrictPlayerJoin:
         bridge.checkpoint_mgr.save(ckpt)
         await bridge.claim_player_character(SESSION_ID, "sera", 42)
         synthesize = AsyncMock(return_value=bridge.load_latest(SESSION_ID))
-        monkeypatch.setattr(bridge, "synthesize_personality", synthesize)
+        monkeypatch.setattr(bridge, "synthesize_actor_record", synthesize)
 
         await bridge.leave_character(SESSION_ID, 42)
 
@@ -391,17 +471,16 @@ class TestDossier:
         self,
         bridge: EngineBridge,
     ):
-        """The player sees control guidance and character-known material,
-        never the model's portrayal direction."""
+        """The player sees control guidance and actor-known facts only."""
         dossier = bridge.build_character_dossier(SESSION_ID, "aldric")
         assert "## Your Control & Perspective" in dossier
         assert "Control Aldric's body" in dossier
-        assert "Raised by wolves" in dossier  # backstory
-        assert "north trail" in dossier        # known context
-        assert "survive" in dossier           # goal
-        assert "royal sigil" in dossier       # secret THIS character keeps
-        assert "MODEL-ONLY" not in dossier
-        assert "clipped and quiet" not in dossier
+        assert "You were raised by wolves" in dossier
+        assert "north trail" in dossier
+        assert "royal sigil" in dossier
+        assert "lived:" not in dossier
+        assert "told:" not in dossier
+        assert "witnessed:" not in dossier
 
     def test_excludes_world_hidden_content(self, bridge: EngineBridge):
         """World-wide hidden lore/facts are engine secrets, not per-character

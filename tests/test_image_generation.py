@@ -41,10 +41,11 @@ from app.engine.visual_novel_presentation import (
     VisualNovelDeckSection,
 )
 from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
     CharacterRecord,
     CharacterVisuals,
     PlayerSlotKind,
-    PrivateState,
     PublicSheet,
 )
 from app.schemas.agents import CharacterPresentationChoice
@@ -176,9 +177,14 @@ def _checkpoint(session_id: str = "image_test") -> CheckpointFile:
                 visuals=CharacterVisuals(
                     default_loadout="canvas satchel and rain-spotted shoes",
                 ),
-                private_state=PrivateState(
-                    secrets=["PRIVATE ALICE SECRET"],
-                    intentions_enabled=True,
+                actor=ActorRecord(
+                    may_act_offstage=True,
+                    facts=[
+                        ActorFact(
+                            origin="lived",
+                            text="PRIVATE ALICE SECRET",
+                        )
+                    ],
                 ),
                 is_playable=True,
             ),
@@ -187,7 +193,14 @@ def _checkpoint(session_id: str = "image_test") -> CheckpointFile:
                 name="Bob",
                 public_sheet=PublicSheet(appearance="silver hair"),
                 visuals=CharacterVisuals(default_loadout="black formal coat"),
-                private_state=PrivateState(secrets=["PRIVATE BOB SECRET"]),
+                actor=ActorRecord(
+                    facts=[
+                        ActorFact(
+                            origin="told",
+                            text="PRIVATE BOB SECRET",
+                        )
+                    ]
+                ),
             ),
         ],
     )
@@ -1153,7 +1166,7 @@ async def test_director_receives_only_text_projection_and_can_return_zero():
     assert "yellow raincoat" in rendered
     assert "role=student photographer" in rendered
     assert "player_controlled=yes" in rendered
-    assert "recurring_actor=yes" in rendered
+    assert "recurring_actor" not in rendered
     assert "canonical events so far: 1" in rendered
     assert "active roster count: 2" in rendered
     assert "PRIVATE WORLD SECRET" not in rendered
@@ -1326,7 +1339,7 @@ def test_projection_includes_creator_player_without_binding():
     assert len(projections) == 1
     assert projections[0].viewer_character_ids == ("alice",)
     assert projections[0].characters[0].is_playable is True
-    assert projections[0].characters[0].recurring_actor is True
+    assert not hasattr(projections[0].characters[0], "recurring_actor")
 
 
 @pytest.mark.asyncio

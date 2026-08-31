@@ -62,7 +62,12 @@ from app.engine.turn_loop import (
 from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
+from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
+    CharacterRecord,
+    PublicSheet,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_spatial import (
     DndBattleMapSeed,
@@ -198,7 +203,7 @@ def _char(
     mechanics: dict[str, Any],
     faction: str = "",
     playable: bool = False,
-    intentions_enabled: bool = False,
+    may_act_offstage: bool = False,
     objectives: list[str] | None = None,
 ) -> CharacterRecord:
     return CharacterRecord(
@@ -211,15 +216,26 @@ def _char(
             appearance=appearance,
             faction=faction,
         ),
-        private_state=PrivateState(
-            goals=["Survive the skirmish and act from the immediate fiction."],
-            current_objectives=objectives or ["Win the current fight."],
-            secrets=[],
-            intentions_enabled=intentions_enabled,
-        ),
-        known_context=(
-            "A D&D 5e initiative scene is active in a small ruined shrine. "
-            "The combatants can see and hear each other."
+        actor=ActorRecord(
+            may_act_offstage=may_act_offstage,
+            facts=[
+                ActorFact(
+                    text=(
+                        "You are in an active fight inside a small ruined "
+                        "shrine and can see and hear the other combatants."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You want to survive the skirmish and act from what "
+                        "is immediately present."
+                    )
+                ),
+                *(
+                    ActorFact(text=f"You intend to {value.rstrip('.').lower()}.")
+                    for value in (objectives or ["Win the current fight."])
+                ),
+            ],
         ),
         mechanics=mechanics,
     )
@@ -294,7 +310,7 @@ def _characters() -> list[CharacterRecord]:
             role="ash cult warcaller",
             appearance="charred antler mask, ember staff, ritual bells",
             faction="ash_cult",
-            intentions_enabled=True,
+            may_act_offstage=True,
             objectives=[
                 "Keep pressure on both intruders.",
                 "Use the grunts as a screen while controlling the shrine center.",
@@ -664,7 +680,6 @@ async def _agent_monster_intention(
     output = await agent.turn(
         character=character,
         checkpoint=ckpt,
-        acting_character_id=AGENT_MONSTER_ID,
         frame="foreground",
         local_context=(
             "It is your initiative turn. Choose one concrete combat action "
@@ -677,7 +692,7 @@ async def _agent_monster_intention(
     intention = public_text or "(remains silent)"
     return intention, {
         "public_text": public_text,
-        "private_intent": output.intent.strip(),
+        "is_silence": output.is_silence,
     }
 
 

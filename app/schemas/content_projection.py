@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.characters import ActorFact, ActorRecord
 from app.schemas.content_privacy import contains_imported_asset_sentinel
 
 
@@ -190,7 +191,7 @@ class ContentRouterKnowledgeKeyProjection(BaseModel):
 
 
 class ContentCharacterProjection(BaseModel):
-    """Reviewed import-time seed for one character agent."""
+    """Reviewed import-time seed for one runtime character record."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -199,17 +200,11 @@ class ContentCharacterProjection(BaseModel):
     status: ProjectionCharacterStatus = "dormant"
     location: str = ""
     actor_ref: str = ""
-    agent_context_ref: str = ""
     public_role: str = ""
     appearance: str = ""
     faction: str = ""
-    backstory: str = ""
-    personality: str = ""
-    known_context: str = ""
-    goals: list[str] = Field(default_factory=list)
-    current_objectives: list[str] = Field(default_factory=list)
-    secrets: list[str] = Field(default_factory=list)
-    intentions_enabled: bool = False
+    public_context: str = ""
+    actor: ActorRecord | None = None
     known_refs: list[str] = Field(default_factory=list)
     suspected_refs: list[str] = Field(default_factory=list)
 
@@ -219,14 +214,11 @@ class ContentCharacterProjection(BaseModel):
         self.name = _reject_private_asset_text(self.name, field_name="name")
         self.location = _clean_text(self.location)
         self.actor_ref = _clean_text(self.actor_ref)
-        self.agent_context_ref = _clean_text(self.agent_context_ref)
         for field_name in (
             "public_role",
             "appearance",
             "faction",
-            "backstory",
-            "personality",
-            "known_context",
+            "public_context",
         ):
             setattr(
                 self,
@@ -236,12 +228,20 @@ class ContentCharacterProjection(BaseModel):
                     field_name=field_name,
                 ),
             )
-        self.goals = _clean_unique_strings(self.goals)
-        self.current_objectives = _clean_unique_strings(self.current_objectives)
-        self.secrets = [
-            _reject_private_asset_text(secret, field_name="secret")
-            for secret in _clean_unique_strings(self.secrets)
-        ]
+        if self.actor is not None:
+            self.actor = ActorRecord(
+                may_act_offstage=self.actor.may_act_offstage,
+                facts=[
+                    ActorFact(
+                        origin=fact.origin,
+                        text=_reject_private_asset_text(
+                            fact.text,
+                            field_name="actor_fact",
+                        ),
+                    )
+                    for fact in self.actor.facts
+                ],
+            )
         self.known_refs = _clean_unique_strings(self.known_refs)
         self.suspected_refs = [
             ref for ref in _clean_unique_strings(self.suspected_refs) if ref not in self.known_refs
@@ -337,18 +337,11 @@ class ContentCharacterPatchProjection(BaseModel):
     character_id: str
     status: ProjectionCharacterStatus | None = None
     location: str = ""
-    known_context: str = ""
-    current_objectives: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _clean(self) -> "ContentCharacterPatchProjection":
         self.character_id = _clean_text(self.character_id)
         self.location = _clean_text(self.location)
-        self.known_context = _reject_private_asset_text(
-            self.known_context,
-            field_name="known_context",
-        )
-        self.current_objectives = _clean_unique_strings(self.current_objectives)
         if not self.character_id:
             raise ValueError("character patches need character_id")
         return self

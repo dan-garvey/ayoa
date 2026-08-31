@@ -6,8 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.schemas.characters import CharacterStatus
-from app.schemas.conversation import ConversationMessage
+from app.schemas.characters import ActorFact, ActorRecord, CharacterStatus
 from scripts.run_one_star_character_dialogue_replay import (
     CONVERSATION_REVIEW_CONTRACT,
     PRESSURE_REGRESSION_SCENARIOS,
@@ -16,7 +15,6 @@ from scripts.run_one_star_character_dialogue_replay import (
     SUSTAINED_CONVERSATION_SCENARIOS,
     ConversationScenario,
     _offline_client,
-    _render_profile_blocks,
     build_blinded_voice_review,
     build_pressure_review_rows,
     build_whole_conversation_review,
@@ -123,18 +121,10 @@ def test_scenario_inventory_requires_sustained_quiet_conflict_and_pressure() -> 
         validate_scenario_inventory((too_short, *conflict, *pressure))
 
 
-def test_current_seed_profile_overlay_includes_known_context_and_preserves_topology(
+def test_current_seed_profile_overlay_updates_record_and_preserves_history(
     tmp_path: Path,
 ) -> None:
     replay = load_checkpoint(PRODUCTION_SEED_PATH)
-    identity, state = _render_profile_blocks(replay, "mirelle_voss")
-    replay.character_conversations["mirelle_voss"] = [
-        ConversationMessage(role="user", content=f"{identity}\n\n{state}"),
-        ConversationMessage(
-            role="assistant",
-            content="Mirelle makes one prior public choice. (A private motive.)",
-        ),
-    ]
     replay_path = tmp_path / "replay.json"
     replay_path.write_text(replay.model_dump_json(indent=2), encoding="utf-8")
     replay = load_checkpoint(replay_path)
@@ -149,16 +139,14 @@ def test_current_seed_profile_overlay_includes_known_context_and_preserves_topol
         for character in profile.characters
         if character.character_id == "mirelle_voss"
     )
-    old_personality = replay_actor.personality
-    old_known_context = replay_actor.known_context
-    old_intentions_enabled = replay_actor.private_state.intentions_enabled
-    original_roles = [
-        message.role for message in replay.character_conversations["mirelle_voss"]
-    ]
-    original_assistant = replay.character_conversations["mirelle_voss"][1].content
-    profile_actor.personality = "CURRENT-SEED-PERSONALITY-SENTINEL"
-    profile_actor.known_context = "CURRENT-SEED-KNOWN-CONTEXT-SENTINEL"
-    profile_actor.private_state.intentions_enabled = not old_intentions_enabled
+    old_actor = replay_actor.actor.model_copy(deep=True) if replay_actor.actor else None
+    old_public_sheet = replay_actor.public_sheet.model_copy(deep=True)
+    original_history = replay.character_conversations.get("mirelle_voss", []).copy()
+    profile_actor.actor = ActorRecord(
+        may_act_offstage=False,
+        facts=[ActorFact(text="CURRENT-SEED-ACTOR-SENTINEL")],
+    )
+    profile_actor.public_sheet.public_context = "CURRENT-SEED-PUBLIC-SENTINEL"
 
     overlaid = overlay_current_seed_profiles(replay, profile)
     overlaid_actor = next(
@@ -166,24 +154,16 @@ def test_current_seed_profile_overlay_includes_known_context_and_preserves_topol
         for character in overlaid.characters
         if character.character_id == "mirelle_voss"
     )
-    history = overlaid.character_conversations["mirelle_voss"]
-    user_content = str(history[0].content)
-
-    assert [message.role for message in history] == original_roles
-    assert history[1].content == original_assistant
-    assert "CURRENT-SEED-PERSONALITY-SENTINEL" in user_content
-    assert "CURRENT-SEED-KNOWN-CONTEXT-SENTINEL" in user_content
-    assert old_personality not in user_content
-    assert old_known_context not in user_content
-    assert overlaid_actor.known_context == "CURRENT-SEED-KNOWN-CONTEXT-SENTINEL"
-    assert overlaid_actor.private_state.intentions_enabled is old_intentions_enabled
+    assert overlaid.character_conversations.get("mirelle_voss", []) == original_history
+    assert overlaid_actor.actor == profile_actor.actor
+    assert overlaid_actor.public_sheet == profile_actor.public_sheet
     source_actor_after = next(
         character
         for character in load_checkpoint(replay_path).characters
         if character.character_id == "mirelle_voss"
     )
-    assert source_actor_after.personality == old_personality
-    assert source_actor_after.known_context == old_known_context
+    assert source_actor_after.actor == old_actor
+    assert source_actor_after.public_sheet == old_public_sheet
 
 
 def test_offline_replay_writes_one_candidate_fed_evidence_path(
@@ -220,8 +200,10 @@ def test_offline_replay_writes_one_candidate_fed_evidence_path(
         scenario.scenario_id: scenario.scenario_kind for scenario in REPLAY_SCENARIOS
     }
     assert report["provider_compaction_values"] == [False]
-    assert "known_context" in report["profile_overlay_fields"]
+    assert report["profile_overlay_fields"] == ["public_sheet", "actor"]
     assert len(report["profile_checkpoint_sha256"]) == 64
+    # The stable turn contract is actor-independent. Renna and Mirelle carry
+    # their own second-person identity only in their user packets.
     assert len(report["system_prompt_sha256s"]) == 1
 
     phase_dir = tmp_path / "offline-check"
@@ -233,10 +215,7 @@ def test_offline_replay_writes_one_candidate_fed_evidence_path(
     ]
     assert len(rows) == expected_turn_count
     assert all(row["checkpoint_path"] == str(checkpoint_path) for row in rows)
-    assert all(
-        "current production seed known_context" in row["runtime_known_context_source"]
-        for row in rows
-    )
+    assert all(row["runtime_actor_source"] for row in rows)
     assert all(
         call["request"]["compact"] is False
         for row in rows

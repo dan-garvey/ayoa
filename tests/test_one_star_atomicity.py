@@ -23,6 +23,9 @@ from app.engine.one_star_adapter import (
 from app.engine.one_star_progression import rebalance_hero
 from app.engine.one_star_visuals import one_star_identity_reveal_stars
 from app.schemas.characters import (
+    ActorFact,
+    ActorFactOrigin,
+    ActorRecord,
     CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
@@ -1541,8 +1544,14 @@ def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge(
     assert (hero.current_stars, hero.level, hero.experience_points) == (2, 10, 4_500)
     assert promoted.knowledge_tier == 2
     assert promoted.agent_tier is expected_tier
-    assert "a buried memory" in promoted.known_context
-    assert "the gate's truth" in promoted.known_context
+    assert promoted.actor is not None
+    assert {
+        (fact.origin, fact.text)
+        for fact in promoted.actor.facts
+    } >= {
+        (ActorFactOrigin.told, "a buried memory"),
+        (ActorFactOrigin.told, "the gate's truth"),
+    }
     assert (
         "hero"
         in prepared.after_checkpoint.session.visual_introductions.get(
@@ -2189,7 +2198,9 @@ def test_six_to_seven_star_promotion_preserves_last_reviewed_knowledge_tier() ->
     config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
     config["star_level_caps"].update({"3": 40, "4": 60, "5": 80, "6": 99, "7": 999999})
     target.knowledge_tier = 6
-    target.known_context = "everything remembered"
+    target.actor = ActorRecord(
+        facts=[ActorFact(origin=ActorFactOrigin.lived, text="everything remembered")]
+    )
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id="promotion_seven",
@@ -2205,7 +2216,10 @@ def test_six_to_seven_star_promotion_preserves_last_reviewed_knowledge_tier() ->
     )
     assert load_one_star_hero(promoted).current_stars == 7
     assert promoted.knowledge_tier == 6
-    assert promoted.known_context == "everything remembered"
+    assert promoted.actor is not None
+    assert promoted.actor.facts == [
+        ActorFact(origin=ActorFactOrigin.lived, text="everything remembered")
+    ]
 
 
 @pytest.mark.parametrize(
@@ -2266,7 +2280,8 @@ def test_bound_player_actor_pool_remains_available_to_the_exact_newcomer() -> No
         if character.character_id == "newcomer"
     )
     assert load_one_star_hero(acquired).owner_lobby_id == "lobby_a"
-    assert acquired.private_state.intentions_enabled is True
+    assert acquired.actor is not None
+    assert acquired.actor.may_act_offstage is True
     assert (
         load_one_star_account(prepared.after_checkpoint)[1]
         .state.summon_draw_counters
@@ -2366,7 +2381,7 @@ def test_authored_master_opening_roster_is_free_and_enables_existing_heroes() ->
     assert account.state.resources.gold == 20
     assert account.state.summon_draw_counters == {}
     assert all(
-        character.private_state.intentions_enabled
+        character.actor is not None and character.actor.may_act_offstage
         for character in prepared.after_checkpoint.characters
         if character.character_id in ids
     )

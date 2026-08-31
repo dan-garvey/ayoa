@@ -82,7 +82,8 @@ def test_offline_ab_writes_raw_prompts_and_blinded_review_set(tmp_path: Path) ->
     assert all(row["prompt"][-1]["role"] == "user" for row in raw_rows)
     assert all(row["provider_calls"] for row in raw_rows)
     assert all(
-        "Edren Marr" in row["prompt"][-1]["content"]
+        "Edren Marr" not in row["prompt"][0]["content"]
+        and "You are Edren Marr" in row["prompt"][-1]["content"]
         and "Choose one concrete action." in row["prompt"][-1]["content"]
         for row in raw_rows
     )

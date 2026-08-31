@@ -39,10 +39,11 @@ from app.engine.content_pack_projections import (
 )
 from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig
 from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
     CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
-    PrivateState,
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
@@ -448,32 +449,50 @@ def _hexblade() -> CharacterRecord:
             role="level 3 Hexblade Warlock",
             appearance="A tiefling pathfinder in a dark travel coat, with a black-iron rapier and annotated route folios.",
             faction="Lost Laboratory expedition",
+            public_context=(
+                "A Cartophile-hired pathfinder trusted with the expedition's "
+                "route folios."
+            ),
         ),
-        private_state=PrivateState(
-            goals=[
-                "Keep the expedition alive long enough to reach the laboratory.",
-                "Prove the curse-bound pact can be used with discipline rather than panic.",
+        actor=ActorRecord(
+            may_act_offstage=False,
+            facts=[
+                ActorFact(
+                    text=(
+                        "You were hired after correcting two contradictions in the "
+                        "Cartophile's route notes, and you treat the pact as a "
+                        "dangerous tool rather than an identity."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You are precise, dry, and tactical; you give short field "
+                        "instructions, use magic deliberately, and watch your pact "
+                        "slots."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You want to keep the expedition alive long enough to reach "
+                        "the laboratory and prove a curse-bound pact can be used with "
+                        "discipline rather than panic."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You intend to protect the route folios and identify the "
+                        "leader in any ambush before locking them down."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You accepted the Cartophile's return-documentation terms and "
+                        "are already on the Barrier Peaks route with Tavi and Ilyra; "
+                        "Garret and Gearbox may be useful contacts, but your party "
+                        "makes the field decisions."
+                    )
+                ),
             ],
-            current_objectives=[
-                "Protect the route folios.",
-                "Identify the leader in any ambush and lock them down first.",
-            ],
-            intentions_enabled=True,
-        ),
-        backstory=(
-            "Marlowe was hired after correcting two contradictions in the "
-            "Cartophile's route notes. The pact is useful, but she treats it "
-            "as a dangerous tool rather than a personality."
-        ),
-        personality=(
-            "Precise, dry, and tactical. Speaks in short field instructions. "
-            "Uses magic deliberately and worries about overcommitting pact slots."
-        ),
-        known_context=(
-            "You accepted the Cartophile's return-documentation terms and are "
-            "already on the Barrier Peaks route. Tavi and Ilyra are with you as "
-            "full expedition members. Garret and Gearbox may be useful contacts, "
-            "but this playtest party is responsible for the field decisions."
         ),
         mechanics=mechanics,
     )
@@ -611,32 +630,50 @@ def _artillerist() -> CharacterRecord:
             role="level 3 Artillerist Artificer",
             appearance="A rock gnome engineer with a folding tripod cannon, blue lens goggles, and packed survey tools.",
             faction="Lost Laboratory expedition",
+            public_context=(
+                "A field engineer attached to the Cartophile's expedition."
+            ),
         ),
-        private_state=PrivateState(
-            goals=[
-                "Keep the expedition equipment working under pressure.",
-                "Get proof that the lost technology is reproducible, not just legendary.",
+        actor=ActorRecord(
+            may_act_offstage=False,
+            facts=[
+                ActorFact(
+                    text=(
+                        "You joined for access to Kwalish's technical trail; you are "
+                        "competent enough to be cautious and proud enough to test the "
+                        "cannon when the table gives you a clean angle."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You are brisk, mechanically specific, and impatient with "
+                        "vague danger; you name tools, angles, and failure modes out "
+                        "loud."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You want to keep the expedition equipment working under "
+                        "pressure and prove the lost technology is reproducible, not "
+                        "just legendary."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You intend to protect the route folios without wasting the "
+                        "cannon and use control magic before damage when terrain "
+                        "favors it."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You are on the Barrier Peaks route with Marlowe and Ilyra; "
+                        "the Cartophile's documents are valuable, vulnerable, and "
+                        "technically interesting, while your cannon and control "
+                        "spells are expedition assets, not fireworks."
+                    )
+                ),
             ],
-            current_objectives=[
-                "Protect the route folios without wasting the cannon.",
-                "Use control magic before damage when terrain favors it.",
-            ],
-            intentions_enabled=True,
-        ),
-        backstory=(
-            "Tavi joined for access to Kwalish's technical trail. She is "
-            "competent enough to be cautious and proud enough to test the "
-            "cannon when the table gives her a clean angle."
-        ),
-        personality=(
-            "Brisk, mechanically specific, and impatient with vague danger. "
-            "She names tools, angles, and failure modes out loud."
-        ),
-        known_context=(
-            "You are on the Barrier Peaks route with Marlowe and Ilyra. The "
-            "Cartophile's documents are valuable, vulnerable, and technically "
-            "interesting. Your cannon and control spells are expedition assets, "
-            "not fireworks."
         ),
         mechanics=mechanics,
     )
@@ -776,31 +813,49 @@ def _spores_druid() -> CharacterRecord:
             role="level 3 Circle of Spores Druid",
             appearance="A half-elf trail medic with spore-stained leather, seed charms, and a blackwood staff.",
             faction="Lost Laboratory expedition",
+            public_context=(
+                "A trail medic who studies the route's unusual living terrain."
+            ),
         ),
-        private_state=PrivateState(
-            goals=[
-                "Read the living terrain before the expedition damages it.",
-                "Keep the party alive without making every problem a wound.",
+        actor=ActorRecord(
+            may_act_offstage=False,
+            facts=[
+                ActorFact(
+                    text=(
+                        "You joined because the route's ecological oddities do not "
+                        "match ordinary mountain growth; you trust fungi, tracks, "
+                        "and quiet signs more than people who call every ruin a "
+                        "treasure."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You are calm, sensory, and unsentimental, and you speak of "
+                        "spores and roots as practical witnesses."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You want to read the living terrain before the expedition "
+                        "damages it and keep the party alive without making every "
+                        "problem a wound."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You intend to use Entangle or Moonbeam only when the line "
+                        "of effect is clean and hold Healing Word for real "
+                        "emergencies."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You are on the Barrier Peaks route with Marlowe and Tavi; "
+                        "your work is to read living signs, prevent needless harm, "
+                        "and use control magic when it saves blood."
+                    )
+                ),
             ],
-            current_objectives=[
-                "Use Entangle or Moonbeam only when the line of effect is clean.",
-                "Hold Healing Word for real emergencies.",
-            ],
-            intentions_enabled=True,
-        ),
-        backstory=(
-            "Ilyra joined because the route's ecological oddities do not match "
-            "ordinary mountain growth. She trusts fungi, tracks, and quiet signs "
-            "more than people who call every ruin a treasure."
-        ),
-        personality=(
-            "Calm, sensory, and unsentimental. She talks about spores and roots "
-            "as practical witnesses."
-        ),
-        known_context=(
-            "You are on the Barrier Peaks route with Marlowe and Tavi. Your job "
-            "is to read living signs, prevent needless harm, and use control "
-            "magic when it saves blood."
         ),
         mechanics=mechanics,
     )
@@ -816,11 +871,16 @@ def _park_imported_support_npcs(ckpt: CheckpointFile) -> None:
             continue
         character.status = CharacterStatus.dormant
         character.location = "loc.cartophile_collection"
-        character.private_state.intentions_enabled = False
-        character.known_context = (
-            character.known_context.rstrip()
-            + "\n\nFor this class-party playtest seed, you remained behind at "
-            "the Cartophile's collection and are not present on the route."
+        if character.actor is None:
+            character.actor = ActorRecord()
+        character.actor.may_act_offstage = False
+        character.actor.facts.append(
+            ActorFact(
+                text=(
+                    "For this class-party playtest seed, you remained behind at the "
+                    "Cartophile's collection and are not present on the route."
+                )
+            )
         )
 
 

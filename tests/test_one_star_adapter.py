@@ -310,7 +310,8 @@ def test_existing_reserve_keeps_authored_mechanics_and_acquires_atomically() -> 
     assert prepared.newly_acquired_hero_ids == ("reserve",)
     assert hero.generated_for_summon is False
     assert reserve.agent_tier is CharacterAgentTier.utility
-    assert reserve.private_state.intentions_enabled is True
+    assert reserve.actor is not None
+    assert reserve.actor.may_act_offstage is True
 
 
 def test_inventory_delta_routes_account_currencies_to_resources() -> None:

@@ -27,6 +27,9 @@ from app.engine.one_star_progression import (
     scaled_by_grade,
 )
 from app.schemas.characters import (
+    ActorFact,
+    ActorFactOrigin,
+    ActorRecord,
     CharacterRecord,
     CharacterStatus,
     is_player_authored_slot,
@@ -3123,7 +3126,13 @@ def _apply_summon(
             )
         hero.owner_lobby_id = config.lobby_id
         hero.acquisition_event_id = event_id
-        existing.private_state.intentions_enabled = True
+        # A newly acquired Hero is eligible for normal autonomous follow-up
+        # once the summon has made them part of this lobby.  This is engine
+        # scheduling policy, not an actor-authored intention.
+        if existing.actor is None:
+            existing.actor = ActorRecord(may_act_offstage=True)
+        else:
+            existing.actor.may_act_offstage = True
         _validate_hero_progression_state(hero, config)
         hero_initializations[hero_id] = hero
         _store_hero(existing, hero)
@@ -3836,22 +3845,25 @@ def _restore_promotion_knowledge(
     )
     if rung is None:
         return
-    restored_lines = [
-        f"What promotion has returned at memory tier {promoted_tier}:"
+    restored_facts = [
+        text.strip()
+        for text in (rung.personal_depth, rung.world_knowledge)
+        if text.strip()
     ]
-    if rung.personal_depth.strip():
-        restored_lines.append(rung.personal_depth.strip())
-    if rung.world_knowledge.strip():
-        restored_lines.append(
-            "What you now remember about this world: "
-            + rung.world_knowledge.strip()
+    # Promotion can grant bounded lore or recovered memory, but it never
+    # rewrites the person's existing understanding. Keep each newly available
+    # source string as its own told fact so later tiers can append only the
+    # authority they add.
+    if character.actor is None:
+        character.actor = ActorRecord()
+    known_facts = {fact.text.casefold() for fact in character.actor.facts}
+    for restored in restored_facts:
+        if restored.casefold() in known_facts:
+            continue
+        character.actor.facts.append(
+            ActorFact(origin=ActorFactOrigin.told, text=restored)
         )
-    restored = "\n".join(restored_lines)
-    character.known_context = "\n\n".join(
-        value
-        for value in (character.known_context.strip(), restored)
-        if value
-    )
+        known_facts.add(restored.casefold())
     character.knowledge_tier = promoted_tier
     if rung.agent_tier is not None:
         character.agent_tier = rung.agent_tier

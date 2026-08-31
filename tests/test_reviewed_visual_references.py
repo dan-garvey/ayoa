@@ -32,9 +32,9 @@ from app.engine.reviewed_visual_references import (
     validate_story_visual_references,
 )
 from app.schemas.characters import (
+    ActorRecord,
     CharacterRecord,
     CharacterVisuals,
-    PrivateState,
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
@@ -368,7 +368,7 @@ def _checkpoint(
                     default_loadout="canvas satchel",
                     identity_reference_id=identity_reference_id,
                 ),
-                private_state=PrivateState(intentions_enabled=True),
+                actor=ActorRecord(may_act_offstage=True),
                 is_playable=True,
             )
         ],

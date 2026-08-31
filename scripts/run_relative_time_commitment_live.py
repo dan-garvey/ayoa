@@ -36,7 +36,12 @@ sys.path.insert(0, str(REPO_ROOT))
 from app.bot.engine_bridge import EngineBridge
 from app.engine.settings import UnknownSettingError
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
+from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
+    CharacterRecord,
+    PublicSheet,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.responses import TurnResponse
@@ -472,7 +477,7 @@ def _char(
     location: str,
     appearance: str,
     playable: bool = True,
-    intentions_enabled: bool = False,
+    may_act_offstage: bool = False,
     goals: list[str] | None = None,
     objectives: list[str] | None = None,
 ) -> CharacterRecord:
@@ -485,22 +490,37 @@ def _char(
             role=role,
             appearance=appearance,
         ),
-        private_state=PrivateState(
-            goals=goals or ["Keep the Lantern Clockhouse stable tonight."],
-            current_objectives=objectives or [
-                "Respond to visible changes in the clockhouse."
+        actor=ActorRecord(
+            may_act_offstage=may_act_offstage,
+            facts=[
+                ActorFact(
+                    text=(
+                        "You are a trusted clockhouse worker present for the "
+                        "dusk lantern watch."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You are concrete, restrained, and attentive to "
+                        "visible detail."
+                    )
+                ),
+                *(
+                    ActorFact(text=f"You want to {value.rstrip('.').lower()}.")
+                    for value in (
+                        goals
+                        or ["Keep the Lantern Clockhouse stable tonight."]
+                    )
+                ),
+                *(
+                    ActorFact(text=f"You intend to {value.rstrip('.').lower()}.")
+                    for value in (
+                        objectives
+                        or ["Respond to visible changes in the clockhouse."]
+                    )
+                ),
             ],
-            secrets=[],
-            intentions_enabled=intentions_enabled,
         ),
-        known_context=(
-            "The Lantern Clockhouse is a rules-neutral narrative scenario. "
-            "Visible actions, locations, observers, and relative timing matter."
-        ),
-        backstory=(
-            "A trusted clockhouse worker present for the dusk lantern watch."
-        ),
-        personality="Concrete, restrained, and attentive to visible detail.",
     )
 
 
@@ -598,7 +618,7 @@ def _story_checkpoint(story_id: str) -> CheckpointFile:
                 location="map room",
                 appearance="grey coat, silver case under one arm",
                 playable=False,
-                intentions_enabled=True,
+                may_act_offstage=True,
                 goals=["Move the silver case before the next bell interval."],
                 objectives=[
                     "Carry the silver case from the map room to a locked cabinet."
@@ -611,7 +631,7 @@ def _story_checkpoint(story_id: str) -> CheckpointFile:
                 location="lower archive",
                 appearance="brown smock, copy slip, capped ink bottle",
                 playable=False,
-                intentions_enabled=True,
+                may_act_offstage=True,
                 goals=["Copy one tide-ledger line without being noticed."],
                 objectives=[
                     "Copy the marked tide-ledger line and hide the copy."

@@ -1391,18 +1391,12 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
         dnd_equipment = build_dnd_character_equipment_sentence(checkpoint, char)
         if dnd_equipment:
             parts.append(f"  {dnd_equipment}")
-        goals = [g for g in (char.private_state.goals or []) if g]
-        if goals:
-            parts.append("  Goals (long-term): " + "; ".join(goals))
-        objs = [o for o in (char.private_state.current_objectives or []) if o]
-        if objs:
-            parts.append("  Current objectives (active pursuits): " + "; ".join(objs))
         entries.append("\n".join(parts))
 
     if not entries:
         return ""
 
-    header = "roster_seed\nInitial active fictional identities and pursuits:\n"
+    header = "roster_seed\nInitial active fictional identities:\n"
     return header + "\n\n".join(entries) + "\n"
 
 
@@ -3608,24 +3602,16 @@ class LLMDispatcher:
     ) -> str:
         """Invoke the character agent and return its prose for the router.
 
-        The agent's prose IS the intention — no serialization layer
-        needed. The trailing parenthetical (private intent) is stripped
-        at parse time; what we return here is the public surface only,
-        which is what the router reads as the acting character's intention.
+        The agent's observable prose IS the intention — no serialization or
+        hidden-summary layer is needed. This method returns exactly what the
+        router may read as the acting character's intention.
 
         Three result shapes the caller (run_beat) must distinguish:
           - **non-empty prose** → real intention, route normally.
-          - **`"(remains silent)"`** → the agent had a non-empty intent
-            parenthetical but emitted no public prose (the agent
-            prompt's "Sparse is valid" shared rule — paren-only
-            output is in-character). The cascade MUST treat this as
-            a real beat and route it; otherwise the prompt's promise
-            that silence is a valid in-character choice gets quietly
-            broken by `_is_agent_refusal` collapsing it to
-            `cascade_exhausted`.
-          - **`""`** → true refusal: no public prose AND no intent (or
-            the parser logged a "missing trailing parenthetical"
-            warning and we have nothing to route). The cascade ends.
+          - **`"(remains silent)"`** → the agent explicitly emitted the
+            `<silence/>` marker. This is an in-character beat and must route
+            as an observable choice.
+          - **`""`** → no dispatchable character contribution.
         """
         character = next(
             (c for c in ckpt.characters if c.character_id == character_id),
@@ -3654,16 +3640,15 @@ class LLMDispatcher:
         public = output.public_text.strip()
         if public:
             return public
-        if output.intent.strip():
-            # Agent chose deliberate silence (paren-only output). Surface
-            # a fixed sentinel so the router can adjudicate a "watches
-            # without speaking" beat instead of the cascade dying. The
-            # sentinel is intentionally short, parenthesized, and
-            # identical every time so the router can recognize it.
+        if output.is_silence:
+            # Agent chose deliberate silence. Surface a fixed sentinel so
+            # the router can adjudicate a "watches without speaking" beat
+            # instead of the cascade dying. The sentinel is intentionally
+            # short, parenthesized, and identical every time so the router
+            # can recognize it. No hidden turn summary is involved.
             logger.info(
-                "Agent %s emitted silent beat (intent=%d chars); routing via sentinel.",
+                "Agent %s emitted explicit silent beat; routing via sentinel.",
                 character.name,
-                len(output.intent),
             )
             return "(remains silent)"
         return ""
@@ -3694,12 +3679,10 @@ class LLMDispatcher:
         the whole render down. The caller logs dropped fragments at
         WARN so test playthroughs still surface the failure.
 
-        Cache lineage: every `perceive` call shares the SAME system
-        prompt as normal agent turns under the same ruleset (single
-        unified `agent` template). Character identity lives in the
-        per-call user message, so parallel fan-out compounds well with
-        this — a 3-character harvest bills three Luna calls in roughly
-        one round-trip wall time, all hitting the cached system prefix.
+        Perception calls use their own system contract because they have a
+        different output job from normal agent turns. Character-specific
+        input remains isolated per call, so parallel fan-out bills one
+        provider call per character in roughly one round-trip wall time.
         """
         if not character_ids:
             return []

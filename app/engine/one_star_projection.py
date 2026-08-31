@@ -786,8 +786,7 @@ def one_star_synthesis_authoritative_plan(
                     f"effect, consuming you into {target_character.character_id}. "
                     "Return only the exact words or involuntary sounds you make "
                     "aloud in this final instant, without quotation marks or "
-                    "narrating physical action. Silence is valid. Keep the "
-                    "normal trailing private parenthetical, but do not narrate "
+                    "narrating physical action. Silence is valid. Do not narrate "
                     "another character or the completed synthesis."
                 ),
             )

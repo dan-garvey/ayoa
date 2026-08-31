@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-from app.engine.character_agent import _extract_parenthetical
+from app.engine.character_agent import sanitize_character_public_text
 from app.engine.character_manager import CharacterManager, _normalize_router_summary
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.context_builder import (
@@ -117,6 +117,9 @@ from app.engine.visual_novel_sprites import (
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import (
+    ActorFact,
+    ActorFactOrigin,
+    ActorRecord,
     CharacterRecord,
     CharacterStatus,
     CharacterVisuals,
@@ -1533,9 +1536,8 @@ class EngineBridge:
     ) -> CheckpointFile:
         """Update a character's name and/or appearance. Used by /describe
         after takeover so the player's name and look land on the record
-        without touching personality (which they'll fill through play,
-        or leave blank for agent handoff). Assumes the per-session lock
-        is held."""
+        without changing the private actor record. Assumes the per-session
+        lock is held."""
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         target = next(
             (c for c in ckpt.characters if c.character_id == character_id), None
@@ -1559,11 +1561,10 @@ class EngineBridge:
     ) -> str | None:
         """Unified leave endpoint shared by CLI and Discord.
 
-        Synthesizes `personality` from the rolling conversation if the
-        character's own personality field is empty (fresh takeover by
-        the player who never wrote one), then unbinds the user. The
-        synthesize step lets an agent pick the character up with
-        voice intact; no-op when personality is already set.
+        Synthesizes a sparse actor record from observable rolling conversation
+        only when this is an ordinary character without one, then unbinds the
+        user. An existing actor record, including one with zero facts, is
+        already authoritative and is not replaced.
 
         Returns the freed character_id, or None if the user had no
         binding. Synthesis errors are logged and swallowed — don't
@@ -1582,38 +1583,35 @@ class EngineBridge:
             )
             if not is_player_authored_slot(target):
                 try:
-                    await self.synthesize_personality(session_id, binding)
+                    await self.synthesize_actor_record(session_id, binding)
                 except Exception:
                     logger.exception(
-                        "personality synthesis failed for %s; unbinding anyway",
+                        "actor-record synthesis failed for %s; unbinding anyway",
                         binding,
                     )
         return await self.unbind_user(session_id, user_id)
 
-    async def synthesize_personality(
+    async def synthesize_actor_record(
         self,
         session_id: str,
         character_id: str,
     ) -> CheckpointFile:
-        """Fill a character's `personality` field by asking the narrator to
-        synthesize one from the rolling conversation history. Called on
-        /leave when a player hands a character back to the agent and
-        personality is still empty (player never wrote it, or played
-        entirely through the rolling conversation).
+        """Create a missing actor record from observable player-side history.
 
-        No-op if personality is already non-empty. Uses the narrator
-        role (Sonnet) because it has the best grasp of prose voice and
-        character continuity across the transcript.
+        This is the handoff path when a player-created ordinary character is
+        released. An extant record, including ``facts=[]``, is deliberate and
+        remains untouched. The engine owns the offstage scheduling default;
+        synthesis authors facts only.
         """
         from pydantic import BaseModel
 
-        class _PersonalityOutput(BaseModel):
-            personality: str
+        class _ActorFactsOutput(BaseModel):
+            facts: list[ActorFact]
 
         # Serialize on the per-session lock, held across the synthesis LLM
         # call (same pattern as the custom-character spawn). Without it this
         # load->await->mutate->save races a concurrent /act or operator edit
-        # at the same turn_index and silently drops the synthesized voice or
+        # at the same turn_index and silently drops the actor record or
         # clobbers the committed mutation.
         async with await self._lock_for(session_id):
             ckpt = self.checkpoint_mgr.load_latest(session_id)
@@ -1623,26 +1621,17 @@ class EngineBridge:
             )
             if target is None:
                 raise ValueError(f"No character '{character_id}' in session.")
-            if target.personality and target.personality.strip():
+            if target.actor is not None:
                 logger.info(
-                    "Personality already set on %s; skipping synthesis",
+                    "Actor record already set on %s; skipping synthesis",
                     character_id,
                 )
                 return ckpt
 
-            # Pull this character's rolling conversation history. On a fresh
-            # custom character who never had an agent turn, the history
-            # is empty — fall back to synthesizing from authored fields only.
-            #
-            # Leak guard: assistant turns in the rolling conversation include
-            # the agent's trailing "(intent)" parenthetical, which is private
-            # to the agent and the engine. Personality synthesis output is
-            # rendered to the player on /leave, so we strip the parenthetical
-            # from every assistant snippet before handing the block to the
-            # synthesizer LLM. User-role turns (router framings) don't carry
-            # intent in the same shape, but they still go through the same
-            # strip for safety — a trailing balanced parenthetical at the
-            # very end of the snippet is dropped regardless of role.
+            # Historical user messages are prompt snapshots and can contain
+            # private observations, adapter state, local context, or account
+            # data. Only this actor's assistant-side observable contributions
+            # may support a newly synthesized private fact.
             history = ckpt.character_conversations.get(character_id, [])
             convo_snippets = []
             for msg in history[-20:]:
@@ -1657,8 +1646,10 @@ class EngineBridge:
                     )
                 if content:
                     role = msg.role if hasattr(msg, "role") else msg.get("role")
-                    public, _intent = _extract_parenthetical(content)
-                    snippet = (public or "").strip()
+                    if role != "assistant":
+                        continue
+                    public = sanitize_character_public_text(content)
+                    snippet = public.strip()
                     if snippet:
                         convo_snippets.append(f"[{role}] {snippet[:500]}")
             history_block = "\n".join(convo_snippets) or "(no rolling conversation yet)"
@@ -1668,20 +1659,24 @@ class EngineBridge:
                     "role": "system",
                     "content": (
                         "<role>\n"
-                        "You are a characterization editor for an interactive "
-                        "fiction engine.\n"
+                        "You preserve sparse self-knowledge for a person after "
+                        "their time in a scene.\n"
                         "</role>\n\n"
                         "<instructions>\n"
-                        "Distill a character's personality into a single prose "
-                        "block for engine-side use. Cover three things in one "
-                        "paragraph (or a few): how they speak, how they carry "
-                        "themselves, and how to play them under pressure. Base "
-                        "your write-up on the character's authored identity and "
-                        "their prior rolling conversation if any. No bullet "
-                        "points. No commentary outside the JSON.\n"
+                        "Return only concrete facts supported by the public "
+                        "identity and observable conversation. Every fact text "
+                        "must be a second-person sentence, such as \"You ...\". "
+                        "Use origin lived, witnessed, told, or inferred for how "
+                        "the fact entered this person's experience. Keep an "
+                        "inference uncertain in its text. Empty facts are valid; "
+                        "do not fill space with a behavioral profile, a diagnosis, "
+                        "or a complete life story. Do not infer a private fact "
+                        "from silence. No commentary outside the JSON.\n"
                         "</instructions>\n\n"
                         "<output_schema>\n"
-                        'Respond with ONLY valid JSON: {"personality": "<prose>"}\n'
+                        "Respond with ONLY valid JSON: "
+                        "{\"facts\":[{\"origin\":\"lived|witnessed|told|inferred\","
+                        "\"text\":\"<second-person fact>\"}]}\n"
                         "</output_schema>"
                     ),
                 },
@@ -1689,19 +1684,19 @@ class EngineBridge:
                     "role": "user",
                     "content": (
                         "<character_context>\n"
-                        f"Character: {target.name} ({character_id})\n"
+                        "<public_identity>\n"
+                        f"Name: {target.name}\n"
                         f"Role: {target.public_sheet.role}\n"
                         f"Appearance: {target.public_sheet.appearance}\n"
                         f"Faction: {target.public_sheet.faction}\n"
-                        f"Backstory: {target.backstory}\n"
-                        f"Known context: {target.known_context}\n"
-                        f"Goals: {', '.join(target.private_state.goals)}\n"
+                        f"Public context: {target.public_sheet.public_context}\n"
+                        "</public_identity>\n"
                         "</character_context>\n\n"
                         "<recent_conversation>\n"
                         f"{history_block}\n"
                         "</recent_conversation>\n\n"
                         "<task>\n"
-                        "Write the personality JSON now.\n"
+                        "Write the sparse actor-facts JSON now.\n"
                         "</task>"
                     ),
                 },
@@ -1710,15 +1705,18 @@ class EngineBridge:
                 role="narrator",
                 messages=messages,
                 temperature=0.5,
-                max_tokens=1500,
+                max_tokens=1000,
             )
-            out = _parse_model_json(_PersonalityOutput, response.content)
-            target.personality = out.personality.strip()
+            out = _parse_model_json(_ActorFactsOutput, response.content)
+            target.actor = ActorRecord(
+                may_act_offstage=False,
+                facts=out.facts,
+            )
             self.checkpoint_mgr.save(ckpt)
             logger.info(
-                "Synthesized personality for %s (%d chars)",
+                "Synthesized actor record for %s (%d facts)",
                 character_id,
-                len(target.personality),
+                len(target.actor.facts),
             )
             return ckpt
 
@@ -2179,7 +2177,7 @@ class EngineBridge:
 
         This is deliberately an attachment, not a character replacement.
         The story-facing `CharacterRecord.name`, appearance, role,
-        location, goals, secrets, and conversations stay as they are
+        location, actor record, and conversations stay as they are
         unless `name_override` is explicitly provided. The imported
         D&D identity remains visible inside `mechanics.dnd5e_sheet` for
         sheet display and rules arbitration.
@@ -2791,7 +2789,7 @@ class EngineBridge:
         # spawn just because the LLM regressed. The summary is
         # normalized before interpolation (whitespace collapsed,
         # over-long entries truncated) using the same helper the spawn
-        # path uses, so an LLM that drops a multi-paragraph backstory
+        # path uses, so an LLM that drops a multi-paragraph explanation
         # into the field can't shatter the next router prompt.
         summary = _normalize_router_summary(out.character.router_summary or "")
         if summary:
@@ -2831,7 +2829,7 @@ class EngineBridge:
         *,
         name: str,
         appearance: str,
-        backstory: str = "",
+        lived_fact: str = "",
     ) -> CharacterRecord:
         """LLM-free player-character spawn, serialized on the per-session
         lock so the spawn+binding cannot be clobbered by a concurrent /act."""
@@ -2841,7 +2839,7 @@ class EngineBridge:
                 user_id,
                 name=name,
                 appearance=appearance,
-                backstory=backstory,
+                lived_fact=lived_fact,
             )
 
     def _create_player_character_simple_locked(
@@ -2851,32 +2849,26 @@ class EngineBridge:
         *,
         name: str,
         appearance: str,
-        backstory: str = "",
+        lived_fact: str = "",
     ) -> CharacterRecord:
         """LLM-free player-character spawn from raw user inputs. Assumes the
         per-session lock is held.
 
         This is the fast path behind /join's "Create your own character"
-        option. Unlike `create_custom_character`, it does not call the
-        takeover prompt to author personality/goals/secrets/location —
-        it just builds a `CharacterRecord` directly from the player's
-        own words, marks them `is_playable=True`, binds the user, and
-        leaves the rest empty. The router places them via the
-        `(arrive)` directive that fires immediately after; the agent
-        only takes over voice when the player eventually `/leave`s
-        (the personality-synthesis step on /leave fills the gap from
-        the rolling conversation).
+        option. It does not call takeover authoring: it builds a record from
+        the player's own public identity and, optionally, one lived fact.
+        The router places the character through the immediate `(arrive)`
+        directive. If the player supplies no fact, the record remains
+        actor-less until ordinary release synthesis has observable material.
         - `name` and `appearance` are required.
-        - `backstory` is optional; when provided it goes verbatim into
-          `CharacterRecord.backstory` so the agent can reference it
-          on /leave handoff.
+        - `lived_fact` is optional and becomes one second-person actor fact.
 
         Returns the freshly-created record (already saved to the
         checkpoint).
         """
         name = name.strip()
         appearance = appearance.strip()
-        backstory = backstory.strip()
+        lived_fact = lived_fact.strip()
         if not name:
             raise ValueError("Character name cannot be empty.")
         if not appearance:
@@ -2892,7 +2884,19 @@ class EngineBridge:
             is_playable=True,
             public_sheet=PublicSheet(appearance=appearance),
             visuals=CharacterVisuals(default_loadout=appearance),
-            backstory=backstory,
+            actor=(
+                ActorRecord(
+                    may_act_offstage=False,
+                    facts=[
+                        ActorFact(
+                            origin=ActorFactOrigin.lived,
+                            text=lived_fact,
+                        )
+                    ],
+                )
+                if lived_fact
+                else None
+            ),
         )
         ckpt.characters.append(new_char)
         ckpt.session.character_bindings[new_id] = str(user_id)
@@ -2900,11 +2904,9 @@ class EngineBridge:
         # Surface the spawn to the router. The (arrive) turn that fires
         # right after this will pick the line up via the standard
         # state-changes block and decide where to drop them in. Keep
-        # the line tight — long backstories belong on the record, not
-        # in the per-turn router context.
+        # the line tight — actor-local facts do not belong in the per-turn
+        # router context.
         bits = [f"appearance: {appearance[:200]}"]
-        if backstory:
-            bits.append(f"authored backstory: {backstory[:300]}")
         bits.append(
             "sparse arrival: infer a concrete story role "
             "and immediate on-ramp from the premise; surface that on-ramp "
@@ -2986,11 +2988,9 @@ class EngineBridge:
     ) -> CharacterRecord:
         """Mode='replace': graft a player-authored character onto an
         existing NPC's slot. Assumes the per-session lock is held. Preserves
-        circumstances (location, status,
-        pending_observations, current_objectives) and overwrites
-        identity (name, sheet, backstory, personality, goals,
-        known_context, secrets, narrative_notes). Clears the target's
-        rolling character_conversation so the new self starts fresh.
+        circumstances (location, status, pending observations) and overwrites
+        public identity and the private actor record. Clears the target's
+        rolling character conversation so the new self starts fresh.
 
         Binds user, marks the slot is_playable=true, saves."""
         from app.schemas.takeover import TakeoverAuthoredOutput
@@ -3022,6 +3022,7 @@ class EngineBridge:
             role=authored.role,
             appearance=authored.appearance,
             faction=authored.faction,
+            public_context=authored.public_context,
         )
         self.image_generation.retire_character_identity(
             session_id=session_id,
@@ -3040,15 +3041,9 @@ class EngineBridge:
             character_id=target_character_id,
             minimum_source_turn=ckpt.session.turn_index + 1,
         )
-        target.backstory = authored.backstory
-        target.personality = authored.personality
-        target.known_context = authored.known_context
-        target.private_state.goals = list(authored.goals)
-        target.private_state.secrets = list(authored.secrets)
-        target.private_state.intentions_enabled = authored.intentions_enabled
-        # Keep target's location, status, pending_observations, and
-        # current_objectives as-is — those are the "circumstances" the
-        # player inherits.
+        target.actor = authored.actor.model_copy(deep=True)
+        # Keep target's location, status, and pending observations as the
+        # circumstances the player inherits.
         target.is_playable = True
         forget_visual_introductions_for_character(ckpt, target_character_id)
 
@@ -3074,8 +3069,8 @@ class EngineBridge:
                 f"Character replacement: identity of {target_character_id} "
                 f"has been overwritten — "
                 f"role={target.public_sheet.role or 'unknown role'}. "
-                "Goals and personality are different "
-                f"from the prior version; treat as a new actor with the "
+                "The private actor record is different from the prior version; "
+                f"treat this as a new actor with the "
                 f"same body."
             )
             logger.warning(
@@ -3157,20 +3152,9 @@ class EngineBridge:
     ) -> str:
         """Build the private DM a joining player needs to play this character.
 
-        The dossier combines a concise human control contract with character-
-        interior material: who they are, what they want, what they know, and
-        what they're keeping to themselves. The player should learn the wider
-        world through play, not through the dossier.
-
-        Deliberately excludes:
-        - `personality` — now absorbs what used to be narrative_notes
-          (portrayal direction). That's authorial direction for the AI
-          agent; collapses discovery if the player reads it upfront.
-          Kept on the record for agent use only.
-        - `world_state.hidden_lore` / `hidden_facts` — engine-wide secrets.
-          Most characters don't know most of these; dumping them spoils
-          the plot. If a specific character genuinely knows a specific
-          secret, it belongs in `private_state.secrets` in the story seed.
+        It combines public identity, a concise human control contract, and
+        the actor's own sparse facts. Global hidden lore remains outside this
+        character-specific view.
         """
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         char = next(
@@ -3194,28 +3178,20 @@ class EngineBridge:
             sheet_bits.append(f"**Faction** — {sheet.faction}")
         if sheet.appearance:
             sheet_bits.append(f"**Appearance** — {sheet.appearance}")
+        if sheet.public_context:
+            sheet_bits.append(f"**Known publicly** — {sheet.public_context}")
         if sheet_bits:
             lines.append("\n".join(sheet_bits))
 
         if char.player_guidance:
             lines.append(f"## Your Control & Perspective\n{char.player_guidance}")
-        if char.backstory:
-            lines.append(f"## Your Backstory\n{char.backstory}")
-        if char.known_context:
-            lines.append(f"## The World As You Know It\n{char.known_context}")
-
-        ps = char.private_state
-        if ps.goals:
-            lines.append("## What Drives You\n" + "\n".join(f"- {g}" for g in ps.goals))
-        if ps.current_objectives:
+        if char.actor is not None and char.actor.facts:
             lines.append(
-                "## What You're Working On\n"
-                + "\n".join(f"- {o}" for o in ps.current_objectives)
-            )
-        if ps.secrets:
-            lines.append(
-                "## What You Keep To Yourself\n"
-                + "\n".join(f"- {s}" for s in ps.secrets)
+                "## What You Know Of Yourself\n"
+                + "\n".join(
+                    f"- {fact.text}"
+                    for fact in char.actor.facts
+                )
             )
 
         return "\n\n".join(lines)
@@ -4447,13 +4423,18 @@ def _build_takeover_context(
     )
 
     if picked_target is not None:
+        actor_facts = "\n".join(
+            f"- {fact.origin.value}: {fact.text}"
+            for fact in (picked_target.actor.facts if picked_target.actor else ())
+        ) or "(none)"
         picked_target_block = (
             "## Picked Target\n"
             f"character_id: {picked_target.character_id}\n"
             f"role: {picked_target.public_sheet.role}\n"
             f"faction: {picked_target.public_sheet.faction}\n"
+            f"public_context: {picked_target.public_sheet.public_context}\n"
             f"location: {picked_target.location}\n"
-            f"backstory: {picked_target.backstory}\n\n"
+            f"actor facts:\n{actor_facts}\n\n"
         )
     else:
         picked_target_block = ""

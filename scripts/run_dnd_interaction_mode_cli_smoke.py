@@ -40,7 +40,12 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from app.bot.engine_bridge import EngineBridge
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
+from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
+    CharacterRecord,
+    PublicSheet,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.state import (
     DndCombatantState,
@@ -177,7 +182,7 @@ def _char(
     role: str,
     appearance: str,
     mechanics: dict[str, Any],
-    intentions_enabled: bool = False,
+    may_act_offstage: bool = False,
 ) -> CharacterRecord:
     return CharacterRecord(
         character_id=character_id,
@@ -188,15 +193,22 @@ def _char(
             role=role,
             appearance=appearance,
         ),
-        private_state=PrivateState(
-            goals=["Keep agency and respond plausibly to immediate pressure."],
-            current_objectives=["Handle the immediate encounter."],
-            secrets=[],
-            intentions_enabled=intentions_enabled,
-        ),
-        known_context=(
-            "This is a D&D 5e scene on a cracked bridge. Characters are "
-            "close enough for speech, touch, and melee attacks."
+        actor=ActorRecord(
+            may_act_offstage=may_act_offstage,
+            facts=[
+                ActorFact(
+                    text=(
+                        "You are on a cracked bridge, close enough to the "
+                        "others for speech, touch, and melee attacks."
+                    )
+                ),
+                ActorFact(
+                    text=(
+                        "You want to keep agency and respond plausibly to "
+                        "the immediate pressure."
+                    )
+                ),
+            ],
         ),
         mechanics=mechanics,
     )
@@ -247,7 +259,7 @@ def _characters_for(case: SmokeCase) -> list[CharacterRecord]:
             name="Ironjaw Captain",
             role="hobgoblin captain",
             appearance="splint armor, hooked blade, hard forward stance",
-            intentions_enabled=True,
+            may_act_offstage=True,
             mechanics=_mechanics(
                 strength=16,
                 dexterity=14,

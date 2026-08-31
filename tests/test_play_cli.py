@@ -876,7 +876,7 @@ class TestJoinLeave:
             1,
             name="Akari Tanaka",
             appearance="blue cloak, short sword, travel-stained boots",
-            backstory="Former shrine guard.",
+            lived_fact="Former shrine guard.",
         )
         assert state.claims == {"akari_tanaka": 1}
         assert state.current_actor == "akari_tanaka"

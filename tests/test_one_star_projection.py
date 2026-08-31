@@ -14,7 +14,7 @@ from app.engine.one_star_projection import (
 from app.engine.one_star_adapter import OneStarTransactionError
 from app.engine.one_star_progression import rebalance_hero
 from app.engine.prompt_manager import PromptManager
-from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
+from app.schemas.characters import ActorFact, ActorRecord, CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
@@ -272,14 +272,14 @@ def _checkpoint(
         character_id="owner",
         name="Account Seat",
         public_sheet=PublicSheet(role="account"),
-        private_state=PrivateState(secrets=["owner-secret"]),
+        actor=ActorRecord(facts=[ActorFact(text="owner-secret")]),
         mechanics={ONE_STAR_ACCOUNT_KEY: account.model_dump(mode="json")},
     )
     hero = CharacterRecord(
         character_id="hero",
         name="Tired Baker",
         public_sheet=PublicSheet(role="baker"),
-        private_state=PrivateState(secrets=["hero-secret"]),
+        actor=ActorRecord(facts=[ActorFact(text="hero-secret")]),
         mechanics={
             ONE_STAR_HERO_KEY: _hero_state(
                 innate_system_sight=innate_system_sight
@@ -486,7 +486,7 @@ def test_synthesis_command_resolves_exact_heroes_without_mutating_state() -> Non
         character_id="donor",
         name="Edric",
         public_sheet=PublicSheet(role="guard"),
-        private_state=PrivateState(),
+        actor=ActorRecord(),
         mechanics={ONE_STAR_HERO_KEY: _hero_state().model_dump(mode="json")},
     )
     checkpoint.characters.append(source)
@@ -584,7 +584,7 @@ def test_synthesis_after_first_resolution_omits_character_contributions() -> Non
             character_id="donor",
             name="Edric",
             public_sheet=PublicSheet(role="guard"),
-            private_state=PrivateState(),
+            actor=ActorRecord(),
             mechanics={ONE_STAR_HERO_KEY: _hero_state().model_dump(mode="json")},
         )
     )
@@ -765,12 +765,10 @@ def test_image_equipment_projection_only_includes_visible_current_items() -> Non
 
 
 @pytest.mark.asyncio
-async def test_dynamic_mechanics_stay_in_user_tail_and_out_of_cached_addon() -> None:
+async def test_dynamic_mechanics_stay_in_user_tail_and_causal_history() -> None:
     checkpoint, _, hero, _ = _checkpoint()
     client = AsyncMock()
-    client.complete.return_value = text_llm_response(
-        "She grips the counter. (I will not be volunteered.)"
-    )
+    client.complete.return_value = text_llm_response("She grips the counter.")
     agent = CharacterAgent(client, PromptManager())
 
     first_draft = await agent.draft_turn(hero, checkpoint)
@@ -786,5 +784,4 @@ async def test_dynamic_mechanics_stay_in_user_tail_and_out_of_cached_addon() -> 
     assert "badly hurt" not in first_messages[0]["content"]
     assert "badly hurt" in first_messages[-1]["content"]
     assert "critically hurt" in second_messages[-1]["content"]
-    assert "badly hurt" not in first_draft.user_message.content
-    assert "Current Mechanics" not in first_draft.user_message.content
+    assert "badly hurt" in first_draft.user_message.content

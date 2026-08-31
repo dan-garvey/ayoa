@@ -8,7 +8,6 @@ from typing import Any
 from app.engine import dnd_combat, dnd_monsters
 from app.schemas.characters import (
     CharacterAgentTier,
-    CharacterDescriptions,
     CharacterRecord,
     CharacterVisuals,
     PublicSheet,
@@ -289,8 +288,10 @@ def character_from_statblock_record(
         location=_player_safe_text(location),
         is_playable=False,
         agent_tier=CharacterAgentTier.utility,
-        public_sheet=PublicSheet(role=role),
-        descriptions=CharacterDescriptions(public=visible_description),
+        public_sheet=PublicSheet(
+            role=role,
+            public_context=visible_description,
+        ),
         visuals=CharacterVisuals(default_loadout=visible_description),
         mechanics=mechanics_from_statblock_record(
             statblock,

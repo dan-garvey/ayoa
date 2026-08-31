@@ -504,21 +504,13 @@ def build_candidate_turn_entities_from_checkpoint(
         status_value = getattr(status, "value", status)
         if status_value != "active":
             continue
-        private_state = getattr(character, "private_state", None)
         public_sheet = getattr(character, "public_sheet", None)
-        current_objectives = list(
-            getattr(private_state, "current_objectives", []) or []
-        )
         data: dict[str, Any] = {
             "name": getattr(character, "name", ""),
             "role": getattr(public_sheet, "role", ""),
             "location": getattr(character, "location", ""),
             "status": status_value,
         }
-        if current_objectives:
-            data["current_objective"] = current_objectives[:2]
-        if bool(getattr(private_state, "intentions_enabled", False)):
-            data["stance"] = "intentions_enabled"
         candidates[character_id] = data
     return candidates
 

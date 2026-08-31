@@ -4984,7 +4984,7 @@ def register(
     # story before the second got their character in).
     #
     # The legacy /join_custom and /pick_replacement commands (player-
-    # authored character with invented backstory) were removed as part
+    # authored character with a generated private profile) were removed as part
     # of the playable-2 UX overhaul — they generated content the
     # player never asked for. The engine_bridge methods that backed
     # them (create_custom_character, suggest_replacement_targets,
@@ -5443,10 +5443,9 @@ def register(
         title="Create your character",
     ):
         """Modal fired when the user picks the 'Create your own character'
-        row in /join. Three text inputs (name, appearance, backstory) feed
+        row in /join. Three text inputs (name, appearance, lived fact) feed
         `EngineBridge.create_player_character_simple` directly — no LLM
-        round-trip. Backstory is optional; the agent can synthesize voice
-        from rolling conversation later when the player /leaves."""
+        round-trip. The fact is optional; an actor record can remain empty."""
 
         name_in = discord.ui.TextInput(
             label="Character name",
@@ -5464,12 +5463,12 @@ def register(
             required=True,
             max_length=600,
         )
-        backstory_in = discord.ui.TextInput(
-            label="Backstory (optional)",
+        lived_fact_in = discord.ui.TextInput(
+            label="One lived fact (optional)",
             style=discord.TextStyle.paragraph,
             placeholder=(
-                "Where you're from, what you do, what drives you. Leave "
-                "blank to discover it through play."
+                "Write one second-person fact, for example: You learned to "
+                "read tide tables from your grandmother. Leave blank if none."
             ),
             required=False,
             max_length=1000,
@@ -5489,7 +5488,7 @@ def register(
                     modal_inter.user.id,
                     name=self.name_in.value,
                     appearance=self.appearance_in.value,
-                    backstory=self.backstory_in.value or "",
+                    lived_fact=self.lived_fact_in.value or "",
                 )
             except ValueError as e:
                 await modal_inter.followup.send(
@@ -5641,7 +5640,7 @@ def register(
             discord.SelectOption(
                 label="Create your own character",
                 value=JOIN_CUSTOM_SENTINEL,
-                description=("Pick a name, appearance, and optional backstory."),
+                description=("Pick a name, appearance, and one optional lived fact."),
             ),
         ]
         char_lookup: dict[str, str] = {}
@@ -5699,7 +5698,7 @@ def register(
             "Ordinary pre-authored characters keep their identity unless you "
             "override it. A blank player-authored seat requires your name and "
             "appearance before it can enter the story. **Create your own "
-            "character** also asks for an optional backstory."
+            "character** also offers one optional lived fact."
         )
         await inter.response.send_message(
             embed=render_info("Join the story", "\n\n".join(body_lines)),
@@ -6474,8 +6473,7 @@ def register(
             )
             return
 
-        # Shared endpoint: synthesize personality (if empty) then unbind.
-        # Matches CLI /leave behavior — the agent inherits voice.
+        # Shared endpoint may synthesize a missing actor record, then unbind.
         await inter.response.defer(ephemeral=True, thinking=True)
         try:
             freed = await engine.leave_character(row.session_id, inter.user.id)

@@ -6,7 +6,6 @@ from pydantic import ValidationError
 from app.schemas.content_pack import (
     ActorDossierRecord,
     AdventureTableRecord,
-    AgentContextSliceRecord,
     ContentCrossReference,
     ContentPackDomainCatalog,
     ContentSectionRecord,
@@ -48,7 +47,6 @@ def test_domain_catalog_accepts_prioritized_module_records():
         treasures=[_treasure()],
         front_dossiers=[_front()],
         actor_dossiers=[_actor()],
-        agent_context_slices=[_agent_context_slice()],
         knowledge_graph_edges=[_knowledge_edge()],
         encounter_templates=[_encounter()],
         cross_refs=[
@@ -92,10 +90,9 @@ def test_domain_catalog_accepts_prioritized_module_records():
         "The entry alarm draws a patrol."
     ]
     assert catalog.treasures[0].items[0].name == "Synthetic key"
-    assert catalog.actor_dossiers[0].agent_context_slice_ref == (
-        "agent_context.villain.startup"
-    )
-    assert catalog.agent_context_slices[0].actor_ref == "actor.villain"
+    actor = catalog.actor_dossiers[0]
+    assert actor.may_act_offstage is True
+    assert actor.facts[0].text == "You have watched the entry cache for weeks."
     assert catalog.knowledge_graph_edges[0].relation == "can_dispatch"
     assert catalog.treasures[0].field_provenance["summary"][0].span_id == (
         "span.treasure.summary"
@@ -122,6 +119,12 @@ def test_domain_records_forbid_surplus_source_or_runtime_fields():
         HandoutRecord(
             **_handout().model_dump(),
             unsafe_delivery_ref="synthetic-unsafe-ref",
+        )
+
+    with pytest.raises(ValidationError):
+        ActorDossierRecord(
+            **_actor().model_dump(),
+            agent_context_slice_ref="legacy.actor.context",
         )
 
 
@@ -235,12 +238,11 @@ def test_catalog_validates_location_and_reveal_graph_targets():
         )
 
 
-def test_catalog_validates_actor_context_and_knowledge_graph_targets():
+def test_catalog_validates_actor_statblock_and_knowledge_graph_targets():
     with pytest.raises(ValidationError, match="knowledge graph edge target"):
         ContentPackDomainCatalog(
             pack_id="synthetic-pack",
             actor_dossiers=[_actor()],
-            agent_context_slices=[_agent_context_slice()],
             knowledge_graph_edges=[
                 KnowledgeGraphEdgeRecord(
                     **{
@@ -251,23 +253,17 @@ def test_catalog_validates_actor_context_and_knowledge_graph_targets():
             ],
         )
 
-    with pytest.raises(ValidationError, match="actor context slice"):
+    with pytest.raises(ValidationError, match="actor statblock"):
         ContentPackDomainCatalog(
             pack_id="synthetic-pack",
             actor_dossiers=[
                 ActorDossierRecord(
                     **{
                         **_actor().model_dump(),
-                        "agent_context_slice_ref": "agent_context.missing",
+                        "statblock_ref": "stat.missing",
                     }
                 )
             ],
-        )
-
-    with pytest.raises(ValidationError, match="agent context actor"):
-        ContentPackDomainCatalog(
-            pack_id="synthetic-pack",
-            agent_context_slices=[_agent_context_slice()],
         )
 
 
@@ -311,11 +307,14 @@ def test_added_domain_schema_invariants_are_strict():
             }
         )
 
-    with pytest.raises(ValidationError, match="actor_ref"):
-        AgentContextSliceRecord(
+    with pytest.raises(ValidationError, match="actor facts must be unique"):
+        ActorDossierRecord(
             **{
-                **_agent_context_slice().model_dump(),
-                "actor_ref": " ",
+                **_actor().model_dump(),
+                "facts": [
+                    {"origin": "lived", "text": "You saw the gate fall."},
+                    {"origin": "told", "text": "You saw the gate fall."},
+                ],
             }
         )
 
@@ -754,46 +753,22 @@ def _actor() -> ActorDossierRecord:
         gate_status="runtime_ready",
         actor_kind="villain",
         character_id_hint="villain",
+        public_context="The entry's watchful overseer.",
+        may_act_offstage=True,
+        facts=[
+            {
+                "origin": "lived",
+                "text": "You have watched the entry cache for weeks.",
+            },
+            {
+                "origin": "told",
+                "text": "A scout reported unfamiliar visitors near the cache.",
+            },
+        ],
         front_refs=["front.clock"],
         home_location_refs=["loc.entry"],
         statblock_ref="stat.guardian",
-        agent_context_slice_ref="agent_context.villain.startup",
-        goals=["Recover the synthetic key"],
-        constraints=["Do not reveal the key's purpose too early"],
-        resources=["scouts", "informants"],
         knowledge_channel_refs=["kg.villain.can_dispatch_scouts"],
-        relationship_edges=[
-            {
-                "target_ref": "actor.scout",
-                "stance": "commands",
-                "summary": "Uses scouts to gather reports.",
-            }
-        ],
-        escalation_limits=["Avoid direct lethal pressure at campaign start"],
-        secrets_known_refs=["treasure.cache"],
-    )
-
-
-def _agent_context_slice() -> AgentContextSliceRecord:
-    return AgentContextSliceRecord(
-        ref="agent_context.villain.startup",
-        content_hash="hash-agent-context-villain-startup",
-        title="Synthetic Villain Startup Context",
-        summary="Reviewed startup context for a synthetic antagonist agent.",
-        confidence=0.91,
-        review_status="approved",
-        gate_status="runtime_ready",
-        actor_ref="actor.villain",
-        slice_kind="strategic",
-        known_context="The antagonist knows the entry cache is important.",
-        private_state="The antagonist wants reports before acting directly.",
-        current_agenda=["Watch the entry", "Recover the key"],
-        beliefs=["The entry has been quiet recently"],
-        uncertainties=["Who disturbed the cache"],
-        hard_boundaries=["Do not act on unauthored rooms"],
-        local_context_refs=["loc.entry"],
-        graph_edge_refs=["kg.villain.can_dispatch_scouts"],
-        refresh_triggers=["A scout reports new visitors"],
     )
 
 

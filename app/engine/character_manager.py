@@ -38,15 +38,12 @@ CASTING_PLAN_MAX_TOKENS = 2_000
 # Per-line cap for LLM-authored player-character summaries after newline
 # normalization. Chosen to fit a tight 1-2 sentence ledger line plus generous
 # slack; entries longer than this are usually a sign the LLM regressed into
-# multi-paragraph backstory.
+# multi-paragraph summary.
 ROUTER_SUMMARY_MAX_CHARS = 600
 
-# Character generation sees enough local behavior to avoid producing a cast of
-# cosmetic variants with identical motives, without receiving private dossiers
-# or gameplay history. These caps keep the volatile roster tail compact.
-EXISTING_CHARACTER_PERSONALITY_MAX_CHARS = 240
-EXISTING_CHARACTER_OBJECTIVE_MAX_CHARS = 160
-EXISTING_CHARACTER_OBJECTIVES_MAX = 2
+# Character generation sees only another record's public identity anchors.
+# Actor facts are private and must not become sibling casting material.
+EXISTING_CHARACTER_PUBLIC_CONTEXT_MAX_CHARS = 240
 
 DND_GENERATION_INSTRUCTIONS = """
 12. Because this session uses D&D 5e rules, also emit `dnd_statblock`. Build it
@@ -192,8 +189,8 @@ def _assemble_knowledge_grant(
 
     Returns (grant_block, agent_tier). The block covers tiers 1..tier from
     `world_state.knowledge_tiers` (each rung's personal depth + unlocked
-    world/plot knowledge), plus the exact target rung's optional non-cumulative
-    generation guidance; agent_tier is the highest present rung's override, if
+    world/plot knowledge), plus the exact rung's optional non-cumulative
+    authoring guidance; agent_tier is the highest present rung's override, if
     any. Tier zero means no ladder knowledge when a story authored a ladder.
     Returns ("", None) only when the story has no ladder, so ordinary stories
     retain unrestricted generation.
@@ -205,15 +202,15 @@ def _assemble_knowledge_grant(
         (t for t in tiers if 1 <= t.tier <= tier), key=lambda t: t.tier,
     )
     lines = [
-        "## Knowledge Budget (authoritative)",
+        "## Knowledge Boundary (authoritative)",
     ]
     if selected:
         lines.append(
-            f"This character is knowledge tier {tier}. Author their backstory, "
-            "known_context, and secrets to EXACTLY this budget and no further: "
-            "they know what follows and nothing beyond it. Keep spoiler-bearing "
-            "world/plot knowledge in known_context/secrets, never in "
-            "player-safe appearance or default_loadout."
+            f"This character is knowledge tier {tier}. Author only actor facts "
+            "that this boundary supports: they know what follows and nothing "
+            "beyond it. Keep spoiler-bearing world or plot material in private "
+            "actor facts, never in player-safe appearance, public_context, or "
+            "default_loadout."
         )
     else:
         lines.append(
@@ -238,8 +235,7 @@ def _assemble_knowledge_grant(
     )
     guidance_fields = (
         (
-            ("Backstory depth", guidance.backstory_depth),
-            ("Personality, voice, and contradiction depth", guidance.personality_depth),
+            ("Actor-fact guidance", guidance.actor_fact_guidance),
             ("Public physical/visual detail", guidance.public_visual_detail),
             ("Loadout complexity and material finish", guidance.loadout_detail),
             ("Intended visual salience", guidance.visual_salience),
@@ -251,16 +247,15 @@ def _assemble_knowledge_grant(
     if any(value.strip() for _label, value in guidance_fields):
         lines.extend(
             [
-                "\n## Authored Generation Budget (authoritative)",
+                "\n## Tier Authoring Guidance (authoritative)",
                 (
-                    f"Apply the Tier {tier} target below to the whole character. "
-                    "Unlike the cumulative knowledge boundary, this is one "
-                    "target budget: do not average it with lower tiers. Match "
-                    "sparse/shared direction by withholding extra polish, and "
-                    "match rich direction even when it overrides the prompt's "
-                    "ordinary concision defaults. Keep every public visual "
-                    "detail player-safe. Presentation guidance is story-local "
-                    "casting and art direction, not a universal value judgment."
+                    f"Use only the Tier {tier} guidance below; do not combine it "
+                    "with another rung. It informs which concrete actor facts and "
+                    "public details are warranted, but never requires a fact or "
+                    "turns facts into categories. An empty or uneven fact list can "
+                    "be correct. Keep every public visual detail player-safe. "
+                    "Presentation guidance is story-local casting and art direction, "
+                    "not a universal value judgment."
                 ),
             ]
         )
@@ -329,7 +324,7 @@ def _generation_world_context(
         f"- Magic exists in this story: {'yes' if magic else 'no'}. This does "
         "not itself grant knowledge of how magic works.\n"
         "- Give the character no ability, equipment, or physical capability "
-        "beyond the Entry Context, Spawn Request, and Knowledge Budget."
+        "beyond the Entry Context, Spawn Request, and Knowledge Boundary."
     )
 
 
@@ -338,7 +333,6 @@ def _existing_character_generation_lines(
     *,
     bound_character_ids: set[str] | None = None,
     local_active_location: str | None = None,
-    max_behavior_knowledge_tier: int | None = None,
 ) -> str:
     lines: list[str] = []
     bound = bound_character_ids or set()
@@ -359,47 +353,19 @@ def _existing_character_generation_lines(
         ]
         role = " ".join(character.public_sheet.role.split())
         appearance = " ".join(character.public_sheet.appearance.split())
+        public_context = " ".join(character.public_sheet.public_context.split())
         loadout = " ".join(character.visuals.default_loadout.split())
-        # In a tiered story, behavior from a same- or lower-tier arrival is
-        # useful casting context. Tier-zero story authorities can know the
-        # whole premise despite that sentinel value, so their private behavior
-        # cannot safely enter a tier-gated generation call.
-        include_behavior = (
-            max_behavior_knowledge_tier is None
-            or 0 < character.knowledge_tier <= max_behavior_knowledge_tier
-        )
-        personality = (
-            " ".join(character.personality.split()) if include_behavior else ""
-        )
-        objectives = (
-            [
-                " ".join(objective.split())[
-                    :EXISTING_CHARACTER_OBJECTIVE_MAX_CHARS
-                ]
-                for objective in character.private_state.current_objectives[
-                    :EXISTING_CHARACTER_OBJECTIVES_MAX
-                ]
-            ]
-            if include_behavior
-            else []
-        )
         if role:
             parts.append(f"role={role[:180]}")
         if appearance:
             parts.append(f"appearance={appearance[:240]}")
+        if public_context:
+            parts.append(
+                "public_context="
+                f"{public_context[:EXISTING_CHARACTER_PUBLIC_CONTEXT_MAX_CHARS]}"
+            )
         if loadout:
             parts.append(f"loadout={loadout[:240]}")
-        if personality:
-            parts.append(
-                "personality="
-                f"{personality[:EXISTING_CHARACTER_PERSONALITY_MAX_CHARS]}"
-            )
-        if any(objectives):
-            parts.append(
-                "objectives=" + " | ".join(
-                    objective for objective in objectives if objective
-                )
-            )
         lines.append("- " + "; ".join(parts))
     return "\n".join(lines) if lines else "No existing characters."
 
@@ -532,15 +498,12 @@ class CharacterManager:
         checkpoint: CheckpointFile,
     ) -> str:
         # A casting plan is shared with every generation branch. Keep it to
-        # public identity anchors so a brief cannot smuggle a higher-tier
-        # character's private behavior into a lower-tier generation call.
+        # public identity anchors so a brief cannot smuggle actor facts into
+        # another character's authoring call.
         return _existing_character_generation_lines(
             checkpoint.characters,
             bound_character_ids=set(
                 checkpoint.session.character_bindings or {}
-            ),
-            max_behavior_knowledge_tier=(
-                0 if checkpoint.world_state.knowledge_tiers else None
             ),
         )
 
@@ -854,9 +817,6 @@ class CharacterManager:
             # plot figures are not character knowledge or necessary casting
             # context for this arrival.
             local_active_location=(location if knowledge_isolated else None),
-            max_behavior_knowledge_tier=(
-                req.seed.knowledge_tier if knowledge_isolated else None
-            ),
         )
         dnd_enabled = _dnd_ruleset_enabled(checkpoint)
         one_star_enabled = _one_star_ruleset_enabled(checkpoint)

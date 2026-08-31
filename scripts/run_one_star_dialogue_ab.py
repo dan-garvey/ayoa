@@ -399,8 +399,7 @@ def _offline_response(variant: DialogueVariant, case: DialogueCase) -> str:
     del variant
     return (
         f"[{case.actor_id}] I make one concrete choice in {case.case_id}: "
-        "I move before I explain, and I leave the consequence visible.\n"
-        "(private intent: change the situation without deciding another person's choice.)"
+        "I move before I explain, and I leave the consequence visible."
     )
 
 

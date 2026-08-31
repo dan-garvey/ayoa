@@ -297,15 +297,16 @@ def test_generic_character_generation_remains_ruleset_free() -> None:
             "location": "hall",
             "role": "scout",
             "appearance": "Plain travel clothes.",
+            "public_context": "",
             "default_loadout": "A walking staff.",
             "faction": "",
-            "backstory": "A traveller.",
-            "personality": "Cautious.",
-            "known_context": "Only the hall.",
-            "goals": [],
-            "current_objectives": [],
-            "secrets": [],
-            "intentions_enabled": True,
+            "actor": {
+                "may_act_offstage": True,
+                "facts": [
+                    {"origin": "lived", "text": "A traveller."},
+                    {"origin": "told", "text": "Only the hall."},
+                ],
+            },
             "router_summary": "",
         }
     )

@@ -63,22 +63,26 @@ USER_PROMPT = """Produce a character matching this JSON schema (ALL fields requi
   "location": "string — starting location label",
   "role": "string — role or occupation",
   "appearance": "string — physical description",
+  "public_context": "string — player-safe identity context or empty string",
   "default_loadout": "string — player-safe first-look exterior others can notice",
   "faction": "string — affiliation or empty string",
-  "backstory": "string — their background",
-  "personality": "string — one prose block covering inner world, voice, and how to play them",
-  "known_context": "string — what they take for granted about the world",
-  "goals": ["string — existential drives"],
-  "current_objectives": ["string — 1-3 active pursuits"],
-  "secrets": ["string — private truths"],
-  "intentions_enabled": true or false,
+  "actor": {
+    "may_act_offstage": true or false,
+    "facts": [
+      {
+        "origin": "lived|witnessed|told|inferred",
+        "text": "one concrete second-person fact supported by the concept"
+      }
+    ]
+  },
   "router_summary": "string — one or two sentences in third-person ledger prose: identity + location + immediate intent for the omniscient adjudicator"
 }
 
 Character concept: a taciturn blacksmith in a port city who recently
 witnessed a murder and now has to decide whether to testify. Competent,
 private, slow to anger but capable of violence. Set location as
-"port_forge". Fill every field with something specific to this concept.
+"port_forge". Sparse actor facts are valid; do not pad them into a fixed
+biography, personality, objective, or secret checklist.
 
 Respond with ONLY the JSON object — no fences, no commentary."""
 

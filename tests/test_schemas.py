@@ -10,9 +10,14 @@ from app.schemas.state import (
     PendingNarratorRender, PhysicsRuleset, StorySetting, WorldState,
 )
 from app.schemas.characters import (
-    CharacterAgentTier, CharacterDescriptions, CharacterRecord,
+    ActorFact,
+    ActorFactOrigin,
+    ActorRecord,
+    CharacterAgentTier,
+    CharacterRecord,
+    CharacterStatus,
     CharacterVisuals,
-    CharacterStatus, PublicSheet, PrivateState,
+    PublicSheet,
 )
 from app.schemas.events import (
     CanonicalEvent,
@@ -61,9 +66,14 @@ CHARACTER_EXAMPLE = {
     "public_sheet": {
         "role": "guard captain",
     },
-    "private_state": {
-        "goals": ["maintain order"],
-        "intentions_enabled": True,
+    "actor": {
+        "may_act_offstage": True,
+        "facts": [
+            {
+                "origin": "lived",
+                "text": "You maintain order at the estate.",
+            }
+        ],
     },
     "pending_observations": [],
 }
@@ -176,7 +186,6 @@ AGENT_OUTPUT_EXAMPLE = {
         'He takes one step closer, one brow lifting. '
         '"Need a lever, not a miracle."'
     ),
-    "intent": "Monitor the user more closely; this attempt was theatrical.",
 }
 
 NARRATOR_FINAL_EXAMPLE = {
@@ -237,7 +246,8 @@ class TestCharacterRecord:
         assert cr.last_agent_turn_at_s is None
         assert cr.public_sheet.role == "guard captain"
         assert cr.visuals.default_loadout == ""
-        assert "maintain order" in cr.private_state.goals
+        assert cr.actor is not None
+        assert "maintain order" in cr.actor.facts[0].text
 
     def test_round_trip(self):
         cr = CharacterRecord(**CHARACTER_EXAMPLE)
@@ -258,10 +268,7 @@ class TestCharacterRecord:
                 role="demon seat heir-designate",
                 appearance="Tall—6'1\" before the horns. Deep red skin, molten gold eyes.",
                 faction="House vel Kothren",
-            ),
-            descriptions=CharacterDescriptions(
-                public="Ashara is House vel Kothren's heir-designate.",
-                private="Ashara's family is tied to the human collapse.",
+                public_context="House vel Kothren's heir-designate.",
             ),
             visuals=CharacterVisuals(
                 default_loadout=(
@@ -270,21 +277,75 @@ class TestCharacterRecord:
                 ),
             ),
             agent_tier=CharacterAgentTier.utility,
-            private_state=PrivateState(
-                goals=["become the greatest demon seat-holder", "lift demon restrictions"],
-                secrets=["grandmother was involved in the human collapse"],
+            actor=ActorRecord(
+                may_act_offstage=True,
+                facts=[
+                    ActorFact(
+                        origin=ActorFactOrigin.lived,
+                        text=(
+                            "You were born to House vel Kothren and won the "
+                            "Trials of Ascension at seventeen."
+                        ),
+                    ),
+                    ActorFact(
+                        origin=ActorFactOrigin.told,
+                        text=(
+                            "You were told your grandmother was involved in "
+                            "the human collapse."
+                        ),
+                    ),
+                    ActorFact(
+                        text=(
+                            "You are confident without cruelty and "
+                            "meritocratic to a fault; your tail flicks when "
+                            "you are irritated and curls when pleased."
+                        ),
+                    ),
+                ],
             ),
-            backstory="Born to House vel Kothren. Won the Trials of Ascension at seventeen...",
-            personality="Confident without cruelty. Meritocratic to a fault. Her tail is her honest voice — flicks when irritated, curls when pleased.",
         )
-        assert "grandmother" in cr.private_state.secrets[0]
-        assert "Trials of Ascension" in cr.backstory
-        assert "tail" in cr.personality
+        assert cr.actor is not None
+        assert any("grandmother" in fact.text for fact in cr.actor.facts)
+        assert any("Trials of Ascension" in fact.text for fact in cr.actor.facts)
+        assert any("tail" in fact.text for fact in cr.actor.facts)
         assert cr.public_sheet.faction == "House vel Kothren"
         assert cr.agent_tier == CharacterAgentTier.utility
-        assert cr.descriptions.public.startswith("Ashara is House")
-        assert "human collapse" in cr.descriptions.private
+        assert cr.public_sheet.public_context.startswith("House vel Kothren")
         assert "duelist" in cr.visuals.default_loadout
+
+    @pytest.mark.parametrize(
+        "legacy_field, value",
+        (
+            ("backstory", "retired"),
+            ("personality", "retired"),
+            ("known_context", "retired"),
+            ("private_state", {}),
+            ("descriptions", {}),
+        ),
+    )
+    def test_rejects_retired_character_dossier_fields(
+        self, legacy_field, value,
+    ):
+        with pytest.raises(ValidationError):
+            CharacterRecord(**CHARACTER_EXAMPLE, **{legacy_field: value})
+
+    def test_sparse_actor_record_allows_no_facts(self):
+        character = CharacterRecord(
+            character_id="walk_on",
+            name="A Walk-on",
+            actor=ActorRecord(),
+        )
+        assert character.actor is not None
+        assert character.actor.facts == []
+
+    def test_actor_record_rejects_duplicate_fact_text_across_origins(self):
+        with pytest.raises(ValidationError, match="actor facts must be unique"):
+            ActorRecord(
+                facts=[
+                    ActorFact(origin=ActorFactOrigin.lived, text="You saw it."),
+                    ActorFact(origin=ActorFactOrigin.inferred, text="you saw it."),
+                ]
+            )
 
 
 class TestCanonicalEvent:
@@ -957,7 +1018,7 @@ class TestCharacterAgentOutput:
         ao = CharacterAgentOutput(**AGENT_OUTPUT_EXAMPLE)
         assert ao.character_id == "guard_17"
         assert "Need a lever, not a miracle." in ao.public_text
-        assert "Monitor the user" in ao.intent
+        assert ao.is_silence is False
 
     def test_round_trip(self):
         ao = CharacterAgentOutput(**AGENT_OUTPUT_EXAMPLE)
@@ -984,6 +1045,12 @@ class TestCharacterAgentOutput:
             data = {**AGENT_OUTPUT_EXAMPLE, legacy_key: {}}
             with pytest.raises(ValidationError):
                 CharacterAgentOutput(**data)
+
+    def test_rejects_retired_intent_field(self):
+        data = {**AGENT_OUTPUT_EXAMPLE, "intent": "retired"}
+        with pytest.raises(ValidationError):
+            CharacterAgentOutput(**data)
+
 
 
 class TestNarratorFinalOutput:

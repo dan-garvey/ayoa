@@ -20,15 +20,17 @@ The LLM is mocked via `client.complete` so tests never hit the network.
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+import re
+from unittest.mock import AsyncMock
 
 import pytest
 
 from app.bot.engine_bridge import EngineBridge
 from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
     CharacterRecord,
     CharacterStatus,
-    PrivateState,
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
@@ -45,6 +47,27 @@ from tests.support.factories import llm_response
 SESSION_ID = "test_session"
 
 
+def test_takeover_prompt_retires_profile_and_review_vocabulary() -> None:
+    text = Path("app/prompts/takeover.txt").read_text()
+    forbidden = (
+        r"\bbackstory\b",
+        r"\bpersonality\b",
+        r"\bknown_context\b",
+        r"\bprivate_state\b",
+        r"\bcurrent_objectives\b",
+        r"\bintentions_enabled\b",
+        r"\brubric\b",
+        r"\bepistemology\b",
+        r"\binterpersonal objective\b",
+        r"\bswappability\b",
+        r"\bstatus negotiation\b",
+        r"\bdramatic debt\b",
+        r"\bsubtext analysis\b",
+    )
+    for pattern in forbidden:
+        assert re.search(pattern, text, flags=re.IGNORECASE) is None
+
+
 def _llm_response(parsed):
     """Shape an LLMResponse. Takeover paths parse JSON from response.content
     (structured output disabled — see benchmark), so content must contain
@@ -59,9 +82,8 @@ def _authored(**overrides):
     from app.schemas.takeover import AuthoredCharacter
     defaults = dict(
         name="default", location="", role="", appearance="",
-        default_loadout="", faction="",
-        backstory="", personality="", known_context="",
-        goals=[], current_objectives=[], secrets=[], intentions_enabled=False,
+        public_context="", default_loadout="", faction="",
+        actor=ActorRecord(may_act_offstage=False, facts=[]),
         router_summary="",
     )
     defaults.update(overrides)
@@ -214,10 +236,16 @@ class TestCreateCustomCharacter:
             name="Tessa",
             role="scout",
             default_loadout="Weathered green cloak and hill-road boots.",
-            backstory="Trained in the hills.",
-            personality="Wary, quick on her feet.",
-            goals=["find the informant"],
-            secrets=["carries a forged seal"],
+            public_context="Known at the hill-road watch as a reliable scout.",
+            actor=ActorRecord(
+                may_act_offstage=True,
+                facts=[
+                    ActorFact(
+                        origin="lived",
+                        text="You trained on the hill roads and keep a forged seal.",
+                    )
+                ],
+            ),
             location="courtyard",
         )
         out = TakeoverAuthoredOutput(character=authored, session_note="")
@@ -245,7 +273,10 @@ class TestCreateCustomCharacter:
 
         tessa = next(c for c in loaded.characters if c.character_id == "tessa")
         assert tessa.is_playable is True
-        assert tessa.private_state.goals == ["find the informant"]
+        assert tessa.public_sheet.public_context.startswith("Known at")
+        assert tessa.actor is not None
+        assert tessa.actor.may_act_offstage is True
+        assert tessa.actor.facts[0].origin.value == "lived"
         assert tessa.visuals.default_loadout.startswith("Weathered green cloak")
 
     @pytest.mark.asyncio
@@ -298,7 +329,7 @@ class TestCreatePlayerCharacterSimple:
             SESSION_ID, user_id=42,
             name="Akari Tanaka",
             appearance="short, dark hair, hoodie over a school uniform",
-            backstory="A college student dragged here by a freak storm.",
+            lived_fact="You were dragged here by a freak storm.",
         )
 
         assert new_char.name == "Akari Tanaka"
@@ -309,7 +340,13 @@ class TestCreatePlayerCharacterSimple:
         assert new_char.location == ""
         assert new_char.public_sheet.appearance.startswith("short, dark hair")
         assert new_char.visuals.default_loadout.startswith("short, dark hair")
-        assert "freak storm" in new_char.backstory
+        assert new_char.actor is not None
+        assert new_char.actor.facts == [
+            ActorFact(
+                origin="lived",
+                text="You were dragged here by a freak storm.",
+            )
+        ]
 
         loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
         ids = {c.character_id for c in loaded.characters}
@@ -324,9 +361,9 @@ class TestCreatePlayerCharacterSimple:
         )
         assert "Existing character ready for arrival" in arrival_change
         assert "appearance:" in arrival_change
-        assert "authored backstory:" in arrival_change
         assert "sparse arrival" in arrival_change
         assert "observable_facts" in arrival_change
+        assert "freak storm" not in arrival_change
         for forbidden in (
             "human",
             "player-bound",
@@ -337,7 +374,7 @@ class TestCreatePlayerCharacterSimple:
         ):
             assert forbidden not in arrival_change.lower()
 
-    async def test_backstory_optional(self, bridge: EngineBridge):
+    async def test_lived_fact_optional(self, bridge: EngineBridge):
         ckpt = _make_checkpoint()
         _seed(bridge, ckpt)
         bridge.client.complete = AsyncMock(side_effect=AssertionError(
@@ -349,7 +386,7 @@ class TestCreatePlayerCharacterSimple:
             name="Mira",
             appearance="freckles, red braid, satchel of seed packets",
         )
-        assert new_char.backstory == ""
+        assert new_char.actor is None
         assert new_char.visuals.default_loadout == (
             "freckles, red braid, satchel of seed packets"
         )
@@ -476,14 +513,14 @@ class TestReplaceWithCustom:
             is_playable=False,
             location="garden",
             public_sheet=PublicSheet(role="old role", faction="old faction"),
-            backstory="old backstory",
-            personality="old personality",
-            known_context="old context",
-            private_state=PrivateState(
-                goals=["old goal"],
-                current_objectives=["win the duel"],
-                secrets=["old secret"],
-                intentions_enabled=False,
+            actor=ActorRecord(
+                may_act_offstage=False,
+                facts=[
+                    ActorFact(
+                        origin="told",
+                        text="You were told to win the duel in the garden.",
+                    )
+                ],
             ),
             pending_observations=["saw the flash"],
         )
@@ -506,15 +543,20 @@ class TestReplaceWithCustom:
             role="brooder",
             default_loadout="Black officer's coat and a hard, steady stare.",
             faction="loners",
-            backstory="A new, grim history.",
-            personality="Cold and calculating. Speaks in long silences.",
-            known_context="Knows the new truth.",
-            goals=["new vendetta"],
-            secrets=["hides a dagger"],
-            intentions_enabled=True,
-            # Ignored — the authored value for current_objectives
-            # shouldn't overwrite the target's.
-            current_objectives=["unused"],
+            public_context="The black coat identifies a former officer.",
+            actor=ActorRecord(
+                may_act_offstage=True,
+                facts=[
+                    ActorFact(
+                        origin="lived",
+                        text="You left the officer corps after the garden duel.",
+                    ),
+                    ActorFact(
+                        origin="inferred",
+                        text="You suspect someone in the loners expects you to fail.",
+                    ),
+                ],
+            ),
         )
         out = TakeoverAuthoredOutput(
             character=authored, session_note="The rival has changed.",
@@ -537,16 +579,16 @@ class TestReplaceWithCustom:
         assert updated.visuals.default_loadout == (
             "Black officer's coat and a hard, steady stare."
         )
-        assert updated.backstory == "A new, grim history."
-        assert updated.personality == "Cold and calculating. Speaks in long silences."
-        assert updated.known_context == "Knows the new truth."
-        assert updated.private_state.goals == ["new vendetta"]
-        assert updated.private_state.secrets == ["hides a dagger"]
-        assert updated.private_state.intentions_enabled is True
+        assert updated.public_sheet.public_context.startswith("The black coat")
+        assert updated.actor is not None
+        assert updated.actor.may_act_offstage is True
+        assert [fact.origin.value for fact in updated.actor.facts] == [
+            "lived",
+            "inferred",
+        ]
 
         # Circumstances preserved
         assert updated.location == "garden"
-        assert updated.private_state.current_objectives == ["win the duel"]
         assert updated.pending_observations == ["saw the flash"]
 
         # Flag + binding

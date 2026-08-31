@@ -16,10 +16,11 @@ from app.engine.turn_loop import (
     run_beat,
 )
 from app.schemas.characters import (
+    ActorFact,
+    ActorRecord,
     CharacterRecord,
     CharacterStatus,
     FictionalEntityKind,
-    PrivateState,
     is_non_social_hazard,
 )
 from app.schemas.checkpoint import CheckpointFile
@@ -66,47 +67,18 @@ def test_non_social_hazard_cannot_be_a_playable_seat() -> None:
         )
 
 
-def test_non_social_hazard_cannot_carry_character_interior_state() -> None:
+def test_non_social_hazard_cannot_carry_actor_record() -> None:
     with pytest.raises(
         ValidationError,
-        match="non-social hazards cannot carry character interior state",
+        match="non-social hazards cannot carry an actor record",
     ):
         CharacterRecord(
             character_id="clockwork_gate",
             name="the Clockwork Gate",
             entity_kind=FictionalEntityKind.hazard,
-            private_state=PrivateState(
-                current_objectives=["outwit the intruders"],
+            actor=ActorRecord(
+                facts=[ActorFact(text="You remember your maker's command.")],
             ),
-        )
-
-
-def test_non_social_hazard_cannot_carry_character_portrayal_direction() -> None:
-    with pytest.raises(
-        ValidationError,
-        match="cannot carry character portrayal direction",
-    ):
-        CharacterRecord(
-            character_id="clockwork_gate",
-            name="the Clockwork Gate",
-            entity_kind=FictionalEntityKind.hazard,
-            personality="Play it as a taciturn guard.",
-        )
-
-
-@pytest.mark.parametrize("field", ["backstory", "known_context"])
-def test_non_social_hazard_cannot_carry_character_knowledge_fields(
-    field: str,
-) -> None:
-    with pytest.raises(
-        ValidationError,
-        match="cannot carry character knowledge fields",
-    ):
-        CharacterRecord(
-            character_id="clockwork_gate",
-            name="the Clockwork Gate",
-            entity_kind=FictionalEntityKind.hazard,
-            **{field: "The gate remembers its maker's command."},
         )
 
 

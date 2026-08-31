@@ -16,7 +16,6 @@ from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,
     CharacterVisuals,
-    PrivateState,
     PublicSheet,
     is_player_authored_slot,
 )
@@ -65,7 +64,6 @@ class PublicCharacterVisual:
     has_identity_reference: bool
     public_role: str = ""
     is_playable: bool = False
-    recurring_actor: bool = False
 
     def prompt_line(self) -> str:
         character_id = _safe_identifier(self.character_id)
@@ -77,7 +75,6 @@ class PublicCharacterVisual:
             f"depiction_policy={_safe_text(self.depiction_policy, 80)}",
             f"new_character={'yes' if self.is_new_character else 'no'}",
             f"player_controlled={'yes' if self.is_playable else 'no'}",
-            f"recurring_actor={'yes' if self.recurring_actor else 'no'}",
             (
                 "has_identity_reference=yes"
                 if self.has_identity_reference
@@ -348,7 +345,11 @@ def projection_checkpoint_snapshot(
                     appearance=_safe_text(
                         character.public_sheet.appearance,
                         600,
-                    )
+                    ),
+                    public_context=_safe_text(
+                        character.public_sheet.public_context,
+                        600,
+                    ),
                 ),
                 visuals=CharacterVisuals(
                     default_loadout=_safe_text(
@@ -358,11 +359,6 @@ def projection_checkpoint_snapshot(
                     depiction_policy=character.visuals.depiction_policy,
                     identity_reference_id=(
                         character.visuals.identity_reference_id
-                    ),
-                ),
-                private_state=PrivateState(
-                    intentions_enabled=bool(
-                        character.private_state.intentions_enabled
                     ),
                 ),
                 is_playable=bool(character.is_playable),
@@ -1195,9 +1191,6 @@ def _public_character_projection(
                 character_id in active_identity_character_ids
             ),
             is_playable=bool(character.is_playable),
-            recurring_actor=bool(
-                character.private_state.intentions_enabled
-            ),
         ))
     return tuple(result)
 

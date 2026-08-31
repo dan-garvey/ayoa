@@ -63,26 +63,60 @@ class PlayerSlotKind(str, Enum):
 
 
 class PublicSheet(BaseModel):
-    # Trait list and voice absorbed into CharacterRecord.personality as
-    # a single prose block — fewer author-time fields, less token cost,
-    # smaller structured-output grammar. personality now describes who
-    # they are, how they talk, and how to play them.
     role: str = ""
     appearance: str = ""
     faction: str = ""
-
-
-class CharacterDescriptions(BaseModel):
     # Player-safe identity context. The narrator may use this to explain
     # why a newly met name, uniform, rank, or social shorthand matters to the
     # viewpoint character when the engine explicitly surfaces first-meeting
     # context. It must not contain secrets, motives, hidden allegiances,
     # authorial labels, or private body details.
-    public: str = ""
-    # Omniscient/private character description for future engine use and
-    # auditing. This may contain spoiler-bearing identity context, but it is
-    # never sent to the narrator.
-    private: str = ""
+    public_context: str = ""
+
+
+class ActorFactOrigin(str, Enum):
+    """How one actor-local fact entered this person's experience."""
+
+    lived = "lived"
+    witnessed = "witnessed"
+    told = "told"
+    inferred = "inferred"
+
+
+class ActorFact(BaseModel):
+    """One concrete piece of actor-owned life or understanding.
+
+    ``origin`` is authoring and audit provenance. The text itself must carry
+    any uncertainty, source limitation, promise, debt, habit, or refusal that
+    matters to the person; the runtime does not expose the enum as a dialogue
+    recipe.
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    origin: ActorFactOrigin = ActorFactOrigin.lived
+    text: str = Field(min_length=1)
+
+
+class ActorRecord(BaseModel):
+    """Sparse actor-owned material plus an engine scheduling policy.
+
+    Zero facts is valid. Different people should receive different amounts and
+    kinds of material; there are deliberately no mandatory voice, secret,
+    objective, ritual, or trauma slots.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    may_act_offstage: bool = False
+    facts: list[ActorFact] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _facts_are_unique(self) -> "ActorRecord":
+        normalized = [fact.text.casefold() for fact in self.facts]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("actor facts must be unique")
+        return self
 
 
 class VisualNovelCustomVariantRequest(BaseModel):
@@ -209,30 +243,9 @@ class CharacterVisuals(BaseModel):
         return ""
 
 
-class PrivateState(BaseModel):
-    # Existential drives — who this character is at core. Synthetic story
-    # authors seed these from character nature/personality. Rarely changes
-    # during play.
-    goals: list[str] = Field(default_factory=list)
-    # Actionable pursuits — what this character is trying to DO right now.
-    # Synthetic story authors seed 1-3 arc-level objectives per character.
-    # PRE-Commit-1 the agent's structured output rewrote this list
-    # every turn (`private_updates.current_objectives`); Commit 1 dropped
-    # structured agent output entirely, so this field is now author-time
-    # state only — it seeds the agent's identity prompt and is otherwise
-    # immutable during play. Live mutation of an agent's "what I'm
-    # trying to do" lives in their rolling conversation history (the
-    # trailing parenthetical on every response carries fresh intent).
-    current_objectives: list[str] = Field(default_factory=list)
-    secrets: list[str] = Field(default_factory=list)
-    # Flag for "this character is significant enough to act off-screen."
-    # Synthetic story authors set true for antagonists, rivals, faction
-    # leaders — anyone whose goals should keep moving while the player isn't
-    # watching.
-    intentions_enabled: bool = False
-
-
 class CharacterRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     character_id: str
     name: str
     entity_kind: FictionalEntityKind = FictionalEntityKind.character
@@ -257,19 +270,20 @@ class CharacterRecord(BaseModel):
     is_playable: bool = False
     player_slot_kind: PlayerSlotKind = PlayerSlotKind.standard
     # Player-facing control contract for an authored seat. This is deliberately
-    # separate from agent personality and private context: it explains what a
-    # human controls without teaching an LLM how to play the character.
+    # separate from actor-owned facts: it explains what a human controls
+    # without teaching an LLM how to play the character.
     player_guidance: str = ""
     agent_tier: CharacterAgentTier = CharacterAgentTier.premium
     # Knowledge tier this character was generated at (0 = untiered). Set at
     # spawn from the story's world_state.knowledge_tiers ladder; a future
-    # promotion hook raises it and re-grants known_context. Orthogonal to
+    # promotion hook raises it and grants newly available actor facts. Orthogonal to
     # agent_tier (model cost), though a ladder rung may set both together.
     knowledge_tier: int = 0
     public_sheet: PublicSheet = Field(default_factory=PublicSheet)
-    descriptions: CharacterDescriptions = Field(default_factory=CharacterDescriptions)
     visuals: CharacterVisuals = Field(default_factory=CharacterVisuals)
-    private_state: PrivateState = Field(default_factory=PrivateState)
+    # Private, actor-owned life and understanding. ``None`` is valid for a
+    # player-authored blank seat or a deliberately exterior-only walk-on.
+    actor: ActorRecord | None = None
     # Staging area for observations the character perceived silently
     # (turns where they didn't respond). Flushed into the next agent
     # user message when the character is asked to respond, then cleared.
@@ -286,23 +300,6 @@ class CharacterRecord(BaseModel):
     # unless the router scopes them through a concrete perception
     # channel such as live audio, camera feed, magic, radio, or spycraft.
     pending_observations: list[str] = Field(default_factory=list)
-    # Long-form text fields for rich character content. `personality`
-    # now absorbs what used to live in `narrative_notes` + traits/voice
-    # on PublicSheet — one prose block covering who they are, how they
-    # speak, and how to play them. Can be empty for freshly-authored
-    # player characters (the player fills it through play); the /leave
-    # path synthesizes from the character's rolling conversation when
-    # handing back to an agent.
-    backstory: str = ""
-    personality: str = ""
-    # Per-character world knowledge envelope: the filtered slice of world
-    # lore/facts this character plausibly knows, plus their in-world sense
-    # of what's going on. Seeded in synthetic story checkpoints (and at
-    # spawn time for router-created characters) from the omniscient world
-    # plus this character's role/faction/backstory/secrets. Left as a
-    # single freeform field on purpose so each character gets the shape that
-    # best conveys what THIS character takes for granted.
-    known_context: str = ""
     # Optional rules/content adapter state. Narrative-only sessions leave
     # this empty. D&D v1 reads a small conventional subset when present:
     # ruleset_id, ability_scores, proficiency_bonus, skill_proficiencies,
@@ -310,18 +307,11 @@ class CharacterRecord(BaseModel):
     # resources, and raw.
     mechanics: dict[str, Any] = Field(default_factory=dict)
     # Interior continuity (Commit 3 had `last_intent` / `last_intent_turn`
-    # mirror fields here; both removed). The agent's freshest interior
-    # is the trailing parenthetical at the end of its most recent
-    # committed agent turn, which is appended verbatim to
-    # `character_conversations[character_id]`. The agent's own future
-    # calls see that parenthetical because it's in the history they
-    # replay. Cross-actor consumers (router, narrator, other agents)
-    # deliberately do NOT see another character's interior — that
-    # asymmetry is the entire point of having separate per-actor LLM
-    # calls. If you find yourself wanting to surface one character's
-    # parenthetical to another LLM, you are about to break that
-    # asymmetry; reach for in-fiction signals (a courier, an
-    # observable_fact, a witnessed action) instead.
+    # mirror fields here; both removed). The actor's own rolling conversation
+    # preserves its observable choices and the causal input that produced
+    # them. Cross-actor consumers (router, narrator, other agents) learn only
+    # through in-fiction signals (a courier, an observable fact, a witnessed
+    # action), never an actor-local hidden summary.
 
     @model_validator(mode="after")
     def _validate_entity_kind(self) -> "CharacterRecord":
@@ -337,23 +327,9 @@ class CharacterRecord(BaseModel):
             raise ValueError(
                 "non-social hazards cannot carry player guidance"
             )
-        if self.personality.strip():
+        if self.actor is not None:
             raise ValueError(
-                "non-social hazards cannot carry character portrayal direction"
-            )
-        if self.backstory.strip() or self.known_context.strip():
-            raise ValueError(
-                "non-social hazards cannot carry character knowledge fields"
-            )
-        private_state = self.private_state
-        if (
-            private_state.goals
-            or private_state.current_objectives
-            or private_state.secrets
-            or private_state.intentions_enabled
-        ):
-            raise ValueError(
-                "non-social hazards cannot carry character interior state"
+                "non-social hazards cannot carry an actor record"
             )
         return self
 

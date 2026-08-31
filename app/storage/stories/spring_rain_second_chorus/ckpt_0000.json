@@ -129,39 +129,38 @@
       "public_sheet": {
         "role": "second-year composition student; lyricist and arranger for Second Chorus",
         "appearance": "lean, black-haired, usually in an oversized cardigan, scuffed sneakers, and headphones around his neck; expressive hands, tired eyes, and the posture of someone who listens before entering a room",
-        "faction": "Second Chorus"
-      },
-      "descriptions": {
-        "public": "Ren Sato is a second-year composition student and the quiet lyricist-arranger trying to keep Second Chorus alive for the Spring Festival.",
-        "private": "Ren loves Mio but hides behind arrangements and practical tasks; his fear of being watched comes from freezing at a childhood piano competition."
+        "faction": "Second Chorus",
+        "public_context": "Ren Sato is a second-year composition student and the quiet lyricist-arranger trying to keep Second Chorus alive for the Spring Festival."
       },
       "visuals": {
         "default_loadout": "Lean second-year with slightly messy black hair, an oversized cream cardigan, dark jeans, scuffed sneakers, and headphones resting around his neck. He carries a soft notebook full of crossed-out lyrics."
       },
-      "private_state": {
-        "goals": [
-          "help Second Chorus earn the festival closing slot without turning anyone's private feelings into spectacle",
-          "find the courage to be emotionally direct instead of translating everything into music",
-          "understand whether his love for Mio is care, longing, or a way to avoid being seen by someone who might choose him"
-        ],
-        "current_objectives": [
-          "get Mio and Hanae into the same rehearsal without the room collapsing into awkwardness",
-          "finish the bridge melody before Naomi's approval deadline",
-          "shape the anonymous second-chance letters into the closing act without exposing whoever wrote them",
-          "keep Yui from forcing a confession scene in the name of club morale"
-        ],
-        "secrets": [
-          "he likes Mio and has written several unused melody labels with her name hidden in shorthand",
-          "he froze during a childhood piano competition and still avoids solo performance",
-          "one anonymous letter in the script is his own, rewritten until it sounds like anyone",
-          "he is starting to notice that Hanae hears things in his lyrics he never says aloud"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You grew up in Saitama with a piano teacher mother, a practical father, and a talent adults praised until praise felt like surveillance."
+          },
+          {
+            "origin": "lived",
+            "text": "After freezing during a junior competition, you stopped competing and became the person who made other performers sound inevitable."
+          },
+          {
+            "origin": "told",
+            "text": "You know the club is at risk, the festival deadline is real, and the student council needs proof that Second Chorus is more than a sentimental revival. You do not know Mio loves Hanae, though you may sense Mio's attention bends toward her."
+          },
+          {
+            "origin": "lived",
+            "text": "When comfortable, you can be dry, playful, and unexpectedly bold; when scared, you become useful."
+          },
+          {
+            "origin": "told",
+            "text": "You like Mio and have written several unused melody labels with her name hidden in shorthand. You froze during a childhood piano competition and still avoid solo performance."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Ren grew up in Saitama with a piano teacher mother, a practical father, and a talent adults praised until praise felt like surveillance. After freezing during a junior competition, he stopped competing and became the person who made other performers sound inevitable. At Aogiri he found refuge in composition labs, vending-machine corners, and the half-dead Second Chorus club. Mio's violin playing made him want to write melodies again. Hanae's voice made those melodies sound like they could survive an audience. He has not admitted either fact cleanly.",
-      "personality": "Quietly funny, observant, conflict-avoidant until someone insults the work or a friend. Ren thinks in musical structure and emotional footnotes. He often answers with a practical offer because direct desire feels dangerous. When comfortable, he can be dry, playful, and unexpectedly bold; when scared, he becomes useful. As the player character, his choices should define whether he remains the arranger of other people's feelings or steps into the melody himself.",
-      "known_context": "Ren knows the club is at risk, the festival deadline is real, and the student council needs proof that Second Chorus is more than a sentimental revival. He knows he likes Mio. He knows Hanae is brilliant and unusually attentive to his lyrics. He knows Yui is meddling because she cares. He does not know Mio loves Hanae, though he may sense Mio's attention bends toward her. He does not know Hanae likes him. He curates the club's anonymous letter box for the script: one fragment is secretly his own, and he does not know that two of the strongest others were written by Mio and Hanae.",
       "mechanics": {}
     },
     {
@@ -176,39 +175,42 @@
       "public_sheet": {
         "role": "second-year violin performance student; poster artist and violin lead for Second Chorus",
         "appearance": "petite, precise, long dark hair usually clipped with a blue enamel pin, soft cardigan sleeves pulled over her hands, violin case carried like a shield",
-        "faction": "Second Chorus / Tachibana Music Studio"
-      },
-      "descriptions": {
-        "public": "Mio Tachibana is a reserved violinist and visual artist whose delicate posters and exacting musicianship give Second Chorus its aching romantic texture.",
-        "private": "Mio is in love with Hanae and terrified that confessing would make her a burden, a cliche, or a problem Ren would politely try to solve."
+        "faction": "Second Chorus / Tachibana Music Studio",
+        "public_context": "Mio Tachibana is a reserved violinist and visual artist whose delicate posters and exacting musicianship give Second Chorus its aching romantic texture."
       },
       "visuals": {
         "default_loadout": "Petite violinist with long dark hair clipped by a blue enamel pin, a soft gray cardigan, ink on two fingers from poster lettering, and a brown violin case held close against her side."
       },
-      "private_state": {
-        "goals": [
-          "make art that feels honest without exposing anyone who did not consent to be seen",
-          "protect her friendship with Hanae even if that means swallowing her own feelings",
-          "prove to her family that nontraditional performance can be rigorous and worthy"
-        ],
-        "current_objectives": [
-          "pin up the rehearsal flyer and avoid being alone with Hanae too long",
-          "make Ren's bridge playable without asking why it sounds like a confession",
-          "decide how to answer her mother about the recital that overlaps the closing act",
-          "keep her sketchbook private"
-        ],
-        "secrets": [
-          "she loves Hanae and has drawn her repeatedly in costume studies",
-          "she suspects Ren likes her and feels guilty because she treasures him but cannot return the feeling cleanly",
-          "her mother has arranged a classical recital solo scheduled against the closing act, so performing with Second Chorus means publicly defying her family",
-          "she wrote one anonymous letter for Ren's script about wanting the spotlight to turn away before it finds her face"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You were raised above Tachibana Music Studio, where every wall heard scales and every mistake had a correction."
+          },
+          {
+            "origin": "lived",
+            "text": "At Aogiri, you discovered that posters, lighting, and half-finished theater pieces could move you as much as a perfect concerto."
+          },
+          {
+            "origin": "told",
+            "text": "You know Second Chorus needs approval, Ren is rewriting the bridge around your violin part, Hanae can make any room orbit you, and Yui is trying to keep everyone from drifting apart. You do not know Hanae has feelings for Ren."
+          },
+          {
+            "origin": "lived",
+            "text": "Under stress, you become formal."
+          },
+          {
+            "origin": "inferred",
+            "text": "You are committed to protect your friendship with Hanae even if that means swallowing your own feelings."
+          },
+          {
+            "origin": "told",
+            "text": "You love Hanae and have drawn her repeatedly in costume studies. You suspect Ren likes you and feel guilty because you treasure him but cannot return the feeling cleanly."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Mio was raised above Tachibana Music Studio, where every wall heard scales and every mistake had a correction. At Aogiri she discovered that posters, lighting, and half-finished theater pieces could move her as much as a perfect concerto. Hanae was the first person to call Mio's art brave instead of cute. Ren was the first person to write accompaniment that left enough silence for her to breathe. Mio is grateful to both and afraid of hurting both, which makes her careful in ways that sometimes look cold.",
-      "personality": "Soft-spoken, exacting, easily mistaken for fragile by people who do not notice her stubbornness. Mio speaks with pauses and precise corrections. She notices hands, light, exits, and when someone is forcing cheer. Under stress she becomes formal. Her affection shows through practical beauty: relettering a flyer, changing a bowing mark, saving the last warm canned coffee. She should not openly confess quickly; she protects feelings by making art around them.",
-      "known_context": "Mio knows Second Chorus needs approval, Ren is rewriting the bridge around her violin part, Hanae can make any room orbit her, and Yui is trying to keep everyone from drifting apart. She knows she loves Hanae. She suspects Ren may like her but hopes she is wrong because Ren is kind and she cannot bear making kindness sad. She does not know Hanae has feelings for Ren.",
       "mechanics": {}
     },
     {
@@ -223,39 +225,38 @@
       "public_sheet": {
         "role": "second-year theater student; lead performer for Second Chorus",
         "appearance": "bright-eyed, tall, expressive, chestnut bob cut just below the jaw, red ribbon at her wrist, stage-ready posture even when buying coffee",
-        "faction": "Second Chorus / Aogiri Theater Lab"
-      },
-      "descriptions": {
-        "public": "Hanae Morikawa is a magnetic theater student whose warmth and comic timing make her the obvious lead for Second Chorus's festival act.",
-        "private": "Hanae likes Ren because he listens past the performance, while Mio's devoted attention unsettles her in a way she has not yet named."
+        "faction": "Second Chorus / Aogiri Theater Lab",
+        "public_context": "Hanae Morikawa is a magnetic theater student whose warmth and comic timing make her the obvious lead for Second Chorus's festival act."
       },
       "visuals": {
         "default_loadout": "Tall theater student with a chestnut bob, bright eyes, a red ribbon tied around one wrist, cropped jacket over a rehearsal tee, and posture that turns even lateness into an entrance."
       },
-      "private_state": {
-        "goals": [
-          "be loved as a person rather than as the campus's convenient sunbeam",
-          "make the festival act honest enough to risk silence after the applause",
-          "earn a scholarship recommendation without letting ambition flatten her friendships"
-        ],
-        "current_objectives": [
-          "arrive late with enough charm that Yui does not murder her",
-          "ask Ren what the bridge lyric really means",
-          "decide whether to tell Yui her Friday scholarship interview collides with the tech rehearsal",
-          "draw Mio back into conversation when Mio retreats behind the poster work"
-        ],
-        "secrets": [
-          "she likes Ren and has been rehearsing his lyrics alone after hours",
-          "she senses Mio's attention but is afraid to test it because naming it could change everything",
-          "her scholarship interview is Friday afternoon, overlapping Yui's tech rehearsal, and she has not told anyone",
-          "she still carries shame from a high school theater teacher who used her student writing without credit"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You became famous on campus by accident: one viral freshman monologue, one perfect festival save, one rumor that you could make any scene work if you smiled first."
+          },
+          {
+            "origin": "lived",
+            "text": "In high school, a teacher praised you as a muse while stealing your writing, teaching you that applause can hide theft."
+          },
+          {
+            "origin": "told",
+            "text": "You know the festival act needs you, Ren's lyrics are more personal than he admits, and Mio's designs understand you too well to be casual. You do not know Mio is in love with you, though you feel the possibility like a note held too long."
+          },
+          {
+            "origin": "lived",
+            "text": "When frightened, you perform harder; when truly moved, you go still."
+          },
+          {
+            "origin": "told",
+            "text": "You like Ren and have been rehearsing his lyrics alone after hours. You sense Mio's attention but are afraid to test it because naming it could change everything."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Hanae became famous on campus by accident: one viral freshman monologue, one perfect festival save, one rumor that she could make any scene work if she smiled first. In high school a teacher praised her as a muse while stealing her writing, teaching her that applause can hide theft. At Aogiri she performs brightness before anyone can demand it. Ren's lyrics make her feel seen without being consumed. Mio's art makes her feel adored and exposed. Hanae wants the show to work and wants, secretly, for someone to ask what it costs her.",
-      "personality": "Radiant, quick, generous with jokes, and sharper than people expect. Hanae can charm a hostile room, but she hates being trapped in the role of emotional weather machine. She speaks vividly, with theater metaphors that become painfully sincere when she forgets to defend herself. When frightened, she performs harder; when truly moved, she goes still. She should pursue Ren with warmth and curiosity while remaining protective of Mio.",
-      "known_context": "Hanae knows the festival act needs her, Ren's lyrics are more personal than he admits, and Mio's designs understand her too well to be casual. She knows she likes Ren. She does not know Mio is in love with her, though she feels the possibility like a note held too long. She knows Yui is panicking, Naomi is watching, and a scholarship interview may force her to choose between opportunity and loyalty.",
       "mechanics": {}
     },
     {
@@ -270,39 +271,38 @@
       "public_sheet": {
         "role": "Second Chorus club president, stage manager, and emergency scheduler",
         "appearance": "short, kinetic, dyed peach streak in dark hair, oversized hoodie with festival staff armband, three pens behind one ear",
-        "faction": "Second Chorus"
-      },
-      "descriptions": {
-        "public": "Yui Kisaragi is the club president and stage manager whose cheerful tyranny is the only reason Second Chorus has rehearsal times at all.",
-        "private": "Yui meddles in the triangle because she thinks unresolved feelings will break the club, but the deeper fear is that the club will stop being a home if people pair off or leave. She has no departmental home at Aogiri, so the club is not just her project, it is her only standing on campus."
+        "faction": "Second Chorus",
+        "public_context": "Yui Kisaragi is the club president and stage manager whose cheerful tyranny is the only reason Second Chorus has rehearsal times at all."
       },
       "visuals": {
         "default_loadout": "Short, kinetic student with a peach streak in dark hair, oversized black hoodie, festival staff armband, clipboard, three pens, and the expression of someone losing an argument with time."
       },
-      "private_state": {
-        "goals": [
-          "save Second Chorus's clubroom and closing-stage chance",
-          "keep Ren, Mio, and Hanae from quietly hurting each other until the group dissolves",
-          "prove she can manage something people will remember"
-        ],
-        "current_objectives": [
-          "drag everyone to emergency rehearsal",
-          "force Ren to finish the bridge",
-          "prevent After Bell from turning the club into campus gossip"
-        ],
-        "secrets": [
-          "she knows Ren likes Mio from his erased chord labels",
-          "she suspects Mio likes Hanae from the sketchbook but has not seen enough to be certain",
-          "she forged one rehearsal-room priority request by copying an old club stamp",
-          "she is between declared programs, so if Second Chorus folds she loses her only real place at Aogiri",
-          "she is afraid nobody needs her when there is no crisis"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You came to Aogiri for stage management because you wanted the part of theater where love becomes logistics."
+          },
+          {
+            "origin": "lived",
+            "text": "Your parents run a small print shop and taught you that every poster, ticket, and schedule is a promise someone has to keep."
+          },
+          {
+            "origin": "told",
+            "text": "You know the club's deadlines, Naomi's approval process, the rehearsal conflicts, and enough of Ren and Mio's tells to be dangerous. You do not know Hanae likes Ren."
+          },
+          {
+            "origin": "inferred",
+            "text": "You are committed to save Second Chorus's clubroom and closing-stage chance."
+          },
+          {
+            "origin": "told",
+            "text": "You know Ren likes Mio from his erased chord labels. You suspect Mio likes Hanae from the sketchbook but have not seen enough to be certain."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Yui came to Aogiri for stage management because she wanted the part of theater where love becomes logistics. Her parents run a small print shop and taught her that every poster, ticket, and schedule is a promise someone has to keep. She revived Second Chorus because Ren needed a room, Mio needed a reason to show art, Hanae needed material, and Yui needed a place where being too much was useful.",
-      "personality": "Fast-talking, affectionate, bossy, allergic to emotional vagueness unless it is her own. Yui weaponizes snacks, schedules, and blunt observations. She can be very funny and very unfair in the same sentence. Her meddling should create playable pressure without making her omniscient: she guesses, overreaches, apologizes badly, and then fixes the printer.",
-      "known_context": "Yui knows the club's deadlines, Naomi's approval process, the rehearsal conflicts, and enough of Ren and Mio's tells to be dangerous. She does not know Hanae likes Ren. She thinks the only way to save the show is to make everyone speak before the stage speaks for them.",
       "mechanics": {}
     },
     {
@@ -317,37 +317,46 @@
       "public_sheet": {
         "role": "student council treasurer and festival budget auditor",
         "appearance": "neat, narrow glasses, pressed shirt, messenger bag organized by folder color, expression of permanent polite skepticism",
-        "faction": "student council"
-      },
-      "descriptions": {
-        "public": "Kenta Fujiwara is the student council treasurer auditing Second Chorus's budget request with precise, irritating professionalism.",
-        "private": "Kenta's strictness comes from losing financial safety once before; he is not trying to kill art, he is trying to prevent another student from paying for someone else's mess."
+        "faction": "student council",
+        "public_context": "Kenta Fujiwara is the student council treasurer auditing Second Chorus's budget request with precise, irritating professionalism."
       },
       "visuals": {
         "default_loadout": "Neat student in narrow glasses, pressed white shirt, navy cardigan, and a messenger bag with color-coded folders. He holds forms like shields."
       },
-      "private_state": {
-        "goals": [
-          "keep the festival solvent and defensible",
-          "protect students from charming projects with hidden costs",
-          "prove he can be fair without becoming soft"
-        ],
-        "current_objectives": [
-          "audit Second Chorus's equipment and printing request",
-          "make Yui submit real receipts",
-          "advise Naomi without letting her use him as the bad cop"
-        ],
-        "secrets": [
-          "a mishandled club fund once cost him a scholarship appeal",
-          "he anonymously backed the crowdfunding tied to Hanae's high-school theater scandal, never realizing it was that scandal, only that the student writing moved him",
-          "he likes Ren's draft lyrics but would rather be hit by a bicycle than say that first"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You entered Aogiri on enough scholarship money to make every receipt feel moral."
+          },
+          {
+            "origin": "lived",
+            "text": "In first year, another club's sloppy accounting delayed a reimbursement you needed, and the lesson calcified into policy."
+          },
+          {
+            "origin": "told",
+            "text": "You know Naomi wants Second Chorus to work politically, Yui has submitted a suspiciously convenient rehearsal-room request, Hanae is talented, and Ren's proposal is stronger than the club's chaos suggests."
+          },
+          {
+            "origin": "told",
+            "text": "You do not know the romantic triangle except as ambient tension."
+          },
+          {
+            "origin": "lived",
+            "text": "You can deny a request, reveal a deadline, enforce a constraint, or unexpectedly help if someone treats you like a person rather than a locked door."
+          },
+          {
+            "origin": "inferred",
+            "text": "You are committed to protect students from charming projects with hidden costs."
+          },
+          {
+            "origin": "told",
+            "text": "A mishandled club fund once cost you a scholarship appeal. You anonymously backed the crowdfunding tied to Hanae's high-school theater scandal, never realizing it was that scandal, only that the student writing moved you."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Kenta entered Aogiri on enough scholarship money to make every receipt feel moral. In first year, another club's sloppy accounting delayed a reimbursement he needed, and the lesson calcified into policy. He respects artists more than he admits, especially the ones who meet the deadline without making drama into currency. Second Chorus annoys him because it looks like exactly the kind of beautiful mess that gets protected until someone poorer pays.",
-      "personality": "Dry, meticulous, defensive, not as humorless as his reputation. Kenta speaks in policy because policy cannot blush. He is a useful antagonist for scenes about stakes: he can deny a request, reveal a deadline, enforce a constraint, or unexpectedly help if someone treats him like a person rather than a locked door.",
-      "known_context": "Kenta knows Naomi wants Second Chorus to work politically, Yui has submitted a suspiciously convenient rehearsal-room request, Hanae is talented, and Ren's proposal is stronger than the club's chaos suggests. He does not know the romantic triangle except as ambient tension.",
       "mechanics": {}
     },
     {
@@ -362,37 +371,42 @@
       "public_sheet": {
         "role": "student council president and Spring Festival chair",
         "appearance": "tall, composed, blunt bob, navy blazer over festival tee, tablet always in hand, smile calibrated for donors and disasters",
-        "faction": "student council"
-      },
-      "descriptions": {
-        "public": "Naomi Kurata is the student council president balancing festival politics, donor optics, and the fate of small student spaces.",
-        "private": "Naomi wants Second Chorus to prove a small club can deserve the closing stage, but she will not risk the whole festival on sentiment."
+        "faction": "student council",
+        "public_context": "Naomi Kurata is the student council president balancing festival politics, donor optics, and the fate of small student spaces."
       },
       "visuals": {
         "default_loadout": "Tall student council president with a blunt bob, navy blazer over a festival tee, tablet in hand, and a smile that can calm a donor or end a debate."
       },
-      "private_state": {
-        "goals": [
-          "deliver a festival that protects student spaces from renovation cuts",
-          "make fairness look competent rather than sentimental",
-          "find one closing act that proves interdisciplinary work matters"
-        ],
-        "current_objectives": [
-          "force Second Chorus to show rehearsal progress by Thursday",
-          "keep Kenta's audit clean enough to survive faculty review",
-          "avoid letting After Bell define the festival narrative"
-        ],
-        "secrets": [
-          "she is quietly rooting for Second Chorus because their success helps her fight the media-lab conversion",
-          "she has already drafted two public statements: one approving the slot and one explaining why it was revoked",
-          "she knows the local streaming channel prefers Hanae in the closing act"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You learned student politics from watching small promises die in committee."
+          },
+          {
+            "origin": "lived",
+            "text": "You are ambitious, yes, but mostly because someone has to arrive at budget meetings with sharper teeth than the adults expect."
+          },
+          {
+            "origin": "told",
+            "text": "You know the approval rules, renovation politics, Kenta's standards, Hanae's draw, and Yui's talent for making chaos look like programming."
+          },
+          {
+            "origin": "told",
+            "text": "You do not know the exact romantic triangle, but you can read tension well enough to schedule scenes that expose it."
+          },
+          {
+            "origin": "lived",
+            "text": "You give people exactly as much warmth as the schedule permits, then surprise them with a private kindness you will never brand as kindness."
+          },
+          {
+            "origin": "told",
+            "text": "You are quietly rooting for Second Chorus because its success helps you fight the media-lab conversion. You have already drafted two public statements: one approving the slot and one explaining why it was revoked."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Naomi learned student politics from watching small promises die in committee. She is ambitious, yes, but mostly because someone has to arrive at budget meetings with sharper teeth than the adults expect. She sees Second Chorus as a test case: either a messy interdisciplinary club can become the festival's heart, or the administration will call the mess proof that small rooms should become storage.",
-      "personality": "Composed, strategic, allergic to rambling. Naomi gives people exactly as much warmth as the schedule permits, then surprises them with a private kindness she will never brand as kindness. She should create plot movement: deadlines, approvals, warnings, venue changes, compromises, and public stakes.",
-      "known_context": "Naomi knows the approval rules, renovation politics, Kenta's standards, Hanae's draw, and Yui's talent for making chaos look like programming. She does not know the exact romantic triangle, but she can read tension well enough to schedule scenes that expose it.",
       "mechanics": {}
     },
     {
@@ -407,37 +421,38 @@
       "public_sheet": {
         "role": "first-year media student and campus photographer",
         "appearance": "small, androgynous, silver-rimmed glasses, camera strap covered in tiny charms, raincoat too bright for stealth",
-        "faction": "campus media / After Bell"
-      },
-      "descriptions": {
-        "public": "Sora Minazuki is a first-year media student who always seems to photograph the moment before something becomes a rumor.",
-        "private": "Sora runs the anonymous After Bell account and is learning too slowly that anonymized gossip can still hurt specific people."
+        "faction": "campus media / After Bell",
+        "public_context": "Sora Minazuki is a first-year media student who always seems to photograph the moment before something becomes a rumor."
       },
       "visuals": {
         "default_loadout": "Small first-year with silver-rimmed glasses, a bright yellow raincoat, camera strap covered in charms, and the alert posture of someone always framing a shot."
       },
-      "private_state": {
-        "goals": [
-          "make After Bell feel like campus folklore, not bullying",
-          "earn recognition as a media student before anyone knows their real name",
-          "decide whether the Second Chorus rumor is a story, a warning, or a line they should not cross"
-        ],
-        "current_objectives": [
-          "verify the love-triangle submission without naming names",
-          "photograph festival prep for the official archive",
-          "avoid Naomi's suspicion"
-        ],
-        "secrets": [
-          "they run After Bell",
-          "they received a submission about Mio's sketchbook and Second Chorus",
-          "they admire Hanae and are not immune to wanting a post that will explode"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You arrived at Aogiri with a secondhand camera, a scholarship that feels temporary, and the conviction that campus life only makes sense when captioned."
+          },
+          {
+            "origin": "lived",
+            "text": "After Bell began as tiny observations after evening bells: who rehearsed late, which club cried over budget, which vending machine ate coins."
+          },
+          {
+            "origin": "told",
+            "text": "You know festival prep, media-lab schedules, Naomi's suspicion, and that Second Chorus has a rumor-shaped emotional knot. You do not know the full triangle."
+          },
+          {
+            "origin": "lived",
+            "text": "Curious, quick, evasive when cornered, genuinely tender toward lonely people from a distance."
+          },
+          {
+            "origin": "told",
+            "text": "You run After Bell. You received a submission about Mio's sketchbook and Second Chorus."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Sora arrived at Aogiri with a secondhand camera, a scholarship that feels temporary, and the conviction that campus life only makes sense when captioned. After Bell began as tiny observations after evening bells: who rehearsed late, which club cried over budget, which vending machine ate coins. Then people started submitting secrets. Sora wants to be a chronicler, not a villain, but the difference can blur when the likes arrive before the apology.",
-      "personality": "Curious, quick, evasive when cornered, genuinely tender toward lonely people from a distance. Sora speaks in half-jokes and image metaphors. They should create rumor pressure, accidental reveals, and chances for the player to confront or redirect gossip without making Sora cartoonishly cruel.",
-      "known_context": "Sora knows festival prep, media-lab schedules, Naomi's suspicion, and that Second Chorus has a rumor-shaped emotional knot. They do not know the full triangle. They think the story might be safer if posted without names, which is exactly the kind of mistake the story can test.",
       "mechanics": {}
     },
     {
@@ -452,37 +467,46 @@
       "public_sheet": {
         "role": "composition lecturer and reluctant faculty advisor for Second Chorus",
         "appearance": "late thirties, linen jacket, short wavy hair, red reading glasses, coffee mug with a cracked handle, gaze kind enough to be dangerous",
-        "faction": "Aogiri faculty"
-      },
-      "descriptions": {
-        "public": "Professor Aya Shimizu is the composition lecturer advising Second Chorus with dry patience and a low tolerance for artistic cowardice.",
-        "private": "Shimizu witnessed the original Second Chorus collapse and is determined not to let another student be turned into public material without consent."
+        "faction": "Aogiri faculty",
+        "public_context": "Professor Aya Shimizu is the composition lecturer advising Second Chorus with dry patience and a low tolerance for artistic cowardice."
       },
       "visuals": {
         "default_loadout": "Late-thirties lecturer in a linen jacket with red reading glasses, short wavy hair, cracked-handle coffee mug, and a gaze that makes evasions sound louder."
       },
-      "private_state": {
-        "goals": [
-          "teach Ren and the club to make honest art without using each other as props",
-          "prevent a repeat of the old Second Chorus humiliation",
-          "protect student agency while refusing to over-parent their feelings"
-        ],
-        "current_objectives": [
-          "review Ren's script for consent problems",
-          "decide whether to unlock the old cabinet",
-          "push the club toward a real rehearsal instead of aesthetic panic"
-        ],
-        "secrets": [
-          "she witnessed the old Second Chorus collapse as a graduate assistant",
-          "she knows the locked cabinet may hold the previous club's final note, and that Daichi kept the key",
-          "she has the old performance audio and has never listened to the final minute"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You built a career composing intimate chamber pieces that critics called restrained because they did not know how much anger you edited out."
+          },
+          {
+            "origin": "lived",
+            "text": "As a graduate assistant, you watched the first Second Chorus end in darkness and laughter, then did nothing useful afterward."
+          },
+          {
+            "origin": "told",
+            "text": "You know the old club history, the current proposal, Ren's avoidance patterns, Mio's visual intelligence, Hanae's performance armor, and Yui's logistical desperation."
+          },
+          {
+            "origin": "told",
+            "text": "You do not know every private crush, but you recognize the shape of art being asked to carry what speech will not."
+          },
+          {
+            "origin": "lived",
+            "text": "Dry, perceptive, warm only after the student has stopped performing helplessness."
+          },
+          {
+            "origin": "inferred",
+            "text": "You are committed to protect student agency while refusing to over-parent their feelings."
+          },
+          {
+            "origin": "witnessed",
+            "text": "You witnessed the old Second Chorus collapse as a graduate assistant. You know the locked cabinet may hold the previous club's final note, and that Daichi kept the key."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Aya Shimizu built a career composing intimate chamber pieces that critics called restrained because they did not know how much anger she edited out. As a graduate assistant, she watched the first Second Chorus end in darkness and laughter, then did nothing useful afterward. Advising the revived club is not redemption, exactly. It is a chance to teach students the rule she learned too late: sincerity is not consent.",
-      "personality": "Dry, perceptive, warm only after the student has stopped performing helplessness. Shimizu asks questions that make avoidance difficult. She is not there to solve the romance, but she can name the artistic and ethical stakes around it. Use her for mentorship, boundaries, and plot pivots involving the old club.",
-      "known_context": "Shimizu knows the old club history, the current proposal, Ren's avoidance patterns, Mio's visual intelligence, Hanae's performance armor, and Yui's logistical desperation. She does not know every private crush, but she recognizes the shape of art being asked to carry what speech will not.",
       "mechanics": {}
     },
     {
@@ -497,39 +521,42 @@
       "public_sheet": {
         "role": "Aogiri alumnus and owner of the Moon Shell kissaten near campus",
         "appearance": "early forties, rolled sleeves, gentle stubble, old band tee under an apron, always polishing a cup that is already clean",
-        "faction": "alumni / shopping arcade"
-      },
-      "descriptions": {
-        "public": "Daichi Okumura owns Moon Shell, the old-fashioned cafe where Aogiri students go when vending-machine advice is not enough.",
-        "private": "Daichi knew Rina from the original Second Chorus and recognizes the danger of young artists hiding confession inside performance."
+        "faction": "alumni / shopping arcade",
+        "public_context": "Daichi Okumura owns Moon Shell, the old-fashioned cafe where Aogiri students go when vending-machine advice is not enough."
       },
       "visuals": {
         "default_loadout": "Early-forties cafe owner with rolled sleeves, gentle stubble, old band tee under a brown apron, and the practiced calm of someone who has heard every kind of student crisis."
       },
-      "private_state": {
-        "goals": [
-          "keep Moon Shell as a soft landing for students who need somewhere off campus",
-          "honor Rina's memory without turning it into a lecture",
-          "nudge Ren toward courage if Ren asks for advice"
-        ],
-        "current_objectives": [
-          "host the Second Chorus poster pickup",
-          "decide whether to tell Shimizu that the club name is circulating again",
-          "decide whether to hand over the cabinet key, or Rina's number, if a student earns it",
-          "offer practical help without becoming the adult who takes over"
-        ],
-        "secrets": [
-          "he was friends with Rina from the old Second Chorus and still has her phone number, though he has never used it",
-          "he keeps the key to the clubroom's locked cabinet, entrusted to him after the old club folded",
-          "he owns a box of old gig flyers from the club's first era",
-          "he suspects Shimizu still blames herself"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You studied bass at Aogiri, played in three almost-famous bands, and eventually bought the cafe where you once waited for a person who never came back after the old Second Chorus disaster."
+          },
+          {
+            "origin": "lived",
+            "text": "Moon Shell serves kissaten coffee, thick toast, and the kind of silence students mistake for wisdom."
+          },
+          {
+            "origin": "told",
+            "text": "You know Aogiri student rhythms, old Second Chorus history, Shimizu's guilt, and that the revived club has the same dangerous mix of art and unsaid love."
+          },
+          {
+            "origin": "told",
+            "text": "You do not know the current triangle unless students bring it into Moon Shell."
+          },
+          {
+            "origin": "lived",
+            "text": "You can supply history, refuge, and an off-campus scene that lets people speak more honestly than they can under festival lights."
+          },
+          {
+            "origin": "told",
+            "text": "You were friends with Rina from the old Second Chorus and still have her phone number, though you have never used it. You keep the key to the clubroom's locked cabinet, entrusted to you after the old club folded."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Daichi studied bass at Aogiri, played in three almost-famous bands, and eventually bought the cafe where he once waited for a person who never came back after the old Second Chorus disaster. Moon Shell serves kissaten coffee, thick toast, and the kind of silence students mistake for wisdom. Daichi lets them, mostly.",
-      "personality": "Gentle, teasing, grounded, allergic to melodrama but respectful of real feeling. Daichi gives advice as stories about coffee, amps, and weather. He can supply history, refuge, and an off-campus scene that lets characters speak more honestly than they can under festival lights.",
-      "known_context": "Daichi knows Aogiri student rhythms, old Second Chorus history, Shimizu's guilt, and that the revived club has the same dangerous mix of art and unsaid love. He does not know the current triangle unless students bring it into Moon Shell.",
       "mechanics": {}
     },
     {
@@ -544,37 +571,38 @@
       "public_sheet": {
         "role": "first-year sound and lighting operator and backing vocalist for Second Chorus",
         "appearance": "small, quick, oversized band tee, a tangle of cables over one shoulder, one wireless earbud always in, sticker-covered laptop hugged to her chest",
-        "faction": "Second Chorus"
-      },
-      "descriptions": {
-        "public": "Chika Enomoto is the first-year who runs Second Chorus's soundboard and lighting and sings backing harmony when the mix needs a body.",
-        "private": "Chika idolizes the older members and, without understanding what she saw, is the accidental source of the After Bell tip after glimpsing Mio's sketchbook."
+        "faction": "Second Chorus",
+        "public_context": "Chika Enomoto is the first-year who runs Second Chorus's soundboard and lighting and sings backing harmony when the mix needs a body."
       },
       "visuals": {
         "default_loadout": "Small first-year in an oversized band tee with a tangle of cables over one shoulder, one wireless earbud in, and a sticker-covered laptop hugged to her chest."
       },
-      "private_state": {
-        "goals": [
-          "earn a real place among the older members she idolizes",
-          "prove a first-year can run tech for a closing-stage act",
-          "be trusted with something that actually matters"
-        ],
-        "current_objectives": [
-          "get the clubroom speakers and the amphitheater feed working before dress rehearsal",
-          "quietly kill the After Bell rumor she suspects she started",
-          "keep anyone from finding out the tip came from her"
-        ],
-        "secrets": [
-          "she is the unwitting source of the After Bell submission about Second Chorus",
-          "she glimpsed Mio's open sketchbook while borrowing a pencil and misread the Hanae drawings as a simple crush",
-          "she is terrified that if the truth comes out the club will exile her"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You grew up mixing tracks in a bedroom studio and came to Aogiri to be the person who makes other people sound huge."
+          },
+          {
+            "origin": "lived",
+            "text": "Second Chorus took you seriously when bigger clubs treated first-years as cable runners, so you love them with the fierce clumsiness of someone finally let inside."
+          },
+          {
+            "origin": "witnessed",
+            "text": "You know the club's gear, the rehearsal schedule, and that a rumor is spreading that you probably started. You do not understand the real shape of the triangle; you think you saw a simple crush."
+          },
+          {
+            "origin": "lived",
+            "text": "You create accidental pressure and comic energy, and your role in the leak creates a real test of forgiveness when it surfaces."
+          },
+          {
+            "origin": "told",
+            "text": "You are the unwitting source of the After Bell submission about Second Chorus. You glimpsed Mio's open sketchbook while borrowing a pencil and misread the Hanae drawings as a simple crush."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Chika grew up mixing tracks in a bedroom studio and came to Aogiri to be the person who makes other people sound huge. Second Chorus took her seriously when bigger clubs treated first-years as cable runners, so she loves them with the fierce clumsiness of someone finally let inside. Borrowing a pencil from Mio's bag, she saw a sketchbook full of one bright face and thought she understood a secret; a half-anonymous tip to After Bell felt like gossip, not a grenade.",
-      "personality": "Eager, fast-talking, technically gifted, socially a half-step behind. Chika hero-worships the leads and overcommits to fix her mistakes, which sometimes makes them worse. She should create accidental pressure and comic energy, and a real test of forgiveness when her role in the leak surfaces. She is outside the triangle and can be an honest, panicked mirror for the player.",
-      "known_context": "Chika knows the club's gear, the rehearsal schedule, and that a rumor is spreading that she probably started. She does not understand the real shape of the triangle; she thinks she saw a simple crush. She admires all three leads and would be devastated to learn she endangered them.",
       "mechanics": {}
     },
     {
@@ -589,37 +617,42 @@
       "public_sheet": {
         "role": "third-year performer and leader of Lantern Nine, the rival closing-act troupe",
         "appearance": "tall, easy-smiling, expensive-casual layers, a silver ear cuff, moves like the stage is already his",
-        "faction": "Lantern Nine"
-      },
-      "descriptions": {
-        "public": "Subaru Amari is the charismatic third-year leading Lantern Nine, the polished troupe competing with Second Chorus for the festival's closing slot.",
-        "private": "Subaru is genuinely talented and genuinely interested in Hanae, and he wants Mio's design eye for his act; he is a real rival, not a saboteur."
+        "faction": "Lantern Nine",
+        "public_context": "Subaru Amari is the charismatic third-year leading Lantern Nine, the polished troupe competing with Second Chorus for the festival's closing slot."
       },
       "visuals": {
         "default_loadout": "Tall third-year in expensive-casual layers with a silver ear cuff, an unhurried smile, and the loose confidence of someone used to the best rehearsal slot."
       },
-      "private_state": {
-        "goals": [
-          "win the closing slot for Lantern Nine and cap his final festival",
-          "win Hanae's attention honestly, on the strength of the work",
-          "build the most talented act he can, poaching skill where he finds it"
-        ],
-        "current_objectives": [
-          "hold the amphitheater rehearsal slot and look inevitable",
-          "invite Hanae to perform with Lantern Nine as a safer, bigger stage",
-          "recruit Mio's design talent away from Second Chorus"
-        ],
-        "secrets": [
-          "he respects Ren's writing more than he lets on and is a little threatened by it",
-          "he knows Lantern Nine is the council's safe choice and is quietly ashamed of leaning on that",
-          "his interest in Hanae is real, not a tactic"
-        ],
-        "intentions_enabled": true
+      "actor": {
+        "may_act_offstage": true,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You have been the reliable centerpiece of every show since your first year: the performer directors book when they cannot afford a failure."
+          },
+          {
+            "origin": "lived",
+            "text": "Lantern Nine is your farewell, and you want it to be undeniable."
+          },
+          {
+            "origin": "told",
+            "text": "You know the festival politics, that Lantern Nine is the council's fallback, that Hanae is the most magnetic performer on campus, and that Mio's design work is wasted on a club that might fold."
+          },
+          {
+            "origin": "told",
+            "text": "You do not know the triangle's interior; you read Hanae's warmth as availability and Mio's reserve as untapped talent."
+          },
+          {
+            "origin": "lived",
+            "text": "You never scheme in the dark; your threat is that you are genuinely good."
+          },
+          {
+            "origin": "told",
+            "text": "You respect Ren's writing more than you let on and are a little threatened by it. You know Lantern Nine is the council's safe choice and are quietly ashamed of leaning on that."
+          }
+        ]
       },
       "pending_observations": [],
-      "backstory": "Subaru has been the reliable centerpiece of every show since his first year: the performer directors book when they cannot afford a failure. Lantern Nine is his farewell, and he wants it to be undeniable. He noticed Hanae the way one professional notices another and found himself meaning the compliments. He is not cruel; he is simply the more convenient answer, and he knows how seductive that is to a nervous council.",
-      "personality": "Warm, polished, competitive, self-aware enough to be dangerous and decent enough to stop short of sabotage. Subaru pursues what he wants openly, which makes him harder to hate and easier to resent. Use him to pressure the closing slot, to court Hanae in ways that force Ren to act, and to tempt Mio with a bigger, safer stage. He should never scheme in the dark; his threat is that he is genuinely good.",
-      "known_context": "Subaru knows the festival politics, that Lantern Nine is the council's fallback, that Hanae is the most magnetic performer on campus, and that Mio's design work is wasted on a club that might fold. He does not know the triangle's interior; he reads Hanae's warmth as availability and Mio's reserve as untapped talent.",
       "mechanics": {}
     }
   ],

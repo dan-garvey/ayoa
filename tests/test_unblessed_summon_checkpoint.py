@@ -201,10 +201,11 @@ def test_opening_starts_at_guild_remand(
     ]
     opening_text = "\n".join([
         checkpoint.player_primer,
-        by_id[PLAYER_CHARACTER_ID].backstory,
-        by_id[PLAYER_CHARACTER_ID].known_context,
-        by_id[SECOND_PLAYER_CHARACTER_ID].backstory,
-        by_id[SECOND_PLAYER_CHARACTER_ID].known_context,
+        *(
+            fact.text
+            for player_id in PLAYER_CHARACTER_IDS
+            for fact in (by_id[player_id].actor.facts if by_id[player_id].actor else [])
+        ),
         checkpoint.world_state.setting.era,
     ]).lower()
     for term in stale_opening_terms:
@@ -214,8 +215,10 @@ def test_opening_starts_at_guild_remand(
 def test_player_does_not_start_with_cohort_names(by_id: dict) -> None:
     for player_id in PLAYER_CHARACTER_IDS:
         player_context = "\n".join([
-            by_id[player_id].backstory,
-            by_id[player_id].known_context,
+            fact.text
+            for fact in (
+                by_id[player_id].actor.facts if by_id[player_id].actor else []
+            )
         ]).lower()
         for cid in COHORT_CHARACTER_IDS:
             name = by_id[cid].name.lower()
@@ -239,15 +242,16 @@ def test_character_roster_matches_expected(by_id: dict) -> None:
     assert set(by_id) == EXPECTED_ALL_IDS
 
 
-def test_character_descriptions_are_split_and_seeded(by_id: dict) -> None:
+def test_character_public_sheets_and_actor_records_are_seeded(by_id: dict) -> None:
     for cid, char in by_id.items():
         assert char.agent_tier in {
             CharacterAgentTier.premium,
             CharacterAgentTier.standard,
             CharacterAgentTier.utility,
         }, cid
-        assert char.descriptions.public.strip(), f"{cid} missing public description"
-        assert char.descriptions.private.strip(), f"{cid} missing private description"
+        assert char.public_sheet.public_context.strip(), f"{cid} missing public context"
+        assert char.actor is not None, f"{cid} missing actor record"
+        assert char.actor.facts, f"{cid} missing actor facts"
 
     premium_ids = {
         cid for cid, char in by_id.items()
@@ -280,27 +284,18 @@ def test_character_descriptions_are_split_and_seeded(by_id: dict) -> None:
         "court_mage_selen",
     }
 
-    assert "S-rank" in by_id["korva_sahl"].descriptions.public
-    assert "Demon Lord" not in by_id["korva_sahl"].descriptions.public
-    assert "demonic" not in by_id["korva_sahl"].descriptions.public.lower()
-    assert "Demon Lord" in by_id["korva_sahl"].descriptions.private
-
-    assert "blue" in by_id["sora_kageyama"].descriptions.public.lower()
-    assert "manipulator" not in by_id["riku_tsumura"].descriptions.public.lower()
-    assert "stewardship" not in by_id["riku_tsumura"].descriptions.public.lower()
-    assert "Stewardship" in by_id["riku_tsumura"].descriptions.private
-
-
 def test_tick_annotations_seeded(by_id: dict) -> None:
     tickable = [
         c for c in by_id.values()
-        if c.status.value == "active" and c.private_state.intentions_enabled
+        if c.status.value == "active" and c.actor is not None and c.actor.may_act_offstage
     ]
     assert tickable
-    assert by_id["demon_lord"].private_state.intentions_enabled is True
+    assert by_id["demon_lord"].actor is not None
+    assert by_id["demon_lord"].actor.may_act_offstage is True
     assert by_id["demon_lord"].status.value == "active"
     assert by_id["princess_nirvel"].status.value == "dormant"
-    assert by_id["princess_nirvel"].private_state.intentions_enabled is False
+    assert by_id["princess_nirvel"].actor is not None
+    assert by_id["princess_nirvel"].actor.may_act_offstage is False
 
 
 def test_only_unblessed_pair_is_playable(by_id: dict) -> None:

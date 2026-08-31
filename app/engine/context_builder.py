@@ -75,51 +75,107 @@ def append_assistant_to_conversation(
     conversation.append(assistant_message_from_response(response))
 
 
-def build_character_packet(
+def _character_public_identity_lines(
     char: CharacterRecord,
-    checkpoint: CheckpointFile | None = None,
-) -> dict[str, str]:
-    """Build the stable character-identity variables for the agent user tail.
+    checkpoint: CheckpointFile | None,
+) -> list[str]:
+    """Return the character's prompt-safe, public identity in second person."""
 
-    Dynamic state (goals/objectives/secrets) is rendered into the same per-turn
-    user message separately; this function covers the stable identity portion.
-
-    Traits, voice, and narrative_notes are gone as separate fields —
-    personality absorbs all of them into one prose block.
-    """
-    backstory = char.backstory or "No detailed backstory available."
-    dnd_identity = (
-        build_dnd_character_identity_sentence(checkpoint, char)
-        if checkpoint is not None else ""
-    )
-    if dnd_identity:
-        backstory = f"{dnd_identity}\n{backstory}"
     protected_terms = _imported_content_metadata_terms(checkpoint)
 
-    return {
-        "character_id": char.character_id,
-        "character_name": char.name,
-        "character_role": _sanitize_character_prompt_text(
-            char.public_sheet.role or "unspecified",
+    def clean(value: str) -> str:
+        return _sanitize_character_prompt_text(
+            value,
             protected_terms=protected_terms,
-        ),
-        "character_appearance": _sanitize_character_prompt_text(
-            char.public_sheet.appearance or "unremarkable",
-            protected_terms=protected_terms,
-        ),
-        "character_faction": _sanitize_character_prompt_text(
-            char.public_sheet.faction or "unaffiliated",
-            protected_terms=protected_terms,
-        ),
-        "character_backstory": _sanitize_character_prompt_text(
-            backstory,
-            protected_terms=protected_terms,
-        ),
-        "character_personality": _sanitize_character_prompt_text(
-            char.personality or "No detailed personality notes.",
-            protected_terms=protected_terms,
-        ),
-    }
+        ).strip()
+
+    name = clean(char.name) or "Unnamed character"
+    lines = [f"You are {name}."]
+    role = clean(char.public_sheet.role)
+    appearance = clean(char.public_sheet.appearance)
+    faction = clean(char.public_sheet.faction)
+    public_context = clean(char.public_sheet.public_context)
+    loadout = clean(char.visuals.default_loadout)
+    if role:
+        lines.append(f"You are publicly known as {role}.")
+    if appearance:
+        lines.append(f"Your established appearance is {appearance}.")
+    if faction:
+        lines.append(f"You are associated with {faction}.")
+    if public_context:
+        lines.append(f"Others openly know this about you: {public_context}")
+    if loadout:
+        lines.append(f"Your established visible loadout is {loadout}.")
+    return lines
+
+
+def build_character_self_packet(
+    char: CharacterRecord,
+    checkpoint: CheckpointFile | None = None,
+) -> str:
+    """Project one sparse, owner-bounded self packet for a character turn.
+
+    The packet is deliberately text-only: public identity and this character's
+    own facts, without provenance labels or adapter-specific identity.  Adapter
+    state belongs in the current moment, where it can vary with an active
+    ruleset.
+    """
+
+    protected_terms = _imported_content_metadata_terms(checkpoint)
+    actor_facts = [
+        cleaned
+        for fact in (char.actor.facts if char.actor is not None else ())
+        if (
+            cleaned := _sanitize_character_prompt_text(
+                fact.text,
+                protected_terms=protected_terms,
+            ).strip()
+        )
+    ]
+    lines = _character_public_identity_lines(char, checkpoint)
+    if actor_facts:
+        lines.extend([
+            "",
+            *(f"- {fact}" for fact in actor_facts),
+        ])
+    return "\n".join(lines).strip()
+
+
+def build_visible_self_packet(
+    char: CharacterRecord,
+    checkpoint: CheckpointFile | None = None,
+) -> str:
+    """Project public, visible identity for an exterior-only request."""
+
+    return "\n".join(_character_public_identity_lines(char, checkpoint)).strip()
+
+
+def build_character_turn_request_packet(
+    char: CharacterRecord,
+    checkpoint: CheckpointFile | None,
+    current_moment: str,
+) -> str:
+    """Build the complete current user packet for one character response."""
+
+    return "\n\n".join([
+        "<you>\n" + build_character_self_packet(char, checkpoint) + "\n</you>",
+        "<now>\n" + (current_moment or "").strip() + "\n</now>",
+    ])
+
+
+def build_character_perception_request_packet(
+    char: CharacterRecord,
+    checkpoint: CheckpointFile | None,
+    visible_moment: str,
+) -> str:
+    """Build the complete current user packet for an exterior description."""
+
+    return "\n\n".join([
+        "<visible_person>\n"
+        + build_visible_self_packet(char, checkpoint)
+        + "\n</visible_person>",
+        "<visible_now>\n" + (visible_moment or "").strip() + "\n</visible_now>",
+    ])
 
 
 def replace_character_ids_with_names(
@@ -186,47 +242,6 @@ def replace_character_ids_for_narrator(
         )
         out = pattern.sub("", out)
     return replace_character_ids_with_names(out, checkpoint)
-
-
-def build_character_state(
-    char: CharacterRecord,
-    checkpoint: CheckpointFile | None = None,
-) -> dict[str, str]:
-    """Build the per-turn dynamic state variables for the agent user message."""
-    protected_terms = _imported_content_metadata_terms(checkpoint)
-    clean_goals = _sanitize_character_prompt_items(
-        char.private_state.goals,
-        protected_terms=protected_terms,
-    )
-    clean_objectives = _sanitize_character_prompt_items(
-        char.private_state.current_objectives,
-        protected_terms=protected_terms,
-    )
-    clean_secrets = _sanitize_character_prompt_items(
-        char.private_state.secrets,
-        protected_terms=protected_terms,
-    )
-    goals = (
-        "\n".join(f"- {g}" for g in clean_goals)
-        if clean_goals
-        else "None specified."
-    )
-    objectives = (
-        "\n".join(f"- {o}" for o in clean_objectives)
-        if clean_objectives
-        else "None active — let your response emerge from your goals and the moment."
-    )
-    secrets = (
-        "\n".join(f"- {s}" for s in clean_secrets)
-        if clean_secrets
-        else "None."
-    )
-
-    return {
-        "character_goals": goals,
-        "character_current_objectives": objectives,
-        "character_secrets": secrets,
-    }
 
 
 def resolve_location_for_character(
@@ -337,26 +352,6 @@ def pov_location_for_user(
     return ""
 
 
-def build_world_context(
-    character: CharacterRecord,
-    checkpoint: CheckpointFile,
-) -> str:
-    """World context as THIS character perceives it.
-
-    Every social character carries a `known_context` envelope: the filtered
-    slice of lore, facts, and rumors they plausibly know. Empty means no world
-    knowledge has been established yet. It must never fall back to global lore;
-    that would turn ignorance into omniscience for blank-memory arrivals.
-    """
-    protected_terms = _imported_content_metadata_terms(checkpoint)
-    if character.known_context:
-        return _sanitize_character_prompt_text(
-            character.known_context,
-            protected_terms=protected_terms,
-        )
-    return "No world knowledge has been established for you yet."
-
-
 def _sanitize_character_prompt_text(
     value: str,
     *,
@@ -384,23 +379,6 @@ def format_character_location_for_agent(
     if REDACTED_IMPORT_SENTINEL not in cleaned:
         return cleaned
     return _humanize_content_ref_label(raw)
-
-
-def _sanitize_character_prompt_items(
-    values: list[str],
-    *,
-    protected_terms: tuple[str, ...] = (),
-) -> list[str]:
-    return [
-        cleaned
-        for value in values
-        if (
-            cleaned := _sanitize_character_prompt_text(
-                value,
-                protected_terms=protected_terms,
-            )
-        )
-    ]
 
 
 def _imported_content_metadata_terms(
@@ -569,12 +547,10 @@ def build_dnd_player_identities_block(checkpoint: CheckpointFile) -> str:
     if not lines:
         return ""
     return (
-        "## D&D Player Character Identities\n"
-        "Use these to avoid wrong species, ancestry, or class references when "
-        "your character has in-fiction reason to refer to a player character; "
-        "do not treat this block as new private knowledge.\n"
+        "These are reliable descriptions of people you may refer to when you "
+        "already have reason to know them. They do not give you new private "
+        "knowledge:\n"
         + "\n".join(lines)
-        + "\n\n"
     )
 
 
@@ -765,7 +741,7 @@ def format_elapsed_agent_turn_block(
     character: CharacterRecord,
     checkpoint: CheckpointFile,
 ) -> str:
-    """Render elapsed story time since this agent last got a turn.
+    """Render elapsed story time since the character last answered.
 
     `clock_at_s` moves when the character observes events, so it cannot
     answer this question by itself. `last_agent_turn_at_s` is updated only
@@ -780,23 +756,19 @@ def format_elapsed_agent_turn_block(
         int(character.clock_at_s),
     )
     elapsed_s = max(0, current_at_s - int(last_turn_at_s))
-    lines = ["## Time Since Your Last Turn"]
     if elapsed_s == 0:
-        lines.append(
-            "No meaningful story time has passed since you last had a "
-            "chance to act."
+        return (
+            "No meaningful story time has passed since you last had a chance "
+            "to act."
         )
-    else:
-        lines.append(
-            f"About {_format_elapsed_duration(elapsed_s)} has passed in the "
-            "story since you last had a chance to act."
-        )
-    lines.append("")
-    return "\n".join(lines) + "\n"
+    return (
+        f"About {_format_elapsed_duration(elapsed_s)} has passed since you "
+        "last had a chance to act."
+    )
 
 
 def format_pending_observations_block(character: CharacterRecord) -> str:
-    """Render the "Since your last response" block for the agent user message.
+    """Render actor-visible observations for the character user packet.
 
     Lists silent observations the character witnessed since their last
     response. Returns empty string when nothing is pending so the
@@ -805,10 +777,9 @@ def format_pending_observations_block(character: CharacterRecord) -> str:
     if not character.pending_observations:
         return ""
 
-    lines = ["## Since your last response"]
+    lines = ["What has reached you since you last answered:"]
     for entry in character.pending_observations:
         cleaned = redact_imported_content_metadata_text(entry)
         if cleaned:
             lines.append(f"- {cleaned}")
-    lines.append("")  # trailing blank line before next section
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines)

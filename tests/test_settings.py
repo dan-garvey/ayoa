@@ -18,8 +18,8 @@ from app.engine.settings import (
     set_setting,
 )
 from app.schemas.characters import (
+    ActorRecord,
     CharacterRecord,
-    PrivateState,
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
@@ -52,7 +52,7 @@ def _ckpt() -> CheckpointFile:
                 name="The Regent",
                 location="hall",
                 public_sheet=PublicSheet(role="regent"),
-                private_state=PrivateState(intentions_enabled=True),
+                actor=ActorRecord(may_act_offstage=True),
             ),
         ],
     )

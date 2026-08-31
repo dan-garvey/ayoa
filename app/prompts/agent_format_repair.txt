@@ -1,6 +1,0 @@
-The preceding character response did not satisfy the turn contract. Return one
-corrected in-character turn. Put only outwardly observable words and action in
-`observable_prose`; put one non-empty complete-sentence interior purpose in
-`private_intent`; and use `presentation.use` and `presentation.request` only for
-the character's outward display. Keep private intent out of observable prose
-and add no commentary about the correction.

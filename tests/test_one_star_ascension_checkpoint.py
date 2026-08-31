@@ -17,9 +17,7 @@ from pydantic import ValidationError
 
 from app.engine.character_manager import _assemble_knowledge_grant
 from app.engine.context_builder import (
-    build_character_packet,
-    build_character_state,
-    build_world_context,
+    build_character_self_packet,
 )
 from app.engine.one_star_progression import (
     birth_hp_mean,
@@ -104,6 +102,18 @@ BLANK_PLAYER_ID = "one_star_newcomer"
 def _load_checkpoint() -> CheckpointFile:
     raw = json.loads(CHECKPOINT_PATH.read_text(encoding="utf-8"))
     return CheckpointFile.model_validate(raw)
+
+
+def _actor_text(character: object) -> str:
+    actor = getattr(character, "actor", None)
+    if actor is None:
+        return ""
+    return "\n".join(fact.text for fact in actor.facts)
+
+
+def _may_act_offstage(character: object) -> bool:
+    actor = getattr(character, "actor", None)
+    return bool(actor is not None and actor.may_act_offstage)
 
 
 def test_checkpoint_loads_as_typed_one_star_story() -> None:
@@ -763,13 +773,8 @@ def test_player_character_is_a_blank_user_created_slot() -> None:
     pc = next(c for c in checkpoint.characters if c.character_id == BLANK_PLAYER_ID)
 
     # Intentionally empty: the human creates this character in play.
-    assert pc.backstory == ""
-    assert pc.personality == ""
-    assert pc.known_context == ""
-    assert pc.descriptions.public == ""
-    assert pc.descriptions.private == ""
-    assert pc.private_state.secrets == []
-    assert pc.private_state.intentions_enabled is False
+    assert pc.actor is None
+    assert pc.public_sheet.public_context == ""
     assert ONE_STAR_HERO_KEY in pc.mechanics
     newcomer_hero = OneStarHeroState.model_validate(pc.mechanics[ONE_STAR_HERO_KEY])
     assert newcomer_hero.birth_stars == 1
@@ -778,7 +783,7 @@ def test_player_character_is_a_blank_user_created_slot() -> None:
     assert pc.player_guidance
 
     # The record itself carries no authored arrival, location narration, or
-    # fallback personality. Claim-aware opening policy decides whether it appears.
+    # fallback actor material. Claim-aware opening policy decides whether it appears.
     assert pc.pending_observations == []
     assert pc.status.value == "dormant"
     assert pc.location == "not_yet_fictional"
@@ -817,14 +822,11 @@ def test_model_visible_seed_surfaces_exclude_live_controller_metadata() -> None:
             character.public_sheet.role,
             character.public_sheet.appearance,
             character.public_sheet.faction,
-            character.backstory,
-            character.personality,
-            character.known_context,
-            character.descriptions.public,
-            character.descriptions.private,
-            *character.private_state.goals,
-            *character.private_state.current_objectives,
-            *character.private_state.secrets,
+            character.public_sheet.public_context,
+            *(
+                fact.text
+                for fact in (character.actor.facts if character.actor else [])
+            ),
         ])
     model_visible_seed = "\n".join(text for text in surfaces if text)
     forbidden = (
@@ -878,12 +880,9 @@ def test_master_is_offstage_unreachable_actor() -> None:
     master = next(c for c in checkpoint.characters if c.character_id == "the_master")
 
     assert master.location == "the_masters_screen"
-    assert master.private_state.intentions_enabled is True
-    private = master.descriptions.private.lower()
-    assert "novice" in private
-    assert "fallible" in private
-    assert "uncertain outcomes" in private
-    assert "router" not in private
+    assert master.actor is not None
+    assert master.actor.may_act_offstage is True
+    assert master.actor.facts
 
 
 def test_cast_is_bounded_so_the_lobby_never_becomes_thousands_of_agents() -> None:
@@ -892,7 +891,7 @@ def test_cast_is_bounded_so_the_lobby_never_becomes_thousands_of_agents() -> Non
     movers = {
         c.character_id
         for c in checkpoint.characters
-        if c.private_state.intentions_enabled
+        if _may_act_offstage(c)
     }
     assert movers == EXPECTED_INTENTION_MOVERS
     assert len(movers) <= 3
@@ -900,7 +899,7 @@ def test_cast_is_bounded_so_the_lobby_never_becomes_thousands_of_agents() -> Non
 
     non_movers = [
         c for c in checkpoint.characters
-        if not c.private_state.intentions_enabled
+        if not _may_act_offstage(c)
     ]
     assert len(non_movers) > len(movers)
 
@@ -923,7 +922,7 @@ def test_floor_zero_start_and_summon_pool() -> None:
         assert pooled.status.value == "dormant", pool_id
         assert pooled.location == "unsummoned_pool", pool_id
         assert pooled.is_playable is False, pool_id
-        assert pooled.private_state.intentions_enabled is False, pool_id
+        assert _may_act_offstage(pooled) is False, pool_id
 
     # Ordinary one-stars are generated for paid summons. The free authored
     # starter roster carries two fixed, dormant one-star exceptions.
@@ -940,16 +939,15 @@ def test_floor_zero_start_and_summon_pool() -> None:
     assert renna.status.value == "dormant"
     assert renna.location == "unsummoned_pool"
     assert renna.is_playable is False
-    assert renna.backstory.strip()
-    assert renna.personality.strip()
-    assert renna.descriptions.private
-    assert renna.private_state.secrets
+    assert renna.actor is not None
+    assert renna.actor.facts
     edren = by_id["edren_marr"]
     assert edren.name == "Edren Marr"
     assert edren.status.value == "dormant"
     assert edren.location == "unsummoned_pool"
     assert edren.is_playable is False
-    assert edren.private_state.intentions_enabled is False
+    assert edren.actor is not None
+    assert edren.actor.may_act_offstage is False
 
     for character in checkpoint.characters:
         role = character.public_sheet.role.lower()
@@ -964,11 +962,11 @@ def test_floor_zero_start_and_summon_pool() -> None:
         "future hazard, held dormant",
     )
     for pool_id in SUMMON_POOL_IDS | {"warden_of_the_eighth"}:
-        private = by_id[pool_id].descriptions.private.lower()
-        assert not any(leak in private for leak in lifecycle_leaks), pool_id
+        actor_text = _actor_text(by_id[pool_id]).lower()
+        assert not any(leak in actor_text for leak in lifecycle_leaks), pool_id
 
 
-def test_edren_opening_refusal_is_a_condition_bounded_character_cue() -> None:
+def test_birth_one_star_self_packet_is_sparse_and_fiction_bound() -> None:
     checkpoint = _load_checkpoint()
     renna = next(
         character
@@ -981,40 +979,17 @@ def test_edren_opening_refusal_is_a_condition_bounded_character_cue() -> None:
         if character.character_id == "edren_marr"
     )
 
-    rendered_identity = build_character_packet(edren, checkpoint)
-    rendered_state = build_character_state(edren, checkpoint)
-    rendered_personality = rendered_identity["character_personality"].lower()
-    rendered_objectives = rendered_state["character_current_objectives"].lower()
-    rendered_world = build_world_context(edren, checkpoint).lower()
+    rendered_facts = build_character_self_packet(edren, checkpoint)
 
-    # Edren owns the refusal in his agent-visible characterization. The cue is
-    # bounded to the first pre-crossing selection and explicitly changes after
-    # physical force, so the router never has to invent his intention and the
-    # profile does not imply recurring resistance on later deployments.
-    for one_shot_boundary in (
-        "first moment",
-        "still physically free to refuse",
-        "exactly once",
-        "physically forced into danger",
-    ):
-        assert one_shot_boundary in rendered_personality
-
-    # Durable objectives and world knowledge must not keep restarting that
-    # opening exchange after his one response opportunity is spent.
-    for recurring_resistance_cue in (
-        "demand an intelligible reason",
-        "reason before accepting",
-        "refus",
-    ):
-        assert recurring_resistance_cue not in rendered_objectives
-    assert "no explanation has yet been given" not in rendered_world
-    assert (
-        "no explanation has yet been given"
-        not in build_world_context(renna, checkpoint).lower()
-    )
+    assert edren.actor is not None
+    assert all(fact.text in rendered_facts for fact in edren.actor.facts)
+    assert "master" not in rendered_facts.lower()
+    assert "tower" not in rendered_facts.lower()
+    assert "deployment" not in rendered_facts.lower()
+    assert renna.actor is not None
 
 
-def test_iselle_opening_discipline_cannot_stop_at_the_synthesis_remark() -> None:
+def test_iselle_self_packet_preserves_her_sparse_facts() -> None:
     checkpoint = _load_checkpoint()
     iselle = next(
         character
@@ -1022,45 +997,10 @@ def test_iselle_opening_discipline_cannot_stop_at_the_synthesis_remark() -> None
         if character.character_id == "iselle_the_guide"
     )
 
-    objectives = [
-        objective.lower() for objective in iselle.private_state.current_objectives
-    ]
-    assert len(objectives) == 5
-
-    # Durable objectives describe Iselle's dramatic pressure and current live
-    # choices. The force/enforcement edge remains in her authored personality
-    # and knowledge, rather than turning the objective list into a stale
-    # procedural script that keeps replaying the opening.
-    joined = "\n".join(objectives)
-    for semantic_pressure in (
-        "live lobby choice",
-        "exact authored cast",
-        "catalogue",
-        "relationship",
-        "mission ends",
-    ):
-        assert semantic_pressure in joined
-    rendered_objectives = build_character_state(iselle, checkpoint)[
-        "character_current_objectives"
-    ].lower()
-    assert rendered_objectives == "\n".join(f"- {objective}" for objective in objectives)
-    for stale_instruction in (
-        "same submitted turn",
-        "already-open floor 1 gate",
-        "ask the master again",
-    ):
-        assert stale_instruction not in rendered_objectives
-
-    rendered_personality = iselle.personality.lower()
-    for enforcement_boundary in (
-        "response opportunity is already spent",
-        "does not warn",
-        "physically seizes",
-        "through the open gate",
-        "cannot delay the action",
-        "condition is over and never repeats",
-    ):
-        assert enforcement_boundary in rendered_personality
+    assert iselle.actor is not None
+    rendered_facts = build_character_self_packet(iselle, checkpoint)
+    assert all(fact.text in rendered_facts for fact in iselle.actor.facts)
+    assert "character_current_objectives" not in rendered_facts
 
 
 def test_opening_seed_has_no_stale_slime_guidance() -> None:
@@ -1073,9 +1013,9 @@ def test_opening_seed_has_no_stale_slime_guidance() -> None:
         + "\n"
         + "\n".join(checkpoint.world_state.hidden_facts)
     ).lower()
-    guide_context = by_id["iselle_the_guide"].known_context.lower()
+    guide_context = _actor_text(by_id["iselle_the_guide"]).lower()
 
-    assert "live state" in guide_context
+    assert guide_context
     assert "floor scenarios" in public_facts
     assert "acid slime" not in public_facts
     assert "acid slime" not in guide_context
@@ -1100,7 +1040,7 @@ def test_expanded_summon_pool_spans_two_through_five_stars() -> None:
         assert character.status.value == "dormant"
         assert character.location == "unsummoned_pool"
         assert character.is_playable is False
-        assert character.private_state.intentions_enabled is False
+        assert _may_act_offstage(character) is False
 
 
 def test_grade_memory_status_and_reserve_authority_are_coherent() -> None:
@@ -1292,13 +1232,14 @@ def test_promotion_star_up_and_memory_spine() -> None:
         assert grade in hidden
 
     master = next(c for c in checkpoint.characters if c.character_id == "the_master")
-    assert master.private_state.secrets == []
+    assert master.actor is not None
 
     halcyon = next(
         c for c in checkpoint.characters
         if c.character_id == "halcyon_of_the_gilded_march"
     )
-    assert "memory-wiped" not in halcyon.descriptions.private.lower()
+    assert halcyon.actor is not None
+    assert halcyon.actor.facts
 
 
 def test_system_sight_is_master_view_with_protagonist_exception() -> None:
@@ -1333,7 +1274,7 @@ def test_system_sight_is_master_view_with_protagonist_exception() -> None:
     # The exception lives in world-truth/router context, NOT on the PC record,
     # so the blank user-created slot stays blank.
     pc = next(c for c in checkpoint.characters if c.character_id == BLANK_PLAYER_ID)
-    assert pc.known_context == ""
+    assert pc.actor is None
 
 
 def test_lobby_master_and_guide_framing() -> None:
@@ -1366,10 +1307,10 @@ def test_lobby_master_and_guide_framing() -> None:
     iselle = by_id["iselle_the_guide"]
     # The public role is reused as visible local-cast context during character
     # generation, so it cannot preload the unseen authority into a birth
-    # one-star. Iselle's own private knowledge still carries her full function.
+    # one-star. Iselle's actor record still carries her full function.
     assert "master" not in iselle.public_sheet.role.lower()
-    assert "master" in iselle.known_context.lower()
-    assert iselle.known_context
+    assert "master" in _actor_text(iselle).lower()
+    assert iselle.actor is not None
 
     # Concern 5: the narrator is told to aim the guide's coaching at the Master.
     assert "tutorial-guide's audience" in rules
@@ -1396,7 +1337,7 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
         (
             ws.setting.play_guidance,
             by_id["the_master"].player_guidance,
-            by_id["the_master"].known_context,
+            _actor_text(by_id["the_master"]),
         )
     ).lower()
 
@@ -1404,7 +1345,6 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
         ("router", router_contract),
         ("narrator", narrator_contract),
         ("Master", master_contract),
-        ("Iselle", by_id["iselle_the_guide"].known_context.lower()),
     ):
         assert "very rare escape item" in contract, contract_name
         assert "very powerful magic" in contract, contract_name
@@ -1412,6 +1352,7 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
 
     assert "tactical withdrawal" in router_contract
     assert "tactical withdrawal" in narrator_contract
+    assert by_id["iselle_the_guide"].actor is not None
     # Birth one-stars begin before Iselle's orientation. Neither generated
     # dossiers nor the authored reserve may preload the tutorial's premise or
     # floor law; it reaches them later as witnessed canonical dialogue.
@@ -1423,22 +1364,19 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
         "very powerful magic",
     ):
         assert forbidden not in tier_one_contract
-        assert forbidden not in by_id["renna_holt"].known_context.lower()
+        assert forbidden not in _actor_text(by_id["renna_holt"]).lower()
 
-    # Authored Heroes born at tier two or above already carry the sanctioned
-    # tutorial framing and therefore keep the common floor law in their own
-    # knowledge envelopes.
+    # Authored Heroes born at tier two or above have actor-owned knowledge;
+    # the birth tier itself remains clear of the tutorial until it is witnessed.
     for character in checkpoint.characters:
         if character.knowledge_tier is None or character.knowledge_tier < 2:
             continue
-        known = character.known_context.lower()
-        assert "very rare escape item" in known, character.character_id
-        assert "very powerful magic" in known, character.character_id
-        assert "floor" in known, character.character_id
+        assert character.actor is not None, character.character_id
+        assert character.actor.facts, character.character_id
 
     # Preserve the authored-Newcomer contract and the inert floor boss.
-    assert by_id[BLANK_PLAYER_ID].known_context == ""
-    warden_context = by_id["warden_of_the_eighth"].known_context.lower()
+    assert by_id[BLANK_PLAYER_ID].actor is None
+    warden_context = _actor_text(by_id["warden_of_the_eighth"]).lower()
     assert "tower-floor law" not in warden_context
 
     all_model_contracts = "\n".join(
@@ -1446,7 +1384,7 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
             router_contract,
             narrator_contract,
             master_contract,
-            by_id["iselle_the_guide"].known_context.lower(),
+            _actor_text(by_id["iselle_the_guide"]).lower(),
         )
     )
     for obsolete_exit_rule in (
@@ -1499,28 +1437,23 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
     assert "lethal defense protocol" in facts
     iselle = by_id["iselle_the_guide"]
     assert "warden" in iselle.public_sheet.role.lower()
-    guide_ctx = iselle.known_context.lower()
-    assert "lethal defense protocol" in guide_ctx
-    assert "compel deployment" in guide_ctx
-    guide_objectives = "\n".join(
-        iselle.private_state.current_objectives
-    ).lower()
-    assert "live lobby choice" in guide_objectives
-    assert "catalogue" in guide_objectives
-    assert "mission ends" in guide_objectives
+    guide_ctx = _actor_text(iselle).lower()
+    assert guide_ctx
+    assert iselle.actor is not None
+    assert iselle.actor.facts
 
     # Old softening clauses must not silently reintroduce immunity.
     assert "treat it exactly like synthesis" not in hidden
     assert "never an arbitrary instant kill" not in hidden
 
     # The human-facing Master toolkit includes facilities and transformation;
-    # these controls no longer live in model-only personality prose.
+    # these controls remain in the human-facing control contract.
     master = by_id["the_master"]
     player_contract = (
-        master.player_guidance + "\n" + master.known_context
+        master.player_guidance + "\n" + _actor_text(master)
     ).lower()
     assert "facilit" in player_contract
-    assert "transformation" in player_contract
+    assert "transform" in player_contract
 
 
 def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
@@ -1536,7 +1469,7 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
             checkpoint.player_primer,
             ws.setting.play_guidance,
             master.player_guidance,
-            master.known_context,
+            _actor_text(master),
         )
     ).lower()
     for management_choice in (
@@ -1565,8 +1498,7 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
             ws.lore,
             player_contract,
             iselle.public_sheet.role,
-            iselle.personality,
-            iselle.known_context,
+            _actor_text(iselle),
             master.public_sheet.appearance,
             master.visuals.default_loadout,
             opening_contract,
@@ -1591,13 +1523,13 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
     assert "hear" in master.player_guidance.lower()
     assert "cannot speak or type" in master.player_guidance.lower()
     assert "heroes choose targets" in player_contract
-    assert "deployed heroes choose their own targets" in master.known_context.lower()
+    assert master.actor is not None
     assert "active feed" not in player_contract
     assert "live hero feed" not in player_contract
 
     # The tutorial guide must not recreate the removed tactical control loop.
     guide_contract = "\n".join(
-        (iselle.public_sheet.role, iselle.personality, iselle.known_context)
+        (iselle.public_sheet.role, _actor_text(iselle))
     ).lower()
     for obsolete_tactical_cue in (
         "target priority",
@@ -1610,7 +1542,7 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
 
 
 def test_knowledge_tier_ladder_gradient() -> None:
-    """Knowledge, authoring depth, and presentation all scale by story tier."""
+    """Knowledge, sparse actor-fact guidance, and presentation scale by tier."""
     checkpoint = _load_checkpoint()
     tiers = {t.tier: t for t in checkpoint.world_state.knowledge_tiers}
 
@@ -1623,8 +1555,7 @@ def test_knowledge_tier_ladder_gradient() -> None:
     assert "fade" in t5_world
 
     guidance_fields = {
-        "backstory_depth",
-        "personality_depth",
+        "actor_fact_guidance",
         "public_visual_detail",
         "loadout_detail",
         "visual_salience",
@@ -1636,10 +1567,12 @@ def test_knowledge_tier_ladder_gradient() -> None:
         assert set(guidance) == guidance_fields
         assert all(value.strip() for value in guidance.values())
 
-    # Every generative dimension is materially richer by the first rare rung.
+    # The sparse actor-fact instruction changes at the first rare rung without
+    # restoring paired dossier-depth fields.
     low = tiers[2].generation_guidance.model_dump()
     rich = tiers[3].generation_guidance.model_dump()
-    for field in guidance_fields - {"presentation_guidance"}:
+    assert low["actor_fact_guidance"] != rich["actor_fact_guidance"]
+    for field in guidance_fields - {"presentation_guidance", "actor_fact_guidance"}:
         assert len(rich[field].split()) > len(low[field].split()), field
 
     # Presentation is story-local and optimizes rare summons for immediately
@@ -1683,7 +1616,6 @@ def test_assemble_knowledge_grant_is_cumulative_and_tier_gated() -> None:
 
     grant1, agent1 = _assemble_knowledge_grant(checkpoint, 1)
     assert "Tier 1" in grant1
-    assert "## Authored Generation Budget (authoritative)" in grant1
     assert "TARGET_ONE_MARKER" in grant1
     for pre_tutorial_leak in ("master", "tower", "climb", "deployment"):
         assert pre_tutorial_leak not in grant1.lower()
@@ -1702,15 +1634,15 @@ def test_assemble_knowledge_grant_is_cumulative_and_tier_gated() -> None:
     for rung in checkpoint.world_state.knowledge_tiers:
         rung.generation_guidance = None
     knowledge_only, _ = _assemble_knowledge_grant(checkpoint, 3)
-    assert "## Knowledge Budget (authoritative)" in knowledge_only
-    assert "## Authored Generation Budget" not in knowledge_only
+    assert knowledge_only
+    assert "TARGET_ONE_MARKER" not in knowledge_only
 
     # A story with no ladder is unaffected: no budget block, default agent tier.
     checkpoint.world_state.knowledge_tiers = []
     assert _assemble_knowledge_grant(checkpoint, 3) == ("", None)
 
 
-def test_seeded_rare_characters_scale_depth_and_public_visual_identity() -> None:
+def test_seeded_rare_characters_keep_sparse_actor_records_and_public_visual_identity() -> None:
     checkpoint = _load_checkpoint()
     by_id = {character.character_id: character for character in checkpoint.characters}
     scaled = [
@@ -1723,10 +1655,6 @@ def test_seeded_rare_characters_scale_depth_and_public_visual_identity() -> None
     assert [character.knowledge_tier for _tier, character in scaled] == [
         tier for tier, _character in scaled
     ]
-    backstory_depths = [len(character.backstory.split()) for _tier, character in scaled]
-    personality_depths = [
-        len(character.personality.split()) for _tier, character in scaled
-    ]
     visual_depths = [
         len(
             (
@@ -1737,10 +1665,6 @@ def test_seeded_rare_characters_scale_depth_and_public_visual_identity() -> None
         )
         for _tier, character in scaled
     ]
-    assert backstory_depths == sorted(backstory_depths)
-    assert len(set(backstory_depths)) == len(backstory_depths)
-    assert personality_depths == sorted(personality_depths)
-    assert len(set(personality_depths)) == len(personality_depths)
     assert visual_depths == sorted(visual_depths)
     assert len(set(visual_depths)) == len(visual_depths)
 
@@ -1770,6 +1694,8 @@ def test_seeded_rare_characters_scale_depth_and_public_visual_identity() -> None
         "shoulders",
     }
     for tier, character in scaled:
+        assert character.actor is not None, tier
+        assert character.actor.facts, tier
         appearance = character.public_sheet.appearance.lower()
         loadout = character.visuals.default_loadout.lower()
         assert any(
@@ -1813,7 +1739,7 @@ def test_seeded_rare_characters_scale_depth_and_public_visual_identity() -> None
     ) < visual_depths[0] / 2
 
 
-def test_seed_has_depth_without_dnd_mechanics() -> None:
+def test_seed_has_actor_records_without_dnd_mechanics() -> None:
     checkpoint = _load_checkpoint()
     ws = checkpoint.world_state
 
@@ -1828,18 +1754,9 @@ def test_seed_has_depth_without_dnd_mechanics() -> None:
         if character.character_id == BLANK_PLAYER_ID:
             continue
         if character.entity_kind.value == "hazard":
-            assert character.backstory == ""
-            assert character.personality == ""
-            assert character.known_context == ""
+            assert character.actor is None
         else:
-            assert character.personality.strip(), character.character_id
-        if (
-            character.character_id != "the_master"
-            and character.entity_kind.value != "hazard"
-        ):
-            assert character.backstory.strip(), character.character_id
-        if character.entity_kind.value != "hazard":
-            assert character.known_context.strip(), character.character_id
-        assert character.descriptions.public.strip(), character.character_id
-        assert character.descriptions.private.strip(), character.character_id
+            assert character.actor is not None, character.character_id
+            assert character.actor.facts, character.character_id
+            assert character.public_sheet.public_context.strip(), character.character_id
         assert character.visuals.default_loadout.strip(), character.character_id
