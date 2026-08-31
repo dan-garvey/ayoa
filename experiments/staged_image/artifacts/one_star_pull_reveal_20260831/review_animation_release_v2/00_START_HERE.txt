@@ -1,0 +1,21 @@
+ONE-STAR PULL REVEAL — OUTWARD RELEASE V2
+
+This revision reverses the prior containment motion. Locks begin attached to
+the card and eject outward. Gold and white-gold chains begin visibly wrapped
+across the card face, fracture, and travel outward with the locks. Every tier
+holds on a pre-reveal flash before the existing static result board.
+
+01  UNDER 3 STARS // PLAIN RELEASE  1.28s  1.52 MiB
+02  3-4 STARS // SILVER LOCK RELEASE  1.87s  3.23 MiB
+03  5-6 STARS // GOLD CHAINBREAK  2.37s  4.12 MiB
+04  7 STARS // WHITE-GOLD CHAINBREAK  2.97s  5.80 MiB
+
+READING THE LADDER
+- Under 3 stars: plain scan, outward aura, modest flash; no locks or chains.
+- 3-4 stars: two locks pop open and release away from the card.
+- 5-6 stars: two wrapped gold chains break as three locks eject.
+- 7 stars: three wrapped white-gold chains shatter as four locks eject.
+
+The GIFs loop only for review. Production intent is one play, a held flash,
+then the static identity/rank result. Motion carries no required game state.
+V1 remains preserved as the rejected inward-lock comparison.
