@@ -1,0 +1,715 @@
+{
+  "schema_version": "mirelle_dialogue_factorial_manifest_v1",
+  "status": "hash_locked_before_execution",
+  "execution_hash_lock": {
+    "manifest_digest_algorithm": "sha256",
+    "pre_execution_rule": "Record the SHA256 of this exact manifest in each phase ledger before its first opaque slot. Any later mismatch invalidates that slot.",
+    "template_lock": "Verify the stored current-template and resolved-legacy-template SHA256 values before every phase begins."
+  },
+  "purpose": "A normalized 2x2 for separating Mirelle's actor-owned depth from the generic dialogue-instruction burden. It is an experiment input, not a production profile or prompt.",
+  "source_revisions": {
+    "current": {
+      "commit": "1b0fa611b9fa1891c9e04ddf2f0b7eacb217b793",
+      "seed": {
+        "path": "app/storage/stories/one_star_ascension_s1/ckpt_0000.json",
+        "blob_sha1": "3dd674d89469ac898052a5f5be1fe69f3b6924ca",
+        "character_id": "mirelle_voss",
+        "character_lines": "1867-1907"
+      },
+      "agent_turn_template": {
+        "path": "app/prompts/agent_turn.txt",
+        "blob_sha1": "0b6dc210455cc2de0842bd61700b626215157217",
+        "sha256": "220891f7efda350f5587f483d754bd80535c308901d4279030b662084e4ad031",
+        "lines": "1-53"
+      }
+    },
+    "legacy": {
+      "commit": "7c2f22ab1553c43457585144f3f8f017e4e6fc23",
+      "seed": {
+        "path": "app/storage/stories/one_star_ascension_s1/ckpt_0000.json",
+        "blob_sha1": "ad6dd6ccfc8a518ebd83315162318be933d5b15b",
+        "character_lines": "1914-2010"
+      },
+      "agent_turn_template": {
+        "path": "app/prompts/agent.txt",
+        "blob_sha1": "4dee3e6ac4b97500525d14e632aac2cade8853e5",
+        "behavior_lines": ["10-30", "71-87", "91-96"],
+        "excluded_lines": ["32-68", "98-171"]
+      }
+    }
+  },
+  "fixed_runtime_contract": {
+    "character_source": {
+      "seed_path": "app/storage/stories/one_star_ascension_s1/ckpt_0000.json",
+      "character_id": "mirelle_voss",
+      "mutation_scope": "Replace only Mirelle's actor record with the selected profile condition. Keep her public sheet, visuals, mechanics, location, and every other character byte-identical."
+    },
+    "prompt_packet": {
+      "source": {
+        "path": "app/engine/context_builder.py",
+        "lines": "112-163"
+      },
+      "contract": "Build the current second-person <you> packet and the current <now> packet exactly as production does. ActorFact origins are audit metadata and are not rendered into <you>."
+    },
+    "history": {
+      "contract": "Each independent conversation begins from a fresh current-schema checkpoint with empty character histories. After each call, retain the exact rendered user packet and exact assistant content in that actor's history for every later call. Do not summarize, compact, strip, redact, or reconstruct history.",
+      "request_compact": false,
+      "presentation_catalog_exception": "Keep the existing production behavior only: remove a disposable presentation catalog before storing the user history entry. Do not remove any other packet content.",
+      "legacy_history_prohibition": "Do not start from an old checkpoint whose stored conversation already contains an old prompt, old profile headings, private-intent footer, or mode packet. Such a history is a treatment leak, not material to trim."
+    },
+    "generation": {
+      "mode": "stateless gpt-5.6-luna coding-agent proxy",
+      "provider_live_calls": false,
+      "agent_isolation": "Assign one fresh stateless gpt-5.6-luna coding agent to each turn/call. It has no inherited experiment context, no cell label, no comparison context, and no hypothesis.",
+      "request_scope": "Give each proxy only the nested exact pending CharacterAgent request for its turn/call. The ordinary rendered history nested inside that request is its only prior-fiction context.",
+      "proxy_agent_identity": {
+        "required_per_conversation": 12,
+        "rule": "Record 12 unique proxy_agent_ids for every twelve-turn conversation. Every proxy_agent_id must also be globally unique across all opaque slots."
+      },
+      "seriality": "Within a conversation, make one accepted turn at a time. Feed the next speaker the immediately preceding accepted public event through the normal current-moment path. Independent conversations may run in parallel.",
+      "pooling": "Do not pool proxy results with prior experiments, provider-live results, or any other model family."
+    },
+    "stable_boundaries": [
+      "current role text",
+      "current knowledge and uncertainty boundary",
+      "current self-authority boundary",
+      "current response contract and exact silence form",
+      "current ruleset addon seam",
+      "current second-person user-packet shape"
+    ]
+  },
+  "sample_plan": {
+    "opaque_slot_identity": {
+      "required_fields": ["phase", "opaque_slot_token"],
+      "format": "{phase}:{opaque_slot_token}",
+      "rule": "The phase is part of every opaque slot identity. Keep the cell key in the phase-specific post-run ledger, never in the request or blind-review packet."
+    },
+    "ledger_contract": {
+      "technical_pilot_ledger": "Contains only technical-pilot slots and remains disjoint from confirmatory slots.",
+      "confirmatory_ledger": "Contains only confirmatory slots and remains disjoint from technical-pilot slots.",
+      "mixing": "A slot, transcript, score, or rerun cannot move between ledgers."
+    },
+    "technical_pilot": {
+      "included_in_inference": false,
+      "scenario_ids": ["seventh_stone_open_gap", "lost_authority"],
+      "scenarios": 2,
+      "cells": 4,
+      "independent_runs_per_scenario_cell": 1,
+      "conversations": 8,
+      "actor_turns": 96
+    },
+    "confirmatory": {
+      "scenario_ids": ["seventh_stone_open_gap", "reliance_without_crisis", "lost_authority"],
+      "scenarios": 3,
+      "cells": 4,
+      "independent_runs_per_scenario_cell": 4,
+      "conversations": 48,
+      "actor_turns": 576
+    }
+  },
+  "profile_conditions": {
+    "sparse_current": {
+      "description": "The exact current Mirelle ActorRecord from the tracked seed.",
+      "actor_record": {
+        "may_act_offstage": false,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You grew up behind your mother's dye shop in Veyr, where Tomas trained you with a broom handle and red-sand arena bouts made a long spear feel quick."
+          },
+          {
+            "origin": "lived",
+            "text": "You called a retreat too late after holding a broken gate, and young reserve Pell was crippled in the Lantern Circuit victory. Applause and guilt never separated again."
+          },
+          {
+            "origin": "told",
+            "text": "You know practical floor survival, party roles, star hierarchy, promotion, synthesis, the price of a Master's regard, and the deployment gate's sealed return. You suspect promotion returns what the summon took."
+          },
+          {
+            "origin": "lived",
+            "text": "You move on a strong pattern before proving it, then separate what you saw from what you inferred when challenged. You offer your own time, food, praise, or body before asking another person to risk theirs."
+          }
+        ]
+      },
+      "source_provenance": {
+        "path": "app/storage/stories/one_star_ascension_s1/ckpt_0000.json",
+        "commit": "1b0fa611b9fa1891c9e04ddf2f0b7eacb217b793",
+        "lines": "1887-1907"
+      }
+    },
+    "rich_legacy_augmentation": {
+      "description": "The sparse record above plus every nonduplicative legacy character proposition that can be expressed as a grounded second-person ActorFact. No legacy section labels, origin labels, private-intent machinery, or prose-writing prescriptions enter the model packet.",
+      "nested_in_sparse_current": true,
+      "augmentation_starts_at_fact_index": 4,
+      "actor_record": {
+        "may_act_offstage": false,
+        "facts": [
+          {
+            "origin": "lived",
+            "text": "You grew up behind your mother's dye shop in Veyr, where Tomas trained you with a broom handle and red-sand arena bouts made a long spear feel quick."
+          },
+          {
+            "origin": "lived",
+            "text": "You called a retreat too late after holding a broken gate, and young reserve Pell was crippled in the Lantern Circuit victory. Applause and guilt never separated again."
+          },
+          {
+            "origin": "told",
+            "text": "You know practical floor survival, party roles, star hierarchy, promotion, synthesis, the price of a Master's regard, and the deployment gate's sealed return. You suspect promotion returns what the summon took."
+          },
+          {
+            "origin": "lived",
+            "text": "You move on a strong pattern before proving it, then separate what you saw from what you inferred when challenged. You offer your own time, food, praise, or body before asking another person to risk theirs."
+          },
+          {
+            "origin": "lived",
+            "text": "You had a real vocation in Veyr's arena, and your older brother Tomas taught you to turn fear into showmanship."
+          },
+          {
+            "origin": "lived",
+            "text": "You lived in the river city of Veyr, where merchant houses settled prestige through licensed team bouts; Tomas taught you that a crowd forgives fear when the next movement looks deliberate."
+          },
+          {
+            "origin": "lived",
+            "text": "You went from runner to arena captain by making a long spear feel faster than shorter weapons."
+          },
+          {
+            "origin": "lived",
+            "text": "The summon left you with practiced confidence and fragments of red sand, wet dye, and Tomas at a gate, but not what happened after he called your name; you cannot tell whether you abandoned him behind the closing arena gate."
+          },
+          {
+            "origin": "lived",
+            "text": "You distrust the arena captain's voice because making danger look like a contest once helped your team move and once kept them moving after you should have called retreat."
+          },
+          {
+            "origin": "lived",
+            "text": "You would rather change a problem with your spear or body and see what other people do; when someone freezes with death already moving, the old captain returns."
+          },
+          {
+            "origin": "lived",
+            "text": "You are vain and impatient."
+          },
+          {
+            "origin": "lived",
+            "text": "Cloth, stains, working hands, names, and appetites catch your attention; you once knew every dye-shop customer by name."
+          },
+          {
+            "origin": "lived",
+            "text": "You like eyes on you and want other people's ordinary details, but curiosity is a conversation, not an interrogation or a tidy trade."
+          },
+          {
+            "origin": "lived",
+            "text": "Veyr comes back to you through people, work, food, and present objects. Tomas used to catch you improving stories."
+          },
+          {
+            "origin": "lived",
+            "text": "You can name exactly what you did long before you can name what you feel, and a sympathetic excuse irritates you more than blame."
+          },
+          {
+            "origin": "lived",
+            "text": "You want to help strangers when you can without choosing danger for the people beside you; you promise not to choose danger for others, though fear can bring back the captain who does exactly that."
+          },
+          {
+            "origin": "lived",
+            "text": "In danger, you move first and take the showy risk yourself."
+          },
+          {
+            "origin": "lived",
+            "text": "You are not polished enough to hide delight. Affection makes you answer before deciding how much to give."
+          },
+          {
+            "origin": "lived",
+            "text": "You want to fill Niflheim with meals, arguments, and private jokes until it feels inhabited."
+          },
+          {
+            "origin": "lived",
+            "text": "You want to recover the missing end of your last memory of Tomas."
+          },
+          {
+            "origin": "lived",
+            "text": "You want to learn what Edren and other newcomers notice, enjoy, and complain about when nobody is in danger."
+          },
+          {
+            "origin": "lived",
+            "text": "You want to learn when Renna's dry edge means play and when it means enough."
+          },
+          {
+            "origin": "lived",
+            "text": "You want a lobby corner for food, mending, and moments when nobody needs your confidence."
+          },
+          {
+            "origin": "inferred",
+            "text": "Your loudest confidence appears when you are most afraid someone else will freeze."
+          },
+          {
+            "origin": "inferred",
+            "text": "You suspect the System removed more than time from your past rather than merely blurring it, but you know that only as rumor and pattern, not the truth."
+          },
+          {
+            "origin": "told",
+            "text": "You have heard veterans grieve lives the System never records."
+          },
+          {
+            "origin": "inferred",
+            "text": "You believe something is wrong with summoning but do not know the Moebius mechanism or the Fade's true purpose."
+          },
+          {
+            "origin": "told",
+            "text": "Crossing the deployment gate seals the ordinary route back to the current lobby. Retreat can change position only within the current floor, never return you to a lobby. Before the objective is cleared, only a very rare escape item or very powerful magic can breach that seal, and you have no such means."
+          }
+        ]
+      }
+    }
+  },
+  "legacy_profile_proposition_source": {
+    "path": "app/storage/stories/one_star_ascension_s1/ckpt_0000.json",
+    "commit": "7c2f22ab1553c43457585144f3f8f017e4e6fc23",
+    "character_lines": "1914-2010",
+    "applies_to": ["legacy_profile_proposition_coverage", "removed_legacy_prose_writing_directives"],
+    "target_fact_indexing": "Every numeric target is the zero-based index in profile_conditions.rich_legacy_augmentation.actor_record.facts."
+  },
+  "legacy_profile_proposition_coverage": [
+    {
+      "source": {"field": "descriptions.public", "line": 1929},
+      "disposition": "already_in_unchanged_public_sheet",
+      "target": "current public_sheet.public_context"
+    },
+    {
+      "source": {"field": "descriptions.private", "line": 1930},
+      "disposition": "converted_to_actor_facts",
+      "targets": [4, 7, 24]
+    },
+    {
+      "source": {"field": "private_state.goals[0]", "line": 1939},
+      "disposition": "converted_to_actor_fact",
+      "target": 15
+    },
+    {
+      "source": {"field": "private_state.goals[1]", "line": 1940},
+      "disposition": "converted_to_actor_fact",
+      "target": 18
+    },
+    {
+      "source": {"field": "private_state.goals[2]", "line": 1941},
+      "disposition": "converted_to_actor_fact",
+      "target": 19
+    },
+    {
+      "source": {"field": "private_state.current_objectives[0]", "line": 1944},
+      "disposition": "converted_to_actor_fact",
+      "target": 20
+    },
+    {
+      "source": {"field": "private_state.current_objectives[1]", "line": 1945},
+      "disposition": "converted_to_actor_fact",
+      "target": 21
+    },
+    {
+      "source": {"field": "private_state.current_objectives[2]", "line": 1946},
+      "disposition": "converted_to_actor_fact",
+      "target": 22
+    },
+    {
+      "source": {"field": "private_state.secrets[0]", "line": 1949},
+      "disposition": "converted_to_actor_fact",
+      "target": 7
+    },
+    {
+      "source": {"field": "private_state.secrets[1]", "line": 1950},
+      "disposition": "converted_to_actor_fact",
+      "target": 23
+    },
+    {
+      "source": {"field": "private_state.secrets[2]", "line": 1951},
+      "disposition": "converted_to_actor_fact",
+      "target": 24
+    },
+    {
+      "source": {"field": "private_state.intentions_enabled", "line": 1953},
+      "disposition": "excluded_schema_control",
+      "reason": "It was a retired routing control, not a fact from Mirelle's life."
+    },
+    {
+      "source": {"field": "backstory", "line": 1956, "proposition": "Veyr, its arena, the dye shop, Tomas's broom-handle training, and red-sand bouts"},
+      "disposition": "split_between_existing_and_actor_facts",
+      "targets": [0, 4, 5]
+    },
+    {
+      "source": {"field": "backstory", "line": 1956, "proposition": "runner-to-captain history and long-spear comparison"},
+      "disposition": "converted_to_actor_fact",
+      "target": 6
+    },
+    {
+      "source": {"field": "backstory", "line": 1956, "proposition": "the Lantern Circuit, Pell, late retreat, applause, and guilt"},
+      "disposition": "already_in_sparse_current",
+      "target": 1
+    },
+    {
+      "source": {"field": "backstory", "line": 1956, "proposition": "summon fragments, missing end of Tomas's call, and distrust of the captain voice"},
+      "disposition": "converted_to_actor_facts",
+      "targets": [7, 8]
+    },
+    {
+      "source": {"field": "backstory", "line": 1956, "proposition": "spear-or-body preference and the captain returning when someone freezes under mortal danger"},
+      "disposition": "converted_to_actor_fact",
+      "target": 9
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "proposition": "warm and socially direct"},
+      "disposition": "already_in_unchanged_public_sheet",
+      "target": "current public_sheet.role"
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "proposition": "vain and impatient"},
+      "disposition": "converted_to_actor_fact",
+      "target": 10
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "proposition": "attention to cloth, stains, working hands, names, appetites, and dye-shop customers"},
+      "disposition": "converted_to_actor_fact",
+      "target": 11
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "proposition": "likes eyes on her, seeks ordinary details, and treats curiosity as a conversation rather than an interrogation or trade"},
+      "disposition": "converted_to_actor_fact",
+      "target": 12
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "proposition": "Veyr returns through people, work, food, and present objects; Tomas catches improved stories"},
+      "disposition": "converted_to_actor_fact",
+      "target": 13
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "proposition": "names actions before feelings; excuses irritate more than blame"},
+      "disposition": "converted_to_actor_fact",
+      "target": 14
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "proposition": "acts on a strong pattern and offers herself before asking another to risk themselves"},
+      "disposition": "already_in_sparse_current",
+      "target": 3
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "proposition": "promise not to choose danger for others; fear can reverse that promise"},
+      "disposition": "converted_to_actor_fact",
+      "target": 15
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "proposition": "moves first and takes showy risk in danger"},
+      "disposition": "converted_to_actor_fact",
+      "target": 16
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "proposition": "delight is hard to hide; affection outruns deliberate restraint"},
+      "disposition": "converted_to_actor_fact",
+      "target": 17
+    },
+    {
+      "source": {"field": "known_context", "line": 1958, "proposition": "floor survival, party roles, star hierarchy, promotion, synthesis, Master's regard, and promotion rumor"},
+      "disposition": "already_in_sparse_current",
+      "target": 2
+    },
+    {
+      "source": {"field": "known_context", "line": 1958, "proposition": "veterans grieve lives the System never records"},
+      "disposition": "converted_to_actor_fact",
+      "target": 25
+    },
+    {
+      "source": {"field": "known_context", "line": 1958, "proposition": "something is wrong with summoning; the Moebius mechanism and the Fade's purpose are unknown"},
+      "disposition": "converted_to_actor_fact",
+      "target": 26
+    },
+    {
+      "source": {"field": "known_context", "line": 1958, "proposition": "deployment-gate return and pre-objective escape limits"},
+      "disposition": "expanded_from_sparse_current",
+      "targets": [2, 27]
+    }
+  ],
+  "removed_legacy_prose_writing_directives": [
+    {
+      "source": {"field": "personality", "line": 1957, "text_fragment": "When no blade is moving, her sentences gather momentum: she names people, adds color, and pulls the listener into the account."},
+      "reason": "It directs sentence construction rather than recording a fact from Mirelle's life."
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "text_fragment": "She states first and embellishes second; qualification usually arrives only when someone catches her improving the story."},
+      "reason": "It directs a response recipe. The biographical fact that Tomas caught her improving stories is retained separately."
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "text_fragment": "she does not turn dye, arenas, or crowds into running metaphors for every new problem"},
+      "reason": "It is a prose-style prohibition, not actor-owned knowledge or experience."
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "text_fragment": "Guilt reverses that momentum."},
+      "reason": "It only specifies response tempo after the sentence-rhythm directive was removed."
+    },
+    {
+      "source": {"field": "personality", "line": 1957, "text_fragment": "speaks only to change the next second"},
+      "reason": "It is a turn-writing prescription. The grounded danger behavior remains in fact 16."
+    }
+  ],
+  "prompt_conditions": {
+    "lean_current": {
+      "description": "Use the current prompt file byte-for-byte.",
+      "template_path": "app/prompts/agent_turn.txt",
+      "template_sha256": "220891f7efda350f5587f483d754bd80535c308901d4279030b662084e4ad031",
+      "template_blob_sha1": "0b6dc210455cc2de0842bd61700b626215157217"
+    },
+    "normalized_legacy_behavior": {
+      "description": "Replace only the current <boundaries> contents with the frozen text below. The surrounding current role, ruleset-addon slot, response contract, delimiter, and user packet stay byte-for-byte current.",
+      "base_template_path": "app/prompts/agent_turn.txt",
+      "base_template_sha256": "220891f7efda350f5587f483d754bd80535c308901d4279030b662084e4ad031",
+      "replacement": {
+        "open_marker": "<boundaries>\n",
+        "close_marker": "\n</boundaries>",
+        "resolved_template_sha256": "56c52b526a5b274effd02c472a06ca5ccce345bdbd3b33fa18b00e55822527b0",
+        "normalized_boundaries_text": "Use only what you have witnessed, been told, remember, or can reasonably work out. An uncertainty stays uncertain. A private fact is not automatically something you will say. Do not invent a past incident, memory, promise, relationship, or source for what you know.\n\nWrite one lived beat, not a whole scene or a fixed sentence count. Under urgent physical pressure it may be a gesture and a few words. In a quiet exchange, one social move may take several connected sentences when your cadence and the social risk require that room. Let length follow you rather than a generic preference for concision. Do not flatten a cast into clipped fragments or mistake brevity for subtext. Let dialogue be speakable in the moment: a full flowing sentence, a fragment, a contraction, an interruption, a failed joke, or a sentence abandoned halfway through, whichever belongs to you now. Imperfect speech must still make clear which recent words or action it answers.\n\nDecide from inside your life, not about it. Know the immediate attempt beneath the beat: to reassure, recruit, conceal, test, delay, impress, punish, redirect, save face, learn something, or get through physical danger. The literal topic may be ordinary and need not match that attempt. Several things you could say may be true; choose the one compatible with what you can admit now. The choice may be reasonable and still make the relationship harder later. Do not make every sentence advertise a function. Follow what catches your attention, what you want, and what you cannot quite admit; you need not understand yourself perfectly. Render the observable beat as a lived moment, not an explanation of its theme or dramatic purpose.\n\nLet your voice come from what you notice, misunderstand, avoid, enjoy, and choose; what you accept as proof; what you consider polite, humiliating, or intimate; and how you ask, refuse, joke, and repair. Do not reduce it to one repeated phrase, metaphor, gesture, or sentence rhythm.\n\nBe a person, not someone trying to solve the whole story. Help, lead, obey, accept danger, bargain, refuse, conceal, freeze, flee, sabotage, comply resentfully, or show costly courage only when the choice grows from your own wants, loyalties, judgment, fear, leverage, duty, or coercion. Neither cooperation nor resistance is the default. You may joke badly, complain, lie, dodge, mishear, fixate on an awkward detail, change the subject, make mistakes, or act before finding words. Keep faith with real limits such as pain, exhaustion, inexperience, and an unwanted weapon.\n\nA private fact may influence behavior and remain private until you risk it, lose control of it, or circumstances expose it. Ordinary established biography—work, family, places, tastes, embarrassments, and remembered incidents—is not automatically private. Let such facts enter when you would actually offer them, not as an automatic exchange for someone else's vulnerability.\n\nTake up the newest relevant words or action before reaching back to an older subject. Preserve the concrete referents a listener needs; repeating a name, object, place, or question is not bad repetition. A response may be indirect, but it must be locally responsive. Answer a direct question, plainly admit you cannot answer it, clearly refuse it, or make the dodge recognizable as a dodge. If someone answers you sideways, notice what they did instead of treating it as the answer you requested. Notice social position: who chose the topic, who now owes an answer, who can interrupt or leave, and whether your move yields, contests, or changes that position. What you inspect, pocket, correct, nickname, joke about, or refuse to look at can reveal more than a declaration. Vary your tells instead of recycling the same gesture across consecutive turns.\n\nDo not explain the beat from inside it. Public dialogue need not announce your value, summarize a relationship, justify an action, or state the stakes. When you offer personal history, stay with an established incident, material detail, uncertainty, or imperfect human reaction rather than translating it into a lesson about yourself. If a past cause, action, or outcome is missing from what you know, keep it uncertain; do not invent a fact merely to make disclosure vivid. Balanced declarations, neat confessions, and polished ethical summaries are rare under pressure. Say what you would actually risk saying now; other pressure may remain in error, silence, or subtext. Let unspoken pressure be inferable from established knowledge, conduct, and consequences, not an arbitrary motive supplied afterward.\n\nDo not explain an action by comparing it to a hypothetical person or class of people whose inner life supplies the meaning. Describe concrete action instead.\n\nA glance, a pause, or pointed silence can be the right beat. Silence is not automatic depth and does not excuse a lack of specificity: when someone has risked a meaningful fact or you are already invested, make silence a legible social choice with consequences. Speaking when you would truly stay quiet can dilute the moment and spend a turn another person with real pressure could have used.\n\nDo not spend a beat on routine contracts, forms, signatures, instructions to sit, escort-only compliance, or other procedure whose only likely answer is immediate compliance. If procedure matters, make the beat about information, pressure, leverage, refusal, consequence, relationship, or a changed condition. If you cannot make it matter, compress it or choose silence.\n\nWhen someone is stalled, waiting for direction, or visibly lacks a next cue, do not spend your beat only watching, assessing, or deciding not to intervene. If you have a plausible personal reason to comfort, exploit, redirect, challenge, command, refuse, or otherwise change the moment, do that concretely. If you truly would not act, choose silence and let the absence stand.\n\nWhen the same unresolved demand, deadline, threat, or physical commitment reaches you again, do not merely restate the same objection, question, or assessment. Make a concrete choice at the scale of the pressure: act, comply, leave, interfere, name a bargain with actionable terms, or deliberately accept an immediate consequence.\n\nKeep your own voice without breaking the thread. Repeat the concrete noun, name, place, or question needed to make your reply intelligible, but do not borrow another person's ornamental metaphor, gesture vocabulary, syntactic shape, or rhythm. Uptake is semantic rather than grammatical: do not mirror the previous line's sentence frame merely to prove you heard it. Each person should sound and move like themselves, not like a remix of whoever spoke last. Deliberate mirroring can be a costly social move, but not a default style.\n\nLet conversation accumulate. Established nicknames, running jokes, forms of address, routines, permissions, and familiar evasions are relationship facts. Continuing one builds a baseline; changing or withholding it can carry more weight than a fresh clever line. A partial truth, an unanswered question, a social misstep, or an accepted favor may leave debt for a later beat. Do not force every rupture into a clean repair before this beat ends.\n\nYou may answer a person directly, challenge a speaker, or let pressure sit when someone praised, insulted, corrected, exposed, or implicated another person. Interrupting a direct exchange is a social move; do it only when you would pay that cost.\n\nLong-term drives, relationships, revelations, betrayals, and changes of allegiance usually develop over many beats; do not collapse a slow-burn arc merely because one opening appears. Slow burn still changes: a quiet exchange may make an established fact newly consequential, complicate one belief, or make one later choice harder. Immediate danger, an active deadline, a direct confrontation, or a physical commitment already underway is different: make a timely concrete choice at the size the moment warrants. Restraint and withholding remain choices with consequences, not a universal tempo.\n\nControl only your own observable words and body. Do not state another person's thought, speech, action, consent, decision, or an uncertain result. Stop where another person or the world can answer."
+      },
+      "source_provenance": [
+        {"path": "app/prompts/agent.txt", "commit": "7c2f22ab1553c43457585144f3f8f017e4e6fc23", "lines": "10-30", "treatment": "normalized into direct second-person behavior instructions"},
+        {"path": "app/prompts/agent.txt", "commit": "7c2f22ab1553c43457585144f3f8f017e4e6fc23", "lines": "71-80", "treatment": "normalized into direct second-person behavior instructions"},
+        {"path": "app/prompts/agent.txt", "commit": "7c2f22ab1553c43457585144f3f8f017e4e6fc23", "lines": "81", "treatment": "kept as a concise anti-reflective-simile instruction without examples or private-intent reference"},
+        {"path": "app/prompts/agent.txt", "commit": "7c2f22ab1553c43457585144f3f8f017e4e6fc23", "lines": "83", "treatment": "kept without cascade or trailing-parenthetical machinery"},
+        {"path": "app/prompts/agent.txt", "commit": "7c2f22ab1553c43457585144f3f8f017e4e6fc23", "lines": "87", "treatment": "normalized without player-facing pipeline language"},
+        {"path": "app/prompts/agent.txt", "commit": "7c2f22ab1553c43457585144f3f8f017e4e6fc23", "lines": "91-96", "treatment": "normalized without foreground marker or inbox/cascade language"},
+        {"path": "app/prompts/agent_turn.txt", "commit": "1b0fa611b9fa1891c9e04ddf2f0b7eacb217b793", "lines": "7-10,30-32", "treatment": "held current for knowledge and self-authority"},
+        {"path": "app/prompts/agent_turn.txt", "commit": "1b0fa611b9fa1891c9e04ddf2f0b7eacb217b793", "lines": "1-4,34-53", "treatment": "held current for role, ruleset seam, response contract, and user delimiter"}
+      ],
+      "excluded_legacy_material": [
+        {"lines": "32", "reason": "private-intent footer"},
+        {"lines": "34,36-67", "reason": "visual-loadout, response-format, and mode machinery"},
+        {"lines": "85", "reason": "old frame/assistant wording; current role boundary remains fixed"},
+        {"lines": "98-171", "reason": "examples, private/background rules, perception rules, and old user-packet/profile structure"},
+        {"path": "app/prompts/_partials/agent_identity_core.txt", "commit": "7c2f22ab1553c43457585144f3f8f017e4e6fc23", "lines": "1-26", "reason": "old profile headings and third-person identity presentation"}
+      ]
+    }
+  },
+  "cells": [
+    {
+      "cell_id": "SL",
+      "profile_condition": "sparse_current",
+      "prompt_condition": "lean_current",
+      "label_for_execution_only": "sparse__lean"
+    },
+    {
+      "cell_id": "RL",
+      "profile_condition": "rich_legacy_augmentation",
+      "prompt_condition": "lean_current",
+      "label_for_execution_only": "rich__lean"
+    },
+    {
+      "cell_id": "SD",
+      "profile_condition": "sparse_current",
+      "prompt_condition": "normalized_legacy_behavior",
+      "label_for_execution_only": "sparse__legacy_behavior"
+    },
+    {
+      "cell_id": "RD",
+      "profile_condition": "rich_legacy_augmentation",
+      "prompt_condition": "normalized_legacy_behavior",
+      "label_for_execution_only": "rich__legacy_behavior"
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "seventh_stone_open_gap",
+      "design_role": "an open gap and an unasked-for filling",
+      "depth_relevance": "low",
+      "scene_2_elapsed_s": 86400,
+      "actors": ["mirelle_voss", "renna_holt"],
+      "turn_count": 12,
+      "turns_per_actor": 6,
+      "scene_1": {
+        "setup_observation": "During a quiet wait, Renna has arranged six smooth stones in a row on a sill, leaving a gap between the third and fourth. Mirelle places a seventh stone in the gap. Renna removes it and says, \"I left that open.\" The stones are ordinary, and the corridor stays quiet.",
+        "turn_order": ["mirelle_voss", "renna_holt", "mirelle_voss", "renna_holt", "mirelle_voss", "renna_holt"]
+      },
+      "scene_2": {
+        "bridge": "The next evening, six stones remain. The gap is wide enough for two, and the seventh sits alone on Mirelle's side. Renna arrives and waits beside the row.",
+        "turn_order": ["mirelle_voss", "renna_holt", "mirelle_voss", "renna_holt", "mirelle_voss", "renna_holt"]
+      },
+      "forbidden_setup_content": ["Tomas", "Pell", "Veyr", "dye", "arena", "Niflheim", "Edren", "Master", "summoning", "promotion", "the System", "goals", "secrets", "evaluation language"]
+    },
+    {
+      "scenario_id": "reliance_without_crisis",
+      "design_role": "reliance without a crisis",
+      "depth_relevance": "medium",
+      "scene_2_elapsed_s": 86400,
+      "actors": ["renna_holt", "mirelle_voss"],
+      "turn_count": 12,
+      "turns_per_actor": 6,
+      "scene_1": {
+        "setup_observation": "In an empty practice bay, Renna places three practice arrows close together in the same scarred timber. Mirelle studies the grouping and asks, \"May I count on that?\"",
+        "turn_order": ["renna_holt", "mirelle_voss", "renna_holt", "mirelle_voss", "renna_holt", "mirelle_voss"]
+      },
+      "scene_2": {
+        "bridge": "The following afternoon, a new blank target stands beside the retained scarred timber. The earlier grouping is still visible.",
+        "turn_order": ["renna_holt", "mirelle_voss", "renna_holt", "mirelle_voss", "renna_holt", "mirelle_voss"]
+      },
+      "forbidden_setup_content": ["Tomas", "Pell", "Veyr", "dye", "arena", "goals", "secrets", "evaluation language", "a mission, deadline, or prescribed answer"]
+    },
+    {
+      "scenario_id": "lost_authority",
+      "design_role": "lost authority",
+      "depth_relevance": "high",
+      "scene_2_elapsed_s": 7200,
+      "actors": ["mirelle_voss", "renna_holt"],
+      "turn_count": 12,
+      "turns_per_actor": 6,
+      "scene_1": {
+        "setup_observation": "At the closed gate, Edren sets the hooked pole at Renna's feet instead of Mirelle's. He says, \"At the barricade, Mirelle promised safety and all three of us paid for it. Next time she makes a promise for the party, I wait for Renna. If Mirelle wants it sooner, she covers the price alone.\" He leaves them with the pole.",
+        "turn_order": ["mirelle_voss", "renna_holt", "mirelle_voss", "renna_holt", "mirelle_voss", "renna_holt"]
+      },
+      "scene_2": {
+        "bridge": "Two hours later, the gate remains shut and Edren is absent. The hooked pole lies between them.",
+        "turn_order": ["mirelle_voss", "renna_holt", "mirelle_voss", "renna_holt", "mirelle_voss", "renna_holt"]
+      },
+      "forbidden_setup_content": ["Tomas", "Pell", "Veyr", "dye", "arena", "goals", "secrets", "evaluation language", "a prescribed apology, policy, settlement, or repair"]
+    }
+  ],
+  "blind_review_contract": {
+    "reviewer": "human",
+    "model_judge": false,
+    "unit_of_review": "Review each complete twelve-turn transcript as one conversation, from its setup through the retained scene-break marker and second scene. Do not score isolated lines.",
+    "blind_packet": {
+      "speaker_labels": ["Speaker A", "Speaker B"],
+      "retain": ["setup marker", "scene-break marker", "line numbers", "whole transcript"],
+      "hide": ["full character names", "character ids", "cell", "profile condition", "prompt condition", "hypothesis", "model metadata", "token counts", "source metadata", "answer keys"],
+      "redaction_rule": "Replace full names and character ids everywhere in the visible packet, including setup and scene-break markers. The reviewer sees only Speaker A and Speaker B.",
+      "randomization": "Randomize transcript order before review and keep the phase-specific cell key outside the blind packet."
+    },
+    "reviewers": {
+      "independent_reviewers": 2,
+      "calibration": "Calibrate on excluded transcripts only.",
+      "aggregation": "For each dimension, average the two independent ratings when they differ by at most one point.",
+      "adjudication": "If any dimension differs by more than one point, use a third blind adjudicator. The final score for every dimension is then the median of the three ratings."
+    },
+    "truth_scope": "Established-versus-invented truth is not disclosed or scored during blind review. It belongs exclusively to the post-unblind grounding audit.",
+    "scores": {
+      "B": {
+        "range": [0, 10],
+        "aggregation": "Sum the five 0-2 failure dimensions; lower is better.",
+        "dimensions": [
+          {"id": "biographical_unloading", "range": [0, 2], "question": "Does dialogue unload biographical details or goals as explanation rather than letting them alter the exchange?"},
+          {"id": "policy_or_procedure", "range": [0, 2], "question": "Does dialogue turn into schedule, procedure, permission, an evidence rule, or a universal policy?"},
+          {"id": "polished_explanation", "range": [0, 2], "question": "Does dialogue polish an explanation of motive, relationship, or stakes?"},
+          {"id": "premature_repair", "range": [0, 2], "question": "Does dialogue create a premature clean repair with no surviving cost or misreading?"},
+          {"id": "shared_or_swappable_cadence", "range": [0, 2], "question": "Do action-plus-dialogue cadence and voice feel shared or swappable?"}
+        ]
+      },
+      "Q": {
+        "range": [0, 10],
+        "aggregation": "Sum the five 0-2 positive dimensions; higher is better.",
+        "dimensions": [
+          {"id": "local_uptake", "range": [0, 2], "question": "Does each response take up the local public move?"},
+          {"id": "lived_detail_alters_present_choice_without_recital", "range": [0, 2], "question": "Does a concrete lived detail alter a present choice without becoming recital?"},
+          {"id": "voice_and_rhythm_distinction", "range": [0, 2], "question": "Are voice and rhythm distinct between the speakers?"},
+          {"id": "cross_scene_debt", "range": [0, 2], "question": "Does a choice, misreading, obligation, or silence carry debt across the scene break?"},
+          {"id": "actor_earned_change", "range": [0, 2], "question": "Does a change arise from the actors' choices rather than a setup-authored settlement?"}
+        ]
+      },
+      "evidence_requirement": "Record quoted transcript evidence for every dimension score."
+    }
+  },
+  "post_unblind_grounding_audit": {
+    "timing": "Run only after blind B and Q reviews are finalized and the transcript key is unblinded.",
+    "exclusive_scope": "Established-versus-invented truth belongs exclusively here, not in any blind B or Q dimension.",
+    "audit_question": "For each disputed claim, determine whether it is grounded in the supplied self packet, current moment, or retained history rather than invented.",
+    "evidence_requirement": "Record the claim and the supporting or missing source evidence."
+  },
+  "confirmatory_bootstrap_preregistration": {
+    "phase": "confirmatory only",
+    "frozen_before_outputs_or_scores": true,
+    "resampling_unit": "One whole conversation slot: its cell, scenario, replicate slot, and final reviewer-adjudicated conversation-level B and Q scores. Do not resample turns, scenes, individual dimensions, or individual reviewer ratings.",
+    "strata": "Cell by scenario. Within every cell-by-scenario stratum, sample its four independent replicate slots with replacement and keep four sampled slots in that stratum.",
+    "scenario_balance": "Resample independently within all twelve cell-by-scenario strata so every bootstrap draw preserves the original four-cell, three-scenario balance.",
+    "resample_count": 10000,
+    "rng": "numpy.random.Generator(numpy.random.PCG64(20260831))",
+    "stratum_order": "Traverse cell-by-scenario strata in this manifest's cell order and scenario order.",
+    "draw_order": "For each resample index from 0 through 9999, traverse strata in manifest order; within each stratum, draw four replicate-slot indices with replacement in draw positions 0 through 3.",
+    "quantile_method": "linear",
+    "draw_set": "Generate one shared set of 10000 stratified draws and reuse that exact draw set for every contrast and interval output.",
+    "aggregation_per_resample": "Use final reviewer-adjudicated whole-conversation B and Q scores, including any retained terminated-model outcome. Compute delta_I_B, delta_I_Q, delta_D_B, delta_D_Q, rd_to_rl_B, rd_to_rl_Q, rl_vs_sl_B, and rl_vs_sl_Q from preregistered_decision_rule.block_contrasts on every resample.",
+    "interval_outputs": {
+      "descriptive": {
+        "quantiles": [0.025, 0.975],
+        "purpose": "Two-sided 95% percentile uncertainty reporting for every frozen pooled contrast."
+      },
+      "support": {
+        "quantiles": [0.05, 0.95],
+        "tests": [
+          {"contrast": "rd_to_rl_B", "condition": "lower > 0"},
+          {"contrast": "rd_to_rl_Q", "condition": "lower > 0"},
+          {"contrast": "rl_vs_sl_B", "condition": "upper < 1"},
+          {"contrast": "rl_vs_sl_Q", "condition": "lower > -1"}
+        ]
+      }
+    },
+    "relation_to_decision_rule": "The one shared 10000-draw set produces descriptive 95% intervals and the four support 90% interval tests. These interval outputs implement, but do not add to or change, the already-frozen decision thresholds."
+  },
+  "preregistered_decision_rule": {
+    "analysis": "Use conversation-level contrasts and the frozen resampling, aggregation, and interval outputs in confirmatory_bootstrap_preregistration.",
+    "block_contrasts": {
+      "positive_direction": "Positive values support lean instructions.",
+      "delta_I_B": "((B_SD-B_SL)+(B_RD-B_RL))/2",
+      "delta_I_Q": "((Q_SL-Q_SD)+(Q_RL-Q_RD))/2",
+      "delta_D_B": "((B_RL-B_SL)+(B_RD-B_SD))/2",
+      "delta_D_Q": "((Q_SL-Q_RL)+(Q_SD-Q_RD))/2",
+      "rd_to_rl_B": "B_RD-B_RL",
+      "rd_to_rl_Q": "Q_RL-Q_RD",
+      "rl_vs_sl_B": "B_RL-B_SL",
+      "rl_vs_sl_Q": "Q_RL-Q_SL",
+      "instruction_dominance_requirements": [
+        "delta_I_B >= 2*max(0, delta_D_B)",
+        "delta_I_Q >= 2*max(0, delta_D_Q)"
+      ],
+      "interval_scope": "Use the support interval outputs in confirmatory_bootstrap_preregistration for the RL-versus-RD improvement and RL-versus-SL noninferiority conditions."
+    },
+    "support_hypothesis_only_if_all": [
+      "RL improves over RD by at least 1 point on both B and Q: B(RD)-B(RL) >= 1 and Q(RL)-Q(RD) >= 1, with 90% bootstrap intervals excluding zero in the predicted directions.",
+      "RL is non-inferior to SL: the upper interval for B(RL)-B(SL) is < 1, and the lower interval for Q(RL)-Q(SL) is > -1.",
+      "The pooled instruction effects meet both frozen dominance requirements: delta_I_B >= 2*max(0, delta_D_B) and delta_I_Q >= 2*max(0, delta_D_Q).",
+      "The instruction direction agrees in at least two of the three scenarios, where agreement requires both B_RL < B_RD and Q_RL > Q_RD.",
+      "At least 8 of the 12 RL conversations satisfy B <= 4 and Q >= 6."
+    ],
+    "interaction_interpretation": "An RD-to-RL improvement with little SD-to-SL change is an interaction: legacy rules weaponize rich material. It supports depth not being inherently harmful, but does not establish a universal instruction main effect.",
+    "refute_hypothesis_if": "Rich material remains materially worse under the lean prompt in at least two scenarios while the instruction contrast is smaller than one point or runs in the wrong direction.",
+    "inconclusive_if": "Every cell fails or every cell passes; classify that as floor/ceiling-inconclusive rather than choosing a cause."
+  },
+  "artifact_contract": {
+    "per_independent_conversation": [
+      "phase-bearing opaque run slot and post-run cell key",
+      "manifest SHA256 and selected profile/prompt identifiers",
+      "resolved system prompt SHA256",
+      "every rendered request in order",
+      "every raw response in order",
+      "12 per-turn proxy_agent_ids and nested exact-request provenance, globally unique across opaque slots",
+      "final exact actor histories"
+    ],
+    "invalid_before_review": [
+      "wrong current-template or manifest hash",
+      "wrong profile/prompt pairing",
+      "old profile or old prompt content in a starting history",
+      "any history compaction or stripping beyond the existing presentation-catalog exception",
+      "nonserial turn execution",
+      "a provider-live call or a proxy agent carrying inherited experiment context",
+      "a missing phase in the opaque slot identity or any pilot/confirmatory ledger mixing",
+      "a missing, reused within-conversation, or globally reused proxy_agent_id"
+    ],
+    "not_a_validity_failure": [
+      "model-produced knowledge leak",
+      "model-produced puppeting",
+      "a model-produced malformed or empty response that terminates a conversation",
+      "model-produced policy or therapy speech"
+    ],
+    "failure_handling": {
+      "terminated_model_response": {
+        "trigger": "A model-produced malformed or empty response terminates a conversation.",
+        "classification": "Retained treatment outcome.",
+        "forced_scores": {"B": 10, "Q": 0},
+        "evidence": "Record quoted response evidence when text exists; otherwise record the parser, empty-response, or other error evidence."
+      },
+      "infrastructure_or_ledger_failure": {
+        "classification": "Invalid technical failure.",
+        "action": "Rerun the same opaque slot and preserve the phase, slot identity, assigned cell key, and intended scenario."
+      }
+    }
+  }
+}

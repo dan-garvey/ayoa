@@ -7,10 +7,13 @@ import copy
 import json
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+import scripts.run_mirelle_dialogue_factorial as factorial_runner
 from scripts.run_mirelle_dialogue_factorial import (
+    build_arg_parser,
     FactorialManifestError,
     FactorialTechnicalInvalidity,
     ModelCall,
@@ -240,6 +243,49 @@ def test_phase_jobs_are_parallelizable_and_disjoint():
         )
 
 
+def test_ledger_cli_returns_nonzero_for_invalid_conversation(tmp_path, monkeypatch):
+    calls = []
+
+    async def fake_run_conversation(*_args, **_kwargs):
+        calls.append(None)
+        status = "technical_invalidity" if len(calls) == 1 else "valid"
+        return SimpleNamespace(status=status)
+
+    monkeypatch.setattr(factorial_runner, "run_conversation", fake_run_conversation)
+    monkeypatch.setattr(factorial_runner, "write_artifacts", lambda *_args: None)
+    args = build_arg_parser().parse_args([
+        "--phase", "pilot",
+        "--ledger-dir", str(tmp_path / "ledger"),
+        "--output", str(tmp_path / "artifacts"),
+    ])
+
+    exit_code = asyncio.run(factorial_runner._main_async(args))
+
+    assert len(calls) == 8
+    assert exit_code == 1
+
+
+def test_ledger_cli_accepts_terminal_model_failure(tmp_path, monkeypatch):
+    calls = []
+
+    async def fake_run_conversation(*_args, **_kwargs):
+        calls.append(None)
+        return SimpleNamespace(status="model_failure")
+
+    monkeypatch.setattr(factorial_runner, "run_conversation", fake_run_conversation)
+    monkeypatch.setattr(factorial_runner, "write_artifacts", lambda *_args: None)
+    args = build_arg_parser().parse_args([
+        "--phase", "pilot",
+        "--ledger-dir", str(tmp_path / "ledger"),
+        "--output", str(tmp_path / "artifacts"),
+    ])
+
+    exit_code = asyncio.run(factorial_runner._main_async(args))
+
+    assert len(calls) == 8
+    assert exit_code == 0
+
+
 def test_pending_request_is_opaque_exact_and_import_resumes(tmp_path):
     manifest = load_factorial_manifest(MANIFEST)
     cell = manifest.cell("sparse", "lean")
@@ -301,15 +347,36 @@ def test_pending_request_is_opaque_exact_and_import_resumes(tmp_path):
                 conversation_id="conversation-fixed",
                 conversation_token=token,
             )
-    )
+        )
     assert next_pending.value.sequence == 1
     ledger_document = json.loads(ledger.read_text(encoding="utf-8"))
-    assert ledger_document["proxy_agent_id"] == "luna-session-a"
+    assert ledger_document["proxy_agent_ids"] == ["luna-session-a"]
+    import_response(
+        ledger,
+        next_pending.value.path,
+        {"content": "action-2", "proxy_agent_id": "luna-session-b"},
+    )
+    with pytest.raises(PendingRequest) as final_pending:
+        asyncio.run(
+            run_conversation(
+                cell,
+                scenario,
+                ledger_responder=ProxyResponder(ledger, pending, token),
+                conversation_id="conversation-fixed",
+                conversation_token=token,
+            )
+        )
+    assert final_pending.value.sequence == 2
+    ledger_document = json.loads(ledger.read_text(encoding="utf-8"))
+    assert ledger_document["proxy_agent_ids"] == [
+        "luna-session-a",
+        "luna-session-b",
+    ]
     with pytest.raises(FactorialTechnicalInvalidity):
         import_response(
             ledger,
-            next_pending.value.path,
-            {"content": "action-2", "proxy_agent_id": "luna-session-b"},
+            final_pending.value.path,
+            {"content": "action-3", "proxy_agent_id": "luna-session-b"},
         )
 
     stale = copy.deepcopy(document)
@@ -336,11 +403,16 @@ def test_artifacts_blind_the_whole_transcript_and_keep_hashes(tmp_path):
     assert raw["execution"]["mode"] == "coding_agent_proxy"
     assert raw["execution"]["model"] == "gpt-5.6-luna"
     assert raw["execution"]["provider_live_calls"] is False
-    assert raw["execution"]["proxy_agent_id"]
+    assert len(raw["execution"]["proxy_agent_ids"]) == 12
+    assert len(set(raw["execution"]["proxy_agent_ids"])) == 12
     assert len(raw["turns"]) == 12
+    assert [
+        turn["response"]["proxy_agent_id"] for turn in raw["turns"]
+    ] == raw["execution"]["proxy_agent_ids"]
     for turn in raw["turns"]:
         assert turn["request"]["request_sha256"]
         assert turn["response"]["response_sha256"]
+        assert turn["response"]["proxy_agent_id"]
         assert turn["history"]["before_sha256"]
         assert turn["history"]["after_sha256"]
     assert raw["final_history_sha256"]
@@ -375,8 +447,13 @@ def test_artifacts_blind_the_whole_transcript_and_keep_hashes(tmp_path):
     assert answer_key["scenario_id"] == "lost_authority"
     assert set(answer_key["post_unblind_audit"]) == set(POST_UNBLIND_AUDIT_FIELDS)
 
+    duplicate = copy.deepcopy(result)
+    duplicate.conversation_id = "review-run-duplicate"
+    with pytest.raises(FactorialTechnicalInvalidity):
+        write_artifacts(manifest, [result, duplicate], tmp_path / "duplicate")
 
-def test_model_failure_and_technical_invalidity_are_separate():
+
+def test_model_failure_and_technical_invalidity_are_separate(tmp_path):
     manifest = load_factorial_manifest(MANIFEST)
     result, calls = _run(
         manifest.cell("sparse", "lean"),
@@ -387,6 +464,28 @@ def test_model_failure_and_technical_invalidity_are_separate():
     assert result.status == "model_failure"
     assert result.model_failure
     assert not result.technical_invalidity
+    assert len(result.proxy_agent_ids) == 1
+    failure_root = write_artifacts(manifest, [result], tmp_path / "model-failure")
+    failure_sheet = json.loads(
+        (failure_root / "review" / "whole_conversation_review.json").read_text()
+    )["sheets"][0]
+    assert failure_sheet["scores"]["B"]["total"] == 10
+    assert failure_sheet["scores"]["Q"]["total"] == 0
+    assert failure_sheet["outcome"]["human_quality_fail"] is True
+    assert all(
+        dimension["score"] == 2
+        for dimension in failure_sheet["scores"]["B"]["dimensions"].values()
+    )
+    assert all(
+        dimension["score"] == 0
+        for dimension in failure_sheet["scores"]["Q"]["dimensions"].values()
+    )
+    assert all(
+        result.model_failure in dimension["evidence"]
+        for score in failure_sheet["scores"].values()
+        if isinstance(score, dict) and "dimensions" in score
+        for dimension in score["dimensions"].values()
+    )
 
     valid, _ = _run(
         manifest.cell("sparse", "lean"),
@@ -405,3 +504,31 @@ def test_model_failure_and_technical_invalidity_are_separate():
             cell=manifest.cell("sparse", "lean"),
             scenario=manifest.scenarios[0],
         )
+
+
+def test_unexpected_runtime_failure_is_technical_and_not_scored(tmp_path):
+    manifest = load_factorial_manifest(MANIFEST)
+
+    def unexpected(_request):
+        raise RuntimeError("harness exploded")
+
+    result = asyncio.run(
+        run_conversation(
+            manifest.cell("sparse", "lean"),
+            manifest.scenarios[0],
+            responder=unexpected,
+            conversation_id="unexpected-runtime",
+            conversation_token="opaque-unexpected-runtime",
+        )
+    )
+
+    assert result.status == "technical_invalidity"
+    assert "harness exploded" in result.technical_invalidity
+    assert not result.model_failure
+    root = write_artifacts(manifest, [result], tmp_path / "technical-failure")
+    sheet = json.loads(
+        (root / "review" / "whole_conversation_review.json").read_text()
+    )["sheets"][0]
+    assert sheet["outcome"]["invalid"] is True
+    assert sheet["scores"]["B"]["total"] is None
+    assert sheet["scores"]["Q"]["total"] is None

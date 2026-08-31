@@ -21,7 +21,7 @@ import re
 import sys
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Mapping, Sequence
 
@@ -51,10 +51,10 @@ from scripts.run_character_dialogue_benchmark import (
 
 
 FACTORIAL_SCHEMA_VERSION = "mirelle_dialogue_factorial_manifest_v1"
-LEDGER_SCHEMA_VERSION = "opaque_conversation_response_ledger_v1"
-PENDING_SCHEMA_VERSION = "opaque_conversation_pending_request_v1"
-ARTIFACT_SCHEMA_VERSION = "dialogue_factorial_artifact_v1"
-REVIEW_SCHEMA_VERSION = "whole_conversation_blinded_review_v1"
+LEDGER_SCHEMA_VERSION = "opaque_conversation_response_ledger_v2"
+PENDING_SCHEMA_VERSION = "opaque_conversation_pending_request_v2"
+ARTIFACT_SCHEMA_VERSION = "dialogue_factorial_artifact_v2"
+REVIEW_SCHEMA_VERSION = "whole_conversation_blinded_review_v2"
 DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_MANIFEST_PATH = REPO_ROOT / "scripts" / "mirelle_dialogue_factorial_manifest.json"
 DEFAULT_OUTPUT_DIR = (
@@ -227,7 +227,7 @@ class FactorialConversation:
     turns: list[dict[str, Any]]
     public_transcript: list[dict[str, Any]]
     phase: str = "confirmatory"
-    proxy_agent_id: str = ""
+    proxy_agent_ids: list[str] = field(default_factory=list)
     status: str = "valid"
     technical_invalidity: str = ""
     model_failure: str = ""
@@ -246,7 +246,7 @@ class FactorialConversation:
                 "mode": "coding_agent_proxy",
                 "model": "gpt-5.6-luna",
                 "provider_live_calls": False,
-                "proxy_agent_id": self.proxy_agent_id,
+                "proxy_agent_ids": list(self.proxy_agent_ids),
             },
             "scenario": self.scenario.topology(),
             "phase": self.phase,
@@ -513,6 +513,14 @@ def load_factorial_manifest(path: str | Path = DEFAULT_MANIFEST_PATH) -> Factori
         raise FactorialManifestError(
             "factorial generation must use the gpt-5.6-luna coding-agent proxy"
         )
+    proxy_identity = _object(
+        generation.get("proxy_agent_identity", {}),
+        "fixed_runtime_contract.generation.proxy_agent_identity",
+    )
+    if proxy_identity.get("required_per_conversation") != 12:
+        raise FactorialManifestError(
+            "factorial generation must require twelve per-turn proxy agents"
+        )
     source = _object(root.get("source_revisions"), "source_revisions")
     current_source = _object(source.get("current"), "source_revisions.current")
     seed_info = _object(fixed.get("character_source", {}), "character_source")
@@ -705,6 +713,14 @@ def _default_responder(request: BenchmarkRequest) -> ModelCall:
     )
 
 
+def _offline_proxy_agent_id(conversation_token: str, sequence: int) -> str:
+    """Give offline calls the same per-turn identity shape as proxy calls."""
+
+    return "offline-" + _sha256_text(
+        f"{conversation_token}:{sequence}:{uuid.uuid4().hex}"
+    )[:24]
+
+
 Responder = Callable[[BenchmarkRequest], ModelCall | str | Mapping[str, Any] | Awaitable[Any]]
 
 
@@ -736,6 +752,20 @@ def _response_payload(value: Any) -> dict[str, Any]:
     raise FactorialTechnicalInvalidity(f"unsupported proxy response type {type(value).__name__}")
 
 
+def _validate_proxy_agent_id(value: Any) -> str:
+    try:
+        proxy_agent_id = _clean(value, "proxy_agent_id")
+    except FactorialManifestError as error:
+        raise FactorialTechnicalInvalidity(str(error)) from error
+    if any(term in proxy_agent_id.casefold() for term in (
+        "mirelle", "factorial", "experiment", "hypothesis", "depth",
+        "instruction", "sparse", "rich", "lean", "legacy", "cell",
+        "scenario", "pilot", "confirmatory",
+    )):
+        raise FactorialTechnicalInvalidity("proxy agent id must be opaque")
+    return proxy_agent_id
+
+
 def _proxy_response_parts(value: Any) -> tuple[str, dict[str, Any]]:
     """Extract the orchestrator's fresh-agent id without sending it to the model."""
 
@@ -752,24 +782,52 @@ def _proxy_response_parts(value: Any) -> tuple[str, dict[str, Any]]:
         raise FactorialTechnicalInvalidity(
             "imported proxy response must identify its fresh proxy agent"
         )
-    try:
-        cleaned_id = _clean(proxy_agent_id, "proxy_agent_id")
-    except FactorialManifestError as error:
-        raise FactorialTechnicalInvalidity(str(error)) from error
-    if any(term in cleaned_id.casefold() for term in (
-        "sparse", "rich", "lean", "legacy", "cell", "scenario", "pilot", "confirmatory"
-    )):
-        raise FactorialTechnicalInvalidity("proxy agent id must be opaque")
+    cleaned_id = _validate_proxy_agent_id(proxy_agent_id)
     response_data = _response_payload(value)
     response_data.pop("proxy_agent_id", None)
     response_data.pop("session_id", None)
     return cleaned_id, response_data
 
 
+def _validate_conversation_token(value: Any) -> str:
+    try:
+        token = _clean(value, "opaque conversation token")
+    except FactorialManifestError as error:
+        raise FactorialTechnicalInvalidity(str(error)) from error
+    if any(term in token.casefold() for term in (
+        "mirelle", "factorial", "experiment", "hypothesis", "depth",
+        "instruction", "sparse", "rich", "lean", "legacy", "cell",
+        "scenario", "pilot", "confirmatory",
+    )):
+        raise FactorialTechnicalInvalidity("conversation token is not opaque")
+    return token
+
+
+def _ledger_proxy_ids(
+    ledger: Mapping[str, Any],
+    responses: list[Any],
+) -> list[str]:
+    raw_ids = ledger.get("proxy_agent_ids")
+    if not isinstance(raw_ids, list) or len(raw_ids) != len(responses):
+        raise FactorialTechnicalInvalidity(
+            "response ledger proxy identity list does not match responses"
+        )
+    proxy_ids = [_validate_proxy_agent_id(value) for value in raw_ids]
+    if len(set(proxy_ids)) != len(proxy_ids):
+        raise FactorialTechnicalInvalidity(
+            "response ledger reuses a proxy agent identity"
+        )
+    for index, response in enumerate(responses):
+        entry = _object(response, "response ledger entry")
+        if entry.get("proxy_agent_id") != proxy_ids[index]:
+            raise FactorialTechnicalInvalidity(
+                "response ledger proxy identity list disagrees with an entry"
+            )
+    return proxy_ids
+
+
 def export_pending_request(path: str | Path, request: BenchmarkRequest, *, conversation_token: str) -> Path:
-    token = _clean(conversation_token, "opaque conversation token")
-    if any(term in token.casefold() for term in ("sparse", "rich", "lean", "legacy", "cell")):
-        raise FactorialTechnicalInvalidity("pending request token is not opaque")
+    token = _validate_conversation_token(conversation_token)
     payload = _provider_payload(request)
     document = {
         "schema_version": PENDING_SCHEMA_VERSION,
@@ -799,7 +857,7 @@ def import_response(ledger_path: str | Path, pending_path: str | Path, response:
         or pending.get("proxy_session_id") != pending.get("conversation")
     ):
         raise FactorialTechnicalInvalidity("pending request schema or hash is invalid")
-    token = _clean(pending.get("conversation"), "pending conversation")
+    token = _validate_conversation_token(pending.get("conversation"))
     ledger_file = Path(ledger_path)
     if ledger_file.exists():
         try:
@@ -810,26 +868,30 @@ def import_response(ledger_path: str | Path, pending_path: str | Path, response:
         ledger = {
             "schema_version": LEDGER_SCHEMA_VERSION,
             "conversation": token,
+            "proxy_agent_ids": [],
             "responses": [],
         }
     ledger = dict(_object(ledger, "response ledger"))
     responses = ledger.get("responses")
-    if ledger.get("schema_version") != LEDGER_SCHEMA_VERSION or ledger.get("conversation") != token or not isinstance(responses, list):
+    if (
+        ledger.get("schema_version") != LEDGER_SCHEMA_VERSION
+        or ledger.get("conversation") != token
+        or not isinstance(responses, list)
+    ):
         raise FactorialTechnicalInvalidity("response ledger identity or shape is invalid")
-    sequence = int(pending.get("sequence", -1))
+    proxy_ids = _ledger_proxy_ids(ledger, responses)
+    sequence_value = pending.get("sequence")
+    if isinstance(sequence_value, bool) or not isinstance(sequence_value, int):
+        raise FactorialTechnicalInvalidity("pending sequence must be an integer")
+    sequence = sequence_value
     if sequence != len(responses):
         raise FactorialTechnicalInvalidity("pending sequence is not the next ledger response")
     proxy_agent_id, response_data = _proxy_response_parts(response)
-    stored_proxy_agent_id = ledger.get("proxy_agent_id")
-    if responses and not stored_proxy_agent_id:
+    if proxy_agent_id in proxy_ids:
         raise FactorialTechnicalInvalidity(
-            "response ledger lacks the proxy agent identity for existing responses"
+            "proxy agent identity was reused within one conversation"
         )
-    if stored_proxy_agent_id and stored_proxy_agent_id != proxy_agent_id:
-        raise FactorialTechnicalInvalidity(
-            "proxy agent identity changed within one conversation"
-        )
-    ledger["proxy_agent_id"] = proxy_agent_id
+    ledger["proxy_agent_ids"] = [*proxy_ids, proxy_agent_id]
     responses.append({
         "sequence": sequence,
         "request": copy.deepcopy(request),
@@ -846,12 +908,23 @@ def import_response(ledger_path: str | Path, pending_path: str | Path, response:
 class ProxyResponder:
     """Consume exact opaque ledger entries in order, writing the next pending request."""
 
-    def __init__(self, ledger_path: Path, pending_path: Path, token: str):
+    def __init__(
+        self,
+        ledger_path: Path,
+        pending_path: Path,
+        token: str,
+        *,
+        manifest_sha256: str = "",
+        phase: str = "",
+    ):
         self.ledger_path = ledger_path
         self.pending_path = pending_path
-        self.token = token
+        self.token = _validate_conversation_token(token)
+        self.manifest_sha256 = manifest_sha256
+        self.phase = phase
         self.next_sequence = 0
-        self.proxy_agent_id = ""
+        self.proxy_agent_ids: list[str] = []
+        self.last_proxy_agent_id = ""
 
     def __call__(self, request: BenchmarkRequest) -> ModelCall:
         if self.ledger_path.exists():
@@ -863,19 +936,33 @@ class ProxyResponder:
             ledger = {
                 "schema_version": LEDGER_SCHEMA_VERSION,
                 "conversation": self.token,
+                "proxy_agent_ids": [],
                 "responses": [],
             }
+            if self.manifest_sha256:
+                ledger["manifest_sha256"] = self.manifest_sha256
+            if self.phase:
+                ledger["phase"] = self.phase
+            if self.manifest_sha256 or self.phase:
+                self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+                self.ledger_path.write_text(
+                    json.dumps(ledger, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
         ledger = _object(ledger, "response ledger")
         entries = ledger.get("responses")
-        if ledger.get("schema_version") != LEDGER_SCHEMA_VERSION or ledger.get("conversation") != self.token or not isinstance(entries, list):
+        if (
+            ledger.get("schema_version") != LEDGER_SCHEMA_VERSION
+            or ledger.get("conversation") != self.token
+            or not isinstance(entries, list)
+        ):
             raise FactorialTechnicalInvalidity("proxy ledger identity or shape is invalid")
-        stored_proxy_agent_id = ledger.get("proxy_agent_id")
-        if entries and not isinstance(stored_proxy_agent_id, str):
-            raise FactorialTechnicalInvalidity(
-                "response ledger lacks its proxy agent identity"
-            )
-        if stored_proxy_agent_id:
-            self.proxy_agent_id = stored_proxy_agent_id
+        if self.manifest_sha256 and ledger.get("manifest_sha256") != self.manifest_sha256:
+            raise FactorialTechnicalInvalidity("proxy ledger manifest hash is stale")
+        if self.phase and ledger.get("phase") != self.phase:
+            raise FactorialTechnicalInvalidity("proxy ledger phase is stale")
+        self.proxy_agent_ids = _ledger_proxy_ids(ledger, entries)
+        self.last_proxy_agent_id = ""
         sequence = self.next_sequence
         if sequence >= len(entries):
             export_pending_request(self.pending_path, request, conversation_token=self.token)
@@ -883,10 +970,7 @@ class ProxyResponder:
         entry = _object(entries[sequence], "response ledger entry")
         if entry.get("sequence") != sequence:
             raise FactorialTechnicalInvalidity("proxy ledger response sequence is out of order")
-        if entry.get("proxy_agent_id") != self.proxy_agent_id:
-            raise FactorialTechnicalInvalidity(
-                "proxy ledger response has a different agent identity"
-            )
+        proxy_agent_id = self.proxy_agent_ids[sequence]
         stored_request = _object(entry.get("request"), "response ledger request")
         if entry.get("request_sha256") != _sha256_json(stored_request) or dict(stored_request) != _provider_payload(request):
             raise FactorialTechnicalInvalidity("proxy ledger request differs from exact current request")
@@ -896,6 +980,7 @@ class ProxyResponder:
         content = response.get("content")
         if not isinstance(content, str):
             raise FactorialTechnicalInvalidity("proxy ledger response content is not a string")
+        self.last_proxy_agent_id = proxy_agent_id
         self.next_sequence += 1
         return ModelCall(
             content=content,
@@ -905,6 +990,18 @@ class ProxyResponder:
             raw_response=copy.deepcopy(response.get("raw_response")),
             assistant_content=copy.deepcopy(response.get("assistant_content")),
         )
+
+
+def _record_proxy_agent_id(
+    result: FactorialConversation,
+    proxy_agent_id: str,
+) -> None:
+    validated = _validate_proxy_agent_id(proxy_agent_id)
+    if validated in result.proxy_agent_ids:
+        raise FactorialTechnicalInvalidity(
+            "proxy agent identity was reused within one conversation"
+        )
+    result.proxy_agent_ids.append(validated)
 
 
 async def run_conversation(
@@ -942,11 +1039,6 @@ async def run_conversation(
         turns=[],
         public_transcript=[],
         phase=phase,
-        proxy_agent_id=(
-            ledger_responder.proxy_agent_id
-            if ledger_responder is not None and ledger_responder.proxy_agent_id
-            else f"offline-{_sha256_text(token)[:24]}"
-        ),
     )
     client = _RecordingCharacterClient(
         model=selected_model,
@@ -1009,23 +1101,42 @@ async def run_conversation(
                     actor_name=actor.name,
                 ))
                 started = time.perf_counter()
-                draft = await agent.draft_turn(actor, checkpoint, frame="foreground", local_context="")
+                try:
+                    draft = await agent.draft_turn(
+                        actor, checkpoint, frame="foreground", local_context=""
+                    )
+                except Exception:
+                    # A malformed/empty model response is a terminal model
+                    # outcome, so retain the fresh identity for that call.
+                    # Ledger/request failures leave no captured call and are
+                    # intentionally rerunnable infrastructure failures.
+                    if client.last_call is not None:
+                        proxy_agent_id = (
+                            ledger_responder.last_proxy_agent_id
+                            if ledger_responder is not None
+                            else _offline_proxy_agent_id(token, global_turn - 1)
+                        )
+                        if not proxy_agent_id:
+                            raise FactorialTechnicalInvalidity(
+                                "proxy response did not identify its fresh agent"
+                            )
+                        _record_proxy_agent_id(result, proxy_agent_id)
+                    raise
                 elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
                 request = client.last_request
                 call = client.last_call
                 if request is None or call is None:
                     raise FactorialTechnicalInvalidity("CharacterAgent completed without captured request")
-                if ledger_responder is not None:
-                    if not ledger_responder.proxy_agent_id:
-                        raise FactorialTechnicalInvalidity(
-                            "proxy response did not identify its agent"
-                        )
-                    if result.proxy_agent_id.startswith("offline-"):
-                        result.proxy_agent_id = ledger_responder.proxy_agent_id
-                    elif result.proxy_agent_id != ledger_responder.proxy_agent_id:
-                        raise FactorialTechnicalInvalidity(
-                            "proxy agent identity changed within one conversation"
-                        )
+                proxy_agent_id = (
+                    ledger_responder.last_proxy_agent_id
+                    if ledger_responder is not None
+                    else _offline_proxy_agent_id(token, global_turn - 1)
+                )
+                if not proxy_agent_id:
+                    raise FactorialTechnicalInvalidity(
+                        "proxy response did not identify its fresh agent"
+                    )
+                _record_proxy_agent_id(result, proxy_agent_id)
                 _assert_prompt_contract(request, actor, cell=cell, scenario=scenario)
                 public_text = "<silence/>" if draft.output.is_silence else draft.output.public_text
                 agent.commit_draft(actor, checkpoint, draft)
@@ -1055,7 +1166,7 @@ async def run_conversation(
                     "response": {
                         **_raw_response_payload(call),
                         "response_sha256": _sha256_text(call.content),
-                        "proxy_agent_id": result.proxy_agent_id,
+                        "proxy_agent_id": proxy_agent_id,
                     },
                     "public_text": public_text,
                     "history": {
@@ -1086,8 +1197,10 @@ async def run_conversation(
             raise FactorialTechnicalInvalidity("conversation did not complete twelve turns")
         if ledger_responder is not None and ledger_responder.next_sequence != 12:
             raise FactorialTechnicalInvalidity("proxy ledger did not consume twelve responses")
-        if not result.proxy_agent_id:
-            raise FactorialTechnicalInvalidity("conversation has no proxy agent identity")
+        if len(result.proxy_agent_ids) != 12 or len(set(result.proxy_agent_ids)) != 12:
+            raise FactorialTechnicalInvalidity(
+                "completed conversation must have twelve unique proxy agents"
+            )
     except PendingRequest:
         raise
     except (FactorialTechnicalInvalidity,) as error:
@@ -1097,8 +1210,8 @@ async def run_conversation(
         result.status = "model_failure"
         result.model_failure = str(error)
     except Exception as error:
-        result.status = "model_failure"
-        result.model_failure = f"{type(error).__name__}: {error}"
+        result.status = "technical_invalidity"
+        result.technical_invalidity = f"{type(error).__name__}: {error}"
     return result
 
 
@@ -1328,17 +1441,33 @@ def _blinded_reviews(
                     "speaker": "Situation",
                     "text": anonymize(str(update.get("text", ""))),
                 })
+        scores = _empty_preregistered_scores(review_contract)
+        outcome = {
+            "human_quality_pass": None,
+            "human_quality_fail": None,
+            "invalid": None,
+        }
+        if conversation.status == "model_failure":
+            evidence = (
+                conversation.model_failure
+                or "terminal model failure; no reviewable response"
+            )
+            for score_id, score_value in (("B", 2), ("Q", 0)):
+                score = scores[score_id]
+                for dimension in score["dimensions"].values():
+                    dimension["score"] = score_value
+                    dimension["evidence"] = evidence
+                score["total"] = 10 if score_id == "B" else 0
+            outcome["human_quality_fail"] = True
+        elif conversation.status == "technical_invalidity":
+            outcome["invalid"] = True
         sheet = {
             "schema_version": REVIEW_SCHEMA_VERSION,
             "blind_id": blind_id,
             "unit": "whole_conversation",
             "transcript": transcript,
-            "scores": _empty_preregistered_scores(review_contract),
-            "outcome": {
-                "human_quality_pass": None,
-                "human_quality_fail": None,
-                "invalid": None,
-            },
+            "scores": scores,
+            "outcome": outcome,
         }
         key = {
             "blind_id": blind_id,
@@ -1418,15 +1547,31 @@ def _import_response_from_cli(
 
 def write_artifacts(manifest: FactorialManifest, conversations: Sequence[FactorialConversation], output_dir: str | Path) -> Path:
     root = Path(output_dir)
-    proxy_ids = [conversation.proxy_agent_id for conversation in conversations]
-    if any(not proxy_id for proxy_id in proxy_ids):
+    proxy_ids = [
+        proxy_id
+        for conversation in conversations
+        for proxy_id in conversation.proxy_agent_ids
+    ]
+    if any(
+        conversation.status == "valid"
+        and not conversation.proxy_agent_ids
+        for conversation in conversations
+    ):
         raise FactorialTechnicalInvalidity(
-            "every completed conversation must identify its proxy agent"
+            "every completed model conversation must identify its proxy agents"
         )
     if len(set(proxy_ids)) != len(proxy_ids):
         raise FactorialTechnicalInvalidity(
-            "one fresh proxy agent is required per opaque conversation"
+            "proxy agent identities must be globally unique across artifacts"
         )
+    for conversation in conversations:
+        if conversation.status == "valid" and (
+            len(conversation.proxy_agent_ids) != 12
+            or len(set(conversation.proxy_agent_ids)) != 12
+        ):
+            raise FactorialTechnicalInvalidity(
+                "completed conversation must have twelve unique proxy agents"
+            )
     for conversation in conversations:
         _write_json(root / "raw" / f"{conversation.conversation_id}.json", conversation.artifact())
     sheets, answer_key = _blinded_reviews(
@@ -1459,6 +1604,7 @@ def write_artifacts(manifest: FactorialManifest, conversations: Sequence[Factori
         "manifest_sha256": manifest.manifest_sha256,
         "execution": {"mode": "coding_agent_proxy", "model": "gpt-5.6-luna", "provider_live_calls": False},
         "proxy_agent_ids": proxy_ids,
+        "proxy_agent_count": len(proxy_ids),
         "conversation_count": len(conversations),
         "turn_count": sum(len(conversation.turns) for conversation in conversations),
         "phases": sorted({conversation.phase for conversation in conversations}),
@@ -1467,6 +1613,15 @@ def write_artifacts(manifest: FactorialManifest, conversations: Sequence[Factori
         "model_failure_count": sum(conversation.status == "model_failure" for conversation in conversations),
     })
     return root
+
+
+def _batch_exit_code(conversations: Sequence[FactorialConversation]) -> int:
+    """Only pending/technical outcomes require rerunning a completed batch."""
+
+    return 1 if any(
+        conversation.status == "technical_invalidity"
+        for conversation in conversations
+    ) else 0
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -1527,7 +1682,13 @@ async def _main_async(args: argparse.Namespace) -> int:
                     ledger = args.ledger_dir / f"{token}.json"
                     pending_dir = args.pending_dir or args.ledger_dir
                     pending = pending_dir / f"{token}.pending.json"
-                    proxy = ProxyResponder(ledger, pending, token)
+                    proxy = ProxyResponder(
+                        ledger,
+                        pending,
+                        token,
+                        manifest_sha256=manifest.manifest_sha256,
+                        phase=args.phase,
+                    )
                     conversation = await run_conversation(
                         cell,
                         scenario,
@@ -1539,7 +1700,7 @@ async def _main_async(args: argparse.Namespace) -> int:
                     )
                     conversations.append(conversation)
         write_artifacts(manifest, conversations, args.output)
-        return 0
+        return _batch_exit_code(conversations)
     conversations = await run_factorial(
         manifest,
         model=args.model,
@@ -1548,7 +1709,7 @@ async def _main_async(args: argparse.Namespace) -> int:
         parallelism=args.parallelism,
     )
     write_artifacts(manifest, conversations, args.output)
-    return 0 if all(conversation.status == "valid" for conversation in conversations) else 1
+    return _batch_exit_code(conversations)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
