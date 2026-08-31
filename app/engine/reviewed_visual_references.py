@@ -21,18 +21,23 @@ MAX_REVIEWED_REFERENCE_BYTES = 20_000_000
 MAX_REVIEWED_REFERENCE_TOTAL_BYTES = 256_000_000
 MAX_REVIEWED_REFERENCE_EDGE = 8_192
 MAX_REVIEWED_REFERENCE_PIXELS = 40_000_000
+MAX_REVIEWED_ANIMATION_FRAMES = 120
+MAX_REVIEWED_ANIMATION_DURATION_MS = 60_000
 
 _FORMAT_BY_MIME = {
+    "image/gif": "GIF",
     "image/jpeg": "JPEG",
     "image/png": "PNG",
     "image/webp": "WEBP",
 }
 _EXTENSIONS_BY_MIME = {
+    "image/gif": frozenset((".gif",)),
     "image/jpeg": frozenset((".jpg", ".jpeg")),
     "image/png": frozenset((".png",)),
     "image/webp": frozenset((".webp",)),
 }
 _CANONICAL_EXTENSION_BY_MIME = {
+    "image/gif": ".gif",
     "image/jpeg": ".jpg",
     "image/png": ".png",
     "image/webp": ".webp",
@@ -393,6 +398,26 @@ def _selected_reviewed_reference_ids(
                     reference_id=frame_id,
                 )
             selected.append(frame_id)
+            for reveal_id in presentation.summon_reveal_reference_ids.values():
+                reveal = by_id.get(reveal_id)
+                if reveal is None:
+                    raise ReviewedVisualReferenceError(
+                        "selected_summon_reveal_missing",
+                        reference_id=reveal_id,
+                    )
+                if (
+                    reveal.purpose != "presentation"
+                    or reveal.scope != "presentation"
+                    or reveal.scope_id
+                    != ONE_STAR_HERO_CARD_PRESENTATION_SCOPE_ID
+                    or reveal.mime_type != "image/gif"
+                    or reveal.diffusion_authorized
+                ):
+                    raise ReviewedVisualReferenceError(
+                        "selected_summon_reveal_unauthorized",
+                        reference_id=reveal_id,
+                    )
+                selected.append(reveal_id)
 
     for reference_ids in checkpoint.location_visual_reference_ids.values():
         for reference_id in reference_ids:
@@ -454,14 +479,51 @@ def _validate_image_bytes(
                     "reference_mime_mismatch",
                     reference_id=metadata.reference_id,
                 )
-            if getattr(image, "n_frames", 1) != 1:
-                raise ReviewedVisualReferenceError(
-                    "animated_reference_not_allowed",
-                    reference_id=metadata.reference_id,
-                )
             if image.size != (metadata.width, metadata.height):
                 raise ReviewedVisualReferenceError(
                     "reference_dimensions_mismatch",
+                    reference_id=metadata.reference_id,
+                )
+            frame_count = int(getattr(image, "n_frames", 1))
+            if metadata.mime_type == "image/gif":
+                if not 2 <= frame_count <= MAX_REVIEWED_ANIMATION_FRAMES:
+                    raise ReviewedVisualReferenceError(
+                        "animated_reference_frame_count_invalid",
+                        reference_id=metadata.reference_id,
+                    )
+                if image.info.get("loop") is not None:
+                    raise ReviewedVisualReferenceError(
+                        "animated_reference_loop_not_allowed",
+                        reference_id=metadata.reference_id,
+                    )
+                duration_ms = 0
+                for frame_index in range(frame_count):
+                    image.seek(frame_index)
+                    if image.size != (metadata.width, metadata.height):
+                        raise ReviewedVisualReferenceError(
+                            "reference_dimensions_mismatch",
+                            reference_id=metadata.reference_id,
+                        )
+                    frame_duration = image.info.get("duration")
+                    if (
+                        type(frame_duration) is not int
+                        or not 1 <= frame_duration <= 10_000
+                    ):
+                        raise ReviewedVisualReferenceError(
+                            "animated_reference_duration_invalid",
+                            reference_id=metadata.reference_id,
+                        )
+                    duration_ms += frame_duration
+                    image.load()
+                if duration_ms > MAX_REVIEWED_ANIMATION_DURATION_MS:
+                    raise ReviewedVisualReferenceError(
+                        "animated_reference_duration_invalid",
+                        reference_id=metadata.reference_id,
+                    )
+                return
+            if frame_count != 1:
+                raise ReviewedVisualReferenceError(
+                    "animated_reference_not_allowed",
                     reference_id=metadata.reference_id,
                 )
             image.verify()
@@ -469,7 +531,7 @@ def _validate_image_bytes(
         raise
     except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
         raise ReviewedVisualReferenceError(
-            "invalid_static_reference_image",
+            "invalid_reviewed_reference_image",
             reference_id=metadata.reference_id,
         ) from exc
 

@@ -3571,6 +3571,32 @@ class TestVisualNovelDiscordDeck:
         assert description.endswith("…")
         assert "  " not in description
 
+    def test_discord_attachment_preserves_animated_card_extension(
+        self,
+        tmp_path: Path,
+    ):
+        deck = self._deck(tmp_path)
+        source = deck.cards[0]
+        animated = VisualNovelCard(
+            index=source.index,
+            count=source.count,
+            kind=source.kind,
+            speaker=source.speaker,
+            text=source.text,
+            image_path=source.image_path.with_suffix(".gif"),
+            image_bytes=b"GIF89a manifest-verified animation",
+            mime_type="image/gif",
+        )
+
+        attachment = bot_commands._visual_novel_discord_file(
+            SimpleNamespace(deck_id=deck.deck_id, cards=(animated,)),
+            0,
+        )
+
+        assert attachment.filename.endswith("-001.gif")
+        assert attachment.fp.read() == animated.image_bytes
+        attachment.close()
+
     def test_thread_tracking_failure_does_not_retry_delivery(
         self,
         monkeypatch: pytest.MonkeyPatch,

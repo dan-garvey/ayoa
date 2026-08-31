@@ -19,15 +19,19 @@ from app.engine.one_star_hero_cards import (
     OneStarHeroCardError,
     OneStarHeroCardBoard,
     OneStarHeroCardEvent,
+    OneStarSummonReveal,
     committed_one_star_hero_card_event,
     generated_portrait_prewarm_character_ids,
     new_one_star_hero_card_events,
     one_star_hero_card_events_for_render,
+    one_star_summon_reveal_band,
     render_one_star_hero_card,
     render_one_star_hero_card_boards,
+    render_one_star_summon_reveals,
 )
 from app.engine.one_star_visuals import sprite_set_id_for_viewer
 from app.engine.player_media import ResolvedPlayerMedia
+from app.engine.reviewed_visual_references import validate_story_visual_references
 from app.engine.visual_novel_presentation import VisualNovelDeckSection
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
@@ -56,6 +60,15 @@ _FRAME = (
 _RENNA_PORTRAIT = (
     _STORY / "visual-references/hero-card-portraits/renna_holt_v1.png"
 )
+_SUMMON_REVEAL_ROOT = (
+    _STORY / "visual-references/system-panels/summon-reveal"
+)
+_SUMMON_REVEALS = {
+    "under_3": _SUMMON_REVEAL_ROOT / "one_star_pull_reveal_iron_v4.gif",
+    "3_to_4": _SUMMON_REVEAL_ROOT / "one_star_pull_reveal_silver_v4.gif",
+    "5_to_6": _SUMMON_REVEAL_ROOT / "one_star_pull_reveal_gold_v4.gif",
+    "7": _SUMMON_REVEAL_ROOT / "one_star_pull_reveal_white_gold_v4.gif",
+}
 
 
 def _seed() -> CheckpointFile:
@@ -179,7 +192,7 @@ def _file_media(path: Path) -> ResolvedPlayerMedia:
     data = path.read_bytes()
     return ResolvedPlayerMedia(
         filename=path.name,
-        mime_type="image/png",
+        mime_type=("image/gif" if path.suffix.lower() == ".gif" else "image/png"),
         data=data,
         sha256=hashlib.sha256(data).hexdigest(),
         byte_count=len(data),
@@ -314,7 +327,7 @@ def test_non_one_star_checkpoints_never_emit_card_events() -> None:
     assert new_one_star_hero_card_events(checkpoint, None) == ()
 
 
-def test_seed_promotes_only_reviewed_frame_and_approved_bust_overrides() -> None:
+def test_seed_promotes_only_reviewed_frame_reveals_and_bust_overrides() -> None:
     checkpoint = _seed()
     _owner, account = load_one_star_account(checkpoint)
     presentation = account.config.visual_novel_presentation
@@ -332,6 +345,65 @@ def test_seed_promotes_only_reviewed_frame_and_approved_bust_overrides() -> None
         "presentation",
         "one_star_hero_cards",
     )
+    expected_reveals = {
+        "under_3": (
+            "osa_pull_reveal_iron_v4",
+            "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+            18,
+            1400,
+        ),
+        "3_to_4": (
+            "osa_pull_reveal_silver_v4",
+            "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+            36,
+            2270,
+        ),
+        "5_to_6": (
+            "osa_pull_reveal_gold_v4",
+            "c15c7c24dbd194d63da9aba569b8420d1c4842c003a6859321aeaf44d406c4f1",
+            46,
+            2870,
+        ),
+        "7": (
+            "osa_pull_reveal_white_gold_v4",
+            "02fbcc62a5aaa21e3d1e0d5176618e07aaa785563da4bef36651e94e65e8744e",
+            56,
+            3570,
+        ),
+    }
+    assert set(presentation.summon_reveal_reference_ids) == set(
+        expected_reveals
+    )
+    for band, (reference_id, sha256, frame_count, duration_ms) in (
+        expected_reveals.items()
+    ):
+        assert presentation.summon_reveal_reference_ids[band] == reference_id
+        reference = references[reference_id]
+        assert (
+            reference.purpose,
+            reference.scope,
+            reference.scope_id,
+            reference.mime_type,
+        ) == (
+            "presentation",
+            "presentation",
+            "one_star_hero_cards",
+            "image/gif",
+        )
+        path = _STORY / "visual-references" / reference.storage_ref
+        data = path.read_bytes()
+        assert hashlib.sha256(data).hexdigest() == sha256 == reference.sha256
+        assert len(data) == reference.byte_count
+        assert b"osa_" not in data
+        with Image.open(BytesIO(data)) as opened:
+            assert opened.size == (1024, 576)
+            assert opened.n_frames == frame_count
+            assert opened.info.get("loop") is None
+            durations = []
+            for index in range(opened.n_frames):
+                opened.seek(index)
+                durations.append(int(opened.info["duration"]))
+            assert sum(durations) == duration_ms
     sprite_sets = {
         sprite_set.sprite_set_id: sprite_set
         for sprite_set in checkpoint.reviewed_visual_novel_sprite_sets
@@ -367,6 +439,113 @@ def test_seed_promotes_only_reviewed_frame_and_approved_bust_overrides() -> None
         for sprite_set in sprite_sets.values()
         if sprite_set.portrait_reference_id
     )
+    validate_story_visual_references(checkpoint, story_dir=_STORY)
+
+
+@pytest.mark.parametrize(
+    ("stars", "band"),
+    (
+        (1, "under_3"),
+        (2, "under_3"),
+        (3, "3_to_4"),
+        (4, "3_to_4"),
+        (5, "5_to_6"),
+        (6, "5_to_6"),
+        (7, "7"),
+    ),
+)
+def test_summon_reveal_rank_bands(stars: int, band: str) -> None:
+    assert one_star_summon_reveal_band(stars) == band
+
+
+def test_summon_reveals_use_current_rank_order_and_master_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checkpoint = _seed()
+    heroes = tuple(
+        _character(checkpoint, character_id)
+        for character_id in (
+            "renna_holt",
+            "mirelle_voss",
+            "halcyon_of_the_gilded_march",
+            "edren_marr",
+        )
+    )
+    for hero, stars in zip(heroes, (1, 3, 6, 7), strict=True):
+        _set_stars(hero, stars)
+    event = OneStarHeroCardEvent(
+        event_id="evt_reveal_order",
+        kind="summon",
+        characters=heroes,
+    )
+    _owner, account = load_one_star_account(checkpoint)
+    presentation = account.config.visual_novel_presentation
+    assert presentation is not None
+    media_by_reference_id = {
+        reference_id: _file_media(_SUMMON_REVEALS[band])
+        for band, reference_id in (
+            presentation.summon_reveal_reference_ids.items()
+        )
+    }
+
+    def resolve(reference, *, runtime_root):
+        del runtime_root
+        return media_by_reference_id[reference.reference_id]
+
+    monkeypatch.setattr(hero_cards, "resolve_frozen_visual_reference_media", resolve)
+    generation = _FakeGeneration()
+    reveals = render_one_star_summon_reveals(
+        checkpoint=checkpoint,
+        viewer_character_id="the_master",
+        event=event,
+        generation=generation,
+    )
+
+    assert [reveal.band for reveal in reveals] == [
+        "under_3",
+        "3_to_4",
+        "5_to_6",
+        "7",
+    ]
+    assert [reveal.pull_number for reveal in reveals] == [1, 2, 3, 4]
+    assert all(reveal.pull_count == 4 for reveal in reveals)
+    assert [reveal.media.data for reveal in reveals] == [
+        _file_media(_SUMMON_REVEALS[band]).data
+        for band in ("under_3", "3_to_4", "5_to_6", "7")
+    ]
+    assert all(reveal.media.mime_type == "image/gif" for reveal in reveals)
+    assert all("static result" in reveal.accessible_text for reveal in reveals)
+    assert all(
+        hero.name not in reveal.accessible_text
+        for hero in heroes
+        for reveal in reveals
+    )
+    assert all("osa_" not in reveal.accessible_text for reveal in reveals)
+    assert render_one_star_summon_reveals(
+        checkpoint=checkpoint,
+        viewer_character_id="renna_holt",
+        event=event,
+        generation=generation,
+    ) == ()
+    assert render_one_star_summon_reveals(
+        checkpoint=checkpoint,
+        viewer_character_id="the_master",
+        event=OneStarHeroCardEvent(
+            event_id="evt_formation",
+            kind="mission_start",
+            characters=heroes,
+        ),
+        generation=generation,
+    ) == ()
+
+    missing_reference = presentation.summon_reveal_reference_ids["under_3"]
+    with pytest.raises(OneStarHeroCardError, match="summon_reveal_unavailable"):
+        render_one_star_summon_reveals(
+            checkpoint=checkpoint,
+            viewer_character_id="the_master",
+            event=event,
+            generation=_FakeGeneration(unavailable_ids={missing_reference}),
+        )
 
 
 def test_deployment_card_preserves_validated_party_order() -> None:
@@ -761,7 +940,7 @@ def test_board_uses_current_rank_after_promotion(
 
 
 @pytest.mark.asyncio
-async def test_bridge_inserts_one_board_immediately_after_matching_segment(
+async def test_bridge_inserts_reveal_then_board_after_matching_segment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     checkpoint = _seed()
@@ -782,6 +961,18 @@ async def test_bridge_inserts_one_board_immediately_after_matching_segment(
         kind="summon",
         page_number=1,
         page_count=1,
+    )
+    reveal_media = _file_media(_SUMMON_REVEALS["under_3"])
+    reveal = OneStarSummonReveal(
+        media=reveal_media,
+        accessible_text=(
+            "Summon reveal — pull 1 of 1: an iron response signals a "
+            "one- or two-star result. The static result follows."
+        ),
+        event_id=event.event_id,
+        band="under_3",
+        pull_number=1,
+        pull_count=1,
     )
     bridge = EngineBridge.__new__(EngineBridge)
     bridge.load_checkpoint = MagicMock(return_value=checkpoint)  # type: ignore[method-assign]
@@ -812,6 +1003,11 @@ async def test_bridge_inserts_one_board_immediately_after_matching_segment(
         "app.bot.engine_bridge.render_one_star_hero_card_boards",
         render_boards,
     )
+    render_reveals = MagicMock(return_value=(reveal,))
+    monkeypatch.setattr(
+        "app.bot.engine_bridge.render_one_star_summon_reveals",
+        render_reveals,
+    )
     monkeypatch.setattr(
         "app.bot.engine_bridge.resolve_visual_novel_sprite_placements",
         lambda **_kwargs: (),
@@ -838,15 +1034,19 @@ async def test_bridge_inserts_one_board_immediately_after_matching_segment(
     assert all(isinstance(section, VisualNovelDeckSection) for section in sections)
     assert [section.pages[0].text for section in sections] == [
         "The summons arrive.",
+        reveal.accessible_text,
         board.accessible_text,
         "The light settles.",
     ]
     assert [section.card_style for section in sections] == [
         "adv",
         "system_panel",
+        "system_panel",
         "adv",
     ]
-    assert sections[1].stage_media is panel_media
+    assert sections[1].stage_media is reveal_media
+    assert sections[2].stage_media is panel_media
+    render_reveals.assert_called_once()
     render_boards.assert_called_once()
 
 

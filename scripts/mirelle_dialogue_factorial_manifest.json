@@ -12,7 +12,7 @@
       "commit": "1b0fa611b9fa1891c9e04ddf2f0b7eacb217b793",
       "seed": {
         "path": "app/storage/stories/one_star_ascension_s1/ckpt_0000.json",
-        "blob_sha1": "3dd674d89469ac898052a5f5be1fe69f3b6924ca",
+        "blob_sha1": "329ba1edd52536add2ccdcb79d734cee8aace6b8",
         "character_id": "mirelle_voss",
         "character_lines": "1867-1907"
       },

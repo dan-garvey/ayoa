@@ -31,15 +31,18 @@ from app.schemas.narrator import (
 
 CARD_WIDTH = 1024
 CARD_HEIGHT = 576
-_RENDERER_VERSION = "classic-adv-v9-identity-transitions"
+_RENDERER_VERSION = "classic-adv-v10-panel-media"
 _SPEAKER_NAME_MAX_WIDTH = 900
-_MANIFEST_VERSION = 2
+_MANIFEST_VERSION = 3
 _SHA256_LENGTH = 64
 _MAX_BODY_LINES = 4
 _MAX_SPRITES_PER_SECTION = 2
 _MAX_SPRITE_BYTES = 20_000_000
 _MAX_SPRITE_EDGE = 8_192
 _MAX_SPRITE_PIXELS = 40_000_000
+_MAX_SYSTEM_PANEL_BYTES = 20_000_000
+_MAX_SYSTEM_PANEL_FRAMES = 120
+_MAX_SYSTEM_PANEL_DURATION_MS = 60_000
 _MIN_SPRITE_SCALE_PERCENT = 25
 _MAX_SPRITE_SCALE_PERCENT = 150
 _MIN_SPRITE_BASELINE_Y = 396
@@ -99,6 +102,10 @@ _CONTINUATION_FINAL_WORDS = {
 }
 _DEFAULT_REGULAR_FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
 _DEFAULT_BOLD_FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+_CARD_EXTENSION_BY_MIME = {
+    "image/gif": ".gif",
+    "image/png": ".png",
+}
 
 VisualNovelCardStyle = Literal[
     "adv",
@@ -124,6 +131,7 @@ class VisualNovelCard:
     text: str
     image_path: Path
     image_bytes: bytes = field(repr=False)
+    mime_type: Literal["image/gif", "image/png"] = "image/png"
 
     @property
     def accessible_text(self) -> str:
@@ -205,6 +213,7 @@ class _ResolvedSpritePlacement:
 class _ResolvedDeckSection:
     composed_stage: Image.Image = field(repr=False)
     system_panel_bytes: bytes | None = field(repr=False)
+    system_panel_mime_type: str | None
     stage_sha256: str
     used_neutral_stage: bool
     sprites: tuple[_ResolvedSpritePlacement, ...]
@@ -213,7 +222,7 @@ class _ResolvedDeckSection:
 
 
 class VisualNovelCardRenderer:
-    """Build and load content-addressed 1024x576 PNG card decks."""
+    """Build and load content-addressed 1024x576 media card decks."""
 
     def __init__(
         self,
@@ -286,21 +295,28 @@ class VisualNovelCardRenderer:
                     "system-panel sections require one media page and no sprites"
                 )
             system_panel_bytes = None
+            system_panel_mime_type = None
             if section.card_style == "system_panel":
                 media = section.stage_media
                 assert media is not None
                 data = bytes(media.data)
                 if (
-                    media.mime_type != "image/png"
+                    media.mime_type not in _CARD_EXTENSION_BY_MIME
                     or media.width != CARD_WIDTH
                     or media.height != CARD_HEIGHT
                     or media.byte_count != len(data)
-                    or hashlib.sha256(data).hexdigest() != media.sha256
+                    or len(data) > _MAX_SYSTEM_PANEL_BYTES
+                    or not _valid_card_media_bytes(
+                        data,
+                        mime_type=media.mime_type,
+                        expected_sha256=media.sha256,
+                    )
                 ):
                     raise ValueError(
-                        "system-panel media must be an exact 1024x576 PNG"
+                        "system-panel media must be an exact 1024x576 PNG or GIF"
                     )
                 system_panel_bytes = data
+                system_panel_mime_type = media.mime_type
             stage, stage_sha256, used_neutral = _load_stage(
                 section.stage_path,
                 stage_media=section.stage_media,
@@ -310,6 +326,7 @@ class VisualNovelCardRenderer:
                 _ResolvedDeckSection(
                     composed_stage=_compose_sprite_stage(stage, sprites),
                     system_panel_bytes=system_panel_bytes,
+                    system_panel_mime_type=system_panel_mime_type,
                     stage_sha256=stage_sha256,
                     used_neutral_stage=used_neutral,
                     sprites=sprites,
@@ -333,6 +350,9 @@ class VisualNovelCardRenderer:
                     "stage_sha256": section.stage_sha256,
                     "used_neutral_stage": section.used_neutral_stage,
                     "card_style": section.card_style,
+                    "card_mime_type": (
+                        section.system_panel_mime_type or "image/png"
+                    ),
                     "sprites": [sprite.identity for sprite in section.sprites],
                     "pages": [
                         page.model_dump(mode="json", exclude={"sprites"})
@@ -343,7 +363,7 @@ class VisualNovelCardRenderer:
             ],
         }
         count = sum(len(section.pages) for section in resolved_sections)
-        rendered_cards: list[tuple[VisualNovelPage, bytes, str]] = []
+        rendered_cards: list[tuple[VisualNovelPage, bytes, str, str]] = []
         physical_pages: list[VisualNovelPage] = []
         index = 0
         for section in resolved_sections:
@@ -352,6 +372,8 @@ class VisualNovelCardRenderer:
                 physical_pages.append(page)
                 if section.system_panel_bytes is not None:
                     image_bytes = section.system_panel_bytes
+                    mime_type = section.system_panel_mime_type
+                    assert mime_type is not None
                 else:
                     card_image = _compose_card(
                         section.composed_stage,
@@ -364,17 +386,19 @@ class VisualNovelCardRenderer:
                     encoded = BytesIO()
                     card_image.save(encoded, format="PNG", optimize=False)
                     image_bytes = encoded.getvalue()
+                    mime_type = "image/png"
                 rendered_cards.append(
                     (
                         page,
                         image_bytes,
                         hashlib.sha256(image_bytes).hexdigest(),
+                        mime_type,
                     )
                 )
 
         transcript = _transcript(physical_pages)
         used_neutral = any(section.used_neutral_stage for section in resolved_sections)
-        card_sha256s = [sha256 for _page, _data, sha256 in rendered_cards]
+        card_sha256s = [sha256 for _page, _data, sha256, _mime in rendered_cards]
         deck_id = _deck_content_id(identity, card_sha256s)
         deck_dir = self.deck_root / deck_id
         manifest_path = deck_dir / "manifest.json"
@@ -397,20 +421,29 @@ class VisualNovelCardRenderer:
                     "manifest.json",
                     label="manifest",
                 )
-                for card_index in range(1, count + 1):
+                for card_index, (_page, _data, _sha256, mime_type) in enumerate(
+                    rendered_cards,
+                    start=1,
+                ):
                     _require_safe_regular_target(
                         deck_fd,
-                        f"page-{card_index:03d}.png",
+                        (
+                            f"page-{card_index:03d}"
+                            f"{_CARD_EXTENSION_BY_MIME[mime_type]}"
+                        ),
                         label="card",
                     )
 
                 cards: list[VisualNovelCard] = []
                 raw_card_manifest: list[dict[str, object]] = []
-                for card_index, (page, image_bytes, sha256) in enumerate(
+                for card_index, (page, image_bytes, sha256, mime_type) in enumerate(
                     rendered_cards,
                     start=1,
                 ):
-                    filename = f"page-{card_index:03d}.png"
+                    filename = (
+                        f"page-{card_index:03d}"
+                        f"{_CARD_EXTENSION_BY_MIME[mime_type]}"
+                    )
                     self._verify_pinned_deck_root()
                     _atomic_write_regular_file(
                         deck_fd,
@@ -426,6 +459,7 @@ class VisualNovelCardRenderer:
                             text=page.text,
                             image_path=deck_dir / filename,
                             image_bytes=image_bytes,
+                            mime_type=mime_type,
                         )
                     )
                     raw_card_manifest.append(
@@ -436,6 +470,7 @@ class VisualNovelCardRenderer:
                             "speaker": page.speaker,
                             "text": page.text,
                             "filename": filename,
+                            "mime_type": mime_type,
                             "sha256": sha256,
                         }
                     )
@@ -477,7 +512,7 @@ class VisualNovelCardRenderer:
     def load_deck(self, deck_id: str) -> VisualNovelDeck | None:
         """Load one fail-closed persisted deck.
 
-        Only version 2 is accepted. It requires this renderer contract,
+        Only version 3 is accepted. It requires this renderer contract,
         binds stage and ordered sprite provenance plus the ordered card digests
         into the deck id, verifies and snapshots every card's exact bytes, and
         rejects source-shaped identifiers in player-visible fields. Its font
@@ -556,12 +591,14 @@ class VisualNovelCardRenderer:
             "speaker",
             "text",
             "filename",
+            "mime_type",
             "sha256",
         }
 
         cards: list[VisualNovelCard] = []
         pages: list[VisualNovelPage] = []
         card_sha256s: list[str] = []
+        card_mime_types: list[str] = []
         count = len(raw_cards)
         for expected_index, raw in enumerate(raw_cards, start=1):
             if type(raw) is not dict or set(raw) != expected_card_keys:
@@ -577,7 +614,16 @@ class VisualNovelCardRenderer:
             ):
                 return None
             filename = raw["filename"]
-            canonical_filename = f"page-{expected_index:03d}.png"
+            mime_type = raw["mime_type"]
+            if (
+                type(mime_type) is not str
+                or mime_type not in _CARD_EXTENSION_BY_MIME
+            ):
+                return None
+            canonical_filename = (
+                f"page-{expected_index:03d}"
+                f"{_CARD_EXTENSION_BY_MIME[mime_type]}"
+            )
             if type(filename) is not str or filename != canonical_filename:
                 return None
             expected_sha256 = raw["sha256"]
@@ -585,12 +631,14 @@ class VisualNovelCardRenderer:
                 return None
             self._verify_pinned_deck_root()
             image_bytes = _read_regular_file(deck_fd, filename)
-            if image_bytes is None or not _valid_card_png_bytes(
+            if image_bytes is None or not _valid_card_media_bytes(
                 image_bytes,
+                mime_type=mime_type,
                 expected_sha256=expected_sha256,
             ):
                 return None
             card_sha256s.append(expected_sha256)
+            card_mime_types.append(mime_type)
             cards.append(
                 VisualNovelCard(
                     index=raw["index"],
@@ -600,6 +648,7 @@ class VisualNovelCardRenderer:
                     text=raw["text"],
                     image_path=deck_dir / filename,
                     image_bytes=image_bytes,
+                    mime_type=mime_type,
                 )
             )
             pages.append(
@@ -612,12 +661,13 @@ class VisualNovelCardRenderer:
 
         if payload["transcript"] != _transcript(pages):
             return None
-        if not _valid_v2_identity(
+        if not _valid_v3_identity(
             payload["identity"],
             deck_id=clean_id,
             pages=pages,
             used_neutral_stage=payload["used_neutral_stage"],
             card_sha256s=card_sha256s,
+            card_mime_types=card_mime_types,
         ):
             return None
         return VisualNovelDeck(
@@ -914,11 +964,14 @@ def _valid_page_fields(*, kind: object, speaker: object, text: object) -> bool:
     return bool(speaker.strip())
 
 
-def _valid_card_png_bytes(
+def _valid_card_media_bytes(
     data: bytes,
     *,
+    mime_type: str,
     expected_sha256: str | None,
 ) -> bool:
+    if not data or len(data) > _MAX_SYSTEM_PANEL_BYTES:
+        return False
     try:
         if (
             expected_sha256 is not None
@@ -926,9 +979,31 @@ def _valid_card_png_bytes(
         ):
             return False
         with Image.open(BytesIO(data)) as opened:
-            if not _valid_static_card_image(opened):
+            if mime_type == "image/png":
+                if not _valid_static_card_image(opened):
+                    return False
+                opened.verify()
+            elif mime_type == "image/gif":
+                if not _valid_animated_card_image(opened):
+                    return False
+                duration_ms = 0
+                for frame_index in range(opened.n_frames):
+                    opened.seek(frame_index)
+                    if opened.size != (CARD_WIDTH, CARD_HEIGHT):
+                        return False
+                    frame_duration = opened.info.get("duration")
+                    if (
+                        type(frame_duration) is not int
+                        or not 1 <= frame_duration <= 10_000
+                    ):
+                        return False
+                    duration_ms += frame_duration
+                    opened.load()
+                if duration_ms > _MAX_SYSTEM_PANEL_DURATION_MS:
+                    return False
+                return True
+            else:
                 return False
-            opened.verify()
         # ``verify`` checks container integrity without decoding pixel data.
         # Reopen and load so truncated IDAT streams also fail closed.
         with Image.open(BytesIO(data)) as opened:
@@ -947,6 +1022,16 @@ def _valid_static_card_image(image: Image.Image) -> bool:
         and image.size == (CARD_WIDTH, CARD_HEIGHT)
         and not bool(getattr(image, "is_animated", False))
         and int(getattr(image, "n_frames", 1)) == 1
+    )
+
+
+def _valid_animated_card_image(image: Image.Image) -> bool:
+    return (
+        image.format == "GIF"
+        and image.size == (CARD_WIDTH, CARD_HEIGHT)
+        and bool(getattr(image, "is_animated", False))
+        and 2 <= int(getattr(image, "n_frames", 1)) <= _MAX_SYSTEM_PANEL_FRAMES
+        and image.info.get("loop") is None
     )
 
 
@@ -1008,13 +1093,14 @@ def _valid_sprite_manifest_identity(value: object) -> bool:
     return target_width <= CARD_WIDTH * 2
 
 
-def _valid_v2_identity(
+def _valid_v3_identity(
     identity: object,
     *,
     deck_id: str,
     pages: Sequence[VisualNovelPage],
     used_neutral_stage: bool,
     card_sha256s: Sequence[str],
+    card_mime_types: Sequence[str],
 ) -> bool:
     if type(identity) is not dict or set(identity) != {
         "renderer",
@@ -1046,12 +1132,14 @@ def _valid_v2_identity(
     if type(sections) is not list or not sections:
         return False
     identity_pages: list[VisualNovelPage] = []
+    identity_mime_types: list[str] = []
     neutral_sections: list[bool] = []
     for section in sections:
         if type(section) is not dict or set(section) != {
             "stage_sha256",
             "used_neutral_stage",
             "card_style",
+            "card_mime_type",
             "sprites",
             "pages",
         }:
@@ -1066,6 +1154,15 @@ def _valid_v2_identity(
             "identity_reveal",
             "system_panel",
         }:
+            return False
+        if (
+            type(section["card_mime_type"]) is not str
+            or section["card_mime_type"] not in _CARD_EXTENSION_BY_MIME
+            or (
+                section["card_style"] != "system_panel"
+                and section["card_mime_type"] != "image/png"
+            )
+        ):
             return False
         raw_sprites = section["sprites"]
         if (
@@ -1106,10 +1203,13 @@ def _valid_v2_identity(
             ):
                 return False
             identity_pages.append(VisualNovelPage(**raw_page))
+            identity_mime_types.append(section["card_mime_type"])
 
     if _deck_content_id(identity, card_sha256s) != deck_id:
         return False
     if any(neutral_sections) != used_neutral_stage:
+        return False
+    if identity_mime_types != list(card_mime_types):
         return False
     return [
         page.model_dump(mode="json", exclude={"sprites"}) for page in identity_pages

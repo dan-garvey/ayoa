@@ -2045,7 +2045,7 @@ class TestActingDescribe:
             asset_image_renderer=image_renderer,
         )
         state.one_shot_mode = True
-        image_path = tmp_path / "card.png"
+        image_path = tmp_path / "card.gif"
         image_path.write_bytes(b"test image bytes")
         card = VisualNovelCard(
             index=1,
@@ -2055,6 +2055,7 @@ class TestActingDescribe:
             text="Wait   for me.",
             image_path=image_path,
             image_bytes=b"manifest-verified image bytes",
+            mime_type="image/gif",
         )
 
         run(state._play_visual_novel_deck(
@@ -2065,6 +2066,8 @@ class TestActingDescribe:
         assert image_renderer.prepare_calls[0]["media"].data == (
             b"manifest-verified image bytes"
         )
+        assert image_renderer.prepare_calls[0]["media"].mime_type == "image/gif"
+        assert image_renderer.prepare_calls[0]["media"].filename == "card.gif"
         assert "Iselle: Wait for me." in capsys.readouterr().out
 
     def test_turn_response_prints_per_pov_asset_reveals_for_claimed_characters(

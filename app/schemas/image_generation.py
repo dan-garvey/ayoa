@@ -39,7 +39,7 @@ class IdentityReferenceStatus(str, Enum):
 
 
 class FrozenReferenceInput(BaseModel):
-    """Hash-pinned private input consumed only by the image pipeline."""
+    """Hash-pinned private runtime visual reference."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -76,7 +76,12 @@ class FrozenReferenceInput(BaseModel):
             raise ValueError("reference relative_path must stay inside its root")
         if not self.allowed_root:
             raise ValueError("reference allowed_root must not be empty")
-        if self.mime_type not in {"image/jpeg", "image/png", "image/webp"}:
+        if self.mime_type not in {
+            "image/gif",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+        }:
             raise ValueError("unsupported reference MIME type")
         if self.width < 1 or self.height < 1 or self.byte_count < 1:
             raise ValueError("reference dimensions and byte_count must be positive")
@@ -124,6 +129,13 @@ class ImageGenerationRequest(BaseModel):
     def _validate_request(self) -> "ImageGenerationRequest":
         if self.schema_version != IMAGE_JOB_SCHEMA_VERSION:
             raise ValueError("unsupported image request schema version")
+        if any(
+            reference.mime_type == "image/gif"
+            for reference in self.reference_inputs
+        ):
+            raise ValueError(
+                "animated visual references cannot be image-generation inputs"
+            )
         for field_name in (
             "session_id",
             "transaction_id",

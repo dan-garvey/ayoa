@@ -63,6 +63,25 @@ def _request(
     )
 
 
+def test_image_generation_request_rejects_animated_visual_reference() -> None:
+    reference = FrozenReferenceInput(
+        reference_id="presentation_animation",
+        sha256="d" * 64,
+        byte_count=100,
+        relative_path="artifacts/reveal.gif",
+        allowed_root="artifacts",
+        mime_type="image/gif",
+        width=1024,
+        height=576,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="animated visual references cannot be image-generation inputs",
+    ):
+        _request(reference_inputs=[reference])
+
+
 def _worker_script(tmp_path: Path, *, sleep_seconds: float = 0) -> Path:
     script = tmp_path / "fake_worker.py"
     script.write_text(

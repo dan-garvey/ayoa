@@ -1213,6 +1213,12 @@
                 "feminine": "osa_vnset_veiled_feminine_v1"
               },
               "hero_card_frame_reference_id": "osa_hero_card_frame_obsidian_orrery_v1",
+              "summon_reveal_reference_ids": {
+                "under_3": "osa_pull_reveal_iron_v4",
+                "3_to_4": "osa_pull_reveal_silver_v4",
+                "5_to_6": "osa_pull_reveal_gold_v4",
+                "7": "osa_pull_reveal_white_gold_v4"
+              },
               "seeded_birth_one_reveal_stars": 2,
               "generated_birth_one_reveal_stars": 3
             }
@@ -2295,6 +2301,62 @@
       "scope": "presentation",
       "scope_id": "one_star_hero_cards",
       "selection_hint": "Reviewed blank ornate frame for deterministic One-Star Hero card composition.",
+      "diffusion_authorized": false
+    },
+    {
+      "reference_id": "osa_pull_reveal_iron_v4",
+      "storage_ref": "system-panels/summon-reveal/one_star_pull_reveal_iron_v4.gif",
+      "mime_type": "image/gif",
+      "width": 1024,
+      "height": 576,
+      "byte_count": 1810319,
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "purpose": "presentation",
+      "scope": "presentation",
+      "scope_id": "one_star_hero_cards",
+      "selection_hint": "Approved V4 one-shot iron summon seal struggle for one- and two-star results.",
+      "diffusion_authorized": false
+    },
+    {
+      "reference_id": "osa_pull_reveal_silver_v4",
+      "storage_ref": "system-panels/summon-reveal/one_star_pull_reveal_silver_v4.gif",
+      "mime_type": "image/gif",
+      "width": 1024,
+      "height": 576,
+      "byte_count": 4460451,
+      "sha256": "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+      "purpose": "presentation",
+      "scope": "presentation",
+      "scope_id": "one_star_hero_cards",
+      "selection_hint": "Approved V4 one-shot silver lock struggle for three- and four-star results.",
+      "diffusion_authorized": false
+    },
+    {
+      "reference_id": "osa_pull_reveal_gold_v4",
+      "storage_ref": "system-panels/summon-reveal/one_star_pull_reveal_gold_v4.gif",
+      "mime_type": "image/gif",
+      "width": 1024,
+      "height": 576,
+      "byte_count": 5646253,
+      "sha256": "c15c7c24dbd194d63da9aba569b8420d1c4842c003a6859321aeaf44d406c4f1",
+      "purpose": "presentation",
+      "scope": "presentation",
+      "scope_id": "one_star_hero_cards",
+      "selection_hint": "Approved V4 one-shot forged gold chain struggle for five- and six-star results.",
+      "diffusion_authorized": false
+    },
+    {
+      "reference_id": "osa_pull_reveal_white_gold_v4",
+      "storage_ref": "system-panels/summon-reveal/one_star_pull_reveal_white_gold_v4.gif",
+      "mime_type": "image/gif",
+      "width": 1024,
+      "height": 576,
+      "byte_count": 7737208,
+      "sha256": "02fbcc62a5aaa21e3d1e0d5176618e07aaa785563da4bef36651e94e65e8744e",
+      "purpose": "presentation",
+      "scope": "presentation",
+      "scope_id": "one_star_hero_cards",
+      "selection_hint": "Approved V4 one-shot forged white-gold chain struggle for seven-star results.",
       "diffusion_authorized": false
     },
     {

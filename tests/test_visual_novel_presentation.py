@@ -68,6 +68,36 @@ def _resolved_png(image: Image.Image) -> ResolvedPlayerMedia:
     )
 
 
+def _resolved_gif(*, loop: int | None = None) -> ResolvedPlayerMedia:
+    frames = [
+        Image.new("RGB", (CARD_WIDTH, CARD_HEIGHT), color)
+        for color in ((17, 29, 47), (83, 97, 113), (246, 239, 211))
+    ]
+    encoded = BytesIO()
+    save_options: dict[str, object] = {
+        "format": "GIF",
+        "save_all": True,
+        "append_images": frames[1:],
+        "duration": [50, 60, 400],
+        "disposal": 2,
+        "optimize": False,
+    }
+    if loop is not None:
+        save_options["loop"] = loop
+    frames[0].save(encoded, **save_options)
+    data = encoded.getvalue()
+    sha256 = hashlib.sha256(data).hexdigest()
+    return ResolvedPlayerMedia(
+        filename=f"panel-{sha256[:16]}.gif",
+        mime_type="image/gif",
+        data=data,
+        sha256=sha256,
+        byte_count=len(data),
+        width=CARD_WIDTH,
+        height=CARD_HEIGHT,
+    )
+
+
 def _placement(
     *,
     subject_handle: str = "subject.alpha",
@@ -104,7 +134,7 @@ def _write_manifest(deck, payload: object) -> None:
     )
 
 
-def _v2_deck_id(payload: dict) -> str:
+def _v3_deck_id(payload: dict) -> str:
     return hashlib.sha256(
         json.dumps(
             {
@@ -118,8 +148,8 @@ def _v2_deck_id(payload: dict) -> str:
     ).hexdigest()
 
 
-def _rehome_v2_deck(renderer, deck, payload: dict) -> str:
-    new_deck_id = _v2_deck_id(payload)
+def _rehome_v3_deck(renderer, deck, payload: dict) -> str:
+    new_deck_id = _v3_deck_id(payload)
     payload["deck_id"] = new_deck_id
     new_deck_dir = renderer.deck_root / new_deck_id
     deck.manifest_path.parent.rename(new_deck_dir)
@@ -193,6 +223,73 @@ def test_system_panel_preserves_exact_bytes_text_hash_and_restart(
         )
     ])
     assert changed_text.deck_id != deck.deck_id
+
+
+def test_system_panel_preserves_one_shot_gif_mime_hash_and_restart(
+    tmp_path: Path,
+) -> None:
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    panel = _resolved_gif()
+    accessible = (
+        "Summon reveal — pull 1 of 1: an iron response signals a low-rank "
+        "result. The static result follows."
+    )
+
+    deck = renderer.render_deck([
+        VisualNovelDeckSection(
+            pages=(VisualNovelPage(kind="narration", text=accessible),),
+            stage_media=panel,
+            card_style="system_panel",
+        )
+    ])
+
+    card = deck.cards[0]
+    assert card.image_bytes == panel.data
+    assert card.mime_type == "image/gif"
+    assert card.image_path.name == "page-001.gif"
+    manifest = _manifest(deck)
+    assert manifest["cards"][0]["mime_type"] == "image/gif"
+    assert (
+        manifest["identity"]["sections"][0]["card_mime_type"]
+        == "image/gif"
+    )
+    with Image.open(BytesIO(card.image_bytes)) as opened:
+        assert opened.n_frames == 3
+        assert opened.info.get("loop") is None
+    restarted = VisualNovelCardRenderer(tmp_path / "presentations").load_deck(
+        deck.deck_id
+    )
+    assert restarted is not None
+    assert restarted.cards[0].image_bytes == panel.data
+    assert restarted.cards[0].mime_type == "image/gif"
+
+    manifest["cards"][0]["mime_type"] = "image/png"
+    _write_manifest(deck, manifest)
+    assert renderer.load_deck(deck.deck_id) is None
+
+
+def test_system_panel_rejects_gif_bytes_declared_as_png(tmp_path: Path) -> None:
+    renderer = VisualNovelCardRenderer(tmp_path / "presentations")
+    panel = replace(_resolved_gif(), mime_type="image/png")
+
+    with pytest.raises(ValueError, match="exact 1024x576 PNG or GIF"):
+        renderer.render_deck([
+            VisualNovelDeckSection(
+                pages=(VisualNovelPage(kind="narration", text="Sealed pull"),),
+                stage_media=panel,
+                card_style="system_panel",
+            )
+        ])
+
+    looped = _resolved_gif(loop=0)
+    with pytest.raises(ValueError, match="exact 1024x576 PNG or GIF"):
+        renderer.render_deck([
+            VisualNovelDeckSection(
+                pages=(VisualNovelPage(kind="narration", text="Looped pull"),),
+                stage_media=looped,
+                card_style="system_panel",
+            )
+        ])
 
 
 def test_system_panel_rejects_nonexact_or_annotated_sections(
@@ -856,15 +953,17 @@ def test_sprite_deck_restarts_from_manifest_verified_card_bytes(
     ]
 
 
-def test_new_manifest_binds_v2_identity_and_card_hashes(tmp_path: Path):
+def test_new_manifest_binds_v3_identity_mime_and_card_hashes(tmp_path: Path):
     renderer, deck = _single_page_deck(tmp_path)
 
     payload = _manifest(deck)
 
-    assert payload["version"] == 2
+    assert payload["version"] == 3
     assert payload["identity"]["renderer"]
     assert payload["identity"]["card_size"] == [CARD_WIDTH, CARD_HEIGHT]
     assert payload["identity"]["sections"][0]["sprites"] == []
+    assert payload["identity"]["sections"][0]["card_mime_type"] == "image/png"
+    assert payload["cards"][0]["mime_type"] == "image/png"
     assert payload["identity"]["sections"][0]["pages"] == [
         {
             "kind": "narration",
@@ -876,7 +975,7 @@ def test_new_manifest_binds_v2_identity_and_card_hashes(tmp_path: Path):
         payload["cards"][0]["sha256"]
         == hashlib.sha256(deck.cards[0].image_path.read_bytes()).hexdigest()
     )
-    assert payload["deck_id"] == _v2_deck_id(payload)
+    assert payload["deck_id"] == _v3_deck_id(payload)
     assert renderer.load_deck(deck.deck_id) == deck
 
 
@@ -928,7 +1027,7 @@ def test_loader_rejects_self_consistent_malformed_sprite_identity(
     )
     payload = _manifest(deck)
     payload["identity"]["sections"][0]["sprites"][0][field] = value
-    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+    new_deck_id = _rehome_v3_deck(renderer, deck, payload)
 
     assert renderer.load_deck(new_deck_id) is None
 
@@ -949,7 +1048,7 @@ def test_loader_rejects_path_or_extra_fields_in_sprite_provenance(
     payload["identity"]["sections"][0]["sprites"][0]["source_path"] = str(
         tmp_path / "sprite-link.png"
     )
-    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+    new_deck_id = _rehome_v3_deck(renderer, deck, payload)
 
     assert renderer.load_deck(new_deck_id) is None
 
@@ -1007,7 +1106,7 @@ def test_render_rejects_source_shaped_ids_before_writing(
         ("text", "The summon_sword steps into the light."),
     ),
 )
-def test_v2_loader_rejects_self_consistent_source_shaped_page_fields(
+def test_v3_loader_rejects_self_consistent_source_shaped_page_fields(
     tmp_path: Path,
     field: str,
     unsafe_value: str,
@@ -1031,7 +1130,7 @@ def test_v2_loader_rejects_self_consistent_source_shaped_page_fields(
     payload["identity"]["sections"][0]["pages"][0][field] = unsafe_value
     page = payload["identity"]["sections"][0]["pages"][0]
     payload["transcript"] = f"{page['speaker']}: {page['text']}"
-    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+    new_deck_id = _rehome_v3_deck(renderer, deck, payload)
 
     assert renderer.load_deck(new_deck_id) is None
 
@@ -1067,11 +1166,11 @@ def test_loader_rejects_manifest_whose_identity_no_longer_matches_deck_id(
     assert renderer.load_deck(deck.deck_id) is None
 
 
-def test_v2_loader_rejects_self_consistent_unknown_renderer(tmp_path: Path):
+def test_v3_loader_rejects_self_consistent_unknown_renderer(tmp_path: Path):
     renderer, deck = _single_page_deck(tmp_path)
     payload = _manifest(deck)
     payload["identity"]["renderer"] = "unknown-renderer"
-    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+    new_deck_id = _rehome_v3_deck(renderer, deck, payload)
 
     assert renderer.load_deck(new_deck_id) is None
 
@@ -1084,26 +1183,26 @@ def test_v2_loader_rejects_self_consistent_unknown_renderer(tmp_path: Path):
         [CARD_WIDTH, False],
     ),
 )
-def test_v2_loader_rejects_noncanonical_card_size_types(
+def test_v3_loader_rejects_noncanonical_card_size_types(
     tmp_path: Path,
     card_size: list[object],
 ):
     renderer, deck = _single_page_deck(tmp_path)
     payload = _manifest(deck)
     payload["identity"]["card_size"] = card_size
-    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+    new_deck_id = _rehome_v3_deck(renderer, deck, payload)
 
     assert renderer.load_deck(new_deck_id) is None
 
 
-def test_v2_loader_keeps_historical_font_digests_as_identity_inputs(
+def test_v3_loader_keeps_historical_font_digests_as_identity_inputs(
     tmp_path: Path,
 ):
     renderer, deck = _single_page_deck(tmp_path)
     payload = _manifest(deck)
     payload["identity"]["fonts"]["regular_sha256"] = "0" * 64
     payload["identity"]["fonts"]["bold_sha256"] = "1" * 64
-    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+    new_deck_id = _rehome_v3_deck(renderer, deck, payload)
 
     loaded = renderer.load_deck(new_deck_id)
 
@@ -1360,6 +1459,8 @@ def test_render_rejects_symlinked_card_target_before_writing(tmp_path: Path):
         ("text", " Wind moves across the open beginner court."),
         ("filename", "../page-001.png"),
         ("filename", "page-01.png"),
+        ("mime_type", "image/webp"),
+        ("mime_type", "image/gif"),
     ),
 )
 def test_loader_rejects_noncanonical_card_metadata(
@@ -1417,7 +1518,7 @@ def test_loader_rejects_noncanonical_png_even_with_matching_manifest_hash(
         first.save(path, save_all=True, append_images=[second], format="PNG")
     payload = _manifest(deck)
     payload["cards"][0]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
-    new_deck_id = _rehome_v2_deck(renderer, deck, payload)
+    new_deck_id = _rehome_v3_deck(renderer, deck, payload)
 
     assert renderer.load_deck(new_deck_id) is None
 

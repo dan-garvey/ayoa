@@ -39,6 +39,7 @@ from app.engine.one_star_adapter import load_one_star_account, load_one_star_her
 from app.engine.one_star_hero_cards import (
     committed_one_star_hero_card_event,
     new_one_star_hero_card_events,
+    one_star_summon_reveal_band,
 )
 from app.llm.config import LLMConfig, live_play_required_roles
 from app.schemas.checkpoint import CheckpointFile
@@ -48,14 +49,14 @@ from scripts.play import CLIState
 
 
 STORY_ID = "one_star_ascension_s1"
-SESSION_ID = "one-star-hero-cards-live-20260829"
+SESSION_ID = "one-star-pull-reveal-live-20260831"
 MASTER_ID = "the_master"
 SOURCE_STORY_DIR = REPO_ROOT / "app/storage/stories" / STORY_ID
 DEFAULT_REPORT_ROOT = (
-    REPO_ROOT / "app/storage/playtest_reports/one_star_hero_cards_20260829"
+    REPO_ROOT / "app/storage/playtest_reports/one_star_pull_reveal_20260831"
 )
 DEFAULT_WINDOWS_ROOT = Path(
-    "/mnt/c/Users/danim/Pictures/Ayoa/OneStarHeroCardLivePlaytest_20260829"
+    "/mnt/c/Users/danim/Pictures/Ayoa/OneStarPullRevealLivePlaytest_20260831"
 )
 
 
@@ -130,7 +131,7 @@ def _configure_live_models() -> LLMConfig:
     os.environ["LLM_MODEL_AGENT"] = "gpt-5.6-luna"
     os.environ["LLM_MODEL_AGENT_STANDARD"] = "gpt-5.6-luna"
     os.environ["LLM_MODEL_AGENT_CONVENIENCE"] = "gpt-5.6-luna"
-    os.environ["LLM_MODEL_CHARACTER_GEN"] = "gpt-5.6-luna"
+    os.environ["LLM_MODEL_CHARACTER_MANAGER"] = "gpt-5.6-luna"
     config = LLMConfig.from_env()
     missing = config.missing_credentials(live_play_required_roles())
     if missing:
@@ -232,6 +233,7 @@ class RecordingCLIState(CLIState):
                     "accessible_text": card.accessible_text,
                     "image_path": str(card.image_path.relative_to(self._run_dir)),
                     "image_sha256": hashlib.sha256(card.image_bytes).hexdigest(),
+                    "mime_type": card.mime_type,
                 }
                 for card in deck.cards
             ],
@@ -356,6 +358,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         card_events = new_one_star_hero_card_events(checkpoint, previous)
         event_ids = [event.event_id for event in card_events]
         event_kinds = [event.kind for event in card_events]
+        card_events_by_id = {event.event_id: event for event in card_events}
         manifest = json.loads(deck.manifest_path.read_text(encoding="utf-8"))
         styles = [
             section["card_style"]
@@ -367,6 +370,12 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             event.event_id: (len(event.characters) + 4) // 5
             for event in card_events
         }
+        _owner, account = load_one_star_account(checkpoint)
+        presentation = account.config.visual_novel_presentation
+        reveal_enabled = bool(
+            presentation is not None
+            and presentation.summon_reveal_reference_ids
+        )
         for segment in render.segments if render is not None else ():
             expected_prefix.extend("adv" for _page in segment.pages)
             if segment.rendered_event_id in event_page_counts and (
@@ -374,7 +383,16 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             ):
                 expected_prefix.extend(
                     ["system_panel"]
-                    * event_page_counts[segment.rendered_event_id]
+                    * (
+                        event_page_counts[segment.rendered_event_id]
+                        + (
+                            len(card_events_by_id[segment.rendered_event_id].characters)
+                            if reveal_enabled
+                            and card_events_by_id[segment.rendered_event_id].kind
+                            == "summon"
+                            else 0
+                        )
+                    )
                 )
                 inserted.add(segment.rendered_event_id)
         restarted = engine.visual_novel_renderer.load_deck(deck.deck_id)
@@ -406,6 +424,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                     "accessible_text": card.accessible_text,
                     "image_path": str(card.image_path.relative_to(run_dir)),
                     "image_sha256": hashlib.sha256(card.image_bytes).hexdigest(),
+                    "mime_type": card.mime_type,
                 }
                 for card in deck.cards
             ],
@@ -516,6 +535,13 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             with Image.open(image_path) as opened:
                 image_size = list(opened.size)
                 image_info = dict(opened.info)
+                image_format = str(opened.format or "")
+                frame_count = int(getattr(opened, "n_frames", 1))
+                loop = opened.info.get("loop")
+                frame_durations_ms = []
+                for frame_index in range(frame_count):
+                    opened.seek(frame_index)
+                    frame_durations_ms.append(int(opened.info.get("duration", 0)))
             system_panels.append({
                 "action_label": deck["action_label"],
                 "checkpoint_id": deck["checkpoint_id"],
@@ -529,8 +555,13 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                 "accessible_text": card["accessible_text"],
                 "image_path": card["image_path"],
                 "image_sha256": card["image_sha256"],
+                "mime_type": card["mime_type"],
                 "image_size": image_size,
                 "image_info": image_info,
+                "image_format": image_format,
+                "frame_count": frame_count,
+                "loop": loop,
+                "duration_ms": sum(frame_durations_ms),
             })
 
     summon_panels = [
@@ -547,8 +578,19 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             "System panel — Deployment confirmed"
         )
     ]
+    reveal_panels = [
+        panel
+        for panel in system_panels
+        if panel["accessible_text"].startswith("Summon reveal — pull")
+    ]
+    static_panels = [*summon_panels, *mission_panels]
     frame_id = "osa_hero_card_frame_obsidian_orrery_v1"
-    source_tokens = [frame_id, "osa_hero_card_portrait_", "one_star_hero_cards"]
+    source_tokens = [
+        frame_id,
+        "osa_hero_card_portrait_",
+        "osa_pull_reveal_",
+        "one_star_hero_cards",
+    ]
     panel_payloads = [
         (run_dir / panel["image_path"]).read_bytes()
         + panel["accessible_text"].encode("utf-8")
@@ -578,6 +620,25 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         if mission_event is not None
         else []
     )
+    expected_reveal_bands = []
+    for character in summon_event.characters if summon_event is not None else ():
+        hero = load_one_star_hero(character)
+        if hero is None:
+            raise RuntimeError("summon card event contains a non-Hero")
+        expected_reveal_bands.append(
+            one_star_summon_reveal_band(hero.current_stars)
+        )
+    band_tokens = {
+        "under_3": "iron response",
+        "3_to_4": "silver response",
+        "5_to_6": "gold response",
+        "7": "white-gold response",
+    }
+    summon_sequence = [
+        panel
+        for panel in system_panels
+        if "summon" in panel["new_card_event_kinds"]
+    ]
 
     manifest_paths = [
         run_dir / delivery["manifest_path"] for delivery in deliveries
@@ -612,6 +673,29 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         ),
         "one_summon_board": len(summon_panels) == 1,
         "one_deployment_board": len(mission_panels) == 1,
+        "one_reveal_per_summoned_hero": bool(summon_ids)
+        and len(reveal_panels) == len(summon_ids),
+        "summon_reveals_preserve_pull_and_rank_band_order": (
+            len(reveal_panels) == len(expected_reveal_bands)
+            and all(
+                f"pull {index} of {len(expected_reveal_bands)}"
+                in panel["accessible_text"]
+                and band_tokens[band] in panel["accessible_text"]
+                for index, (panel, band) in enumerate(
+                    zip(reveal_panels, expected_reveal_bands, strict=True),
+                    start=1,
+                )
+            )
+        ),
+        "summon_reveals_precede_static_result": bool(summon_sequence)
+        and len(summon_sequence) == len(reveal_panels) + len(summon_panels)
+        and all(
+            panel["accessible_text"].startswith("Summon reveal — pull")
+            for panel in summon_sequence[: len(reveal_panels)]
+        )
+        and summon_sequence[-1]["accessible_text"].startswith(
+            "System panel — Heroes acquired"
+        ),
         "boards_are_master_only": bool(system_panels)
         and all(panel["pov_character_id"] == MASTER_ID for panel in system_panels),
         "boards_follow_exact_render_segment": bool(system_panels)
@@ -621,10 +705,24 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
             panel["restart_valid"] and panel["restart_bytes_identical"]
             for panel in system_panels
         ),
-        "boards_are_exact_1024x576_unannotated_pngs": bool(system_panels)
+        "static_boards_are_exact_1024x576_unannotated_pngs": bool(static_panels)
         and all(
-            panel["image_size"] == [1024, 576] and not panel["image_info"]
-            for panel in system_panels
+            panel["image_size"] == [1024, 576]
+            and panel["mime_type"] == "image/png"
+            and panel["image_format"] == "PNG"
+            and panel["frame_count"] == 1
+            and not panel["image_info"]
+            for panel in static_panels
+        ),
+        "reveals_are_one_shot_1024x576_gifs": bool(reveal_panels)
+        and all(
+            panel["image_size"] == [1024, 576]
+            and panel["mime_type"] == "image/gif"
+            and panel["image_format"] == "GIF"
+            and panel["frame_count"] > 1
+            and panel["duration_ms"] > 0
+            and panel["loop"] is None
+            for panel in reveal_panels
         ),
         "source_ids_absent_from_panels_and_accessibility": bool(system_panels)
         and all(
@@ -706,6 +804,8 @@ def _parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = _parser().parse_args()
+    args.output_root = args.output_root.resolve()
+    args.windows_root = args.windows_root.resolve()
     run_dir, report = asyncio.run(_run(args))
     windows_copy = ""
     slideshow_relative = report["slideshow"]["directory"]

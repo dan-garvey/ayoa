@@ -3456,7 +3456,7 @@ class CLIState:
             data = card.image_bytes
             media = ResolvedPlayerMedia(
                 filename=card.image_path.name,
-                mime_type="image/png",
+                mime_type=card.mime_type,
                 data=data,
                 sha256=hashlib.sha256(data).hexdigest(),
                 byte_count=len(data),

@@ -35,6 +35,7 @@ from app.engine.reviewed_visual_references import (
 )
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.one_star import OneStarSummonRevealBand
 from app.schemas.responses import VisualNovelRender
 
 if TYPE_CHECKING:
@@ -91,6 +92,16 @@ class OneStarHeroCardBoard:
 
 
 @dataclass(frozen=True)
+class OneStarSummonReveal:
+    media: ResolvedPlayerMedia
+    accessible_text: str
+    event_id: str
+    band: OneStarSummonRevealBand
+    pull_number: int
+    pull_count: int
+
+
+@dataclass(frozen=True)
 class _Portrait:
     media: PlayerMediaBytes | None
     source: PortraitSource
@@ -121,6 +132,13 @@ _RANK_STYLES = (
     _RankStyle(7, (45, 36, 13), (223, 183, 76), (255, 255, 238), (255, 234, 142), (255, 255, 255), (84, 63, 9), (255, 226, 122), .90, 120, 188),
 )
 _STYLE_BY_STARS = {style.stars: style for style in _RANK_STYLES}
+
+_SUMMON_REVEAL_ACCESSIBLE_BANDS: dict[OneStarSummonRevealBand, str] = {
+    "under_3": "an iron response signals a one- or two-star result",
+    "3_to_4": "a silver response signals a three- or four-star result",
+    "5_to_6": "a gold response signals a five- or six-star result",
+    "7": "a white-gold response signals the highest-rank result",
+}
 
 
 def committed_one_star_hero_card_event(
@@ -411,6 +429,81 @@ def render_one_star_hero_card_boards(
             page_count=page_count,
         ))
     return tuple(boards)
+
+
+def one_star_summon_reveal_band(stars: int) -> OneStarSummonRevealBand:
+    """Map the current Hero rank to the approved metal-milestone animation."""
+
+    if stars in {1, 2}:
+        return "under_3"
+    if stars in {3, 4}:
+        return "3_to_4"
+    if stars in {5, 6}:
+        return "5_to_6"
+    if stars == 7:
+        return "7"
+    raise OneStarHeroCardError("star_rank_out_of_range")
+
+
+def render_one_star_summon_reveals(
+    *,
+    checkpoint: CheckpointFile,
+    viewer_character_id: str,
+    event: OneStarHeroCardEvent,
+    generation: ImageGenerationCoordinator,
+) -> tuple[OneStarSummonReveal, ...]:
+    """Resolve approved pre-result motion for one committed summon event."""
+
+    configured = one_star_visual_novel_config(checkpoint)
+    if (
+        configured is None
+        or configured[0] != viewer_character_id
+        or event.kind != "summon"
+    ):
+        return ()
+    _owner_id, presentation = configured
+    reference_ids = presentation.summon_reveal_reference_ids
+    if not reference_ids:
+        return ()
+
+    pull_count = len(event.characters)
+    reveals: list[OneStarSummonReveal] = []
+    for pull_number, character in enumerate(event.characters, start=1):
+        band = one_star_summon_reveal_band(_current_stars(character))
+        reference_id = reference_ids[band]
+        frozen = generation.store.reviewed_reference(
+            session_id=checkpoint.session.session_id,
+            reference_id=reference_id,
+        )
+        if frozen is None:
+            raise OneStarHeroCardError("summon_reveal_unavailable")
+        try:
+            media = resolve_frozen_visual_reference_media(
+                frozen,
+                runtime_root=generation.config.runtime_root,
+            )
+        except ReviewedVisualReferenceError as exc:
+            raise OneStarHeroCardError("summon_reveal_invalid") from exc
+        if (
+            media.mime_type != "image/gif"
+            or media.width != BOARD_SIZE[0]
+            or media.height != BOARD_SIZE[1]
+        ):
+            raise OneStarHeroCardError("summon_reveal_invalid")
+        reveals.append(OneStarSummonReveal(
+            media=media,
+            accessible_text=(
+                f"Summon reveal — pull {pull_number} of {pull_count}: the seal "
+                f"strains, recoils, and releases; "
+                f"{_SUMMON_REVEAL_ACCESSIBLE_BANDS[band]}. "
+                "The Hero identity remains sealed until the static result."
+            ),
+            event_id=event.event_id,
+            band=band,
+            pull_number=pull_number,
+            pull_count=pull_count,
+        ))
+    return tuple(reveals)
 
 
 def render_one_star_hero_card(

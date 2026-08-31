@@ -655,9 +655,15 @@ class _VisualNovelMoreView(discord.ui.View):
 
 def _visual_novel_discord_file(deck, index: int) -> discord.File:
     card = deck.cards[index]
+    extension = {
+        "image/gif": ".gif",
+        "image/png": ".png",
+    }[card.mime_type]
     return discord.File(
         BytesIO(card.image_bytes),
-        filename=(f"visual-novel-{deck.deck_id[:12]}-{card.index:03d}.png"),
+        filename=(
+            f"visual-novel-{deck.deck_id[:12]}-{card.index:03d}{extension}"
+        ),
         description=_visual_novel_discord_description(card),
     )
 

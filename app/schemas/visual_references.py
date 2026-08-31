@@ -40,7 +40,9 @@ VISUAL_NOVEL_SPRITE_VARIANT_DIRECTIONS: dict[str, str] = {
 _REFERENCE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$")
 _SPRITE_VARIANT_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,79}$")
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
-_SUPPORTED_MIME_TYPES = frozenset(("image/jpeg", "image/png", "image/webp"))
+_SUPPORTED_MIME_TYPES = frozenset(
+    ("image/gif", "image/jpeg", "image/png", "image/webp")
+)
 
 
 class ReviewedVisualReference(BaseModel):
@@ -99,6 +101,12 @@ class ReviewedVisualReference(BaseModel):
             )
         if self.mime_type not in _SUPPORTED_MIME_TYPES:
             raise ValueError("unsupported reviewed visual MIME type")
+        if self.mime_type == "image/gif" and not (
+            self.purpose == "presentation" and self.scope == "presentation"
+        ):
+            raise ValueError(
+                "animated reviewed visuals require presentation scope"
+            )
         if not _SHA256_RE.fullmatch(self.sha256):
             raise ValueError(
                 "reviewed visual sha256 must contain 64 hexadecimal characters"

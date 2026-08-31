@@ -21,6 +21,13 @@ ONE_STAR_COMBATANT_KEY = "one_star_combatant"
 ONE_STAR_GACHA_WEIGHT_TOTAL = 10_000
 ONE_STAR_HERO_CARD_PRESENTATION_SCOPE_ID = "one_star_hero_cards"
 
+OneStarSummonRevealBand = Literal[
+    "under_3",
+    "3_to_4",
+    "5_to_6",
+    "7",
+]
+
 
 class OneStarResources(BaseModel):
     """Currency and material amounts.  All fields are seed-authored values."""
@@ -386,6 +393,9 @@ class OneStarVisualNovelPresentationConfig(BaseModel):
         max_length=200,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
     )
+    summon_reveal_reference_ids: dict[OneStarSummonRevealBand, str] = Field(
+        default_factory=dict,
+    )
     seeded_birth_one_reveal_stars: int = Field(default=2, ge=2)
     generated_birth_one_reveal_stars: int = Field(default=3, ge=2)
 
@@ -394,6 +404,21 @@ class OneStarVisualNovelPresentationConfig(BaseModel):
         self.hero_card_frame_reference_id = (
             self.hero_card_frame_reference_id.strip()
         )
+        self.summon_reveal_reference_ids = {
+            band: reference_id.strip()
+            for band, reference_id in self.summon_reveal_reference_ids.items()
+            if reference_id.strip()
+        }
+        if self.summon_reveal_reference_ids and set(
+            self.summon_reveal_reference_ids
+        ) != {"under_3", "3_to_4", "5_to_6", "7"}:
+            raise ValueError(
+                "One-Star summon reveals require all four rank bands"
+            )
+        if len(set(self.summon_reveal_reference_ids.values())) != len(
+            self.summon_reveal_reference_ids
+        ):
+            raise ValueError("One-Star summon reveal references must be distinct")
         self.veiled_sprite_set_ids = {
             presentation: value.strip()
             for presentation, value in self.veiled_sprite_set_ids.items()

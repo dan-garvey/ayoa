@@ -111,8 +111,13 @@ def export_vn_playtest_slideshow(
     try:
         for index, (deck_label, card) in enumerate(cards, start=1):
             subject = _slug(card.speaker or card.kind, fallback="page")
+            extension = {
+                "image/gif": ".gif",
+                "image/png": ".png",
+            }[card.mime_type]
             filename = (
-                f"{index:0{width}d}__{deck_label}__{subject}__page-{card.index:03d}.png"
+                f"{index:0{width}d}__{deck_label}__{subject}__"
+                f"page-{card.index:03d}{extension}"
             )
             data = card.image_bytes
             (staging / filename).write_bytes(data)
@@ -122,6 +127,7 @@ def export_vn_playtest_slideshow(
                     "filename": filename,
                     "source": str(card.image_path.relative_to(run_root)),
                     "sha256": hashlib.sha256(data).hexdigest(),
+                    "mime_type": card.mime_type,
                     "speaker": card.speaker,
                     "kind": card.kind,
                 }
@@ -129,7 +135,7 @@ def export_vn_playtest_slideshow(
         (staging / "index.json").write_text(
             json.dumps(
                 {
-                    "version": 1,
+                    "version": 2,
                     "card_count": len(index_records),
                     "cards": index_records,
                 },
