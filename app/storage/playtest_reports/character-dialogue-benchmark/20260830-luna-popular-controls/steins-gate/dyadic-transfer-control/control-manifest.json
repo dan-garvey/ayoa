@@ -1,0 +1,498 @@
+{
+  "schema_version": "character_dialogue_benchmark_manifest_v7",
+  "description": "Four original two-scene Steins;Gate-inspired dyadic transfer fixtures for the production observable-prose CharacterAgent boundary. Each actor receives a separate rich record and rolling history; later turns receive the public candidate prose produced before them. The setup supplies only conditions, elapsed public history, and actor-local observations, with no authored dialogue or outcome.",
+  "cases": [
+    {
+      "case_id": "sg_okabe_kurisu_transfer_a",
+      "title": "The unlabeled bun",
+      "suite": "ordinary_surface",
+      "source_metadata": {
+        "conversation_id": "sg-okabe-kurisu-transfer-a"
+      },
+      "actors": [
+        {
+          "character_id": "okabe_rintaro",
+          "name": "Rintaro Okabe",
+          "public_sheet": {
+            "role": "a university student who founded a small laboratory"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You founded the Future Gadget Laboratory and are happiest when a room lets you perform as its self-appointed leader, even when nobody asked for one."
+              },
+              {
+                "origin": "lived",
+                "text": "When a joke starts to work, you prolong the bit past its useful point to see who makes you stop."
+              },
+              {
+                "origin": "inferred",
+                "text": "You have often mistaken Mayuri's gentle refusal to interrupt you for agreement, then learned too late that she had been waiting for somebody else to say no."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At a university open day, Kurisu corrected your explanation in front of visitors, the room followed her answer, and you felt your usual standing disappear until you turned it into a challenge."
+              },
+              {
+                "origin": "lived",
+                "text": "When Kurisu gives only the practical half of an answer, you turn the missing half into a contest instead of letting the question close."
+              },
+              {
+                "origin": "lived",
+                "text": "On Fridays, Mayuri leaves one unlabeled bakery bun for you to taste first; you make a ceremony of guessing before anyone tells you what is inside."
+              }
+            ]
+          }
+        },
+        {
+          "character_id": "kurisu_makise",
+          "name": "Kurisu Makise",
+          "public_sheet": {
+            "role": "a young researcher with exacting methods"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You are a young researcher whose precision has made older students mistake your correction for hostility."
+              },
+              {
+                "origin": "lived",
+                "text": "An interesting question holds you longer than politeness does, even when you know the person asking is trying to make a stage out of it."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At a university open day, you corrected Okabe's explanation before visitors and the room began asking you questions instead of him; he kept treating the shift as a game."
+              },
+              {
+                "origin": "inferred",
+                "text": "When Okabe keeps elaborating, you sometimes let him continue because the question next to his performance is worth hearing."
+              },
+              {
+                "origin": "told",
+                "text": "Mayuri once taught you that walking somewhere together changes what people will say before they arrive; you began paying attention to movement as carefully as measurement."
+              },
+              {
+                "origin": "lived",
+                "text": "You taste a shared thing before correcting it, and when you are certain of the answer you leave the last bite untouched rather than argue over it."
+              }
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "friday_bun",
+          "title": "After the fitting departure",
+          "frame": "At 17:20 on Friday, Mayuri has just left the laboratory for the costume fitting she mentioned to both of them earlier. Okabe and Kurisu remain alone. The usual Friday bakery bag holds one unlabeled bun on a napkin between two paper cups; it is untouched. The laboratory door is open, no other errand is pending, and neither person is required to stay.",
+          "actor_observations": {
+            "okabe_rintaro": [
+              "You saw Mayuri and Kurisu arrive together from the bakery. You do not know the filling or what Mayuri intended by leaving the bun."
+            ],
+            "kurisu_makise": [
+              "You know the bun is pear-custard. Mayuri asked you not to spoil Okabe's first guess before she was interrupted."
+            ]
+          },
+          "turn_order": [
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ]
+        },
+        {
+          "scene_id": "below_lab_stairs",
+          "title": "The two ways down",
+          "frame": "Four school days later at 18:10, Okabe and Kurisu stand below the laboratory stairs. The station is direct from the corner; the longer route begins across the street through the arcade. On earlier walks, Okabe has given theatrical reasons to take the arcade, Kurisu has corrected them, and Mayuri has stopped at the window there. Mayuri is absent for a commitment both of them know about. No route has been proposed, the stairwell door is open, and either person can leave.",
+          "between_scene_public_history": "Several ordinary school and laboratory days pass. Neither person receives a further shared explanation of the bun after Mayuri leaves for the fitting.",
+          "turn_order": [
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "sg_okabe_kurisu_transfer_b",
+      "title": "The unlabeled bun",
+      "suite": "ordinary_surface",
+      "source_metadata": {
+        "conversation_id": "sg-okabe-kurisu-transfer-b"
+      },
+      "actors": [
+        {
+          "character_id": "okabe_rintaro",
+          "name": "Rintaro Okabe",
+          "public_sheet": {
+            "role": "a university student who founded a small laboratory"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You founded the Future Gadget Laboratory and are happiest when a room lets you perform as its self-appointed leader, even when nobody asked for one."
+              },
+              {
+                "origin": "lived",
+                "text": "When a joke starts to work, you prolong the bit past its useful point to see who makes you stop."
+              },
+              {
+                "origin": "inferred",
+                "text": "You have often mistaken Mayuri's gentle refusal to interrupt you for agreement, then learned too late that she had been waiting for somebody else to say no."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At a university open day, Kurisu corrected your explanation in front of visitors, the room followed her answer, and you felt your usual standing disappear until you turned it into a challenge."
+              },
+              {
+                "origin": "lived",
+                "text": "When Kurisu gives only the practical half of an answer, you turn the missing half into a contest instead of letting the question close."
+              },
+              {
+                "origin": "lived",
+                "text": "On Fridays, Mayuri leaves one unlabeled bakery bun for you to taste first; you make a ceremony of guessing before anyone tells you what is inside."
+              }
+            ]
+          }
+        },
+        {
+          "character_id": "kurisu_makise",
+          "name": "Kurisu Makise",
+          "public_sheet": {
+            "role": "a young researcher with exacting methods"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You are a young researcher whose precision has made older students mistake your correction for hostility."
+              },
+              {
+                "origin": "lived",
+                "text": "An interesting question holds you longer than politeness does, even when you know the person asking is trying to make a stage out of it."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At a university open day, you corrected Okabe's explanation before visitors and the room began asking you questions instead of him; he kept treating the shift as a game."
+              },
+              {
+                "origin": "inferred",
+                "text": "When Okabe keeps elaborating, you sometimes let him continue because the question next to his performance is worth hearing."
+              },
+              {
+                "origin": "told",
+                "text": "Mayuri once taught you that walking somewhere together changes what people will say before they arrive; you began paying attention to movement as carefully as measurement."
+              },
+              {
+                "origin": "lived",
+                "text": "You taste a shared thing before correcting it, and when you are certain of the answer you leave the last bite untouched rather than argue over it."
+              }
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "friday_bun",
+          "title": "After the fitting departure",
+          "frame": "At 17:20 on Friday, Mayuri has just left the laboratory for the costume fitting she mentioned to both of them earlier. Okabe and Kurisu remain alone. The usual Friday bakery bag holds one unlabeled bun on a napkin between two paper cups; it is untouched. The laboratory door is open, no other errand is pending, and neither person is required to stay.",
+          "actor_observations": {
+            "okabe_rintaro": [
+              "You saw Mayuri and Kurisu arrive together from the bakery. You do not know the filling or what Mayuri intended by leaving the bun."
+            ],
+            "kurisu_makise": [
+              "You know the bun is pear-custard. Mayuri asked you not to spoil Okabe's first guess before she was interrupted."
+            ]
+          },
+          "turn_order": [
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ]
+        },
+        {
+          "scene_id": "below_lab_stairs",
+          "title": "The two ways down",
+          "frame": "Four school days later at 18:10, Okabe and Kurisu stand below the laboratory stairs. The station is direct from the corner; the longer route begins across the street through the arcade. On earlier walks, Okabe has given theatrical reasons to take the arcade, Kurisu has corrected them, and Mayuri has stopped at the window there. Mayuri is absent for a commitment both of them know about. No route has been proposed, the stairwell door is open, and either person can leave.",
+          "between_scene_public_history": "Several ordinary school and laboratory days pass. Neither person receives a further shared explanation of the bun after Mayuri leaves for the fitting.",
+          "turn_order": [
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "sg_okabe_kurisu_transfer_c",
+      "title": "The unlabeled bun",
+      "suite": "ordinary_surface",
+      "source_metadata": {
+        "conversation_id": "sg-okabe-kurisu-transfer-c"
+      },
+      "actors": [
+        {
+          "character_id": "okabe_rintaro",
+          "name": "Rintaro Okabe",
+          "public_sheet": {
+            "role": "a university student who founded a small laboratory"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You founded the Future Gadget Laboratory and are happiest when a room lets you perform as its self-appointed leader, even when nobody asked for one."
+              },
+              {
+                "origin": "lived",
+                "text": "When a joke starts to work, you prolong the bit past its useful point to see who makes you stop."
+              },
+              {
+                "origin": "inferred",
+                "text": "You have often mistaken Mayuri's gentle refusal to interrupt you for agreement, then learned too late that she had been waiting for somebody else to say no."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At a university open day, Kurisu corrected your explanation in front of visitors, the room followed her answer, and you felt your usual standing disappear until you turned it into a challenge."
+              },
+              {
+                "origin": "lived",
+                "text": "When Kurisu gives only the practical half of an answer, you turn the missing half into a contest instead of letting the question close."
+              },
+              {
+                "origin": "lived",
+                "text": "On Fridays, Mayuri leaves one unlabeled bakery bun for you to taste first; you make a ceremony of guessing before anyone tells you what is inside."
+              }
+            ]
+          }
+        },
+        {
+          "character_id": "kurisu_makise",
+          "name": "Kurisu Makise",
+          "public_sheet": {
+            "role": "a young researcher with exacting methods"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You are a young researcher whose precision has made older students mistake your correction for hostility."
+              },
+              {
+                "origin": "lived",
+                "text": "An interesting question holds you longer than politeness does, even when you know the person asking is trying to make a stage out of it."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At a university open day, you corrected Okabe's explanation before visitors and the room began asking you questions instead of him; he kept treating the shift as a game."
+              },
+              {
+                "origin": "inferred",
+                "text": "When Okabe keeps elaborating, you sometimes let him continue because the question next to his performance is worth hearing."
+              },
+              {
+                "origin": "told",
+                "text": "Mayuri once taught you that walking somewhere together changes what people will say before they arrive; you began paying attention to movement as carefully as measurement."
+              },
+              {
+                "origin": "lived",
+                "text": "You taste a shared thing before correcting it, and when you are certain of the answer you leave the last bite untouched rather than argue over it."
+              }
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "friday_bun",
+          "title": "After the fitting departure",
+          "frame": "At 17:20 on Friday, Mayuri has just left the laboratory for the costume fitting she mentioned to both of them earlier. Okabe and Kurisu remain alone. The usual Friday bakery bag holds one unlabeled bun on a napkin between two paper cups; it is untouched. The laboratory door is open, no other errand is pending, and neither person is required to stay.",
+          "actor_observations": {
+            "okabe_rintaro": [
+              "You saw Mayuri and Kurisu arrive together from the bakery. You do not know the filling or what Mayuri intended by leaving the bun."
+            ],
+            "kurisu_makise": [
+              "You know the bun is pear-custard. Mayuri asked you not to spoil Okabe's first guess before she was interrupted."
+            ]
+          },
+          "turn_order": [
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ]
+        },
+        {
+          "scene_id": "below_lab_stairs",
+          "title": "The two ways down",
+          "frame": "Four school days later at 18:10, Okabe and Kurisu stand below the laboratory stairs. The station is direct from the corner; the longer route begins across the street through the arcade. On earlier walks, Okabe has given theatrical reasons to take the arcade, Kurisu has corrected them, and Mayuri has stopped at the window there. Mayuri is absent for a commitment both of them know about. No route has been proposed, the stairwell door is open, and either person can leave.",
+          "between_scene_public_history": "Several ordinary school and laboratory days pass. Neither person receives a further shared explanation of the bun after Mayuri leaves for the fitting.",
+          "turn_order": [
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "sg_okabe_kurisu_transfer_d",
+      "title": "The unlabeled bun",
+      "suite": "ordinary_surface",
+      "source_metadata": {
+        "conversation_id": "sg-okabe-kurisu-transfer-d"
+      },
+      "actors": [
+        {
+          "character_id": "okabe_rintaro",
+          "name": "Rintaro Okabe",
+          "public_sheet": {
+            "role": "a university student who founded a small laboratory"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You founded the Future Gadget Laboratory and are happiest when a room lets you perform as its self-appointed leader, even when nobody asked for one."
+              },
+              {
+                "origin": "lived",
+                "text": "When a joke starts to work, you prolong the bit past its useful point to see who makes you stop."
+              },
+              {
+                "origin": "inferred",
+                "text": "You have often mistaken Mayuri's gentle refusal to interrupt you for agreement, then learned too late that she had been waiting for somebody else to say no."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At a university open day, Kurisu corrected your explanation in front of visitors, the room followed her answer, and you felt your usual standing disappear until you turned it into a challenge."
+              },
+              {
+                "origin": "lived",
+                "text": "When Kurisu gives only the practical half of an answer, you turn the missing half into a contest instead of letting the question close."
+              },
+              {
+                "origin": "lived",
+                "text": "On Fridays, Mayuri leaves one unlabeled bakery bun for you to taste first; you make a ceremony of guessing before anyone tells you what is inside."
+              }
+            ]
+          }
+        },
+        {
+          "character_id": "kurisu_makise",
+          "name": "Kurisu Makise",
+          "public_sheet": {
+            "role": "a young researcher with exacting methods"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You are a young researcher whose precision has made older students mistake your correction for hostility."
+              },
+              {
+                "origin": "lived",
+                "text": "An interesting question holds you longer than politeness does, even when you know the person asking is trying to make a stage out of it."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At a university open day, you corrected Okabe's explanation before visitors and the room began asking you questions instead of him; he kept treating the shift as a game."
+              },
+              {
+                "origin": "inferred",
+                "text": "When Okabe keeps elaborating, you sometimes let him continue because the question next to his performance is worth hearing."
+              },
+              {
+                "origin": "told",
+                "text": "Mayuri once taught you that walking somewhere together changes what people will say before they arrive; you began paying attention to movement as carefully as measurement."
+              },
+              {
+                "origin": "lived",
+                "text": "You taste a shared thing before correcting it, and when you are certain of the answer you leave the last bite untouched rather than argue over it."
+              }
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "friday_bun",
+          "title": "After the fitting departure",
+          "frame": "At 17:20 on Friday, Mayuri has just left the laboratory for the costume fitting she mentioned to both of them earlier. Okabe and Kurisu remain alone. The usual Friday bakery bag holds one unlabeled bun on a napkin between two paper cups; it is untouched. The laboratory door is open, no other errand is pending, and neither person is required to stay.",
+          "actor_observations": {
+            "okabe_rintaro": [
+              "You saw Mayuri and Kurisu arrive together from the bakery. You do not know the filling or what Mayuri intended by leaving the bun."
+            ],
+            "kurisu_makise": [
+              "You know the bun is pear-custard. Mayuri asked you not to spoil Okabe's first guess before she was interrupted."
+            ]
+          },
+          "turn_order": [
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ]
+        },
+        {
+          "scene_id": "below_lab_stairs",
+          "title": "The two ways down",
+          "frame": "Four school days later at 18:10, Okabe and Kurisu stand below the laboratory stairs. The station is direct from the corner; the longer route begins across the street through the arcade. On earlier walks, Okabe has given theatrical reasons to take the arcade, Kurisu has corrected them, and Mayuri has stopped at the window there. Mayuri is absent for a commitment both of them know about. No route has been proposed, the stairwell door is open, and either person can leave.",
+          "between_scene_public_history": "Several ordinary school and laboratory days pass. Neither person receives a further shared explanation of the bun after Mayuri leaves for the fitting.",
+          "turn_order": [
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ]
+        }
+      ]
+    }
+  ]
+}
