@@ -52,10 +52,6 @@ def _controls() -> dict[str, object]:
                         "title": "second scene",
                         "frame": "authorized setup two",
                         "between_scene_public_history": "authorized history",
-                        "actor_observations": {
-                            actor_ids[0]: ["left follow-up"],
-                            actor_ids[1]: ["right follow-up"],
-                        },
                         "turn_order": [actor_ids[turn % 2] for turn in range(8)],
                     },
                 ],
@@ -161,6 +157,8 @@ def test_assembler_projects_only_reviewable_reflection_fields_and_hides_sources(
     for conversation in packet["conversations"]:
         assert len(conversation["characters"]) == 2
         assert len(conversation["scenes"]) == 2
+        assert "actor_observations" in conversation["scenes"][0]
+        assert "actor_observations" not in conversation["scenes"][1]
         assert len(conversation["turns"]) == 16
         for turn_index, turn in enumerate(conversation["turns"], start=1):
             assert turn["turn_index"] == turn_index

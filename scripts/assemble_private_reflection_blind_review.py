@@ -126,16 +126,17 @@ def _project_scene(scene: Mapping[str, Any], *, actor_names: Mapping[str, str]) 
             between, label="control between-scene history"
         )
     raw_observations = scene.get("actor_observations")
-    if not isinstance(raw_observations, Mapping):
-        raise PrivateReflectionAssemblyError("control scene has no actor observations")
-    observations: dict[str, list[str]] = {}
-    for actor_id, raw_values in raw_observations.items():
-        if actor_id not in actor_names or not isinstance(raw_values, list):
+    if raw_observations is not None:
+        if not isinstance(raw_observations, Mapping):
             raise PrivateReflectionAssemblyError("control scene observations are invalid")
-        observations[actor_names[actor_id]] = [
-            _string(item, label="control actor observation") for item in raw_values
-        ]
-    result["actor_observations"] = observations
+        observations: dict[str, list[str]] = {}
+        for actor_id, raw_values in raw_observations.items():
+            if actor_id not in actor_names or not isinstance(raw_values, list):
+                raise PrivateReflectionAssemblyError("control scene observations are invalid")
+            observations[actor_names[actor_id]] = [
+                _string(item, label="control actor observation") for item in raw_values
+            ]
+        result["actor_observations"] = observations
     return result
 
 
