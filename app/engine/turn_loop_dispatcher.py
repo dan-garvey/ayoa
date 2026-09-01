@@ -69,7 +69,6 @@ from app.schemas.event_router import (
 )
 from app.schemas.one_star import (
     ClosedOneStarEventRouterOutput,
-    OneStarAccountEnvelope,
     OneStarEventRouterOutput,
     ONE_STAR_RULESET_ID,
     OneStarStateUpdate,
@@ -120,7 +119,8 @@ _ONE_STAR_COMPACT_UPDATE_AUTHORITY = (
     "counters. "
     "For pending_resolve and pending_cancel, put the pending operation id only "
     "in target_id and use details=[]. The mission_start update requires one or "
-    "more unique counter.<nonempty_id>=<current>/<target> details."
+    "more unique counter.<nonempty_id>=<current>/<target> details; only a "
+    "same-event opening_roster mission omits pending_operation_id."
 )
 
 
@@ -341,250 +341,6 @@ def _validate_one_star_pending_operation_shapes(
     for operation in transaction.operations:
         if getattr(operation, "operation", "") == "pending_open":
             validate_one_star_pending_operation_shape(operation.pending)
-
-
-def _one_star_initial_guided_roster(
-    ckpt: CheckpointFile,
-) -> tuple[str, OneStarAccountEnvelope, tuple[str, ...]] | None:
-    """Return the seed-authorized initial roster in its acquisition order."""
-
-    if not _one_star_router_enabled(ckpt) or not ckpt.canonical_events:
-        return None
-
-    from app.engine.one_star_adapter import (
-        find_one_star_account_owner,
-        load_one_star_account,
-        load_one_star_hero,
-    )
-    from app.schemas.one_star import OneStarOpeningRosterSummonPool
-
-    if find_one_star_account_owner(ckpt.characters) is None:
-        return None
-    owner, account = load_one_star_account(ckpt)
-    if account.state.highest_cleared_floor != 0 or any(
-        getattr(update, "kind", "") == "mission_start"
-        for event in ckpt.canonical_events
-        for update in getattr(event, "state_updates", ())
-    ):
-        return None
-    opening_event = ckpt.canonical_events[0]
-    opening_summons = [
-        update
-        for update in getattr(opening_event, "state_updates", ())
-        if getattr(update, "kind", "") == "summon"
-    ]
-    if len(opening_summons) != 1:
-        return None
-    opening_summon = opening_summons[0]
-    pool_id = opening_summon.target_id.strip()
-    pool = account.config.summon_pools.get(pool_id)
-    if (
-        not isinstance(pool, OneStarOpeningRosterSummonPool)
-        or not pool.initial_deployment_requires_guide_handoff
-        or opening_summon.value != str(len(pool.slots))
-    ):
-        return None
-
-    acquired_ids = {
-        character.character_id
-        for character in ckpt.characters
-        if (
-            (hero := load_one_star_hero(character)) is not None
-            and hero.owner_lobby_id == account.config.lobby_id
-            and hero.acquisition_event_id == opening_event.event_id
-        )
-    }
-    ordered_ids = tuple(
-        signal.character_id
-        for signal in opening_event.activate
-        if signal.character_id in acquired_ids
-    )
-    if (
-        len(acquired_ids) != len(pool.slots)
-        or len(ordered_ids) != len(pool.slots)
-        or len(set(ordered_ids)) != len(ordered_ids)
-        or set(ordered_ids) != acquired_ids
-    ):
-        return None
-    return owner.character_id, account, ordered_ids
-
-
-def _validate_one_star_initial_deployment_responder_order(
-    ckpt: CheckpointFile,
-    result: EventRouterOutput,
-    *,
-    actor_id: str,
-    cat_ii_event: OpenCatIIEvent | None,
-) -> None:
-    """Require the opted-in opening roster's independent response order."""
-
-    if cat_ii_event is not None:
-        return
-    guided = _one_star_initial_guided_roster(ckpt)
-    if guided is None:
-        return
-    owner_id, _account, ordered_ids = guided
-    if actor_id != owner_id:
-        return
-    transaction = _one_star_transaction_for_result(ckpt, result)
-    operations = (
-        transaction.operations
-        if transaction is not None and transaction.present
-        else []
-    )
-    pending_opens = [
-        operation
-        for operation in operations
-        if getattr(operation, "operation", "") == "pending_open"
-        and getattr(operation.pending, "kind", "") == "deployment"
-        and set(operation.pending.participant_ids) == set(ordered_ids)
-    ]
-    if not pending_opens:
-        return
-    if (
-        len(pending_opens) != 1
-        or not result.requires_responders
-        or result.required_responders != list(ordered_ids)
-    ):
-        expected = list(ordered_ids)
-        raise ValueError(
-            "One-Star guided initial deployment must open Cat II with "
-            "required_responders exactly equal to the opening-roster slot "
-            "order and no guide or extra responder: "
-            f"expected={expected!r}; "
-            f"received={result.required_responders!r}; "
-            f"requires_responders={result.requires_responders!r}"
-        )
-
-
-def _validate_one_star_initial_deployment_guide_handoff(
-    ckpt: CheckpointFile,
-    result: EventRouterOutput,
-    *,
-    cat_ii_event: OpenCatIIEvent | None,
-) -> None:
-    """Keep the opted-in opening deployment response-owned by its guide.
-
-    An opening-roster pool may require one guide turn after the independently
-    collected Hero intentions and before any deployment side effect.  This
-    check runs on the first Cat II resolution candidate, while a complete
-    router-envelope correction is still possible.  The guide's ordinary later
-    turn owns the physical crossing and pending/mission resolution.
-    """
-
-    if cat_ii_event is None:
-        return
-    guided = _one_star_initial_guided_roster(ckpt)
-    if guided is None:
-        return
-    owner_id, account, ordered_ids = guided
-    pending = account.state.pending_operation
-    if (
-        pending is None
-        or pending.kind != "deployment"
-        or cat_ii_event.initiator_id != owner_id
-        or set(pending.participant_ids) != set(ordered_ids)
-    ):
-        return
-    pending_open_event = next(
-        (
-            event
-            for event in ckpt.canonical_events
-            if event.event_id == cat_ii_event.opening_event_id
-        ),
-        None,
-    )
-    if pending_open_event is None or not any(
-        getattr(update, "kind", "") == "pending_open"
-        and getattr(update, "target_id", "") == pending.operation_id
-        and getattr(update, "value", "") == "deployment"
-        for update in getattr(pending_open_event, "state_updates", ())
-    ):
-        return
-
-    characters = {
-        character.character_id: character for character in ckpt.characters
-    }
-    active_guide_ids = [
-        guide_id
-        for guide_id in account.state.guide_character_ids
-        if (
-            (guide := characters.get(guide_id)) is not None
-            and guide.status.value == "active"
-        )
-    ]
-    errors: list[str] = []
-    if len(active_guide_ids) != 1:
-        errors.append(
-            "exactly one configured guide must be active for the handoff"
-        )
-        guide_id = ""
-    else:
-        guide_id = active_guide_ids[0]
-
-    if cat_ii_event.required_responders != list(ordered_ids):
-        errors.append(
-            "the collected responders must retain the opening-roster slot order"
-        )
-    if result.requires_responders or result.required_responders:
-        errors.append("the post-collection bridge cannot request responders")
-    if result.next_output_character_ids != ([guide_id] if guide_id else []):
-        errors.append(
-            "the sole next_output must be the active configured guide"
-        )
-    guide_observer = next(
-        (
-            observer
-            for observer in result.observers
-            if observer.character_id == guide_id
-        ),
-        None,
-    )
-    if (
-        not guide_id
-        or guide_observer is None
-        or guide_observer.observation_level != "d"
-        or guide_observer.routing_role != "next_output"
-    ):
-        errors.append(
-            "the active configured guide must be a direct next_output observer"
-        )
-    if guide_id and not any(
-        fact.is_visible_to(guide_id)
-        for fact in result.canonical_event.observable_facts
-    ):
-        errors.append(
-            "the guide must receive an observable fact carrying the collected "
-            "response context"
-        )
-    if result.perception_enrichment_character_ids:
-        errors.append("the post-collection bridge cannot request enrichment")
-    if getattr(result, "state_updates", None):
-        errors.append("the post-collection bridge must have empty state_updates")
-    generic_side_effects = {
-        "spawn": bool(result.spawn),
-        "dormant": bool(result.dormant),
-        "cull": bool(result.cull),
-        "activate": bool(result.activate),
-        "location_updates": bool(result.location_updates),
-        "commitment_open": bool(result.commitment_open.present),
-        "commitment_resolutions": bool(result.commitment_resolutions),
-        "commitment_interrupts": bool(result.commitment_interrupts),
-    }
-    present_side_effects = [
-        name for name, present in generic_side_effects.items() if present
-    ]
-    if present_side_effects:
-        errors.append(
-            "the post-collection bridge must have empty generic side effects: "
-            + ", ".join(present_side_effects)
-        )
-    if errors:
-        raise ValueError(
-            "One-Star initial deployment requires a side-effect-free "
-            "post-collection guide handoff:\n- "
-            + "\n- ".join(errors)
-        )
 
 
 def _validate_one_star_pending_resolution_event_contract(
@@ -845,6 +601,24 @@ def _validate_one_star_guide_routing(
     owner, account = load_one_star_account(ckpt)
     if actor_id != owner.character_id:
         return
+    direct_opening = (
+        len(operations) == 2
+        and getattr(operations[0], "operation", "") == "summon"
+        and getattr(operations[1], "operation", "") == "mission_start"
+        and not getattr(operations[1], "pending_operation_id", "")
+        and getattr(
+            account.config.summon_pools.get(
+                getattr(operations[0], "pool_id", "")
+            ),
+            "usage",
+            "",
+        )
+        == "opening_roster"
+    )
+    if direct_opening:
+        # This first event happens on the Tower floor, not in the lobby. It has
+        # no guide briefing or mediated lobby-delivery obligation.
+        return
     characters = {character.character_id: character for character in ckpt.characters}
     lobby_locations = {
         account.config.lobby_location_label,
@@ -928,6 +702,50 @@ def _validate_one_star_guide_routing(
             )
 
 
+def _validate_one_star_autonomous_floor_routing(
+    ckpt: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> None:
+    """Expose floor-envelope failures to the router's full-output retry."""
+
+    if not _one_star_router_enabled(ckpt):
+        return
+    from app.engine.one_star_adapter import (
+        OneStarTransactionError,
+        load_one_star_account,
+        one_star_active_mission_has_bound_party_member,
+        validate_one_star_autonomous_mission_batch_result,
+    )
+
+    try:
+        _owner, account = load_one_star_account(ckpt)
+    except OneStarTransactionError:
+        # This hook only translates an existing autonomous-floor envelope
+        # failure into a router retry. Account presence and validity remain
+        # authoritative adapter contracts at commit time.
+        return
+    mission = getattr(account.state, "active_mission", None)
+    clean_actor_id = actor_id.strip()
+    if (
+        mission is None
+        or one_star_active_mission_has_bound_party_member(ckpt)
+        or (clean_actor_id and clean_actor_id not in mission.party_ids)
+    ):
+        return
+    try:
+        validate_one_star_autonomous_mission_batch_result(
+            ckpt,
+            actor_id=clean_actor_id,
+            result=result,
+        )
+    except OneStarTransactionError as exc:
+        # Routing/visibility errors require a complete envelope correction,
+        # not the narrower state-update-only repair.
+        raise ValueError(str(exc)) from exc
+
+
 def _validate_one_star_standard_summon_guide_handoff(
     ckpt: CheckpointFile,
     *,
@@ -939,7 +757,7 @@ def _validate_one_star_standard_summon_guide_handoff(
     Ordinary lobby mutations merely need mediated guide observation.  A new
     Hero is different: the configured guide must immediately own the compact
     survival induction so the arrival cannot be left active and unbriefed.
-    Opening rosters have their own authored handoff and never enter this path.
+    Opening rosters launch their direct first mission and never enter this path.
     """
 
     if not _one_star_router_enabled(ckpt) or not isinstance(
@@ -1639,55 +1457,13 @@ def _validate_opening_spawn_authority(
         )
 
 
-def _validate_projected_one_star_authored_opening_handoff(
-    checkpoint: CheckpointFile,
-    intention: str,
-    result: EventRouterOutput,
-) -> None:
-    """Guard an adapter-authored opening lifecycle before history mutates.
-
-    Opening summon identities are intentionally absent from the router's
-    generic spawn/activate fields. Preview the adapter-owned lifecycle on a
-    copy, then apply the same branch-aware handoff guard used after prepare.
-    """
-
-    if (
-        not _is_begin_directive(intention)
-        or not isinstance(
-            result,
-            (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
-        )
-        or not (result.requires_responders or result.next_output_character_ids)
-    ):
-        return
-
-    from app.engine.one_star_adapter import one_star_summon_lifecycle
-    from app.engine.turn_loop import _validate_authored_opening_handoff
-
-    adapter_spawns, adapter_wakes = one_star_summon_lifecycle(
-        checkpoint,
-        result.state_updates,
-    )
-    projected = result.model_copy(deep=True)
-    projected.spawn.extend(adapter_spawns)
-    projected.activate.extend(adapter_wakes)
-    _validate_authored_opening_handoff(
-        checkpoint,
-        projected,
-        submission=intention,
-        events_closed=0,
-        is_continuation=False,
-    )
-
-
-def _validate_one_star_guide_and_opening_envelope(
+def _validate_one_star_guide_envelope(
     checkpoint: CheckpointFile,
     *,
     actor_id: str,
-    intention: str,
     result: EventRouterOutput,
 ) -> None:
-    """Report coupled guide-delivery and authored-handoff defects together."""
+    """Report coupled guide-delivery defects together."""
 
     from app.engine.one_star_adapter import OneStarTransactionError
 
@@ -1707,11 +1483,6 @@ def _validate_one_star_guide_and_opening_envelope(
             checkpoint,
             actor_id=actor_id,
             result=result,
-        ),
-        lambda: _validate_projected_one_star_authored_opening_handoff(
-            checkpoint,
-            intention,
-            result,
         ),
     )
     for validate in validators:
@@ -3001,19 +2772,8 @@ class LLMDispatcher:
                     actor_id=actor_id,
                     result=result,
                 )
-                _validate_one_star_initial_deployment_responder_order(
-                    ckpt,
-                    result,
-                    actor_id=actor_id,
-                    cat_ii_event=cat_ii_event,
-                )
                 _validate_one_star_cat_ii_transaction(ckpt, result)
                 _validate_one_star_pending_operation_shapes(ckpt, result)
-                _validate_one_star_initial_deployment_guide_handoff(
-                    ckpt,
-                    result,
-                    cat_ii_event=cat_ii_event,
-                )
                 _validate_one_star_pending_resolution_event_contract(
                     ckpt,
                     result,
@@ -3024,13 +2784,17 @@ class LLMDispatcher:
                     actor_id=actor_id,
                     result=result,
                 )
-                _validate_one_star_guide_and_opening_envelope(
+                _validate_one_star_guide_envelope(
                     ckpt,
                     actor_id=actor_id,
-                    intention=intention,
                     result=result,
                 )
                 _validate_opening_spawn_authority(ckpt, intention, result)
+                _validate_one_star_autonomous_floor_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
 
             try:
                 validate_candidate()
@@ -3300,6 +3064,11 @@ class LLMDispatcher:
                     result=result,
                 )
                 _validate_one_star_standard_summon_guide_handoff(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+                _validate_one_star_autonomous_floor_routing(
                     ckpt,
                     actor_id=actor_id,
                     result=result,

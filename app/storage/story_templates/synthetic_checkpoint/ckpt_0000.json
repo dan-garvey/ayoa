@@ -16,9 +16,9 @@
         "event_router": "openai:gpt-5.2",
         "narrator": "openai:gpt-5.6-terra",
         "dnd_combat_manager": "openai:gpt-5.1",
-        "agent_default": "anthropic:claude-opus-5",
+        "agent_default": "openai:gpt-5.6-luna",
         "agent_standard": "openai:gpt-5.6-luna",
-        "agent_convenience": "anthropic:claude-sonnet-5",
+        "agent_convenience": "openai:gpt-5.6-luna",
         "character_manager": "anthropic:claude-sonnet-5"
       },
       "narrative_rules": "",

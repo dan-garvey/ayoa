@@ -86,14 +86,9 @@ def _render_summon_pool(pool_id: str, pool: OneStarSummonPool) -> str:
                 slots.append(
                     f"{slot_index}=random_existing_grade:{slot.birth_stars}"
                 )
-        handoff = (
-            "; initial_deployment_requires_guide_handoff=true"
-            if pool.initial_deployment_requires_guide_handoff
-            else ""
-        )
         return (
             f"- {pool_id}: usage={pool.usage}; "
-            f"count={len(pool.slots)}; slots[{','.join(slots)}]{handoff}"
+            f"count={len(pool.slots)}; slots[{','.join(slots)}]"
         )
     raise TypeError(f"unsupported One-Star summon pool type: {type(pool).__name__}")
 
@@ -376,10 +371,6 @@ def render_one_star_repair_evidence(
                         f"usage={pool.usage}; cost_per_pull=free; "
                         f"required_count={len(pool.slots)}; first_event_only=true"
                     )
-                    if pool.initial_deployment_requires_guide_handoff:
-                        authority += (
-                            "; initial_deployment_requires_guide_handoff=true"
-                        )
                 add(
                     f"summon_pool {update.target_id}: {authority}; "
                     f"occupied={owned_count}/{state.capacity}"

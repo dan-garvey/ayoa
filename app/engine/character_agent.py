@@ -73,6 +73,14 @@ PLOT_AGENT_ROLE = "agent"
 STANDARD_AGENT_ROLE = "agent_standard"
 CONVENIENCE_AGENT_ROLE = "agent_convenience"
 
+# OpenAI reasoning tokens share the response allowance with visible output.
+# Luna at max effort can legitimately spend more than the old 2k turn cap on
+# reasoning before producing a short in-character line, so these ceilings must
+# leave room for both. Perception remains lower because its visible contract is
+# much narrower than a consequential character turn.
+CHARACTER_AGENT_TURN_MAX_TOKENS = 8_000
+CHARACTER_AGENT_PERCEPTION_MAX_TOKENS = 4_000
+
 
 @dataclass(frozen=True)
 class CharacterAgentTurnDraft:
@@ -486,7 +494,7 @@ class CharacterAgent:
             role=model_role_for_character(character),
             messages=messages,
             temperature=0.5,
-            max_tokens=600,
+            max_tokens=CHARACTER_AGENT_PERCEPTION_MAX_TOKENS,
             cache=True,
             compact=False,
         )
@@ -689,7 +697,7 @@ class CharacterAgent:
             role=role,
             messages=messages,
             temperature=0.6,
-            max_tokens=2000,
+            max_tokens=CHARACTER_AGENT_TURN_MAX_TOKENS,
             cache=True,
             compact=False,
         )

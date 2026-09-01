@@ -15,6 +15,7 @@ from app.engine.context_builder import (
     format_pending_observations_block,
 )
 from app.engine.one_star_adapter import load_one_star_account
+from app.engine.one_star_projection import one_star_agent_state_block
 from app.engine.prompt_manager import PromptManager
 from app.schemas.checkpoint import CheckpointFile
 
@@ -171,15 +172,49 @@ def _render_foreground_agent(
         item for item in checkpoint.characters
         if item.character_id == character_id
     )
+    current_packet = "\n\n".join(
+        block
+        for block in (
+            format_pending_observations_block(character),
+            one_star_agent_state_block(checkpoint, character),
+        )
+        if block
+    )
     return PromptManager("app/prompts").render_conversation(
         "agent_turn",
         history=[],
         ruleset_guidance="",
         request_packet=build_character_turn_request_packet(
-            format_pending_observations_block(character),
+            current_packet,
             identity_seed=build_character_turn_identity_seed(character, checkpoint),
         ),
     )
+
+
+@pytest.mark.parametrize(
+    "character_id",
+    ("renna_holt", "mirelle_voss", "edren_marr"),
+)
+def test_hero_skill_prose_never_becomes_character_prompt_diction(
+    character_id: str,
+) -> None:
+    checkpoint = _seed_checkpoint()
+    character = next(
+        item for item in checkpoint.characters
+        if item.character_id == character_id
+    )
+    hero = character.mechanics["one_star_hero"]
+    rendered = "\n".join(
+        message["content"]
+        for message in _render_foreground_agent(checkpoint, character_id)
+    )
+
+    for skill in hero["skills"]:
+        assert skill["name"] not in rendered
+        assert skill["capability"] not in rendered
+    for equipment in hero["equipment"]:
+        if equipment["visible"]:
+            assert equipment["name"] in rendered
 
 
 @pytest.mark.parametrize("character_id", ("renna_holt", "edren_marr"))

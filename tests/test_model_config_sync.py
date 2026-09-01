@@ -7,7 +7,7 @@ from app.engine.model_config_sync import (
     sync_checkpoint_runtime_models,
 )
 from app.llm.config import LLMConfig
-from app.schemas.checkpoint import CheckpointFile
+from app.schemas.checkpoint import CURRENT_SCHEMA_VERSION, CheckpointFile
 from app.schemas.state import ModelConfig, SessionConfig, SessionState
 
 
@@ -64,11 +64,34 @@ def test_runtime_model_config_defaults_label_reviewed_openai_roles():
     assert models.event_router == "openai:gpt-5.6-terra"
     assert models.narrator == "openai:gpt-5.6-terra"
     assert models.dnd_combat_manager == "openai:gpt-5-mini"
-    assert models.agent_default == "openai:gpt-5.6-terra"
-    assert models.agent_standard == "openai:gpt-5.6-terra"
-    assert models.agent_convenience == "openai:gpt-5.6-terra"
+    assert models.agent_default == "openai:gpt-5.6-luna"
+    assert models.agent_standard == "openai:gpt-5.6-luna"
+    assert models.agent_convenience == "openai:gpt-5.6-luna"
     assert models.character_manager == "openai:gpt-5.6-luna"
     assert models.image_director == "openai:gpt-5-mini"
+
+
+def test_checked_in_story_seeds_use_luna_for_every_character_agent_tier():
+    repo_root = Path(__file__).resolve().parent.parent
+    seed_paths = [
+        repo_root
+        / "app/storage/story_templates/synthetic_checkpoint/ckpt_0000.json",
+        *sorted((repo_root / "app/storage/stories").glob("*/ckpt_0000.json")),
+    ]
+
+    checked_paths = []
+    for seed_path in seed_paths:
+        raw = json.loads(seed_path.read_text(encoding="utf-8"))
+        if raw.get("schema_version") != CURRENT_SCHEMA_VERSION:
+            continue
+        checked_paths.append(seed_path)
+        models = CheckpointFile.model_validate(raw).session.config.models
+        assert {
+            models.agent_default.removeprefix("openai:"),
+            models.agent_standard.removeprefix("openai:"),
+            models.agent_convenience.removeprefix("openai:"),
+        } == {"gpt-5.6-luna"}, seed_path
+    assert checked_paths
 
 
 def test_load_story_into_session_rewrites_stale_story_models(tmp_path: Path):

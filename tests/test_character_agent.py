@@ -5,6 +5,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.engine.character_agent import (
+    CHARACTER_AGENT_PERCEPTION_MAX_TOKENS,
+    CHARACTER_AGENT_TURN_MAX_TOKENS,
     CharacterAgent,
     CharacterAgentOutputError,
     _parse_agent_turn_response,
@@ -1956,16 +1958,15 @@ class TestPerceptionMode:
     async def test_perceive_uses_lower_max_tokens_than_turn(
         self, mock_client, prompt_manager, guard_character, sample_checkpoint,
     ):
-        # Perception is capped at 3 sentences; the call site uses a
-        # smaller token budget than normal agent turns. Pinning the budget
-        # so a future "let's give the agent more room" tweak doesn't
-        # silently regress to 2000 tokens per perception (which would
-        # bloat the cost of a 3-target harvest by 6x).
+        # Perception is capped at 3 sentences, so it retains a lower allowance
+        # than a normal turn. Both ceilings still reserve room for hidden Luna
+        # reasoning, which counts against the provider's response allowance.
         mock_client.complete.return_value = self._llm_text_only("loadout")
         agent = CharacterAgent(mock_client, prompt_manager)
         await agent.perceive(guard_character, sample_checkpoint)
         max_tokens = mock_client.complete.call_args.kwargs["max_tokens"]
-        assert max_tokens <= 1000
+        assert max_tokens == CHARACTER_AGENT_PERCEPTION_MAX_TOKENS
+        assert max_tokens < CHARACTER_AGENT_TURN_MAX_TOKENS
 
     @pytest.mark.asyncio
     async def test_perceive_strips_whitespace(

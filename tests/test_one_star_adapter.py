@@ -205,18 +205,16 @@ def test_floor_scenario_requires_a_matching_reward() -> None:
         OneStarRulesConfig.model_validate(config)
 
 
-def test_multiple_opening_rosters_may_require_guide_handoff() -> None:
+def test_multiple_opening_rosters_share_one_direct_opening_schema() -> None:
     config = _config()
     config["summon_pools"].update({
         "master_opening": {
             "usage": "opening_roster",
             "slots": [{"kind": "fixed", "character_id": "master_hero"}],
-            "initial_deployment_requires_guide_handoff": True,
         },
         "duo_opening": {
             "usage": "opening_roster",
             "slots": [{"kind": "fixed", "character_id": "duo_hero"}],
-            "initial_deployment_requires_guide_handoff": True,
         },
     })
 
@@ -224,6 +222,21 @@ def test_multiple_opening_rosters_may_require_guide_handoff() -> None:
 
     assert parsed.summon_pools["master_opening"].usage == "opening_roster"
     assert parsed.summon_pools["duo_opening"].usage == "opening_roster"
+
+
+def test_opening_roster_rejects_retired_guide_handoff_scaffolding() -> None:
+    config = _config()
+    config["summon_pools"]["retired_opening"] = {
+        "usage": "opening_roster",
+        "slots": [{"kind": "fixed", "character_id": "master_hero"}],
+        "initial_deployment_requires_guide_handoff": True,
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="initial_deployment_requires_guide_handoff",
+    ):
+        OneStarRulesConfig.model_validate(config)
 
 
 def test_transaction_requires_exact_present_shape() -> None:

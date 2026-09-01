@@ -153,8 +153,36 @@ def _checkpoint() -> CheckpointFile:
             "synthesis_source_base_xp": 100,
             "synthesis_skill_chance_basis_points": 500,
         },
-        "floor_rewards": {},
-        "floor_scenarios": {},
+        "floor_rewards": {
+            "1": {
+                "gold": 0,
+                "gems": 0,
+                "building_resources": 0,
+                "materials": {},
+            },
+        },
+        "floor_scenarios": {
+            "1": {
+                "mission_id": "floor_1_goblin_ambush",
+                "destination": "tower_floor_1_goblin_ambush",
+                "premise": "Survive the goblin ambush and reach the exit.",
+                "completion_declaration": (
+                    "At least one Hero survived the goblin ambush and reached "
+                    "the exit."
+                ),
+                "failure_declaration": (
+                    "No Hero remains alive and able to reach the exit."
+                ),
+                "counters": [
+                    {
+                        "counter_id": "survivor_reaches_exit",
+                        "current": 0,
+                        "target": 1,
+                    },
+                ],
+                "pressure_beats": ["Armed goblins attack immediately."],
+            },
+        },
         "repeat_gold_numerator": 0,
         "repeat_gold_denominator": 1,
         "repeat_gold_minimum": 0,
@@ -234,6 +262,40 @@ def _summon_transaction(
             "birth_stars": birth_stars,
         }],
     })
+
+
+def _direct_opening_updates(
+    checkpoint: CheckpointFile,
+    *,
+    pool_id: str,
+    party_ids: list[str],
+) -> list[OneStarStateUpdate]:
+    _owner, account = load_one_star_account(checkpoint)
+    scenario = account.config.floor_scenarios[1]
+    return [
+        OneStarStateUpdate(
+            kind="summon",
+            target_id=pool_id,
+            value=str(len(party_ids)),
+            details=[],
+        ),
+        OneStarStateUpdate(
+            kind="mission_start",
+            target_id=scenario.mission_id,
+            value="1",
+            details=[
+                *(f"party={hero_id}" for hero_id in party_ids),
+                f"destination={scenario.destination}",
+                f"completion={scenario.completion_declaration}",
+                f"failure={scenario.failure_declaration}",
+                *(
+                    f"counter.{counter.counter_id}="
+                    f"{counter.current}/{counter.target}"
+                    for counter in scenario.counters
+                ),
+            ],
+        ),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -425,27 +487,52 @@ def test_opening_roster_compact_update_owns_transaction_and_wake_identities() ->
         _hero("edren"),
         _hero("authored_three", birth_stars=3),
     ])
-    update = OneStarStateUpdate(
-        kind="summon",
-        target_id="opening",
-        value="2",
-        details=[],
-    )
     preview = one_star_opening_roster_preview(checkpoint, "opening")
+    party_ids = [draw.existing_character_id for draw in preview]
+    updates = _direct_opening_updates(
+        checkpoint,
+        pool_id="opening",
+        party_ids=party_ids,
+    )
 
     transaction = one_star_state_updates_to_transaction(
         checkpoint,
-        [update],
+        updates,
         canonical_at_s=0,
     )
-    spawns, wakes = one_star_summon_lifecycle(checkpoint, [update])
+    spawns, wakes = one_star_summon_lifecycle(checkpoint, updates)
     operation = transaction.operations[0]
 
-    assert operation.hero_ids == [draw.existing_character_id for draw in preview]
+    assert operation.hero_ids == party_ids
     assert operation.birth_stars == [draw.birth_stars for draw in preview]
     assert spawns == ()
     assert [wake.character_id for wake in wakes] == operation.hero_ids
-    assert all(wake.location_label == "lobby" for wake in wakes)
+    assert all(
+        wake.location_label == "tower_floor_1_goblin_ambush"
+        for wake in wakes
+    )
+
+
+def test_opening_roster_cannot_stop_before_the_direct_first_mission() -> None:
+    checkpoint = _checkpoint()
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["opening"] = {
+        "usage": "opening_roster",
+        "slots": [{"kind": "fixed", "character_id": "edren"}],
+    }
+    checkpoint.characters.append(_hero("edren"))
+    update = OneStarStateUpdate(
+        kind="summon",
+        target_id="opening",
+        value="1",
+        details=[],
+    )
+
+    with pytest.raises(
+        OneStarTransactionError,
+        match="must be followed by exactly one direct mission start",
+    ):
+        one_star_summon_lifecycle(checkpoint, [update])
 
 
 def test_bound_player_actor_roster_activates_its_exact_bound_slot() -> None:
@@ -459,27 +546,81 @@ def test_bound_player_actor_roster_activates_its_exact_bound_slot() -> None:
     newcomer.player_slot_kind = PlayerSlotKind.player_authored
     checkpoint.characters.append(newcomer)
     checkpoint.session.character_bindings["newcomer"] = "player-1"
-    update = OneStarStateUpdate(
-        kind="summon",
-        target_id="newcomer_opening",
-        value="1",
-        details=[],
+    updates = _direct_opening_updates(
+        checkpoint,
+        pool_id="newcomer_opening",
+        party_ids=["newcomer"],
     )
 
     transaction = one_star_state_updates_to_transaction(
         checkpoint,
-        [update],
+        updates,
         canonical_at_s=0,
     )
-    spawns, wakes = one_star_summon_lifecycle(checkpoint, [update])
+    spawns, wakes = one_star_summon_lifecycle(checkpoint, updates)
     operation = transaction.operations[0]
 
     assert operation.hero_ids == ["newcomer"]
     assert operation.birth_stars == [1]
     assert spawns == ()
     assert [(wake.character_id, wake.location_label) for wake in wakes] == [
-        ("newcomer", "lobby"),
+        ("newcomer", "tower_floor_1_goblin_ambush"),
     ]
+
+
+def test_direct_opening_atomically_acquires_roster_and_starts_floor_one() -> None:
+    checkpoint = _checkpoint()
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["opening"] = {
+        "usage": "opening_roster",
+        "slots": [
+            {"kind": "fixed", "character_id": "renna"},
+            {"kind": "fixed", "character_id": "edren"},
+        ],
+    }
+    checkpoint.characters.extend([_hero("renna"), _hero("edren")])
+    updates = _direct_opening_updates(
+        checkpoint,
+        pool_id="opening",
+        party_ids=["renna", "edren"],
+    )
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        updates,
+        canonical_at_s=0,
+    )
+    _spawns, wakes = one_star_summon_lifecycle(checkpoint, updates)
+    activation_locations = {
+        wake.character_id: wake.location_label for wake in wakes
+    }
+
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="direct_opening",
+        transaction=transaction,
+        activated_character_ids=list(activation_locations),
+        activated_character_locations=activation_locations,
+        initiating_actor_id="account_owner",
+    )
+    prepared_account = load_one_star_account(prepared.after_checkpoint)[1]
+
+    assert prepared_account.state.pending_operation is None
+    assert prepared_account.state.active_mission is not None
+    assert prepared_account.state.active_mission.mission_id == (
+        "floor_1_goblin_ambush"
+    )
+    assert prepared_account.state.active_mission.party_ids == ["renna", "edren"]
+    assert prepared_account.state.stamina_current == 4
+    for hero_id in ("renna", "edren"):
+        hero = next(
+            character
+            for character in prepared.after_checkpoint.characters
+            if character.character_id == hero_id
+        )
+        assert hero.mechanics[ONE_STAR_HERO_KEY]["owner_lobby_id"] == "lobby_a"
+        assert hero.mechanics[ONE_STAR_HERO_KEY]["acquisition_event_id"] == (
+            "direct_opening"
+        )
 
 
 @pytest.mark.parametrize(

@@ -1338,71 +1338,6 @@ def _is_begin_submission(value: str) -> bool:
     return value.strip().casefold() == "(begin)"
 
 
-def _authored_opening_branch_matches(
-    ckpt: CheckpointFile,
-    event: EventRouterOutput,
-) -> bool:
-    """Return whether this arrival is governed by the authored follow-up.
-
-    Required participant ids double as the branch trigger. A none-match is an
-    unrelated opening (for example, a separately authored player arrival) and
-    keeps the normal handoff rules; an empty trigger applies to every opening.
-    Partial matches count here so the later fixed-cast validator can reject
-    them without first dispatching improvised dialogue.
-    """
-
-    policy = ckpt.world_state.opening
-    if policy is None or not policy.authored_character_beats:
-        return False
-    authored_speaker_ids = {
-        beat.speaker_character_id for beat in policy.authored_character_beats
-    }
-    introduced_ids = {
-        character_id
-        for character_id in (
-            *(request.character_id for request in event.spawn),
-            *(signal.character_id for signal in event.activate),
-        )
-        if character_id and character_id not in authored_speaker_ids
-    }
-    return policy.matching_authored_character_beat(introduced_ids) is not None
-
-
-def _validate_authored_opening_handoff(
-    ckpt: CheckpointFile,
-    event: EventRouterOutput,
-    *,
-    submission: str,
-    events_closed: int,
-    is_continuation: bool,
-) -> None:
-    if (
-        not _is_begin_submission(submission)
-        or events_closed != 0
-        or is_continuation
-        or not _authored_opening_branch_matches(ckpt, event)
-    ):
-        return
-    if event.requires_responders or event.next_output_character_ids:
-        frontier_observers = [
-            (observer.character_id, observer.routing_role)
-            for observer in event.observers
-            if observer.routing_role != "observe_only"
-        ]
-        raise ValueError(
-            "authored opening arrival cannot request responders or "
-            "next_output; its exact character beat follows the closed arrival. "
-            "Use the closed arrival event_kind='state_change', "
-            "requires_responders=false, required_responders=[], and "
-            "routing_role='observe_only' for every observer; do not select the "
-            "authored speaker. Received "
-            f"event_kind={event.event_kind!r}, "
-            f"requires_responders={event.requires_responders!r}, "
-            f"required_responders={event.required_responders!r}, "
-            f"frontier_observers={frontier_observers!r}"
-        )
-
-
 def _is_substantive_handoff_submission(value: str) -> bool:
     return value.strip().casefold() not in _NON_SUBSTANTIVE_HANDOFF_INPUTS
 
@@ -3292,9 +3227,9 @@ async def run_beat(
       narrator render discards the prepared state but leaves the canonical
       semantic handoff resumable by `(defer)`, while narrator continue commits
       it immediately.
-    - Adapter-authorized opening and standard-summon guide handoffs complete
-      before narrator pacing because they close required onboarding rather
-      than offering an optional autonomous reaction.
+    - A routed opening autonomous response and standard-summon guide handoff
+      complete before narrator pacing because each is immediate established
+      motion rather than an optional autonomous reaction.
     - Bound `next_output` targets and forced safety/rules boundaries render
       without speculative autonomous work.
     - Targetless events may request a router continuation when the narrator
@@ -3769,29 +3704,6 @@ async def run_beat(
             )
 
         if (
-            _is_begin_submission(intention)
-            and events_closed == 1
-            and _authored_opening_branch_matches(ckpt, result)
-        ):
-            # The arrival is the complete router-owned fiction before the
-            # exact authored character beat. Force its presentation boundary;
-            # neither an autonomous response nor narrator continuation may
-            # insert improvised dialogue between those two authored parts.
-            return await _end_beat(
-                ckpt,
-                dispatcher,
-                ended_reason=(
-                    default_ended_reason
-                    or _event_handoff_reason(result)
-                    or "authored_opening_arrival"
-                ),
-                events_closed=events_closed,
-                event_actor_ids=event_actor_ids,
-                acting_player_id=actor_id,
-                acting_player_input=intention,
-                suppress_reaction_prompts=suppress_reaction_prompts,
-            )
-        if (
             not standard_summon_guide_handoff
             and _event_requires_forced_handoff(
                 result,
@@ -3841,10 +3753,10 @@ async def run_beat(
             and targets[0][0] == "autonomous"
         )
         if opening_autonomous_handoff and result.spawn:
-            # An authored opening may create characters whom its selected
-            # guide must brief. Materialize that accepted wave before the
-            # guide sees the event; the eventual render still accepts the
-            # same transaction, so no second authoring pass is introduced.
+            # An authored opening may create a character selected for the
+            # immediate autonomous response. Materialize that accepted wave
+            # before the character sees the event; the eventual render still
+            # accepts the same transaction, so no second authoring pass exists.
             await _stage_closed_event_spawns_for_render(
                 ckpt,
                 events_closed=events_closed,
@@ -3855,10 +3767,10 @@ async def run_beat(
             or opening_autonomous_handoff
             or standard_summon_guide_handoff
         ):
-            # `(begin)` and an accepted standard summon each establish an owed
-            # guide response rather than a useful player decision. Carry
-            # through exactly that authorized handoff before offering the
-            # combined batch; ordinary narrator pacing resumes afterward.
+            # `(begin)` may establish immediate autonomous motion, while an
+            # accepted standard summon establishes an owed guide response.
+            # Carry through that routed handoff before offering the combined
+            # batch; ordinary narrator pacing resumes afterward.
             prepared = await _prepare_speculative_next_output(result, targets)
             if (
                 standard_summon_guide_handoff
@@ -4189,13 +4101,6 @@ async def run_beat(
                 current_actor = result_actor_id
                 current_intention = result_submission
 
-        _validate_authored_opening_handoff(
-            ckpt,
-            result,
-            submission=intention,
-            events_closed=events_closed,
-            is_continuation=result_is_continuation,
-        )
         if not result_is_continuation and _is_side_effect_free_infeasible_result(
             result
         ):
@@ -4230,35 +4135,6 @@ async def run_beat(
                 ckpt,
                 actor_id=result_actor_id,
                 result=result,
-            )
-
-        opening_policy = ckpt.world_state.opening
-        if (
-            _is_begin_submission(intention)
-            and events_closed == 0
-            and not result_is_continuation
-            and opening_policy is not None
-            and bool(opening_policy.authored_character_beats)
-            and (
-                result.requires_responders
-                or bool(result.next_output_character_ids)
-            )
-        ):
-            # Rules adapters may own summon selection and inject generic
-            # spawn/activate signals only during event preparation. Prepare
-            # this one opening event before any Cat II or next-output work,
-            # then re-run the branch-aware guard against the complete generic
-            # lifecycle envelope. `_commit_event` reuses this preparation.
-            await _prepare_event_once(
-                result,
-                ruleset_actor_id=result_actor_id,
-            )
-            _validate_authored_opening_handoff(
-                ckpt,
-                result,
-                submission=intention,
-                events_closed=events_closed,
-                is_continuation=False,
             )
 
         interaction_mode = _dnd_interaction_mode(result)
@@ -4810,8 +4686,6 @@ def _accept_speculative_spawn_roster(ckpt: CheckpointFile) -> None:
 
     runtime = closed_event_runtime_for(ckpt)
     if runtime is None:
-        return
-    if runtime.defer_roster_acceptance:
         return
     accepted = runtime.spawn_authoring.accept_roster(
         checkpoint=ckpt,

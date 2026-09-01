@@ -13,9 +13,9 @@
   missing credentials for the configured live roles.
 * The LLM client is multi-provider (Anthropic Messages API and OpenAI
   Responses API) with per-role provider/model dispatch. Default models
-  are `gpt-5.6-terra` for `event_router`, `narrator`, and every
-  character-agent tier; `gpt-5.6-luna` for `character_manager`; and
-  `gpt-5-mini` for `dnd_combat_manager` and `content_manager`. Per-role
+  are `gpt-5.6-terra` for `event_router` and `narrator`; `gpt-5.6-luna`
+  for every character-agent tier and `character_manager`; and `gpt-5-mini`
+  for `dnd_combat_manager` and `content_manager`. Per-role
   overrides go through `LLM_PROVIDER_<ROLE>` and `LLM_MODEL_<ROLE>`
   environment variables, or via the `LLM_ROLE_PROVIDERS` /
   `LLM_ROLE_MODELS` JSON env maps. A `provider:model` prefix on a
@@ -762,14 +762,10 @@ and rendered through the normal narrator path. A seed may optionally provide
 `allow_spawns` capability. Missing or false spawn authority preserves the
 default that `(begin)` cannot create characters.
 
-A story may also attach plural `authored_character_beats` to that one opening
-policy. Each beat is an exact NPC continuation selected by the complete set and
-count of characters materialized by the router-owned arrival. At most one
-branch may match. The selected beat is broadcast as an ordinary canonical
-event, delivered without narrator paraphrase, and appended to its NPC
-speaker's conversation with the exact authored public contribution. This supports an
-exact briefing without making the beat a second roster authority or authoring
-speech for a player-controlled arrival.
+Opening dialogue and action use the ordinary router, character-agent, and
+narrator contracts. Stories do not carry a second authored-dialogue schema or
+post-render opening commit path; `world_state.opening.context` is the one
+story-specific opening instruction surface.
 
 ### 5.10 Context Builder And Prompt Manager
 
@@ -813,8 +809,8 @@ Provider/model selection can be configured with model prefixes such as
 `anthropic:claude-sonnet-5`, explicit `role_providers`, or
 environment overrides like `LLM_PROVIDER_NARRATOR=openai` and
 `LLM_MODEL_NARRATOR=gpt-5.1`. Current defaults are OpenAI `gpt-5.6-terra`
-for `event_router`, `narrator`, and every character-agent tier, with OpenAI
-`gpt-5.6-luna` for `character_manager`.
+for `event_router` and `narrator`, with OpenAI `gpt-5.6-luna` at max
+reasoning for every character-agent tier and `character_manager`.
 
 Active live model roles are `event_router`, `narrator`, `agent`,
 `agent_standard`, `agent_convenience`, `dnd_combat_manager`,
@@ -1788,11 +1784,13 @@ parallel Master/Newcomer schemas. Its ordered slots may be fixed authored
 characters, deterministic existing Heroes of an authored grade, or an exact
 `bound_player_actor`; the last kind is valid only when that actor is currently
 bound. The live player composition selects one complete pool, and the adapter
-resolves that ordered roster without a random draw. The generic opening policy's
-plural authored beats then select at most one briefing from the exact
-materialized participant set and count. The router still owns the arrival;
-the matched guide beat follows as canonical dialogue and durable guide history,
-without inventing a player character's response.
+resolves that ordered roster without a random draw. Its first event contains
+only that summon followed by the reviewed first-floor `mission_start`, with no
+pending deployment. The adapter materializes every selected Hero directly at
+the mission destination and commits acquisition, stamina, and active-mission
+state atomically. Dialogue then follows the ordinary routed character path;
+there is no branch-specific guide bridge, response-collection round, or exact
+post-render briefing path.
 
 The cached router addon receives compact immutable operation authority:
 catalogue costs/effects, physical-operation requirements, and standard-pool

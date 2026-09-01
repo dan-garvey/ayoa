@@ -27,7 +27,6 @@ from app.engine.one_star_progression import (
     rebalance_hero,
 )
 from app.engine.one_star_adapter import (
-    load_one_star_account,
     one_star_opening_roster_preview,
 )
 from app.engine.reviewed_visual_references import validate_story_visual_references
@@ -164,16 +163,13 @@ def test_checkpoint_loads_as_typed_one_star_story() -> None:
     }
 
 
-def test_opening_roster_guide_handoff_is_branch_specific() -> None:
-    """The mixed opening follows the same guide gate as the Master trio."""
+def test_opening_roster_branches_resolve_their_exact_selected_party() -> None:
     expected = {
         "master_opening_roster": (
-            True,
             ["renna_holt", "mirelle_voss", "edren_marr"],
             {},
         ),
         "master_newcomer_opening_roster": (
-            True,
             [
                 "renna_holt",
                 "mirelle_voss",
@@ -183,17 +179,13 @@ def test_opening_roster_guide_handoff_is_branch_specific() -> None:
             {BLANK_PLAYER_ID: "player-1"},
         ),
         "newcomer_opening_roster": (
-            False,
             [BLANK_PLAYER_ID],
             {BLANK_PLAYER_ID: "player-1"},
         ),
     }
-    for pool_id, (requires_handoff, character_ids, bindings) in expected.items():
+    for pool_id, (character_ids, bindings) in expected.items():
         branch = _load_checkpoint()
         branch.session.character_bindings = bindings
-        _owner, branch_account = load_one_star_account(branch)
-        pool = branch_account.config.summon_pools[pool_id]
-        assert pool.initial_deployment_requires_guide_handoff is requires_handoff
         draws = one_star_opening_roster_preview(branch, pool_id)
         assert [draw.existing_character_id for draw in draws] == character_ids
 
@@ -332,7 +324,6 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
             {"kind": "fixed", "character_id": "mirelle_voss"},
             {"kind": "fixed", "character_id": "edren_marr"},
         ],
-        "initial_deployment_requires_guide_handoff": True,
     }
     assert config.summon_pools["master_newcomer_opening_roster"].model_dump(
         mode="json"
@@ -344,14 +335,12 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
             {"kind": "fixed", "character_id": "edren_marr"},
             {"kind": "bound_player_actor", "character_id": BLANK_PLAYER_ID},
         ],
-        "initial_deployment_requires_guide_handoff": True,
     }
     assert config.summon_pools["newcomer_opening_roster"].model_dump(
         mode="json"
     ) == {
         "usage": "opening_roster",
         "slots": [{"kind": "bound_player_actor", "character_id": BLANK_PLAYER_ID}],
-        "initial_deployment_requires_guide_handoff": False,
     }
     assert "basic_summon" not in config.catalogue
     assert "premium_summon" not in config.catalogue
@@ -456,29 +445,29 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert set(config.floor_scenarios) == {1, 2, 3, 4, 5}
     floor_one = config.floor_scenarios[1]
     assert floor_one.model_dump(exclude={"pressure_beats"}) == {
-        "mission_id": "floor_1_toll_bell",
-        "destination": "tower_floor_1_toll_bell",
-        "premise": (
-            "Secure the goblins' gate crank and reach the exit; "
-            "killing everyone is optional."
-        ),
+        "mission_id": "floor_1_goblin_ambush",
+        "destination": "tower_floor_1_goblin_ambush",
+        "premise": "Survive the goblin ambush and reach the exit.",
         "completion_declaration": (
-            "The party has secured the goblins' gate crank and reached the exit."
+            "At least one deployed Hero has survived the goblin ambush and "
+            "reached the exit."
         ),
         "failure_declaration": (
-            "The party can no longer secure the goblins' gate crank or reach the exit."
+            "No deployed Hero remains alive and able to reach the exit."
         ),
         "counters": [
-            {"counter_id": "gate_crank_secured", "current": 0, "target": 1},
-            {"counter_id": "exit_reached", "current": 0, "target": 1},
+            {"counter_id": "survivor_reaches_exit", "current": 0, "target": 1},
         ],
     }
-    assert len(floor_one.pressure_beats) == 1
-    floor_one_pressure = floor_one.pressure_beats[0]
-    assert "frightened deserter" in floor_one_pressure
-    assert "shortcut" in floor_one_pressure
-    assert "separate drainage culvert" in floor_one_pressure
-    assert "away from the party's route" in floor_one_pressure
+    assert len(floor_one.pressure_beats) == 2
+    opening_pressure, edren_pressure = floor_one.pressure_beats
+    assert "armed goblins already rushing to kill them" in opening_pressure
+    assert "no safe briefing" in opening_pressure.lower()
+    assert "puzzle mechanism" in opening_pressure
+    assert "Edren Marr" in edren_pressure
+    assert "action already taken by another Hero" in edren_pressure
+    assert "His own desperate intention" in edren_pressure
+    assert "kill him horribly" in edren_pressure
     assert config.floor_scenarios[2].counters[0].current == 0
     assert config.floor_scenarios[2].counters[0].target == 1
     assert "trapped scavenger" in config.floor_scenarios[2].pressure_beats[0]
@@ -906,13 +895,14 @@ def test_cast_is_bounded_so_the_lobby_never_becomes_thousands_of_agents() -> Non
     # A small authored roster; any lobby crowd lives as ambient world text.
     assert len(checkpoint.characters) <= 18
 
-def test_floor_zero_start_and_summon_pool() -> None:
+def test_direct_floor_one_start_and_summon_pool() -> None:
     checkpoint = _load_checkpoint()
     by_id = {c.character_id: c for c in checkpoint.characters}
 
-    # Floor-zero: a brand-new lobby / tutorial start, not the old mid-climb stall.
-    assert checkpoint.world_state.global_flags["floor"] == 0
-    assert checkpoint.world_state.global_flags["phase"] == "floor_zero_tutorial"
+    # The tutorial starts on Floor 1, while the selected roster remains dormant
+    # until the opening event atomically summons and deploys it.
+    assert checkpoint.world_state.global_flags["floor"] == 1
+    assert checkpoint.world_state.global_flags["phase"] == "floor_one_goblin_ambush"
     assert checkpoint.world_state.global_flags["lobby_freshly_instanced"] is True
 
     # The pre-authored characters are preserved as a dormant, quarantined pool:
@@ -1277,11 +1267,8 @@ def test_system_sight_is_master_view_with_protagonist_exception() -> None:
     assert pc.actor is None
 
 
-def test_lobby_master_and_guide_framing() -> None:
-    """Playtest fixes: the party is formed by the Master (the guide only
-    assists), Niflheim is a home hub distinct from the Tower, and the
-    tutorial-guide's unit-management coaching is aimed at the Master, never at
-    a pre-tutorial arrival; plus newcomer POV/jargon discipline."""
+def test_direct_opening_master_and_later_lobby_framing() -> None:
+    """The first summon enters the Tower while later management stays in Niflheim."""
     checkpoint = _load_checkpoint()
     ws = checkpoint.world_state
     by_id = {c.character_id: c for c in checkpoint.characters}
@@ -1298,11 +1285,14 @@ def test_lobby_master_and_guide_framing() -> None:
     rules = checkpoint.session.config.narrative_rules
     rules_lower = rules.lower()
 
-    # Concern 4: the story begins in the lobby, before any floor deployment.
-    assert ws.global_flags["floor"] == 0
+    # The first party enters Floor 1 directly; dormant blanks and the guide do
+    # not get pulled into the opening until their selected contracts say so.
+    assert ws.global_flags["floor"] == 1
     assert by_id["one_star_newcomer"].location == "not_yet_fictional"
     assert by_id["iselle_the_guide"].location == "niflheim_lobby"
     assert "lobby vs. tower" in rules_lower
+    assert "summoned directly into floor 1" in rules_lower
+    assert "no lobby briefing" in rules_lower
 
     iselle = by_id["iselle_the_guide"]
     # The public role is reused as visible local-cast context during character
@@ -1475,7 +1465,7 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
     for management_choice in (
         "summon",
         "facilities",
-        "choose the floor",
+        "later floor",
         "roster",
         "loadout",
     ):
@@ -1483,13 +1473,8 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
 
     # Positioning belongs to the embodied Heroes rather than a second tactical
     # control surface for the disembodied Master.
-    opening_contract = "\n".join(
-        (
-            segment.text
-            for beat in ws.opening.authored_character_beats
-            for segment in beat.segments
-        )
-    )
+    assert ws.opening is not None
+    opening_contract = ws.opening.context
     master_management_surface = "\n".join(
         (
             checkpoint.session.config.narrative_rules,

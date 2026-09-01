@@ -649,6 +649,57 @@ def test_one_star_continuation_retries_missing_guide_delivery_before_commit(
     assert "invalid_lobby_return" not in history
 
 
+def test_one_star_continuation_retries_non_floor_observer_before_commit(
+    monkeypatch,
+):
+    from app.engine import turn_loop_dispatcher
+
+    _stub_one_star_router_context(monkeypatch)
+    ckpt = _one_star_checkpoint()
+    invalid = _closed_one_star_output()
+    invalid.event_id = "invalid_dead_hero_observer"
+    corrected = _closed_one_star_output()
+    corrected.event_id = "corrected_floor_observers"
+
+    def validate_floor_routing(_ckpt, *, actor_id, result):
+        assert actor_id == "alice"
+        if result.event_id == invalid.event_id:
+            raise ValueError(
+                "autonomous mission batch event names non-floor observers: "
+                "edren_marr"
+            )
+
+    monkeypatch.setattr(
+        turn_loop_dispatcher,
+        "_validate_one_star_autonomous_floor_routing",
+        validate_floor_routing,
+    )
+    dispatcher, client = _dispatcher(invalid, corrected)
+
+    result = asyncio.run(
+        dispatcher.route_continuation(
+            ckpt=ckpt,
+            actor_id="alice",
+            prior_result=_one_star_output(),
+            original_action="Edren falls beneath the goblins.",
+        )
+    )
+
+    assert result is corrected
+    assert client.complete.await_count == 2
+    correction_call = client.complete.await_args_list[1]
+    assert (
+        correction_call.kwargs["response_model"]
+        is ClosedOneStarEventRouterOutput
+    )
+    correction = correction_call.kwargs["messages"][-1]["content"]
+    assert "non-floor observers" in correction
+    assert "edren_marr" in correction
+    history = "\n".join(message.content for message in ckpt.session_conversation)
+    assert "corrected_floor_observers" in history
+    assert "invalid_dead_hero_observer" not in history
+
+
 def test_repeated_invalid_one_star_continuation_restores_router_snapshot(
     monkeypatch,
 ):
@@ -993,6 +1044,49 @@ def test_account_owner_lobby_mutation_requires_scoped_guide_delivery(monkeypatch
             "A System receipt records the lobby action.",
             ["iselle"],
         )
+    )
+
+    _validate_one_star_guide_routing(ckpt, actor_id="alice", result=result)
+
+
+def test_direct_floor_opening_has_no_lobby_guide_delivery(monkeypatch):
+    from app.engine import one_star_adapter, turn_loop_dispatcher
+
+    ckpt = _one_star_checkpoint()
+    ckpt.characters.append(character_record("iselle", location="niflheim_lobby"))
+    result = _one_star_output()
+    transaction = SimpleNamespace(
+        present=True,
+        operations=[
+            SimpleNamespace(operation="summon", pool_id="opening"),
+            SimpleNamespace(
+                operation="mission_start",
+                pending_operation_id="",
+            ),
+        ],
+    )
+    monkeypatch.setattr(
+        turn_loop_dispatcher,
+        "_one_star_transaction_for_result",
+        lambda _checkpoint, _result: transaction,
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_account",
+        lambda _: (
+            ckpt.characters[0],
+            SimpleNamespace(
+                config=SimpleNamespace(
+                    lobby_id="niflheim",
+                    lobby_location_label="niflheim_lobby",
+                    operation_requirements={},
+                    summon_pools={
+                        "opening": SimpleNamespace(usage="opening_roster")
+                    },
+                ),
+                state=SimpleNamespace(guide_character_ids=["iselle"]),
+            ),
+        ),
     )
 
     _validate_one_star_guide_routing(ckpt, actor_id="alice", result=result)
@@ -1687,7 +1781,6 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
                         character_id="edren_marr",
                     ),
                 ],
-                initial_deployment_requires_guide_handoff=True,
             ),
             "unflagged_roster": OneStarOpeningRosterSummonPool(
                 usage="opening_roster",
@@ -1974,14 +2067,7 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         "starter_roster: usage=opening_roster; "
         "count=3; slots[1=fixed,2=random_existing_grade:3,3=fixed]"
     ) in static
-    starter_pool_line = next(
-        line for line in static.splitlines() if line.startswith("- starter_roster:")
-    )
-    unflagged_pool_line = next(
-        line for line in static.splitlines() if line.startswith("- unflagged_roster:")
-    )
-    assert "initial_deployment_requires_guide_handoff=true" in starter_pool_line
-    assert "initial_deployment_requires_guide_handoff" not in unflagged_pool_line
+    assert "initial_deployment_requires_guide_handoff" not in static
     for private_character_id in (
         "one_star_newcomer",
         "renna_holt",
@@ -1998,13 +2084,10 @@ def test_one_star_router_projections_split_static_rules_from_narrow_repair_evide
         "summon_pool starter_roster: usage=opening_roster; "
         "cost_per_pull=free; required_count=3; first_event_only=true"
     ) in opening_repair_evidence
-    assert (
-        "initial_deployment_requires_guide_handoff=true"
-        in opening_repair_evidence
-    )
-    assert (
-        "initial_deployment_requires_guide_handoff"
-        not in unflagged_opening_repair_evidence
+    assert "initial_deployment_requires_guide_handoff" not in (
+        newcomer_opening_repair_evidence
+        + opening_repair_evidence
+        + unflagged_opening_repair_evidence
     )
     for repair_evidence in (
         newcomer_opening_repair_evidence,

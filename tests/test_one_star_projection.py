@@ -8,6 +8,7 @@ from app.engine.character_agent import CharacterAgent
 from app.engine.one_star_projection import (
     one_star_agent_state_block,
     one_star_master_command_lines,
+    one_star_status_lines,
     one_star_synthesis_authoritative_plan,
     visible_equipped_item_description,
 )
@@ -608,7 +609,8 @@ def test_ordinary_hero_gets_embodied_state_without_system_numbers_or_lore() -> N
     assert "bleeding" in block
     assert "bad knee" in block
     assert "Notched Kitchen Knife" in block
-    assert "Dough-Hardened Grip" in block
+    assert "Dough-Hardened Grip" not in block
+    assert "Usable embodied skills" not in block
     assert "17" not in block
     assert "53" not in block
     assert "901" not in block
@@ -643,11 +645,16 @@ def test_research_or_system_sight_reveals_exact_own_sheet(
     assert "XP 2100/2800 to level 8" in block
     assert "HP 5/10" in block
     assert "power 9" in block
-    assert "rank 3" in block
+    assert "rank 3" not in block
+    assert "Dough-Hardened Grip" not in block
     assert "durability 4/11" in block
     assert "potential_grade" not in block
     assert "progression_seed" not in block
     assert "world-ending spoiler" not in block
+
+    status = "\n".join(one_star_status_lines(checkpoint, hero.character_id))
+    assert "Dough-Hardened Grip" in status
+    assert "rank 3" in status
 
 
 def test_guide_gets_management_channel_without_tactical_or_hero_omniscience() -> None:

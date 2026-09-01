@@ -14,9 +14,9 @@
       "models": {
         "event_router": "openai:gpt-5.2",
         "narrator": "openai:gpt-5.6-terra",
-        "agent_default": "anthropic:claude-opus-5",
+        "agent_default": "openai:gpt-5.6-luna",
         "agent_standard": "openai:gpt-5.6-luna",
-        "agent_convenience": "anthropic:claude-sonnet-5",
+        "agent_convenience": "openai:gpt-5.6-luna",
         "character_manager": "anthropic:claude-sonnet-5"
       },
       "narrative_rules": "Mature adult work. Atrocities are rendered specifically rather than implied; the Crown Prince's cruelty, the redemption-labor system's machinery, and the slow physical disintegration of certain characters are present on the page with literary craft (pacing, restraint inside a scene, refusal of pornography of suffering) — not euphemized. Romance phrasing hygiene: avoid winking-permission patterns such as 'something flickers in her eyes', 'her mask slips', 'despite her words', 'a smile tugging at her lips' that soften scenes meant to remain hard or ambiguous. Antagonists are pleasant, articulate, internally coherent — no monologuing villains; institutional horror, not theatrical. Private Sensuality and combat both belong on the page when the scene calls for them. Character voices are distinct (each major NPC has Voice And Cadence specifications); honor those rather than flattening to a generic register.",

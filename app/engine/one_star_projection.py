@@ -159,19 +159,23 @@ def _exact_hero_lines(
     name: str,
     hero: OneStarHeroState,
     envelope: OneStarAccountEnvelope,
+    *,
+    include_skills: bool = True,
 ) -> list[str]:
     stats = _join_values(
         (f"{key} {value}" for key, value in sorted(hero.stats.items()))
     )
-    return [
+    lines = [
         f"{name}: {hero.current_stars}-star (born {hero.birth_stars}-star), "
         f"level {hero.level}, {_experience_progress_line(hero, envelope)}, "
         f"HP {hero.hp_current}/{hero.hp_max}",
         f"Stats: {stats}",
-        f"Skills: {_skills_line(hero, exact=True)}",
         f"Equipment: {_equipment_line(hero, exact=True)}",
         f"Conditions: {_join_values([*hero.conditions, *hero.persistent_injuries])}",
     ]
+    if include_skills:
+        lines.insert(2, f"Skills: {_skills_line(hero, exact=True)}")
+    return lines
 
 
 def _own_hero_lines(
@@ -180,14 +184,22 @@ def _own_hero_lines(
     envelope: OneStarAccountEnvelope,
     *,
     exact: bool,
+    include_skills: bool,
 ) -> list[str]:
     if exact:
-        return _exact_hero_lines(character.name, hero, envelope)
-    return [
+        return _exact_hero_lines(
+            character.name,
+            hero,
+            envelope,
+            include_skills=include_skills,
+        )
+    lines = [
         f"Your bodily condition: {_qualitative_condition(hero)}.",
         f"What you visibly carry or wear: {_equipment_line(hero, exact=False)}.",
-        f"Usable embodied skills: {_skills_line(hero, exact=False)}.",
     ]
+    if include_skills:
+        lines.append(f"Usable embodied skills: {_skills_line(hero, exact=False)}.")
+    return lines
 
 
 def _mission_lines(mission: OneStarMissionState | None) -> list[str]:
@@ -531,8 +543,10 @@ def _combatant_authority_lines(character: CharacterRecord) -> list[str]:
 def one_star_agent_state_block(
     checkpoint: CheckpointFile,
     character: CharacterRecord,
+    *,
+    include_hero_skills: bool = False,
 ) -> str:
-    """Return dynamic user-tail mechanics visible to one character agent."""
+    """Return dynamic mechanics, withholding skill prose from Hero agents."""
     loaded = _account(checkpoint)
     if loaded is None:
         return ""
@@ -592,6 +606,7 @@ def one_star_agent_state_block(
                 hero,
                 envelope,
                 exact=exact,
+                include_skills=include_hero_skills,
             )
         )
     return "\n".join(lines)
@@ -614,7 +629,11 @@ def one_star_status_lines(
     )
     if character is None:
         return ()
-    block = one_star_agent_state_block(checkpoint, character)
+    block = one_star_agent_state_block(
+        checkpoint,
+        character,
+        include_hero_skills=True,
+    )
     if not block:
         return ()
     return tuple(

@@ -229,6 +229,24 @@ def _transaction(*operations: dict) -> OneStarTransaction:
     return OneStarTransaction.model_validate({"present": bool(operations), "operations": list(operations)})
 
 
+def _direct_opening_transaction(
+    pool_id: str,
+    hero_ids: list[str],
+) -> OneStarTransaction:
+    return _transaction(
+        {
+            "operation": "summon",
+            "pool_id": pool_id,
+            "hero_ids": hero_ids,
+            "birth_stars": [1 for _hero_id in hero_ids],
+        },
+        {
+            "operation": "mission_start",
+            "mission": _mission(party=hero_ids).model_dump(mode="json"),
+        },
+    )
+
+
 def _marked_mission_update(
     *,
     current: int,
@@ -2264,14 +2282,9 @@ def test_bound_player_actor_pool_remains_available_to_the_exact_newcomer() -> No
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id="newcomer_opening",
-        transaction=_transaction({
-            "operation": "summon",
-            "pool_id": "opening",
-            "hero_ids": ["newcomer"],
-            "birth_stars": [1],
-        }),
+        transaction=_direct_opening_transaction("opening", ["newcomer"]),
         activated_character_ids=["newcomer"],
-        activated_character_locations={"newcomer": "lobby"},
+        activated_character_locations={"newcomer": "tower_floor_1"},
         initiating_actor_id="newcomer",
     )
     acquired = next(
@@ -2305,17 +2318,15 @@ def test_mixed_bound_opening_roster_is_owned_by_account_actor() -> None:
             {"kind": "bound_player_actor", "character_id": "newcomer"},
         ],
     }
-    transaction = _transaction({
-        "operation": "summon",
-        "pool_id": "duo_opening",
-        "hero_ids": ["authored", "newcomer"],
-        "birth_stars": [1, 1],
-    })
+    transaction = _direct_opening_transaction(
+        "duo_opening",
+        ["authored", "newcomer"],
+    )
     lifecycle = {
         "activated_character_ids": ["authored", "newcomer"],
         "activated_character_locations": {
-            "authored": "lobby",
-            "newcomer": "lobby",
+            "authored": "tower_floor_1",
+            "newcomer": "tower_floor_1",
         },
     }
 
@@ -2367,14 +2378,11 @@ def test_authored_master_opening_roster_is_free_and_enables_existing_heroes() ->
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id="master_opening_roster",
-        transaction=_transaction({
-            "operation": "summon",
-            "pool_id": "opening_roster",
-            "hero_ids": ids,
-            "birth_stars": [1, 1, 1],
-        }),
+        transaction=_direct_opening_transaction("opening_roster", ids),
         activated_character_ids=ids,
-        activated_character_locations={hero_id: "lobby" for hero_id in ids},
+        activated_character_locations={
+            hero_id: "tower_floor_1" for hero_id in ids
+        },
         initiating_actor_id="account_owner",
     )
     account = load_one_star_account(prepared.after_checkpoint)[1]

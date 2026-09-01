@@ -308,23 +308,21 @@ def build_checkpoint() -> CheckpointFile:
         "niflheim_lobby. The immediate choices are promotion and synthesis; do "
         "not replay the tutorial, first summon, or opening arrival."
     )
+    checkpoint.world_state.global_flags["floor"] = 0
+    checkpoint.world_state.global_flags["phase"] = "promotion_playtest"
 
     rules = checkpoint.session.config.narrative_rules
     rules = _replace_once(
         rules,
         (
-            "Starting point: this is the very beginning of the climb. A "
-            "brand-new Master, a freshly instanced and nearly empty lobby, "
-            "the tutorial, and the first five authored floors ahead. The "
-            "opening branches on the live seats: Master-only receives Renna "
-            "Holt, Mirelle Voss as the fixed authored three-star, and Edren "
-            "Marr; Master plus a player-chosen Newcomer receives that exact "
-            "trio plus the player-chosen Newcomer; Newcomer-only receives the "
-            "player-chosen Newcomer through the same opening-roster authority. "
-            "Renna and Edren are freshly wiped one-stars, while Mirelle retains "
-            "the deeper history appropriate to her grade. Let new relationships "
-            "and the deeper questions arrive through play, later summons, and "
-            "promotion rather than making any opening cast instantly loyal."
+            "Starting point: this is the first instant of the climb. The "
+            "tutorial is the violence itself: summon-light drops the selected "
+            "opening roster directly into Floor 1 among goblins already trying "
+            "to kill them. No lobby briefing, gate choice, or mission-acceptance "
+            "exchange precedes it. The live seats still select the exact "
+            "authored roster branch, and the Newcomer still owns every personal "
+            "choice. Let relationships and the deeper questions arrive only "
+            "through what the survivors do."
         ),
         (
             "Starting point: this focused playtest begins after initial lobby "

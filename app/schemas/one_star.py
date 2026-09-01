@@ -194,7 +194,6 @@ class OneStarOpeningRosterSummonPool(BaseModel):
 
     usage: Literal["opening_roster"]
     slots: list[OneStarOpeningRosterSlot] = Field(min_length=1)
-    initial_deployment_requires_guide_handoff: bool = False
 
     @model_validator(mode="after")
     def _validate_exact_slots(self) -> "OneStarOpeningRosterSummonPool":
@@ -1043,7 +1042,7 @@ class OneStarSkillRankUpdate(BaseModel):
 class OneStarMissionStartOperation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     operation: Literal["mission_start"]
-    pending_operation_id: str
+    pending_operation_id: str = ""
     mission: OneStarMissionState
 
 

@@ -1773,6 +1773,7 @@ def one_star_state_updates_to_transaction(
                 pending_operation_id=_single_detail(
                     details,
                     "pending_operation_id",
+                    default="",
                 ),
                 mission={
                     "mission_id": target_id,
@@ -1890,7 +1891,8 @@ def one_star_summon_lifecycle(
 ) -> tuple[tuple[SpawnRequest, ...], tuple[WakeSignal, ...]]:
     """Materialize every configured summon without router-authored identities."""
 
-    updates = [update for update in state_updates if update.kind == "summon"]
+    all_updates = list(state_updates)
+    updates = [update for update in all_updates if update.kind == "summon"]
     if not updates:
         return (), ()
     if len(updates) > 1:
@@ -1918,12 +1920,45 @@ def one_star_summon_lifecycle(
             pool_id=pool_id,
             count=count,
         )
+        arrival_location = account.config.lobby_location_label
+        if isinstance(pool, OneStarOpeningRosterSummonPool):
+            transaction = one_star_state_updates_to_transaction(
+                checkpoint,
+                all_updates,
+                canonical_at_s=checkpoint.session.leading_at_s,
+            )
+            if (
+                len(transaction.operations) != 2
+                or not isinstance(
+                    transaction.operations[0],
+                    OneStarSummonOperation,
+                )
+                or not isinstance(
+                    transaction.operations[1],
+                    OneStarMissionStartOperation,
+                )
+            ):
+                raise OneStarTransactionError(
+                    "an opening-roster summon must be followed by exactly one "
+                    "direct mission start in the same event"
+                )
+            mission_start = transaction.operations[1]
+            expected_ids = [draw.existing_character_id for draw in draws]
+            if (
+                mission_start.pending_operation_id
+                or mission_start.mission.party_ids != expected_ids
+            ):
+                raise OneStarTransactionError(
+                    "a direct opening mission must omit pending_operation_id "
+                    "and preserve the opening-roster order as its exact party"
+                )
+            arrival_location = mission_start.mission.destination
         start_index = account.state.summon_draw_counters.get(pool_id, 0)
         for offset, draw in enumerate(draws):
             if draw.existing_character_id:
                 wake_signals.append(WakeSignal(
                     character_id=draw.existing_character_id,
-                    location_label=account.config.lobby_location_label,
+                    location_label=arrival_location,
                 ))
                 continue
             if not isinstance(pool, OneStarStandardSummonPool):
@@ -2968,6 +3003,7 @@ def _apply_summon(
     activated_ids: set[str],
     activated_locations: Mapping[str, str],
     initiating_actor_id: str,
+    configured_arrival_location: str,
 ) -> None:
     pool = config.summon_pools.get(operation.pool_id)
     if pool is None:
@@ -3112,7 +3148,17 @@ def _apply_summon(
             raise OneStarTransactionError(
                 "summon identity lacks a matching spawn or activation signal"
             )
-        if arrival_location != config.lobby_location_label:
+        expected_arrival_location = (
+            configured_arrival_location
+            if isinstance(pool, OneStarOpeningRosterSummonPool)
+            else config.lobby_location_label
+        )
+        if arrival_location != expected_arrival_location:
+            if isinstance(pool, OneStarOpeningRosterSummonPool):
+                raise OneStarTransactionError(
+                    "opening-roster Heroes must arrive at the configured "
+                    "mission destination"
+                )
             raise OneStarTransactionError(
                 "summoned Heroes must arrive at the configured lobby"
             )
@@ -3141,6 +3187,50 @@ def _apply_summon(
             state.summon_draw_counters.get(operation.pool_id, 0)
             + len(expected_draws)
         )
+
+
+def _direct_opening_operations(
+    transaction: OneStarTransaction,
+    config: OneStarRulesConfig,
+) -> tuple[OneStarSummonOperation, OneStarMissionStartOperation] | None:
+    """Resolve the one atomic opening-roster acquisition contract."""
+
+    opening_summons = [
+        operation
+        for operation in transaction.operations
+        if isinstance(operation, OneStarSummonOperation)
+        and isinstance(
+            config.summon_pools.get(operation.pool_id),
+            OneStarOpeningRosterSummonPool,
+        )
+    ]
+    direct_mission_starts = [
+        operation
+        for operation in transaction.operations
+        if isinstance(operation, OneStarMissionStartOperation)
+        and not operation.pending_operation_id
+    ]
+    if not opening_summons and not direct_mission_starts:
+        return None
+    if (
+        len(transaction.operations) != 2
+        or len(opening_summons) != 1
+        or len(direct_mission_starts) != 1
+        or transaction.operations[0] is not opening_summons[0]
+        or transaction.operations[1] is not direct_mission_starts[0]
+    ):
+        raise OneStarTransactionError(
+            "an opening-roster summon and direct mission start must be the "
+            "only operations in their event, in that order"
+        )
+    summon = opening_summons[0]
+    mission_start = direct_mission_starts[0]
+    if mission_start.mission.party_ids != summon.hero_ids:
+        raise OneStarTransactionError(
+            "a direct opening mission party must preserve the exact "
+            "opening-roster order"
+        )
+    return summon, mission_start
 
 
 def _apply_hero_delta(
@@ -3357,24 +3447,42 @@ def _apply_mission_start(
     config: OneStarRulesConfig,
     now_s: int,
     resolved_deployments: Mapping[str, object],
+    direct_opening_party_ids: tuple[str, ...] | None = None,
+    direct_opening_locations: Mapping[str, str] | None = None,
 ) -> None:
     if state.active_mission is not None:
         raise OneStarTransactionError("cannot start a mission while another is active")
     if operation.mission.started_at_s != now_s:
         raise OneStarTransactionError("mission start must use the canonical event time")
-    pending = resolved_deployments.get(operation.pending_operation_id)
-    if pending is None:
-        raise OneStarTransactionError(
-            "mission start requires a deployment resolved in this event"
-        )
-    pending_party = set(getattr(pending, "participant_ids", ()))
+    direct_opening = direct_opening_party_ids is not None
+    if direct_opening:
+        if (
+            operation.pending_operation_id
+            or state.pending_operation is not None
+            or state.highest_cleared_floor != 0
+            or operation.mission.floor != state.highest_unlocked_floor
+        ):
+            raise OneStarTransactionError(
+                "a direct opening mission must be the account's first unlocked "
+                "floor and cannot use or bypass a pending operation"
+            )
+        pending_party = set(direct_opening_party_ids)
+        expected_destination = operation.mission.destination
+    else:
+        pending = resolved_deployments.get(operation.pending_operation_id)
+        if pending is None:
+            raise OneStarTransactionError(
+                "mission start requires a deployment resolved in this event"
+            )
+        pending_party = set(getattr(pending, "participant_ids", ()))
+        expected_destination = getattr(pending, "destination", "")
     if set(operation.mission.party_ids) != pending_party:
         raise OneStarTransactionError(
-            "mission party must exactly match the resolved deployment"
+            "mission party must exactly match its deployment authority"
         )
-    if operation.mission.destination != getattr(pending, "destination", ""):
+    if operation.mission.destination != expected_destination:
         raise OneStarTransactionError(
-            "mission destination must match the resolved deployment"
+            "mission destination must match its deployment authority"
         )
     if operation.mission.floor > state.highest_unlocked_floor:
         raise OneStarTransactionError("mission targets a locked Tower floor")
@@ -3399,10 +3507,22 @@ def _apply_mission_start(
             "mission start must exactly match its reviewed floor scenario"
         )
     for hero_id in operation.mission.party_ids:
-        character, _hero = _require_local_active_hero(
-            checkpoint, hero_id, config
-        )
-        if character.location != operation.mission.destination:
+        if direct_opening:
+            character = _require_character(checkpoint, hero_id)
+            hero = load_one_star_hero(character)
+            location = (direct_opening_locations or {}).get(hero_id, "")
+            valid_party_member = (
+                hero is not None
+                and hero.owner_lobby_id == config.lobby_id
+                and location == operation.mission.destination
+            )
+        else:
+            character, _hero = _require_local_active_hero(
+                checkpoint, hero_id, config
+            )
+            location = character.location
+            valid_party_member = location == operation.mission.destination
+        if not valid_party_member:
             raise OneStarTransactionError(
                 "mission party has not physically entered its destination"
             )
@@ -3411,7 +3531,13 @@ def _apply_mission_start(
         if (
             character.character_id in party_ids
             or character.status != CharacterStatus.active
-            or character.location != operation.mission.destination
+            or (
+                (direct_opening_locations or {}).get(
+                    character.character_id,
+                    character.location,
+                )
+                != operation.mission.destination
+            )
         ):
             continue
         hero = load_one_star_hero(character)
@@ -4388,6 +4514,7 @@ def prepare_one_star_transaction(
     owner, account = load_one_star_account(after)
     state = account.state
     config = account.config
+    direct_opening = _direct_opening_operations(transaction, config)
     _validate_global_equipment_ids(after, state)
     _validate_all_hero_progression_states(after, config)
     if any(
@@ -4703,6 +4830,12 @@ def prepare_one_star_transaction(
                 activated_ids,
                 normalized_activation_locations,
                 initiating_actor_id.strip(),
+                (
+                    direct_opening[1].mission.destination
+                    if direct_opening is not None
+                    and operation is direct_opening[0]
+                    else config.lobby_location_label
+                ),
             )
         elif isinstance(operation, OneStarInventoryDeltaOperation):
             _apply_inventory_delta(operation, state)
@@ -4719,8 +4852,21 @@ def prepare_one_star_transaction(
                 config,
                 now_s,
                 resolved_deployments,
+                (
+                    tuple(direct_opening[0].hero_ids)
+                    if direct_opening is not None
+                    and operation is direct_opening[1]
+                    else None
+                ),
+                (
+                    normalized_activation_locations
+                    if direct_opening is not None
+                    and operation is direct_opening[1]
+                    else None
+                ),
             )
-            started_deployment_ids.add(operation.pending_operation_id)
+            if operation.pending_operation_id:
+                started_deployment_ids.add(operation.pending_operation_id)
         elif isinstance(operation, OneStarMissionUpdateOperation):
             _apply_mission_update(operation, state, now_s)
         elif isinstance(operation, OneStarMissionEndOperation):

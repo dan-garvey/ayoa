@@ -35,7 +35,10 @@ from app.engine.reviewed_visual_references import (
 )
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.one_star import OneStarSummonRevealBand
+from app.schemas.one_star import (
+    OneStarOpeningRosterSummonPool,
+    OneStarSummonRevealBand,
+)
 from app.schemas.responses import VisualNovelRender
 
 if TYPE_CHECKING:
@@ -170,9 +173,31 @@ def committed_one_star_hero_card_event(
     ]
     if not card_updates:
         return None
-    if len(card_updates) != 1:
-        raise OneStarHeroCardError("ambiguous_card_event")
-    update = card_updates[0]
+    if len(card_updates) == 1:
+        update = card_updates[0]
+    else:
+        summons = [update for update in card_updates if update.kind == "summon"]
+        mission_starts = [
+            update for update in card_updates if update.kind == "mission_start"
+        ]
+        opening_pool = (
+            account.config.summon_pools.get(summons[0].target_id.strip())
+            if len(summons) == 1
+            else None
+        )
+        if (
+            len(card_updates) == 2
+            and len(summons) == 1
+            and len(mission_starts) == 1
+            and card_updates[0] is summons[0]
+            and card_updates[1] is mission_starts[0]
+            and isinstance(opening_pool, OneStarOpeningRosterSummonPool)
+        ):
+            # The direct opening acquires and deploys one roster atomically.
+            # Its summon reveal is the one Master-facing card for that event.
+            update = summons[0]
+        else:
+            raise OneStarHeroCardError("ambiguous_card_event")
     characters_by_id = {
         character.character_id: character for character in checkpoint.characters
     }

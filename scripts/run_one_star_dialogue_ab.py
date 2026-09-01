@@ -87,35 +87,37 @@ DEFAULT_CASES: tuple[DialogueCase, ...] = (
     DialogueCase(
         "opening",
         "edren_marr",
-        """You have just woken in Niflheim with Renna and Mirelle. Iselle has
-        explained that a gate leads to a lethal first mission and the unseen
-        owner expects a party to cross it. You hold a laundry pole, not a
-        soldier's weapon. Give Edren's first contribution.""",
-        "One concrete response; preserve Edren's single grounded refusal without inventing another character's words.",
-        canonical_fact="Iselle names the gate and the unseen owner expects the party to cross.",
-        pending_observation="evt_dialogue_opening: Iselle names the gate and the unseen owner expects the party to cross.",
+        """Summon-light has just dropped you with Renna and Mirelle into a
+        cramped Floor 1 ruin. Armed goblins are already rushing you at close
+        range. You hold a laundry pole, not a soldier's weapon. Give Edren's
+        first contribution.""",
+        "One frightened literal response; panic rather than mission refusal, wry comparison, or competent defense; do not invent another character's words.",
+        location="tower_floor_1_goblin_ambush",
+        canonical_fact="Summon-light drops Edren, Renna, and Mirelle among armed goblins already rushing to attack.",
+        pending_observation="evt_dialogue_opening: Summon-light drops Edren, Renna, and Mirelle among armed goblins already rushing to attack.",
     ),
     DialogueCase(
         "repeated_pressure",
         "renna_holt",
-        """The same enemy feints at the bell crank for a third time. Renna has
-        already stated the obvious danger once. The party needs movement now;
-        choose what she does and, only if useful, what she says.""",
+        """For a third time, a goblin uses the fallen bodies to dart around
+        Mirelle's spear toward Renna. Renna has already named the obvious
+        danger once. The party needs movement now; choose what she does and,
+        only if useful, what she says.""",
         "Do not repeat the plan or objection; make a materially different action.",
-        location="tower_floor_1_toll_bell",
-        canonical_fact="The same enemy feints at the gate crank for a third time while the party's route remains open.",
-        pending_observation="evt_dialogue_repeated_pressure: The same enemy feints at the gate crank for a third time while the party's route remains open.",
+        location="tower_floor_1_goblin_ambush",
+        canonical_fact="A goblin uses the fallen bodies to dart around Mirelle's spear toward Renna for a third time.",
+        pending_observation="evt_dialogue_repeated_pressure: A goblin uses the fallen bodies to dart around Mirelle's spear toward Renna for a third time.",
     ),
     DialogueCase(
         "ally_danger",
         "mirelle_voss",
-        """Edren is pinned under a fallen beam while the exit mechanism is
-        within reach. Mirelle can save him only by giving up the safe route and
-        exposing herself to the creature behind the mirror.""",
-        "Make a consequential value-laden choice; do not decide Edren's response.",
-        location="tower_floor_1_toll_bell",
-        canonical_fact="Edren is pinned beneath a fallen beam while the exit mechanism is within reach.",
-        pending_observation="evt_dialogue_ally_danger: Edren is pinned beneath a fallen beam while the exit mechanism is within reach.",
+        """Renna is pinned under fallen stone while the first-floor exit is
+        within reach. Mirelle can pull her free only by giving up the safe route
+        and exposing herself to the goblins closing behind them.""",
+        "Make a consequential value-laden choice; do not decide Renna's response.",
+        location="tower_floor_1_goblin_ambush",
+        canonical_fact="Renna is pinned beneath fallen stone while the first-floor exit is within reach and goblins close behind the party.",
+        pending_observation="evt_dialogue_ally_danger: Renna is pinned beneath fallen stone while the first-floor exit is within reach and goblins close behind the party.",
     ),
     DialogueCase(
         "lobby_favoritism",
