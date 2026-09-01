@@ -27,7 +27,7 @@ def test_synthetic_checkpoint_template_validates() -> None:
     raw = json.loads(TEMPLATE_PATH.read_text())
     checkpoint = CheckpointFile.model_validate(raw)
 
-    assert checkpoint.schema_version == "5.0"
+    assert checkpoint.schema_version == "6.0"
     assert "config" not in raw
     assert not hasattr(checkpoint, "config")
     assert checkpoint.session.session_id == "synthetic_checkpoint_template"

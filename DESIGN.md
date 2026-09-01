@@ -1372,13 +1372,13 @@ resolve. See §15.
 
 ## 13. Checkpoint Schema
 
-Current checkpoints use schema version `5.0`.
+Current checkpoints use schema version `6.0`.
 
 Top-level shape:
 
 ```json
 {
-  "schema_version": "5.0",
+  "schema_version": "6.0",
   "session": {},
   "player_primer": "string",
   "world_state": {},
