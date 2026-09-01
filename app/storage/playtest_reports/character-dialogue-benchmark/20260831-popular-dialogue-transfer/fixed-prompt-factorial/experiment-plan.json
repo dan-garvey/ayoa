@@ -16,49 +16,56 @@
       "identity": "repeated",
       "system_instructions": "current",
       "private_reflection": false,
-      "source": "existing_baseline"
+      "source": "existing_baseline",
+      "proxy_protocol": "historical_full_snapshot_replay"
     },
     {
       "cell": "A2",
       "identity": "repeated",
       "system_instructions": "current",
       "private_reflection": false,
-      "source": "contemporaneous_rerun"
+      "source": "contemporaneous_rerun",
+      "proxy_protocol": "persistent_delta"
     },
     {
       "cell": "B",
       "identity": "repeated",
       "system_instructions": "current",
       "private_reflection": true,
-      "source": "new"
+      "source": "new",
+      "proxy_protocol": "persistent_delta"
     },
     {
       "cell": "C",
       "identity": "once",
       "system_instructions": "current",
       "private_reflection": false,
-      "source": "new"
+      "source": "new",
+      "proxy_protocol": "persistent_delta"
     },
     {
       "cell": "D",
       "identity": "once",
       "system_instructions": "current",
       "private_reflection": true,
-      "source": "new"
+      "source": "new",
+      "proxy_protocol": "persistent_delta"
     },
     {
       "cell": "E",
       "identity": "once",
       "system_instructions": "minimal",
       "private_reflection": false,
-      "source": "new"
+      "source": "new",
+      "proxy_protocol": "persistent_delta"
     },
     {
       "cell": "F",
       "identity": "once",
       "system_instructions": "minimal",
       "private_reflection": true,
-      "source": "new"
+      "source": "new",
+      "proxy_protocol": "persistent_delta"
     }
   ],
   "launch_waves": [
@@ -70,6 +77,8 @@
     "concurrent_conversations_per_cell": 8,
     "concurrent_cells": 2,
     "maximum_simultaneous_model_calls": 16,
+    "first_actor_call": "full_request",
+    "later_actor_calls": "new_user_message_only",
     "qualitative_inspection_during_generation": false,
     "technical_monitoring_only": [
       "accepted_turn_count",
