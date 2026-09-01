@@ -46,7 +46,7 @@ from scripts.run_character_dialogue_benchmark import (
 )
 
 
-SCHEDULER_SCHEMA_VERSION = "persistent_luna_dialogue_silos_v1"
+SCHEDULER_SCHEMA_VERSION = "persistent_luna_dialogue_silos_v2"
 LUNA_MODEL = "gpt-5.6-luna"
 DEFAULT_CONVERSATION_COUNT = 8
 FIXED_TURN_COUNT = 16
@@ -59,6 +59,7 @@ REFLECTION_FIELD_NAMES = (
     "continuity_pressure",
 )
 REFLECTION_MAX_SUFFIX_BYTES = 1200
+_LINE_BREAKS = frozenset("\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029")
 _REFLECTION_NONCE_RE = re.compile(r"R-[0-9a-f]{32}")
 _REFLECTION_SUFFIX_RE = re.compile(
     r"\A(?P<body>.*)\n\n"
@@ -167,6 +168,7 @@ class SchedulerConfig:
     private_reflections: bool = False
     max_reflection_conversation_restarts: int = 1
     persistent_delta_proxy: bool = False
+    system_prompt_override: str | None = None
 
     def __post_init__(self) -> None:
         if self.conversation_count < 1 or self.turn_count < 1:
@@ -181,6 +183,16 @@ class SchedulerConfig:
             raise ValueError("worker_timeout_seconds must be between 1 and 3600")
         if self.max_reflection_conversation_restarts < 0:
             raise ValueError("max_reflection_conversation_restarts cannot be negative")
+        if self.system_prompt_override is not None:
+            if not self.system_prompt_override.strip():
+                raise ValueError("system_prompt_override cannot be blank")
+            if (
+                "<<<USER>>>" in self.system_prompt_override
+                or "{request_packet}" in self.system_prompt_override
+            ):
+                raise ValueError(
+                    "system_prompt_override must contain only system content"
+                )
 
 
 @dataclass(frozen=True)
@@ -373,6 +385,7 @@ def _parse_private_reflection(
         if (
             not 1 <= len(value) <= 180
             or value != value.strip()
+            or any(character in _LINE_BREAKS for character in value)
             or any(ord(character) < 32 for character in value)
         ):
             raise ReflectionOutputError(
@@ -511,8 +524,15 @@ class SchedulerAudit:
         }
         if config.private_reflections:
             expected["private_reflections"] = True
+            expected["max_reflection_conversation_restarts"] = (
+                config.max_reflection_conversation_restarts
+            )
         if config.persistent_delta_proxy:
             expected["persistent_delta_proxy"] = True
+        if config.system_prompt_override is not None:
+            expected["system_prompt_override_sha256"] = hashlib.sha256(
+                config.system_prompt_override.encode("utf-8")
+            ).hexdigest()
         if path.exists():
             self.data = _read_json(path, label="scheduler state")
             if self.data.get("schema_version") != SCHEDULER_SCHEMA_VERSION:
@@ -536,6 +556,28 @@ class SchedulerAudit:
                 raise SchedulerError(
                     "scheduler state lacks private reflection telemetry"
                 )
+            if config.private_reflections and not isinstance(
+                self.data.get("reflection_restarts"), dict
+            ):
+                raise SchedulerError("scheduler state lacks reflection restart counts")
+            if config.private_reflections and any(
+                not isinstance(count, int)
+                or count < 0
+                or count > config.max_reflection_conversation_restarts
+                for count in self.data["reflection_restarts"].values()
+            ):
+                raise SchedulerError(
+                    "private reflection restart budget is already exhausted"
+                )
+            if config.persistent_delta_proxy and not isinstance(
+                self.data.get("inflight_delta_calls"), dict
+            ):
+                raise SchedulerError("scheduler state lacks delta in-flight markers")
+            if config.persistent_delta_proxy and self.data["inflight_delta_calls"]:
+                raise SchedulerError(
+                    "an interrupted delta call has uncertain model state; "
+                    "restart this cell in a fresh output directory"
+                )
         else:
             self.data = {
                 "schema_version": SCHEDULER_SCHEMA_VERSION,
@@ -550,6 +592,9 @@ class SchedulerAudit:
             }
             if config.private_reflections:
                 self.data["private_reflection_turns"] = []
+                self.data["reflection_restarts"] = {}
+            if config.persistent_delta_proxy:
+                self.data["inflight_delta_calls"] = {}
             self.flush()
         self._validate_workers()
 
@@ -712,6 +757,50 @@ class SchedulerAudit:
             del self.data["workers"][key]
         self.flush()
 
+    def record_reflection_restart(self, plan: ConversationPlan) -> int:
+        restarts = self.data.get("reflection_restarts")
+        if not isinstance(restarts, dict):
+            raise SchedulerError("private reflection restart telemetry is not enabled")
+        current = restarts.get(plan.conversation_id, 0)
+        if not isinstance(current, int) or current < 0:
+            raise SchedulerError("private reflection restart count is malformed")
+        current += 1
+        restarts[plan.conversation_id] = current
+        self.flush()
+        return current
+
+    def begin_delta_call(
+        self,
+        binding: WorkerBinding,
+        *,
+        sequence: int,
+        attempt: int,
+        request_sha256: str,
+    ) -> None:
+        calls = self.data.get("inflight_delta_calls")
+        if not isinstance(calls, dict):
+            raise SchedulerError("persistent delta telemetry is not enabled")
+        key = _binding_key(binding)
+        if key in calls:
+            raise SchedulerError("a delta worker already has an in-flight call")
+        calls[key] = {
+            "conversation_id": binding.conversation_id,
+            "case_id": binding.case_id,
+            "actor_id": binding.actor_id,
+            "ledger_sequence": sequence,
+            "attempt": attempt,
+            "request_sha256": request_sha256,
+        }
+        self.flush()
+
+    def finish_delta_call(self, binding: WorkerBinding) -> None:
+        calls = self.data.get("inflight_delta_calls")
+        if not isinstance(calls, dict):
+            raise SchedulerError("persistent delta telemetry is not enabled")
+        if calls.pop(_binding_key(binding), None) is None:
+            raise SchedulerError("delta worker has no matching in-flight call")
+        self.flush()
+
 
 class AdaptiveGate:
     """Permit fan-out only after accepted calls without throttling."""
@@ -802,6 +891,25 @@ def _persistent_delta_request(request: Mapping[str, Any]) -> dict[str, Any]:
         },
         "user_message": dict(last_message),
     }
+
+
+def _replace_system_prompt(
+    request: Mapping[str, Any], override: str | None
+) -> Mapping[str, Any]:
+    """Project an experiment-only system prompt without mutating relay truth."""
+
+    if override is None:
+        return request
+    messages = request.get("messages")
+    if not isinstance(messages, list) or not messages:
+        raise SchedulerError("system prompt override requires a message list")
+    if not isinstance(messages[0], Mapping) or messages[0].get("role") != "system":
+        raise SchedulerError("system prompt override requires a leading system message")
+    projected = dict(request)
+    projected_messages = [dict(message) for message in messages]
+    projected_messages[0]["content"] = override
+    projected["messages"] = projected_messages
+    return projected
 
 
 def _projected_proxy_request(
@@ -1220,6 +1328,7 @@ async def _append_pending_response(
         if config.private_reflections
         else None
     )
+    proxy_request = _replace_system_prompt(request, config.system_prompt_override)
     if config.private_reflections:
         _assert_reflection_free(
             json.dumps(request, ensure_ascii=False, sort_keys=True),
@@ -1235,7 +1344,7 @@ async def _append_pending_response(
         projected_request_sha256 = (
             _sha256_json(
                 _projected_proxy_request(
-                    request,
+                    proxy_request,
                     persistent_delta_proxy=True,
                     starts_session=starts_session,
                 )
@@ -1243,13 +1352,22 @@ async def _append_pending_response(
             if config.persistent_delta_proxy
             else None
         )
+        delta_call_started = False
         try:
             async with gate.slot():
+                if config.persistent_delta_proxy:
+                    audit.begin_delta_call(
+                        binding,
+                        sequence=pending.sequence,
+                        attempt=attempt,
+                        request_sha256=request_hash,
+                    )
+                    delta_call_started = True
                 response = await _worker_call(
                     executor,
                     audit,
                     binding,
-                    request,
+                    proxy_request,
                     attempt,
                     reflection_nonce=reflection_nonce,
                     persistent_delta_proxy=config.persistent_delta_proxy,
@@ -1257,6 +1375,10 @@ async def _append_pending_response(
         except LunaWorkerError as error:
             if error.session_id:
                 audit.bind(binding, error.session_id)
+            retryable = error.retryable and (
+                not config.persistent_delta_proxy
+                or (starts_session and audit.session(binding) is None)
+            )
             audit.record(
                 _event(
                     binding,
@@ -1267,13 +1389,15 @@ async def _append_pending_response(
                     status="rate_limited" if error.rate_limited else "technical_error",
                     raw_response=None,
                     latency_ms=error.elapsed_ms,
-                    retryable=error.retryable,
+                    retryable=retryable,
                     rate_limited=error.rate_limited,
                     projected_request_sha256=projected_request_sha256,
                 )
             )
+            if delta_call_started:
+                audit.finish_delta_call(binding)
             await gate.observe(accepted=False, rate_limited=error.rate_limited)
-            if not error.retryable or attempt > config.max_technical_retries:
+            if not retryable or attempt > config.max_technical_retries:
                 raise SchedulerError("bounded technical retry exhausted") from error
             if config.retry_backoff_seconds:
                 await asyncio.sleep(config.retry_backoff_seconds * attempt)
@@ -1333,20 +1457,37 @@ async def _append_pending_response(
                     projected_request_sha256=projected_request_sha256,
                 )
             )
+            if delta_call_started:
+                audit.finish_delta_call(binding)
             await gate.observe(accepted=False, rate_limited=False)
             raise
         except CharacterAgentOutputError as error:
-            if reflection_nonce is not None and isinstance(response.raw_response, str):
-                _write_private_reflection_artifact(
-                    plan,
-                    binding=binding,
+            if reflection_nonce is not None:
+                if isinstance(response.raw_response, str):
+                    _write_private_reflection_artifact(
+                        plan,
+                        binding=binding,
+                        sequence=pending.sequence,
+                        attempt=attempt,
+                        status="rejected_public_output_shape",
+                        raw_response=response.raw_response,
+                        parsed=parsed_reflection,
+                        error=str(error),
+                    )
+                audit.record_reflection_result(
+                    binding,
                     sequence=pending.sequence,
-                    attempt=attempt,
+                    nonce=reflection_nonce,
                     status="rejected_public_output_shape",
-                    raw_response=response.raw_response,
-                    parsed=parsed_reflection,
-                    error=str(error),
+                    suffix_sha256=(
+                        hashlib.sha256(
+                            parsed_reflection.reflection.suffix.encode()
+                        ).hexdigest()
+                        if parsed_reflection is not None
+                        else None
+                    ),
                 )
+            retryable = not config.persistent_delta_proxy
             audit.record(
                 _event(
                     binding,
@@ -1362,7 +1503,7 @@ async def _append_pending_response(
                         else None
                     ),
                     latency_ms=response.elapsed_ms,
-                    retryable=True,
+                    retryable=retryable,
                     rate_limited=False,
                     reflection_nonce=reflection_nonce,
                     suffix_sha256=(
@@ -1375,7 +1516,17 @@ async def _append_pending_response(
                     projected_request_sha256=projected_request_sha256,
                 )
             )
+            if delta_call_started:
+                audit.finish_delta_call(binding)
             await gate.observe(accepted=False, rate_limited=False)
+            if reflection_nonce is not None:
+                raise ReflectionOutputError(
+                    "reflection-bearing response had invalid public output"
+                ) from error
+            if config.persistent_delta_proxy:
+                raise SchedulerError(
+                    "invalid output contaminated a persistent delta session"
+                ) from error
             if attempt > config.max_technical_retries:
                 raise SchedulerError("bounded output-shape retry exhausted") from error
             if config.retry_backoff_seconds:
@@ -1432,6 +1583,8 @@ async def _append_pending_response(
         )
         if reflection_nonce is not None:
             _assert_public_artifacts_reflection_free(plan, audit)
+        if delta_call_started:
+            audit.finish_delta_call(binding)
         await gate.observe(accepted=True, rate_limited=False)
         return
     raise AssertionError("bounded retry loop should return or raise")
@@ -1446,7 +1599,6 @@ async def _run_one(
     config: SchedulerConfig,
     manifest_sha256: str,
 ) -> ConversationResult:
-    reflection_restarts = 0
     while True:
         try:
             result = await run_relay_conversation(
@@ -1472,7 +1624,7 @@ async def _run_one(
                 )
             except ReflectionOutputError as error:
                 _discard_reflection_conversation(plan, audit)
-                reflection_restarts += 1
+                reflection_restarts = audit.record_reflection_restart(plan)
                 if reflection_restarts > config.max_reflection_conversation_restarts:
                     raise SchedulerError(
                         "repeated private reflection shape failure invalidated the conversation"
@@ -1547,6 +1699,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="send only the newest user packet when resuming a persistent worker",
     )
+    parser.add_argument(
+        "--system-prompt-override",
+        type=Path,
+        help="experiment-only system-message body used instead of the rendered prompt",
+    )
     parser.add_argument("--execute", action="store_true")
     return parser
 
@@ -1557,6 +1714,14 @@ async def _run_cli(args: argparse.Namespace) -> int:
         raise SystemExit(
             "frozen manifest hash mismatch; refusing to start Luna sessions"
         )
+    system_prompt_override = None
+    if args.system_prompt_override is not None:
+        try:
+            system_prompt_override = args.system_prompt_override.read_text(
+                encoding="utf-8"
+            )
+        except OSError as error:
+            raise SystemExit(f"cannot read system prompt override: {error}") from error
     config = SchedulerConfig(
         conversation_count=args.conversations,
         initial_concurrency=args.initial_concurrency,
@@ -1568,6 +1733,7 @@ async def _run_cli(args: argparse.Namespace) -> int:
         worker_timeout_seconds=args.worker_timeout_seconds,
         private_reflections=args.private_reflections,
         persistent_delta_proxy=args.persistent_delta_proxy,
+        system_prompt_override=system_prompt_override,
     )
     cases = load_benchmark_manifest(args.manifest)
     plans = build_conversation_plans(
@@ -1582,6 +1748,13 @@ async def _run_cli(args: argparse.Namespace) -> int:
                     "conversation_count": len(plans),
                     "worker_count": len(plans) * 2,
                     "turn_count_per_conversation": FIXED_TURN_COUNT,
+                    "system_prompt_override_sha256": (
+                        hashlib.sha256(
+                            system_prompt_override.encode("utf-8")
+                        ).hexdigest()
+                        if system_prompt_override is not None
+                        else None
+                    ),
                 }
             )
         )
