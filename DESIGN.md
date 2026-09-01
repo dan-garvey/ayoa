@@ -20,6 +20,8 @@
   environment variables, or via the `LLM_ROLE_PROVIDERS` /
   `LLM_ROLE_MODELS` JSON env maps. A `provider:model` prefix on a
   model string (for example `anthropic:claude-sonnet-5`) also works.
+  Configured OpenAI roles use medium reasoning by default, except Luna
+  models use max; explicit global or per-role reasoning overrides win.
   Normal D&D playtests should keep `dnd_combat_manager` on the default
   OpenAI `gpt-5-mini` path; if its preflight fails, configure the
   missing OpenAI role key rather than downgrading the role.
@@ -804,6 +806,7 @@ It supports:
 * Anthropic prompt caching and conditional server-side compaction for
   supported models
 * per-role Anthropic extended-thinking budgets
+* model-aware OpenAI reasoning effort with explicit per-role overrides
 * provider-specific retry handling for transient failures
 
 Provider/model selection can be configured with model prefixes such as

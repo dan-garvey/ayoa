@@ -128,13 +128,28 @@ class TestLLMConfig:
         assert config.openai_reasoning_effort_for_role("content_manager") == "low"
         assert config.openai_reasoning_effort_for_role("image_director") == "low"
         assert config.openai_reasoning_effort_for_role("agent_standard") == "medium"
-        assert all(
-            effort == "medium"
-            for role, effort in config.openai_reasoning_efforts.items()
-            if role not in {"content_manager", "image_director"}
-        )
+        assert config.openai_reasoning_effort_for_role("character_manager") == "max"
         assert config.openai_reasoning_summary_for_role("event_router") == "auto"
         assert config.openai_reasoning_summary_for_role("narrator") == ""
+
+    def test_luna_reasoning_default_is_model_aware_and_overridable(self):
+        config = LLMConfig(
+            role_models={
+                "agent_standard": "openai:gpt-5.6-luna",
+                "narrator": "gpt-5.6-terra",
+            },
+        )
+        overridden = LLMConfig(
+            role_models={"agent_standard": "gpt-5.6-luna"},
+            openai_reasoning_efforts={"agent_standard": "medium"},
+        )
+
+        assert config.openai_reasoning_effort_for_role("agent_standard") == "max"
+        assert config.openai_reasoning_effort_for_role("narrator") == "medium"
+        assert config.openai_reasoning_effort_for_role("unknown") == ""
+        assert overridden.openai_reasoning_effort_for_role("agent_standard") == (
+            "medium"
+        )
 
     def test_model_for_role(self):
         config = LLMConfig(role_models={"narrator": "big-model", "agent": "small-model"})
@@ -682,6 +697,31 @@ class TestLLMClientComplete:
         assert result.assistant_content == [
             {"type": "text", "text": "Hello from OpenAI"}
         ]
+
+    @pytest.mark.asyncio
+    async def test_openai_luna_request_defaults_to_max_reasoning(self):
+        config = LLMConfig(
+            openai_api_key="fake-openai-key",
+            role_models={"character_manager": "gpt-5.6-luna"},
+            max_retries=0,
+        )
+        client = LLMClient(config=config)
+        openai_client = MagicMock()
+        openai_client.responses.create = AsyncMock(
+            return_value=_make_openai_response("A new character")
+        )
+        client._openai_clients["character_manager"] = openai_client
+
+        await client.complete(
+            role="character_manager",
+            messages=[{"role": "user", "content": "Create a character."}],
+            temperature=0.5,
+            max_tokens=100,
+        )
+
+        call_kwargs = openai_client.responses.create.call_args.kwargs
+        assert call_kwargs["model"] == "gpt-5.6-luna"
+        assert call_kwargs["reasoning"] == {"effort": "max"}
 
     @pytest.mark.asyncio
     async def test_anthropic_usage_reads_per_ttl_cache_write_tokens(

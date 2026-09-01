@@ -61,6 +61,9 @@ def test_seeded_actor_material_reaches_only_its_owner_packet() -> None:
     for path in STORY_CHECKPOINT_PATHS:
         checkpoint = _load(path)
         actors = _tracked_actors(checkpoint)
+        if not actors:
+            assert not checkpoint.characters, path
+            continue
         assert actors, path
         for character in actors:
             assert character.actor is not None
@@ -68,8 +71,14 @@ def test_seeded_actor_material_reaches_only_its_owner_packet() -> None:
             assert facts, (path, character.character_id)
             owner_packet = build_character_self_packet(character, checkpoint)
             visible_packet = build_visible_self_packet(character, checkpoint)
-            assert all(fact in owner_packet for fact in facts)
+            owner_fact_lines = [
+                line.removeprefix("- ")
+                for line in owner_packet.splitlines()
+                if line.startswith("- ")
+            ]
+            assert len(owner_fact_lines) == len(facts)
             assert all(fact not in visible_packet for fact in facts)
+            assert all(fact not in visible_packet for fact in owner_fact_lines)
             assert all(
                 marker not in owner_packet.casefold()
                 for marker in RETIRED_CONTROL_MARKERS

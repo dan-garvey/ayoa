@@ -16,6 +16,7 @@ _VALID_OPENAI_REASONING_EFFORTS = {
     "medium",
     "high",
     "xhigh",
+    "max",
 }
 _VALID_OPENAI_REASONING_SUMMARIES = {
     "auto",
@@ -232,20 +233,12 @@ class LLMConfig(BaseModel):
         "event_router": 2048,
     })
     # OpenAI reasoning models use effort levels rather than token budgets.
-    # Keep medium defaults for roles that run on OpenAI by default or by
-    # override, so they get explicit reasoning instead of silently running
-    # in fast/no-reasoning mode. Per-role env overrides can lower cheap
-    # roles later.
+    # Entries here are intentional role overrides. Roles without an entry
+    # receive a model-aware default in openai_reasoning_effort_for_role():
+    # max for Luna and medium for the other configured OpenAI models.
     openai_reasoning_efforts: dict[str, str] = Field(default_factory=lambda: {
-        "event_router": "medium",
-        "narrator": "medium",
-        "dnd_combat_manager": "medium",
         "content_manager": "low",
         "image_director": "low",
-        "agent": "medium",
-        "agent_standard": "medium",
-        "agent_convenience": "medium",
-        "character_manager": "medium",
     })
     # Raw OpenAI reasoning tokens are not exposed by the API. This optional
     # per-role setting requests provider-authored summaries instead.
@@ -386,7 +379,13 @@ class LLMConfig(BaseModel):
 
     def openai_reasoning_effort_for_role(self, role: str) -> str:
         effort = self.openai_reasoning_efforts.get(role, "")
-        return _normalise_openai_reasoning_effort(effort) if effort else ""
+        if effort:
+            return _normalise_openai_reasoning_effort(effort)
+        if role not in self.role_models:
+            return ""
+        if self.model_for_role(role).lower().startswith("gpt-5.6-luna"):
+            return "max"
+        return "medium"
 
     def openai_reasoning_summary_for_role(self, role: str) -> str:
         summary = self.openai_reasoning_summaries.get(role, "")
