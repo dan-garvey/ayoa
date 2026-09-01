@@ -14,6 +14,8 @@ import asyncio
 import hashlib
 import json
 import re
+import secrets
+import shutil
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -48,6 +50,22 @@ SCHEDULER_SCHEMA_VERSION = "persistent_luna_dialogue_silos_v1"
 LUNA_MODEL = "gpt-5.6-luna"
 DEFAULT_CONVERSATION_COUNT = 8
 FIXED_TURN_COUNT = 16
+REFLECTION_FIELD_NAMES = (
+    "present_true_position",
+    "public_attempt",
+    "deliberately_unsaid_truth",
+    "unavailable_because",
+    "relationship_status_cost",
+    "continuity_pressure",
+)
+REFLECTION_MAX_SUFFIX_BYTES = 1200
+_REFLECTION_NONCE_RE = re.compile(r"R-[0-9a-f]{32}")
+_REFLECTION_SUFFIX_RE = re.compile(
+    r"\A(?P<body>.*)\n\n"
+    r"\(<actor_private_reflection id=\"(?P<nonce>R-[0-9a-f]{32})\">"
+    r"(?P<payload>[^\n]*)</actor_private_reflection>\)\n?\Z",
+    re.DOTALL,
+)
 _RATE_LIMIT_RE = re.compile(
     r"(?:\b429\b|rate[ -]?limit|throttl|too many requests|capacity)", re.I
 )
@@ -80,6 +98,23 @@ class LunaWorkerError(SchedulerError):
         self.session_id = session_id
 
 
+class ReflectionOutputError(SchedulerError):
+    """An experiment-only private reflection violated its sealed contract."""
+
+
+@dataclass(frozen=True)
+class PrivateReflection:
+    nonce: str
+    fields: Mapping[str, str]
+    suffix: str
+
+
+@dataclass(frozen=True)
+class ReflectionParseResult:
+    public_body: str
+    reflection: PrivateReflection
+
+
 @dataclass(frozen=True)
 class WorkerBinding:
     conversation_id: str
@@ -97,7 +132,13 @@ class LunaWorkerResponse:
 
 class LunaWorkerExecutor(Protocol):
     async def start(
-        self, *, binding: WorkerBinding, request: Mapping[str, Any], attempt: int
+        self,
+        *,
+        binding: WorkerBinding,
+        request: Mapping[str, Any],
+        attempt: int,
+        reflection_nonce: str | None = None,
+        persistent_delta_proxy: bool = False,
     ) -> LunaWorkerResponse: ...
 
     async def resume(
@@ -107,6 +148,8 @@ class LunaWorkerExecutor(Protocol):
         worker_session_id: str,
         request: Mapping[str, Any],
         attempt: int,
+        reflection_nonce: str | None = None,
+        persistent_delta_proxy: bool = False,
     ) -> LunaWorkerResponse: ...
 
 
@@ -121,6 +164,9 @@ class SchedulerConfig:
     max_technical_retries: int = 2
     retry_backoff_seconds: float = 1.0
     worker_timeout_seconds: float = 300.0
+    private_reflections: bool = False
+    max_reflection_conversation_restarts: int = 1
+    persistent_delta_proxy: bool = False
 
     def __post_init__(self) -> None:
         if self.conversation_count < 1 or self.turn_count < 1:
@@ -133,6 +179,8 @@ class SchedulerConfig:
             raise ValueError("retry_backoff_seconds must be between 0 and 60")
         if not 1 <= self.worker_timeout_seconds <= 3600:
             raise ValueError("worker_timeout_seconds must be between 1 and 3600")
+        if self.max_reflection_conversation_restarts < 0:
+            raise ValueError("max_reflection_conversation_restarts cannot be negative")
 
 
 @dataclass(frozen=True)
@@ -141,6 +189,7 @@ class ConversationPlan:
     conversation_id: str
     ledger_path: Path
     pending_path: Path
+    private_reflections_root: Path
     expected_turn_count: int
 
     @property
@@ -149,6 +198,23 @@ class ConversationPlan:
         if len(actor_ids) != 2:
             raise SchedulerError("conversation plan is not dyadic")
         return actor_ids[0], actor_ids[1]
+
+    def private_reflection_path(
+        self, binding: WorkerBinding, *, sequence: int, attempt: int
+    ) -> Path:
+        if (
+            binding.conversation_id != self.conversation_id
+            or binding.case_id != self.case.case_id
+        ):
+            raise SiloIsolationError(
+                "private reflection owner does not match conversation"
+            )
+        owner_hash = hashlib.sha256(_binding_key(binding).encode()).hexdigest()[:16]
+        return (
+            self.private_reflections_root
+            / owner_hash
+            / f"turn-{sequence:02d}-attempt-{attempt}.json"
+        )
 
 
 @dataclass(frozen=True)
@@ -174,7 +240,9 @@ def _manifest_sha256(path: Path) -> str:
 def _frozen_sha256(value: str) -> str:
     value = value.strip().lower()
     if not re.fullmatch(r"[0-9a-f]{64}", value):
-        raise SchedulerError("frozen manifest SHA-256 must be 64 hexadecimal characters")
+        raise SchedulerError(
+            "frozen manifest SHA-256 must be 64 hexadecimal characters"
+        )
     return value
 
 
@@ -183,7 +251,192 @@ def _safe_path_piece(value: str) -> str:
 
 
 def _binding_key(binding: WorkerBinding) -> str:
-    return json.dumps([binding.conversation_id, binding.actor_id], separators=(",", ":"))
+    return json.dumps(
+        [binding.conversation_id, binding.actor_id], separators=(",", ":")
+    )
+
+
+def _reflection_artifact_payload(
+    *,
+    binding: WorkerBinding,
+    sequence: int,
+    attempt: int,
+    status: str,
+    raw_response: str,
+    parsed: ReflectionParseResult | None,
+    error: str | None = None,
+) -> dict[str, Any]:
+    artifact: dict[str, Any] = {
+        "conversation_id": binding.conversation_id,
+        "case_id": binding.case_id,
+        "actor_id": binding.actor_id,
+        "ledger_sequence": sequence,
+        "attempt": attempt,
+        "status": status,
+        "raw_response": raw_response,
+    }
+    if parsed is not None:
+        artifact["reflection"] = {
+            "nonce": parsed.reflection.nonce,
+            "suffix": parsed.reflection.suffix,
+            "fields": dict(parsed.reflection.fields),
+        }
+    if error is not None:
+        artifact["error"] = error
+    return artifact
+
+
+def _write_private_reflection_artifact(
+    plan: ConversationPlan,
+    *,
+    binding: WorkerBinding,
+    sequence: int,
+    attempt: int,
+    status: str,
+    raw_response: str,
+    parsed: ReflectionParseResult | None,
+    error: str | None = None,
+) -> Path:
+    path = plan.private_reflection_path(binding, sequence=sequence, attempt=attempt)
+    raw_hash = hashlib.sha256(raw_response.encode("utf-8")).hexdigest()[:16]
+    path = path.with_name(f"{path.stem}-{raw_hash}{path.suffix}")
+    _atomic_write_json(
+        path,
+        _reflection_artifact_payload(
+            binding=binding,
+            sequence=sequence,
+            attempt=attempt,
+            status=status,
+            raw_response=raw_response,
+            parsed=parsed,
+            error=error,
+        ),
+    )
+    return path
+
+
+def _parse_private_reflection(
+    raw_response: str, *, expected_nonce: str
+) -> ReflectionParseResult:
+    """Split the sealed experiment suffix before public output parsing.
+
+    This deliberately accepts no approximation: repairing an output would keep
+    private material in a persistent actor session whose continuation is no
+    longer trustworthy for the experiment.
+    """
+
+    if not _REFLECTION_NONCE_RE.fullmatch(expected_nonce):
+        raise ReflectionOutputError("reflection nonce has an invalid shape")
+    if not raw_response:
+        raise ReflectionOutputError("reflection response is blank")
+    match = _REFLECTION_SUFFIX_RE.fullmatch(raw_response)
+    if match is None:
+        raise ReflectionOutputError(
+            "missing or malformed anchored private reflection suffix"
+        )
+    if (
+        raw_response.count("<actor_private_reflection") != 1
+        or raw_response.count("</actor_private_reflection>") != 1
+    ):
+        raise ReflectionOutputError(
+            "private reflection marker is duplicated or appears in public prose"
+        )
+    public_body = match.group("body")
+    if "actor_private_reflection" in public_body:
+        raise ReflectionOutputError("private reflection marker appears in public prose")
+    suffix = raw_response[len(public_body) + 2 :].rstrip("\n")
+    if len(suffix.encode("utf-8")) > REFLECTION_MAX_SUFFIX_BYTES:
+        raise ReflectionOutputError(
+            "private reflection suffix exceeds 1200 UTF-8 bytes"
+        )
+    nonce = match.group("nonce")
+    if nonce != expected_nonce:
+        raise ReflectionOutputError("private reflection nonce does not match this turn")
+    payload = match.group("payload")
+    try:
+        decoded = json.loads(payload, object_pairs_hook=lambda pairs: pairs)
+    except json.JSONDecodeError as error:
+        raise ReflectionOutputError(
+            "private reflection payload is not valid JSON"
+        ) from error
+    if not isinstance(decoded, list):
+        raise ReflectionOutputError("private reflection payload must be a JSON object")
+    keys = tuple(key for key, _ in decoded)
+    if keys != REFLECTION_FIELD_NAMES:
+        raise ReflectionOutputError(
+            "private reflection keys must be exact, ordered, and unique"
+        )
+    fields: dict[str, str] = {}
+    for key, value in decoded:
+        if not isinstance(value, str):
+            raise ReflectionOutputError(f"private reflection {key} must be a string")
+        if (
+            not 1 <= len(value) <= 180
+            or value != value.strip()
+            or any(ord(character) < 32 for character in value)
+        ):
+            raise ReflectionOutputError(
+                f"private reflection {key} must be a trimmed one-line 1-180 character clause"
+            )
+        fields[key] = value
+    if fields["present_true_position"] == "NONE" or fields["public_attempt"] == "NONE":
+        raise ReflectionOutputError(
+            "present_true_position and public_attempt cannot be NONE"
+        )
+    return ReflectionParseResult(
+        public_body=public_body,
+        reflection=PrivateReflection(nonce=nonce, fields=fields, suffix=suffix),
+    )
+
+
+def _assert_reflection_free(value: str, *, nonces: Sequence[str], label: str) -> None:
+    forbidden = ("actor_private_reflection", *REFLECTION_FIELD_NAMES, *nonces)
+    leaked = [item for item in forbidden if item and item in value]
+    if leaked:
+        raise SiloIsolationError(f"private reflection leaked into {label}: {leaked[0]}")
+
+
+def _assert_public_artifacts_reflection_free(
+    plan: ConversationPlan, audit: SchedulerAudit
+) -> None:
+    """Fail before a public artifact can silently preserve a sealed suffix."""
+
+    records = audit.data.get("private_reflection_turns")
+    if not isinstance(records, list):
+        raise SchedulerError("private reflection telemetry is not enabled")
+    nonces = tuple(
+        record["nonce"]
+        for record in records
+        if isinstance(record, Mapping) and isinstance(record.get("nonce"), str)
+    )
+    output_root = plan.private_reflections_root.parent
+    excluded = {plan.private_reflections_root.resolve(), audit.path.resolve()}
+    if not output_root.exists():
+        return
+    for path in output_root.rglob("*"):
+        if not path.is_file() or any(
+            parent in excluded for parent in (path.resolve(), *path.resolve().parents)
+        ):
+            continue
+        try:
+            contents = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        _assert_reflection_free(contents, nonces=nonces, label=str(path))
+
+
+def _discard_reflection_conversation(
+    plan: ConversationPlan, audit: SchedulerAudit
+) -> None:
+    """Remove public relay state so both actors restart in fresh sealed silos."""
+
+    conversation_root = plan.ledger_path.parent.resolve()
+    expected_parent = (plan.private_reflections_root.parent / "conversations").resolve()
+    if conversation_root.parent != expected_parent:
+        raise SiloIsolationError("refusing to discard a conversation outside this run")
+    if conversation_root.exists():
+        shutil.rmtree(conversation_root)
+    audit.discard_conversation_workers(plan)
 
 
 def _validate_case(case: BenchmarkCase, turn_count: int) -> None:
@@ -212,11 +465,17 @@ def build_conversation_plans(
             f"expected exactly {config.conversation_count} conversations, got {len(cases)}"
         )
     if not run_id.strip() or len({case.case_id for case in cases}) != len(cases):
-        raise SchedulerError("run_id and every scheduled case_id must be unique and nonblank")
+        raise SchedulerError(
+            "run_id and every scheduled case_id must be unique and nonblank"
+        )
     plans = []
     for index, case in enumerate(cases, start=1):
         _validate_case(case, config.turn_count)
-        root = output_dir / "conversations" / f"{index:02d}-{_safe_path_piece(case.case_id)}"
+        root = (
+            output_dir
+            / "conversations"
+            / f"{index:02d}-{_safe_path_piece(case.case_id)}"
+        )
         ledger_path = root / "response_ledger.json"
         plans.append(
             ConversationPlan(
@@ -224,6 +483,7 @@ def build_conversation_plans(
                 conversation_id=f"{run_id}:{case.case_id}",
                 ledger_path=ledger_path,
                 pending_path=ledger_path.with_name(ledger_path.name + ".pending.json"),
+                private_reflections_root=output_dir / "private_reflection_qa",
                 expected_turn_count=config.turn_count,
             )
         )
@@ -249,10 +509,16 @@ class SchedulerAudit:
             "conversation_count": config.conversation_count,
             "turn_count": config.turn_count,
         }
+        if config.private_reflections:
+            expected["private_reflections"] = True
+        if config.persistent_delta_proxy:
+            expected["persistent_delta_proxy"] = True
         if path.exists():
             self.data = _read_json(path, label="scheduler state")
             if self.data.get("schema_version") != SCHEDULER_SCHEMA_VERSION:
-                raise SchedulerError("scheduler state has an unsupported schema version")
+                raise SchedulerError(
+                    "scheduler state has an unsupported schema version"
+                )
             if self.data.get("run") != expected:
                 raise SchedulerError("scheduler state does not match this frozen run")
             if not all(
@@ -264,6 +530,12 @@ class SchedulerAudit:
                 )
             ):
                 raise SchedulerError("scheduler state has an invalid shape")
+            if config.private_reflections and not isinstance(
+                self.data.get("private_reflection_turns"), list
+            ):
+                raise SchedulerError(
+                    "scheduler state lacks private reflection telemetry"
+                )
         else:
             self.data = {
                 "schema_version": SCHEDULER_SCHEMA_VERSION,
@@ -276,6 +548,8 @@ class SchedulerAudit:
                     "observed_throttling": False,
                 },
             }
+            if config.private_reflections:
+                self.data["private_reflection_turns"] = []
             self.flush()
         self._validate_workers()
 
@@ -299,7 +573,9 @@ class SchedulerAudit:
             if key != _binding_key(binding):
                 raise SiloIsolationError("scheduler worker entry has stale ownership")
             if values[3] in sessions:
-                raise SiloIsolationError("one Codex session is assigned to multiple silos")
+                raise SiloIsolationError(
+                    "one Codex session is assigned to multiple silos"
+                )
             sessions.add(values[3])
 
     def session(self, binding: WorkerBinding) -> str | None:
@@ -310,7 +586,9 @@ class SchedulerAudit:
             entry.get(field) != getattr(binding, field)
             for field in ("conversation_id", "case_id", "actor_id")
         ):
-            raise SiloIsolationError("worker ownership does not match its requested silo")
+            raise SiloIsolationError(
+                "worker ownership does not match its requested silo"
+            )
         session_id = entry.get("worker_session_id")
         if not isinstance(session_id, str) or not session_id:
             raise SchedulerError("worker entry lacks a session id")
@@ -323,7 +601,9 @@ class SchedulerAudit:
         known = self.session(binding)
         if known is not None:
             if known != session_id:
-                raise SiloIsolationError("a worker attempted to replace its persistent session")
+                raise SiloIsolationError(
+                    "a worker attempted to replace its persistent session"
+                )
             return
         if any(
             isinstance(entry, Mapping) and entry.get("worker_session_id") == session_id
@@ -346,6 +626,92 @@ class SchedulerAudit:
         self.data["adaptive_concurrency"] = dict(gate)
         self.flush()
 
+    def reserve_reflection_nonce(
+        self,
+        binding: WorkerBinding,
+        *,
+        sequence: int,
+    ) -> str:
+        records = self.data.get("private_reflection_turns")
+        if not isinstance(records, list):
+            raise SchedulerError("private reflection telemetry is not enabled")
+        for record in reversed(records):
+            if not isinstance(record, Mapping):
+                raise SchedulerError("private reflection telemetry is malformed")
+            if (
+                record.get("conversation_id") == binding.conversation_id
+                and record.get("actor_id") == binding.actor_id
+                and record.get("ledger_sequence") == sequence
+                and record.get("status") == "reserved"
+            ):
+                nonce = record.get("nonce")
+                if isinstance(nonce, str) and _REFLECTION_NONCE_RE.fullmatch(nonce):
+                    return nonce
+                raise SchedulerError("reserved private reflection nonce is malformed")
+        nonce = f"R-{secrets.token_hex(16)}"
+        if any(
+            isinstance(record, Mapping) and record.get("nonce") == nonce
+            for record in records
+        ):
+            raise SchedulerError("private reflection nonce collision")
+        records.append(
+            {
+                "conversation_id": binding.conversation_id,
+                "case_id": binding.case_id,
+                "actor_id": binding.actor_id,
+                "ledger_sequence": sequence,
+                "nonce": nonce,
+                "status": "reserved",
+            }
+        )
+        self.flush()
+        return nonce
+
+    def record_reflection_result(
+        self,
+        binding: WorkerBinding,
+        *,
+        sequence: int,
+        nonce: str,
+        status: str,
+        public_response_sha256: str | None = None,
+        suffix_sha256: str | None = None,
+    ) -> None:
+        records = self.data.get("private_reflection_turns")
+        if not isinstance(records, list):
+            raise SchedulerError("private reflection telemetry is not enabled")
+        matches = [
+            record
+            for record in records
+            if isinstance(record, dict)
+            and record.get("conversation_id") == binding.conversation_id
+            and record.get("actor_id") == binding.actor_id
+            and record.get("ledger_sequence") == sequence
+            and record.get("nonce") == nonce
+        ]
+        if len(matches) != 1:
+            raise SchedulerError("private reflection result lacks its reserved nonce")
+        record = matches[0]
+        if record.get("status") != "reserved":
+            raise SchedulerError("private reflection nonce was already finalized")
+        record["status"] = status
+        if public_response_sha256 is not None:
+            record["public_response_sha256"] = public_response_sha256
+        if suffix_sha256 is not None:
+            record["suffix_sha256"] = suffix_sha256
+        self.flush()
+
+    def discard_conversation_workers(self, plan: ConversationPlan) -> None:
+        stale = [
+            key
+            for key, entry in self.data["workers"].items()
+            if isinstance(entry, Mapping)
+            and entry.get("conversation_id") == plan.conversation_id
+        ]
+        for key in stale:
+            del self.data["workers"][key]
+        self.flush()
+
 
 class AdaptiveGate:
     """Permit fan-out only after accepted calls without throttling."""
@@ -357,9 +723,16 @@ class AdaptiveGate:
         self.limit = saved.get("current_limit")
         self.successes = saved.get("successful_since_fanout")
         self.throttled = saved.get("observed_throttling")
-        if not isinstance(self.limit, int) or not 1 <= self.limit <= config.max_concurrency:
+        if (
+            not isinstance(self.limit, int)
+            or not 1 <= self.limit <= config.max_concurrency
+        ):
             raise SchedulerError("persisted concurrency limit is invalid")
-        if not isinstance(self.successes, int) or self.successes < 0 or not isinstance(self.throttled, bool):
+        if (
+            not isinstance(self.successes, int)
+            or self.successes < 0
+            or not isinstance(self.throttled, bool)
+        ):
             raise SchedulerError("persisted concurrency telemetry is invalid")
         self.active = 0
         self.condition = asyncio.Condition()
@@ -401,14 +774,114 @@ class AdaptiveGate:
         )
 
 
-def _proxy_prompt(request: Mapping[str, Any]) -> str:
-    payload = json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+def _persistent_delta_request(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Project one full relay request to the next user packet for a live silo."""
+
+    messages = request.get("messages")
+    if not isinstance(messages, list) or not messages:
+        raise SchedulerError("persistent delta proxy requires a nonempty message list")
+    last_message = messages[-1]
+    if not isinstance(last_message, Mapping) or last_message.get("role") != "user":
+        raise SchedulerError(
+            "persistent delta proxy requires the request to end in one user message"
+        )
+    required = ("conversation_id", "case_id", "actor_id", "turn_index")
+    if any(not isinstance(request.get(key), (str, int)) for key in required):
+        raise SchedulerError("persistent delta proxy request lacks binding metadata")
+    return {
+        "binding": {
+            "conversation_id": request["conversation_id"],
+            "case_id": request["case_id"],
+            "actor_id": request["actor_id"],
+        },
+        "turn": {
+            "scene_id": request.get("scene_id"),
+            "scene_index": request.get("scene_index"),
+            "scene_turn_index": request.get("scene_turn_index"),
+            "turn_index": request["turn_index"],
+        },
+        "user_message": dict(last_message),
+    }
+
+
+def _projected_proxy_request(
+    request: Mapping[str, Any],
+    *,
+    persistent_delta_proxy: bool,
+    starts_session: bool,
+) -> Mapping[str, Any]:
+    if not persistent_delta_proxy:
+        return request
+    delta = _persistent_delta_request(request)
+    return request if starts_session else delta
+
+
+def _proxy_prompt(
+    request: Mapping[str, Any],
+    *,
+    reflection_nonce: str | None = None,
+    persistent_delta_proxy: bool = False,
+    starts_session: bool = True,
+) -> str:
+    projected = _projected_proxy_request(
+        request,
+        persistent_delta_proxy=persistent_delta_proxy,
+        starts_session=starts_session,
+    )
+    payload = json.dumps(
+        projected, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    if persistent_delta_proxy and not starts_session:
+        wrapper: dict[str, Any] = {"request": projected}
+        if reflection_nonce is not None:
+            wrapper["expected_reflection_nonce"] = reflection_nonce
+        return (
+            "<persistent_character_agent_turn_delta>\n"
+            f"{json.dumps(wrapper, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n"
+            "</persistent_character_agent_turn_delta>\n"
+        )
+    if reflection_nonce is not None:
+        if not _REFLECTION_NONCE_RE.fullmatch(reflection_nonce):
+            raise SchedulerError("reflection proxy was given an invalid nonce")
+        return (
+            "Act only as an isolated CharacterAgent completion proxy. The embedded JSON is\n"
+            "the full current continuation for one actor; use nothing outside it except your\n"
+            "own earlier actor-private reflections in this same persistent session.\n\n"
+            "Follow the embedded observable-body contract. After the complete observable\n"
+            "body, append exactly one actor-private suffix using the supplied id and exact\n"
+            "shape. No present witness can see this suffix. Never quote it, explain it, or\n"
+            "let its field names enter the scene prose.\n\n"
+            "Use one short concrete clause per value, grounded only in established actor\n"
+            "knowledge and the public exchange. Use NONE rather than inventing a withheld\n"
+            "truth, reason, cost, or continuity pressure. Distinguish the actor's actual\n"
+            "present position from the public face or tactic just used; do not retrofit a\n"
+            "virtuous or coherent motive merely to justify the line. unavailable_because\n"
+            "means why an established truth cannot be risked now, not why it is unknown.\n"
+            "relationship_status_cost names a cost incurred or risked by this move or\n"
+            "withholding. continuity_pressure names one unresolved pressure to remember,\n"
+            "not a script, theme, rubric, or prediction of another person's behavior.\n\n"
+            "Return no analysis, markdown, labels, or text after the suffix.\n"
+            + (
+                "Future messages in this persistent session contain only the newest "
+                "user packet and its binding; apply this same contract without repeating it.\n"
+                if persistent_delta_proxy
+                else ""
+            )
+            + f"<actor_private_reflection_id>{reflection_nonce}</actor_private_reflection_id>\n"
+            f"<exact_character_agent_request>\n{payload}\n</exact_character_agent_request>\n"
+        )
     return (
         "Act only as an isolated CharacterAgent completion proxy. Return exactly the "
         "raw assistant content for this request: no analysis, labels, markdown, "
         "tools, file inspection, or commentary. The JSON is the full current "
         "continuation for one actor; use nothing outside it.\n"
-        f"<exact_character_agent_request>\n{payload}\n</exact_character_agent_request>\n"
+        + (
+            "Future messages in this persistent session contain only the newest user "
+            "packet and its binding; apply this same contract without repeating it.\n"
+            if persistent_delta_proxy
+            else ""
+        )
+        + f"<exact_character_agent_request>\n{payload}\n</exact_character_agent_request>\n"
     )
 
 
@@ -474,6 +947,9 @@ class CodexLunaCliExecutor:
         binding: WorkerBinding,
         request: Mapping[str, Any],
         attempt: int,
+        reflection_nonce: str | None,
+        persistent_delta_proxy: bool,
+        starts_session: bool,
     ) -> tuple[str, str, float]:
         response_path = self._response_path(binding, request, attempt)
         started_at = time.perf_counter()
@@ -486,7 +962,16 @@ class CodexLunaCliExecutor:
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(_proxy_prompt(request).encode()),
+                process.communicate(
+                    _proxy_prompt(request, reflection_nonce=reflection_nonce).encode()
+                    if not persistent_delta_proxy
+                    else _proxy_prompt(
+                        request,
+                        reflection_nonce=reflection_nonce,
+                        persistent_delta_proxy=True,
+                        starts_session=starts_session,
+                    ).encode()
+                ),
                 timeout=self.timeout_seconds,
             )
         except OSError as error:
@@ -511,7 +996,9 @@ class CodexLunaCliExecutor:
         if process.returncode != 0:
             detail = f"{stdout}\n{stderr}"
             raise LunaWorkerError(
-                "Codex rate limited" if _RATE_LIMIT_RE.search(detail) else "Codex call failed",
+                "Codex rate limited"
+                if _RATE_LIMIT_RE.search(detail)
+                else "Codex call failed",
                 retryable=True,
                 rate_limited=bool(_RATE_LIMIT_RE.search(detail)),
                 elapsed_ms=elapsed_ms,
@@ -527,16 +1014,37 @@ class CodexLunaCliExecutor:
             ) from error
 
     async def start(
-        self, *, binding: WorkerBinding, request: Mapping[str, Any], attempt: int
+        self,
+        *,
+        binding: WorkerBinding,
+        request: Mapping[str, Any],
+        attempt: int,
+        reflection_nonce: str | None = None,
+        persistent_delta_proxy: bool = False,
     ) -> LunaWorkerResponse:
         response_path = self._response_path(binding, request, attempt)
         command = (
-            *self.command, "exec", "--model", LUNA_MODEL, "--sandbox", "read-only",
-            "--skip-git-repo-check", "--ignore-rules", "--json", "--output-last-message",
-            str(response_path), "-",
+            *self.command,
+            "exec",
+            "--model",
+            LUNA_MODEL,
+            "--sandbox",
+            "read-only",
+            "--skip-git-repo-check",
+            "--ignore-rules",
+            "--json",
+            "--output-last-message",
+            str(response_path),
+            "-",
         )
         raw, stdout, elapsed_ms = await self._invoke(
-            command=command, binding=binding, request=request, attempt=attempt
+            command=command,
+            binding=binding,
+            request=request,
+            attempt=attempt,
+            reflection_nonce=reflection_nonce,
+            persistent_delta_proxy=persistent_delta_proxy,
+            starts_session=True,
         )
         return LunaWorkerResponse(_session_id_from_jsonl(stdout), raw, elapsed_ms)
 
@@ -547,23 +1055,44 @@ class CodexLunaCliExecutor:
         worker_session_id: str,
         request: Mapping[str, Any],
         attempt: int,
+        reflection_nonce: str | None = None,
+        persistent_delta_proxy: bool = False,
     ) -> LunaWorkerResponse:
         response_path = self._response_path(binding, request, attempt)
         command = (
-            *self.command, "exec", "resume", worker_session_id, "--model", LUNA_MODEL,
-            "--skip-git-repo-check", "--ignore-rules", "--json", "--output-last-message",
-            str(response_path), "-",
+            *self.command,
+            "exec",
+            "resume",
+            worker_session_id,
+            "--model",
+            LUNA_MODEL,
+            "--skip-git-repo-check",
+            "--ignore-rules",
+            "--json",
+            "--output-last-message",
+            str(response_path),
+            "-",
         )
         raw, stdout, elapsed_ms = await self._invoke(
-            command=command, binding=binding, request=request, attempt=attempt
+            command=command,
+            binding=binding,
+            request=request,
+            attempt=attempt,
+            reflection_nonce=reflection_nonce,
+            persistent_delta_proxy=persistent_delta_proxy,
+            starts_session=False,
         )
         emitted = _maybe_session_id(stdout)
         if emitted is not None and emitted != worker_session_id:
-            raise SiloIsolationError("Codex resume emitted a different persistent thread id")
+            raise SiloIsolationError(
+                "Codex resume emitted a different persistent thread id"
+            )
         return LunaWorkerResponse(worker_session_id, raw, elapsed_ms)
 
 
-def _pending_request(plan: ConversationPlan, pending: RelayPendingRequest) -> tuple[dict[str, Any], str]:
+def _pending_request(
+    plan: ConversationPlan, pending: RelayPendingRequest
+) -> tuple[dict[str, Any], str]:
     request = _benchmark_request_payload(pending.request)
     request_hash = _benchmark_request_fingerprint(pending.request)
     if (
@@ -609,8 +1138,12 @@ def _event(
     latency_ms: float,
     retryable: bool,
     rate_limited: bool,
+    reflection_nonce: str | None = None,
+    public_response_sha256: str | None = None,
+    suffix_sha256: str | None = None,
+    projected_request_sha256: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    event: dict[str, Any] = {
         "conversation_id": binding.conversation_id,
         "case_id": binding.case_id,
         "actor_id": binding.actor_id,
@@ -624,6 +1157,15 @@ def _event(
         "retryable": retryable,
         "rate_limited": rate_limited,
     }
+    if reflection_nonce is not None:
+        event["reflection_nonce"] = reflection_nonce
+    if public_response_sha256 is not None:
+        event["public_response_sha256"] = public_response_sha256
+    if suffix_sha256 is not None:
+        event["suffix_sha256"] = suffix_sha256
+    if projected_request_sha256 is not None:
+        event["projected_request_sha256"] = projected_request_sha256
+    return event
 
 
 async def _worker_call(
@@ -632,10 +1174,18 @@ async def _worker_call(
     binding: WorkerBinding,
     request: Mapping[str, Any],
     attempt: int,
+    reflection_nonce: str | None = None,
+    persistent_delta_proxy: bool = False,
 ) -> LunaWorkerResponse:
     session_id = audit.session(binding)
     if session_id is None:
-        response = await executor.start(binding=binding, request=request, attempt=attempt)
+        response = await executor.start(
+            binding=binding,
+            request=request,
+            attempt=attempt,
+            reflection_nonce=reflection_nonce,
+            persistent_delta_proxy=persistent_delta_proxy,
+        )
         audit.bind(binding, response.worker_session_id)
     else:
         response = await executor.resume(
@@ -643,6 +1193,8 @@ async def _worker_call(
             worker_session_id=session_id,
             request=request,
             attempt=attempt,
+            reflection_nonce=reflection_nonce,
+            persistent_delta_proxy=persistent_delta_proxy,
         )
     if response.worker_session_id != audit.session(binding):
         raise SiloIsolationError("worker response does not match the owning session")
@@ -660,11 +1212,48 @@ async def _append_pending_response(
     gate: AdaptiveGate,
     config: SchedulerConfig,
 ) -> None:
-    binding = WorkerBinding(plan.conversation_id, plan.case.case_id, pending.request.actor_id)
+    binding = WorkerBinding(
+        plan.conversation_id, plan.case.case_id, pending.request.actor_id
+    )
+    reflection_nonce = (
+        audit.reserve_reflection_nonce(binding, sequence=pending.sequence)
+        if config.private_reflections
+        else None
+    )
+    if config.private_reflections:
+        _assert_reflection_free(
+            json.dumps(request, ensure_ascii=False, sort_keys=True),
+            nonces=tuple(
+                record["nonce"]
+                for record in audit.data["private_reflection_turns"]
+                if isinstance(record, Mapping) and isinstance(record.get("nonce"), str)
+            ),
+            label="canonical inner request",
+        )
     for attempt in range(1, config.max_technical_retries + 2):
+        starts_session = audit.session(binding) is None
+        projected_request_sha256 = (
+            _sha256_json(
+                _projected_proxy_request(
+                    request,
+                    persistent_delta_proxy=True,
+                    starts_session=starts_session,
+                )
+            )
+            if config.persistent_delta_proxy
+            else None
+        )
         try:
             async with gate.slot():
-                response = await _worker_call(executor, audit, binding, request, attempt)
+                response = await _worker_call(
+                    executor,
+                    audit,
+                    binding,
+                    request,
+                    attempt,
+                    reflection_nonce=reflection_nonce,
+                    persistent_delta_proxy=config.persistent_delta_proxy,
+                )
         except LunaWorkerError as error:
             if error.session_id:
                 audit.bind(binding, error.session_id)
@@ -680,6 +1269,7 @@ async def _append_pending_response(
                     latency_ms=error.elapsed_ms,
                     retryable=error.retryable,
                     rate_limited=error.rate_limited,
+                    projected_request_sha256=projected_request_sha256,
                 )
             )
             await gate.observe(accepted=False, rate_limited=error.rate_limited)
@@ -689,10 +1279,74 @@ async def _append_pending_response(
                 await asyncio.sleep(config.retry_backoff_seconds * attempt)
             continue
         try:
+            parsed_reflection: ReflectionParseResult | None = None
             if not isinstance(response.raw_response, str):
                 raise CharacterAgentOutputError("worker response must be raw text")
-            sanitize_character_public_text(response.raw_response)
+            parsed_reflection = (
+                _parse_private_reflection(
+                    response.raw_response,
+                    expected_nonce=reflection_nonce,
+                )
+                if reflection_nonce is not None
+                else None
+            )
+            public_response = (
+                parsed_reflection.public_body
+                if parsed_reflection is not None
+                else response.raw_response
+            )
+            sanitize_character_public_text(public_response)
+        except ReflectionOutputError as error:
+            if reflection_nonce is None or not isinstance(response.raw_response, str):
+                raise AssertionError(
+                    "reflection parser ran without a raw response and nonce"
+                )
+            _write_private_reflection_artifact(
+                plan,
+                binding=binding,
+                sequence=pending.sequence,
+                attempt=attempt,
+                status="rejected_malformed_suffix",
+                raw_response=response.raw_response,
+                parsed=None,
+                error=str(error),
+            )
+            audit.record_reflection_result(
+                binding,
+                sequence=pending.sequence,
+                nonce=reflection_nonce,
+                status="rejected_malformed_suffix",
+            )
+            audit.record(
+                _event(
+                    binding,
+                    session_id=response.worker_session_id,
+                    request_hash=request_hash,
+                    sequence=pending.sequence,
+                    attempt=attempt,
+                    status="rejected_malformed_suffix",
+                    raw_response=None,
+                    latency_ms=response.elapsed_ms,
+                    retryable=False,
+                    rate_limited=False,
+                    reflection_nonce=reflection_nonce,
+                    projected_request_sha256=projected_request_sha256,
+                )
+            )
+            await gate.observe(accepted=False, rate_limited=False)
+            raise
         except CharacterAgentOutputError as error:
+            if reflection_nonce is not None and isinstance(response.raw_response, str):
+                _write_private_reflection_artifact(
+                    plan,
+                    binding=binding,
+                    sequence=pending.sequence,
+                    attempt=attempt,
+                    status="rejected_public_output_shape",
+                    raw_response=response.raw_response,
+                    parsed=parsed_reflection,
+                    error=str(error),
+                )
             audit.record(
                 _event(
                     binding,
@@ -704,11 +1358,21 @@ async def _append_pending_response(
                     raw_response=(
                         response.raw_response
                         if isinstance(response.raw_response, str)
+                        and reflection_nonce is None
                         else None
                     ),
                     latency_ms=response.elapsed_ms,
                     retryable=True,
                     rate_limited=False,
+                    reflection_nonce=reflection_nonce,
+                    suffix_sha256=(
+                        hashlib.sha256(
+                            parsed_reflection.reflection.suffix.encode()
+                        ).hexdigest()
+                        if parsed_reflection is not None
+                        else None
+                    ),
+                    projected_request_sha256=projected_request_sha256,
                 )
             )
             await gate.observe(accepted=False, rate_limited=False)
@@ -717,7 +1381,33 @@ async def _append_pending_response(
             if config.retry_backoff_seconds:
                 await asyncio.sleep(config.retry_backoff_seconds * attempt)
             continue
-        append_relay_response(plan.ledger_path, response.raw_response, pending_path=plan.pending_path)
+        append_relay_response(
+            plan.ledger_path, public_response, pending_path=plan.pending_path
+        )
+        public_response_sha256 = hashlib.sha256(public_response.encode()).hexdigest()
+        suffix_sha256 = (
+            hashlib.sha256(parsed_reflection.reflection.suffix.encode()).hexdigest()
+            if parsed_reflection is not None
+            else None
+        )
+        if parsed_reflection is not None:
+            _write_private_reflection_artifact(
+                plan,
+                binding=binding,
+                sequence=pending.sequence,
+                attempt=attempt,
+                status="accepted",
+                raw_response=response.raw_response,
+                parsed=parsed_reflection,
+            )
+            audit.record_reflection_result(
+                binding,
+                sequence=pending.sequence,
+                nonce=parsed_reflection.reflection.nonce,
+                status="accepted",
+                public_response_sha256=public_response_sha256,
+                suffix_sha256=suffix_sha256,
+            )
         audit.record(
             _event(
                 binding,
@@ -726,12 +1416,22 @@ async def _append_pending_response(
                 sequence=pending.sequence,
                 attempt=attempt,
                 status="accepted",
-                raw_response=response.raw_response,
+                raw_response=response.raw_response
+                if reflection_nonce is None
+                else None,
                 latency_ms=response.elapsed_ms,
                 retryable=False,
                 rate_limited=False,
+                reflection_nonce=reflection_nonce,
+                public_response_sha256=(
+                    public_response_sha256 if reflection_nonce is not None else None
+                ),
+                suffix_sha256=suffix_sha256,
+                projected_request_sha256=projected_request_sha256,
             )
         )
+        if reflection_nonce is not None:
+            _assert_public_artifacts_reflection_free(plan, audit)
         await gate.observe(accepted=True, rate_limited=False)
         return
     raise AssertionError("bounded retry loop should return or raise")
@@ -746,6 +1446,7 @@ async def _run_one(
     config: SchedulerConfig,
     manifest_sha256: str,
 ) -> ConversationResult:
+    reflection_restarts = 0
     while True:
         try:
             result = await run_relay_conversation(
@@ -758,16 +1459,25 @@ async def _run_one(
             )
         except RelayPendingRequest as pending:
             request, request_hash = _pending_request(plan, pending)
-            await _append_pending_response(
-                plan=plan,
-                pending=pending,
-                request=request,
-                request_hash=request_hash,
-                executor=executor,
-                audit=audit,
-                gate=gate,
-                config=config,
-            )
+            try:
+                await _append_pending_response(
+                    plan=plan,
+                    pending=pending,
+                    request=request,
+                    request_hash=request_hash,
+                    executor=executor,
+                    audit=audit,
+                    gate=gate,
+                    config=config,
+                )
+            except ReflectionOutputError as error:
+                _discard_reflection_conversation(plan, audit)
+                reflection_restarts += 1
+                if reflection_restarts > config.max_reflection_conversation_restarts:
+                    raise SchedulerError(
+                        "repeated private reflection shape failure invalidated the conversation"
+                    ) from error
+                continue
             await asyncio.sleep(0)
             continue
         if len(result.turns) != plan.expected_turn_count:
@@ -785,7 +1495,9 @@ async def run_persistent_luna_silos(
     executor: LunaWorkerExecutor,
 ) -> SchedulerRunResult:
     manifest_sha256 = _frozen_sha256(manifest_sha256)
-    plans = build_conversation_plans(cases, output_dir=output_dir, run_id=run_id, config=config)
+    plans = build_conversation_plans(
+        cases, output_dir=output_dir, run_id=run_id, config=config
+    )
     audit = SchedulerAudit(
         output_dir / "scheduler_state.json",
         manifest_sha256=manifest_sha256,
@@ -823,6 +1535,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-technical-retries", type=int, default=2)
     parser.add_argument("--retry-backoff-seconds", type=float, default=1.0)
     parser.add_argument("--worker-timeout-seconds", type=float, default=300.0)
+    parser.add_argument(
+        "--private-reflections",
+        action="store_true",
+        help="enable the experiment-only sealed actor-private reflection suffix",
+    )
+    parser.add_argument(
+        "--persistent-delta-proxy",
+        "--persistent-delta",
+        dest="persistent_delta_proxy",
+        action="store_true",
+        help="send only the newest user packet when resuming a persistent worker",
+    )
     parser.add_argument("--execute", action="store_true")
     return parser
 
@@ -830,7 +1554,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
 async def _run_cli(args: argparse.Namespace) -> int:
     frozen_sha = _frozen_sha256(args.frozen_manifest_sha256)
     if _manifest_sha256(args.manifest) != frozen_sha:
-        raise SystemExit("frozen manifest hash mismatch; refusing to start Luna sessions")
+        raise SystemExit(
+            "frozen manifest hash mismatch; refusing to start Luna sessions"
+        )
     config = SchedulerConfig(
         conversation_count=args.conversations,
         initial_concurrency=args.initial_concurrency,
@@ -840,11 +1566,25 @@ async def _run_cli(args: argparse.Namespace) -> int:
         max_technical_retries=args.max_technical_retries,
         retry_backoff_seconds=args.retry_backoff_seconds,
         worker_timeout_seconds=args.worker_timeout_seconds,
+        private_reflections=args.private_reflections,
+        persistent_delta_proxy=args.persistent_delta_proxy,
     )
     cases = load_benchmark_manifest(args.manifest)
-    plans = build_conversation_plans(cases, output_dir=args.output, run_id=args.run_id, config=config)
+    plans = build_conversation_plans(
+        cases, output_dir=args.output, run_id=args.run_id, config=config
+    )
     if not args.execute:
-        print(json.dumps({"status": "validated_not_executed", "model": LUNA_MODEL, "conversation_count": len(plans), "worker_count": len(plans) * 2, "turn_count_per_conversation": FIXED_TURN_COUNT}))
+        print(
+            json.dumps(
+                {
+                    "status": "validated_not_executed",
+                    "model": LUNA_MODEL,
+                    "conversation_count": len(plans),
+                    "worker_count": len(plans) * 2,
+                    "turn_count_per_conversation": FIXED_TURN_COUNT,
+                }
+            )
+        )
         return 0
     result = await run_persistent_luna_silos(
         cases,
@@ -853,11 +1593,24 @@ async def _run_cli(args: argparse.Namespace) -> int:
         manifest_sha256=frozen_sha,
         config=config,
         executor=CodexLunaCliExecutor(
-            workers_root=args.output / "worker_sessions",
+            workers_root=(
+                args.output / "private_reflection_qa" / "worker_sessions"
+                if config.private_reflections
+                else args.output / "worker_sessions"
+            ),
             timeout_seconds=config.worker_timeout_seconds,
         ),
     )
-    print(json.dumps({"status": "complete", "state": str(result.state_path), "conversation_count": len(result.results), "model": LUNA_MODEL}))
+    print(
+        json.dumps(
+            {
+                "status": "complete",
+                "state": str(result.state_path),
+                "conversation_count": len(result.results),
+                "model": LUNA_MODEL,
+            }
+        )
+    )
     return 0
 
 
