@@ -959,6 +959,18 @@ def _proxy_prompt(
             "body, append exactly one actor-private suffix using the supplied id and exact\n"
             "shape. No present witness can see this suffix. Never quote it, explain it, or\n"
             "let its field names enter the scene prose.\n\n"
+            "The final line must keep these outer parentheses, tag, JSON keys, and key\n"
+            "order exactly; replace only the six quoted value descriptions:\n"
+            f'(<actor_private_reflection id="{reflection_nonce}">'
+            '{"present_true_position":"one concrete clause",'
+            '"public_attempt":"one concrete clause",'
+            '"deliberately_unsaid_truth":"one concrete clause or NONE",'
+            '"unavailable_because":"one concrete clause or NONE",'
+            '"relationship_status_cost":"one concrete clause or NONE",'
+            '"continuity_pressure":"one concrete clause or NONE"}'
+            "</actor_private_reflection>)\n"
+            "Do not rename, reorder, omit, or add keys, and keep that suffix on one\n"
+            "physical line.\n\n"
             "Use one short concrete clause per value, grounded only in established actor\n"
             "knowledge and the public exchange. Use NONE rather than inventing a withheld\n"
             "truth, reason, cost, or continuity pressure. Distinguish the actor's actual\n"
