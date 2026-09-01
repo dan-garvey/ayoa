@@ -1,0 +1,89 @@
+{
+  "schema_version": "character_dialogue_prompt_factorial_v1",
+  "purpose": "Test prompt architecture while holding dialogue material fixed.",
+  "frozen_controls": {
+    "manifest": "../live-eight/control-manifest.json",
+    "manifest_sha256": "886b461c9cd80bc3be21173ec05264cefdff4a3422ff39c834c14619ed4c87e3",
+    "conversation_count_per_cell": 8,
+    "turns_per_conversation": 16,
+    "model": "gpt-5.6-luna",
+    "compact": false,
+    "scenario_changes": false
+  },
+  "cells": [
+    {
+      "cell": "A",
+      "identity": "repeated",
+      "system_instructions": "current",
+      "private_reflection": false,
+      "source": "existing_baseline"
+    },
+    {
+      "cell": "A2",
+      "identity": "repeated",
+      "system_instructions": "current",
+      "private_reflection": false,
+      "source": "contemporaneous_rerun"
+    },
+    {
+      "cell": "B",
+      "identity": "repeated",
+      "system_instructions": "current",
+      "private_reflection": true,
+      "source": "new"
+    },
+    {
+      "cell": "C",
+      "identity": "once",
+      "system_instructions": "current",
+      "private_reflection": false,
+      "source": "new"
+    },
+    {
+      "cell": "D",
+      "identity": "once",
+      "system_instructions": "current",
+      "private_reflection": true,
+      "source": "new"
+    },
+    {
+      "cell": "E",
+      "identity": "once",
+      "system_instructions": "minimal",
+      "private_reflection": false,
+      "source": "new"
+    },
+    {
+      "cell": "F",
+      "identity": "once",
+      "system_instructions": "minimal",
+      "private_reflection": true,
+      "source": "new"
+    }
+  ],
+  "launch_waves": [
+    ["B", "C"],
+    ["D", "E"],
+    ["F", "A2"]
+  ],
+  "launch_contract": {
+    "concurrent_conversations_per_cell": 8,
+    "concurrent_cells": 2,
+    "maximum_simultaneous_model_calls": 16,
+    "qualitative_inspection_during_generation": false,
+    "technical_monitoring_only": [
+      "accepted_turn_count",
+      "active_worker_count",
+      "error_count",
+      "retry_count",
+      "throttle_count"
+    ]
+  },
+  "comparisons": {
+    "identity_repetition_without_reflection": ["A2", "C"],
+    "reflection_with_repeated_identity": ["A2", "B"],
+    "reflection_with_one_time_identity": ["C", "D"],
+    "instruction_density_without_reflection": ["C", "E"],
+    "instruction_density_with_reflection": ["D", "F"]
+  }
+}
