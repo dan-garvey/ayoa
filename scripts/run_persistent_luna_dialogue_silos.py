@@ -62,9 +62,9 @@ REFLECTION_MAX_SUFFIX_BYTES = 1200
 _LINE_BREAKS = frozenset("\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029")
 _REFLECTION_NONCE_RE = re.compile(r"R-[0-9a-f]{32}")
 _REFLECTION_SUFFIX_RE = re.compile(
-    r"\A(?P<body>.*)\n\n"
-    r"\(<actor_private_reflection id=\"(?P<nonce>R-[0-9a-f]{32})\">"
-    r"(?P<payload>[^\n]*)</actor_private_reflection>\)\n?\Z",
+    r"\A(?P<body>.*?)\n+"
+    r"(?P<suffix>\(<actor_private_reflection id=\"(?P<nonce>R-[0-9a-f]{32})\">"
+    r"(?P<payload>[^\n]*)</actor_private_reflection>\))\n?\Z",
     re.DOTALL,
 )
 _RATE_LIMIT_RE = re.compile(
@@ -356,7 +356,7 @@ def _parse_private_reflection(
     public_body = match.group("body")
     if "actor_private_reflection" in public_body:
         raise ReflectionOutputError("private reflection marker appears in public prose")
-    suffix = raw_response[len(public_body) + 2 :].rstrip("\n")
+    suffix = match.group("suffix")
     if len(suffix.encode("utf-8")) > REFLECTION_MAX_SUFFIX_BYTES:
         raise ReflectionOutputError(
             "private reflection suffix exceeds 1200 UTF-8 bytes"
