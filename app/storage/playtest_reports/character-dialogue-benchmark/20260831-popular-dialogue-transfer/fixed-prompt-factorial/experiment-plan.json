@@ -4,8 +4,9 @@
   "frozen_controls": {
     "manifest": "./control-manifest.json",
     "manifest_sha256": "886b461c9cd80bc3be21173ec05264cefdff4a3422ff39c834c14619ed4c87e3",
-    "minimal_system_sha256": "a8b0d33d540ac1d6cfd8b2ba6ecd2ea1a95e2a9b64e3a9003d02d6ae532b6037",
-    "current_system_sha256": "220891f7efda350f5587f483d754bd80535c308901d4279030b662084e4ad031",
+    "minimal_system_source_sha256": "a8b0d33d540ac1d6cfd8b2ba6ecd2ea1a95e2a9b64e3a9003d02d6ae532b6037",
+    "current_system_source_sha256": "220891f7efda350f5587f483d754bd80535c308901d4279030b662084e4ad031",
+    "current_rendered_system_message_sha256": "6d5cf78434e781c27a40e01ec435b22b21891487a1dae7ee7c7910da773c67fc",
     "runner_sha256": "c8534a18094829f02539cc796874e9de18d855ed9f85ef5f0ee4ea0e322af95b",
     "cell_c_launch_runner_sha256": "fc3be6f720fe0ffeaf07a6676499e868aa80441cc4af56ff080d6f42f6911fab",
     "repeated_identity_context_builder_sha256": "f316ab196cacfdeffcd75c4e4457c1ac49df2e1ea686952b6cdf631198d122a5",
@@ -16,7 +17,9 @@
     "turns_per_conversation": 16,
     "model": "gpt-5.6-luna",
     "compact": false,
-    "scenario_changes": false
+    "scenario_changes": false,
+    "character_changes": false,
+    "sampling_changes": false
   },
   "cells": [
     {

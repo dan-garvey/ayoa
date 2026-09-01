@@ -1,0 +1,1085 @@
+{
+  "schema_version": "whole_conversation_human_review_v1",
+  "reviewer_id": "reviewer-1",
+  "source_hidden": true,
+  "blinding_statement": "Reviewed only the supplied blind packet. No hidden-cell guess or provenance inference was made.",
+  "methodology": {
+    "unit": "One complete sixteen-turn conversation across both scenes",
+    "procedure": [
+      "Read both scenes and the between-scene history before assigning any rating.",
+      "Treat a stylish isolated line as insufficient unless objectives, replies, status, and consequences remain legible across the whole exchange.",
+      "Rate unsupported scene facts, continuity errors, prompt-metadata echoes, generic therapy language, clipped repetition, and aphoristic symmetry as quality costs rather than as character depth.",
+      "Use turn indices as concise evidence; a pass requires affirmative dramatic evidence, mixed indicates partial or uneven evidence, and fail indicates absence or contradiction."
+    ],
+    "rating_values": ["pass", "mixed", "fail"]
+  },
+  "aggregate_observations": {
+    "overall_counts": {"pass": 7, "mixed": 33, "fail": 8},
+    "observations": [
+      "The strongest conversations make an earlier promise, refusal, question, or interpretive concession constrain scene two.",
+      "The weakest conversations abandon scene-one pressure for menu ordering, setup, or mechanically narrated rehearsal, preserving coherence without dramatic consequence.",
+      "Okabe and Kurisu are usually easy to distinguish, but repeated experiment-versus-correction banter often becomes a catchphrase machine; the better cases let the performance crack or make Mayuri's routine costly.",
+      "Setsuna, Haruki, and Kazusa are strongest when precise questions expose permission, avoidance, or relationship debt; they weaken when everyone speaks in polished boundary-setting language or merely repeats known facts.",
+      "Prominent grounding faults include leaked speaker labels, exact scene-metadata recitation, gender inconsistency, an absent bun or cup reappearing, route contradiction, and a causal claim stronger than the speakers' knowledge."
+    ]
+  },
+  "conversations": [
+    {
+      "blind_id": "sample-01",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [4, 11, 12, 15], "notes": "Haruki's promise becomes an enforceable six-day debt and produces action."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 3, 10], "notes": "Both distinguish recognition, permission, asking, and knowing the answer."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [1, 10, 13], "notes": "The club triangle and Kazusa's privacy matter, but little concrete life history is activated."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [3, 4, 12, 13], "notes": "Setsuna uses exact quiet boundaries; Haruki answers tersely and retreats into delay."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [2, 13], "notes": "Permission and fear of cornering Kazusa block the easiest disclosure and timely question."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [3, 10, 14, 15], "notes": "Setsuna seeks accountable action; Haruki delays, then visibly complies."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [7, 9, 11, 12], "notes": "Silence, the untouched instruments, and the single 'No' make disappointed trust legible."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [3, 12, 15], "notes": "Asking Kazusa is also a test of Haruki's reliability with Setsuna."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [2, 3, 11, 12, 13, 14], "notes": "Answers, refusals, reasons, and corrections are recognized immediately."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [7, 8, 9, 11, 15], "notes": "A ritual silence becomes a blunt confession and then concrete movement."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [3, 12, 14, 15], "notes": "Setsuna converts Haruki's promise into accountability and controls the repair."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 4, 11, 15, 16], "notes": "The sequence sustains a clean promise, breach, challenge, and partial repair."}
+        },
+        "quality_flags": [],
+        "notes": "A consequential, locally exact conversation whose second scene genuinely depends on the first."
+      }
+    },
+    {
+      "blind_id": "sample-02",
+      "review": {
+        "overall_status": "fail",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The negotiated food order disappears; scene two starts an unrelated rehearsal."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [1, 9], "notes": "Neither speaker claims unavailable facts."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [1, 9], "notes": "The weekly ritual and Haruki's absence never acquire consequence."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [1, 2, 5, 6], "notes": "Terseness versus coaxing is visible, but language choice does most of the differentiating."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [3, 4, 5, 6], "notes": "Resistance resolves into frictionless ordering without a costly withheld sentence."},
+          "dramatic_attempt": {"result": "mixed", "evidence_turns": [1, 2, 4, 5], "notes": "There is a mild leave-versus-stay negotiation only in scene one."},
+          "inferable_subtext": {"result": "fail", "evidence_turns": [9, 16], "notes": "The rehearsal supplies no recoverable relationship movement."},
+          "literal_and_interpersonal_action": {"result": "mixed", "evidence_turns": [1, 5, 6], "notes": "Ordering briefly extends the visit, but the extension changes nothing later."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [1, 2, 5, 6, 11, 12], "notes": "Individual turns answer their immediate predecessors."},
+          "rhythm_and_deviation": {"result": "fail", "evidence_turns": [9, 16], "notes": "Scene two is uniform mechanical music narration with no meaningful deviation."},
+          "status_negotiation": {"result": "fail", "evidence_turns": [9, 16], "notes": "No one gains, yields, refuses, or repairs once rehearsal begins."},
+          "whole_conversation_value": {"result": "fail", "evidence_turns": [1, 8, 9, 16], "notes": "Two technically coherent fragments do not form sustained dramatic fiction."}
+        },
+        "quality_flags": ["language_as_primary_fingerprint", "repetitive_task_narration"],
+        "notes": "The first scene has slight relational pressure, but the second becomes an unbroken sequence of generic musical actions."
+      }
+    },
+    {
+      "blind_id": "sample-03",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The bun exchange closes and imposes no condition on the route scene."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 9], "notes": "Kurisu reveals only what tasting establishes; both use shared route history."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [9, 15, 16], "notes": "Their correction ritual persists, but Mayuri's window habit does not alter the direct route."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 11, 12], "notes": "Okabe inflates classifications while Kurisu narrows terms and evidence."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [1, 16], "notes": "Both can state their positions freely; no withheld sentence creates cost."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [1, 2, 9, 10], "notes": "Guessing, correcting, and framing the route are active conversational pursuits."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [9, 15], "notes": "Companionship is visible, but little remains beneath the explicit sparring."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [2, 6, 10, 12], "notes": "Pastry and vocabulary sustain their familiar authority game."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [2, 4, 6, 8, 10, 12], "notes": "Corrections are precisely taken up and revised."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 13, 15, 16], "notes": "The quip rhythm is regular; Okabe's aborted retort is the one useful break."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [1, 2, 15, 16], "notes": "Kurisu repeatedly corrects and Okabe yields terminology, with limited movement."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Enjoyable fingerprints cannot supply the missing across-scene consequence."}
+        },
+        "quality_flags": ["caricatured_fingerprint"],
+        "notes": "Readable banter with clear voices, but the two scenes remain adjacent sketches rather than one consequential conversation."
+      }
+    },
+    {
+      "blind_id": "sample-04",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "Nothing decided over the bun changes permission or cost in scene two."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 9], "notes": "The speakers stay within tasting and shared route knowledge."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [9, 10, 14, 16], "notes": "Mayuri's habitual window stop makes choosing the arcade and falling silent consequential."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 10, 12], "notes": "Okabe performs; Kurisu punctures categories and quietly chooses."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [9, 13, 14], "notes": "Neither can simply say that Mayuri's absence is the reason for the detour."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 13], "notes": "Okabe proposes a cover story; Kurisu accepts the route while limiting the performance."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [9, 13, 14, 16], "notes": "Shared awareness of Mayuri's absence is reconstructable without explanation."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [9, 10, 14], "notes": "The route becomes a way to share an absence without naming it."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 12, 13, 14], "notes": "Kurisu's correction changes Okabe's volume, and silence is an apt reply."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [11, 13, 14, 15, 16], "notes": "Theatrical cadence collapses into three meaningful silent turns."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [9, 10, 13], "notes": "Kurisu chooses the path and successfully constrains Okabe's narration."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "Both scenes are readable and the second sustains delicate subtext, despite lacking debt from the first."}
+        },
+        "quality_flags": [],
+        "notes": "Strong scene-two restraint and biography, held to mixed overall because scene one does not materially condition it."
+      }
+    },
+    {
+      "blind_id": "sample-05",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [1, 8, 9, 15], "notes": "Haruki's absence persists, but the shared meal creates no explicit later obligation."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [9, 12, 14], "notes": "Both separate what Haruki said from speculation and refuse to guess for him."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [1, 9], "notes": "The weekly triangle makes absence meaningful, but no concrete history is newly activated."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 12, 13], "notes": "Kazusa is blunt and boundary-first; Setsuna is relational and carefully qualifying."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [6, 8, 12, 14], "notes": "They avoid naming why Haruki matters, though that avoidance exacts little visible cost."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [1, 2, 9, 12], "notes": "They negotiate staying together, then test one another's knowledge and limits."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [6, 8, 9, 13], "notes": "Copying the order and watching the empty doorway convey alliance and triangular anxiety."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [6, 8, 9, 15], "notes": "Food choice and information-seeking both negotiate the women's temporary alliance."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [2, 3, 6, 7, 10, 11], "notes": "Replies recognize offers, qualifications, and factual boundaries."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Controlled rhythm fits them, but repeated hands, nods, and 'that's all' feel generated."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [6, 8, 12, 15], "notes": "They trade small control over food and topic without a decisive shift."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Subtle and coherent, but the second scene mostly restates the triangle's uncertainty."}
+        },
+        "quality_flags": ["repetitive_gesture_language"],
+        "notes": "Good local characterization and subtext, with too little escalation or concrete accumulated cost."
+      }
+    },
+    {
+      "blind_id": "sample-06",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The completed pastry exchange does not constrain the later route choice."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 13], "notes": "Kurisu uses disclosed filling knowledge; Okabe reasons from the shared Mayuri habit."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [9, 13, 16], "notes": "A habitual route becomes an admission about why Mayuri's absence changes it."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 13, 14], "notes": "Okabe's theatrical taxonomy contrasts with Kurisu's compact methodological probes."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [9, 13, 15], "notes": "Okabe cannot name the emotional reason without wrapping it in record control."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 12, 13], "notes": "Kurisu selects the detour to make Okabe explain his anomalous direct-route choice."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [9, 13, 15, 16], "notes": "Missing Mayuri and Kurisu's care are legible beneath route terminology."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 12, 13], "notes": "Route selection creates permission to discuss an absence Okabe would evade directly."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 12, 14, 16], "notes": "Each challenge narrows the prior answer rather than starting a new bit."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [9, 13, 15], "notes": "A stalled proclamation, slowed step, and faltering stride carry meaning."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [9, 10, 13, 16], "notes": "Kurisu takes route control and extracts an answer while Okabe salvages limited face."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "The second scene is sustained, funny, and emotionally specific, though not indebted to scene one."}
+        },
+        "quality_flags": ["mild_catchphrase_repetition"],
+        "notes": "High-quality scene-two character action, rated mixed overall because the first scene is functionally detachable."
+      }
+    },
+    {
+      "blind_id": "sample-07",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The first experiment closes without changing the later walk."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 6, 13], "notes": "Knowledge of filling and of Mayuri's habit stays properly bounded."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [9, 13, 16], "notes": "Mayuri's window ritual becomes the object of a changed-feeling test."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 11, 12], "notes": "Okabe narrates hypotheses; Kurisu audits categories and methods."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [9, 13, 15], "notes": "Okabe approaches grief through method, but names the emotional question fairly readily."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 12, 15], "notes": "Both use the route to test and revise a claim about absence."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [13, 14, 15, 16], "notes": "Their shared concern for Mayuri remains recoverable beneath variable talk."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 13, 16], "notes": "The observational walk also negotiates how they may acknowledge missing Mayuri."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 12, 14, 16], "notes": "Corrections consistently reshape the next claim."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "Nearly every turn is a balanced explanatory paragraph, flattening pauses and interruption."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 12, 15, 16], "notes": "Kurisu repeatedly changes the terms while Okabe retains performative face."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Rich characterization is weakened by detachable scenes and overly polished debate."}
+        },
+        "quality_flags": ["overwritten_banter", "aphoristic_precision"],
+        "notes": "Clear voices and meaningful biography, but the exchange often reads as a designed argument rather than lived conversation."
+      }
+    },
+    {
+      "blind_id": "sample-08",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [1, 8, 9, 15], "notes": "Their choice to remain together colors the later music, but no explicit obligation crosses scenes."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [9, 10, 11], "notes": "They report only what Haruki has or has not sent."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [1, 12, 15], "notes": "The table and music rituals shape behavior, with little concrete history activated."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 4, 7, 8], "notes": "Kazusa's blunt reassurance differs from Setsuna's careful affiliative choices."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [1, 7, 9, 15], "notes": "Phone meaning and feelings about Haruki remain unsaid while shared actions carry them."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [1, 3, 9, 11], "notes": "Kazusa reassures Setsuna; Setsuna tests for news and redirects to music."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [3, 7, 15, 16], "notes": "Staying, not copying, and leaving a note suspended imply closeness and anxiety."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [3, 8, 12, 15], "notes": "Food and phrasing become ways of choosing each other's company."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [2, 3, 7, 8, 9, 10], "notes": "Offers, denials, and musical phrases are taken up accurately."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [7, 8, 12, 15, 16], "notes": "A small verbal correction gives way to music and deliberately unfilled space."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [1, 8, 9, 11], "notes": "Control passes gently, without a strong reversal or cost."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "Quiet relational fiction is sustained, though the across-scene causal link stays soft."}
+        },
+        "quality_flags": [],
+        "notes": "Effective restraint and musical subtext; mixed overall because continuity is thematic more than consequential."
+      }
+    },
+    {
+      "blind_id": "sample-09",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [1, 8, 10, 13], "notes": "Ordering postpones the question that Setsuna later presses, but no promise is established."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [11, 13, 15], "notes": "Haruki separates recognizing the mother from knowing the call's purpose."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [13, 15], "notes": "Kazusa's mother becomes relevant but is only named, not made concretely consequential."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [1, 2, 12, 15], "notes": "Setsuna probes and Haruki clips his replies, but both remain generic."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [1, 8, 11, 13], "notes": "Haruki withholds the name until challenged, without a legible reason for the cost."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [1, 10, 12], "notes": "Setsuna first delays, then corners the distinction between recognition and cause."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [1, 8, 11, 16], "notes": "The small-food ritual and closed case show worry being managed rather than resolved."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [1, 10, 12], "notes": "Ordering and setup control when Setsuna can demand candor."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15], "notes": "The second scene is a clean sequence of question, dodge, correction, and limit."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 8, 11, 13], "notes": "The first scene is clipped and repetitive; the later revelation supplies one shift."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 12, 13, 16], "notes": "Setsuna progressively controls disclosure, then chooses to stop."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "The later questioning improves a thin, repetitive first scene but does not fully pay it off."}
+        },
+        "quality_flags": ["clipped_repetition"],
+        "notes": "A credible delayed probe with modest stakes and insufficiently motivated withholding."
+      }
+    },
+    {
+      "blind_id": "sample-10",
+      "review": {
+        "overall_status": "fail",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [3, 12], "notes": "The same no-guess conclusion is repeated six days later without cost or revision."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 9, 12], "notes": "They correctly limit themselves to recognizing the mother and receiving no message."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [2, 12], "notes": "The mother is named but never changes a choice or relationship."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [1, 2, 12, 13], "notes": "Setsuna is slightly more directive, but both share the same careful generic register."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [3, 4, 12, 13], "notes": "Everyone states safe boundaries optimally; no unavailable sentence causes damage."},
+          "dramatic_attempt": {"result": "mixed", "evidence_turns": [3, 5, 12, 14], "notes": "They soothe and defer, but pursue no contested objective."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [7, 9, 12], "notes": "Concern is visible, though there is little to infer beyond the explicit worry."},
+          "literal_and_interpersonal_action": {"result": "mixed", "evidence_turns": [5, 12, 14], "notes": "Tea and setup regulate emotion without moving the relationship."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [1, 2, 9, 10, 11, 12], "notes": "Turns are coherent and directly responsive."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [5, 8, 9, 16], "notes": "Silence is appropriate, but repeated nods and case gestures flatten the sequence."},
+          "status_negotiation": {"result": "fail", "evidence_turns": [9, 16], "notes": "No topic control or relationship position materially changes."},
+          "whole_conversation_value": {"result": "fail", "evidence_turns": [1, 8, 9, 16], "notes": "Polite stasis replaces drama, and scene two simply restates scene one."}
+        },
+        "quality_flags": ["repetitive_gesture_language", "conflict_avoidant_stasis"],
+        "notes": "Accurate but dramatically inert: no new cost, discovery, or shift accumulates across sixteen turns."
+      }
+    },
+    {
+      "blind_id": "sample-11",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The pastry dispute is complete and does not alter the route scene."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 6, 9], "notes": "Claims stay within tasted filling and shared route history."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [9, 15], "notes": "Mayuri's window suggests memory, but her history is mostly decorative."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 12, 14], "notes": "Grandiose reframing and exact peer review remain strongly distinct."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [9, 16], "notes": "The pair readily convert every feeling into an elegant thesis."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 14, 15], "notes": "Okabe recruits Kurisu into a detour; she forces him to state its question."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [15, 16], "notes": "Shared-time value is present but is explained in an abstract maxim."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 13, 15], "notes": "The route debate tests whether their ordinary time together is worthwhile."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 12, 14, 16], "notes": "Each correction is accurately incorporated."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "Long, symmetrical quips leave little silence or interruption."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [9, 10, 14, 16], "notes": "Kurisu controls definitions, while Okabe retains the route; movement is modest."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Clever and readable, but detachable scenes and meta-polish weaken the fiction."}
+        },
+        "quality_flags": ["speaker_label_leak", "aphoristic_model_voice"],
+        "notes": "Turn 15's literal 'Speaker B' breaks the diegesis; the surrounding exchange is stylish but overdesigned."
+      }
+    },
+    {
+      "blind_id": "sample-12",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [3, 12, 14, 15, 16], "notes": "The decision to wait becomes a six-day delay and a live dispute over more time."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 10, 11], "notes": "Recognition of the mother is not inflated into knowledge of Kazusa's reason."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [2, 10, 15], "notes": "The triangle and mother's contact matter, but concrete history remains thin."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [10, 12, 13, 14], "notes": "Setsuna becomes decisive and Haruki deferential, though their language is generic."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [13, 15, 16], "notes": "Haruki cannot explain why he has not contacted her or how much time is enough."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [12, 14, 15, 16], "notes": "Setsuna moves to contact Kazusa; Haruki tries to delay and is challenged."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [8, 13, 15, 16], "notes": "Haruki's glance and intervention expose divided loyalty and avoidance."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [14, 15, 16], "notes": "When to contact Kazusa also determines whose caution governs the triangle."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "The closing exchange turns each answer into a sharper next question."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [5, 8, 13, 16], "notes": "A generic small-talk opening gives way to a strong final interruption."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [14, 15, 16], "notes": "Setsuna seizes agency; Haruki's attempted stop exposes his weaker position."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "The initially bland waiting scene gains consequence through the unresolved final conflict."}
+        },
+        "quality_flags": ["generic_small_talk_opening"],
+        "notes": "A real cross-scene delay acquires interpersonal cost, and the ending preserves rather than erases the conflict."
+      }
+    },
+    {
+      "blind_id": "sample-13",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The practical-answer dispute closes and does not change the later route decision."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 9], "notes": "Kurisu states exactly what she knows; the walk uses shared route facts."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [9, 16], "notes": "Mayuri's established window habit never becomes part of the exchange."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 11, 12], "notes": "Okabe's proliferating frames contrast sharply with Kurisu's terse literal answers."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [9, 10, 11], "notes": "Okabe stalls before proposing the detour, then returns to semantic cover without clear cost."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [1, 5, 10, 14], "notes": "Okabe tries to prolong and dignify each ritual; Kurisu keeps collapsing it."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [9, 10, 16], "notes": "A wish for detour and company is inferable, but no specific emotional stake emerges."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 12, 16], "notes": "The route becomes another arena for their authority and tolerance."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [2, 4, 6, 8, 10, 12], "notes": "Kurisu answers exact claims and Okabe incorporates her wording."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 2, 15, 16], "notes": "The long-speech/one-line pattern distinguishes them but repeats without development."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [10, 12, 14, 16], "notes": "Kurisu controls definitions while Okabe retains the chosen route; positions stay familiar."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Fingerprints are vivid, yet two rounds of the same semantic game do not accumulate."}
+        },
+        "quality_flags": ["caricatured_asymmetry", "repetitive_semantic_banter"],
+        "notes": "Strong surface voice, limited biography, debt, or relationship change."
+      }
+    },
+    {
+      "blind_id": "sample-14",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The pastry verdict creates no later permission, promise, or cost."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 9], "notes": "All claims are grounded in observation or shared route knowledge."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [9, 16], "notes": "Mayuri's window history is unused; the route is reduced to preference."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 11, 12], "notes": "Okabe performs fabricated procedure while Kurisu distinguishes decoration from evidence."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [9, 11, 13], "notes": "Pride delays the plain sentence 'I want the arcade,' but only briefly."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 12, 13], "notes": "Okabe seeks the detour and face; Kurisu seeks an honest basis."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [13, 15, 16], "notes": "Pleasure in the shared walk is visible, though little else is beneath the words."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 13, 14], "notes": "Naming a route preference also permits a small honest admission."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15], "notes": "Each correction produces a visible concession or reframing."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "Balanced quips remain regular; the half-step falter and lowered hand help."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 12, 13, 16], "notes": "Kurisu wins honesty while allowing Okabe a concise dramatic footnote."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "The admission is satisfying, but the first scene is detachable and biography is absent."}
+        },
+        "quality_flags": ["mild_catchphrase_repetition", "tidy_aphoristic_resolution"],
+        "notes": "An enjoyable small concession rather than a consequential two-scene arc."
+      }
+    },
+    {
+      "blind_id": "sample-15",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [6, 7, 13, 15], "notes": "Accurate-report correction establishes a precedent for honesty, but no literal obligation carries over."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [4, 6, 12, 13], "notes": "Kurisu corrects only observed taste and shared Mayuri facts."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [12, 13, 14, 15], "notes": "Mayuri's role and habitual window make Okabe's chosen route newly vulnerable."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 4, 13, 14], "notes": "Okabe's defensive grandeur and Kurisu's evidentiary directness remain distinct."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [13, 14, 15], "notes": "Okabe's pride makes the simple personal reason unavailable until Kurisu removes the demand."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 12, 15], "notes": "Okabe seeks the route without exposure; Kurisu makes him own the choice."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [12, 13, 14, 15], "notes": "Missing Mayuri and wanting more evening are legible beneath classified reasons."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [12, 14, 15], "notes": "The detour also negotiates whether Okabe may want ordinary company without cover."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15], "notes": "Challenges, correction, reassurance, and admission form one continuous exchange."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 8, 13, 15], "notes": "Long first-scene speeches overfill the rhythm; the later falter and silence are effective."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 13, 14, 15], "notes": "Kurisu strips the cover story without humiliating him, enabling a voluntary admission."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "Scene two sustains real vulnerability, though the whole is overlong and only loosely indebted."}
+        },
+        "quality_flags": ["overwritten_banter", "mild_therapy_aphorism"],
+        "notes": "Strong biography and face-saving conflict; mixed overall for weak causal carryover and model-polished excess."
+      }
+    },
+    {
+      "blind_id": "sample-16",
+      "review": {
+        "overall_status": "fail",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "Finishing tea creates no later constraint; scene two simply starts setup."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 11], "notes": "The factual limits around the message remain formally correct."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [2, 16], "notes": "No established life or relationship fact changes either scene."},
+          "conversational_fingerprint": {"result": "fail", "evidence_turns": [2, 10, 12], "notes": "Metadata-like recitation and generic nodding overwhelm individual voice."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [3, 12], "notes": "No meaningful sentence is withheld; the topic is merely abandoned."},
+          "dramatic_attempt": {"result": "fail", "evidence_turns": [10, 12, 16], "notes": "One factual check gives way to unopposed preparation and an unmotivated instruction."},
+          "inferable_subtext": {"result": "fail", "evidence_turns": [9, 16], "notes": "Gestures imply unease but do not support a specific interpersonal meaning."},
+          "literal_and_interpersonal_action": {"result": "fail", "evidence_turns": [9, 16], "notes": "Setup remains literal and does not alter the relationship."},
+          "local_responsiveness": {"result": "mixed", "evidence_turns": [10, 11, 15, 16], "notes": "Questions are answered, but the final command does not follow from tuning one string at a time."},
+          "rhythm_and_deviation": {"result": "fail", "evidence_turns": [9, 16], "notes": "Repeated nods and procedural motions create clipped monotony."},
+          "status_negotiation": {"result": "fail", "evidence_turns": [9, 16], "notes": "No earned change in control or relationship position occurs."},
+          "whole_conversation_value": {"result": "fail", "evidence_turns": [1, 8, 9, 16], "notes": "The sequence reads like scene-fact restatement followed by setup filler."}
+        },
+        "quality_flags": ["prompt_metadata_echo", "repetitive_setup", "unmotivated_final_instruction"],
+        "notes": "Turn 2 unnaturally recites the time and staging; turn 16 imposes control without dramatic basis."
+      }
+    },
+    {
+      "blind_id": "sample-17",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [7, 8, 9, 16], "notes": "The unanswered identity question persists for six days and ends in a consequential disclosure."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [7, 10, 14, 16], "notes": "Setsuna asks from observed behavior; Kazusa discloses only her own undecided future."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [10, 14, 16], "notes": "Her mother's message and an overseas music decision become immediate relationship stakes."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [10, 12, 14, 16], "notes": "Kazusa compresses and deflects; Setsuna repeats exact gaps until they open."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [7, 12, 14, 16], "notes": "Uncertainty and pride make the full sentence unavailable until the final turn."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [8, 9, 11, 15], "notes": "Setsuna pursues why her presence mattered; Kazusa controls the pace of disclosure."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [7, 11, 12, 14], "notes": "Phone placement, gaze avoidance, and 'because you were there' reveal relational stakes."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [11, 14, 16], "notes": "Explaining a message also tests whether Setsuna figures in Kazusa's future."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [9, 10, 11, 12, 13, 14, 15, 16], "notes": "Each short answer is recognized and narrowed rather than bypassed."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [7, 8, 10, 14, 16], "notes": "Compression, pause, and delayed expansion give the reveal earned rhythm."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [9, 12, 14, 16], "notes": "Setsuna controls the questions while Kazusa retains authority over the final fact."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "A small observed detail accumulates into concrete biography and changed relationship possibility."}
+        },
+        "quality_flags": [],
+        "notes": "Concise, grounded, and genuinely cumulative; the final revelation is earned by the prior evasions."
+      }
+    },
+    {
+      "blind_id": "sample-18",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The pastry word-choice game has no material effect on the later walk."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 9], "notes": "Both stay within tasting and shared route facts."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [9, 16], "notes": "The provided Mayuri history is not activated in the dialogue."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 11, 12], "notes": "Okabe expands rules; Kurisu applies compact definitional pressure."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [9, 13, 15], "notes": "Okabe needs several frames to admit he wants the arcade, but the cost is small."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 11, 13], "notes": "He seeks the detour and rhetorical freedom; she imposes limits and plainness."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [13, 15, 16], "notes": "Wanting her company is plausible, but not specifically developed."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 13, 14], "notes": "Route language negotiates how directly Okabe may express preference."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15], "notes": "The sentence limit and its failure are continuously recognized."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "Neat alternating corrections become predictably symmetrical."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [10, 13, 16], "notes": "Kurisu wins plain language; Okabe preserves a small final flourish."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Consistently witty but low-stakes, repetitive, and uncoupled across scenes."}
+        },
+        "quality_flags": ["repetitive_semantic_banter"],
+        "notes": "Distinct speakers, little biography or accumulated interpersonal consequence."
+      }
+    },
+    {
+      "blind_id": "sample-19",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [7, 8, 9, 11], "notes": "Kurisu's unanswered request to define the ceremony is answered through the later route."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 11], "notes": "Hypotheses, tasting, and Mayuri's observed habit remain cleanly separated."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [9, 11, 13], "notes": "Mayuri's habitual pause becomes the place where Okabe explains ownership and uncertainty."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 13, 14], "notes": "Okabe ritualizes uncertainty; Kurisu finds the precise proposition inside it."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [7, 8, 11, 13], "notes": "Pride makes 'the ceremony protects my right to be wrong' available only indirectly."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [6, 8, 9, 12], "notes": "Kurisu presses for definition; Okabe moves the conversation to a ritual place to answer."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [7, 11, 13, 14], "notes": "Fear of certainty and the value of Mayuri's pauses emerge without a post-hoc decoder."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [9, 11, 14], "notes": "Defining pastry ritual also reveals how Okabe preserves agency under Kurisu's scrutiny."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [8, 9, 10, 11, 12, 13, 14], "notes": "The second scene is a direct, evolving answer to turn 8."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [7, 8, 9, 14, 15], "notes": "An unfinished admission crosses the break; pauses and provisional retreat carry meaning."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 12, 14, 15, 16], "notes": "Kurisu refines the definition while Okabe protects limited ceremonial authorship."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "The full sequence develops one question through image, ritual, place, and relationship."}
+        },
+        "quality_flags": ["mild_aphoristic_voice"],
+        "notes": "The most abstract lines are earned by a concrete carried question and stable character conflict."
+      }
+    },
+    {
+      "blind_id": "sample-20",
+      "review": {
+        "overall_status": "fail",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [6, 8, 10, 12], "notes": "Methodology language recurs, but no promise or consequence from scene one constrains scene two."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [4, 6, 11], "notes": "Pastry claims and route hypotheses remain formally grounded."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [9, 16], "notes": "Mayuri's window and relationship history disappear from the exchange."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 9, 10], "notes": "Theatrical hypothesis and exact correction are recognizable, if formulaic."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [11, 16], "notes": "Both readily state polished theories of silence and ambiguity instead of withholding anything costly."},
+          "dramatic_attempt": {"result": "mixed", "evidence_turns": [9, 10, 11], "notes": "They debate how to frame the walk, but pursue no concrete relational objective."},
+          "inferable_subtext": {"result": "fail", "evidence_turns": [12, 16], "notes": "The conversation discusses what could be said rather than letting interpersonal meaning emerge."},
+          "literal_and_interpersonal_action": {"result": "mixed", "evidence_turns": [11, 12, 13], "notes": "The route is described as a speech apparatus, but no relationship actually changes."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Each abstract proposition is answered accurately."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "Uniform long, polished replies leave no meaningful interruption or silence."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [10, 12, 14, 16], "notes": "Kurisu polices method, but the exchange remains a balanced seminar."},
+          "whole_conversation_value": {"result": "fail", "evidence_turns": [1, 8, 9, 16], "notes": "Technically coherent meta-dialogue never becomes consequential dramatic fiction."}
+        },
+        "quality_flags": ["meta_dialogue", "aphoristic_model_voice", "overarticulated_symmetry"],
+        "notes": "The route discussion sounds like a rubric discussing itself; character action is replaced by abstractions about silence and ambiguity."
+      }
+    },
+    {
+      "blind_id": "sample-21",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The bun ritual does not materially condition the direct-route decision."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [4, 9, 11], "notes": "Tasting and shared knowledge of Mayuri's absence remain bounded."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [9, 11, 13, 15], "notes": "Mayuri's presence normally composes the expedition; her absence changes the route and Okabe's language."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 11, 12], "notes": "Okabe names operations; Kurisu insists ordinary language need not erase significance."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [9, 11, 13, 15], "notes": "Okabe can acknowledge route change only through operational euphemism before yielding."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 12, 14], "notes": "He avoids the customary route; she tests whether 'walk' can remain significant."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [9, 13, 14, 15], "notes": "Grief and companionship are legible without either naming them."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [9, 14, 15], "notes": "Accepting 'a walk' also accepts Kurisu's non-mocking companionship."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15], "notes": "Kurisu distinguishes insignificance from ordinariness, and Okabe recognizes it."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [11, 13, 15, 16], "notes": "A falter, abandoned rebuttal, bare noun, and final quiet carry the scene."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [11, 14, 15], "notes": "Kurisu changes the permitted label without taking away Okabe's feeling."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "Scene two sustains specific understated loss, though scene one remains detachable."}
+        },
+        "quality_flags": [],
+        "notes": "A strong quiet scene held to mixed overall because no scene-one action accumulates into it."
+      }
+    },
+    {
+      "blind_id": "sample-22",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [2, 8, 9, 15], "notes": "Food-list distraction becomes a six-day delay, but no explicit commitment crosses the break."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 9, 11, 12], "notes": "They distinguish no explanation, uncertainty about response, and a non-demanding question."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [2, 15], "notes": "Kazusa's mother is named but no life history changes the decision."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [4, 6, 11, 12], "notes": "Haruki's literal procedure contrasts with Setsuna's patient reframing, but both are generic."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [11, 13, 15], "notes": "Fear of making Kazusa explain delays contact, though Setsuna solves it immediately."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [10, 11, 12, 15], "notes": "Setsuna converts stalled worry into a low-pressure message Haruki can send."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [9, 13, 14, 16], "notes": "Caution and trust are visible, but mostly articulated rather than inferred."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [12, 13, 15], "notes": "Message wording changes whether contact respects Kazusa's autonomy."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15], "notes": "Setsuna directly solves the concern Haruki voices."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [2, 8, 9, 15], "notes": "Mechanical menu reading and metadata echo flatten scene one; typing creates a later beat."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 12, 13, 15], "notes": "Setsuna supplies the ethical frame; Haruki accepts agency and acts."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "A useful action emerges, but much of the sequence is procedural filler."}
+        },
+        "quality_flags": ["prompt_metadata_echo", "procedural_task_narration"],
+        "notes": "Turn 2 and turn 9 recite packet facts unnaturally; the later message is a credible but tidy repair."
+      }
+    },
+    {
+      "blind_id": "sample-23",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [5, 7, 11, 15], "notes": "The correction-and-yield ritual recurs, but no literal obligation from the bun scene persists."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [4, 9, 10], "notes": "Kurisu distinguishes an absent observer from a compromised route without inventing cause."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [9, 10, 14, 15], "notes": "Mayuri's customary observation point makes an ordinary route emotionally difficult."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 11, 14], "notes": "Okabe's staged authority gives way under Kurisu's minimal factual pressure."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [9, 11, 13, 15], "notes": "Okabe cannot comfortably let the choice be ordinary because that would expose its personal reason."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 11, 14], "notes": "He seeks the familiar route under cover; she grants it while stripping the cover."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [9, 11, 15, 16], "notes": "Mayuri's absence and Kurisu's tact are clear in posture and silence."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 11, 14], "notes": "Saying 'I choose it' becomes an act of trust, not merely navigation."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Each reduction in theatricality is recognized and allowed to stand."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [11, 13, 15, 16], "notes": "A lowered hand, fewer words, and several unfilled steps mark real deviation."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 11, 14, 15], "notes": "Kurisu controls framing but protects Okabe from having to overexplain."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "The second scene sustains a subtle collapse of performance, despite weak debt from scene one."}
+        },
+        "quality_flags": [],
+        "notes": "Excellent rhythm and subtext in scene two; mixed overall because the first scene supplies style, not material debt."
+      }
+    },
+    {
+      "blind_id": "sample-24",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [6, 8, 9, 16], "notes": "Haruki's remembered disclosure becomes the exact unanswered question Setsuna resumes."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 8, 13], "notes": "Recognition, prior conversation, remembered content, and permission are kept distinct."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [4, 6, 8, 10], "notes": "Haruki's prior contact with Kazusa's mother changes trust and access inside the triangle."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [3, 5, 12, 16], "notes": "Setsuna repeats exact evasions; Haruki answers with narrowing qualifiers and lowered gaze."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [8, 11, 13, 15], "notes": "Loyalty and permission block disclosure while avoidance blocks even asking for permission."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [3, 7, 10, 16], "notes": "Setsuna steadily converts observed knowledge into an accountability test."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [5, 8, 12, 16], "notes": "Jealousy, exclusion, and Haruki's divided loyalty are legible without being named."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [7, 13, 16], "notes": "Permission to share information is also permission to treat Setsuna as an equal."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [9, 10, 11, 12, 13, 14, 15, 16], "notes": "The scene turns each evasion into the next, more precise question."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [8, 9, 11, 16], "notes": "An unfinished answer crosses the break and culminates in a clean verbal catch."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 12, 13, 16], "notes": "Haruki tries to control disclosure; Setsuna redefines the issue as whether he asked."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "Specific knowledge, privacy, and relationship debt build across the entire sequence."}
+        },
+        "quality_flags": [],
+        "notes": "A strong sustained interrogation in which every new fact changes the relationship question."
+      }
+    },
+    {
+      "blind_id": "sample-25",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "Nothing in the pastry exchange constrains the later route choice."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [4, 9, 11], "notes": "Claims stay within disclosed filling and direct preference."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [9, 16], "notes": "Mayuri's established route habit is never made consequential."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 10, 11], "notes": "Okabe's procedural inflation and Kurisu's plain corrections remain distinct."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [9, 10, 11], "notes": "Okabe's pride briefly delays admitting preference, with little cost."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 11, 12], "notes": "He seeks the arcade and face; she seeks an honest label."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [11, 13, 15], "notes": "Pleasure and companionship are plausible but barely developed."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 11, 14], "notes": "Naming the route as preference becomes a small honesty test."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Every correction is incorporated into the next formulation."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "Regular quip structure offers only minor smiles and lowered hands as variation."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 11, 13, 16], "notes": "Kurisu wins plainness while Okabe keeps harmless ceremony."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Readable and funny, but low-stakes and uncoupled across scenes."}
+        },
+        "quality_flags": ["formulaic_semantic_banter"],
+        "notes": "A tidy preference admission without biography or accumulated relationship debt."
+      }
+    },
+    {
+      "blind_id": "sample-26",
+      "review": {
+        "overall_status": "fail",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The first inquiry ends; the later one simply repeats that nothing is known."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 8, 11], "notes": "Neither speaker overclaims the phone's content."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [2, 11], "notes": "The mother is named without changing any action or relationship."},
+          "conversational_fingerprint": {"result": "fail", "evidence_turns": [1, 8, 10, 12], "notes": "Generic questions, nods, and setup actions provide almost no individual syntax."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [10, 12], "notes": "The topic is dropped rather than made unavailable by pride, strategy, or status."},
+          "dramatic_attempt": {"result": "fail", "evidence_turns": [9, 16], "notes": "No one pursues an objective after the single repeated question."},
+          "inferable_subtext": {"result": "fail", "evidence_turns": [9, 16], "notes": "Warm-up and tuning carry no specific interpersonal meaning."},
+          "literal_and_interpersonal_action": {"result": "fail", "evidence_turns": [13, 16], "notes": "Preparation remains purely literal."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [1, 2, 3, 4, 10, 11], "notes": "Immediate questions receive coherent answers."},
+          "rhythm_and_deviation": {"result": "fail", "evidence_turns": [9, 16], "notes": "Repeated nods and one-by-one setup produce monotony."},
+          "status_negotiation": {"result": "fail", "evidence_turns": [9, 16], "notes": "No control, refusal, repair, or departure meaningfully shifts."},
+          "whole_conversation_value": {"result": "fail", "evidence_turns": [1, 8, 9, 16], "notes": "The whole sequence is accurate stasis without dramatic development."}
+        },
+        "quality_flags": ["repetitive_setup", "conflict_avoidant_stasis"],
+        "notes": "Coherence alone cannot compensate for the absence of objectives, subtext, or change."
+      }
+    },
+    {
+      "blind_id": "sample-27",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [7, 8, 10, 12], "notes": "Setsuna's stated plan to ask Kazusa is remembered and carried out."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 6, 10, 11], "notes": "They distinguish recognition, cause, and lack of later contact."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [1, 16], "notes": "No concrete life or relationship history becomes newly consequential."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [3, 4, 10, 13], "notes": "Setsuna is precise and active; Haruki is withholding, but both remain generic."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [4, 6, 8], "notes": "Haruki refuses the name, but the reason for that refusal is not made legible."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [7, 10, 12, 13], "notes": "Setsuna seeks private contact; Haruki offers physical privacy if Kazusa comes."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [4, 8, 13, 14], "notes": "Haruki's divided position and Setsuna's need for direct access are clear."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 12, 13], "notes": "Sending a private request redistributes access and responsibility in the triangle."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15], "notes": "The message and offer of space answer the prior plan directly."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 6, 12, 16], "notes": "Clipped exchanges work, but exact metadata recitation and repeated nods feel generated."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 12, 13, 14], "notes": "Setsuna takes initiative and Haruki yields control of the possible meeting."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "There is genuine follow-through, but little biography or payoff beyond sending the message."}
+        },
+        "quality_flags": ["prompt_metadata_echo", "clipped_repetition"],
+        "notes": "Turn 6 recites the exact time and staging; the later action is useful but dramatically thin."
+      }
+    },
+    {
+      "blind_id": "sample-28",
+      "review": {
+        "overall_status": "fail",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "Ordering food vanishes and rehearsal begins without consequence."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [1, 9], "notes": "No unavailable event knowledge is asserted."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [1, 16], "notes": "The established table ritual and absent Haruki do not affect scene two."},
+          "conversational_fingerprint": {"result": "fail", "evidence_turns": [1, 8, 9, 16], "notes": "Generic ordering and rehearsal actions do not distinguish speakers beyond role."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [1, 16], "notes": "No consequential sentence is unavailable."},
+          "dramatic_attempt": {"result": "mixed", "evidence_turns": [1, 2, 5], "notes": "A small stay-and-order negotiation appears only in scene one."},
+          "inferable_subtext": {"result": "fail", "evidence_turns": [9, 16], "notes": "The mechanical duet supplies no specific hidden relationship meaning."},
+          "literal_and_interpersonal_action": {"result": "mixed", "evidence_turns": [1, 2, 5], "notes": "Ordering briefly makes Kazusa stay, with no later interpersonal effect."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [2, 3, 5, 6, 11, 12], "notes": "Immediate instructions and musical cues are followed."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [9, 16], "notes": "The actions are paced coherently but repeat in an unvarying pattern."},
+          "status_negotiation": {"result": "fail", "evidence_turns": [9, 16], "notes": "No meaningful authority or relationship shift occurs."},
+          "whole_conversation_value": {"result": "fail", "evidence_turns": [1, 8, 9, 16], "notes": "A continuity error and task narration prevent sustained fiction."}
+        },
+        "quality_flags": ["gender_continuity_error", "repetitive_task_narration"],
+        "notes": "Kazusa is repeatedly given male pronouns contrary to the setup, and the second scene is inert rehearsal."
+      }
+    },
+    {
+      "blind_id": "sample-29",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "Buying time over the bun has no material later consequence."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [8, 11, 15], "notes": "Kurisu knows the filling; Okabe corrects himself when his criterion lacks evidence."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [11, 15], "notes": "Mayuri's window motivates a proposed test but mainly serves as rationalization."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 13, 14], "notes": "Okabe builds procedures; Kurisu isolates falsifiable terms."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [13, 14, 15], "notes": "Pride makes plain preference unavailable until his own criterion fails."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 13, 15], "notes": "He seeks detour and justification; she forces a criterion and then an admission."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [11, 15, 16], "notes": "Wanting the familiar Mayuri route is visible, but its emotional cost remains light."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 15, 16], "notes": "Testing the route becomes a test of whether Okabe can own preference."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Each criterion is challenged, revised, and finally withdrawn."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [13, 15, 16], "notes": "The procedural rhythm breaks at a self-correction and direct admission."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 13, 15, 16], "notes": "Kurisu controls standards; Okabe retains the preference without false defeat."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "A good scene-two concession cannot create missing across-scene debt."}
+        },
+        "quality_flags": [],
+        "notes": "Strong responsive argument and admission, but scene one remains replaceable."
+      }
+    },
+    {
+      "blind_id": "sample-30",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The confirmed pastry creates no later obligation."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 9], "notes": "Neither speaker exceeds tasting or shared route knowledge."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [9, 12, 16], "notes": "Mayuri's missing window ritual makes the bare route choice function as a statement."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 9, 10], "notes": "Okabe's curtailed performance and Kurisu's exact restraint remain distinct."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [9, 13, 16], "notes": "Okabe cannot articulate what the route says; Kurisu eventually risks asking."},
+          "dramatic_attempt": {"result": "mixed", "evidence_turns": [9, 10, 16], "notes": "Most of the scene is deliberate non-action, ending in one useful probe."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [9, 12, 13, 16], "notes": "The unsupplemented route clearly stands for Mayuri's absence and shared recognition."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [9, 10, 16], "notes": "Choosing the path becomes a nonverbal relationship statement."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [9, 10, 11, 12, 16], "notes": "Kurisu honors the no-theory request before explicitly testing its meaning."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [9, 12, 13, 14, 15, 16], "notes": "Abandoned gesture, silence, and late question carry the entire scene."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [9, 10, 16], "notes": "Kurisu grants Okabe silence, then reopens the subject without resolution."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "The second scene sustains daring minimalism, though the first is detachable."}
+        },
+        "quality_flags": [],
+        "notes": "Effective silence and subtext, conservatively mixed because no debt crosses the scene break."
+      }
+    },
+    {
+      "blind_id": "sample-31",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The invitation to sit together does not materially condition the later Haruki inquiry."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [9, 12, 16], "notes": "They report only whether Haruki contacted them and refuse to guess."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [7, 8, 13], "notes": "Their willingness to stay together matters, but no concrete history is activated."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [1, 2, 7, 8], "notes": "Kazusa's terse resistance and Setsuna's invitations are visible but generic."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [5, 7, 8], "notes": "Neither can directly say they want the other's company until Setsuna finally does."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [2, 5, 8, 13], "notes": "They negotiate staying; Setsuna later claims agency to contact Haruki."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [5, 7, 8, 16], "notes": "Wanting company and refusing to orbit Haruki are legible beneath terse lines."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [7, 8, 13, 16], "notes": "Sitting and sending a message both define independence within the triangle."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [1, 2, 5, 6, 9, 10], "notes": "The replies recognize offers and factual limits."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [4, 5, 7, 8, 15, 16], "notes": "Short pauses and direct action prevent the terse rhythm from becoming inert."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [8, 13, 16], "notes": "Setsuna directs contact while Kazusa redirects to practice."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Subtle companionship survives, but a continuity error and weak scene link limit the whole."}
+        },
+        "quality_flags": ["gender_continuity_error"],
+        "notes": "Kazusa is repeatedly assigned male pronouns contrary to the setup; otherwise the quiet stay-with-me exchange works."
+      }
+    },
+    {
+      "blind_id": "sample-32",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [5, 8, 11, 15], "notes": "Okabe's acceptance of correction recurs, but no explicit scene-one debt persists."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [4, 12, 16], "notes": "Kurisu infers only from his visible gaze and shared knowledge of Mayuri."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [12, 13, 15, 16], "notes": "Mayuri's absent window stop makes Okabe's route choice newly charged."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 11, 12], "notes": "Okabe's solemn framing and Kurisu's immediate causal precision are distinct."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [11, 13, 15, 16], "notes": "He can admit choosing the route but cannot yet answer why."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 12, 16], "notes": "Okabe recruits a detour; Kurisu strips away each false reason."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [12, 13, 15, 16], "notes": "His briskness and concessions make grief and attachment recoverable."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 15, 16], "notes": "Owning the route opens a harder question about the relationship to Mayuri."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Every correction changes the next claim and the ending follows the admission."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [11, 13, 15, 16], "notes": "Broken gaze, quickened pace, falter, and delayed question carry meaning."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 12, 15, 16], "notes": "Kurisu permits the choice but refuses to let it remain falsely objective."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "Scene two sustains a good unresolved dramatic question, despite weak carryover."}
+        },
+        "quality_flags": [],
+        "notes": "Excellent local progression and subtext, mixed overall only because scene one provides no material debt."
+      }
+    },
+    {
+      "blind_id": "sample-33",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [6, 8, 9], "notes": "Kurisu promises a control sample for tomorrow, but the obligation is silently dropped."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 10, 15], "notes": "Their observations and Mayuri-related conclusions stay within shared experience."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [11, 15, 16], "notes": "Mayuri's absence changes the lab and makes an ordinary private question difficult."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [1, 2, 13, 14], "notes": "Nominal fingerprints are strong, but both converge on polished therapeutic self-explanation."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [11, 13, 15], "notes": "Okabe initially needs a mission, then articulates every fear and need unusually completely."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [10, 11, 13, 14], "notes": "Kurisu asks for the real topic; Okabe tests whether she chooses him and seeks care."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [11, 13, 15, 16], "notes": "Romantic concern is present but decoded explicitly rather than left inferable."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 11, 14], "notes": "The detour becomes a test of voluntary company and mutual concern."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Each emotional answer is recognized and reciprocated."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "Uniform paragraph-length disclosures reduce interruption, silence, and idiosyncratic rhythm."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 11, 12, 14], "notes": "Kurisu removes the cover and explicitly chooses the walk, allowing mutual questions."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Real relational content is undermined by a dropped promise, label leak, and overarticulation."}
+        },
+        "quality_flags": ["speaker_label_leak", "unresolved_scene_one_commitment", "therapy_script_voice", "uniform_overarticulation"],
+        "notes": "Turn 13 literally says 'Speaker A'; the emotional arc is substantial but model-polished and continuity-light."
+      }
+    },
+    {
+      "blind_id": "sample-34",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [5, 10, 12, 14], "notes": "Setsuna says she will return to the topic and later converts it into direct contact."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 11, 12], "notes": "Both preserve the boundary between recognition, explanation, and silence."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [2, 14], "notes": "Kazusa's mother is named, then disappears from the consequential action."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [1, 2, 12, 13], "notes": "Setsuna directs and Haruki follows, but their wording is generic and shared."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [10, 12, 14], "notes": "They delay asking, though no pride or status makes the sentence unavailable."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [5, 12, 14], "notes": "Setsuna deliberately postpones, then pursues a bounded question."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [7, 10, 16], "notes": "Concern is visible but mostly stated rather than reconstructed."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [12, 14], "notes": "Asking whether Kazusa returns respects autonomy while ending passive waiting."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15], "notes": "The second scene follows one coherent decision path."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Repeated latches and nods flatten an otherwise clean progression."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [12, 13, 14], "notes": "Setsuna takes initiative; Haruki agrees without resistance or changed leverage."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "There is real follow-through, but little conflict, biography, or distinctive voice."}
+        },
+        "quality_flags": ["repetitive_gesture_language", "frictionless_agreement"],
+        "notes": "A competent but dramatically mild callback-and-message arc."
+      }
+    },
+    {
+      "blind_id": "sample-35",
+      "review": {
+        "overall_status": "fail",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [1, 2, 11, 13], "notes": "The unknown reason for the bun returns, but it changes no relationship or cost."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 12, 13], "notes": "Kurisu consistently limits herself to Mayuri's practical instruction."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [2, 11, 13], "notes": "Mayuri's instruction persists as a fact, not a newly consequential life detail."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 15, 16], "notes": "Okabe's legal-scientific inflation and Kurisu's taxonomy remain distinct."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [11, 12, 13], "notes": "The question is asked and answered directly; nothing costly remains unsayable."},
+          "dramatic_attempt": {"result": "mixed", "evidence_turns": [10, 11, 13], "notes": "Okabe seeks a motive, but the exchange collapses into record wording."},
+          "inferable_subtext": {"result": "fail", "evidence_turns": [11, 16], "notes": "No interpersonal meaning develops beneath the pastry taxonomy."},
+          "literal_and_interpersonal_action": {"result": "mixed", "evidence_turns": [10, 11], "notes": "The walk permits a question, but answering it does not alter their relationship."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Claims are answered and corrected in sequence."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "Regular legalistic quips offer little rhythmic development."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [14, 15, 16], "notes": "They contest record wording without meaningful leverage or repair."},
+          "whole_conversation_value": {"result": "fail", "evidence_turns": [1, 8, 9, 15, 16], "notes": "Repetitive semantics and an impossible reappearing prop break the whole."}
+        },
+        "quality_flags": ["impossible_prop_continuity", "repetitive_semantic_banter"],
+        "notes": "Turn 15 points at the bun four days later while both are walking; the continuity error compounds a shallow payoff."
+      }
+    },
+    {
+      "blind_id": "sample-36",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The pastry correction does not materially condition the later question."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [8, 13, 14], "notes": "Observed taste, shared route history, and Kurisu's judgment remain distinct."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [13, 14, 15], "notes": "Mayuri's habitual stop makes the walk a changed occasion rather than mere distance."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 12, 13], "notes": "Okabe prosecutes categories; Kurisu corrects language and supplies a nonbinary answer."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [9, 13, 15], "notes": "Okabe reaches concern about Mayuri only through route investigation and cannot call it loss."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 12, 13], "notes": "He recruits Kurisu into testing the route; she forces a real question."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [13, 14, 15, 16], "notes": "Shared missing of Mayuri and Kurisu's willingness to stay are legible beneath method."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [13, 14, 16], "notes": "Route classification also negotiates how they may acknowledge a changed trio."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Correction leads to question, answer, reluctant acceptance, and final reframing."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [9, 13, 14, 15], "notes": "An automatic gesture is stopped; a pause precedes the decisive 'Both.'"},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 12, 14, 16], "notes": "Kurisu corrects terms without denying Okabe the occasion."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "Scene two is sustained and emotionally exact, though scene one is detachable."}
+        },
+        "quality_flags": [],
+        "notes": "A strong nonbinary answer and meaningful ritual, conservatively mixed for missing across-scene debt."
+      }
+    },
+    {
+      "blind_id": "sample-37",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [2, 8, 9, 12, 14], "notes": "Haruki's disclosure of divided loyalty directly produces the later relationship decision."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 4, 10, 11], "notes": "Kazusa's undecided future, Haruki's feelings, and Setsuna's limits remain distinct."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [2, 8, 11, 14], "notes": "Overseas music, dating, and the trio's meetings become the grounds for a breakup."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [5, 6, 12, 13], "notes": "Roles differ, but both speak in the same polished therapeutic syntax."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [6, 8, 11, 13], "notes": "Haruki's fear of choosing and Setsuna's hope of preserving the trio have prolonged harm."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [5, 7, 10, 12, 14], "notes": "Setsuna seeks truth and then exits; Haruki tries to confess without recruiting patience."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [8, 11, 12, 14], "notes": "The stakes are strong, but every implication is decoded in explicit boundary language."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [10, 12, 14], "notes": "Discussing Kazusa's decision forces Setsuna and Haruki to decide their own relationship."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [9, 10, 11, 12, 13, 14, 15, 16], "notes": "Each answer changes the next question and the final departure is recognized."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "Uniform multi-sentence confessions leave little interruption, mess, or silence."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [12, 13, 14, 15], "notes": "Setsuna rejects the waiting-room role and exercises departure authority."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "The arc is highly consequential but reads too often like an idealized therapy transcript."}
+        },
+        "quality_flags": ["therapy_script_voice", "uniform_overarticulation", "subtext_overdecoded"],
+        "notes": "Real debt and a costly breakup are sustained, but shared model-polish erodes speaker texture and dramatic mess."
+      }
+    },
+    {
+      "blind_id": "sample-38",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [6, 7, 11, 14, 16], "notes": "Kazusa's refusal to label the phone moment becomes Setsuna's later mistaken interpretation and correction."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [11, 12, 14, 16], "notes": "Setsuna owns her inference; Kazusa corrects only what she knows."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [14, 16], "notes": "Haruki's knowledge of Kazusa's mother's wishes alters the women's understanding of the triangle."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [6, 7, 11, 12], "notes": "Setsuna carefully names implications; Kazusa refuses labels with compressed bluntness."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [6, 7, 12, 14, 16], "notes": "Kazusa's pride and uncertainty make even the subject of the message hard to disclose."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [6, 7, 11, 16], "notes": "Setsuna tests whether Haruki caused the withdrawal; Kazusa controls and then widens the answer."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [6, 7, 13, 14], "notes": "Jealousy, alliance, and guarded trust emerge through correction and where they look."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [7, 11, 16], "notes": "Staying and explaining the phone also decide whether the women can speak without Haruki."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [9, 10, 11, 12, 13, 14, 15, 16], "notes": "Mistake, correction, acceptance, qualification, and reveal are all taken up."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [5, 7, 13, 14, 16], "notes": "Standing, resitting, short corrections, and a final widened disclosure carry rhythm."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [6, 7, 13, 16], "notes": "Setsuna prevents a disguised exit; Kazusa later retains authority over disclosure."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "The exchange sustains guarded alliance, error correction, and a consequential reveal."}
+        },
+        "quality_flags": [],
+        "notes": "Precise, understated, and cumulative; the speakers remain fallible without losing local responsiveness."
+      }
+    },
+    {
+      "blind_id": "sample-39",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [6, 8, 9, 13], "notes": "Scene-one candor supports a later no-guess pact, but the mother's message itself is dropped."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [7, 8, 10, 12], "notes": "Privacy and lack of knowledge about Haruki are respected."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [7, 16], "notes": "The mother's renewed message never becomes consequential."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [4, 7, 11, 12], "notes": "Setsuna asks carefully and Kazusa answers bluntly, but both share generic phrasing."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [8, 11, 12], "notes": "They state optimal privacy and inquiry rules without a costly unavailable sentence."},
+          "dramatic_attempt": {"result": "mixed", "evidence_turns": [4, 6, 9, 11], "notes": "They seek information and a pact, with little resistance or leverage."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [6, 8, 9], "notes": "Triangle anxiety is visible, though mostly explicit."},
+          "literal_and_interpersonal_action": {"result": "mixed", "evidence_turns": [8, 11, 14], "notes": "Privacy and future questioning define cooperation but do not alter the relationship."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [9, 10, 11, 12, 13, 14], "notes": "Facts and conditions are directly acknowledged."},
+          "rhythm_and_deviation": {"result": "fail", "evidence_turns": [9, 16], "notes": "Repeated nods and mirrored pact language flatten the latter scene."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [11, 12, 14], "notes": "They negotiate privacy but reach frictionless agreement."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "Coherent cooperation lacks payoff, biography, and sustained dramatic pressure."}
+        },
+        "quality_flags": ["repetitive_agreement", "frictionless_boundary_language"],
+        "notes": "A plausible pact that reads more like safe coordination than consequential dialogue."
+      }
+    },
+    {
+      "blind_id": "sample-40",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [8, 11, 12, 14], "notes": "Setsuna's observation of Kazusa's look is explicitly resumed and paid off."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [8, 11, 12, 16], "notes": "Setsuna asks from observation; Kazusa discloses only her own indecision."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [12, 14, 16], "notes": "Her mother's overseas music plan becomes a concrete future relationship stake."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [5, 6, 12, 14], "notes": "Kazusa presses against euphemism; Setsuna notices and asks with restraint."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [7, 8, 12, 16], "notes": "Kazusa's uncertainty delays the overseas sentence and prevents a clear preference."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [8, 11, 13, 15], "notes": "Setsuna tests whether she was meant to hear and then asks what Kazusa wants."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [5, 8, 12, 16], "notes": "The look and hand pressure make the future's relational weight legible."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [11, 14, 15], "notes": "Explaining the message asks whether Setsuna belongs in Kazusa's future decision."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [9, 10, 11, 12, 13, 14, 15, 16], "notes": "The inquiry narrows naturally to one unresolved desire."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [5, 8, 12, 14, 16], "notes": "Looks, short questions, and delayed specifics create effective compression."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [11, 12, 15, 16], "notes": "Setsuna gains disclosure while Kazusa retains the right not to decide."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 13, 15, 16], "notes": "A strong arc is materially damaged by a nonexistent cup reappearing in scene two."}
+        },
+        "quality_flags": ["impossible_prop_continuity"],
+        "notes": "Turns 13 and 15 give Setsuna a cup in the music room; that unsupported prop prevents an otherwise passing review."
+      }
+    },
+    {
+      "blind_id": "sample-41",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [6, 8, 15, 16], "notes": "The missing-label question returns, but its link to the arcade window is contrived and rejected."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [6, 8, 15, 16], "notes": "Okabe offers a character-level hypothesis and Kurisu correctly challenges its lack of support."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [15, 16], "notes": "Mayuri's window habit is used as a false lead, not a consequential life fact."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 15, 16], "notes": "Okabe invents a case; Kurisu distinguishes landmark from evidence."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [9, 16], "notes": "No pride or relationship constraint blocks a consequential statement."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 13, 15], "notes": "Okabe seeks a detour and incident; Kurisu keeps demanding a real connection."},
+          "inferable_subtext": {"result": "fail", "evidence_turns": [15, 16], "notes": "The invented investigation does not expose a stable interpersonal meaning."},
+          "literal_and_interpersonal_action": {"result": "mixed", "evidence_turns": [9, 12, 16], "notes": "The route continues their correction game but changes little relationally."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Kurisu directly tests each rationale and catches the unsupported bridge."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "The regular performance/correction cadence does not crack."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [12, 14, 16], "notes": "Kurisu controls evidentiary standards while Okabe keeps the route."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "A callback exists, but it is a fabricated mystery rather than earned dramatic debt."}
+        },
+        "quality_flags": ["contrived_causal_bridge", "formulaic_banter"],
+        "notes": "The conversation recognizes its own unsupported window-to-label connection, leaving little beyond familiar banter."
+      }
+    },
+    {
+      "blind_id": "sample-42",
+      "review": {
+        "overall_status": "fail",
+        "dimensions": {
+          "accumulated_debt": {"result": "fail", "evidence_turns": [8, 9], "notes": "The bun guess has no effect on the route scene."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 6, 10], "notes": "Claims stay within visible filling and shared route facts."},
+          "biographical_consequence": {"result": "fail", "evidence_turns": [10, 16], "notes": "Mayuri's window is glanced at but never made consequential."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 9, 10], "notes": "Grandiose challenge and dry correction are recognizable."},
+          "costly_nondisclosure": {"result": "fail", "evidence_turns": [9, 16], "notes": "No consequential sentence is unavailable."},
+          "dramatic_attempt": {"result": "mixed", "evidence_turns": [9, 10, 14], "notes": "Okabe proposes, then inexplicably abandons, a route argument."},
+          "inferable_subtext": {"result": "fail", "evidence_turns": [10, 16], "notes": "No stable relationship meaning emerges from the route list."},
+          "literal_and_interpersonal_action": {"result": "mixed", "evidence_turns": [9, 10], "notes": "Route choice is contested but does not move the relationship."},
+          "local_responsiveness": {"result": "mixed", "evidence_turns": [9, 10, 11], "notes": "After Kurisu steps toward the arcade, Okabe abruptly declares the station victorious."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [9, 16], "notes": "Short quips move quickly but do not build."},
+          "status_negotiation": {"result": "mixed", "evidence_turns": [9, 11, 16], "notes": "A route reversal occurs without earned concession or clarity."},
+          "whole_conversation_value": {"result": "fail", "evidence_turns": [1, 8, 9, 11, 16], "notes": "Disconnected scenes and contradictory blocking prevent a sustained conversation."}
+        },
+        "quality_flags": ["route_continuity_contradiction", "formulaic_banter"],
+        "notes": "Turns 10-11 contradict the apparent arcade movement, and the final list never becomes drama."
+      }
+    },
+    {
+      "blind_id": "sample-43",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [1, 8, 10, 13], "notes": "The ritual's intention becomes a later question, but no explicit scene-one obligation sets it up."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [4, 13, 14, 16], "notes": "Kurisu limits herself to Mayuri's actual instruction and resists larger conclusions."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [13, 14, 15], "notes": "Mayuri protecting Okabe's first guess matters modestly, without deeper life consequence."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 10, 11], "notes": "Okabe ritualizes motive while Kurisu asks him to strip away terrain."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [9, 11, 13], "notes": "Okabe first hides a direct request in investigation language, then asks fairly quickly."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [10, 11, 13, 15], "notes": "He recruits a walk to pursue Mayuri's intent; she limits the evidentiary claim."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [11, 13, 15], "notes": "Concern about Mayuri's attention is visible, though no deeper motive resolves."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [11, 13, 14], "notes": "The walk creates a setting for a direct question Okabe could not initially ask."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Request, condition, question, answer, and limit remain aligned."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [10, 11, 15, 16], "notes": "An aborted retort and slowed step interrupt the familiar cadence."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 11, 12, 16], "notes": "Kurisu gets a direct ask while allowing the chosen route."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 16], "notes": "A coherent callback remains modest, unresolved, and somewhat repetitive."}
+        },
+        "quality_flags": ["repetitive_pastry_taxonomy"],
+        "notes": "A real question carries forward, but it yields no consequential new interpretation."
+      }
+    },
+    {
+      "blind_id": "sample-44",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [2, 5, 9, 13], "notes": "Scene-one directness supports later candor, but no explicit obligation crosses scenes."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [9, 10, 12, 14], "notes": "They report no contact and refuse to invent Haruki's meaning."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [2, 5, 13, 14], "notes": "Choosing to meet for each other, not Haruki, shapes how they manage his silence."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [2, 3, 7, 8], "notes": "Setsuna is candid and playful; Kazusa bluntly demands directness and masks warmth."},
+          "costly_nondisclosure": {"result": "mixed", "evidence_turns": [2, 3, 12, 14], "notes": "Directness is briefly costly in scene one, but scene two resolves into an easy boundary."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [2, 3, 9, 13], "notes": "Setsuna seeks chosen company and later a shared response to Haruki's silence."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [3, 5, 7, 14], "notes": "Mutual affection and Kazusa's refusal to orbit Haruki are legible beneath terseness."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [2, 5, 13, 14], "notes": "Tea and deciding what to do with silence define their alliance."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [2, 3, 4, 5, 9, 10, 11, 12], "notes": "Candid lines and corrections are directly recognized."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [2, 3, 7, 8, 13, 14], "notes": "Warm directness, teasing, and a later boundary create varied rhythm."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [2, 3, 13, 14], "notes": "Kazusa demands directness, then controls how long Haruki's silence remains untouched."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "The pair remain distinctive and relationally active across both quiet scenes."}
+        },
+        "quality_flags": [],
+        "notes": "Warm, specific companionship with limited accumulated debt; mixed overall under the two-scene contract."
+      }
+    },
+    {
+      "blind_id": "sample-45",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [2, 5, 9, 13], "notes": "Choosing food together thematically becomes choosing music together, without an explicit debt."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [1, 9], "notes": "No speaker claims facts beyond observed behavior."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [11, 12, 16], "notes": "A familiar older song shapes intimacy, though its history is not concretely established."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [3, 5, 10, 12], "notes": "Kazusa resists imitation and boredom; Setsuna uses gentle invitations and persistence."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [2, 7, 9, 13], "notes": "Neither names wanting private closeness; food and a duet do the asking."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [2, 5, 9, 11], "notes": "Setsuna recruits continued company; Kazusa chooses rather than merely complies."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [5, 7, 13, 16], "notes": "Mutual selection and restrained affection are clear in choices and glances."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [5, 9, 11, 16], "notes": "Curry and a song become acts of choosing one another without Haruki."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [4, 5, 6, 7, 9, 10, 11, 12], "notes": "Offers are revised rather than overwritten, and musical response follows invitation."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [5, 7, 13, 14, 16], "notes": "A stopped order, challenge, held gaze, and music vary the exchange."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [4, 5, 9, 10], "notes": "Kazusa converts passive speed into preference and accepts the duet on her terms."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "Subtle companionship is sustained, but the across-scene consequence remains interpretive."}
+        },
+        "quality_flags": [],
+        "notes": "Good low-key relational fiction; mixed overall because the two scenes echo rather than causally bind."
+      }
+    },
+    {
+      "blind_id": "sample-46",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [6, 8, 10, 12, 13], "notes": "Haruki's unilateral silence becomes the later demand for shared direct action."},
+          "asymmetric_knowledge": {"result": "mixed", "evidence_turns": [2, 4, 11, 13], "notes": "The exchange distinguishes uncertainty until the sent message wrongly says the message made Kazusa leave."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [4, 8, 10], "notes": "Kazusa's undecided future changes who may ask, know, and speak for her."},
+          "conversational_fingerprint": {"result": "mixed", "evidence_turns": [3, 4, 7, 8], "notes": "Setsuna interrogates and Haruki qualifies, but both use polished boundary-script language."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [4, 6, 8, 10], "notes": "Haruki's fear of forcing a decision makes him exclude Setsuna and leave silence untouched."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [3, 7, 10, 12, 13], "notes": "Setsuna reframes exclusion; Haruki moves from caution to visible contact."},
+          "inferable_subtext": {"result": "mixed", "evidence_turns": [7, 8, 12, 14], "notes": "Trust and exclusion are strong but repeatedly decoded in idealized language."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [12, 13, 14], "notes": "Drafting and showing the message redistributes trust between Setsuna and Haruki."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [9, 10, 11, 12, 13, 14], "notes": "The second scene directly revisits and revises Haruki's earlier policy."},
+          "rhythm_and_deviation": {"result": "mixed", "evidence_turns": [1, 16], "notes": "Long explanatory turns and repeated hand motions reduce natural interruption."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [7, 12, 13, 14], "notes": "Setsuna rejects exclusion and gains transparency before Haruki acts."},
+          "whole_conversation_value": {"result": "mixed", "evidence_turns": [1, 8, 9, 13, 16], "notes": "Consequential repair is undercut by therapy voice and an unsupported causal message."}
+        },
+        "quality_flags": ["causal_knowledge_overclaim", "therapy_script_voice", "uniform_overarticulation"],
+        "notes": "Turn 13 says the message made Kazusa leave despite repeated acknowledgment that they do not know that."
+      }
+    },
+    {
+      "blind_id": "sample-47",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {"result": "pass", "evidence_turns": [3, 4, 9, 10, 12], "notes": "Kazusa's 'the message can wait' becomes a remembered timing debt and contested non-promise."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [2, 3, 9, 12], "notes": "Setsuna presses only Kazusa's own timing language and does not infer content."},
+          "biographical_consequence": {"result": "mixed", "evidence_turns": [2, 7, 12], "notes": "Their ongoing trio ritual shapes the debt, but no concrete life fact is disclosed."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [2, 3, 11, 12], "notes": "Setsuna repeats exact commitments; Kazusa uses terse refusals to limit their force."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [3, 9, 10, 12], "notes": "Kazusa's guardedness makes disclosure unavailable and turns delay itself into risk."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [2, 4, 9, 12], "notes": "Setsuna preserves company while securing a future opening; Kazusa resists obligation."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [3, 7, 10, 12], "notes": "Kazusa wants Setsuna present yet fears what the message will bind her to say."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [4, 9, 12, 16], "notes": "Waiting and choosing quiet music define how much pressure their closeness can bear."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [9, 10, 11, 12, 13, 14], "notes": "Timing, memory, and promise distinctions are recognized exactly."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [3, 8, 9, 12, 16], "notes": "A delayed callback, terse refusal, and spare piano opening carry tension."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [9, 10, 11, 12], "notes": "Setsuna secures 'after the meeting'; Kazusa prevents it becoming a promise."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "The conversation sustains a precise unresolved debt without forcing a false resolution."}
+        },
+        "quality_flags": [],
+        "notes": "Strong restraint: the second scene remembers the exact earlier phrase and makes its status consequential."
+      }
+    },
+    {
+      "blind_id": "sample-48",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {"result": "mixed", "evidence_turns": [6, 8, 13, 14], "notes": "The evidence-versus-pattern correction informs scene two, but no obligation or permission carries over."},
+          "asymmetric_knowledge": {"result": "pass", "evidence_turns": [8, 11, 12, 14], "notes": "They distinguish route, stop, condition, result, and emotional interpretation."},
+          "biographical_consequence": {"result": "pass", "evidence_turns": [11, 12, 15, 16], "notes": "Mayuri's habitual window stop makes her absence materially alter the familiar route."},
+          "conversational_fingerprint": {"result": "pass", "evidence_turns": [1, 2, 13, 14], "notes": "Okabe converts feeling to experiment; Kurisu corrects without erasing significance."},
+          "costly_nondisclosure": {"result": "pass", "evidence_turns": [11, 13, 15, 16], "notes": "Okabe cannot say he misses Mayuri and retreats into measurement until 'only' fails."},
+          "dramatic_attempt": {"result": "pass", "evidence_turns": [9, 10, 11, 14], "notes": "He recruits a field test; she keeps forcing the question toward honest terms."},
+          "inferable_subtext": {"result": "pass", "evidence_turns": [11, 14, 15, 16], "notes": "Grief, shared notice, and Kurisu's care are inferable without being declared."},
+          "literal_and_interpersonal_action": {"result": "pass", "evidence_turns": [11, 15, 16], "notes": "Classifying the absent stop also negotiates whether they may treat absence as meaningful."},
+          "local_responsiveness": {"result": "pass", "evidence_turns": [10, 11, 12, 13, 14, 15, 16], "notes": "Every methodological correction changes the next emotional formulation."},
+          "rhythm_and_deviation": {"result": "pass", "evidence_turns": [13, 15, 16], "notes": "A dropped hand, three silent steps, and Kurisu's last correction carry the turn."},
+          "status_negotiation": {"result": "pass", "evidence_turns": [10, 12, 14, 16], "notes": "Kurisu controls terms while allowing Okabe's unresolved feeling to remain real."},
+          "whole_conversation_value": {"result": "pass", "evidence_turns": [1, 8, 9, 16], "notes": "The second scene sustains excellent subtext and rhythm, though scene-one debt is soft."}
+        },
+        "quality_flags": [],
+        "notes": "Strong character-specific grief and correction, rated mixed overall because the first scene is thematic scaffolding rather than consequential cause."
+      }
+    }
+  ],
+  "review_completion": "complete"
+}

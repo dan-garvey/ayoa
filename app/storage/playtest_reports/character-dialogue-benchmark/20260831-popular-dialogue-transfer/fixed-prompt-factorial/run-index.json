@@ -1,0 +1,162 @@
+{
+  "schema_version": "character_dialogue_prompt_factorial_run_index_v1",
+  "experiment_plan": "./experiment-plan.json",
+  "control_manifest_sha256": "886b461c9cd80bc3be21173ec05264cefdff4a3422ff39c834c14619ed4c87e3",
+  "model": "gpt-5.6-luna",
+  "valid_runs": [
+    {
+      "cell": "A2",
+      "directory": "./live/cell-a2",
+      "identity": "repeated",
+      "system_instructions": "current",
+      "private_reflection": false,
+      "runner_sha256": "c8534a18094829f02539cc796874e9de18d855ed9f85ef5f0ee4ea0e322af95b",
+      "accepted_turns": 128,
+      "workers": 16,
+      "technical_errors": 0,
+      "retries": 0,
+      "throttles": 0,
+      "reflection_restarts": 0
+    },
+    {
+      "cell": "B",
+      "directory": "./live/cell-b-v3",
+      "identity": "repeated",
+      "system_instructions": "current",
+      "private_reflection": true,
+      "runner_sha256": "c8534a18094829f02539cc796874e9de18d855ed9f85ef5f0ee4ea0e322af95b",
+      "accepted_turns": 128,
+      "workers": 16,
+      "technical_errors": 0,
+      "retries": 0,
+      "throttles": 0,
+      "private_reflections": 128,
+      "reflection_restarts": 0
+    },
+    {
+      "cell": "C",
+      "directory": "./live/cell-c",
+      "identity": "once",
+      "system_instructions": "current",
+      "private_reflection": false,
+      "runner_sha256": "fc3be6f720fe0ffeaf07a6676499e868aa80441cc4af56ff080d6f42f6911fab",
+      "accepted_turns": 128,
+      "workers": 16,
+      "technical_errors": 0,
+      "retries": 0,
+      "throttles": 0,
+      "reflection_restarts": 0,
+      "runner_difference": "Final-line reflection separator parsing only; inactive in this no-reflection cell."
+    },
+    {
+      "cell": "D",
+      "directory": "./live/cell-d-v2",
+      "identity": "once",
+      "system_instructions": "current",
+      "private_reflection": true,
+      "runner_sha256": "c8534a18094829f02539cc796874e9de18d855ed9f85ef5f0ee4ea0e322af95b",
+      "accepted_turns": 128,
+      "workers": 16,
+      "technical_errors": 0,
+      "retries": 0,
+      "throttles": 0,
+      "private_reflections": 128,
+      "reflection_restarts": 0
+    },
+    {
+      "cell": "E",
+      "directory": "./live/cell-e-v2",
+      "identity": "once",
+      "system_instructions": "minimal",
+      "private_reflection": false,
+      "runner_sha256": "c8534a18094829f02539cc796874e9de18d855ed9f85ef5f0ee4ea0e322af95b",
+      "accepted_turns": 128,
+      "workers": 16,
+      "technical_errors": 0,
+      "retries": 0,
+      "throttles": 0,
+      "reflection_restarts": 0
+    },
+    {
+      "cell": "F",
+      "directory": "./live/cell-f",
+      "identity": "once",
+      "system_instructions": "minimal",
+      "private_reflection": true,
+      "runner_sha256": "c8534a18094829f02539cc796874e9de18d855ed9f85ef5f0ee4ea0e322af95b",
+      "accepted_turns": 128,
+      "workers": 16,
+      "technical_errors": 0,
+      "retries": 0,
+      "throttles": 0,
+      "private_reflections": 128,
+      "reflection_restarts": 0
+    }
+  ],
+  "invalid_attempts": [
+    {
+      "directory": "./live/cell-b",
+      "classification": "reflection_prompt_schema_missing",
+      "accepted_turns_in_valid_dataset": 0,
+      "reason": "The first reflection instruction omitted the literal six-field schema, so outputs used incompatible fields and formatting. The attempt was stopped and excluded."
+    },
+    {
+      "directory": "./live/cell-b-v2",
+      "classification": "reflection_separator_parser_mismatch",
+      "partial_accepted_attempts": 19,
+      "malformed_suffix_attempts": 6,
+      "accepted_turns_in_valid_dataset": 0,
+      "reason": "The suffix was structurally exact but used one newline before the final block where the parser required a blank line. Partial conversations were discarded and excluded."
+    },
+    {
+      "directory": "./live/cell-d",
+      "classification": "reflection_separator_parser_mismatch",
+      "partial_accepted_attempts": 3,
+      "malformed_suffix_attempts": 3,
+      "accepted_turns_in_valid_dataset": 0,
+      "reason": "The suffix was structurally exact but used one newline before the final block where the parser required a blank line. Partial conversations were discarded and excluded."
+    },
+    {
+      "directory": "./live/cell-e",
+      "classification": "relative_worker_output_path",
+      "technical_error_attempts": 16,
+      "retry_attempts": 8,
+      "accepted_turns_in_valid_dataset": 0,
+      "reason": "A relative output path was resolved again after the worker changed directory. No final response was readable, no worker session was bound, and no model turn was accepted."
+    }
+  ],
+  "blind_review": {
+    "status": "complete",
+    "conversation_count": 48,
+    "turns_per_conversation": 16,
+    "packet": "./human-review/blind_packet.json",
+    "packet_sha256": "4a95da8edd64384e70a2e769350783d0ef473202b984b296c3fbad03a1631443",
+    "answer_key": "./human-review/answer_key.json",
+    "answer_key_sha256": "349c4d183f5aa1b6eaa20ba5714c65a449b7f7ae91a3c03486484a8a74b41f77",
+    "reviewer_1": "./human-review/reviewer-1.json",
+    "reviewer_1_sha256": "0f50de0148a2f3a4b3d1956dacfbca1dd9060d94c93e41dcbe36f90a509abdc9",
+    "reviewer_2": "./human-review/reviewer-2.json",
+    "reviewer_2_sha256": "e73ef78eff02d282c96c62f2f98a9faaff914932b9a967fbd5cfb068c574de70",
+    "adjudicator": "./human-review/adjudicator.json",
+    "adjudicator_sha256": "7e996a4affacb23ccfce5dae05be2707b90032de39c39de43ebc16173186d849",
+    "analysis": "./human-review/public-analysis.json",
+    "analysis_sha256": "897a54ec533666798a46988eebf0498e2de8d372be7d45ff165b78d377b608f8"
+  },
+  "private_reflection_review": {
+    "status": "complete",
+    "conversation_count": 24,
+    "turns_per_conversation": 16,
+    "packet": "./human-review/reflection-blind-packet.json",
+    "packet_sha256": "385c687ef0323ee29de3624cb8790726a89db37c76025978edfcc5dc38e3f72a",
+    "answer_key": "./human-review/reflection-answer-key.json",
+    "answer_key_sha256": "c47f2ac6edb6ef17050216374ffa66bde0d82ac1574fae053b520b3d6a59da6f",
+    "reviewer_1": "./human-review/reflection-reviewer-1.json",
+    "reviewer_1_sha256": "0d0b9dd6361418137cae7965007590010f73b92ceef2b504f16a81e8fac90e85",
+    "reviewer_2": "./human-review/reflection-reviewer-2.json",
+    "reviewer_2_sha256": "1251df47aa1eab43bc2d5b7521c764e16c04c4048b419b57940be61a6916f4d4",
+    "adjudicator": "./human-review/reflection-adjudicator.json",
+    "adjudicator_sha256": "77187d12d8fea17f6cc9939e39ee7059cdcd50c2adddfca7a3cab7bba9d6326d",
+    "analysis": "./human-review/reflection-analysis.json",
+    "analysis_sha256": "0238234b325d0259212b98e5ed113551afcb1a2e46eaa61ccc8c3fc37309d8db"
+  }
+}

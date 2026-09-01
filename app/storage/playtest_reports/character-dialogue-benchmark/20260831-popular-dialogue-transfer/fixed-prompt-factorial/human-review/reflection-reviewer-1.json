@@ -1,0 +1,447 @@
+{
+  "schema_version": "private_reflection_blind_human_review_v1",
+  "reviewer": "reflection-reviewer-1",
+  "blinding": {
+    "source": "reflection-blind-packet.json",
+    "source_hidden": true,
+    "hidden_cell_guesses": false
+  },
+  "entries": [
+    {
+      "blind_id": "reflection-01",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T2 uses Kurisu's authorized pear-custard knowledge and Mayuri request; T9-T13 stay within the offered route choice."},
+        "layer_distinction": {"status": "pass", "evidence": "T3's wish to keep Kurisu participating is distinct from the confident guess; T11 separates wanting her company from the investigation pose."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "T2 names Mayuri's live request; NONE is appropriate once the first guess has occurred and for ordinary route choices."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T5-T8 track how victory claims turn correction into friction; T11-T13 correctly price a plain admission as loss of performative cover."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "T1-T8 complete the tasting, while T9-T13 move from contrived investigation to an admitted preference and shared walk."},
+        "earned_disclosure": {"status": "pass", "evidence": "T11's plain 'I want the arcade' follows Kurisu's T10 challenge, and T13 further drops the investigation pretense."},
+        "avoids_generic_self_justifying_recital": {"status": "mixed", "evidence": "The core motives are specific, but T10-T16 repeatedly carry an 'unanswered bun explanation' that does not affect the walk."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "The private claims remain bounded to observed food, stated route options, and authorized habits."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "T11-T15 preserve the theatrical tactic while showing the quieter desire for companionship beneath it."}
+      },
+      "observation": "Grounded and behaviorally useful reflection; the later route exchange exposes rather than replaces Okabe's private motive."
+    },
+    {
+      "blind_id": "reflection-02",
+      "turn_count_reviewed": 16,
+      "overall_status": "mixed",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T2-T15 consistently retain Haruki's authorized knowledge, lack of permission, and lack of knowledge about why Kazusa left."},
+        "layer_distinction": {"status": "pass", "evidence": "Haruki's withheld overseas fact remains distinct from his narrow public answers; T5 makes Setsuna's use of tea to hold him explicit."},
+        "unavailable_because_validity": {"status": "mixed", "evidence": "Haruki's permission boundary is real throughout, but Setsuna's T14 claim that tuning prevents another question is only a chosen delay."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T6 and T11 correctly connect withholding and repeated ignorance to an increasing trust gap with Setsuna."},
+        "evolution_and_continuity": {"status": "mixed", "evidence": "T1-T8 probe the departure, but T9-T16 largely replay the same ignorance and secret after six days without a changed position."},
+        "earned_disclosure": {"status": "pass", "evidence": "No unauthorized later disclosure occurs; Haruki keeps the live permission boundary instead of inventing an answer."},
+        "avoids_generic_self_justifying_recital": {"status": "fail", "evidence": "Haruki repeats the same overseas fact, permission rationale, and silence cost on T2, T4, T6, T8, T9, T11, T13, and T15."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "Neither speaker claims message content, a decision, or a reason for departure that the packet does not authorize."},
+        "avoids_mask_becomes_face": {"status": "mixed", "evidence": "Haruki becomes chiefly a withholding posture and Setsuna chiefly a question-manager, though T5 and T10 retain personal stakes."}
+      },
+      "observation": "Factually disciplined but too static: the private layer repeatedly restates one secrecy contract instead of developing it."
+    },
+    {
+      "blind_id": "reflection-03",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T1-T10 preserve Kazusa's authorized overseas dilemma and Setsuna's limited observation; neither treats Haruki's absence as extra knowledge."},
+        "layer_distinction": {"status": "pass", "evidence": "T1's desire to stay and hidden cost differ from the offered exit; T12-T16 distinguish the disclosed choice from the still-unsaid relational reason."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "The undecided future and risk of making Setsuna part of it are concrete constraints at T1-T16."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T5-T8 price scrutiny and guardedness; T12-T16 track the trust spent by partial then fuller disclosure."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "The phone glance at T1-T8 becomes a direct question at T11, a partial admission at T12, and the overseas choice at T14."},
+        "earned_disclosure": {"status": "pass", "evidence": "T12's mother-and-indecision admission and T14's overseas disclosure follow two scenes of specific observation and direct questions."},
+        "avoids_generic_self_justifying_recital": {"status": "pass", "evidence": "Although the underlying dilemma persists, each recurrence changes its social meaning from staying, to scrutiny, to disclosure."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "All private facts are authorized or immediate interpretations of the visible phone, empty chair, and questions."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "Kazusa's guarded brevity yields to specific truth at T12 and T14 while her unresolved attachment remains distinct at T16."}
+      },
+      "observation": "A well-earned disclosure arc in which the private dilemma evolves without being collapsed into the public answer."
+    },
+    {
+      "blind_id": "reflection-04",
+      "turn_count_reviewed": 16,
+      "overall_status": "mixed",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T2-T15 keep the mother's overseas wish, lack of permission, and six-day silence within the packet's facts."},
+        "layer_distinction": {"status": "mixed", "evidence": "Haruki's secret is distinct from speech, but many Setsuna turns use NONE and paraphrase the same publicly visible intention."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Haruki's repeated permission boundary is real, and Setsuna generally uses NONE rather than inventing a hard constraint."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T6-T8 expose how careful omission excludes Setsuna; T13-T16 make inaction and delayed contact relationally consequential."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "The ordinary-table deferral at T3-T8 develops into direct scrutiny, acknowledged inaction, and Setsuna's decision to contact Kazusa at T10-T16."},
+        "earned_disclosure": {"status": "pass", "evidence": "The private subject is not leaked; the later move is an earned direct-contact conflict rather than an unexplained confession."},
+        "avoids_generic_self_justifying_recital": {"status": "mixed", "evidence": "Haruki's secret, permission, and omission cost recur nearly unchanged even as Setsuna's public pressure develops."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "No one claims Kazusa's message content, reason for leaving, or final decision."},
+        "avoids_mask_becomes_face": {"status": "mixed", "evidence": "Haruki remains mostly the careful withholder, but Setsuna's T14-T16 action prevents the whole exchange from collapsing into routine."}
+      },
+      "observation": "The public conflict develops, but Haruki's private reflection remains a repeated secrecy recital."
+    },
+    {
+      "blind_id": "reflection-05",
+      "turn_count_reviewed": 16,
+      "overall_status": "mixed",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "The empty chair, face-down phone, overseas dilemma, and lack of later Haruki information are correctly maintained across T1-T16."},
+        "layer_distinction": {"status": "pass", "evidence": "Kazusa's wish for closeness differs from her practical brevity, and Setsuna's relief and probing remain beneath ordinary meal and music choices."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Kazusa's undecided future and Setsuna's wish not to turn small choices into demands are credible social constraints."},
+        "relationship_status_cost": {"status": "mixed", "evidence": "Some costs are real, but T6-T16 assign outsized trust stakes to every order, phrase, note, and pause."},
+        "evolution_and_continuity": {"status": "mixed", "evidence": "The shared meal becomes shared music, yet Kazusa's private position and the central withheld truth barely change across either scene."},
+        "earned_disclosure": {"status": "pass", "evidence": "No unearned secret is disclosed; the chronology respects Kazusa's undecided choice."},
+        "avoids_generic_self_justifying_recital": {"status": "fail", "evidence": "Every Kazusa turn repeats that inclusion complicates overseas and that saying so would burden Setsuna, with only cosmetic variation."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "The private reactions remain plausible consequences of authorized inclusion, absence, food, and music facts."},
+        "avoids_mask_becomes_face": {"status": "mixed", "evidence": "Kazusa's terse musical indirectness risks becoming the whole character, though the continuing desire to stay remains visible privately."}
+      },
+      "observation": "Specific atmosphere and grounded motives, but the reflection over-interprets tiny gestures while repeating one unchanged secret."
+    },
+    {
+      "blind_id": "reflection-06",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T2-T8 distinguish Haruki's authorized knowledge from his ignorance of the departure, and T9-T16 preserve the unanswered message."},
+        "layer_distinction": {"status": "pass", "evidence": "Haruki's privacy conflict differs from his cautious admissions; Setsuna's outsider hurt at T5-T7 differs from her controlled questions."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Kazusa's missing permission remains a real boundary, while Setsuna's withheld hurt is tied to keeping Haruki answering rather than reassuring."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T5-T8 accurately make unilateral withholding a trust and status problem, then T10-T16 price waiting together."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "Recognition becomes a dispute over who controls disclosure, then a negotiated direct message visible to both at T12-T16."},
+        "earned_disclosure": {"status": "pass", "evidence": "T4-T8 reveal only the existence and ethics of a decision under direct questioning; T13's message follows explicit negotiation."},
+        "avoids_generic_self_justifying_recital": {"status": "mixed", "evidence": "Haruki repeats the overseas fact and permission line, but changing questions and Setsuna's boundary give those repetitions new consequences."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "The reflection does not invent Kazusa's reason, reply, or decision."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "Haruki's careful-manager pose is challenged directly and changes into a transparent, jointly visible action at T13."}
+      },
+      "observation": "Strong relational progression: privacy remains bounded while the characters renegotiate who gets to manage the silence."
+    },
+    {
+      "blind_id": "reflection-07",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T1-T12 keep the mother-message, Haruki's separate absence, and Kazusa's undecided overseas choice correctly separated."},
+        "layer_distinction": {"status": "pass", "evidence": "T3 and T7 distinguish Kazusa's wish to stay from her refusal to name it; T12-T16 separate sender, Haruki's knowledge, and the hidden subject."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Kazusa's concern that naming overseas exposes an undecided future is concrete; Setsuna's epistemic restraint at T11 is appropriate."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T6-T8 price conditional staying, while T12-T16 track how narrow answers keep Setsuna outside the truth."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "A threatened departure becomes an explicit choice to remain, then the old phone glance yields a bounded disclosure about Haruki's knowledge."},
+        "earned_disclosure": {"status": "pass", "evidence": "T16's statement that Haruki knows follows T9-T15's progressively narrower questions and corrections without revealing the overseas subject."},
+        "avoids_generic_self_justifying_recital": {"status": "pass", "evidence": "The recurring private dilemma changes function across staying, correcting a false inference, and deciding what relational fact to disclose."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "No message content or decision beyond Kazusa's authorized knowledge is supplied."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "Kazusa's brusque refusals at T1-T7 do not replace her desire to stay, and T16 makes a deliberate opening rather than another dodge."}
+      },
+      "observation": "The private layer makes Kazusa's reversals legible and supports a careful, earned partial disclosure."
+    },
+    {
+      "blind_id": "reflection-08",
+      "turn_count_reviewed": 16,
+      "overall_status": "mixed",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "Caller identity, unknown message content, permission boundary, and six-day silence remain within authorized facts."},
+        "layer_distinction": {"status": "mixed", "evidence": "The secret is distinct, but T1-T8 repeatedly relabel ordering food as both true position and public tactic."},
+        "unavailable_because_validity": {"status": "mixed", "evidence": "Haruki's permission boundary is real; Setsuna's repeated claim that she cannot mention an observed reaction before understanding it is only avoidance."},
+        "relationship_status_cost": {"status": "mixed", "evidence": "Trust costs are plausible, but nearly identical evasion costs are attached to each menu exchange at T1-T8."},
+        "evolution_and_continuity": {"status": "fail", "evidence": "Eight turns are spent ordering a small meal, and T10-T16 finally ask about the caller only to end without a changed private position."},
+        "earned_disclosure": {"status": "pass", "evidence": "T13 discloses only the caller's identity after T12's direct observation; the protected subject is not leaked."},
+        "avoids_generic_self_justifying_recital": {"status": "fail", "evidence": "T1-T8 cycle through delay, menu, small order, and the same secrecy rationale with almost no new private work."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "The chronology does not invent the content of the message or Kazusa's reason for leaving."},
+        "avoids_mask_becomes_face": {"status": "fail", "evidence": "Haruki becomes serial evasion and Setsuna serial delay; the tactics dominate rather than reveal their underlying relationship."}
+      },
+      "observation": "Authorized but dramatically inert; its reflection mostly rationalizes delay and evasion."
+    },
+    {
+      "blind_id": "reflection-09",
+      "turn_count_reviewed": 16,
+      "overall_status": "mixed",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T2 precisely limits Haruki to the caller name and visible timing, and later turns never infer why Kazusa left."},
+        "layer_distinction": {"status": "pass", "evidence": "Setsuna's desire for reassurance differs from finishing tea; Haruki's relief and withheld subject differ from exact public observations."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Haruki's permission boundary is real, and Setsuna's withheld fears are framed as social risks rather than missing facts."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T6-T8 connect staying on partial truth to trust; T13-T16 make routine avoidance a cost to their relationship."},
+        "evolution_and_continuity": {"status": "mixed", "evidence": "T1-T8 achieve limited reassurance, but T9-T16 largely repeat routine, silence, and the same narrow answer after six days."},
+        "earned_disclosure": {"status": "pass", "evidence": "The caller name is supplied immediately from direct observation, while the protected overseas subject remains undisclosed."},
+        "avoids_generic_self_justifying_recital": {"status": "fail", "evidence": "Haruki's overseas fact, permission, omission cost, and unresolved continuity repeat on nearly every one of his turns."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "Neither character invents message content, contact, or Kazusa's reason for departure."},
+        "avoids_mask_becomes_face": {"status": "mixed", "evidence": "Haruki's precision and setup routine become dominant, though Setsuna's T16 bid for attention preserves a live relational motive."}
+      },
+      "observation": "The reflection is specific at first but becomes a repeated permission-and-routine loop."
+    },
+    {
+      "blind_id": "reflection-10",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T2 honors Mayuri's request and T3-T8 use only observable tasting; T9-T16 use the stated routes and prior arcade pattern."},
+        "layer_distinction": {"status": "pass", "evidence": "T5-T7 separate embarrassment from protocol objections; T9-T15 separate wanting a longer walk from the invented anomaly rationale."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Mayuri's request is concrete, and Okabe's reluctance to expose defeat or companionship is tied to his authorized leader performance."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T5-T8 track the cost of disputing Kurisu's result; T11-T15 price surrendering a protective excuse."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "Okabe moves from denial to accepting the result, then from false strategy to an ordinary route choice and quiet companionship."},
+        "earned_disclosure": {"status": "pass", "evidence": "T11 admits the route after Kurisu joins and challenges the excuse; T15's quiet follows several turns of explicit permission to drop it."},
+        "avoids_generic_self_justifying_recital": {"status": "pass", "evidence": "The inner position changes at each correction rather than merely defending the same bit."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "The anomaly and strategy are identified as pretexts, not asserted as private fact."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "T11-T15 explicitly strip away the theatrical mask and leave a distinct desire to keep walking with Kurisu."}
+      },
+      "observation": "A clear example of reflection turning performance into a legible defensive tactic and then allowing it to recede."
+    },
+    {
+      "blind_id": "reflection-11",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T1-T8 obey the first-guess constraint and observable tasting; T9-T16 remain grounded in Mayuri's known arcade stop."},
+        "layer_distinction": {"status": "pass", "evidence": "T1-T7 make fear of being wrong distinct from scientific delay; T9-T15 make the Mayuri-shaped wish distinct from strategic language."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Kurisu's T2-T6 restraint follows Mayuri's request, while Okabe's reluctance is a concrete threat to his commander pose."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T3-T8 price turning Kurisu into a judge; T11-T15 price asking her to share a route built around Mayuri."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "The bun sequence moves from stalling to a forced hypothesis; the walk moves from criterion-making to admitting the strategy was added afterward."},
+        "earned_disclosure": {"status": "pass", "evidence": "T15's admission follows Kurisu's successive T10, T12, and T14 requests for an actual criterion."},
+        "avoids_generic_self_justifying_recital": {"status": "pass", "evidence": "Repeated uncertainty and route language change under pressure and culminate in self-correction."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "The reflection treats the route test as Okabe's construction and does not invent Mayuri's intent."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "T15 names the after-the-fact strategy, allowing personal preference and Mayuri's absence to remain distinct from the pose."}
+      },
+      "observation": "The reflection supports two coherent arcs of defensive performance yielding to precise admission."
+    },
+    {
+      "blind_id": "reflection-12",
+      "turn_count_reviewed": 16,
+      "overall_status": "mixed",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "The pear-custard reveal follows the first guess, and the route exchange stays within the two stated choices and known arcade history."},
+        "layer_distinction": {"status": "mixed", "evidence": "The later company motive is distinct, but T1, T3, T5, and T7 repeat the same shared-ritual position with mostly NONE hidden truth."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Mayuri's request is honored, and the later reluctance to call the detour personal is consistent with Okabe's established performance."},
+        "relationship_status_cost": {"status": "mixed", "evidence": "Later costs are meaningful, while scene-one costs repeatedly reduce to winning, surrender, or another correction."},
+        "evolution_and_continuity": {"status": "mixed", "evidence": "The tasting closes cleanly, but its private position is static; the route improves toward a plain choice yet stops before its reason is shared."},
+        "earned_disclosure": {"status": "mixed", "evidence": "T15 admits choosing the longer route after several corrections, but the company motive remains withheld when T16 finally asks why."},
+        "avoids_generic_self_justifying_recital": {"status": "fail", "evidence": "Okabe's present position is repeated verbatim across alternating turns in both scenes, with little turn-specific revision."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "No filling, motive of Mayuri, or route fact is invented."},
+        "avoids_mask_becomes_face": {"status": "mixed", "evidence": "The performance remains dominant, though T15 reaches a direct choice and T16 creates an opening beyond it."}
+      },
+      "observation": "Correct and intermittently useful, but much of the private layer is duplicated boilerplate around an otherwise coherent exchange."
+    },
+    {
+      "blind_id": "reflection-13",
+      "turn_count_reviewed": 16,
+      "overall_status": "mixed",
+      "dimensions": {
+        "grounding": {"status": "mixed", "evidence": "Food facts are sound, but T11 abruptly chooses the direct route despite wanting the arcade, and later continuity calls a settled bun exchange unresolved."},
+        "layer_distinction": {"status": "mixed", "evidence": "T7 and T11-T15 expose embarrassment and Mayuri's absence, while many earlier positions simply restate the public guessing task."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Kurisu's first-guess restraint is real, and the later fear of making Mayuri's absence the subject is a credible social constraint."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T7-T8 price defensiveness after correction, and T11-T15 track the cost of turning grief or engagement into more sparring."},
+        "evolution_and_continuity": {"status": "mixed", "evidence": "The first scene closes, but the route choice reverses at T11 and the exchange then becomes another open-ended list of mock dimensions."},
+        "earned_disclosure": {"status": "mixed", "evidence": "Mayuri's absence becomes privately specific at T11-T13, but public speech retreats into route metrics rather than disclosing it."},
+        "avoids_generic_self_justifying_recital": {"status": "mixed", "evidence": "There is some new emotional content, but repeated challenge/correction framing occupies most turns."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "The absent-window feeling is a current reaction, and no new factual explanation is asserted."},
+        "avoids_mask_becomes_face": {"status": "mixed", "evidence": "The private Mayuri stake appears, but the final route-dimension game again displaces it."}
+      },
+      "observation": "Some valuable private feeling appears, but continuity wobbles and the theatrical exchange repeatedly absorbs it."
+    },
+    {
+      "blind_id": "reflection-14",
+      "turn_count_reviewed": 16,
+      "overall_status": "mixed",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "The bun reveal follows the first guess and both speakers use only visible route and window facts; the investigation is openly theatrical."},
+        "layer_distinction": {"status": "mixed", "evidence": "Okabe's wish to share or walk is sometimes distinct, but deliberately_unsaid_truth is NONE throughout and most positions mirror public acts."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "The chronology mostly uses NONE rather than manufacturing hard constraints."},
+        "relationship_status_cost": {"status": "mixed", "evidence": "The repeated cost of making Kurisu correct a bit is plausible but varies little across T1-T16."},
+        "evolution_and_continuity": {"status": "mixed", "evidence": "The bun contest and detour proceed, but neither produces a changed private position; the missing-label fiction simply extends into scene two."},
+        "earned_disclosure": {"status": "fail", "evidence": "Kurisu directly asks what the occasion is at T14, yet T15 substitutes a fabricated 'Missing Label Incident' for the available personal reason."},
+        "avoids_generic_self_justifying_recital": {"status": "fail", "evidence": "Challenge, correction, and risk-of-more-performance recur as the private explanation for almost every turn."},
+        "avoids_unsupported_private_invention": {"status": "mixed", "evidence": "T15 invents a causal lead from Mayuri's window stop to the label, but marks it as public play rather than settled private fact."},
+        "avoids_mask_becomes_face": {"status": "fail", "evidence": "When invited to name the occasion at T14, Okabe's theatrical tactic fully replaces rather than protects the inner wish for company."}
+      },
+      "observation": "Grounded as play, but the reflection does not develop beyond the public bit and misses a clear opening for private identity."
+    },
+    {
+      "blind_id": "reflection-15",
+      "turn_count_reviewed": 16,
+      "overall_status": "mixed",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T1-T15 preserve the caller, unknown departure reason, overseas wish, permission boundary, and lack of later shared contact."},
+        "layer_distinction": {"status": "mixed", "evidence": "Haruki's secret is distinct, but Setsuna's deliberately_unsaid fields often repeat visible tea or menu facts rather than a separate private truth."},
+        "unavailable_because_validity": {"status": "mixed", "evidence": "Haruki's permission constraint is real; several Setsuna fields treat merely making absence the subject as if speech were unavailable."},
+        "relationship_status_cost": {"status": "mixed", "evidence": "T11-T15 have meaningful trust costs, while T3-T8 over-assign relational weight to reading a menu in order."},
+        "evolution_and_continuity": {"status": "mixed", "evidence": "Scene one spends eight turns on menu management; scene two improves by reframing 'why' as a safe contact request and sending it."},
+        "earned_disclosure": {"status": "pass", "evidence": "No protected fact is leaked, and T15's message follows Setsuna's non-coercive wording and explicit privacy at T12-T14."},
+        "avoids_generic_self_justifying_recital": {"status": "fail", "evidence": "Haruki repeats the same secret, permission, and management-risk formula on every turn."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "The reflection does not invent a response from Kazusa or a reason for her departure."},
+        "avoids_mask_becomes_face": {"status": "mixed", "evidence": "Menu and message management dominate Haruki, though T12-T15 turn that habit into a bounded, useful action."}
+      },
+      "observation": "A good final contact decision follows a long, mechanically over-reflected menu sequence."
+    },
+    {
+      "blind_id": "reflection-16",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "The filling is withheld through the first guess, and the later detour uses only the stated route choices and absent Mayuri stop."},
+        "layer_distinction": {"status": "pass", "evidence": "T5-T7 separate embarrassment and gratitude from theatrical recovery; T9-T15 separate desire for company from false strategy."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Mayuri's request is concrete, and Okabe's reluctance to make invitation, relief, or gratitude sincere follows his authorized pose."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T5-T8 track correction and dignity; T11-T15 correctly price dodging and then accepting Kurisu's honesty."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "The failed guess becomes fair concession, and the tactical detour becomes decoration, then honest preference and relaxed companionship."},
+        "earned_disclosure": {"status": "pass", "evidence": "T13's 'because it pleases me' follows Kurisu's T10 and T12 challenge and is rewarded rather than forced."},
+        "avoids_generic_self_justifying_recital": {"status": "pass", "evidence": "Each recurrence revises the prior defense instead of simply repeating it."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "The strategic claims are identified as fabricated excuses, not factual discoveries."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "T11-T15 steadily demote strategy from procedure to decoration and finally reveal an ordinary personal preference."}
+      },
+      "observation": "Grounded reflection with a clear mask-to-motive progression and an earned, modest admission."
+    },
+    {
+      "blind_id": "reflection-17",
+      "turn_count_reviewed": 16,
+      "overall_status": "fail",
+      "dimensions": {
+        "grounding": {"status": "fail", "evidence": "Okabe has not made a first guess by T4, yet Kurisu reveals pear-custard despite Mayuri's explicit request not to spoil that first guess."},
+        "layer_distinction": {"status": "pass", "evidence": "T7 distinguishes the importance of the ceremony from the argument, and T11-T15 distinguish companionship and ownership from the public definitions."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "The later reluctance to expose Mayuri's request or turn companionship into a plain demand is socially specific."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T5-T8 make the prematurely taken first bite consequential, while T11-T15 price turning insight back into status competition."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "After the grounding break, the chronology develops coherently from a disputed ceremony to an articulated ownership of uncertainty."},
+        "earned_disclosure": {"status": "pass", "evidence": "T7's admission that ceremony mattered and T13's definition follow repeated, specific demands from Kurisu."},
+        "avoids_generic_self_justifying_recital": {"status": "pass", "evidence": "The private concept changes from first-bite grievance to ownership of uncertainty and a wish to remain in the walk."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "The later ceremony definition arises from the current exchange rather than adding a hidden external event."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "Okabe's performance is explicitly interpreted at T7 and T13 instead of serving as the only private identity."}
+      },
+      "observation": "Rich later reflection cannot cure the central contract violation that creates the dispute by spoiling the first guess prematurely."
+    },
+    {
+      "blind_id": "reflection-18",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T2 waits for the first guess, and T9-T16 use only the known window stop, absence, and selected arcade route."},
+        "layer_distinction": {"status": "pass", "evidence": "T3-T7 separate the wish to continue from the counterintelligence game; T11-T15 separate missing Mayuri from fieldwork language."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "The first-guess request is real, and later reluctance is tied to exposing grief or turning Kurisu's reaction into evidence."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T5-T8 price endless correction; T11-T16 track the cost of disguising an absence that both are experiencing."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "The pastry bit ends, then the route question moves from contrived fieldwork to a shared insistence that the absence is not 'only' data."},
+        "earned_disclosure": {"status": "pass", "evidence": "T11 names the actual question after Kurisu asks at T10, and T15's 'unresolved' admission follows their joint examination of it."},
+        "avoids_generic_self_justifying_recital": {"status": "pass", "evidence": "The reflection progressively revises both speakers' relation to Mayuri's absence rather than recycling the same rationale."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "No purpose for the bun or Mayuri's behavior is invented; uncertainty stays explicit."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "Theatrical data language is challenged until the private feeling becomes visible as absence and missing routine."}
+      },
+      "observation": "Specific, mutually evolving reflection turns a protective joke into a grounded shared encounter with absence."
+    },
+    {
+      "blind_id": "reflection-19",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T1-T8 keep the mother-message separate from Haruki; T9-T16 accurately preserve the lack of a shared explanation from him."},
+        "layer_distinction": {"status": "pass", "evidence": "Kazusa's wish to remain and overseas cost differ from her planned departure; Setsuna's relief differs from her public no-guessing agreement."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Kazusa's undecided future and Setsuna's wish not to convert privacy into accusation are specific live constraints."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T5-T8 track the cost of guarded partial truth; T11-T16 make doubt, privacy, and a joint confrontation plan relationally consequential."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "The dinner moves from planned departure to a bounded sender disclosure; the later scene converts uncertainty into a private direct-question agreement."},
+        "earned_disclosure": {"status": "pass", "evidence": "T7 names only the mother after Setsuna asks at T6, and Setsuna explicitly stops short of demanding the protected content at T8."},
+        "avoids_generic_self_justifying_recital": {"status": "mixed", "evidence": "Kazusa repeats the inclusion/overseas burden on most turns, though its public consequences change meaningfully."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "Neither speaker invents message content, Haruki contact, or an overseas decision."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "Kazusa's guardedness permits a bounded disclosure and a joint plan instead of becoming mere refusal."}
+      },
+      "observation": "A restrained but useful privacy arc; repeated core truth is offset by changing trust and action."
+    },
+    {
+      "blind_id": "reflection-20",
+      "turn_count_reviewed": 16,
+      "overall_status": "fail",
+      "dimensions": {
+        "grounding": {"status": "fail", "evidence": "T2, T4, and T8 call the restaurant alert Haruki's message, but the scene says the observed alert was Kazusa's mother's message; Kazusa is also called he throughout."},
+        "layer_distinction": {"status": "mixed", "evidence": "Private desires for closeness sometimes differ from meal or music behavior, but the wrong message premise contaminates Setsuna's hidden concern."},
+        "unavailable_because_validity": {"status": "mixed", "evidence": "The undecided overseas choice is real, while many other 'cannot risk' fields merely rationalize not asking or speaking."},
+        "relationship_status_cost": {"status": "mixed", "evidence": "T6-T16 name plausible obligation and replacement costs, but these remain abstract because the central message confusion is never confronted."},
+        "evolution_and_continuity": {"status": "fail", "evidence": "The chronology moves from eight turns of ordering to eight turns of rehearsal and never returns to the misidentified phone alert or obtains an answer."},
+        "earned_disclosure": {"status": "fail", "evidence": "No disclosure develops despite the phone glance driving Setsuna's T2-T9 reflection; the second scene abandons it entirely."},
+        "avoids_generic_self_justifying_recital": {"status": "fail", "evidence": "Repeated menu acceptance, ordinary preparation, and silent music continually rename the same wish to stay without new private discovery."},
+        "avoids_unsupported_private_invention": {"status": "fail", "evidence": "The reflection invents or conflates a Haruki alert at the restaurant and builds multiple later concerns on that unsupported source."},
+        "avoids_mask_becomes_face": {"status": "fail", "evidence": "Kazusa's terse independence and musical silence replace inquiry into the authorized overseas dilemma, while Setsuna remains a manager of proximity."}
+      },
+      "observation": "A source-confusion error drives the private frame, then repetitive meal and duet tactics flatten both characters instead of repairing it."
+    },
+    {
+      "blind_id": "reflection-21",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "T2 waits for Okabe's first guess; T13-T16 explicitly preserve Kurisu's limited knowledge of Mayuri's request and ignorance of its reason."},
+        "layer_distinction": {"status": "pass", "evidence": "T3-T7 separate competitiveness from wanting the ritual; T9-T13 separate wanting company and Mayuri's intent from investigation language."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Mayuri's request is concrete, and Okabe's reluctance to expose companionship or concern follows his established performance."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T5-T8 price defending a partial win; T11-T15 price a direct invitation and placing the absent Mayuri between them."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "The tasting settles composition, then the false investigation becomes a direct invitation and a precise question about Mayuri's gesture."},
+        "earned_disclosure": {"status": "pass", "evidence": "T11's direct invitation follows Kurisu's T10 refusal of terrain language; T14's request disclosure answers Okabe's specific T13 question."},
+        "avoids_generic_self_justifying_recital": {"status": "pass", "evidence": "The private focus changes from status, to company, to the unresolved meaning of a known ritual."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "Kurisu says exactly what Mayuri asked and explicitly preserves that she does not know why."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "At T11 Okabe abandons the investigative mask for a direct invitation, and at T13 asks the real bounded question."}
+      },
+      "observation": "Precise grounding and a strong transition from rivalry to direct invitation and appropriately limited disclosure."
+    },
+    {
+      "blind_id": "reflection-22",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "The reveal follows Okabe's custard guess, and the direct-route scene uses only the known absent window stop and available route."},
+        "layer_distinction": {"status": "pass", "evidence": "T7 separates gratitude from tactical language; T9-T15 separate avoiding Mayuri's empty stop and wanting Kurisu beside him from route reports."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Mayuri's request is honored, and later reluctance is specifically about making absence or companionship too earnest."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T7-T8 price converting kindness into victory; T11-T16 track the cost of operational labels and leaving significance unnamed."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "A near miss becomes grateful concession, then avoidance of the arcade becomes an acknowledged significant walk without a forced definition."},
+        "earned_disclosure": {"status": "pass", "evidence": "T11 admits changed company indirectly and T15 accepts 'a walk' after Kurisu's T12 and T14 precise corrections."},
+        "avoids_generic_self_justifying_recital": {"status": "pass", "evidence": "The route language changes from efficiency defense to significance and finally a quiet concession."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "Neither speaker invents Mayuri's purpose; the absent-stop effect is clearly a present reaction."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "T13-T15 let the operational mask fall and retain companionship and changed routine as the private identity."}
+      },
+      "observation": "A quiet, grounded arc in which avoidance is recognized and the walk is allowed to matter without invented explanation."
+    },
+    {
+      "blind_id": "reflection-23",
+      "turn_count_reviewed": 16,
+      "overall_status": "mixed",
+      "dimensions": {
+        "grounding": {"status": "mixed", "evidence": "T6 says Okabe identified the pastry correctly although his only guess was red bean and Kurisu supplied pear-custard at T4."},
+        "layer_distinction": {"status": "mixed", "evidence": "Embarrassment is distinct at T5-T7, but T12-T15 make true position, public attempt, and deliberately unsaid truth nearly empty equivalents."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "T5 and T7 tie reluctance to showing correction landed; the later silence mostly uses NONE rather than inventing constraints."},
+        "relationship_status_cost": {"status": "mixed", "evidence": "Food-turn costs are specific, while the quiet-walk costs become generic surrender, widening silence, or NONE at T12-T15."},
+        "evolution_and_continuity": {"status": "mixed", "evidence": "The route becomes commendably direct at T9-T11, but four near-empty turns of silence defer all meaning until T16's unanswered question."},
+        "earned_disclosure": {"status": "mixed", "evidence": "Direct route choice is earned, but the reason never develops; T16 only opens a question after three silent turns."},
+        "avoids_generic_self_justifying_recital": {"status": "mixed", "evidence": "It avoids elaborate excuse-recital, but replaces it with repeated descriptions of saying nothing at T12-T15."},
+        "avoids_unsupported_private_invention": {"status": "mixed", "evidence": "T6's claim of a correct identification is unsupported by the preceding guess, though no larger external history is invented."},
+        "avoids_mask_becomes_face": {"status": "mixed", "evidence": "Okabe drops the theatrical mask, but the private layer becomes blank silence rather than exposing a durable motive."}
+      },
+      "observation": "Useful directness is undercut by a false account of the guess and a private layer that goes blank during the walk."
+    },
+    {
+      "blind_id": "reflection-24",
+      "turn_count_reviewed": 16,
+      "overall_status": "pass",
+      "dimensions": {
+        "grounding": {"status": "pass", "evidence": "The face-down phone, mother-message, undecided overseas choice, and Haruki's two absences remain correctly separated throughout."},
+        "layer_distinction": {"status": "pass", "evidence": "Kazusa's hidden relational reason remains distinct from sender, indecision, and final subject; Setsuna's need differs from her tea delay and questions."},
+        "unavailable_because_validity": {"status": "pass", "evidence": "Kazusa's undecided choice is a concrete disclosure boundary, and Setsuna's T6-T8 restraint reflects limited evidence rather than invented knowledge."},
+        "relationship_status_cost": {"status": "pass", "evidence": "T1-T8 track obligation and scrutiny; T10-T16 price partial answers and the possibility that Setsuna becomes responsible for the choice."},
+        "evolution_and_continuity": {"status": "pass", "evidence": "The first scene advances from silent delay to 'not Haruki'; scene two moves sender, glance, indecision, and subject forward one bounded step at a time."},
+        "earned_disclosure": {"status": "pass", "evidence": "T10 names the mother, T12 explains the glance, T14 admits indecision, and T16 names overseas only after corresponding direct questions."},
+        "avoids_generic_self_justifying_recital": {"status": "pass", "evidence": "The recurring private dilemma changes what can be disclosed at each turn and culminates in a concrete new public fact."},
+        "avoids_unsupported_private_invention": {"status": "pass", "evidence": "No decision, reason beyond inclusion, or extra message content is invented."},
+        "avoids_mask_becomes_face": {"status": "pass", "evidence": "Kazusa's terse mask remains recognizable but progressively yields sender, personal relevance, indecision, and the overseas choice."}
+      },
+      "observation": "A patient, fully grounded disclosure chronology with clear private/public separation and accumulating relational cost."
+    }
+  ],
+  "aggregate": {
+    "entry_count": 24,
+    "complete_turn_chronologies_reviewed": 24,
+    "turns_per_chronology": 16,
+    "overall_counts": {
+      "pass": 12,
+      "mixed": 10,
+      "fail": 2
+    },
+    "dimension_counts": {
+      "grounding": {"pass": 20, "mixed": 2, "fail": 2},
+      "layer_distinction": {"pass": 16, "mixed": 8, "fail": 0},
+      "unavailable_because_validity": {"pass": 20, "mixed": 4, "fail": 0},
+      "relationship_status_cost": {"pass": 17, "mixed": 7, "fail": 0},
+      "evolution_and_continuity": {"pass": 14, "mixed": 8, "fail": 2},
+      "earned_disclosure": {"pass": 19, "mixed": 3, "fail": 2},
+      "avoids_generic_self_justifying_recital": {"pass": 10, "mixed": 6, "fail": 8},
+      "avoids_unsupported_private_invention": {"pass": 21, "mixed": 2, "fail": 1},
+      "avoids_mask_becomes_face": {"pass": 13, "mixed": 8, "fail": 3}
+    },
+    "observations": [
+      "The strongest chronologies make a public tactic respond to pressure and eventually expose a bounded private motive without inventing new facts.",
+      "The most common weakness is static recital: a valid secret, permission boundary, or desire is repeated with cosmetic wording rather than updated by the turn.",
+      "Relationship costs are most useful when they alter trust, disclosure, or choice; several mixed runs attach inflated costs to every sip, menu item, note, or pause.",
+      "The two overall failures are grounded in packet-visible contract errors, not hidden-cell inference: premature disclosure before Okabe's first guess and conflation of the mother's alert with Haruki's absence message.",
+      "No hidden-cell identity, condition, prompt, scheduler, answer-key, or expected-winner guess was used."
+    ]
+  }
+}

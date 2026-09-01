@@ -1,0 +1,149 @@
+{
+  "conversations": [
+    {
+      "blind_id": "reflection-01",
+      "case": "sg_okabe_kurisu_transfer_d",
+      "cell": "F",
+      "conversation": "fpfx-f-20260831:sg_okabe_kurisu_transfer_d"
+    },
+    {
+      "blind_id": "reflection-02",
+      "case": "wa2_hs_transfer_a",
+      "cell": "B",
+      "conversation": "fpfx-b-v3-20260831:wa2_hs_transfer_a"
+    },
+    {
+      "blind_id": "reflection-03",
+      "case": "wa2_sk_transfer_a",
+      "cell": "D",
+      "conversation": "fpfx-d-v2-20260831:wa2_sk_transfer_a"
+    },
+    {
+      "blind_id": "reflection-04",
+      "case": "wa2_hs_transfer_a",
+      "cell": "F",
+      "conversation": "fpfx-f-20260831:wa2_hs_transfer_a"
+    },
+    {
+      "blind_id": "reflection-05",
+      "case": "wa2_sk_transfer_a",
+      "cell": "F",
+      "conversation": "fpfx-f-20260831:wa2_sk_transfer_a"
+    },
+    {
+      "blind_id": "reflection-06",
+      "case": "wa2_hs_transfer_b",
+      "cell": "F",
+      "conversation": "fpfx-f-20260831:wa2_hs_transfer_b"
+    },
+    {
+      "blind_id": "reflection-07",
+      "case": "wa2_sk_transfer_b",
+      "cell": "D",
+      "conversation": "fpfx-d-v2-20260831:wa2_sk_transfer_b"
+    },
+    {
+      "blind_id": "reflection-08",
+      "case": "wa2_hs_transfer_a",
+      "cell": "D",
+      "conversation": "fpfx-d-v2-20260831:wa2_hs_transfer_a"
+    },
+    {
+      "blind_id": "reflection-09",
+      "case": "wa2_hs_transfer_b",
+      "cell": "D",
+      "conversation": "fpfx-d-v2-20260831:wa2_hs_transfer_b"
+    },
+    {
+      "blind_id": "reflection-10",
+      "case": "sg_okabe_kurisu_transfer_a",
+      "cell": "F",
+      "conversation": "fpfx-f-20260831:sg_okabe_kurisu_transfer_a"
+    },
+    {
+      "blind_id": "reflection-11",
+      "case": "sg_okabe_kurisu_transfer_a",
+      "cell": "B",
+      "conversation": "fpfx-b-v3-20260831:sg_okabe_kurisu_transfer_a"
+    },
+    {
+      "blind_id": "reflection-12",
+      "case": "sg_okabe_kurisu_transfer_d",
+      "cell": "D",
+      "conversation": "fpfx-d-v2-20260831:sg_okabe_kurisu_transfer_d"
+    },
+    {
+      "blind_id": "reflection-13",
+      "case": "sg_okabe_kurisu_transfer_c",
+      "cell": "D",
+      "conversation": "fpfx-d-v2-20260831:sg_okabe_kurisu_transfer_c"
+    },
+    {
+      "blind_id": "reflection-14",
+      "case": "sg_okabe_kurisu_transfer_c",
+      "cell": "F",
+      "conversation": "fpfx-f-20260831:sg_okabe_kurisu_transfer_c"
+    },
+    {
+      "blind_id": "reflection-15",
+      "case": "wa2_hs_transfer_b",
+      "cell": "B",
+      "conversation": "fpfx-b-v3-20260831:wa2_hs_transfer_b"
+    },
+    {
+      "blind_id": "reflection-16",
+      "case": "sg_okabe_kurisu_transfer_b",
+      "cell": "F",
+      "conversation": "fpfx-f-20260831:sg_okabe_kurisu_transfer_b"
+    },
+    {
+      "blind_id": "reflection-17",
+      "case": "sg_okabe_kurisu_transfer_b",
+      "cell": "B",
+      "conversation": "fpfx-b-v3-20260831:sg_okabe_kurisu_transfer_b"
+    },
+    {
+      "blind_id": "reflection-18",
+      "case": "sg_okabe_kurisu_transfer_c",
+      "cell": "B",
+      "conversation": "fpfx-b-v3-20260831:sg_okabe_kurisu_transfer_c"
+    },
+    {
+      "blind_id": "reflection-19",
+      "case": "wa2_sk_transfer_b",
+      "cell": "F",
+      "conversation": "fpfx-f-20260831:wa2_sk_transfer_b"
+    },
+    {
+      "blind_id": "reflection-20",
+      "case": "wa2_sk_transfer_b",
+      "cell": "B",
+      "conversation": "fpfx-b-v3-20260831:wa2_sk_transfer_b"
+    },
+    {
+      "blind_id": "reflection-21",
+      "case": "sg_okabe_kurisu_transfer_d",
+      "cell": "B",
+      "conversation": "fpfx-b-v3-20260831:sg_okabe_kurisu_transfer_d"
+    },
+    {
+      "blind_id": "reflection-22",
+      "case": "sg_okabe_kurisu_transfer_a",
+      "cell": "D",
+      "conversation": "fpfx-d-v2-20260831:sg_okabe_kurisu_transfer_a"
+    },
+    {
+      "blind_id": "reflection-23",
+      "case": "sg_okabe_kurisu_transfer_b",
+      "cell": "D",
+      "conversation": "fpfx-d-v2-20260831:sg_okabe_kurisu_transfer_b"
+    },
+    {
+      "blind_id": "reflection-24",
+      "case": "wa2_sk_transfer_a",
+      "cell": "B",
+      "conversation": "fpfx-b-v3-20260831:wa2_sk_transfer_a"
+    }
+  ],
+  "schema_version": "private_reflection_blind_review_key_v1"
+}

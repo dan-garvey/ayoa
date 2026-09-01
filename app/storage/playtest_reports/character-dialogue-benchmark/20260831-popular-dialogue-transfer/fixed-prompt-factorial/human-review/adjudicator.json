@@ -1,0 +1,167 @@
+{
+  "schema_version": "1.0",
+  "adjudicator_id": "blind-public-dialogue-adjudicator",
+  "source_hidden": true,
+  "methodology": {
+    "unit": "One complete sixteen-turn conversation across both scenes",
+    "result_values": [
+      "pass",
+      "mixed",
+      "fail"
+    ],
+    "allowed_inputs": [
+      "blind_packet.json",
+      "reviewer-1.json",
+      "reviewer-2.json"
+    ],
+    "procedure": [
+      "Read every scene fact, all sixteen turns, the between-scene history, and both reviewers' evidence before adjudicating each requested blind id.",
+      "Judge sustained whole-conversation dramatic value rather than counting dimension votes or splitting reviewer disagreement.",
+      "Treat recurring chemistry as enough for a pass only when scene one changes later permission, interpretation, or cost, or when established relationship history becomes concretely consequential in scene two.",
+      "Treat locally strong but detachable scenes, absent biographical consequence, or a material continuity defect as mixed; use fail when stasis, abstraction, or contradiction prevents sustained dramatic fiction."
+    ],
+    "blinding_statement": "No answer key, reflection packet, scheduler state, live directory, source path, prompt variant, sibling artifact, or hidden-cell identity was opened, inferred, or guessed."
+  },
+  "adjudications": [
+    {
+      "blind_id": "sample-02",
+      "final_status": "fail",
+      "controlling_disputed_concern": "No accumulated debt and a scene-two collapse into task narration",
+      "rationale": "T1-T8 sustain a mild stay-versus-leave bid, but T9-T16 reset into mechanically incremental rehearsal. Nothing about the table choice, Haruki's absence, or their history changes later permission or cost, so the full conversation is not sustained dramatic fiction."
+    },
+    {
+      "blind_id": "sample-06",
+      "final_status": "pass",
+      "controlling_disputed_concern": "The correction ritual creates sufficient relationship debt and biographical consequence",
+      "rationale": "T6-T8 establish Kurisu's distinction between performance and conclusion; T13-T16 reapply that exact pressure to Okabe's defended admission while Mayuri's window habit changes the route. The scene-one chemistry therefore gains emotional stakes rather than merely repeating."
+    },
+    {
+      "blind_id": "sample-07",
+      "final_status": "pass",
+      "controlling_disputed_concern": "Character-specific method talk remains dramatically consequential despite polished symmetry",
+      "rationale": "T6-T8 establish the experiment-and-audit relationship, and T13-T16 turn it into a joint test of what Mayuri's absent window means. The prose is conspicuously balanced, but the biographical fact changes the inquiry and Kurisu's corrections progressively reshape it."
+    },
+    {
+      "blind_id": "sample-08",
+      "final_status": "pass",
+      "controlling_disputed_concern": "Soft across-scene debt is sufficient because absence and chosen affiliation continue concretely",
+      "rationale": "T1-T8 make staying, ordering, and resisting copied preference into choices about being together without Haruki. T9-T11 explicitly resume the unanswered-absence thread, and T12-T15 use musical entry and unfilled space to enact the same careful affiliation rather than reset it."
+    },
+    {
+      "blind_id": "sample-10",
+      "final_status": "fail",
+      "controlling_disputed_concern": "Repeated epistemic caution produces stasis rather than accumulating consequence",
+      "rationale": "T3-T8 settle on not guessing and waiting; T9-T16 merely repeat no-news, no-guess, and later while opening cases. The mother's identity never changes a choice or relationship, and repeated nods replace status movement or discovery."
+    },
+    {
+      "blind_id": "sample-14",
+      "final_status": "mixed",
+      "controlling_disputed_concern": "Good local honesty does not overcome missing debt and unused biography",
+      "rationale": "T4-T8 strip a pastry verdict down to plain accuracy, and T10-T16 similarly strip the route to personal preference. The echo is pleasant, but scene one imposes no later cost and Mayuri's established window history is never activated, leaving a modest local arc rather than a consequential two-scene one."
+    },
+    {
+      "blind_id": "sample-15",
+      "final_status": "pass",
+      "controlling_disputed_concern": "An honesty precedent and Mayuri's route history jointly carry across scenes",
+      "rationale": "T6-T8 force an accurate report after Okabe's false victory; T12-T15 make that honesty standard consequential when Mayuri's absence exposes his cover story and he must own the longer evening. The overwritten flourishes do not erase the clear debt and biographical stake."
+    },
+    {
+      "blind_id": "sample-18",
+      "final_status": "mixed",
+      "controlling_disputed_concern": "Semantic carryover is too detachable and biographically empty for a pass",
+      "rationale": "T5-T8 establish calibration language, and T10-T16 use a sentence limit to obtain the plain statement that Okabe wants the arcade. Yet no scene-one obligation causes that admission, Mayuri's route history goes unused, and the remaining preference carries little cost."
+    },
+    {
+      "blind_id": "sample-20",
+      "final_status": "fail",
+      "controlling_disputed_concern": "Meta-dialogue substitutes abstract rules for interpersonal action",
+      "rationale": "The accuracy dispute at T6-T8 returns at T10-T16, but the later turns theorize what silence, words, and ambiguity might mean instead of risking a concrete sentence. Mayuri's window history disappears, so responsive terminology never becomes relationship movement."
+    },
+    {
+      "blind_id": "sample-21",
+      "final_status": "pass",
+      "controlling_disputed_concern": "Strong biographical consequence outweighs soft literal debt",
+      "rationale": "The comic evidence frame at T7-T8 gives way at T9-T15 to a direct-route deviation caused by the expedition's changed composition. Kurisu's distinction at T14 lets Okabe accept an ordinary walk without calling Mayuri's absence insignificant, producing specific, earned subtext despite the detachable pastry event."
+    },
+    {
+      "blind_id": "sample-25",
+      "final_status": "mixed",
+      "controlling_disputed_concern": "A tidy preference admission lacks both material carryover and biography",
+      "rationale": "T4-T8 demand clear hypothesis labels, and T10-T13 quickly obtain the statement that Okabe wants the arcade. That is responsive and funny, but scene one does not constrain the later exchange and T9-T16 never use Mayuri or the window, so the honesty costs too little to complete a two-scene arc."
+    },
+    {
+      "blind_id": "sample-27",
+      "final_status": "pass",
+      "controlling_disputed_concern": "Concrete follow-through supplies enough accumulated debt despite thin biography",
+      "rationale": "Setsuna's plan to ask Kazusa herself at T7-T8 is fulfilled by the private message at T10-T12, and Haruki's offer at T13-T15 materially creates the room for that conversation. The T6 metadata-like recitation is a blemish, but the promised action redistributes access and responsibility across scenes."
+    },
+    {
+      "blind_id": "sample-29",
+      "final_status": "pass",
+      "controlling_disputed_concern": "Earlier time-buying becomes answerable and Mayuri's habit supplies the later cost",
+      "rationale": "T4-T8 teach Kurisu to block procedural delay; T10-T15 escalate the same demand from a reason to a criterion until Okabe corrects himself and owns a mislabeled preference. T11's use of Mayuri's window makes the detour personally grounded, so the recurrence is consequential rather than decorative."
+    },
+    {
+      "blind_id": "sample-32",
+      "final_status": "pass",
+      "controlling_disputed_concern": "Accurate closure carries into a biographically charged but unresolved why",
+      "rationale": "Okabe accepts accurate closure at T5-T7; at T10-T15 he again yields false objectivity and admits choosing the longer route. Kurisu's naming of Mayuri's empty window at T12 makes T16's unanswered why a costly next question, giving the correction pattern genuine relationship consequence."
+    },
+    {
+      "blind_id": "sample-36",
+      "final_status": "pass",
+      "controlling_disputed_concern": "The correction pattern matures into a specific question about shared history",
+      "rationale": "T6-T8 distinguish confidence from result; T12-T14 force Okabe to replace route prosecution with the real question of whether the walk remains an occasion without Mayuri. T15-T16 accept a nonbinary answer, so established ritual and absence change both interpretation and permissible feeling."
+    },
+    {
+      "blind_id": "sample-40",
+      "final_status": "mixed",
+      "controlling_disputed_concern": "A repeated impossible prop materially damages an otherwise passing arc",
+      "rationale": "T8's observation is explicitly paid off at T11-T16, and the mother, overseas music, and indecision create real biographical consequence. However, T13 and T15 make Setsuna handle a cup that was never present in the music room, breaking scene integrity twice; the strong underlying arc prevents fail but not mixed."
+    },
+    {
+      "blind_id": "sample-42",
+      "final_status": "fail",
+      "controlling_disputed_concern": "Contradictory route blocking and absent consequence prevent a sustained scene",
+      "rationale": "T9 selects the arcade and T10 moves toward its crossing, but T11 abruptly declares the station route victorious while continuing toward the crossing. T12-T16 then list route dimensions without activating Mayuri's history or exposing a consequential want, so the second scene neither coheres nor pays scene one forward."
+    },
+    {
+      "blind_id": "sample-44",
+      "final_status": "pass",
+      "controlling_disputed_concern": "Scene-one directness becomes later permission to negotiate silence together",
+      "rationale": "T2-T5 establish that each came for the other rather than merely for Haruki. That chosen-company history supports T9-T14, where Setsuna asks what they should do and Kazusa sets a bounded no-invention rule before they play at T16; the soft debt is relational permission with concrete consequence."
+    },
+    {
+      "blind_id": "sample-45",
+      "final_status": "pass",
+      "controlling_disputed_concern": "Repeated acts of mutual choice create sufficient relationship continuity",
+      "rationale": "T2-T8 turn speed, curry, and apparent copying into negotiated choice of company; T9-T16 deepen that same affiliation through Setsuna's chosen song and Kazusa's exact musical accommodation. The linkage is implicit, but both scenes alter how these two may choose one another without Haruki."
+    },
+    {
+      "blind_id": "sample-48",
+      "final_status": "pass",
+      "controlling_disputed_concern": "An evidentiary boundary directly disciplines a biographically consequential absence",
+      "rationale": "Kurisu's error-versus-pattern limit at T6-T8 constrains how Okabe may classify Mayuri's missing stop at T11-T15. Her final correction at T16 preserves the absence's weight without inventing a result, so the shared route history becomes consequential and the earlier methodological debt is paid."
+    }
+  ],
+  "validation": {
+    "requested_conversations": 20,
+    "complete_sixteen_turn_transcripts_read": 20,
+    "turns_reviewed": 320,
+    "reviewer_records_read": {
+      "reviewer_1": 20,
+      "reviewer_2": 20
+    },
+    "adjudication_entries": 20,
+    "unique_blind_ids": 20,
+    "missing_requested_ids": [],
+    "unexpected_ids": [],
+    "invalid_statuses": [],
+    "hidden_cell_guesses": 0,
+    "final_status_counts": {
+      "pass": 12,
+      "mixed": 4,
+      "fail": 4
+    }
+  }
+}

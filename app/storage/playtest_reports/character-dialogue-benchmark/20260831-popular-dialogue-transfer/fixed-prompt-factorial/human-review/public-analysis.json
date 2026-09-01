@@ -1,0 +1,170 @@
+{
+  "schema_version": "public_dialogue_analysis_v1",
+  "purpose": "Mechanically unblinded aggregation of the finalized whole-conversation public dialogue reviews.",
+  "scoring": {
+    "fail": 0,
+    "mixed": 1,
+    "pass": 2
+  },
+  "consensus_rule": "For each blind id, retain the shared reviewer status when reviewer-1 and reviewer-2 agree. For each disagreement, use that blind id's adjudicator final_status.",
+  "interpretation_guardrails": {
+    "planned_causal_comparisons_only": "The five paired comparisons below are the experiment-plan comparisons, use the same eight cases, and report the destination cell relative to the source cell. They are the causal contrasts supported by this factorial design.",
+    "composite_cell_means": "Cell pass/mixed/fail totals and mean scores are descriptive composites, not an additional causal ranking across cells with multiple changed factors.",
+    "historical_A_exclusion": "Historical cell A is excluded from all public summaries and comparisons: it used historical_full_snapshot_replay. Contemporaneous A2 is the repeated-identity, current-instruction, no-reflection control used in the planned contrasts."
+  },
+  "validation": {
+    "input_sha256": {
+      "answer_key.json": "349c4d183f5aa1b6eaa20ba5714c65a449b7f7ae91a3c03486484a8a74b41f77",
+      "reviewer-1.json": "0f50de0148a2f3a4b3d1956dacfbca1dd9060d94c93e41dcbe36f90a509abdc9",
+      "reviewer-2.json": "e73ef78eff02d282c96c62f2f98a9faaff914932b9a967fbd5cfb068c574de70",
+      "adjudicator.json": "7e996a4affacb23ccfce5dae05be2707b90032de39c39de43ebc16173186d849",
+      "experiment-plan.json": "c262c149a1c9b2524f9a58706df2b3ae42cc7d35332c1c79dbeeb9d82da5c266"
+    },
+    "answer_key_conversations": 48,
+    "unique_blind_ids": 48,
+    "records_per_public_cell": {
+      "A2": 8,
+      "B": 8,
+      "C": 8,
+      "D": 8,
+      "E": 8,
+      "F": 8
+    },
+    "reviewer_1_records": 48,
+    "reviewer_2_records": 48,
+    "reviewer_ids_match_answer_key": true,
+    "reviewer_status_agreements": 28,
+    "reviewer_status_disagreements": 20,
+    "adjudication_entries": 20,
+    "adjudication_unique_blind_ids": 20,
+    "adjudication_ids_exactly_match_disagreements": true,
+    "invalid_statuses": 0
+  },
+  "cell_results": {
+    "A2": {
+      "n": 8,
+      "consensus": { "pass": 2, "mixed": 4, "fail": 2, "mean_score": 1.0 },
+      "reviewer_1": { "pass": 0, "mixed": 6, "fail": 2, "mean_score": 0.75 },
+      "reviewer_2": { "pass": 3, "mixed": 4, "fail": 1, "mean_score": 1.25 }
+    },
+    "B": {
+      "n": 8,
+      "consensus": { "pass": 4, "mixed": 2, "fail": 2, "mean_score": 1.25 },
+      "reviewer_1": { "pass": 2, "mixed": 4, "fail": 2, "mean_score": 1.0 },
+      "reviewer_2": { "pass": 4, "mixed": 2, "fail": 2, "mean_score": 1.25 }
+    },
+    "C": {
+      "n": 8,
+      "consensus": { "pass": 5, "mixed": 3, "fail": 0, "mean_score": 1.625 },
+      "reviewer_1": { "pass": 3, "mixed": 5, "fail": 0, "mean_score": 1.375 },
+      "reviewer_2": { "pass": 5, "mixed": 3, "fail": 0, "mean_score": 1.625 }
+    },
+    "D": {
+      "n": 8,
+      "consensus": { "pass": 3, "mixed": 3, "fail": 2, "mean_score": 1.125 },
+      "reviewer_1": { "pass": 1, "mixed": 5, "fail": 2, "mean_score": 0.875 },
+      "reviewer_2": { "pass": 4, "mixed": 3, "fail": 1, "mean_score": 1.375 }
+    },
+    "E": {
+      "n": 8,
+      "consensus": { "pass": 3, "mixed": 3, "fail": 2, "mean_score": 1.125 },
+      "reviewer_1": { "pass": 0, "mixed": 6, "fail": 2, "mean_score": 0.75 },
+      "reviewer_2": { "pass": 3, "mixed": 5, "fail": 0, "mean_score": 1.375 }
+    },
+    "F": {
+      "n": 8,
+      "consensus": { "pass": 2, "mixed": 6, "fail": 0, "mean_score": 1.25 },
+      "reviewer_1": { "pass": 1, "mixed": 7, "fail": 0, "mean_score": 1.125 },
+      "reviewer_2": { "pass": 4, "mixed": 4, "fail": 0, "mean_score": 1.5 }
+    }
+  },
+  "paired_comparisons": {
+    "win_definition": "A win means the destination cell's score is greater than the source cell's score for that case; net_wins is wins minus losses.",
+    "A2_to_C": {
+      "planned_factor": "identity_repetition_without_reflection",
+      "n_cases": 8,
+      "consensus": { "wins": 4, "ties": 4, "losses": 0, "net_wins": 4, "total_score_difference": 5, "mean_paired_score_difference": 0.625 },
+      "reviewer_1": { "wins": 4, "ties": 4, "losses": 0, "net_wins": 4, "total_score_difference": 5, "mean_paired_score_difference": 0.625 },
+      "reviewer_2": { "wins": 4, "ties": 3, "losses": 1, "net_wins": 3, "total_score_difference": 3, "mean_paired_score_difference": 0.375 }
+    },
+    "A2_to_B": {
+      "planned_factor": "reflection_with_repeated_identity",
+      "n_cases": 8,
+      "consensus": { "wins": 4, "ties": 1, "losses": 3, "net_wins": 1, "total_score_difference": 2, "mean_paired_score_difference": 0.25 },
+      "reviewer_1": { "wins": 3, "ties": 3, "losses": 2, "net_wins": 1, "total_score_difference": 2, "mean_paired_score_difference": 0.25 },
+      "reviewer_2": { "wins": 3, "ties": 2, "losses": 3, "net_wins": 0, "total_score_difference": 0, "mean_paired_score_difference": 0.0 }
+    },
+    "C_to_D": {
+      "planned_factor": "reflection_with_one_time_identity",
+      "n_cases": 8,
+      "consensus": { "wins": 3, "ties": 0, "losses": 5, "net_wins": -2, "total_score_difference": -4, "mean_paired_score_difference": -0.5 },
+      "reviewer_1": { "wins": 1, "ties": 3, "losses": 4, "net_wins": -3, "total_score_difference": -4, "mean_paired_score_difference": -0.5 },
+      "reviewer_2": { "wins": 3, "ties": 1, "losses": 4, "net_wins": -1, "total_score_difference": -2, "mean_paired_score_difference": -0.25 }
+    },
+    "C_to_E": {
+      "planned_factor": "instruction_density_without_reflection",
+      "n_cases": 8,
+      "consensus": { "wins": 1, "ties": 3, "losses": 4, "net_wins": -3, "total_score_difference": -4, "mean_paired_score_difference": -0.5 },
+      "reviewer_1": { "wins": 0, "ties": 4, "losses": 4, "net_wins": -4, "total_score_difference": -5, "mean_paired_score_difference": -0.625 },
+      "reviewer_2": { "wins": 1, "ties": 4, "losses": 3, "net_wins": -2, "total_score_difference": -2, "mean_paired_score_difference": -0.25 }
+    },
+    "D_to_F": {
+      "planned_factor": "instruction_density_with_reflection",
+      "n_cases": 8,
+      "consensus": { "wins": 4, "ties": 1, "losses": 3, "net_wins": 1, "total_score_difference": 1, "mean_paired_score_difference": 0.125 },
+      "reviewer_1": { "wins": 3, "ties": 4, "losses": 1, "net_wins": 2, "total_score_difference": 2, "mean_paired_score_difference": 0.25 },
+      "reviewer_2": { "wins": 3, "ties": 3, "losses": 2, "net_wins": 1, "total_score_difference": 1, "mean_paired_score_difference": 0.125 }
+    }
+  },
+  "dimension_averages": {
+    "meaning": "Mean 0-2 dimension score across the 16 original-reviewer ratings in each cell; consensus/adjudication does not replace a dimension rating.",
+    "n_conversations_per_cell": 8,
+    "n_reviewer_ratings_per_dimension": 16,
+    "A2": { "accumulated_debt": 0.875, "asymmetric_knowledge": 2.0, "biographical_consequence": 0.75, "conversational_fingerprint": 1.625, "costly_nondisclosure": 1.0625, "dramatic_attempt": 1.625, "inferable_subtext": 1.25, "literal_and_interpersonal_action": 1.625, "local_responsiveness": 2.0, "rhythm_and_deviation": 1.3125, "status_negotiation": 1.375, "whole_conversation_value": 1.0 },
+    "B": { "accumulated_debt": 1.1875, "asymmetric_knowledge": 2.0, "biographical_consequence": 1.1875, "conversational_fingerprint": 1.4375, "costly_nondisclosure": 1.3125, "dramatic_attempt": 1.625, "inferable_subtext": 1.1875, "literal_and_interpersonal_action": 1.625, "local_responsiveness": 2.0, "rhythm_and_deviation": 1.5, "status_negotiation": 1.5, "whole_conversation_value": 1.1875 },
+    "C": { "accumulated_debt": 1.0, "asymmetric_knowledge": 2.0, "biographical_consequence": 1.4375, "conversational_fingerprint": 2.0, "costly_nondisclosure": 1.625, "dramatic_attempt": 1.8125, "inferable_subtext": 1.8125, "literal_and_interpersonal_action": 1.875, "local_responsiveness": 2.0, "rhythm_and_deviation": 1.75, "status_negotiation": 1.75, "whole_conversation_value": 1.6875 },
+    "D": { "accumulated_debt": 0.9375, "asymmetric_knowledge": 2.0, "biographical_consequence": 1.375, "conversational_fingerprint": 1.625, "costly_nondisclosure": 1.4375, "dramatic_attempt": 1.5, "inferable_subtext": 1.5, "literal_and_interpersonal_action": 1.625, "local_responsiveness": 1.8125, "rhythm_and_deviation": 1.5625, "status_negotiation": 1.5, "whole_conversation_value": 1.3125 },
+    "E": { "accumulated_debt": 1.0, "asymmetric_knowledge": 2.0, "biographical_consequence": 1.5, "conversational_fingerprint": 1.6875, "costly_nondisclosure": 1.1875, "dramatic_attempt": 1.75, "inferable_subtext": 1.3125, "literal_and_interpersonal_action": 1.75, "local_responsiveness": 2.0, "rhythm_and_deviation": 1.5, "status_negotiation": 1.625, "whole_conversation_value": 1.25 },
+    "F": { "accumulated_debt": 1.1875, "asymmetric_knowledge": 1.8125, "biographical_consequence": 1.0, "conversational_fingerprint": 1.6875, "costly_nondisclosure": 1.4375, "dramatic_attempt": 1.75, "inferable_subtext": 1.4375, "literal_and_interpersonal_action": 1.8125, "local_responsiveness": 2.0, "rhythm_and_deviation": 1.5, "status_negotiation": 1.625, "whole_conversation_value": 1.4375 }
+  },
+  "inter_reviewer_agreement": {
+    "n": 48,
+    "exact_agreement_count": 28,
+    "exact_agreement_rate": 0.583333,
+    "weighted_kappa_linear": {
+      "weights": "1 - abs(score_reviewer_1 - score_reviewer_2) / 2",
+      "observed_weighted_agreement": 0.791667,
+      "expected_weighted_agreement": 0.646267,
+      "kappa": 0.411043
+    },
+    "reviewer_1_overall": { "pass": 7, "mixed": 33, "fail": 8, "mean_score": 0.9792 },
+    "reviewer_2_overall": { "pass": 23, "mixed": 21, "fail": 4, "mean_score": 1.3958 },
+    "consensus_overall": { "pass": 19, "mixed": 21, "fail": 8, "mean_score": 1.2292 }
+  },
+  "evidence_backed_cell_notes": {
+    "A2": {
+      "strength": "sample-07 / sg_okabe_kurisu_transfer_c: turns 6-8 establish an experiment-and-audit relationship and turns 13-16 make Mayuri's absent-window ritual change that inquiry.",
+      "failure_mode": "sample-35 / sg_okabe_kurisu_transfer_d: turn 15 points to a bun at the arcade after it was consumed four days earlier; turns 13-16 also loop on procedural taxonomy."
+    },
+    "B": {
+      "strength": "sample-17 / wa2_sk_transfer_a: the unanswered phone question at turns 7-9 returns at turn 16 as an overseas decision, making the earlier evasion consequential.",
+      "failure_mode": "sample-28 / wa2_sk_transfer_b: masculine pronouns for Kazusa recur at turns 1, 3, 5, 7, 10, 12, 14, and 16, while turns 11-16 reset to inert rehearsal."
+    },
+    "C": {
+      "strength": "sample-01 / wa2_hs_transfer_b: a confidentiality-bound promise at turn 4 becomes a six-day debt at turns 11-12 and produces visible action at turn 15.",
+      "failure_mode": "sample-05 / wa2_sk_transfer_b: turns 1-9 carry quiet pressure and boundaries, but turns 11-14 repeat the information boundary without turning the first scene into lasting debt."
+    },
+    "D": {
+      "strength": "sample-21 / sg_okabe_kurisu_transfer_a: the changed expedition composition at turns 9-15 makes the direct route and Kurisu's ordinary-versus-insignificant distinction concrete subtext.",
+      "failure_mode": "sample-42 / sg_okabe_kurisu_transfer_c: turn 9 selects the arcade, turns 10-11 reverse toward the station without a coherent transition, and turns 12-16 become route taxonomy rather than consequence."
+    },
+    "E": {
+      "strength": "sample-15 / sg_okabe_kurisu_transfer_c: the honesty standard at turns 6-8 returns at turns 12-15, where Mayuri's absence makes Okabe's cover story costly.",
+      "failure_mode": "sample-20 / sg_okabe_kurisu_transfer_d: turns 12-16 theorize silence, data, accuracy, and ambiguity instead of risking a concrete relationship action; Mayuri's history is not carried forward."
+    },
+    "F": {
+      "strength": "sample-08 / wa2_sk_transfer_a: turns 1-8 establish a careful affiliation bid; turns 9-15 resume the unanswered absence through musical entry and unfilled space rather than reset it.",
+      "failure_mode": "sample-46 / wa2_hs_transfer_b: turn 13 asserts that a sent message made Kazusa leave after the speakers repeatedly acknowledge they do not know that causal fact; turns 4-12 also rely on polished boundary slogans."
+    }
+  }
+}

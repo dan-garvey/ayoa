@@ -1,0 +1,50 @@
+[
+  {
+    "blind_id": "reflection-01",
+    "final_status": "mixed",
+    "turn_index_rationale": "T2-T8 respects the first-guess boundary and T11-T13 earns Okabe's plainer route desire, but T10/T12/T14/T16 repeat Kurisu's correction-and-acceptance posture with stale bun pressure and little private development.",
+    "controlling_issue": "one-sided evolution with correction-centered recital"
+  },
+  {
+    "blind_id": "reflection-07",
+    "final_status": "pass",
+    "turn_index_rationale": "T3-T7 changes Kazusa's announced departure into chosen presence, while T12-T16 separates the mother's message from Haruki and discloses only that he has context, preserving her undecided future.",
+    "controlling_issue": "grounded progressive disclosure under a valid privacy boundary"
+  },
+  {
+    "blind_id": "reflection-08",
+    "final_status": "fail",
+    "turn_index_rationale": "T1-T8 repeatedly rationalizes menu delay, T11 does not answer whether Kazusa spoke, and T13-T15 upgrades a lit phone into a call without producing any changed private position.",
+    "controlling_issue": "recital-driven flattening compounded by message-to-call drift"
+  },
+  {
+    "blind_id": "reflection-09",
+    "final_status": "pass",
+    "turn_index_rationale": "T2/T4/T11 answers only what Haruki can know or share, T5-T8 turns the tea routine into chosen company, and T9/T13/T15 makes his still-valid permission boundary legible as changing avoidance rather than invented disclosure.",
+    "controlling_issue": "valid continuing privacy constraint with evolving present motives"
+  },
+  {
+    "blind_id": "reflection-14",
+    "final_status": "mixed",
+    "turn_index_rationale": "T1/T3/T9/T13 retains a distinct wish to share the ritual and walk, but T14's direct question receives T15's missing-label fiction and the chronology otherwise recycles performance and correction without disclosure.",
+    "controlling_issue": "repetitive mask use and a missed disclosure opening"
+  },
+  {
+    "blind_id": "reflection-17",
+    "final_status": "fail",
+    "turn_index_rationale": "T2 correctly names the wait-for-Okabe's-first-guess boundary, T3 still gives no Okabe guess, and T4 reveals pear-custard anyway; the strong T7/T13 development cannot cure that explicit violation.",
+    "controlling_issue": "first-guess grounding and authorization violation"
+  },
+  {
+    "blind_id": "reflection-19",
+    "final_status": "fail",
+    "turn_index_rationale": "T9-T10 folds the new unmessaged absence into T1's already explained class-duty absence, and T11-T14 proceeds as though the stated six ordinary days of school and club contact never occurred.",
+    "controlling_issue": "cross-scene absence conflation and invented discontinuity"
+  },
+  {
+    "blind_id": "reflection-23",
+    "final_status": "fail",
+    "turn_index_rationale": "T3's red-bean guess is corrected by Kurisu at T4, yet T6-T7 recasts the result as Okabe's correct identification, after which T12-T15 collapses the private layer into unexplained silence.",
+    "controlling_issue": "contradicted result followed by private-state collapse"
+  }
+]

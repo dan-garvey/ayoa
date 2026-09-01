@@ -1,0 +1,179 @@
+{
+  "schema_version": "reflection_analysis_v1",
+  "purpose": "Mechanically unblinded aggregation of finalized private-reflection QA.",
+  "scoring": {
+    "fail": 0,
+    "mixed": 1,
+    "pass": 2
+  },
+  "consensus_rule": "Retain the common reviewer overall_status when the reviewers agree; otherwise use that blind id's adjudicator final_status.",
+  "interpretation_guardrails": {
+    "dimension_scores": "Dimension averages use all original reviewer ratings. Adjudication replaces only overall_status, not a dimension rating.",
+    "private_public_comparison": "The private-reflection and public-dialogue results are reported side by side for the same B/D/F cells. This descriptive comparison does not establish that private-reflection quality caused public-dialogue quality."
+  },
+  "validation": {
+    "input_sha256": {
+      "reflection-answer-key.json": "c47f2ac6edb6ef17050216374ffa66bde0d82ac1574fae053b520b3d6a59da6f",
+      "reflection-reviewer-1.json": "0d0b9dd6361418137cae7965007590010f73b92ceef2b504f16a81e8fac90e85",
+      "reflection-reviewer-2.json": "1251df47aa1eab43bc2d5b7521c764e16c04c4048b419b57940be61a6916f4d4",
+      "reflection-adjudicator.json": "77187d12d8fea17f6cc9939e39ee7059cdcd50c2adddfca7a3cab7bba9d6326d"
+    },
+    "answer_key_conversations": 24,
+    "unique_blind_ids": 24,
+    "records_per_cell": {
+      "B": 8,
+      "D": 8,
+      "F": 8
+    },
+    "reviewer_1_records": 24,
+    "reviewer_2_records": 24,
+    "reviewer_ids_exactly_match_answer_key": true,
+    "reviewer_status_agreements": 16,
+    "reviewer_status_disagreements": 8,
+    "adjudication_entries": 8,
+    "adjudication_unique_blind_ids": 8,
+    "adjudication_ids_exactly_match_disagreements": true,
+    "invalid_statuses": 0
+  },
+  "unblinded_entries": [
+    {"blind_id": "reflection-01", "case": "sg_okabe_kurisu_transfer_d", "cell": "F", "reviewer_1_status": "pass", "reviewer_2_status": "mixed", "consensus_status": "mixed", "adjudicator_used": true, "controlling_issue": "one-sided evolution with correction-centered recital"},
+    {"blind_id": "reflection-02", "case": "wa2_hs_transfer_a", "cell": "B", "reviewer_1_status": "mixed", "reviewer_2_status": "mixed", "consensus_status": "mixed", "adjudicator_used": false},
+    {"blind_id": "reflection-03", "case": "wa2_sk_transfer_a", "cell": "D", "reviewer_1_status": "pass", "reviewer_2_status": "pass", "consensus_status": "pass", "adjudicator_used": false},
+    {"blind_id": "reflection-04", "case": "wa2_hs_transfer_a", "cell": "F", "reviewer_1_status": "mixed", "reviewer_2_status": "mixed", "consensus_status": "mixed", "adjudicator_used": false},
+    {"blind_id": "reflection-05", "case": "wa2_sk_transfer_a", "cell": "F", "reviewer_1_status": "mixed", "reviewer_2_status": "mixed", "consensus_status": "mixed", "adjudicator_used": false},
+    {"blind_id": "reflection-06", "case": "wa2_hs_transfer_b", "cell": "F", "reviewer_1_status": "pass", "reviewer_2_status": "pass", "consensus_status": "pass", "adjudicator_used": false},
+    {"blind_id": "reflection-07", "case": "wa2_sk_transfer_b", "cell": "D", "reviewer_1_status": "pass", "reviewer_2_status": "mixed", "consensus_status": "pass", "adjudicator_used": true, "controlling_issue": "grounded progressive disclosure under a valid privacy boundary"},
+    {"blind_id": "reflection-08", "case": "wa2_hs_transfer_a", "cell": "D", "reviewer_1_status": "mixed", "reviewer_2_status": "fail", "consensus_status": "fail", "adjudicator_used": true, "controlling_issue": "recital-driven flattening compounded by message-to-call drift"},
+    {"blind_id": "reflection-09", "case": "wa2_hs_transfer_b", "cell": "D", "reviewer_1_status": "mixed", "reviewer_2_status": "pass", "consensus_status": "pass", "adjudicator_used": true, "controlling_issue": "valid continuing privacy constraint with evolving present motives"},
+    {"blind_id": "reflection-10", "case": "sg_okabe_kurisu_transfer_a", "cell": "F", "reviewer_1_status": "pass", "reviewer_2_status": "pass", "consensus_status": "pass", "adjudicator_used": false},
+    {"blind_id": "reflection-11", "case": "sg_okabe_kurisu_transfer_a", "cell": "B", "reviewer_1_status": "pass", "reviewer_2_status": "pass", "consensus_status": "pass", "adjudicator_used": false},
+    {"blind_id": "reflection-12", "case": "sg_okabe_kurisu_transfer_d", "cell": "D", "reviewer_1_status": "mixed", "reviewer_2_status": "mixed", "consensus_status": "mixed", "adjudicator_used": false},
+    {"blind_id": "reflection-13", "case": "sg_okabe_kurisu_transfer_c", "cell": "D", "reviewer_1_status": "mixed", "reviewer_2_status": "mixed", "consensus_status": "mixed", "adjudicator_used": false},
+    {"blind_id": "reflection-14", "case": "sg_okabe_kurisu_transfer_c", "cell": "F", "reviewer_1_status": "mixed", "reviewer_2_status": "fail", "consensus_status": "mixed", "adjudicator_used": true, "controlling_issue": "repetitive mask use and a missed disclosure opening"},
+    {"blind_id": "reflection-15", "case": "wa2_hs_transfer_b", "cell": "B", "reviewer_1_status": "mixed", "reviewer_2_status": "mixed", "consensus_status": "mixed", "adjudicator_used": false},
+    {"blind_id": "reflection-16", "case": "sg_okabe_kurisu_transfer_b", "cell": "F", "reviewer_1_status": "pass", "reviewer_2_status": "pass", "consensus_status": "pass", "adjudicator_used": false},
+    {"blind_id": "reflection-17", "case": "sg_okabe_kurisu_transfer_b", "cell": "B", "reviewer_1_status": "fail", "reviewer_2_status": "mixed", "consensus_status": "fail", "adjudicator_used": true, "controlling_issue": "first-guess grounding and authorization violation"},
+    {"blind_id": "reflection-18", "case": "sg_okabe_kurisu_transfer_c", "cell": "B", "reviewer_1_status": "pass", "reviewer_2_status": "pass", "consensus_status": "pass", "adjudicator_used": false},
+    {"blind_id": "reflection-19", "case": "wa2_sk_transfer_b", "cell": "F", "reviewer_1_status": "pass", "reviewer_2_status": "fail", "consensus_status": "fail", "adjudicator_used": true, "controlling_issue": "cross-scene absence conflation and invented discontinuity"},
+    {"blind_id": "reflection-20", "case": "wa2_sk_transfer_b", "cell": "B", "reviewer_1_status": "fail", "reviewer_2_status": "fail", "consensus_status": "fail", "adjudicator_used": false},
+    {"blind_id": "reflection-21", "case": "sg_okabe_kurisu_transfer_d", "cell": "B", "reviewer_1_status": "pass", "reviewer_2_status": "pass", "consensus_status": "pass", "adjudicator_used": false},
+    {"blind_id": "reflection-22", "case": "sg_okabe_kurisu_transfer_a", "cell": "D", "reviewer_1_status": "pass", "reviewer_2_status": "pass", "consensus_status": "pass", "adjudicator_used": false},
+    {"blind_id": "reflection-23", "case": "sg_okabe_kurisu_transfer_b", "cell": "D", "reviewer_1_status": "mixed", "reviewer_2_status": "fail", "consensus_status": "fail", "adjudicator_used": true, "controlling_issue": "contradicted result followed by private-state collapse"},
+    {"blind_id": "reflection-24", "case": "wa2_sk_transfer_a", "cell": "B", "reviewer_1_status": "pass", "reviewer_2_status": "pass", "consensus_status": "pass", "adjudicator_used": false}
+  ],
+  "cell_results": {
+    "B": {
+      "n": 8,
+      "consensus": {"pass": 4, "mixed": 2, "fail": 2, "mean_score": 1.25},
+      "reviewer_1": {"pass": 4, "mixed": 2, "fail": 2, "mean_score": 1.25},
+      "reviewer_2": {"pass": 4, "mixed": 3, "fail": 1, "mean_score": 1.375}
+    },
+    "D": {
+      "n": 8,
+      "consensus": {"pass": 4, "mixed": 2, "fail": 2, "mean_score": 1.25},
+      "reviewer_1": {"pass": 3, "mixed": 5, "fail": 0, "mean_score": 1.375},
+      "reviewer_2": {"pass": 3, "mixed": 3, "fail": 2, "mean_score": 1.125}
+    },
+    "F": {
+      "n": 8,
+      "consensus": {"pass": 3, "mixed": 4, "fail": 1, "mean_score": 1.25},
+      "reviewer_1": {"pass": 5, "mixed": 3, "fail": 0, "mean_score": 1.625},
+      "reviewer_2": {"pass": 3, "mixed": 3, "fail": 2, "mean_score": 1.125}
+    }
+  },
+  "overall_results": {
+    "n": 24,
+    "consensus": {"pass": 11, "mixed": 8, "fail": 5, "mean_score": 1.25},
+    "reviewer_1": {"pass": 12, "mixed": 10, "fail": 2, "mean_score": 1.416667},
+    "reviewer_2": {"pass": 10, "mixed": 9, "fail": 5, "mean_score": 1.208333}
+  },
+  "dimension_averages": {
+    "meaning": "Normalized 0-2 means across both reviewers' 16 ratings per dimension and cell. The reviewer-2 labels generic_self_justifying_recital, unsupported_private_invention, and mask_becomes_face_risk are interpreted in the same positive direction as reviewer-1's avoids_* labels: pass means the stated risk was avoided.",
+    "dimension_key_mapping": {
+      "grounding": "grounding",
+      "layer_distinction": "reflection_state_distinction",
+      "unavailable_because_validity": "unavailable_constraint",
+      "relationship_status_cost": "relationship_status_cost",
+      "evolution_and_continuity": "evolution_and_continuity",
+      "earned_disclosure": "later_disclosure",
+      "avoids_generic_self_justifying_recital": "generic_self_justifying_recital",
+      "avoids_unsupported_private_invention": "unsupported_private_invention",
+      "avoids_mask_becomes_face": "mask_becomes_face_risk"
+    },
+    "n_conversations_per_cell": 8,
+    "n_reviewer_ratings_per_dimension": 16,
+    "B": {"grounding": 1.5625, "layer_distinction": 1.75, "unavailable_because_validity": 1.625, "relationship_status_cost": 1.875, "evolution_and_continuity": 1.625, "earned_disclosure": 1.75, "avoids_generic_self_justifying_recital": 1.125, "avoids_unsupported_private_invention": 1.75, "avoids_mask_becomes_face": 1.5},
+    "D": {"grounding": 1.625, "layer_distinction": 1.5, "unavailable_because_validity": 1.625, "relationship_status_cost": 1.6875, "evolution_and_continuity": 1.25, "earned_disclosure": 1.375, "avoids_generic_self_justifying_recital": 0.875, "avoids_unsupported_private_invention": 1.75, "avoids_mask_becomes_face": 1.25},
+    "F": {"grounding": 1.8125, "layer_distinction": 1.6875, "unavailable_because_validity": 1.875, "relationship_status_cost": 1.8125, "evolution_and_continuity": 1.4375, "earned_disclosure": 1.6875, "avoids_generic_self_justifying_recital": 1.0, "avoids_unsupported_private_invention": 1.75, "avoids_mask_becomes_face": 1.3125}
+  },
+  "inter_reviewer_agreement": {
+    "n": 24,
+    "exact_agreement_count": 16,
+    "exact_agreement_rate": 0.666667,
+    "weighted_kappa_linear": {
+      "weights": "1 - abs(score_reviewer_1 - score_reviewer_2) / 2",
+      "observed_weighted_agreement": 0.8125,
+      "expected_weighted_agreement": 0.621528,
+      "kappa": 0.504587
+    }
+  },
+  "evidence_backed_cell_notes": {
+    "B": {
+      "strengths": [
+        "reflection-24 / wa2_sk_transfer_a: T10, T12, T14, and T16 stage sender, relational cause, indecision, and overseas disclosure while preserving Kazusa's agency.",
+        "reflection-21 / sg_okabe_kurisu_transfer_d: T11 turns investigation language into a direct invitation; T13-T16 keep the Mayuri question bounded to known facts."
+      ],
+      "risks": [
+        "reflection-17 / sg_okabe_kurisu_transfer_b: T2 names the first-guess boundary, but T4 reveals pear-custard before an identifiable Okabe guess.",
+        "reflection-20 / wa2_sk_transfer_b: T2, T4, T6, and T8 conflate the mother's alert with Haruki's message; T11-T16 then leave the central issue undeveloped."
+      ]
+    },
+    "D": {
+      "strengths": [
+        "reflection-03 / wa2_sk_transfer_a: T11-T14 convert a phone glance into direct questions, partial admission, and a bounded overseas disclosure.",
+        "reflection-22 / sg_okabe_kurisu_transfer_a: T9-T15 turns avoidance of the old stop into an ordinary walk with a distinct, gradually admitted motive."
+      ],
+      "risks": [
+        "reflection-08 / wa2_hs_transfer_a: T1-T8 recycle meal-delay rationale; T11-T15 turn a lit phone into a call without a changed private position.",
+        "reflection-23 / sg_okabe_kurisu_transfer_b: T3-T7 recast a corrected red-bean guess as correct, and T12-T15 reduce the later scene to unexplained silence."
+      ]
+    },
+    "F": {
+      "strengths": [
+        "reflection-06 / wa2_hs_transfer_b: T5-T8 makes unilateral withholding a trust issue, and T12-T16 renegotiates it into a jointly visible action.",
+        "reflection-10 / sg_okabe_kurisu_transfer_a: T11-T15 progressively drops the route pretext, leaving companionship as a bounded private motive."
+      ],
+      "risks": [
+        "reflection-14 / sg_okabe_kurisu_transfer_c: T14 asks for the occasion, but T15 substitutes a missing-label fiction for the available personal reason.",
+        "reflection-19 / wa2_sk_transfer_b: T9-T16 replace six ordinary days of contact with an unsupported Haruki absence, breaking the second scene's continuity."
+      ]
+    }
+  },
+  "aggregate_findings": {
+    "generic_self_justifying_recital": {
+      "across_48_reviewer_dimension_ratings": {"pass": 16, "mixed": 16, "fail": 16},
+      "finding": "This is the most persistent low-scoring dimension: repeated valid privacy, procedure, or performance becomes a weakness when it does not alter a later question, choice, disclosure, or relationship cost."
+    },
+    "unsupported_private_invention": {
+      "across_48_reviewer_dimension_ratings": {"pass": 40, "mixed": 4, "fail": 4},
+      "finding": "Most reflections remained bounded to packet facts. The failures were concrete continuity substitutions: message-source conflation, an invented six-day disappearance, or a wrong guess treated as correct."
+    },
+    "evolution_and_continuity": {
+      "across_48_reviewer_dimension_ratings": {"pass": 27, "mixed": 15, "fail": 6},
+      "finding": "Private state quality is strongest when an early pressure changes the social meaning of a later action; failures either replay the same delay or discard an established thread between scenes."
+    },
+    "mask_becomes_face": {
+      "across_48_reviewer_dimension_ratings": {"pass": 25, "mixed": 15, "fail": 8},
+      "finding": "A public bit, correction posture, procedural care, or silence can support character only while a distinct interior motive remains legible and affects later behavior; otherwise the tactic becomes the whole identity."
+    }
+  },
+  "private_state_and_public_dialogue_descriptive_comparison": {
+    "source": "public-analysis.json in this review directory",
+    "same_cell_consensus_mean_scores": {
+      "B": {"private_reflection": 1.25, "public_dialogue": 1.25},
+      "D": {"private_reflection": 1.25, "public_dialogue": 1.125},
+      "F": {"private_reflection": 1.25, "public_dialogue": 1.25}
+    },
+    "description": "Private-reflection consensus means are equal across B, D, and F. The published public-dialogue means match B and F and are lower for D. These are cell-level descriptive results from separate review instruments; they do not show that private-state quality caused the public-dialogue differences."
+  }
+}
