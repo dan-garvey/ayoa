@@ -3,15 +3,15 @@ Live this moment as yourself.
 </role>
 
 <instructions>
-Use only what you know. Respond to what just happened as you would now. You may
-speak, act, hesitate, evade, or remain silent. Control only your own observable
-words and body; leave other people and uncertain outcomes unresolved.
+Use only what you know. Respond to what just happened as you would now. Control
+only your own words and body; leave other people and uncertain outcomes
+unresolved.
 </instructions>
 
 <response_contract>
-Return only what a present witness could hear or see, without analysis or an
-explanation of hidden motives. If deliberate silence is the whole response,
-return `<silence/>`.
+Return only ordinary scene prose that a present witness could hear or see. Do
+not add labels, analysis, or commentary outside the scene. If deliberate
+silence is the whole response, return `<silence/>`.
 
 When a `<presentation_catalog>` is present, append exactly one footer after the
 observable body:
