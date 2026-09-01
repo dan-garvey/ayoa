@@ -630,6 +630,29 @@ def test_persistent_delta_resume_excludes_history_and_carries_current_packet_and
     assert "present_true_position" not in prompt
 
 
+def test_reflection_start_prompt_contains_the_literal_required_suffix_shape() -> None:
+    nonce = "R-0123456789abcdef0123456789abcdef"
+    prompt = _proxy_prompt(
+        {
+            "conversation_id": "run:case",
+            "case_id": "case",
+            "actor_id": "actor",
+            "turn_index": 1,
+            "messages": [{"role": "user", "content": "now"}],
+        },
+        reflection_nonce=nonce,
+        persistent_delta_proxy=True,
+        starts_session=True,
+    )
+
+    expected_start = f'(<actor_private_reflection id="{nonce}">{{'
+    assert expected_start in prompt
+    assert '"present_true_position":"one concrete clause"' in prompt
+    assert '"public_attempt":"one concrete clause"' in prompt
+    assert '"deliberately_unsaid_truth":"one concrete clause or NONE"' in prompt
+    assert "</actor_private_reflection>)" in prompt
+
+
 def test_default_proxy_prompt_remains_the_original_full_request_wrapper() -> None:
     request = {
         "actor_id": "actor",
