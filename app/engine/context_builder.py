@@ -150,17 +150,43 @@ def build_visible_self_packet(
     return "\n".join(_character_public_identity_lines(char, checkpoint)).strip()
 
 
-def build_character_turn_request_packet(
+def build_character_turn_identity_seed(
     char: CharacterRecord,
     checkpoint: CheckpointFile | None,
-    current_moment: str,
 ) -> str:
-    """Build the complete current user packet for one character response."""
+    """Build the stable, owner-bounded identity body for a turn."""
 
-    return "\n\n".join([
-        "<you>\n" + build_character_self_packet(char, checkpoint) + "\n</you>",
-        "<now>\n" + (current_moment or "").strip() + "\n</now>",
-    ])
+    return "\n\n".join(
+        block for block in (
+            build_character_self_packet(char, checkpoint),
+            build_dnd_character_identity_sentence(checkpoint, char)
+            if checkpoint is not None else "",
+        ) if block
+    )
+
+
+def build_character_turn_request_packet(
+    current_moment: str,
+    *,
+    identity_seed: str = "",
+    supersedes_identity: bool = False,
+) -> str:
+    """Build the volatile packet for one character response.
+
+    Stable self-identity is supplied only when its rendered revision changes.
+    Each later turn contributes only its new current moment.
+    """
+
+    packets: list[str] = []
+    if identity_seed.strip():
+        preamble = (
+            "This identity supersedes earlier identity packets; ordinary "
+            "witnessed conversation remains authoritative.\n"
+            if supersedes_identity else ""
+        )
+        packets.append("<identity>\n" + preamble + identity_seed.strip() + "\n</identity>")
+    packets.append("<now>\n" + (current_moment or "").strip() + "\n</now>")
+    return "\n\n".join(packets)
 
 
 def build_character_perception_request_packet(
@@ -527,7 +553,11 @@ def build_dnd_character_identity_sentence(
     return dnd_presentation.character_identity_sentence(character)
 
 
-def build_dnd_player_identities_block(checkpoint: CheckpointFile) -> str:
+def build_dnd_player_identities_block(
+    checkpoint: CheckpointFile,
+    *,
+    exclude_character_id: str = "",
+) -> str:
     if not _dnd_ruleset_enabled(checkpoint):
         return ""
     player_ids = collect_player_ids(checkpoint)
@@ -536,7 +566,10 @@ def build_dnd_player_identities_block(checkpoint: CheckpointFile) -> str:
 
     lines: list[str] = []
     for char in checkpoint.characters:
-        if char.character_id not in player_ids:
+        if (
+            char.character_id not in player_ids
+            or char.character_id == exclude_character_id
+        ):
             continue
         identity = build_dnd_character_identity_sentence(checkpoint, char)
         if not identity:

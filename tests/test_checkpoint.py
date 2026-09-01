@@ -26,7 +26,7 @@ def _make_checkpoint(session_id: str = "test-session", turn_index: int = 0) -> C
     )
 
 
-def test_schema_five_seed_sources_do_not_carry_retired_transcript():
+def test_current_schema_seed_sources_do_not_carry_retired_transcript():
     repo_root = Path(__file__).resolve().parent.parent
     seed_paths = [
         *repo_root.glob("app/storage/stories/*/ckpt_0000.json"),
@@ -35,7 +35,7 @@ def test_schema_five_seed_sources_do_not_carry_retired_transcript():
 
     for path in seed_paths:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        if str(payload.get("schema_version")) == "5.0":
+        if str(payload.get("schema_version")) == "6.0":
             assert "transcript" not in payload, path
 
 

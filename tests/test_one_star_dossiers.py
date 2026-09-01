@@ -10,6 +10,7 @@ import pytest
 
 from app.bot.engine_bridge import EngineBridge
 from app.engine.context_builder import (
+    build_character_turn_identity_seed,
     build_character_turn_request_packet,
     format_pending_observations_block,
 )
@@ -175,9 +176,8 @@ def _render_foreground_agent(
         history=[],
         ruleset_guidance="",
         request_packet=build_character_turn_request_packet(
-            character,
-            checkpoint,
             format_pending_observations_block(character),
+            identity_seed=build_character_turn_identity_seed(character, checkpoint),
         ),
     )
 

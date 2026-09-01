@@ -178,7 +178,7 @@ class CheckpointManager:
     def _load_file(self, path: Path) -> CheckpointFile:
         """Load and validate a checkpoint file.
 
-        v11 hard-break: checkpoints with stale schema_version fail with
+        Current-schema hard break: checkpoints with stale schema_version fail with
         an explicit ValueError pointing the user at /story start. No
         automatic migration.
         """
@@ -191,13 +191,13 @@ class CheckpointManager:
         except json.JSONDecodeError as e:
             raise ValueError(f"Corrupt checkpoint file {path}: {e}") from e
 
-        # Schema version gate — hard break for pre-v11 checkpoints.
+        # Schema version gate — direct break for older checkpoints.
         version = str(data.get("schema_version", "")).strip()
         if version != CURRENT_SCHEMA_VERSION:
             raise ValueError(
                 f"Checkpoint {path} has schema_version={version!r}, expected "
-                f"{CURRENT_SCHEMA_VERSION!r}. The v11 turn pipeline is a "
-                f"hard break — old sessions cannot be resumed. Run "
+                f"{CURRENT_SCHEMA_VERSION!r}. This schema is a hard break — "
+                f"old sessions cannot be resumed. Run "
                 f"/story start on a fresh session to continue."
             )
 

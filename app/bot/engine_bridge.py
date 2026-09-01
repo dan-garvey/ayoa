@@ -3052,6 +3052,7 @@ class EngineBridge:
         # lived in this conversation; popping it gives the new authored
         # character a clean slate.
         ckpt.character_conversations.pop(target_character_id, None)
+        target.agent_identity_seed_sha256 = ""
 
         ckpt.session.character_bindings[target_character_id] = str(user_id)
         # Same router_summary preference as create_custom_character. The

@@ -27,13 +27,13 @@ from app.schemas.visual_references import (
 )
 
 
-CURRENT_SCHEMA_VERSION = "5.0"
+CURRENT_SCHEMA_VERSION = "6.0"
 
 
 class CheckpointFile(BaseModel):
-    # Schema 5.0 removes the session-global transcript. Player-visible history
-    # is reconstructed from the per-POV narrator conversations below. Older
-    # checkpoints hard-break on load: checkpoint_manager raises with a
+    # Schema 6.0 records exact CharacterAgent identity revisions. Player-visible
+    # history is reconstructed from the per-POV narrator conversations below.
+    # Older checkpoints hard-break on load: checkpoint_manager raises with a
     # message pointing the user at /story start. No migration shim.
     schema_version: str = CURRENT_SCHEMA_VERSION
     session: SessionState

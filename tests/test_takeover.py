@@ -530,6 +530,7 @@ class TestReplaceWithCustom:
         ckpt.character_conversations["rival_1"] = [
             ConversationMessage(role="user", content="prior turn context"),
         ]
+        target.agent_identity_seed_sha256 = "a" * 64
         ckpt.session.visual_introductions = {
             "alice": ["rival_1", "witness"],
             "rival_1": ["alice"],
@@ -609,6 +610,7 @@ class TestReplaceWithCustom:
         assert reloaded_target.name == "Brooding Rival"
         assert reloaded_target.location == "garden"
         assert reloaded_target.is_playable is True
+        assert reloaded_target.agent_identity_seed_sha256 == ""
 
     @pytest.mark.asyncio
     async def test_replace_allowed_for_unbound_playable(
