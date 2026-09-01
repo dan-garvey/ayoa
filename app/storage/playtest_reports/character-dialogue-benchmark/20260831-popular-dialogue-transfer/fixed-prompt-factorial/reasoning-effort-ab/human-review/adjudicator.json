@@ -1,0 +1,24 @@
+{
+  "schema_version": "reasoning_effort_ab_blind_adjudication_v1",
+  "adjudicator_id": "blind-reasoning-effort-adjudicator",
+  "source_hidden": true,
+  "methodology": [
+    "Read each complete sixteen-turn conversation across both scenes before deciding.",
+    "Considered only the supplied rubric and both reviewers' evidence, without re-scoring agreed samples or inferring hidden conditions.",
+    "Resolved each disagreement by judging whether the disputed cross-scene movement was material enough to satisfy the whole-conversation contract."
+  ],
+  "adjudications": [
+    {
+      "blind_id": "sample-02",
+      "final_status": "mixed",
+      "controlling_disputed_concern": "Whether scene one's pressure for unembellished reporting materially carries into scene two as a consequential change rather than a tonal echo.",
+      "rationale": "Turns 6 and 8 demand a plain result; turn 9 explicitly drops the manufactured rationale, and turns 10-16 turn that directness into companionable quiet. This is a legible tonal and interpersonal shift, but scene one does not clearly cause the route choice and the nondisclosure or relationship cost remains modest, so the arc is stronger than fail but short of pass."
+    },
+    {
+      "blind_id": "sample-06",
+      "final_status": "fail",
+      "controlling_disputed_concern": "Whether Speaker B's brief plain admission at turn 11 creates enough cross-scene movement to overcome the repeated performance-correction loop.",
+      "rationale": "Scene two largely restages scene one: theatrical claims at turns 9 and 11 meet corrections at turns 10 and 12, then turn 13 restores face-saving and turns 14-16 repeat the familiar loop. The brief honest preference creates no durable permission, status, cost, or relationship consequence, so locally effective banter does not satisfy the whole-conversation contract."
+    }
+  ]
+}

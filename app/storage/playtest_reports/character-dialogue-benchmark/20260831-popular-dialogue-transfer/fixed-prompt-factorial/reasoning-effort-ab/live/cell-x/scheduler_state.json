@@ -1,0 +1,172 @@
+{
+  "adaptive_concurrency": {
+    "current_limit": 4,
+    "observed_throttling": false,
+    "successful_since_fanout": 0
+  },
+  "attempts": [
+    {
+      "actor_id": "okabe_rintaro",
+      "attempt": 1,
+      "case_id": "sg_okabe_kurisu_transfer_c",
+      "conversation_id": "rea-max-20260831:sg_okabe_kurisu_transfer_c",
+      "latency_ms": 12383.106532040983,
+      "ledger_sequence": 0,
+      "projected_request_sha256": "470a39d56ac3533d32a2c4ef0593c75324527b21aaec24ab5980eca5d2856388",
+      "rate_limited": false,
+      "raw_response": null,
+      "request_sha256": "470a39d56ac3533d32a2c4ef0593c75324527b21aaec24ab5980eca5d2856388",
+      "retryable": true,
+      "status": "technical_error",
+      "worker_session_id": null
+    },
+    {
+      "actor_id": "setsuna_ogiso",
+      "attempt": 1,
+      "case_id": "wa2_hs_transfer_a",
+      "conversation_id": "rea-max-20260831:wa2_hs_transfer_a",
+      "latency_ms": 15316.921178949997,
+      "ledger_sequence": 0,
+      "projected_request_sha256": "d1084dfe53798d1cc52d889204a2491ce495cbd8aea937692f64f6bfece2f76d",
+      "rate_limited": false,
+      "raw_response": null,
+      "request_sha256": "d1084dfe53798d1cc52d889204a2491ce495cbd8aea937692f64f6bfece2f76d",
+      "retryable": true,
+      "status": "technical_error",
+      "worker_session_id": null
+    },
+    {
+      "actor_id": "kazusa_touma",
+      "attempt": 1,
+      "case_id": "wa2_sk_transfer_a",
+      "conversation_id": "rea-max-20260831:wa2_sk_transfer_a",
+      "latency_ms": 15930.073403054848,
+      "ledger_sequence": 0,
+      "projected_request_sha256": "896cb4b3c35a7d750fb09d32d19bd321f9f4c11fb4ca3ffb5c274e68e3252ddc",
+      "rate_limited": false,
+      "raw_response": null,
+      "request_sha256": "896cb4b3c35a7d750fb09d32d19bd321f9f4c11fb4ca3ffb5c274e68e3252ddc",
+      "retryable": true,
+      "status": "technical_error",
+      "worker_session_id": null
+    },
+    {
+      "actor_id": "setsuna_ogiso",
+      "attempt": 1,
+      "case_id": "wa2_hs_transfer_b",
+      "conversation_id": "rea-max-20260831:wa2_hs_transfer_b",
+      "latency_ms": 19617.734358878806,
+      "ledger_sequence": 0,
+      "projected_request_sha256": "1622f60659d58aaab301dc57d31e07d141bf9e6bca6a0e2c9a28ee418a73646c",
+      "rate_limited": false,
+      "raw_response": null,
+      "request_sha256": "1622f60659d58aaab301dc57d31e07d141bf9e6bca6a0e2c9a28ee418a73646c",
+      "retryable": true,
+      "status": "technical_error",
+      "worker_session_id": null
+    },
+    {
+      "actor_id": "okabe_rintaro",
+      "attempt": 2,
+      "case_id": "sg_okabe_kurisu_transfer_c",
+      "conversation_id": "rea-max-20260831:sg_okabe_kurisu_transfer_c",
+      "latency_ms": 14883.997895987704,
+      "ledger_sequence": 0,
+      "projected_request_sha256": "470a39d56ac3533d32a2c4ef0593c75324527b21aaec24ab5980eca5d2856388",
+      "rate_limited": false,
+      "raw_response": null,
+      "request_sha256": "470a39d56ac3533d32a2c4ef0593c75324527b21aaec24ab5980eca5d2856388",
+      "retryable": true,
+      "status": "technical_error",
+      "worker_session_id": null
+    },
+    {
+      "actor_id": "kazusa_touma",
+      "attempt": 2,
+      "case_id": "wa2_sk_transfer_a",
+      "conversation_id": "rea-max-20260831:wa2_sk_transfer_a",
+      "latency_ms": 13812.747381161898,
+      "ledger_sequence": 0,
+      "projected_request_sha256": "896cb4b3c35a7d750fb09d32d19bd321f9f4c11fb4ca3ffb5c274e68e3252ddc",
+      "rate_limited": false,
+      "raw_response": null,
+      "request_sha256": "896cb4b3c35a7d750fb09d32d19bd321f9f4c11fb4ca3ffb5c274e68e3252ddc",
+      "retryable": true,
+      "status": "technical_error",
+      "worker_session_id": null
+    },
+    {
+      "actor_id": "setsuna_ogiso",
+      "attempt": 2,
+      "case_id": "wa2_hs_transfer_a",
+      "conversation_id": "rea-max-20260831:wa2_hs_transfer_a",
+      "latency_ms": 24228.418098995462,
+      "ledger_sequence": 0,
+      "projected_request_sha256": "d1084dfe53798d1cc52d889204a2491ce495cbd8aea937692f64f6bfece2f76d",
+      "rate_limited": false,
+      "raw_response": null,
+      "request_sha256": "d1084dfe53798d1cc52d889204a2491ce495cbd8aea937692f64f6bfece2f76d",
+      "retryable": true,
+      "status": "technical_error",
+      "worker_session_id": null
+    },
+    {
+      "actor_id": "setsuna_ogiso",
+      "attempt": 2,
+      "case_id": "wa2_hs_transfer_b",
+      "conversation_id": "rea-max-20260831:wa2_hs_transfer_b",
+      "latency_ms": 23308.645055862144,
+      "ledger_sequence": 0,
+      "projected_request_sha256": "1622f60659d58aaab301dc57d31e07d141bf9e6bca6a0e2c9a28ee418a73646c",
+      "rate_limited": false,
+      "raw_response": null,
+      "request_sha256": "1622f60659d58aaab301dc57d31e07d141bf9e6bca6a0e2c9a28ee418a73646c",
+      "retryable": true,
+      "status": "technical_error",
+      "worker_session_id": null
+    }
+  ],
+  "inflight_delta_calls": {
+    "[\"rea-max-20260831:sg_okabe_kurisu_transfer_c\",\"okabe_rintaro\"]": {
+      "actor_id": "okabe_rintaro",
+      "attempt": 3,
+      "case_id": "sg_okabe_kurisu_transfer_c",
+      "conversation_id": "rea-max-20260831:sg_okabe_kurisu_transfer_c",
+      "ledger_sequence": 0,
+      "request_sha256": "470a39d56ac3533d32a2c4ef0593c75324527b21aaec24ab5980eca5d2856388"
+    },
+    "[\"rea-max-20260831:wa2_hs_transfer_a\",\"setsuna_ogiso\"]": {
+      "actor_id": "setsuna_ogiso",
+      "attempt": 3,
+      "case_id": "wa2_hs_transfer_a",
+      "conversation_id": "rea-max-20260831:wa2_hs_transfer_a",
+      "ledger_sequence": 0,
+      "request_sha256": "d1084dfe53798d1cc52d889204a2491ce495cbd8aea937692f64f6bfece2f76d"
+    },
+    "[\"rea-max-20260831:wa2_sk_transfer_a\",\"kazusa_touma\"]": {
+      "actor_id": "kazusa_touma",
+      "attempt": 3,
+      "case_id": "wa2_sk_transfer_a",
+      "conversation_id": "rea-max-20260831:wa2_sk_transfer_a",
+      "ledger_sequence": 0,
+      "request_sha256": "896cb4b3c35a7d750fb09d32d19bd321f9f4c11fb4ca3ffb5c274e68e3252ddc"
+    }
+  },
+  "run": {
+    "conversation_count": 4,
+    "luna_reasoning_effort": "max",
+    "manifest_sha256": "886b461c9cd80bc3be21173ec05264cefdff4a3422ff39c834c14619ed4c87e3",
+    "model": "gpt-5.6-luna",
+    "persistent_delta_proxy": true,
+    "run_id": "rea-max-20260831",
+    "selected_case_ids": [
+      "wa2_hs_transfer_a",
+      "wa2_hs_transfer_b",
+      "wa2_sk_transfer_a",
+      "sg_okabe_kurisu_transfer_c"
+    ],
+    "turn_count": 16
+  },
+  "schema_version": "persistent_luna_dialogue_silos_v2",
+  "workers": {}
+}

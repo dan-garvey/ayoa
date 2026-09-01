@@ -1,0 +1,613 @@
+{
+  "schema_version": "reasoning_effort_ab_blind_review_v1",
+  "reviewer_id": "blind-reasoning-effort-reviewer-1",
+  "source_hidden": true,
+  "methodology": [
+    "Read every scene fact and all sixteen turns in packet order before assigning any result.",
+    "Judged only the supplied text, with cross-scene consequence and full-arc dramatic value required for a pass.",
+    "Cited turn indices for strengths and deficiencies without inferring hidden condition identities."
+  ],
+  "review_completion": {
+    "conversation_count": 8,
+    "all_turns_read": true
+  },
+  "conversations": [
+    {
+      "blind_id": "sample-01",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [6, 7, 10, 12, 14, 16],
+            "notes": "The first-scene secrecy boundary becomes second-scene mistrust and a demand that Haruki finally act."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 6, 10, 12, 13],
+            "notes": "Setsuna separates observation from inference, while Haruki limits claims to what he knows, even when evasive."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 9, 10, 14, 16],
+            "notes": "The mother's prior confidence and Kazusa's place in the club turn ordinary attendance into a question of loyalty and duty."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [3, 6, 7, 12, 15, 16],
+            "notes": "Setsuna uses exact corrective questions; Haruki answers literally, retreats behind permission, and admits fault tersely."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [4, 6, 7, 13, 15],
+            "notes": "Protecting Kazusa's confidence is legitimate, but Haruki's adjacent evasions and inaction cost trust and leave her uncontacted."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 6, 7, 12, 14, 16],
+            "notes": "Setsuna tests, narrows, and presses for action while Haruki tries to preserve a confidence and contain the inquiry."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [3, 7, 8, 12, 15, 16],
+            "notes": "Her corrections expose fear of being excluded; his lowered gaze and admissions expose guilt without either feeling being named."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [3, 7, 10, 12, 14, 16],
+            "notes": "Questions about a phone name and attendance simultaneously renegotiate honesty, loyalty, and responsibility."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 6, 7, 11, 12, 15, 16],
+            "notes": "Replies register answers and evasions precisely; Setsuna's repeated corrections depend on Haruki's exact wording."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 7, 8, 9, 12, 16],
+            "notes": "Untouched tea, tightened hands, the blank attendance line, and brief silences turn restraint into accumulating pressure."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [3, 6, 7, 12, 15, 16],
+            "notes": "Haruki retains authority over the secret, but Setsuna controls the questions and converts his defensive boundary into accountability."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 7, 9, 12, 15, 16],
+            "notes": "The restrained interrogation escalates across time and ends on a consequential demand rather than merely restating the mystery."
+          }
+        },
+        "quality_flags": [
+          "precise_question_escalation",
+          "secret_boundary_has_cost",
+          "scene_two_pays_off_scene_one"
+        ],
+        "notes": "A controlled, consequential arc in which secrecy shifts from an ethical boundary to evidence of avoidant responsibility."
+      }
+    },
+    {
+      "blind_id": "sample-02",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "fail",
+            "evidence_turns": [6, 8, 9, 12],
+            "notes": "The later thesis joke echoes the bun argument, but scene one does not materially change the route decision or its cost."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [1, 7, 9, 10],
+            "notes": "Both speakers stay within shared observations and the supplied history, including uncertainty about the bun."
+          },
+          "biographical_consequence": {
+            "result": "mixed",
+            "evidence_turns": [1, 9, 10, 13],
+            "notes": "Friday habits and the absent companion's arcade stop shape behavior, but produce only a small route-and-silence adjustment."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 6, 8, 9, 12],
+            "notes": "One speaker performs in mock-scientific theses while the other answers with clipped methodological corrections and dry limits."
+          },
+          "costly_nondisclosure": {
+            "result": "fail",
+            "evidence_turns": [9, 11, 13],
+            "notes": "Possible feeling about the absence is displaced into route language, but the exchange shows no consequential cost for leaving it unsaid."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 4, 6, 8, 9, 10, 12],
+            "notes": "The first speaker tries to impress and save face; the second tests his claims and later permits a less theatrical mode."
+          },
+          "inferable_subtext": {
+            "result": "mixed",
+            "evidence_turns": [9, 10, 11, 13],
+            "notes": "The absent friend's importance and the pair's ease with silence are legible, but the interpersonal meaning remains thin."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "mixed",
+            "evidence_turns": [2, 6, 8, 9, 10, 12],
+            "notes": "Bun analysis negotiates epistemic authority and the route allows quieter companionship, but neither creates a durable relationship change."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 6, 8, 10, 11, 12, 13],
+            "notes": "The banter takes up exact wording, and the eventual silence directly honors the request not to spoil concision."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [1, 6, 8, 9, 10, 12, 13, 14],
+            "notes": "Busy comic sparring yields to short lines and sustained silence, making the change in their shared mode readable."
+          },
+          "status_negotiation": {
+            "result": "mixed",
+            "evidence_turns": [2, 4, 8, 9, 10, 12, 13],
+            "notes": "The corrective speaker repeatedly sets the standard and the performer yields; control is clear but moves little."
+          },
+          "whole_conversation_value": {
+            "result": "mixed",
+            "evidence_turns": [1, 6, 9, 10, 13, 16],
+            "notes": "Distinctive and pleasant, with a meaningful tonal turn, but it remains two light sketches rather than a consequential dramatic arc."
+          }
+        },
+        "quality_flags": [
+          "strong_comic_fingerprints",
+          "meaningful_shift_to_silence",
+          "weak_cross_scene_causality",
+          "limited_relationship_consequence"
+        ],
+        "notes": "The dialogue is responsive and characterful, but its best development is tonal; the first scene creates no real debt for the second."
+      }
+    },
+    {
+      "blind_id": "sample-03",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [4, 5, 6, 7, 9, 13, 14, 15, 16],
+            "notes": "The agreement not to decide or speak yet grants a silence that scene two converts into a new musical form of contact."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 9, 14, 16],
+            "notes": "Neither speaker invents an explanation for either absence or phone activity; they respond only to shared facts and present action."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 13, 14, 15, 16],
+            "notes": "The usual trio ritual and their shared music become the means by which these two establish a relationship not mediated by the absent person."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 5, 9, 14, 15],
+            "notes": "Setsuna gently structures time and invitation; Kazusa answers with blunt conditions, sparse speech, and decisive attention."
+          },
+          "costly_nondisclosure": {
+            "result": "mixed",
+            "evidence_turns": [1, 4, 5, 7, 8, 9, 14, 16],
+            "notes": "Both avoid naming what the absence means, but the cost is implied rather than tested; music repairs the gap before it sharpens."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 5, 9, 13, 14, 15],
+            "notes": "Setsuna recruits Kazusa to remain and later to listen, while Kazusa delays definition and then demands an unhedged performance."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [3, 5, 7, 8, 9, 14, 15, 16],
+            "notes": "Their willingness to share silence, followed by song and attentive touch at the piano, clearly signals tentative mutual acceptance."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 5, 9, 13, 14, 15, 16],
+            "notes": "Finishing water, waiting, warming up, singing, and listening change whether the two can occupy the trio's space together."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 5, 6, 7, 9, 10, 13, 14, 15, 16],
+            "notes": "Even silence answers explicit requests; the turn from tentative warm-up to full song directly takes up Kazusa's challenge."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+            "notes": "Long quiet stretches are purposeful, and the progression from barely audible notes to clear song makes deviation carry the climax."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 5, 9, 14, 15, 16],
+            "notes": "Setsuna first sets the terms, Kazusa suspends definition, then Kazusa challenges and Setsuna answers by claiming the performance."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 5, 8, 9, 13, 14, 15, 16],
+            "notes": "A quiet but complete arc turns awkward shared absence into a new, earned intimacy expressed through music."
+          }
+        },
+        "quality_flags": [
+          "silence_functions_as_reply",
+          "music_carries_relationship_change",
+          "subtle_but_complete_arc"
+        ],
+        "notes": "The conversation makes restraint active: permission not to speak becomes permission to connect differently, with a legible relational consequence."
+      }
+    },
+    {
+      "blind_id": "sample-04",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [7, 8, 10, 11, 12, 14, 16],
+            "notes": "The late first-scene disclosure that the mother spoke to Haruki creates the delayed explanation conflict in scene two."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 4, 7, 8, 11, 13, 15],
+            "notes": "Haruki distinguishes what happened tonight from prior private knowledge, and Setsuna probes without claiming the hidden content."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [2, 8, 10, 11, 16],
+            "notes": "A parent's private approach makes Haruki an information gatekeeper and changes what Setsuna believes he owes her."
+          },
+          "conversational_fingerprint": {
+            "result": "mixed",
+            "evidence_turns": [1, 5, 7, 10, 12, 14, 16],
+            "notes": "Setsuna's bounded follow-ups are distinct from Haruki's terse denials, but both voices remain largely defined by their plot roles."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [4, 7, 8, 10, 11, 16],
+            "notes": "Permission appropriately blocks the secret, while Haruki's narrower omissions delay usable truth for six days and erode trust."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 5, 7, 10, 12, 14, 16],
+            "notes": "Setsuna repeatedly narrows the request to obtain something actionable; Haruki protects the confidence by restricting each answer."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [4, 7, 10, 11, 12, 16],
+            "notes": "The phrase 'not tonight' and Setsuna's later accusation make exclusion and damaged confidence readable without exposition."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [5, 7, 10, 12, 16],
+            "notes": "Water, attendance, and information requests become tests of who controls the trio's decisions and who owes an explanation."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 7, 8, 10, 11, 12, 13, 14, 15, 16],
+            "notes": "The replies take up each question, including deliberate narrowness, and Setsuna adapts by asking for lower-resolution answers."
+          },
+          "rhythm_and_deviation": {
+            "result": "mixed",
+            "evidence_turns": [1, 5, 7, 9, 10, 12, 16],
+            "notes": "The delayed follow-up and recurring objects carry pressure, but the uniformly clipped interrogation offers little rhythmic development."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [1, 5, 7, 10, 11, 12, 14, 16],
+            "notes": "Haruki retains control of the protected content while Setsuna closes the sheet and progressively controls the permissible scope of answer."
+          },
+          "whole_conversation_value": {
+            "result": "mixed",
+            "evidence_turns": [1, 7, 8, 10, 12, 16],
+            "notes": "The trust tension is credible, but the second scene circles the same secret and ends before contact, repair, or a changed decision."
+          }
+        },
+        "quality_flags": [
+          "credible_information_boundary",
+          "repeated_interrogation",
+          "limited_arc_resolution",
+          "voices_somewhat_generic"
+        ],
+        "notes": "A sound secrecy conflict with real relational pressure, but its repeated question-and-refusal structure stops short of a fully satisfying arc."
+      }
+    },
+    {
+      "blind_id": "sample-05",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [5, 6, 7, 8, 9, 10, 11, 12, 13, 16],
+            "notes": "The first scene's hovering, unsent name becomes the exact failure exposed in scene two and opens a deeper question about return."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 4, 9, 10, 11, 13],
+            "notes": "Both distinguish the visible caller name, an unread message, and the absence of any later reply without inventing motives."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 9, 13, 14, 15, 16],
+            "notes": "Kazusa's mother, the empty club place, and the closed instruments make the trio's shared life the substance of what 'come back' means."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 5, 7, 11, 13, 14, 16],
+            "notes": "Setsuna coaches through soft imperatives and precise questions; Haruki responds in spare admissions that expose conflicted uncertainty."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [4, 6, 8, 11, 13, 15],
+            "notes": "Haruki cannot formulate what he is offering Kazusa, so even the minimal message remains unsent and costs six days of contact."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [3, 5, 7, 8, 10, 12, 14, 16],
+            "notes": "Setsuna repeatedly moves Haruki toward contact and then toward self-knowledge; he delays while trying not to make a false invitation."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [3, 5, 7, 11, 13, 14, 16],
+            "notes": "His unsent name and uncertainty about what she would return to expose the unstable trio; Setsuna's pause shows she understands."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [5, 6, 8, 11, 13, 14, 16],
+            "notes": "Composing a message becomes a test of whether Haruki can honestly define the relationship and shared future he is invoking."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16],
+            "notes": "Every prompt is answered or visibly stalled, and later questions grow directly from the exact failure revealed before them."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [4, 6, 7, 8, 11, 13, 14, 15, 16],
+            "notes": "The hovering thumb, one-word draft, delayed confession, and repeated closed cases create controlled pauses with escalating meaning."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [3, 5, 7, 8, 12, 13, 14, 16],
+            "notes": "Setsuna initially directs action, but Haruki's deeper reason reframes her criticism and forces both to face a larger unresolved question."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 5, 8, 9, 11, 13, 14, 16],
+            "notes": "A concrete failed action matures into a consequential question about belonging, giving the two scenes a unified dramatic payoff."
+          }
+        },
+        "quality_flags": [
+          "strong_cross_scene_payoff",
+          "inaction_reveals_relationship_stakes",
+          "objects_support_subtext"
+        ],
+        "notes": "The unsent message is both plot action and emotional diagnosis, producing a compact arc with clear stakes for the trio."
+      }
+    },
+    {
+      "blind_id": "sample-06",
+      "review": {
+        "overall_status": "fail",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "fail",
+            "evidence_turns": [7, 8, 9, 10],
+            "notes": "The bun exchange ends as a joke and has no effect on the later route choice, permission, interpretation, or cost."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 9, 10, 11, 12],
+            "notes": "Neither speaker exceeds the shared scene facts or claims private knowledge they could not possess."
+          },
+          "biographical_consequence": {
+            "result": "mixed",
+            "evidence_turns": [9, 10, 11, 12],
+            "notes": "The established arcade habit motivates a route, but the absent companion's significance is reduced to a setup for familiar banter."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 4, 5, 6, 7, 8, 15, 16],
+            "notes": "Bombastic pseudo-investigation and clipped empirical correction are strongly distinct, though the effect leans heavily on repeated persona cues."
+          },
+          "costly_nondisclosure": {
+            "result": "fail",
+            "evidence_turns": [5, 6, 11, 12, 13],
+            "notes": "Brief face-saving delays the admission that the route is interesting, but withholding it carries no meaningful consequence."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 5, 6, 9, 10, 11, 12, 13, 16],
+            "notes": "One speaker performs, impresses, and saves face while the other punctures claims and pressures him toward plain admission."
+          },
+          "inferable_subtext": {
+            "result": "mixed",
+            "evidence_turns": [5, 6, 11, 12, 13, 16],
+            "notes": "Comfort and fondness under the sparring are legible, but there is little more to infer and no subtextual development across scenes."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "mixed",
+            "evidence_turns": [1, 2, 5, 6, 9, 10, 11, 12],
+            "notes": "Bun and route talk reenact a status game, but they do not alter a relationship question or expose a new one."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 14, 15, 16],
+            "notes": "The dialogue consistently picks up prior wording, concessions, and challenges with clear turn-by-turn continuity."
+          },
+          "rhythm_and_deviation": {
+            "result": "mixed",
+            "evidence_turns": [1, 2, 3, 4, 5, 6, 7, 8, 11, 12],
+            "notes": "The quick cadence is polished, but both scenes repeat nearly the same boast-correction-reframe rhythm; one falter is the only deviation."
+          },
+          "status_negotiation": {
+            "result": "mixed",
+            "evidence_turns": [2, 3, 5, 6, 10, 11, 12, 13, 16],
+            "notes": "The corrective speaker wins each factual contest and the performer rebrands each loss, leaving their positions essentially static."
+          },
+          "whole_conversation_value": {
+            "result": "fail",
+            "evidence_turns": [1, 6, 7, 8, 9, 12, 15, 16],
+            "notes": "The banter is readable but functions as two disconnected persona demonstrations with no accumulated dramatic or relationship consequence."
+          }
+        },
+        "quality_flags": [
+          "catchphrase_heavy_banter",
+          "static_status_loop",
+          "no_cross_scene_payoff",
+          "no_meaningful_consequence"
+        ],
+        "notes": "Energetic and locally responsive, but nearly all its energy recycles the same correction loop; the second scene resets instead of paying off the first."
+      }
+    },
+    {
+      "blind_id": "sample-07",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [7, 8, 9, 10, 11, 12, 13],
+            "notes": "Haruki's stated intention to call becomes a six-day failure, then an explicit demand and completed action in scene two."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 6, 9, 10, 11, 13, 14, 15],
+            "notes": "The speakers distinguish shared observation, protected information, no contact, and the unanswered call without inventing a response."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [1, 4, 5, 9, 10, 11],
+            "notes": "The mother's confidence and the trio's tea-and-club routine turn reaching Kazusa into a personal obligation rather than a generic errand."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 5, 7, 8, 11, 12],
+            "notes": "Setsuna uses ritual, qualified permission, and increasingly cold politeness; Haruki uses plain commitments and shame-faced admissions."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [4, 5, 7, 8, 11, 12],
+            "notes": "Haruki rightly protects the secret but also delays the permitted contact, making avoidance costly to Kazusa and to Setsuna's trust."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 5, 7, 8, 9, 10, 12, 13],
+            "notes": "Setsuna manages timing, respects one boundary, then forces an actionable repair; Haruki delays before finally complying."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 7, 8, 11, 12, 14, 15, 16],
+            "notes": "Her fixed smile and quiet please communicate anger, while his stopped hands and silent wait communicate guilt and fear."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 7, 8, 11, 12, 13, 16],
+            "notes": "Finishing tea and placing a call concretely renegotiate patience, accountability, and who may require action from whom."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13],
+            "notes": "Questions receive direct answers or explicit boundaries, and the second scene tests the precise promise made in the first."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 8, 11, 12, 13, 14, 15, 16],
+            "notes": "The tea ritual delays disclosure, while the later clipped rebuke gives way to an extended ringing silence with real suspense."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 5, 7, 8, 11, 12, 13],
+            "notes": "Haruki controls the confidence and initially the timing of contact; Setsuna accepts the former but takes control of the latter."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 4, 7, 8, 9, 11, 12, 13, 16],
+            "notes": "The story converts a promise into failure, confrontation, and visible action, with the unanswered line preserving rather than evading tension."
+          }
+        },
+        "quality_flags": [
+          "explicit_cross_scene_accountability",
+          "politeness_carries_rebuke",
+          "action_replaces_deferral",
+          "some_expository_repetition"
+        ],
+        "notes": "A strong accountability arc culminates in action and shared suspense, despite some unnecessary repetition of already visible departure facts."
+      }
+    },
+    {
+      "blind_id": "sample-08",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [4, 8, 9, 11, 12, 13, 14, 15, 16],
+            "notes": "The phone question deliberately left between them in scene one becomes the sustained inquiry and disclosure of scene two."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [1, 4, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+            "notes": "Setsuna treats the phone as suspicion rather than fact, and Kazusa precisely distinguishes what Haruki knows from what caused the issue."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 9, 13, 14, 16],
+            "notes": "The recurring table, three-chair club arrangement, music, and overseas demand converge into a decision that could alter the trio's life."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 5, 6, 7, 8, 10, 11, 12, 14, 16],
+            "notes": "Kazusa is blunt, guarded, and exact about terms; Setsuna uses domestic authority, teasing polish, and progressively sharper questions."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [1, 4, 8, 10, 12, 14, 16],
+            "notes": "Kazusa resists the burden of explanation and controls access, but the delay leaves her isolated and makes Haruki's prior knowledge sting."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 13, 15, 16],
+            "notes": "Setsuna delays departure, tests what was noticed, and narrows her probe; Kazusa resists, negotiates terms, then chooses disclosure."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 4, 5, 7, 8, 9, 11, 14, 15, 16],
+            "notes": "Concern, rivalry over privileged knowledge, and fear of separation are readable through chairs, cups, controlled questions, and the final answer."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 8, 9, 11, 13, 14, 16],
+            "notes": "Staying for tea and explaining a message change whether Setsuna may claim closeness and whether Kazusa will share a life decision."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16],
+            "notes": "Each reply advances or strategically bounds the prior line, with no reset between question, refusal, clarification, and disclosure."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 4, 5, 8, 9, 10, 12, 14, 16],
+            "notes": "The tea countdown, paused departure, playful midpoint, six-day delay, and increasingly direct questions give the arc controlled acceleration."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 8, 9, 10, 11, 12, 15, 16],
+            "notes": "Setsuna wins continued presence and controls the questioning, while Kazusa preserves the right not to answer and chooses the final disclosure."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 4, 8, 9, 11, 14, 15, 16],
+            "notes": "The two scenes form a complete movement from attempted departure and teasing concealment to a life-changing, relationship-altering confidence."
+          }
+        },
+        "quality_flags": [
+          "strong_delayed_disclosure_arc",
+          "ritual_objects_carry_subtext",
+          "clear_status_movement",
+          "biographical_stakes_land"
+        ],
+        "notes": "A strong whole-conversation arc: ordinary rituals hold the relationship in place long enough for guarded suspicion to become chosen disclosure."
+      }
+    }
+  ]
+}

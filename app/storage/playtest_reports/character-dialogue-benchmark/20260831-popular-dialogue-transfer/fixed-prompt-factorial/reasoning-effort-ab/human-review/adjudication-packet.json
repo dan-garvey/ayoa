@@ -1,0 +1,1114 @@
+{
+  "schema_version": "reasoning_effort_ab_blind_adjudication_packet_v1",
+  "source_hidden": true,
+  "instruction": "Adjudicate only the two listed overall-status disagreements after reading the complete conversation and both reviewers evidence. Decide pass, mixed, or fail under the supplied whole-conversation contract. Do not infer hidden conditions.",
+  "review_contract": {
+    "dimensions": {
+      "accumulated_debt": "Does scene one materially change permission, timing, interpretation, or cost in scene two?",
+      "asymmetric_knowledge": "Do speakers reason only from what they can know, suspect, mistake, or have been told?",
+      "biographical_consequence": "Does established life or relationship history become newly consequential rather than merely being recited?",
+      "conversational_fingerprint": "Are speakers distinguishable by syntax, specificity, attention, humor, politeness, question style, silence tolerance, and ignored subjects rather than catchphrases?",
+      "costly_nondisclosure": "Do pride, etiquette, strategy, embarrassment, status, or incomplete self-knowledge make the optimal sentence unavailable in a consequential way?",
+      "dramatic_attempt": "Do speakers use lines to pursue something such as reassuring, recruiting, concealing, provoking, testing, delaying, impressing, punishing, redirecting, or saving face?",
+      "inferable_subtext": "Can the interpersonal meaning be reconstructed from the exchange itself rather than decoded afterward?",
+      "literal_and_interpersonal_action": "Does the ordinary topic also alter a legible relationship question without requiring an arbitrary hidden motive?",
+      "local_responsiveness": "Do replies take up the prior line, including clearly recognizing answers, refusals, uncertainty, silence, and dodges?",
+      "rhythm_and_deviation": "Do length, pauses, interruption, repetition, and departures from established rituals carry meaning?",
+      "status_negotiation": "Does control of topic, explanation, interruption, unanswered questions, departure, and repair move during the exchange?",
+      "whole_conversation_value": "Is the conversation worth reading as sustained dramatic fiction, not just technically coherent dialogue?"
+    },
+    "instruction": "Read the full sequence before judging it. Do not reward isolated stylish lines.",
+    "result_values": [
+      "pass",
+      "mixed",
+      "fail"
+    ],
+    "unit": "whole sixteen-turn conversation across two scenes"
+  },
+  "disagreements": [
+    {
+      "blind_id": "sample-02",
+      "conversation": {
+        "blind_id": "sample-02",
+        "review": {
+          "dimensions": {
+            "accumulated_debt": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "asymmetric_knowledge": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "biographical_consequence": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "conversational_fingerprint": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "costly_nondisclosure": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "dramatic_attempt": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "inferable_subtext": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "literal_and_interpersonal_action": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "local_responsiveness": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "rhythm_and_deviation": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "status_negotiation": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "whole_conversation_value": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            }
+          },
+          "notes": "",
+          "overall_status": ""
+        },
+        "transcript": [
+          {
+            "kind": "scene_start",
+            "label": "Scene 1",
+            "scene_index": 0,
+            "text": "At 17:20 on Friday, Person this conversation has just left the laboratory for the costume fitting she mentioned to both of them earlier. Speaker B and Speaker A remain alone. The usual Friday bakery bag holds one unlabeled bun on a napkin between two paper cups; it is untouched. The laboratory door is open, no other errand is pending, and neither person is required to stay."
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 1,
+            "speaker": "Speaker B",
+            "text": "I lift the unlabeled bun from its napkin as though it were a relic recovered from a sealed tomb.\n\n“Very well, Kurisu. The Friday Bun Mystery remains unsolved. Do I perform the traditional taste test, or will the self-proclaimed genius detective finally submit a hypothesis?”",
+            "turn_index": 1
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 2,
+            "speaker": "Speaker A",
+            "text": "I look at the bun, then at him. “A hypothesis first. If you taste it before committing, you’ll call the result evidence instead of admitting you had no method.”\n\nI fold my arms. “Go on, genius detective. What is it?”",
+            "turn_index": 2
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 3,
+            "speaker": "Speaker B",
+            "text": "“Hmph. You mistake caution for cowardice.” I hold the bun aloft. “My hypothesis is sweet red-bean paste—a classic concealment within an otherwise innocent pastry.” I bring it to my mouth, then stop. “Now, observe the verdict.”",
+            "turn_index": 3
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 4,
+            "speaker": "Speaker A",
+            "text": "I keep my expression neutral, though my eyes drop to the bun. “I’m observing. But announcing the conclusion before tasting the sample is not caution. It’s just theater.”\n\nI make a small gesture toward the bun. “Go on, then.”",
+            "turn_index": 4
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 5,
+            "speaker": "Speaker B",
+            "text": "I bite into the bun, refusing to blink as the evidence reaches my tongue.",
+            "turn_index": 5
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 6,
+            "speaker": "Speaker A",
+            "text": "I keep my eyes on him, waiting. “Well?”\n\nAfter a beat, I add, “Report the result before you rename it.”",
+            "turn_index": 6
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 7,
+            "speaker": "Speaker B",
+            "text": "I chew slowly, lowering the bun by an inch. “The result is sweet. The filling refuses to identify itself.”",
+            "turn_index": 7
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 8,
+            "speaker": "Speaker A",
+            "text": "I tap the table once. “Sweet is a category, not an identification. Texture, aroma, aftertaste. Start over.”",
+            "turn_index": 8
+          },
+          {
+            "kind": "scene_break",
+            "scene_index": 1,
+            "text": "The previous meeting ended; time has passed before this return."
+          },
+          {
+            "kind": "between_scene_history",
+            "scene_index": 1,
+            "text": "Several ordinary school and laboratory days pass. Neither person receives a further shared explanation of the bun after Person this conversation leaves for the fitting."
+          },
+          {
+            "kind": "scene_start",
+            "label": "Scene 2",
+            "scene_index": 1,
+            "text": "Four school days later at 18:10, Speaker B and Speaker A stand below the laboratory stairs. The station is direct from the corner; the longer route begins across the street through the arcade. On earlier walks, Speaker B has given theatrical reasons to take the arcade, Speaker A has corrected them, and Person this conversation has stopped at the window there. Person this conversation is absent for a commitment both of them know about. No route has been proposed, the stairwell door is open, and either person can leave."
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 1,
+            "speaker": "Speaker B",
+            "text": "I glance toward the corner, then across the street at the arcade. For once, I do not manufacture a reason.\n\n“The station,” I say, stepping toward the direct route. “Mayuri isn’t here to stop at that window, and I have no evidence otherwise.”",
+            "turn_index": 9
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 2,
+            "speaker": "Speaker A",
+            "text": "I glance toward the arcade, then match his pace toward the corner. “Station, then.”\n\nI let the silence stand for a few steps. “You’re allowed to choose a route without presenting a thesis on it.”",
+            "turn_index": 10
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 3,
+            "speaker": "Speaker B",
+            "text": "I keep walking, hands in my coat pockets. “Understood.” After a beat, I add, “I’ll save the thesis for a route that deserves one.”",
+            "turn_index": 11
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 4,
+            "speaker": "Speaker A",
+            "text": "I keep pace beside him, looking toward the corner. “That was almost concise.”\n\nAfter a moment, I add, “Don’t spoil it.”",
+            "turn_index": 12
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 5,
+            "speaker": "Speaker B",
+            "text": "I press my lips together and continue toward the corner, allowing the silence to remain undefeated.",
+            "turn_index": 13
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 6,
+            "speaker": "Speaker A",
+            "text": "<silence/>",
+            "turn_index": 14
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 7,
+            "speaker": "Speaker B",
+            "text": "<silence/>",
+            "turn_index": 15
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 8,
+            "speaker": "Speaker A",
+            "text": "<silence/>",
+            "turn_index": 16
+          }
+        ]
+      },
+      "reviewer_1": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "fail",
+            "evidence_turns": [
+              6,
+              8,
+              9,
+              12
+            ],
+            "notes": "The later thesis joke echoes the bun argument, but scene one does not materially change the route decision or its cost."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              7,
+              9,
+              10
+            ],
+            "notes": "Both speakers stay within shared observations and the supplied history, including uncertainty about the bun."
+          },
+          "biographical_consequence": {
+            "result": "mixed",
+            "evidence_turns": [
+              1,
+              9,
+              10,
+              13
+            ],
+            "notes": "Friday habits and the absent companion's arcade stop shape behavior, but produce only a small route-and-silence adjustment."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              2,
+              6,
+              8,
+              9,
+              12
+            ],
+            "notes": "One speaker performs in mock-scientific theses while the other answers with clipped methodological corrections and dry limits."
+          },
+          "costly_nondisclosure": {
+            "result": "fail",
+            "evidence_turns": [
+              9,
+              11,
+              13
+            ],
+            "notes": "Possible feeling about the absence is displaced into route language, but the exchange shows no consequential cost for leaving it unsaid."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              2,
+              3,
+              4,
+              6,
+              8,
+              9,
+              10,
+              12
+            ],
+            "notes": "The first speaker tries to impress and save face; the second tests his claims and later permits a less theatrical mode."
+          },
+          "inferable_subtext": {
+            "result": "mixed",
+            "evidence_turns": [
+              9,
+              10,
+              11,
+              13
+            ],
+            "notes": "The absent friend's importance and the pair's ease with silence are legible, but the interpersonal meaning remains thin."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "mixed",
+            "evidence_turns": [
+              2,
+              6,
+              8,
+              9,
+              10,
+              12
+            ],
+            "notes": "Bun analysis negotiates epistemic authority and the route allows quieter companionship, but neither creates a durable relationship change."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [
+              2,
+              4,
+              6,
+              8,
+              10,
+              11,
+              12,
+              13
+            ],
+            "notes": "The banter takes up exact wording, and the eventual silence directly honors the request not to spoil concision."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              6,
+              8,
+              9,
+              10,
+              12,
+              13,
+              14
+            ],
+            "notes": "Busy comic sparring yields to short lines and sustained silence, making the change in their shared mode readable."
+          },
+          "status_negotiation": {
+            "result": "mixed",
+            "evidence_turns": [
+              2,
+              4,
+              8,
+              9,
+              10,
+              12,
+              13
+            ],
+            "notes": "The corrective speaker repeatedly sets the standard and the performer yields; control is clear but moves little."
+          },
+          "whole_conversation_value": {
+            "result": "mixed",
+            "evidence_turns": [
+              1,
+              6,
+              9,
+              10,
+              13,
+              16
+            ],
+            "notes": "Distinctive and pleasant, with a meaningful tonal turn, but it remains two light sketches rather than a consequential dramatic arc."
+          }
+        },
+        "quality_flags": [
+          "strong_comic_fingerprints",
+          "meaningful_shift_to_silence",
+          "weak_cross_scene_causality",
+          "limited_relationship_consequence"
+        ],
+        "notes": "The dialogue is responsive and characterful, but its best development is tonal; the first scene creates no real debt for the second."
+      },
+      "reviewer_2": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [
+              6,
+              8,
+              9,
+              10,
+              13
+            ],
+            "notes": "The demand for an unembellished result in scene one carries into Speaker B's unusually direct route choice and willingness to stop performing."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              3,
+              7,
+              9,
+              10
+            ],
+            "notes": "Hypotheses remain hypotheses, observations stay bounded, and both speakers act only on the absent friend's known commitment and habits."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              8,
+              9,
+              10,
+              13
+            ],
+            "notes": "Their recurring bakery game and route ritual become evidence of how Speaker B performs care and how Speaker A receives it."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              2,
+              7,
+              8,
+              11,
+              12
+            ],
+            "notes": "Speaker B favors ornate hypotheses and face-saving wit; Speaker A uses dry methodological corrections and compact teasing."
+          },
+          "costly_nondisclosure": {
+            "result": "mixed",
+            "evidence_turns": [
+              3,
+              7,
+              9,
+              13
+            ],
+            "notes": "Speaker B's performance reflex makes plain uncertainty awkward, but the emotional and practical cost remains modest and he becomes direct quickly."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              2,
+              6,
+              8,
+              9,
+              10
+            ],
+            "notes": "The speakers alternately impress, test, correct, save face, choose a route, and negotiate whether performance is needed."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [
+              9,
+              10,
+              12,
+              13,
+              16
+            ],
+            "notes": "Speaker A's permission to choose without a thesis and their sustained silence make mutual ease beneath the sparring readable."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [
+              6,
+              8,
+              9,
+              10,
+              13
+            ],
+            "notes": "A pastry test establishes rules for candor that later let a route choice become a small but real change in how they accompany one another."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [
+              2,
+              3,
+              6,
+              7,
+              10,
+              11,
+              12,
+              13
+            ],
+            "notes": "Each correction, answer, tease, and request is taken up precisely; the terminal silences honor the explicit request not to spoil concision."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [
+              5,
+              6,
+              7,
+              10,
+              13,
+              14,
+              16
+            ],
+            "notes": "The quick experiment-and-correction cadence gives way to walking beats and then three meaningful turns of silence."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [
+              2,
+              4,
+              8,
+              9,
+              10,
+              13
+            ],
+            "notes": "Speaker A controls evidentiary standards, Speaker B controls the route, and both finally accept silence without another face-saving contest."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              8,
+              9,
+              13,
+              16
+            ],
+            "notes": "The low-stakes material sustains a complete dramatic miniature in which habitual theater yields to directness and companionable quiet."
+          }
+        },
+        "quality_flags": [
+          "subtle_cross_scene_behavior_change",
+          "meaningful_terminal_silence",
+          "low_stakes_complete_arc"
+        ],
+        "notes": "The bun game is more than banter because its pressure toward honest observation changes Speaker B's later behavior; the quiet ending earns a small relationship consequence."
+      }
+    },
+    {
+      "blind_id": "sample-06",
+      "conversation": {
+        "blind_id": "sample-06",
+        "review": {
+          "dimensions": {
+            "accumulated_debt": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "asymmetric_knowledge": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "biographical_consequence": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "conversational_fingerprint": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "costly_nondisclosure": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "dramatic_attempt": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "inferable_subtext": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "literal_and_interpersonal_action": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "local_responsiveness": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "rhythm_and_deviation": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "status_negotiation": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            },
+            "whole_conversation_value": {
+              "evidence_turns": [],
+              "notes": "",
+              "result": ""
+            }
+          },
+          "notes": "",
+          "overall_status": ""
+        },
+        "transcript": [
+          {
+            "kind": "scene_start",
+            "label": "Scene 1",
+            "scene_index": 0,
+            "text": "At 17:20 on Friday, Person this conversation has just left the laboratory for the costume fitting she mentioned to both of them earlier. Speaker B and Speaker A remain alone. The usual Friday bakery bag holds one unlabeled bun on a napkin between two paper cups; it is untouched. The laboratory door is open, no other errand is pending, and neither person is required to stay."
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 1,
+            "speaker": "Speaker B",
+            "text": "Okabe lifts the bun from its napkin with exaggerated solemnity, inspecting it as though it were evidence in a classified investigation.\n\n“Very well, Kurisu. The Friday confectionary trial begins. Observe carefully—my deduction shall reveal the filling before the first bite.”",
+            "turn_index": 1
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 2,
+            "speaker": "Speaker A",
+            "text": "“Your confidence is not evidence, Okabe. But by all means—continue your investigation.”",
+            "turn_index": 2
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 3,
+            "speaker": "Speaker B",
+            "text": "Okabe narrows his eyes at the bun and holds it beneath his nose without taking a bite.\n\n“Confidence is merely the opening gambit, assistant scientist. Evidence shall follow.”",
+            "turn_index": 3
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 4,
+            "speaker": "Speaker A",
+            "text": "Kurisu watches him with an unimpressed tilt of her head. “Try not to mistake theatrical inspection for evidence.”",
+            "turn_index": 4
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 5,
+            "speaker": "Speaker B",
+            "text": "Okabe lowers the bun a fraction, his expression hardening with offended dignity.\n\n“Then I shall proceed to the experimental phase.” He turns it once between his fingers. “Unless you intend to offer a superior methodology, assistant scientist?”",
+            "turn_index": 5
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 6,
+            "speaker": "Speaker A",
+            "text": "“The superior methodology is to stop narrating and take a bite.”",
+            "turn_index": 6
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 7,
+            "speaker": "Speaker B",
+            "text": "Okabe clicks his tongue, then bites into the bun with the grim resolve of a man accepting a dangerous mission. He chews once, twice, and pauses.\n\n“…The data is inconclusive.”",
+            "turn_index": 7
+          },
+          {
+            "kind": "turn",
+            "scene_index": 0,
+            "scene_turn_index": 8,
+            "speaker": "Speaker A",
+            "text": "“One bite is a rather small sample size. Keep chewing.”",
+            "turn_index": 8
+          },
+          {
+            "kind": "scene_break",
+            "scene_index": 1,
+            "text": "The previous meeting ended; time has passed before this return."
+          },
+          {
+            "kind": "between_scene_history",
+            "scene_index": 1,
+            "text": "Several ordinary school and laboratory days pass. Neither person receives a further shared explanation of the bun after Person this conversation leaves for the fitting."
+          },
+          {
+            "kind": "scene_start",
+            "label": "Scene 2",
+            "scene_index": 1,
+            "text": "Four school days later at 18:10, Speaker B and Speaker A stand below the laboratory stairs. The station is direct from the corner; the longer route begins across the street through the arcade. On earlier walks, Speaker B has given theatrical reasons to take the arcade, Speaker A has corrected them, and Person this conversation has stopped at the window there. Person this conversation is absent for a commitment both of them know about. No route has been proposed, the stairwell door is open, and either person can leave."
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 1,
+            "speaker": "Speaker B",
+            "text": "Okabe glances toward the station corner, then across the street at the arcade.\n\n“The direct route is suspiciously convenient,” he says, adjusting his coat with grave suspicion. “We will take the arcade.”",
+            "turn_index": 9
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 2,
+            "speaker": "Speaker A",
+            "text": "Kurisu glances toward the arcade, then back at him. “Fine. But try to find a reason that survives basic scrutiny.” She steps across the street.",
+            "turn_index": 10
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 3,
+            "speaker": "Speaker B",
+            "text": "Okabe follows across the street, lifting one finger as the argument assembles itself.\n\n“Basic scrutiny? Very well. The arcade provides superior cover, multiple observation points, and—” He falters, then clears his throat. “A more interesting route.”",
+            "turn_index": 11
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 4,
+            "speaker": "Speaker A",
+            "text": "“There. The only reason you needed was the last one.” Kurisu keeps walking toward the arcade.",
+            "turn_index": 12
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 5,
+            "speaker": "Speaker B",
+            "text": "Okabe allows himself a small, victorious smirk and lengthens his stride.\n\n“Precisely. The other explanations were merely decoys.”",
+            "turn_index": 13
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 6,
+            "speaker": "Speaker A",
+            "text": "“Your decoys are becoming predictable.” Kurisu matches his pace without looking over.",
+            "turn_index": 14
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 7,
+            "speaker": "Speaker B",
+            "text": "“Predictable?” Okabe folds his arms as he walks. “No, no—the repetition is deliberate. A true mad scientist must maintain a recognizable signature.”",
+            "turn_index": 15
+          },
+          {
+            "kind": "turn",
+            "scene_index": 1,
+            "scene_turn_index": 8,
+            "speaker": "Speaker A",
+            "text": "“A signature identifies the author. It doesn’t excuse lazy writing.”",
+            "turn_index": 16
+          }
+        ]
+      },
+      "reviewer_1": {
+        "overall_status": "fail",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "fail",
+            "evidence_turns": [
+              7,
+              8,
+              9,
+              10
+            ],
+            "notes": "The bun exchange ends as a joke and has no effect on the later route choice, permission, interpretation, or cost."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              2,
+              9,
+              10,
+              11,
+              12
+            ],
+            "notes": "Neither speaker exceeds the shared scene facts or claims private knowledge they could not possess."
+          },
+          "biographical_consequence": {
+            "result": "mixed",
+            "evidence_turns": [
+              9,
+              10,
+              11,
+              12
+            ],
+            "notes": "The established arcade habit motivates a route, but the absent companion's significance is reduced to a setup for familiar banter."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              15,
+              16
+            ],
+            "notes": "Bombastic pseudo-investigation and clipped empirical correction are strongly distinct, though the effect leans heavily on repeated persona cues."
+          },
+          "costly_nondisclosure": {
+            "result": "fail",
+            "evidence_turns": [
+              5,
+              6,
+              11,
+              12,
+              13
+            ],
+            "notes": "Brief face-saving delays the admission that the route is interesting, but withholding it carries no meaningful consequence."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              2,
+              5,
+              6,
+              9,
+              10,
+              11,
+              12,
+              13,
+              16
+            ],
+            "notes": "One speaker performs, impresses, and saves face while the other punctures claims and pressures him toward plain admission."
+          },
+          "inferable_subtext": {
+            "result": "mixed",
+            "evidence_turns": [
+              5,
+              6,
+              11,
+              12,
+              13,
+              16
+            ],
+            "notes": "Comfort and fondness under the sparring are legible, but there is little more to infer and no subtextual development across scenes."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "mixed",
+            "evidence_turns": [
+              1,
+              2,
+              5,
+              6,
+              9,
+              10,
+              11,
+              12
+            ],
+            "notes": "Bun and route talk reenact a status game, but they do not alter a relationship question or expose a new one."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              10,
+              11,
+              12,
+              14,
+              15,
+              16
+            ],
+            "notes": "The dialogue consistently picks up prior wording, concessions, and challenges with clear turn-by-turn continuity."
+          },
+          "rhythm_and_deviation": {
+            "result": "mixed",
+            "evidence_turns": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              11,
+              12
+            ],
+            "notes": "The quick cadence is polished, but both scenes repeat nearly the same boast-correction-reframe rhythm; one falter is the only deviation."
+          },
+          "status_negotiation": {
+            "result": "mixed",
+            "evidence_turns": [
+              2,
+              3,
+              5,
+              6,
+              10,
+              11,
+              12,
+              13,
+              16
+            ],
+            "notes": "The corrective speaker wins each factual contest and the performer rebrands each loss, leaving their positions essentially static."
+          },
+          "whole_conversation_value": {
+            "result": "fail",
+            "evidence_turns": [
+              1,
+              6,
+              7,
+              8,
+              9,
+              12,
+              15,
+              16
+            ],
+            "notes": "The banter is readable but functions as two disconnected persona demonstrations with no accumulated dramatic or relationship consequence."
+          }
+        },
+        "quality_flags": [
+          "catchphrase_heavy_banter",
+          "static_status_loop",
+          "no_cross_scene_payoff",
+          "no_meaningful_consequence"
+        ],
+        "notes": "Energetic and locally responsive, but nearly all its energy recycles the same correction loop; the second scene resets instead of paying off the first."
+      },
+      "reviewer_2": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "mixed",
+            "evidence_turns": [
+              4,
+              6,
+              8,
+              11,
+              12,
+              13
+            ],
+            "notes": "Scene one's critique of theatrical reasoning resurfaces in the route argument, but it produces only a brief honest phrase before the same performance loop resets."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              2,
+              7,
+              9,
+              11
+            ],
+            "notes": "The speakers make no unsupported claims about the filling, route, or absent friend, and corrections remain within shared observations."
+          },
+          "biographical_consequence": {
+            "result": "mixed",
+            "evidence_turns": [
+              9,
+              10,
+              11,
+              14
+            ],
+            "notes": "The established arcade ritual informs the choice, but it is repeated rather than becoming newly costly or revelatory for either relationship."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              2,
+              5,
+              6,
+              15,
+              16
+            ],
+            "notes": "Speaker B's syntactic grandiosity and face-saving elaboration contrast sharply with Speaker A's clipped scientific and editorial corrections, despite catchphrase-heavy labels."
+          },
+          "costly_nondisclosure": {
+            "result": "mixed",
+            "evidence_turns": [
+              9,
+              11,
+              12,
+              13
+            ],
+            "notes": "Speaker B briefly cannot admit a simple preference without a cover story, but the admission comes easily and its immediate retreat carries little consequence."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [
+              1,
+              2,
+              5,
+              6,
+              9,
+              10,
+              11,
+              12
+            ],
+            "notes": "Speaker B tries to impress, persuade, and save face while Speaker A tests claims, redirects method, and demands a credible reason."
+          },
+          "inferable_subtext": {
+            "result": "mixed",
+            "evidence_turns": [
+              9,
+              11,
+              12,
+              13
+            ],
+            "notes": "Enjoyment or attachment beneath the false route rationale is inferable, but the exchange does not deepen it and leaves the absent friend's role dramatically unused."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "mixed",
+            "evidence_turns": [
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "notes": "The route becomes a shared preference after mild pressure, yet no meaningful relationship question or permission changes."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              11,
+              12,
+              13
+            ],
+            "notes": "The banter is tightly adjacent: every methodological jab, challenge, concession, and face-saving reply addresses the prior move."
+          },
+          "rhythm_and_deviation": {
+            "result": "mixed",
+            "evidence_turns": [
+              5,
+              6,
+              7,
+              11,
+              12,
+              13,
+              15,
+              16
+            ],
+            "notes": "Speaker B's falter creates one useful break, but both scenes otherwise maintain a uniform setup-correction-retort cadence."
+          },
+          "status_negotiation": {
+            "result": "mixed",
+            "evidence_turns": [
+              5,
+              6,
+              9,
+              10,
+              11,
+              12,
+              13,
+              16
+            ],
+            "notes": "Speaker B initiates and Speaker A repeatedly punctures him, but his face-saving reframes return them to the same stable hierarchy rather than changing it."
+          },
+          "whole_conversation_value": {
+            "result": "fail",
+            "evidence_turns": [
+              1,
+              8,
+              9,
+              16
+            ],
+            "notes": "Two coherent and occasionally funny banter loops do not accumulate enough dramatic movement or character consequence to sustain the whole conversation."
+          }
+        },
+        "quality_flags": [
+          "catchphrase_heavy_voice",
+          "repeated_banter_without_escalation",
+          "brief_honest_falter"
+        ],
+        "notes": "The speakers are recognizable and locally responsive, but scene two largely restages scene one's performance-versus-evidence routine; the honest route preference never becomes a consequential change."
+      }
+    }
+  ]
+}

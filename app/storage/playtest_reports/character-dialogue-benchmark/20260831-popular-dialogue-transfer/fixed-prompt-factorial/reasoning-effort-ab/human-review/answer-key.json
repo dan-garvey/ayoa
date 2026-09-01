@@ -1,0 +1,62 @@
+{
+  "conversations": [
+    {
+      "blind_id": "sample-01",
+      "case_id": "wa2_hs_transfer_b",
+      "cell": "X",
+      "conversation_id": "rea-max-v2-20260831:wa2_hs_transfer_b",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    },
+    {
+      "blind_id": "sample-02",
+      "case_id": "sg_okabe_kurisu_transfer_c",
+      "cell": "X",
+      "conversation_id": "rea-max-v2-20260831:sg_okabe_kurisu_transfer_c",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    },
+    {
+      "blind_id": "sample-03",
+      "case_id": "wa2_sk_transfer_a",
+      "cell": "X",
+      "conversation_id": "rea-max-v2-20260831:wa2_sk_transfer_a",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    },
+    {
+      "blind_id": "sample-04",
+      "case_id": "wa2_hs_transfer_a",
+      "cell": "M",
+      "conversation_id": "rea-medium-v2-20260831:wa2_hs_transfer_a",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    },
+    {
+      "blind_id": "sample-05",
+      "case_id": "wa2_hs_transfer_b",
+      "cell": "M",
+      "conversation_id": "rea-medium-v2-20260831:wa2_hs_transfer_b",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    },
+    {
+      "blind_id": "sample-06",
+      "case_id": "sg_okabe_kurisu_transfer_c",
+      "cell": "M",
+      "conversation_id": "rea-medium-v2-20260831:sg_okabe_kurisu_transfer_c",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    },
+    {
+      "blind_id": "sample-07",
+      "case_id": "wa2_hs_transfer_a",
+      "cell": "X",
+      "conversation_id": "rea-max-v2-20260831:wa2_hs_transfer_a",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    },
+    {
+      "blind_id": "sample-08",
+      "case_id": "wa2_sk_transfer_a",
+      "cell": "M",
+      "conversation_id": "rea-medium-v2-20260831:wa2_sk_transfer_a",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    }
+  ],
+  "schema_version": "persistent_luna_whole_conversation_key_v1",
+  "shuffle_seed_sha256": "65e3060af0959a23708192255957a71fd65d84e70e69dc03722341eb0609470b"
+}

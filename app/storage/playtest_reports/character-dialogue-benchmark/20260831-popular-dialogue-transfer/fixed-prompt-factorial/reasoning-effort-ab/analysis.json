@@ -1,0 +1,336 @@
+{
+  "cell_status_summary": {
+    "M": {
+      "fail": 1,
+      "mean_status_score": 1.25,
+      "mixed": 1,
+      "pass": 2
+    },
+    "X": {
+      "fail": 0,
+      "mean_status_score": 1.75,
+      "mixed": 1,
+      "pass": 3
+    }
+  },
+  "entries": [
+    {
+      "blind_id": "sample-06",
+      "case_id": "sg_okabe_kurisu_transfer_c",
+      "cell": "M",
+      "consensus_status": "fail",
+      "reviewer_1_status": "fail",
+      "reviewer_2_status": "mixed"
+    },
+    {
+      "blind_id": "sample-04",
+      "case_id": "wa2_hs_transfer_a",
+      "cell": "M",
+      "consensus_status": "mixed",
+      "reviewer_1_status": "mixed",
+      "reviewer_2_status": "mixed"
+    },
+    {
+      "blind_id": "sample-05",
+      "case_id": "wa2_hs_transfer_b",
+      "cell": "M",
+      "consensus_status": "pass",
+      "reviewer_1_status": "pass",
+      "reviewer_2_status": "pass"
+    },
+    {
+      "blind_id": "sample-08",
+      "case_id": "wa2_sk_transfer_a",
+      "cell": "M",
+      "consensus_status": "pass",
+      "reviewer_1_status": "pass",
+      "reviewer_2_status": "pass"
+    },
+    {
+      "blind_id": "sample-02",
+      "case_id": "sg_okabe_kurisu_transfer_c",
+      "cell": "X",
+      "consensus_status": "mixed",
+      "reviewer_1_status": "mixed",
+      "reviewer_2_status": "pass"
+    },
+    {
+      "blind_id": "sample-07",
+      "case_id": "wa2_hs_transfer_a",
+      "cell": "X",
+      "consensus_status": "pass",
+      "reviewer_1_status": "pass",
+      "reviewer_2_status": "pass"
+    },
+    {
+      "blind_id": "sample-01",
+      "case_id": "wa2_hs_transfer_b",
+      "cell": "X",
+      "consensus_status": "pass",
+      "reviewer_1_status": "pass",
+      "reviewer_2_status": "pass"
+    },
+    {
+      "blind_id": "sample-03",
+      "case_id": "wa2_sk_transfer_a",
+      "cell": "X",
+      "consensus_status": "pass",
+      "reviewer_1_status": "pass",
+      "reviewer_2_status": "pass"
+    }
+  ],
+  "guardrail": "The preregistered top-four selection makes this a ceiling/robustness test, not a population estimate.",
+  "input_sha256": {
+    "adjudicator": "978028d787c759c775ea1f71630629c5afc9fb143972c834fb0f5c113475f2d6",
+    "answer_key": "45edba74f4e7f4e48336e317572b9b6d318cd2b541b243f523634a8abad20d18",
+    "max_scheduler_state": "57949b603299ce2f4fbd811dbb2ad023c1d4489b0de3f7a3f2e5ae2f385a5c05",
+    "medium_scheduler_state": "4fba9292211f20d76243e82f5352526562f7e35277facabf9616782e0d91ba3a",
+    "reviewer_1": "74eba2f02ff0a011849b40f3961fe7a2ead4a92ffb7f3348226e4229b4347dfe",
+    "reviewer_2": "23344c8a896caf098e0118bfba7d9e14d4961539a0c741964010f8dbc05d1e68"
+  },
+  "per_cell_original_reviewer_dimension_averages": {
+    "M": {
+      "reviewer_1": {
+        "accumulated_debt": 1.5,
+        "asymmetric_knowledge": 2.0,
+        "biographical_consequence": 1.75,
+        "conversational_fingerprint": 1.75,
+        "costly_nondisclosure": 1.5,
+        "dramatic_attempt": 2.0,
+        "inferable_subtext": 1.75,
+        "literal_and_interpersonal_action": 1.75,
+        "local_responsiveness": 2.0,
+        "rhythm_and_deviation": 1.5,
+        "status_negotiation": 1.75,
+        "whole_conversation_value": 1.25
+      },
+      "reviewer_2": {
+        "accumulated_debt": 1.5,
+        "asymmetric_knowledge": 2.0,
+        "biographical_consequence": 1.5,
+        "conversational_fingerprint": 1.75,
+        "costly_nondisclosure": 1.75,
+        "dramatic_attempt": 2.0,
+        "inferable_subtext": 1.75,
+        "literal_and_interpersonal_action": 1.75,
+        "local_responsiveness": 1.75,
+        "rhythm_and_deviation": 1.5,
+        "status_negotiation": 1.75,
+        "whole_conversation_value": 1.25
+      }
+    },
+    "X": {
+      "reviewer_1": {
+        "accumulated_debt": 1.5,
+        "asymmetric_knowledge": 2.0,
+        "biographical_consequence": 1.75,
+        "conversational_fingerprint": 2.0,
+        "costly_nondisclosure": 1.25,
+        "dramatic_attempt": 2.0,
+        "inferable_subtext": 1.75,
+        "literal_and_interpersonal_action": 1.75,
+        "local_responsiveness": 2.0,
+        "rhythm_and_deviation": 2.0,
+        "status_negotiation": 1.75,
+        "whole_conversation_value": 1.75
+      },
+      "reviewer_2": {
+        "accumulated_debt": 2.0,
+        "asymmetric_knowledge": 2.0,
+        "biographical_consequence": 2.0,
+        "conversational_fingerprint": 2.0,
+        "costly_nondisclosure": 1.75,
+        "dramatic_attempt": 2.0,
+        "inferable_subtext": 2.0,
+        "literal_and_interpersonal_action": 2.0,
+        "local_responsiveness": 2.0,
+        "rhythm_and_deviation": 2.0,
+        "status_negotiation": 2.0,
+        "whole_conversation_value": 2.0
+      }
+    }
+  },
+  "preregistered_matched_X_relative_to_M": {
+    "losses": 0,
+    "matched_pairs": [
+      {
+        "M_status": "fail",
+        "M_status_score": 0,
+        "X_minus_M_status_score": 1,
+        "X_status": "mixed",
+        "X_status_score": 1,
+        "case_id": "sg_okabe_kurisu_transfer_c"
+      },
+      {
+        "M_status": "mixed",
+        "M_status_score": 1,
+        "X_minus_M_status_score": 1,
+        "X_status": "pass",
+        "X_status_score": 2,
+        "case_id": "wa2_hs_transfer_a"
+      },
+      {
+        "M_status": "pass",
+        "M_status_score": 2,
+        "X_minus_M_status_score": 0,
+        "X_status": "pass",
+        "X_status_score": 2,
+        "case_id": "wa2_hs_transfer_b"
+      },
+      {
+        "M_status": "pass",
+        "M_status_score": 2,
+        "X_minus_M_status_score": 0,
+        "X_status": "pass",
+        "X_status_score": 2,
+        "case_id": "wa2_sk_transfer_a"
+      }
+    ],
+    "mean_paired_score_difference": 0.5,
+    "net": 2,
+    "ties": 2,
+    "wins": 2
+  },
+  "reviewer_agreement_count": 6,
+  "schema_version": "luna_reasoning_effort_ab_analysis_v1",
+  "secondary_original_reviewer_dimension_X_relative_to_M": {
+    "accumulated_debt": {
+      "M_mean_across_original_reviewers": 1.5,
+      "X_mean_across_original_reviewers": 1.75,
+      "X_minus_M_mean": 0.25,
+      "reviewer_1_X_minus_M": 0.0,
+      "reviewer_2_X_minus_M": 0.5
+    },
+    "asymmetric_knowledge": {
+      "M_mean_across_original_reviewers": 2.0,
+      "X_mean_across_original_reviewers": 2.0,
+      "X_minus_M_mean": 0.0,
+      "reviewer_1_X_minus_M": 0.0,
+      "reviewer_2_X_minus_M": 0.0
+    },
+    "biographical_consequence": {
+      "M_mean_across_original_reviewers": 1.625,
+      "X_mean_across_original_reviewers": 1.875,
+      "X_minus_M_mean": 0.25,
+      "reviewer_1_X_minus_M": 0.0,
+      "reviewer_2_X_minus_M": 0.5
+    },
+    "conversational_fingerprint": {
+      "M_mean_across_original_reviewers": 1.75,
+      "X_mean_across_original_reviewers": 2.0,
+      "X_minus_M_mean": 0.25,
+      "reviewer_1_X_minus_M": 0.25,
+      "reviewer_2_X_minus_M": 0.25
+    },
+    "costly_nondisclosure": {
+      "M_mean_across_original_reviewers": 1.625,
+      "X_mean_across_original_reviewers": 1.5,
+      "X_minus_M_mean": -0.125,
+      "reviewer_1_X_minus_M": -0.25,
+      "reviewer_2_X_minus_M": 0.0
+    },
+    "dramatic_attempt": {
+      "M_mean_across_original_reviewers": 2.0,
+      "X_mean_across_original_reviewers": 2.0,
+      "X_minus_M_mean": 0.0,
+      "reviewer_1_X_minus_M": 0.0,
+      "reviewer_2_X_minus_M": 0.0
+    },
+    "inferable_subtext": {
+      "M_mean_across_original_reviewers": 1.75,
+      "X_mean_across_original_reviewers": 1.875,
+      "X_minus_M_mean": 0.125,
+      "reviewer_1_X_minus_M": 0.0,
+      "reviewer_2_X_minus_M": 0.25
+    },
+    "literal_and_interpersonal_action": {
+      "M_mean_across_original_reviewers": 1.75,
+      "X_mean_across_original_reviewers": 1.875,
+      "X_minus_M_mean": 0.125,
+      "reviewer_1_X_minus_M": 0.0,
+      "reviewer_2_X_minus_M": 0.25
+    },
+    "local_responsiveness": {
+      "M_mean_across_original_reviewers": 1.875,
+      "X_mean_across_original_reviewers": 2.0,
+      "X_minus_M_mean": 0.125,
+      "reviewer_1_X_minus_M": 0.0,
+      "reviewer_2_X_minus_M": 0.25
+    },
+    "rhythm_and_deviation": {
+      "M_mean_across_original_reviewers": 1.5,
+      "X_mean_across_original_reviewers": 2.0,
+      "X_minus_M_mean": 0.5,
+      "reviewer_1_X_minus_M": 0.5,
+      "reviewer_2_X_minus_M": 0.5
+    },
+    "status_negotiation": {
+      "M_mean_across_original_reviewers": 1.75,
+      "X_mean_across_original_reviewers": 1.875,
+      "X_minus_M_mean": 0.125,
+      "reviewer_1_X_minus_M": 0.0,
+      "reviewer_2_X_minus_M": 0.25
+    },
+    "whole_conversation_value": {
+      "M_mean_across_original_reviewers": 1.25,
+      "X_mean_across_original_reviewers": 1.875,
+      "X_minus_M_mean": 0.625,
+      "reviewer_1_X_minus_M": 0.5,
+      "reviewer_2_X_minus_M": 0.75
+    }
+  },
+  "technical": {
+    "M": {
+      "accepted_attempt_count": 64,
+      "latency_ms": {
+        "max_ms": 11341.251095989719,
+        "mean_ms": 6741.81875679642,
+        "median_ms": 6391.848339000717,
+        "min_ms": 4694.752095965669,
+        "n": 64,
+        "p90_ms": 8680.988719593734,
+        "total_ms": 431476.40043497086
+      },
+      "nonaccepted_attempt_count": 0,
+      "rate_limit_count": 0,
+      "retry_count": 0,
+      "retryable_attempt_count": 0,
+      "selected_case_ids": [
+        "wa2_hs_transfer_a",
+        "wa2_hs_transfer_b",
+        "wa2_sk_transfer_a",
+        "sg_okabe_kurisu_transfer_c"
+      ]
+    },
+    "X": {
+      "accepted_attempt_count": 64,
+      "latency_ms": {
+        "max_ms": 58260.18803589977,
+        "mean_ms": 16501.705301125185,
+        "median_ms": 14559.627033537254,
+        "min_ms": 4909.397104056552,
+        "n": 64,
+        "p90_ms": 29734.46516180411,
+        "total_ms": 1056109.1392720118
+      },
+      "nonaccepted_attempt_count": 0,
+      "rate_limit_count": 0,
+      "retry_count": 0,
+      "retryable_attempt_count": 0,
+      "selected_case_ids": [
+        "wa2_hs_transfer_a",
+        "wa2_hs_transfer_b",
+        "wa2_sk_transfer_a",
+        "sg_okabe_kurisu_transfer_c"
+      ]
+    }
+  },
+  "technical_X_relative_to_M": {
+    "mean_latency_difference_ms_X_minus_M": 9759.886544328765,
+    "mean_latency_ratio_X_to_M": 2.4476637382886977,
+    "reasoning_token_telemetry": {
+      "available": false,
+      "reason": "The persistent Codex worker scheduler records latency and retry telemetry but not per-call reasoning-token usage."
+    }
+  }
+}

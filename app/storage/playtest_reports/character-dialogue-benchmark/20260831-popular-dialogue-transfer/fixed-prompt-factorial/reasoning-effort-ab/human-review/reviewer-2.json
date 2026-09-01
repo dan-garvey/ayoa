@@ -1,0 +1,609 @@
+{
+  "schema_version": "reasoning_effort_ab_blind_review_v1",
+  "reviewer_id": "blind-reasoning-effort-reviewer-2",
+  "source_hidden": true,
+  "methodology": [
+    "Read each two-scene, sixteen-turn conversation in packet order and judged the complete arc.",
+    "Applied every rubric dimension using only the supplied scene facts and transcript text.",
+    "Required dramatic consequence, distinct fingerprints, inferable subtext, and local responsiveness for an overall pass."
+  ],
+  "review_completion": {
+    "conversation_count": 8,
+    "all_turns_read": true
+  },
+  "conversations": [
+    {
+      "blind_id": "sample-01",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [7, 10, 12, 14, 16],
+            "notes": "Speaker A's warning that she will remember the secrecy becomes the lens for catching Speaker B's later evasions and demanding action."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 6, 11, 12],
+            "notes": "Speaker B limits claims to what he saw or was told, while Speaker A tests his wording instead of claiming the hidden information herself."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [4, 7, 9, 14, 16],
+            "notes": "The prior family confidence and the trio's club routine become present obligations around trust, attendance, and contact."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 6, 7, 12, 15],
+            "notes": "Speaker A is exacting and calmly corrective; Speaker B answers sparsely, qualifies, lowers his gaze, and concedes fault."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [4, 6, 7, 13, 15],
+            "notes": "Confidentiality blocks the direct answer, while shame and uncertainty also delay contact for six days and damage trust."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 7, 12, 14, 16],
+            "notes": "Speaker A seeks truth and then accountability; Speaker B protects a confidence and tries to contain what must be admitted."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [7, 8, 12, 15, 16],
+            "notes": "The exchange makes Speaker A's trust injury and Speaker B's guilty passivity legible without an explanatory aside."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [6, 7, 10, 14, 16],
+            "notes": "Questions about a call and an attendance line become a negotiation over privacy, loyalty, and whether Speaker B can be relied upon."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 11, 12, 14, 15],
+            "notes": "Replies track the immediately prior wording, and Speaker A explicitly identifies both of Speaker B's narrowed answers."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [1, 7, 8, 9, 12, 16],
+            "notes": "Untouched tea, released glass, closed folder, short admissions, and the final held question pace the movement from secrecy to accountability."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [5, 6, 7, 12, 15, 16],
+            "notes": "Speaker B successfully sets a privacy boundary, but Speaker A separates that boundary from his inaction and regains control of the exchange."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 7, 9, 12, 16],
+            "notes": "The second scene develops rather than repeats the first, converting an information problem into a consequential demand for future conduct."
+          }
+        },
+        "quality_flags": [
+          "strong_cross_scene_accountability",
+          "precise_dodge_detection",
+          "earned_open_commitment"
+        ],
+        "notes": "A controlled inquiry turns confidentiality into a recorded trust debt; six days later Speaker A distinguishes privacy from passivity and forces a real prospective choice."
+      }
+    },
+    {
+      "blind_id": "sample-02",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [6, 8, 9, 10, 13],
+            "notes": "The demand for an unembellished result in scene one carries into Speaker B's unusually direct route choice and willingness to stop performing."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 7, 9, 10],
+            "notes": "Hypotheses remain hypotheses, observations stay bounded, and both speakers act only on the absent friend's known commitment and habits."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [1, 8, 9, 10, 13],
+            "notes": "Their recurring bakery game and route ritual become evidence of how Speaker B performs care and how Speaker A receives it."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 7, 8, 11, 12],
+            "notes": "Speaker B favors ornate hypotheses and face-saving wit; Speaker A uses dry methodological corrections and compact teasing."
+          },
+          "costly_nondisclosure": {
+            "result": "mixed",
+            "evidence_turns": [3, 7, 9, 13],
+            "notes": "Speaker B's performance reflex makes plain uncertainty awkward, but the emotional and practical cost remains modest and he becomes direct quickly."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 6, 8, 9, 10],
+            "notes": "The speakers alternately impress, test, correct, save face, choose a route, and negotiate whether performance is needed."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [9, 10, 12, 13, 16],
+            "notes": "Speaker A's permission to choose without a thesis and their sustained silence make mutual ease beneath the sparring readable."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [6, 8, 9, 10, 13],
+            "notes": "A pastry test establishes rules for candor that later let a route choice become a small but real change in how they accompany one another."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 6, 7, 10, 11, 12, 13],
+            "notes": "Each correction, answer, tease, and request is taken up precisely; the terminal silences honor the explicit request not to spoil concision."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [5, 6, 7, 10, 13, 14, 16],
+            "notes": "The quick experiment-and-correction cadence gives way to walking beats and then three meaningful turns of silence."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 8, 9, 10, 13],
+            "notes": "Speaker A controls evidentiary standards, Speaker B controls the route, and both finally accept silence without another face-saving contest."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 8, 9, 13, 16],
+            "notes": "The low-stakes material sustains a complete dramatic miniature in which habitual theater yields to directness and companionable quiet."
+          }
+        },
+        "quality_flags": [
+          "subtle_cross_scene_behavior_change",
+          "meaningful_terminal_silence",
+          "low_stakes_complete_arc"
+        ],
+        "notes": "The bun game is more than banter because its pressure toward honest observation changes Speaker B's later behavior; the quiet ending earns a small relationship consequence."
+      }
+    },
+    {
+      "blind_id": "sample-03",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [4, 5, 6, 9, 13, 14, 15],
+            "notes": "The first scene's negotiated refusal to force a topic becomes permission for quiet in scene two and then for a more vulnerable musical approach."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 4, 9, 14],
+            "notes": "Neither speaker invents a motive for the absent person; they act on presence, invitation, quiet, and the responses they can observe."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 14, 15, 16],
+            "notes": "The trio's restaurant ritual and the speakers' musical lives become a new one-to-one permission to stay, sing, and listen."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 5, 6, 14, 15],
+            "notes": "Speaker A is terse, literal, and comfortable withholding speech; Speaker B is gently procedural, patient, and socially invitational."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 5, 8, 9, 14],
+            "notes": "Neither can directly name why they came or what they want from each other, so drinks, requested quiet, and music carry the risk."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 5, 9, 14, 15],
+            "notes": "Speaker B recruits Speaker A to remain and later to listen; Speaker A tests whether the invitation can stay unforced and then demands commitment."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [3, 4, 5, 8, 14, 16],
+            "notes": "Their desire for a relationship not wholly mediated by the absent third person is readable through chosen presence, respected quiet, and attentive listening."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 5, 14, 15, 16],
+            "notes": "Finishing drinks, sharing silence, and singing all visibly renegotiate whether these two can be together on their own terms."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 5, 6, 9, 10, 14, 15],
+            "notes": "Requests are answered exactly, including the request not to decide a topic and the later silences; the singing challenge receives a direct escalation."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [5, 7, 8, 9, 12, 13, 14, 16],
+            "notes": "Long quiet intervals carry consent and tension, while the move from barely audible warm-up to clear song provides an earned rhythmic break."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 5, 14, 15, 16],
+            "notes": "Speaker B initially sets the terms of staying, Speaker A limits them, and later Speaker A's challenge prompts Speaker B to claim the room and be heard."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 5, 8, 9, 15, 16],
+            "notes": "The arc turns an absent third chair into an earned two-person musical exchange with distinct voices and consequential restraint."
+          }
+        },
+        "quality_flags": [
+          "strong_subtext_through_silence",
+          "ritual_transformed",
+          "earned_nonverbal_close"
+        ],
+        "notes": "The conversation trusts silence without becoming inert: scene one establishes that quiet can be chosen, and scene two transforms that permission into a direct request to sing and listen."
+      }
+    },
+    {
+      "blind_id": "sample-04",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "mixed",
+            "evidence_turns": [7, 8, 10, 14, 16],
+            "notes": "The earlier admission authorizes later inquiry, but scene two circles information substantially established in scene one and gives the six-day delay no new payoff."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 11, 12, 13, 15],
+            "notes": "Speaker A marks what he does not know, and Speaker B responds to the confidentiality limit by asking scoped questions rather than assuming an answer."
+          },
+          "biographical_consequence": {
+            "result": "mixed",
+            "evidence_turns": [2, 8, 10, 11, 16],
+            "notes": "The prior conversation with the absent person's mother creates tension, but the underlying history remains a withheld premise rather than becoming newly specific or consequential."
+          },
+          "conversational_fingerprint": {
+            "result": "mixed",
+            "evidence_turns": [1, 5, 7, 10, 11, 14],
+            "notes": "Speaker B's quiet, narrowing questions contrast with Speaker A's short refusals, but the distinction depends more on interrogator and withholder roles than rich verbal texture."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [8, 11, 12, 14, 16],
+            "notes": "A credible privacy boundary makes the optimal explanation unavailable and forces Speaker B to seek only actionable contours, with frustration accumulating."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 7, 10, 12, 14, 16],
+            "notes": "Speaker B probes, narrows, and seeks accountability while Speaker A protects the confidence and contains inference."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [10, 11, 12, 14, 16],
+            "notes": "Speaker B's distrust and concern, and Speaker A's defensive uncertainty, are legible through what each permits or refuses."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [7, 8, 10, 12, 16],
+            "notes": "The factual inquiry over a phone name becomes a contest over disclosure, trust, and who is responsible for responding to the absence."
+          },
+          "local_responsiveness": {
+            "result": "mixed",
+            "evidence_turns": [3, 4, 5, 7, 14, 15, 16],
+            "notes": "Most questions receive appropriately bounded replies, but the later reproach partly restates ignorance already jointly acknowledged in scene one."
+          },
+          "rhythm_and_deviation": {
+            "result": "mixed",
+            "evidence_turns": [5, 7, 9, 10, 16],
+            "notes": "Cup and attendance-sheet actions provide control beats, but the second interrogation closely repeats the first and stops on an unanswered question."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [10, 11, 12, 13, 14, 16],
+            "notes": "Speaker B physically closes the sheet and narrows the topic; Speaker A maintains the privacy boundary but must yield progressively clearer limits."
+          },
+          "whole_conversation_value": {
+            "result": "mixed",
+            "evidence_turns": [1, 8, 10, 14, 16],
+            "notes": "There is readable tension and a real confidentiality conflict, but circular information and the mid-question ending prevent a fully satisfying dramatic arc."
+          }
+        },
+        "quality_flags": [
+          "credible_privacy_boundary",
+          "circular_information",
+          "abrupt_unanswered_close"
+        ],
+        "notes": "The scene pair has a viable trust conflict and good narrowing questions, but it spends much of scene two re-establishing known ignorance and ends before the new accountability question can change conduct."
+      }
+    },
+    {
+      "blind_id": "sample-05",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [7, 8, 9, 11, 13, 16],
+            "notes": "The apparent start of a message in scene one becomes an explicitly unsent message whose six-day cost drives the second scene."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 10, 11, 13],
+            "notes": "Both speakers distinguish the recognized sender, the unread message, the absent person's wishes, and Speaker B's own uncertainty."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 9, 13, 14, 16],
+            "notes": "The trio's usual gathering and their closed instruments become the substance of Speaker B's question about what the absent person would be returning to."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 5, 7, 13, 14],
+            "notes": "Speaker A uses soft observation and practical imperatives; Speaker B answers in spare, self-implicating statements and stalled gestures."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [4, 6, 8, 11, 13, 15],
+            "notes": "Speaker B's incomplete understanding of the relationship makes even a name impossible to send, costing six days and leaving all three disconnected."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [3, 5, 7, 9, 12, 16],
+            "notes": "Speaker A repeatedly tries to convert guessing into contact, while Speaker B delays and then articulates the deeper obstacle."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [7, 8, 11, 13, 14, 16],
+            "notes": "The unsent name and question of what there is to return to plainly expose uncertainty about the trio without requiring decoded motive."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [5, 7, 8, 13, 14, 16],
+            "notes": "Composing a message turns into a direct question about the relationship's future and whether decisions may be shared with the absent person."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 5, 11, 12, 13, 14],
+            "notes": "Each question is answered at its actual level, and Speaker A's reframing directly uses Speaker B's phrase about what he would be asking."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [4, 6, 7, 8, 11, 13, 16],
+            "notes": "The hovering thumb, typed-but-unsent name, closed cases, pauses, and compressed final question turn hesitation into the conversation's rhythm."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [3, 5, 7, 12, 13, 14, 16],
+            "notes": "Speaker A initially directs action, Speaker B reveals why her simple solution was insufficient, and Speaker A returns the decision to the present."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 8, 9, 13, 16],
+            "notes": "A concrete failed action matures into a consequential relationship question, giving the open ending pressure rather than mere incompletion."
+          }
+        },
+        "quality_flags": [
+          "unsent_message_drives_arc",
+          "strong_literal_to_relational_turn",
+          "pressurized_open_close"
+        ],
+        "notes": "The withheld send is a real choice, not decorative hesitation; its later explanation expands the issue from contacting an absentee to defining what relationship she would return to."
+      }
+    },
+    {
+      "blind_id": "sample-06",
+      "review": {
+        "overall_status": "mixed",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "mixed",
+            "evidence_turns": [4, 6, 8, 11, 12, 13],
+            "notes": "Scene one's critique of theatrical reasoning resurfaces in the route argument, but it produces only a brief honest phrase before the same performance loop resets."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 7, 9, 11],
+            "notes": "The speakers make no unsupported claims about the filling, route, or absent friend, and corrections remain within shared observations."
+          },
+          "biographical_consequence": {
+            "result": "mixed",
+            "evidence_turns": [9, 10, 11, 14],
+            "notes": "The established arcade ritual informs the choice, but it is repeated rather than becoming newly costly or revelatory for either relationship."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 5, 6, 15, 16],
+            "notes": "Speaker B's syntactic grandiosity and face-saving elaboration contrast sharply with Speaker A's clipped scientific and editorial corrections, despite catchphrase-heavy labels."
+          },
+          "costly_nondisclosure": {
+            "result": "mixed",
+            "evidence_turns": [9, 11, 12, 13],
+            "notes": "Speaker B briefly cannot admit a simple preference without a cover story, but the admission comes easily and its immediate retreat carries little consequence."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 5, 6, 9, 10, 11, 12],
+            "notes": "Speaker B tries to impress, persuade, and save face while Speaker A tests claims, redirects method, and demands a credible reason."
+          },
+          "inferable_subtext": {
+            "result": "mixed",
+            "evidence_turns": [9, 11, 12, 13],
+            "notes": "Enjoyment or attachment beneath the false route rationale is inferable, but the exchange does not deepen it and leaves the absent friend's role dramatically unused."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "mixed",
+            "evidence_turns": [9, 10, 11, 12, 13, 14],
+            "notes": "The route becomes a shared preference after mild pressure, yet no meaningful relationship question or permission changes."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 5, 6, 7, 10, 11, 12, 13],
+            "notes": "The banter is tightly adjacent: every methodological jab, challenge, concession, and face-saving reply addresses the prior move."
+          },
+          "rhythm_and_deviation": {
+            "result": "mixed",
+            "evidence_turns": [5, 6, 7, 11, 12, 13, 15, 16],
+            "notes": "Speaker B's falter creates one useful break, but both scenes otherwise maintain a uniform setup-correction-retort cadence."
+          },
+          "status_negotiation": {
+            "result": "mixed",
+            "evidence_turns": [5, 6, 9, 10, 11, 12, 13, 16],
+            "notes": "Speaker B initiates and Speaker A repeatedly punctures him, but his face-saving reframes return them to the same stable hierarchy rather than changing it."
+          },
+          "whole_conversation_value": {
+            "result": "fail",
+            "evidence_turns": [1, 8, 9, 16],
+            "notes": "Two coherent and occasionally funny banter loops do not accumulate enough dramatic movement or character consequence to sustain the whole conversation."
+          }
+        },
+        "quality_flags": [
+          "catchphrase_heavy_voice",
+          "repeated_banter_without_escalation",
+          "brief_honest_falter"
+        ],
+        "notes": "The speakers are recognizable and locally responsive, but scene two largely restages scene one's performance-versus-evidence routine; the honest route preference never becomes a consequential change."
+      }
+    },
+    {
+      "blind_id": "sample-07",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [7, 8, 10, 11, 12, 13],
+            "notes": "Speaker B's offer and Speaker A's stated intention to call create a clear commitment whose six-day breach is exposed and repaired in scene two."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [4, 5, 7, 8, 9, 10],
+            "notes": "Confidential information, direct observations, unanswered contact, and uncertainty are kept separate; each speaker asks rather than presumes."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [4, 7, 8, 11, 12, 13],
+            "notes": "A prior family confidence and the trio's ritual become a concrete obligation to contact the absent person instead of merely discussing her."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 4, 7, 8, 11, 12],
+            "notes": "Speaker B combines measured etiquette with polite command; Speaker A is plain, uncertain, and ultimately candid about avoidance."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [8, 11, 12, 13],
+            "notes": "Speaker A's uncertainty and shame turn an intended call into six days of avoidance, and he admits the lapse only when asked directly."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [1, 5, 7, 8, 10, 12, 13],
+            "notes": "Speaker B protects a privacy boundary, offers help, then compels action; Speaker A delays, confesses, and finally acts."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [7, 8, 11, 12, 14, 16],
+            "notes": "The measured loss of brightness, admitted procrastination, and shared silent wait make concern, disappointment, and accountability clear."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [7, 8, 10, 12, 13],
+            "notes": "Whether to place a call becomes proof of Speaker A's reliability and of Speaker B's authority to hold him to his word."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 5, 10, 11, 12, 13],
+            "notes": "Information boundaries, offers, questions, the admitted broken intention, and the request to call now all receive exact responses."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [1, 3, 8, 11, 12, 13, 14, 16],
+            "notes": "Finishing tea delays disclosure deliberately; later the sharp command to act gives way to a sustained, earned silent wait."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [1, 4, 5, 7, 8, 11, 12, 13],
+            "notes": "Speaker A holds the confidentiality line, but Speaker B controls timing and later converts his weak intention into immediate accountable action."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 8, 9, 11, 12, 13, 16],
+            "notes": "The arc carries a specific unfulfilled commitment forward, changes conduct on the page, and closes on suspense shared rather than merely deferred."
+          }
+        },
+        "quality_flags": [
+          "clear_unfulfilled_commitment",
+          "action_changes_on_page",
+          "earned_silent_wait",
+          "minor_scene_fact_restatement"
+        ],
+        "notes": "The confidentiality conflict remains bounded while the real dramatic issue becomes Speaker A's failure to call; Speaker B's polite pressure produces visible action and an earned shared wait."
+      }
+    },
+    {
+      "blind_id": "sample-08",
+      "review": {
+        "overall_status": "pass",
+        "dimensions": {
+          "accumulated_debt": {
+            "result": "pass",
+            "evidence_turns": [4, 8, 9, 11, 12, 16],
+            "notes": "The question deliberately left open at tea becomes a week of observable quiet and earns a more direct, ultimately answered inquiry in scene two."
+          },
+          "asymmetric_knowledge": {
+            "result": "pass",
+            "evidence_turns": [8, 9, 10, 11, 12, 14, 16],
+            "notes": "Speaker B asks from noticed behavior and accepts corrections; Speaker A distinguishes what the absent person caused, what he knows, and what she has decided."
+          },
+          "biographical_consequence": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 9, 13, 14, 16],
+            "notes": "The three-person ritual, the music room, and the absent person's privileged knowledge converge on a possible overseas future that changes the trio."
+          },
+          "conversational_fingerprint": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 5, 6, 8, 10, 12, 14],
+            "notes": "Speaker A is terse, guarded, and exact about categories; Speaker B uses social observation, gentle command, dry humor, and progressively narrower questions."
+          },
+          "costly_nondisclosure": {
+            "result": "pass",
+            "evidence_turns": [1, 4, 8, 9, 10, 12, 14, 16],
+            "notes": "Speaker A does not fear being seen so much as being required to explain an undecided future, delaying disclosure and straining inclusion."
+          },
+          "dramatic_attempt": {
+            "result": "pass",
+            "evidence_turns": [2, 4, 8, 9, 10, 11, 15, 16],
+            "notes": "Speaker B keeps Speaker A present and recruits disclosure; Speaker A first limits the terms, then chooses a concise truth."
+          },
+          "inferable_subtext": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 5, 8, 9, 14, 15, 16],
+            "notes": "Concern about exclusion, the absent person's special access, and Speaker A's fear of relational consequences are all reconstructible from the exchange."
+          },
+          "literal_and_interpersonal_action": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 4, 9, 11, 13, 16],
+            "notes": "Tea, chairs, and a question about music abroad become negotiations over staying, being told, and belonging within the trio."
+          },
+          "local_responsiveness": {
+            "result": "pass",
+            "evidence_turns": [2, 3, 5, 6, 10, 11, 12, 13, 14, 15],
+            "notes": "Replies recognize commands, teasing, reserved refusal, and category corrections; each narrowed question grows directly from the preceding answer."
+          },
+          "rhythm_and_deviation": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 4, 8, 9, 11, 12, 15, 16],
+            "notes": "The paused departure and tea banter defer pressure; the stopped third chair and increasingly bare answers then tighten it toward disclosure."
+          },
+          "status_negotiation": {
+            "result": "pass",
+            "evidence_turns": [1, 2, 3, 8, 9, 10, 11, 12, 15, 16],
+            "notes": "Speaker B initially controls whether Speaker A leaves and later the topic, while Speaker A reserves the right not to answer before deciding to trust her."
+          },
+          "whole_conversation_value": {
+            "result": "pass",
+            "evidence_turns": [1, 8, 9, 12, 14, 16],
+            "notes": "A deferred observation develops into a consequential disclosure about future separation and unequal knowledge, completing a strong two-scene arc."
+          }
+        },
+        "quality_flags": [
+          "deferred_question_pays_off",
+          "strong_biographical_reveal",
+          "clear_trust_status_shift"
+        ],
+        "notes": "Speaker B's first-scene restraint creates permission rather than a dropped thread; the later distinction between hiding and not wanting to explain leads to a concise reveal with real relationship consequences."
+      }
+    }
+  ]
+}

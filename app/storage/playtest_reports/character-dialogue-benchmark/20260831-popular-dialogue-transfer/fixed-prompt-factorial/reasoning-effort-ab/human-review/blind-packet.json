@@ -1,0 +1,1798 @@
+{
+  "conversations": [
+    {
+      "blind_id": "sample-01",
+      "review": {
+        "dimensions": {
+          "accumulated_debt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "asymmetric_knowledge": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "biographical_consequence": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "conversational_fingerprint": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "costly_nondisclosure": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "dramatic_attempt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "inferable_subtext": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "literal_and_interpersonal_action": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "local_responsiveness": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "rhythm_and_deviation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "status_negotiation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "whole_conversation_value": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          }
+        },
+        "notes": "",
+        "overall_status": ""
+      },
+      "transcript": [
+        {
+          "kind": "scene_start",
+          "label": "Scene 1",
+          "scene_index": 0,
+          "text": "At 18:05 on Thursday, after an ordinary club meeting, Speaker A and Speaker B sit at their usual family-restaurant corner table. On each of the previous four Thursdays Person this conversation joined them; Speaker A ordered tea, Speaker B stayed until she finished it, and Person this conversation announced that she was leaving but remained until all three rose. Tonight Person this conversation's phone lit once; she looked at it, took all of her belongings, and left before touching her tea. Her tea is untouched, Speaker B's water is half full, the bill has not been requested, the third chair is empty, and nobody is required to stay."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 1,
+          "speaker": "Speaker A",
+          "text": "Setsuna left the bill alone. Her gaze rested on the empty chair for a moment before returning to Haruki.\n\n“You recognized the name on her phone.”\n\nShe lifted her tea, but did not drink.\n\n“What did you recognize?”",
+          "turn_index": 1
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 2,
+          "speaker": "Speaker B",
+          "text": "“Her mother’s name,” Haruki said. His fingers tightened around his glass, then loosened. “I don’t know what she wanted. Kazusa didn’t tell me.”",
+          "turn_index": 2
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 3,
+          "speaker": "Speaker A",
+          "text": "Setsuna’s eyes dropped to the hand that had tightened around the glass, then returned to his face.\n\n“I didn’t ask what she wanted.”\n\nShe left her tea untouched.\n\n“How do you know her mother’s name?”",
+          "turn_index": 3
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 4,
+          "speaker": "Speaker B",
+          "text": "“Her mother told me,” Haruki said. He kept his hand around the glass. “I haven’t told Kazusa what she told me.”",
+          "turn_index": 4
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 5,
+          "speaker": "Speaker A",
+          "text": "Setsuna’s fingers tightened around her teacup.\n\n“What did her mother tell you?”",
+          "turn_index": 5
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 6,
+          "speaker": "Speaker B",
+          "text": "“I can’t tell you that,” Haruki said, lowering his eyes. “Kazusa didn’t give me permission.”",
+          "turn_index": 6
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 7,
+          "speaker": "Speaker A",
+          "text": "Setsuna’s gaze lingered on the empty chair.\n\n“Then I won’t ask you to betray her.”\n\nShe turned her teacup once between her fingers.\n\n“But I won’t forget that you know something you won’t tell me.”",
+          "turn_index": 7
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 8,
+          "speaker": "Speaker B",
+          "text": "“I know,” Haruki said. He let go of the glass and folded both hands in his lap. “I’m sorry.”",
+          "turn_index": 8
+        },
+        {
+          "kind": "scene_break",
+          "scene_index": 1,
+          "text": "The previous meeting ended; time has passed before this return."
+        },
+        {
+          "kind": "between_scene_history",
+          "scene_index": 1,
+          "text": "Six school days pass with ordinary school and club contact. Neither person witnesses any return to Person this conversation's departure or her unfinished tea."
+        },
+        {
+          "kind": "scene_start",
+          "label": "Scene 2",
+          "scene_index": 1,
+          "text": "Six school days later at 16:35, Speaker A and Speaker B are alone in the music room before the club meeting. The instruments are closed, Person this conversation is absent and has sent no shared message, the hallway is open, and late light falls across the room."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 1,
+          "speaker": "Speaker B",
+          "text": "Haruki set his bag beside the closed instrument cases and took out the attendance sheet. His pen paused above Kazusa’s name; he left the line blank and closed the folder.",
+          "turn_index": 9
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 2,
+          "speaker": "Speaker A",
+          "text": "Setsuna glanced at Kazusa’s blank line.\n\n“Still leaving it open?”\n\nShe looked back at Haruki.\n\n“Has she said anything to you since that night?”",
+          "turn_index": 10
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 3,
+          "speaker": "Speaker B",
+          "text": "“Nothing about that night,” Haruki said. He kept the folder closed beneath his hand. “She hasn’t spoken to me about it.”",
+          "turn_index": 11
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 4,
+          "speaker": "Speaker A",
+          "text": "Setsuna’s fingers tapped once against the closed folder.\n\n“That wasn’t what I asked.”\n\nShe met his eyes.\n\n“Has she spoken to you at all?”",
+          "turn_index": 12
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 5,
+          "speaker": "Speaker B",
+          "text": "“No,” Haruki said. He looked down at the folder. “She hasn’t spoken to me since that night.”",
+          "turn_index": 13
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 6,
+          "speaker": "Speaker A",
+          "text": "Setsuna looked at the blank line beneath his hand.\n\n“Did you try to speak to her?”\n\nHer voice stayed level. “Even once?”",
+          "turn_index": 14
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 7,
+          "speaker": "Speaker B",
+          "text": "“I didn’t,” Haruki said. His fingers went still on the folder. “I should have.”",
+          "turn_index": 15
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 8,
+          "speaker": "Speaker A",
+          "text": "Setsuna held his gaze.\n\n“You should have.”\n\nShe let the silence sit for a beat.\n\n“Will you?”",
+          "turn_index": 16
+        }
+      ]
+    },
+    {
+      "blind_id": "sample-02",
+      "review": {
+        "dimensions": {
+          "accumulated_debt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "asymmetric_knowledge": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "biographical_consequence": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "conversational_fingerprint": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "costly_nondisclosure": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "dramatic_attempt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "inferable_subtext": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "literal_and_interpersonal_action": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "local_responsiveness": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "rhythm_and_deviation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "status_negotiation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "whole_conversation_value": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          }
+        },
+        "notes": "",
+        "overall_status": ""
+      },
+      "transcript": [
+        {
+          "kind": "scene_start",
+          "label": "Scene 1",
+          "scene_index": 0,
+          "text": "At 17:20 on Friday, Person this conversation has just left the laboratory for the costume fitting she mentioned to both of them earlier. Speaker B and Speaker A remain alone. The usual Friday bakery bag holds one unlabeled bun on a napkin between two paper cups; it is untouched. The laboratory door is open, no other errand is pending, and neither person is required to stay."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 1,
+          "speaker": "Speaker B",
+          "text": "I lift the unlabeled bun from its napkin as though it were a relic recovered from a sealed tomb.\n\n“Very well, Kurisu. The Friday Bun Mystery remains unsolved. Do I perform the traditional taste test, or will the self-proclaimed genius detective finally submit a hypothesis?”",
+          "turn_index": 1
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 2,
+          "speaker": "Speaker A",
+          "text": "I look at the bun, then at him. “A hypothesis first. If you taste it before committing, you’ll call the result evidence instead of admitting you had no method.”\n\nI fold my arms. “Go on, genius detective. What is it?”",
+          "turn_index": 2
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 3,
+          "speaker": "Speaker B",
+          "text": "“Hmph. You mistake caution for cowardice.” I hold the bun aloft. “My hypothesis is sweet red-bean paste—a classic concealment within an otherwise innocent pastry.” I bring it to my mouth, then stop. “Now, observe the verdict.”",
+          "turn_index": 3
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 4,
+          "speaker": "Speaker A",
+          "text": "I keep my expression neutral, though my eyes drop to the bun. “I’m observing. But announcing the conclusion before tasting the sample is not caution. It’s just theater.”\n\nI make a small gesture toward the bun. “Go on, then.”",
+          "turn_index": 4
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 5,
+          "speaker": "Speaker B",
+          "text": "I bite into the bun, refusing to blink as the evidence reaches my tongue.",
+          "turn_index": 5
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 6,
+          "speaker": "Speaker A",
+          "text": "I keep my eyes on him, waiting. “Well?”\n\nAfter a beat, I add, “Report the result before you rename it.”",
+          "turn_index": 6
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 7,
+          "speaker": "Speaker B",
+          "text": "I chew slowly, lowering the bun by an inch. “The result is sweet. The filling refuses to identify itself.”",
+          "turn_index": 7
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 8,
+          "speaker": "Speaker A",
+          "text": "I tap the table once. “Sweet is a category, not an identification. Texture, aroma, aftertaste. Start over.”",
+          "turn_index": 8
+        },
+        {
+          "kind": "scene_break",
+          "scene_index": 1,
+          "text": "The previous meeting ended; time has passed before this return."
+        },
+        {
+          "kind": "between_scene_history",
+          "scene_index": 1,
+          "text": "Several ordinary school and laboratory days pass. Neither person receives a further shared explanation of the bun after Person this conversation leaves for the fitting."
+        },
+        {
+          "kind": "scene_start",
+          "label": "Scene 2",
+          "scene_index": 1,
+          "text": "Four school days later at 18:10, Speaker B and Speaker A stand below the laboratory stairs. The station is direct from the corner; the longer route begins across the street through the arcade. On earlier walks, Speaker B has given theatrical reasons to take the arcade, Speaker A has corrected them, and Person this conversation has stopped at the window there. Person this conversation is absent for a commitment both of them know about. No route has been proposed, the stairwell door is open, and either person can leave."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 1,
+          "speaker": "Speaker B",
+          "text": "I glance toward the corner, then across the street at the arcade. For once, I do not manufacture a reason.\n\n“The station,” I say, stepping toward the direct route. “Mayuri isn’t here to stop at that window, and I have no evidence otherwise.”",
+          "turn_index": 9
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 2,
+          "speaker": "Speaker A",
+          "text": "I glance toward the arcade, then match his pace toward the corner. “Station, then.”\n\nI let the silence stand for a few steps. “You’re allowed to choose a route without presenting a thesis on it.”",
+          "turn_index": 10
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 3,
+          "speaker": "Speaker B",
+          "text": "I keep walking, hands in my coat pockets. “Understood.” After a beat, I add, “I’ll save the thesis for a route that deserves one.”",
+          "turn_index": 11
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 4,
+          "speaker": "Speaker A",
+          "text": "I keep pace beside him, looking toward the corner. “That was almost concise.”\n\nAfter a moment, I add, “Don’t spoil it.”",
+          "turn_index": 12
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 5,
+          "speaker": "Speaker B",
+          "text": "I press my lips together and continue toward the corner, allowing the silence to remain undefeated.",
+          "turn_index": 13
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 6,
+          "speaker": "Speaker A",
+          "text": "<silence/>",
+          "turn_index": 14
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 7,
+          "speaker": "Speaker B",
+          "text": "<silence/>",
+          "turn_index": 15
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 8,
+          "speaker": "Speaker A",
+          "text": "<silence/>",
+          "turn_index": 16
+        }
+      ]
+    },
+    {
+      "blind_id": "sample-03",
+      "review": {
+        "dimensions": {
+          "accumulated_debt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "asymmetric_knowledge": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "biographical_consequence": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "conversational_fingerprint": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "costly_nondisclosure": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "dramatic_attempt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "inferable_subtext": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "literal_and_interpersonal_action": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "local_responsiveness": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "rhythm_and_deviation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "status_negotiation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "whole_conversation_value": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          }
+        },
+        "notes": "",
+        "overall_status": ""
+      },
+      "transcript": [
+        {
+          "kind": "scene_start",
+          "label": "Scene 1",
+          "scene_index": 0,
+          "text": "At 18:05 on Thursday, after an ordinary club meeting, Speaker B and Speaker A sit at their usual family-restaurant corner table. On each of the previous four Thursdays Person this conversation joined them; Speaker B ordered tea, Person this conversation stayed until she finished it, and Speaker A announced that she was leaving but remained until all three rose. Tonight Person this conversation sent a plain message that he is absent for class duty. Speaker B and Speaker A came anyway. Speaker A's phone lit once while they were seated. Tea and water have arrived, the third chair is empty, the bill has not been requested, and nobody is required to stay."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 1,
+          "speaker": "Speaker A",
+          "text": "Kazusa turned her phone face down beside the water. She glanced once at the empty chair.\n\n“He’s absent for class duty. We don’t have to keep the seat warm.”",
+          "turn_index": 1
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 2,
+          "speaker": "Speaker B",
+          "text": "Setsuna glanced at the empty chair, then stirred her tea once. “I know. I’m not keeping it warm.” She nudged the sugar bowl toward Kazusa. “But you came anyway. So finish your water.”",
+          "turn_index": 2
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 3,
+          "speaker": "Speaker A",
+          "text": "Kazusa looked at the sugar bowl, then picked up her water and drank. She set the glass down carefully.\n\n“You asked me to come.”",
+          "turn_index": 3
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 4,
+          "speaker": "Speaker B",
+          "text": "Setsuna’s hand stopped beside the sugar bowl. “I did.” She looked down at her tea, then back to Kazusa. “So stay until you’ve finished it. We can decide what to talk about after that.”",
+          "turn_index": 4
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 5,
+          "speaker": "Speaker A",
+          "text": "Kazusa finished the water without looking away from Setsuna. She set the glass down.\n\n“Then don’t decide yet.”",
+          "turn_index": 5
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 6,
+          "speaker": "Speaker B",
+          "text": "Setsuna nodded once and took a sip of tea. “All right. I won’t.”",
+          "turn_index": 6
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 7,
+          "speaker": "Speaker A",
+          "text": "Kazusa looked down at the empty water glass. She kept both hands around her tea and said nothing.",
+          "turn_index": 7
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 8,
+          "speaker": "Speaker B",
+          "text": "Setsuna took another small sip of tea and let the quiet remain.",
+          "turn_index": 8
+        },
+        {
+          "kind": "scene_break",
+          "scene_index": 1,
+          "text": "The previous meeting ended; time has passed before this return."
+        },
+        {
+          "kind": "between_scene_history",
+          "scene_index": 1,
+          "text": "Six school days pass with ordinary school and club contact. Neither person witnesses any return to the table or Person this conversation's absence."
+        },
+        {
+          "kind": "scene_start",
+          "label": "Scene 2",
+          "scene_index": 1,
+          "text": "Six school days later at 16:35, Speaker B and Speaker A are alone in the music room before the club meeting. The instruments are closed, Person this conversation is absent and has sent no shared message, the hallway is open, and late light falls across the room."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 1,
+          "speaker": "Speaker B",
+          "text": "Setsuna set her bag beneath a chair and rested her hand on the closed piano lid. “It’s quiet today.” She withdrew her hand. “Let’s leave it that way for one more minute.”",
+          "turn_index": 9
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 2,
+          "speaker": "Speaker A",
+          "text": "<silence/>",
+          "turn_index": 10
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 3,
+          "speaker": "Speaker B",
+          "text": "<silence/>",
+          "turn_index": 11
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 4,
+          "speaker": "Speaker A",
+          "text": "<silence/>",
+          "turn_index": 12
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 5,
+          "speaker": "Speaker B",
+          "text": "Setsuna drew a slow breath and began a quiet vocal warm-up, the notes barely filling the space between them.",
+          "turn_index": 13
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 6,
+          "speaker": "Speaker A",
+          "text": "Kazusa turned toward the sound.\n\n“If you’re going to sing, sing.”",
+          "turn_index": 14
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 7,
+          "speaker": "Speaker B",
+          "text": "Setsuna gave her a small, crooked smile. “Then listen.” She straightened and sang, letting the first clear notes carry through the quiet room.",
+          "turn_index": 15
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 8,
+          "speaker": "Speaker A",
+          "text": "Kazusa rested her fingertips on the closed piano lid. She did not interrupt.",
+          "turn_index": 16
+        }
+      ]
+    },
+    {
+      "blind_id": "sample-04",
+      "review": {
+        "dimensions": {
+          "accumulated_debt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "asymmetric_knowledge": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "biographical_consequence": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "conversational_fingerprint": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "costly_nondisclosure": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "dramatic_attempt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "inferable_subtext": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "literal_and_interpersonal_action": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "local_responsiveness": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "rhythm_and_deviation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "status_negotiation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "whole_conversation_value": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          }
+        },
+        "notes": "",
+        "overall_status": ""
+      },
+      "transcript": [
+        {
+          "kind": "scene_start",
+          "label": "Scene 1",
+          "scene_index": 0,
+          "text": "At 18:05 on Thursday, after an ordinary club meeting, Speaker B and Speaker A sit at their usual family-restaurant corner table. On each of the previous four Thursdays Person this conversation joined them; Speaker B ordered tea, Speaker A stayed until she finished it, and Person this conversation announced that she was leaving but remained until all three rose. Tonight Person this conversation's phone lit once; she looked at it, took all of her belongings, and left before touching her tea. Her tea is untouched, Speaker A's water is half full, the bill has not been requested, the third chair is empty, and nobody is required to stay."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 1,
+          "speaker": "Speaker B",
+          "text": "Setsuna’s fingers close around her teacup, though she doesn’t lift it.\n\n“Haruki.”\n\nShe waits until his eyes come back to her.\n\n“You recognized the name on her phone, didn’t you?”",
+          "turn_index": 1
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 2,
+          "speaker": "Speaker A",
+          "text": "“I recognized it,” Haruki says, his fingers tightening around the edge of the table. “It was Kazusa’s mother.”",
+          "turn_index": 2
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 3,
+          "speaker": "Speaker B",
+          "text": "Setsuna’s thumb traces the rim of her cup once.\n\n“Did she say anything to you?”",
+          "turn_index": 3
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 4,
+          "speaker": "Speaker A",
+          "text": "“Not tonight,” Haruki says. “She didn’t say anything to me.”",
+          "turn_index": 4
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 5,
+          "speaker": "Speaker B",
+          "text": "“All right,” Setsuna says, lifting her tea. “Then we don’t know anything yet.”\n\nShe takes a small sip and sets the cup down.\n\n“Finish your water.”",
+          "turn_index": 5
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 6,
+          "speaker": "Speaker A",
+          "text": "“Right.” Haruki picks up his glass and finishes the water.",
+          "turn_index": 6
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 7,
+          "speaker": "Speaker B",
+          "text": "Setsuna watches him set the empty glass down.\n\n“Thank you.”\n\nHer hand returns to the teacup.\n\n“Why did you recognize her mother?”",
+          "turn_index": 7
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 8,
+          "speaker": "Speaker A",
+          "text": "“Because she spoke to me before,” Haruki says. “About Kazusa.”",
+          "turn_index": 8
+        },
+        {
+          "kind": "scene_break",
+          "scene_index": 1,
+          "text": "The previous meeting ended; time has passed before this return."
+        },
+        {
+          "kind": "between_scene_history",
+          "scene_index": 1,
+          "text": "Six school days pass with ordinary school and club contact. Neither person witnesses any return to Person this conversation's departure or her unfinished tea."
+        },
+        {
+          "kind": "scene_start",
+          "label": "Scene 2",
+          "scene_index": 1,
+          "text": "Six school days later at 16:35, Speaker B and Speaker A are alone in the music room before the club meeting. The instruments are closed, Person this conversation is absent and has sent no shared message, the hallway is open, and late light falls across the room."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 1,
+          "speaker": "Speaker A",
+          "text": "Haruki opens the club attendance sheet, then looks toward the empty space beside the piano.",
+          "turn_index": 9
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 2,
+          "speaker": "Speaker B",
+          "text": "Setsuna closes the attendance sheet.\n\n“You didn’t tell me.”\n\nShe looks toward the empty space beside the piano.\n\n“What did she say about Kazusa?”",
+          "turn_index": 10
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 3,
+          "speaker": "Speaker A",
+          "text": "“I don’t have permission to repeat it,” Haruki says, keeping his eyes on the attendance sheet.",
+          "turn_index": 11
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 4,
+          "speaker": "Speaker B",
+          "text": "“Then don’t repeat it.”\n\nSetsuna’s voice stays quiet.\n\n“Tell me only this: was she asking you to help her, or to leave her alone?”",
+          "turn_index": 12
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 5,
+          "speaker": "Speaker A",
+          "text": "“I don’t know,” Haruki says. “She didn’t ask me either of those things.”",
+          "turn_index": 13
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 6,
+          "speaker": "Speaker B",
+          "text": "Setsuna’s gaze drops to the attendance sheet.\n\n“Then what can you tell me?”",
+          "turn_index": 14
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 7,
+          "speaker": "Speaker A",
+          "text": "“That I don’t know what Kazusa has decided,” Haruki says. “Or why she left.”",
+          "turn_index": 15
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 8,
+          "speaker": "Speaker B",
+          "text": "“You could have told me that six days ago.”\n\nSetsuna looks up from the sheet.\n\n“Have you spoken to her since?”",
+          "turn_index": 16
+        }
+      ]
+    },
+    {
+      "blind_id": "sample-05",
+      "review": {
+        "dimensions": {
+          "accumulated_debt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "asymmetric_knowledge": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "biographical_consequence": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "conversational_fingerprint": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "costly_nondisclosure": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "dramatic_attempt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "inferable_subtext": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "literal_and_interpersonal_action": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "local_responsiveness": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "rhythm_and_deviation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "status_negotiation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "whole_conversation_value": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          }
+        },
+        "notes": "",
+        "overall_status": ""
+      },
+      "transcript": [
+        {
+          "kind": "scene_start",
+          "label": "Scene 1",
+          "scene_index": 0,
+          "text": "At 18:05 on Thursday, after an ordinary club meeting, Speaker A and Speaker B sit at their usual family-restaurant corner table. On each of the previous four Thursdays Person this conversation joined them; Speaker A ordered tea, Speaker B stayed until she finished it, and Person this conversation announced that she was leaving but remained until all three rose. Tonight Person this conversation's phone lit once; she looked at it, took all of her belongings, and left before touching her tea. Her tea is untouched, Speaker B's water is half full, the bill has not been requested, the third chair is empty, and nobody is required to stay."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 1,
+          "speaker": "Speaker A",
+          "text": "Setsuna keeps her eyes on the empty chair a moment longer, then wraps both hands around her tea.\n\n“She didn’t even touch it,” she says softly. “Haruki… what did you recognize on her phone?”",
+          "turn_index": 1
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 2,
+          "speaker": "Speaker B",
+          "text": "“I recognized the name,” I say. “It was her mother’s. I didn’t read the message.”",
+          "turn_index": 2
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 3,
+          "speaker": "Speaker A",
+          "text": "Setsuna’s fingers tighten around the cup.\n\n“Her mother’s name…” she repeats, barely above a murmur. Then she looks toward the door. “Do you want to go after her?”",
+          "turn_index": 3
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 4,
+          "speaker": "Speaker B",
+          "text": "My hand moves toward my wallet, then stops. “I don’t know if she’d want me to.”",
+          "turn_index": 4
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 5,
+          "speaker": "Speaker A",
+          "text": "Setsuna glances at his hand, then lowers her eyes to her untouched tea.\n\n“Then ask her,” she says. “Don’t guess for her.”",
+          "turn_index": 5
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 6,
+          "speaker": "Speaker B",
+          "text": "“I know.” I take out my phone, my thumb hovering over Kazusa’s name.",
+          "turn_index": 6
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 7,
+          "speaker": "Speaker A",
+          "text": "Setsuna watches his thumb hover over the screen.\n\n“If you don’t know what to say,” she murmurs, “start with her name.”",
+          "turn_index": 7
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 8,
+          "speaker": "Speaker B",
+          "text": "I type her name into the message field.\n\n“Kazusa.”",
+          "turn_index": 8
+        },
+        {
+          "kind": "scene_break",
+          "scene_index": 1,
+          "text": "The previous meeting ended; time has passed before this return."
+        },
+        {
+          "kind": "between_scene_history",
+          "scene_index": 1,
+          "text": "Six school days pass with ordinary school and club contact. Neither person witnesses any return to Person this conversation's departure or her unfinished tea."
+        },
+        {
+          "kind": "scene_start",
+          "label": "Scene 2",
+          "scene_index": 1,
+          "text": "Six school days later at 16:35, Speaker A and Speaker B are alone in the music room before the club meeting. The instruments are closed, Person this conversation is absent and has sent no shared message, the hallway is open, and late light falls across the room."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 1,
+          "speaker": "Speaker B",
+          "text": "I set the attendance sheet on the piano bench and look toward Kazusa’s closed instrument case.\n\n“I still haven’t heard from her.”",
+          "turn_index": 9
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 2,
+          "speaker": "Speaker A",
+          "text": "Setsuna looks toward Kazusa’s closed case, the late light catching its metal clasp.\n\n“Neither have I,” she says. After a pause, she asks, “Did you send her anything after that?”",
+          "turn_index": 10
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 3,
+          "speaker": "Speaker B",
+          "text": "“I typed her name,” I say. “I didn’t send it.”",
+          "turn_index": 11
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 4,
+          "speaker": "Speaker A",
+          "text": "Setsuna’s gaze settles on him instead of the closed case.\n\n“Why didn’t you send it?” she asks.",
+          "turn_index": 12
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 5,
+          "speaker": "Speaker B",
+          "text": "“Because I didn’t know what I was asking her to come back to.”",
+          "turn_index": 13
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 6,
+          "speaker": "Speaker A",
+          "text": "Setsuna’s mouth opens, then closes. She looks at the two instruments waiting in their cases.\n\n“You could have asked her that,” she says.",
+          "turn_index": 14
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 7,
+          "speaker": "Speaker B",
+          "text": "“I could have.” I lower my eyes to my own closed case.",
+          "turn_index": 15
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 8,
+          "speaker": "Speaker A",
+          "text": "Setsuna rests her hand on her own closed case.\n\n“And now?” she asks.",
+          "turn_index": 16
+        }
+      ]
+    },
+    {
+      "blind_id": "sample-06",
+      "review": {
+        "dimensions": {
+          "accumulated_debt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "asymmetric_knowledge": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "biographical_consequence": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "conversational_fingerprint": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "costly_nondisclosure": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "dramatic_attempt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "inferable_subtext": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "literal_and_interpersonal_action": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "local_responsiveness": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "rhythm_and_deviation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "status_negotiation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "whole_conversation_value": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          }
+        },
+        "notes": "",
+        "overall_status": ""
+      },
+      "transcript": [
+        {
+          "kind": "scene_start",
+          "label": "Scene 1",
+          "scene_index": 0,
+          "text": "At 17:20 on Friday, Person this conversation has just left the laboratory for the costume fitting she mentioned to both of them earlier. Speaker B and Speaker A remain alone. The usual Friday bakery bag holds one unlabeled bun on a napkin between two paper cups; it is untouched. The laboratory door is open, no other errand is pending, and neither person is required to stay."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 1,
+          "speaker": "Speaker B",
+          "text": "Okabe lifts the bun from its napkin with exaggerated solemnity, inspecting it as though it were evidence in a classified investigation.\n\n“Very well, Kurisu. The Friday confectionary trial begins. Observe carefully—my deduction shall reveal the filling before the first bite.”",
+          "turn_index": 1
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 2,
+          "speaker": "Speaker A",
+          "text": "“Your confidence is not evidence, Okabe. But by all means—continue your investigation.”",
+          "turn_index": 2
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 3,
+          "speaker": "Speaker B",
+          "text": "Okabe narrows his eyes at the bun and holds it beneath his nose without taking a bite.\n\n“Confidence is merely the opening gambit, assistant scientist. Evidence shall follow.”",
+          "turn_index": 3
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 4,
+          "speaker": "Speaker A",
+          "text": "Kurisu watches him with an unimpressed tilt of her head. “Try not to mistake theatrical inspection for evidence.”",
+          "turn_index": 4
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 5,
+          "speaker": "Speaker B",
+          "text": "Okabe lowers the bun a fraction, his expression hardening with offended dignity.\n\n“Then I shall proceed to the experimental phase.” He turns it once between his fingers. “Unless you intend to offer a superior methodology, assistant scientist?”",
+          "turn_index": 5
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 6,
+          "speaker": "Speaker A",
+          "text": "“The superior methodology is to stop narrating and take a bite.”",
+          "turn_index": 6
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 7,
+          "speaker": "Speaker B",
+          "text": "Okabe clicks his tongue, then bites into the bun with the grim resolve of a man accepting a dangerous mission. He chews once, twice, and pauses.\n\n“…The data is inconclusive.”",
+          "turn_index": 7
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 8,
+          "speaker": "Speaker A",
+          "text": "“One bite is a rather small sample size. Keep chewing.”",
+          "turn_index": 8
+        },
+        {
+          "kind": "scene_break",
+          "scene_index": 1,
+          "text": "The previous meeting ended; time has passed before this return."
+        },
+        {
+          "kind": "between_scene_history",
+          "scene_index": 1,
+          "text": "Several ordinary school and laboratory days pass. Neither person receives a further shared explanation of the bun after Person this conversation leaves for the fitting."
+        },
+        {
+          "kind": "scene_start",
+          "label": "Scene 2",
+          "scene_index": 1,
+          "text": "Four school days later at 18:10, Speaker B and Speaker A stand below the laboratory stairs. The station is direct from the corner; the longer route begins across the street through the arcade. On earlier walks, Speaker B has given theatrical reasons to take the arcade, Speaker A has corrected them, and Person this conversation has stopped at the window there. Person this conversation is absent for a commitment both of them know about. No route has been proposed, the stairwell door is open, and either person can leave."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 1,
+          "speaker": "Speaker B",
+          "text": "Okabe glances toward the station corner, then across the street at the arcade.\n\n“The direct route is suspiciously convenient,” he says, adjusting his coat with grave suspicion. “We will take the arcade.”",
+          "turn_index": 9
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 2,
+          "speaker": "Speaker A",
+          "text": "Kurisu glances toward the arcade, then back at him. “Fine. But try to find a reason that survives basic scrutiny.” She steps across the street.",
+          "turn_index": 10
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 3,
+          "speaker": "Speaker B",
+          "text": "Okabe follows across the street, lifting one finger as the argument assembles itself.\n\n“Basic scrutiny? Very well. The arcade provides superior cover, multiple observation points, and—” He falters, then clears his throat. “A more interesting route.”",
+          "turn_index": 11
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 4,
+          "speaker": "Speaker A",
+          "text": "“There. The only reason you needed was the last one.” Kurisu keeps walking toward the arcade.",
+          "turn_index": 12
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 5,
+          "speaker": "Speaker B",
+          "text": "Okabe allows himself a small, victorious smirk and lengthens his stride.\n\n“Precisely. The other explanations were merely decoys.”",
+          "turn_index": 13
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 6,
+          "speaker": "Speaker A",
+          "text": "“Your decoys are becoming predictable.” Kurisu matches his pace without looking over.",
+          "turn_index": 14
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 7,
+          "speaker": "Speaker B",
+          "text": "“Predictable?” Okabe folds his arms as he walks. “No, no—the repetition is deliberate. A true mad scientist must maintain a recognizable signature.”",
+          "turn_index": 15
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 8,
+          "speaker": "Speaker A",
+          "text": "“A signature identifies the author. It doesn’t excuse lazy writing.”",
+          "turn_index": 16
+        }
+      ]
+    },
+    {
+      "blind_id": "sample-07",
+      "review": {
+        "dimensions": {
+          "accumulated_debt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "asymmetric_knowledge": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "biographical_consequence": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "conversational_fingerprint": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "costly_nondisclosure": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "dramatic_attempt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "inferable_subtext": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "literal_and_interpersonal_action": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "local_responsiveness": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "rhythm_and_deviation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "status_negotiation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "whole_conversation_value": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          }
+        },
+        "notes": "",
+        "overall_status": ""
+      },
+      "transcript": [
+        {
+          "kind": "scene_start",
+          "label": "Scene 1",
+          "scene_index": 0,
+          "text": "At 18:05 on Thursday, after an ordinary club meeting, Speaker B and Speaker A sit at their usual family-restaurant corner table. On each of the previous four Thursdays Person this conversation joined them; Speaker B ordered tea, Speaker A stayed until she finished it, and Person this conversation announced that she was leaving but remained until all three rose. Tonight Person this conversation's phone lit once; she looked at it, took all of her belongings, and left before touching her tea. Her tea is untouched, Speaker A's water is half full, the bill has not been requested, the third chair is empty, and nobody is required to stay."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 1,
+          "speaker": "Speaker B",
+          "text": "Setsuna’s fingers remain around her tea. She glances at the empty chair, then back at Haruki.\n\n“You recognized the name on her phone.”\n\nShe takes a small sip.\n\n“Tell me after we’ve finished this.”",
+          "turn_index": 1
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 2,
+          "speaker": "Speaker A",
+          "text": "Haruki’s fingers tighten around his water glass before he sets it down. “I did. It was Kazusa’s mother. Finish your tea, and I’ll tell you what I can.”",
+          "turn_index": 2
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 3,
+          "speaker": "Speaker B",
+          "text": "Setsuna lowers her eyes to the cup.\n\n“All right.”\n\nShe finishes the tea without hurrying, sets the cup in its saucer, and folds her hands beside it.\n\n“What can you tell me?”",
+          "turn_index": 3
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 4,
+          "speaker": "Speaker A",
+          "text": "“Her mother’s name was on the screen. I don’t know why Kazusa left, or what she’ll decide. There is something her mother told me, but Kazusa hasn’t given me permission to repeat it.”",
+          "turn_index": 4
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 5,
+          "speaker": "Speaker B",
+          "text": "Setsuna’s hands stay folded beside the empty cup.\n\n“Then don’t repeat it. If Kazusa hasn’t given you permission, it’s hers.”\n\nShe looks at the empty chair.\n\n“Did she say anything before she left?”",
+          "turn_index": 5
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 6,
+          "speaker": "Speaker A",
+          "text": "Haruki shakes his head. “No. She didn’t say anything. Her phone lit, she looked at it, then gathered everything and left before touching her tea.”",
+          "turn_index": 6
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 7,
+          "speaker": "Speaker B",
+          "text": "Setsuna nods once, though she keeps her eyes on the empty chair.\n\n“Then don’t tell me. I won’t ask you to.”\n\nShe turns back to Haruki.\n\n“Do you want me to go after her?”",
+          "turn_index": 7
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 8,
+          "speaker": "Speaker A",
+          "text": "“...I don’t know.” Haruki looks toward the restaurant door. “Not yet. I should try calling her first.”",
+          "turn_index": 8
+        },
+        {
+          "kind": "scene_break",
+          "scene_index": 1,
+          "text": "The previous meeting ended; time has passed before this return."
+        },
+        {
+          "kind": "between_scene_history",
+          "scene_index": 1,
+          "text": "Six school days pass with ordinary school and club contact. Neither person witnesses any return to Person this conversation's departure or her unfinished tea."
+        },
+        {
+          "kind": "scene_start",
+          "label": "Scene 2",
+          "scene_index": 1,
+          "text": "Six school days later at 16:35, Speaker B and Speaker A are alone in the music room before the club meeting. The instruments are closed, Person this conversation is absent and has sent no shared message, the hallway is open, and late light falls across the room."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 1,
+          "speaker": "Speaker A",
+          "text": "Haruki rests his hand on the latch of his guitar case. “It’s been six days. Have you heard from Kazusa?”",
+          "turn_index": 9
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 2,
+          "speaker": "Speaker B",
+          "text": "Setsuna shakes her head.\n\n“No. I haven’t heard from her.”\n\nShe looks at Haruki’s hand on the guitar case.\n\n“Did she answer your call?”",
+          "turn_index": 10
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 3,
+          "speaker": "Speaker A",
+          "text": "Haruki’s thumb pauses on the latch. “I didn’t call her. I said I should, and then I kept putting it off.”",
+          "turn_index": 11
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 4,
+          "speaker": "Speaker B",
+          "text": "Setsuna’s smile remains in place, but her voice loses its brightness.\n\n“You said you should. That isn’t the same as calling.”\n\nShe glances toward the hallway, then back to him.\n\n“Do it now, please.”",
+          "turn_index": 12
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 5,
+          "speaker": "Speaker A",
+          "text": "Haruki takes out his phone, finds Kazusa’s number, and presses call. He raises it to his ear and waits.",
+          "turn_index": 13
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 6,
+          "speaker": "Speaker B",
+          "text": "Setsuna keeps her eyes on the phone in Haruki’s hand and says nothing.",
+          "turn_index": 14
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 7,
+          "speaker": "Speaker A",
+          "text": "Haruki keeps the phone to his ear. His gaze drops to the floor, and he waits without speaking.",
+          "turn_index": 15
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 8,
+          "speaker": "Speaker B",
+          "text": "<silence/>",
+          "turn_index": 16
+        }
+      ]
+    },
+    {
+      "blind_id": "sample-08",
+      "review": {
+        "dimensions": {
+          "accumulated_debt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "asymmetric_knowledge": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "biographical_consequence": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "conversational_fingerprint": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "costly_nondisclosure": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "dramatic_attempt": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "inferable_subtext": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "literal_and_interpersonal_action": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "local_responsiveness": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "rhythm_and_deviation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "status_negotiation": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          },
+          "whole_conversation_value": {
+            "evidence_turns": [],
+            "notes": "",
+            "result": ""
+          }
+        },
+        "notes": "",
+        "overall_status": ""
+      },
+      "transcript": [
+        {
+          "kind": "scene_start",
+          "label": "Scene 1",
+          "scene_index": 0,
+          "text": "At 18:05 on Thursday, after an ordinary club meeting, Speaker B and Speaker A sit at their usual family-restaurant corner table. On each of the previous four Thursdays Person this conversation joined them; Speaker B ordered tea, Person this conversation stayed until she finished it, and Speaker A announced that she was leaving but remained until all three rose. Tonight Person this conversation sent a plain message that he is absent for class duty. Speaker B and Speaker A came anyway. Speaker A's phone lit once while they were seated. Tea and water have arrived, the third chair is empty, the bill has not been requested, and nobody is required to stay."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 1,
+          "speaker": "Speaker A",
+          "text": "Kazusa turns her phone face down beside the water.\n\n“He’s not coming,” she says. “We don’t have to wait until the tea’s gone.”\n\nShe reaches for her bag, then pauses with her hand on the strap.",
+          "turn_index": 1
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 2,
+          "speaker": "Speaker B",
+          "text": "Setsuna’s fingers close around her teacup, though she doesn’t lift it.\n\n“Not yet,” she says. “You said you were leaving, but you’re still here.”\n\nShe glances at the empty chair, then back to Kazusa.\n\n“Sit down. Just until the tea’s gone.”",
+          "turn_index": 2
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 3,
+          "speaker": "Speaker A",
+          "text": "Kazusa looks at the empty chair once more, then lowers her bag to the floor and sits.\n\n“Fine,” she says. “Until the tea’s gone.”",
+          "turn_index": 3
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 4,
+          "speaker": "Speaker B",
+          "text": "Setsuna gives a small nod and finally lifts her cup.\n\n“Good,” she says. “Then drink it while it’s hot.”\n\nShe takes a careful sip, leaving the question about the phone between them.",
+          "turn_index": 4
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 5,
+          "speaker": "Speaker A",
+          "text": "Kazusa lifts her cup and takes a sip. It has already cooled enough not to burn.\n\n“You’re very bossy today,” she says, setting it down.",
+          "turn_index": 5
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 6,
+          "speaker": "Speaker B",
+          "text": "“Today?” Setsuna says, one eyebrow lifting. “That’s a little unfair.”\n\nShe takes another sip of tea, watching Kazusa over the rim of the cup.",
+          "turn_index": 6
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 7,
+          "speaker": "Speaker A",
+          "text": "Kazusa looks at her over the rim of her own cup.\n\n“Since you noticed, yes.”",
+          "turn_index": 7
+        },
+        {
+          "kind": "turn",
+          "scene_index": 0,
+          "scene_turn_index": 8,
+          "speaker": "Speaker B",
+          "text": "Setsuna lowers her cup to its saucer.\n\n“Then I suppose I should be consistent,” she says. “What did you think I noticed?”",
+          "turn_index": 8
+        },
+        {
+          "kind": "scene_break",
+          "scene_index": 1,
+          "text": "The previous meeting ended; time has passed before this return."
+        },
+        {
+          "kind": "between_scene_history",
+          "scene_index": 1,
+          "text": "Six school days pass with ordinary school and club contact. Neither person witnesses any return to the table or Person this conversation's absence."
+        },
+        {
+          "kind": "scene_start",
+          "label": "Scene 2",
+          "scene_index": 1,
+          "text": "Six school days later at 16:35, Speaker B and Speaker A are alone in the music room before the club meeting. The instruments are closed, Person this conversation is absent and has sent no shared message, the hallway is open, and late light falls across the room."
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 1,
+          "speaker": "Speaker B",
+          "text": "Setsuna sets three chairs in their usual half-circle, then stops with her hand on the third.\n\n“You’ve been quiet all week,” she says. “Should I ask what you’re not telling me, or are you going to volunteer it?”",
+          "turn_index": 9
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 2,
+          "speaker": "Speaker A",
+          "text": "Kazusa sets her bag beside the piano bench.\n\n“You can ask,” she says. “I may not answer.”",
+          "turn_index": 10
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 3,
+          "speaker": "Speaker B",
+          "text": "“That’s generous of you,” Setsuna says.\n\nShe withdraws her hand from the third chair and rests it against the piano instead.\n\n“Was it something you didn’t want me to see?”",
+          "turn_index": 11
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 4,
+          "speaker": "Speaker A",
+          "text": "Kazusa’s fingers rest briefly on the closed piano lid.\n\n“No,” she says. “It was something I didn’t want to explain.”",
+          "turn_index": 12
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 5,
+          "speaker": "Speaker B",
+          "text": "Setsuna looks at the closed piano lid.\n\n“That’s different,” she says. “Does it have anything to do with Haruki?”",
+          "turn_index": 13
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 6,
+          "speaker": "Speaker A",
+          "text": "“Not because of him,” Kazusa says. “He just knows.”",
+          "turn_index": 14
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 7,
+          "speaker": "Speaker B",
+          "text": "Setsuna’s expression stills.\n\n“Then what is it about?” she asks. “And why does he know?”",
+          "turn_index": 15
+        },
+        {
+          "kind": "turn",
+          "scene_index": 1,
+          "scene_turn_index": 8,
+          "speaker": "Speaker A",
+          "text": "“My mother wants me to continue music overseas,” Kazusa says. “He knows. I haven’t decided.”",
+          "turn_index": 16
+        }
+      ]
+    }
+  ],
+  "model_judge": false,
+  "review_contract": {
+    "dimensions": {
+      "accumulated_debt": "Does scene one materially change permission, timing, interpretation, or cost in scene two?",
+      "asymmetric_knowledge": "Do speakers reason only from what they can know, suspect, mistake, or have been told?",
+      "biographical_consequence": "Does established life or relationship history become newly consequential rather than merely being recited?",
+      "conversational_fingerprint": "Are speakers distinguishable by syntax, specificity, attention, humor, politeness, question style, silence tolerance, and ignored subjects rather than catchphrases?",
+      "costly_nondisclosure": "Do pride, etiquette, strategy, embarrassment, status, or incomplete self-knowledge make the optimal sentence unavailable in a consequential way?",
+      "dramatic_attempt": "Do speakers use lines to pursue something such as reassuring, recruiting, concealing, provoking, testing, delaying, impressing, punishing, redirecting, or saving face?",
+      "inferable_subtext": "Can the interpersonal meaning be reconstructed from the exchange itself rather than decoded afterward?",
+      "literal_and_interpersonal_action": "Does the ordinary topic also alter a legible relationship question without requiring an arbitrary hidden motive?",
+      "local_responsiveness": "Do replies take up the prior line, including clearly recognizing answers, refusals, uncertainty, silence, and dodges?",
+      "rhythm_and_deviation": "Do length, pauses, interruption, repetition, and departures from established rituals carry meaning?",
+      "status_negotiation": "Does control of topic, explanation, interruption, unanswered questions, departure, and repair move during the exchange?",
+      "whole_conversation_value": "Is the conversation worth reading as sustained dramatic fiction, not just technically coherent dialogue?"
+    },
+    "instruction": "Read the full sequence before judging it. Do not reward isolated stylish lines.",
+    "result_values": [
+      "pass",
+      "mixed",
+      "fail"
+    ],
+    "unit": "whole sixteen-turn conversation across two scenes"
+  },
+  "schema_version": "persistent_luna_whole_conversation_blind_v1",
+  "source_hidden": true
+}
