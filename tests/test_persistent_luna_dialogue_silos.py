@@ -13,10 +13,13 @@ from scripts.run_persistent_luna_dialogue_silos import (
     LUNA_MODEL,
     LunaWorkerError,
     LunaWorkerResponse,
+    ReflectionOutputError,
     SchedulerConfig,
     SchedulerError,
     SiloIsolationError,
     WorkerBinding,
+    _parse_private_reflection,
+    _proxy_prompt,
     _session_id_from_jsonl,
     build_conversation_plans,
     run_persistent_luna_silos,
@@ -80,6 +83,7 @@ class FakeLunaExecutor:
         self.delay_seconds = delay_seconds
         self.shared_session_id = shared_session_id
         self.sessions: dict[tuple[str, str], str] = {}
+        self.next_session_number = 1
         self.calls: list[dict[str, Any]] = []
         self.start_calls: list[dict[str, Any]] = []
         self.resume_calls: list[dict[str, Any]] = []
@@ -92,6 +96,8 @@ class FakeLunaExecutor:
         binding: WorkerBinding,
         request: Mapping[str, Any],
         attempt: int,
+        reflection_nonce: str | None = None,
+        persistent_delta_proxy: bool = False,
     ) -> LunaWorkerResponse:
         return await self._answer(
             mode="start",
@@ -99,6 +105,8 @@ class FakeLunaExecutor:
             request=request,
             attempt=attempt,
             worker_session_id=None,
+            reflection_nonce=reflection_nonce,
+            persistent_delta_proxy=persistent_delta_proxy,
         )
 
     async def resume(
@@ -108,6 +116,8 @@ class FakeLunaExecutor:
         worker_session_id: str,
         request: Mapping[str, Any],
         attempt: int,
+        reflection_nonce: str | None = None,
+        persistent_delta_proxy: bool = False,
     ) -> LunaWorkerResponse:
         return await self._answer(
             mode="resume",
@@ -115,6 +125,8 @@ class FakeLunaExecutor:
             request=request,
             attempt=attempt,
             worker_session_id=worker_session_id,
+            reflection_nonce=reflection_nonce,
+            persistent_delta_proxy=persistent_delta_proxy,
         )
 
     async def _answer(
@@ -125,6 +137,8 @@ class FakeLunaExecutor:
         request: Mapping[str, Any],
         attempt: int,
         worker_session_id: str | None,
+        reflection_nonce: str | None,
+        persistent_delta_proxy: bool,
     ) -> LunaWorkerResponse:
         request_copy = json.loads(json.dumps(request, ensure_ascii=False))
         record = {
@@ -133,6 +147,8 @@ class FakeLunaExecutor:
             "request": request_copy,
             "attempt": attempt,
             "worker_session_id": worker_session_id,
+            "reflection_nonce": reflection_nonce,
+            "persistent_delta_proxy": persistent_delta_proxy,
         }
         self.calls.append(record)
         if mode == "start":
@@ -154,8 +170,10 @@ class FakeLunaExecutor:
                 )
             key = (binding.conversation_id, binding.actor_id)
             if mode == "start":
-                assert key not in self.sessions
-                session_id = self.shared_session_id or f"session-{len(self.sessions) + 1}"
+                session_id = (
+                    self.shared_session_id or f"session-{self.next_session_number}"
+                )
+                self.next_session_number += 1
                 self.sessions[key] = session_id
             else:
                 assert self.sessions[key] == worker_session_id
@@ -168,9 +186,25 @@ class FakeLunaExecutor:
                     elapsed_ms=1.0,
                     session_id=session_id,
                 )
-            raw_response = "" if outcome == "invalid_shape" else (
-                f'{binding.actor_id} says "turn {request["turn_index"]}".'
+            raw_response = (
+                ""
+                if outcome == "invalid_shape"
+                else (f'{binding.actor_id} says "turn {request["turn_index"]}".')
             )
+            if outcome == "malformed_reflection":
+                raw_response += '\n\n(<actor_private_reflection id="R-00000000000000000000000000000000">{})'
+            elif reflection_nonce is not None:
+                raw_response += (
+                    '\n\n(<actor_private_reflection id="'
+                    f'{reflection_nonce}">'
+                    '{"present_true_position":"I am guarding the point.",'
+                    '"public_attempt":"I answer without yielding ground.",'
+                    '"deliberately_unsaid_truth":"NONE",'
+                    '"unavailable_because":"NONE",'
+                    '"relationship_status_cost":"NONE",'
+                    '"continuity_pressure":"Keep the unanswered question present."}'
+                    "</actor_private_reflection>)"
+                )
             return LunaWorkerResponse(
                 worker_session_id=session_id,
                 raw_response=raw_response,
@@ -317,16 +351,18 @@ def test_scheduler_retries_only_technical_failures_and_freezes_fanout_after_thro
         "observed_throttling": True,
     }
     ledger = json.loads(
-        (tmp_path / "conversations" / "01-case_retry" / "response_ledger.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            tmp_path / "conversations" / "01-case_retry" / "response_ledger.json"
+        ).read_text(encoding="utf-8")
     )
     assert [entry["sequence"] for entry in ledger["responses"]] == [0, 1, 2, 3]
     # The retry resumes the thread that was emitted before rate limiting; it
     # never starts a replacement session for the same actor/conversation.
     assert len(executor.start_calls) == 2
     assert len(executor.resume_calls) == 4
-    rate_limit = next(event for event in state["attempts"] if event["status"] == "rate_limited")
+    rate_limit = next(
+        event for event in state["attempts"] if event["status"] == "rate_limited"
+    )
     assert rate_limit["worker_session_id"] == "session-1"
 
 
@@ -350,9 +386,195 @@ def test_scheduler_requires_the_fixed_authored_turn_count(tmp_path: Path) -> Non
 
 
 def test_session_id_parser_accepts_codex_jsonl_event_envelopes() -> None:
-    assert _session_id_from_jsonl(
-        '{"type":"thread.started","thread_id":"top-level-thread"}\n'
-    ) == "top-level-thread"
-    assert _session_id_from_jsonl(
-        '{"type":"event_msg","payload":{"thread_id":"payload-thread"}}\n'
-    ) == "payload-thread"
+    assert (
+        _session_id_from_jsonl(
+            '{"type":"thread.started","thread_id":"top-level-thread"}\n'
+        )
+        == "top-level-thread"
+    )
+    assert (
+        _session_id_from_jsonl(
+            '{"type":"event_msg","payload":{"thread_id":"payload-thread"}}\n'
+        )
+        == "payload-thread"
+    )
+
+
+def test_private_reflection_parser_requires_the_exact_anchored_shape() -> None:
+    nonce = "R-0123456789abcdef0123456789abcdef"
+    raw = (
+        "She keeps the cup between them.\n\n"
+        f'(<actor_private_reflection id="{nonce}">'
+        '{"present_true_position":"I want an answer before I leave.",'
+        '"public_attempt":"I make the request sound casual.",'
+        '"deliberately_unsaid_truth":"NONE",'
+        '"unavailable_because":"NONE",'
+        '"relationship_status_cost":"I risk sounding colder than I feel.",'
+        '"continuity_pressure":"The unpaid favor still needs an answer."}'
+        "</actor_private_reflection>)\n"
+    )
+
+    parsed = _parse_private_reflection(raw, expected_nonce=nonce)
+
+    assert parsed.public_body == "She keeps the cup between them."
+    assert parsed.reflection.nonce == nonce
+    assert (
+        parsed.reflection.fields["public_attempt"] == "I make the request sound casual."
+    )
+    with pytest.raises(ReflectionOutputError, match="exact, ordered, and unique"):
+        _parse_private_reflection(
+            raw.replace('"public_attempt":"I make the request sound casual.",', ""),
+            expected_nonce=nonce,
+        )
+    with pytest.raises(ReflectionOutputError, match="nonce does not match"):
+        _parse_private_reflection(
+            raw, expected_nonce="R-ffffffffffffffffffffffffffffffff"
+        )
+    with pytest.raises(ReflectionOutputError, match="missing or malformed"):
+        _parse_private_reflection(raw + "extra", expected_nonce=nonce)
+    with pytest.raises(ReflectionOutputError, match="appears in public prose"):
+        _parse_private_reflection(
+            raw.replace("She keeps", "<actor_private_reflection> She keeps"),
+            expected_nonce=nonce,
+        )
+
+
+def test_private_reflection_mode_keeps_raw_suffixes_out_of_public_relay(
+    tmp_path: Path,
+) -> None:
+    case = _case("private", "left", "right")
+    executor = FakeLunaExecutor()
+    config = SchedulerConfig(
+        conversation_count=1,
+        turn_count=4,
+        initial_concurrency=1,
+        max_concurrency=1,
+        auto_fanout=False,
+        max_technical_retries=0,
+        retry_backoff_seconds=0,
+        private_reflections=True,
+        persistent_delta_proxy=True,
+    )
+
+    _run((case,), tmp_path, config=config, executor=executor)
+
+    state = json.loads((tmp_path / "scheduler_state.json").read_text(encoding="utf-8"))
+    turns = state["private_reflection_turns"]
+    assert len(turns) == 4
+    assert all(item["status"] == "accepted" for item in turns)
+    assert all(item["nonce"].startswith("R-") for item in turns)
+    state_text = json.dumps(state, ensure_ascii=False)
+    assert "present_true_position" not in state_text
+    assert (
+        "raw_response" in state_text
+    )  # Existing non-reflection telemetry shape remains stable.
+    accepted = [item for item in state["attempts"] if item["status"] == "accepted"]
+    assert all(item["raw_response"] is None for item in accepted)
+    assert all(len(item["request_sha256"]) == 64 for item in accepted)
+    assert all(len(item["projected_request_sha256"]) == 64 for item in accepted)
+    assert all(call["persistent_delta_proxy"] for call in executor.calls)
+
+    ledger_text = (
+        tmp_path / "conversations" / "01-private" / "response_ledger.json"
+    ).read_text(encoding="utf-8")
+    assert "actor_private_reflection" not in ledger_text
+    assert "present_true_position" not in ledger_text
+    assert all(item["nonce"] not in ledger_text for item in turns)
+    for call in executor.calls:
+        request_text = json.dumps(call["request"], ensure_ascii=False)
+        assert "actor_private_reflection" not in request_text
+        assert "present_true_position" not in request_text
+        assert all(item["nonce"] not in request_text for item in turns)
+
+    qa_files = sorted((tmp_path / "private_reflection_qa").rglob("*.json"))
+    assert len(qa_files) == 4
+    qa_text = qa_files[0].read_text(encoding="utf-8")
+    assert "raw_response" in qa_text
+    assert "present_true_position" in qa_text
+
+
+def test_malformed_private_reflection_discards_the_conversation_and_restarts(
+    tmp_path: Path,
+) -> None:
+    case = _case("restart", "left", "right")
+    executor = FakeLunaExecutor(outcomes=["malformed_reflection"])
+    config = SchedulerConfig(
+        conversation_count=1,
+        turn_count=4,
+        initial_concurrency=1,
+        max_concurrency=1,
+        auto_fanout=False,
+        max_technical_retries=0,
+        retry_backoff_seconds=0,
+        private_reflections=True,
+    )
+
+    result = _run((case,), tmp_path, config=config, executor=executor)
+
+    assert len(result.results[0].turns) == 4
+    assert len(executor.start_calls) == 3  # Rejected left worker is never resumed.
+    state = json.loads(result.state_path.read_text(encoding="utf-8"))
+    statuses = [item["status"] for item in state["attempts"]]
+    assert "rejected_malformed_suffix" in statuses
+    assert all(item["raw_response"] is None for item in state["attempts"])
+    rejected = list((tmp_path / "private_reflection_qa").rglob("*.json"))
+    assert any(
+        "rejected_malformed_suffix" in path.read_text(encoding="utf-8")
+        for path in rejected
+    )
+
+
+def test_persistent_delta_resume_excludes_history_and_carries_current_packet_and_nonce() -> (
+    None
+):
+    request = {
+        "conversation_id": "run:case",
+        "case_id": "case",
+        "actor_id": "actor",
+        "scene_id": "scene",
+        "scene_index": 1,
+        "scene_turn_index": 2,
+        "turn_index": 3,
+        "messages": [
+            {"role": "system", "content": "SYSTEM-PROMPT"},
+            {"role": "user", "content": "<you>OLD-YOU</you><now>OLD-NOW</now>"},
+            {"role": "assistant", "content": "EARLIER-ASSISTANT"},
+            {"role": "user", "content": "<you>CURRENT-YOU</you><now>CURRENT-NOW</now>"},
+        ],
+    }
+    nonce = "R-0123456789abcdef0123456789abcdef"
+
+    prompt = _proxy_prompt(
+        request,
+        reflection_nonce=nonce,
+        persistent_delta_proxy=True,
+        starts_session=False,
+    )
+
+    assert "CURRENT-NOW" in prompt
+    assert "CURRENT-YOU" in prompt
+    assert nonce in prompt
+    assert "OLD-YOU" not in prompt
+    assert "OLD-NOW" not in prompt
+    assert "SYSTEM-PROMPT" not in prompt
+    assert "EARLIER-ASSISTANT" not in prompt
+    assert "Follow the embedded observable-body contract" not in prompt
+    assert "present_true_position" not in prompt
+
+
+def test_default_proxy_prompt_remains_the_original_full_request_wrapper() -> None:
+    request = {
+        "actor_id": "actor",
+        "messages": [{"role": "user", "content": "now"}],
+    }
+    payload = json.dumps(
+        request, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+
+    assert _proxy_prompt(request) == (
+        "Act only as an isolated CharacterAgent completion proxy. Return exactly the "
+        "raw assistant content for this request: no analysis, labels, markdown, "
+        "tools, file inspection, or commentary. The JSON is the full current "
+        "continuation for one actor; use nothing outside it.\n"
+        f"<exact_character_agent_request>\n{payload}\n</exact_character_agent_request>\n"
+    )
