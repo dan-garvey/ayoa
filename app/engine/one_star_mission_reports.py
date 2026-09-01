@@ -11,6 +11,7 @@ from typing import Literal
 
 from PIL import Image, ImageDraw, ImageFont
 
+from app.engine.context_builder import replace_character_ids_for_narrator
 from app.engine.one_star_adapter import (
     is_one_star_checkpoint,
     load_one_star_account,
@@ -19,6 +20,7 @@ from app.engine.one_star_adapter import (
 from app.engine.player_media import ResolvedPlayerMedia
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import OneStarCost, OneStarStateUpdate
+from app.schemas.narrator import visual_novel_text_contains_source_identifiers
 from app.schemas.responses import VisualNovelRender
 
 
@@ -112,6 +114,7 @@ def _one_detail(
 def _event_report_text(
     event: object,
     credited_character_ids: tuple[str, ...],
+    checkpoint: CheckpointFile,
 ) -> str:
     """Project only public or unanimously credited-party-visible facts."""
 
@@ -127,7 +130,9 @@ def _event_report_text(
         ):
             text = fact.text.strip()
             if text:
-                facts.append(text)
+                facts.append(
+                    replace_character_ids_for_narrator(text, checkpoint)
+                )
     return " ".join(facts)
 
 
@@ -267,7 +272,11 @@ def committed_one_star_mission_report(
                 credits = tuple(details.get("report_credit", []))
                 if not credits or not set(credits).issubset(party_ids):
                     raise OneStarMissionReportError("report_credit_invalid")
-                report_text = _event_report_text(event, credits)
+                report_text = _event_report_text(
+                    event,
+                    credits,
+                    checkpoint,
+                )
                 highlights.append(OneStarMissionReportHighlight(
                     event_id=event.event_id,
                     kind=report_kind,
@@ -288,10 +297,13 @@ def committed_one_star_mission_report(
                         character_id,
                         "Unknown Hero",
                     ),
-                    cause=_one_detail(
-                        details,
-                        "death_cause",
-                        default="cause not recorded",
+                    cause=replace_character_ids_for_narrator(
+                        _one_detail(
+                            details,
+                            "death_cause",
+                            default="cause not recorded",
+                        ),
+                        checkpoint,
                     ),
                 ))
 
@@ -394,7 +406,11 @@ def one_star_mission_reports_for_render(
             previous_checkpoint,
         )
     }
-    rendered_ids = [segment.rendered_event_id for segment in render.segments]
+    rendered_ids = [
+        event_id
+        for segment in render.segments
+        for event_id in segment.rendered_event_ids
+    ]
     if set(required) - set(rendered_ids):
         raise OneStarMissionReportError("owner_render_missing_mission_end")
     ordered: list[OneStarMissionReport] = []
@@ -488,7 +504,12 @@ def render_one_star_mission_report_accessibility(
     lines.append(
         f"MVP: {names.get(report.mvp_character_id, 'Unknown Hero')}"
     )
-    return "\n".join(lines)
+    accessible = "\n".join(lines)
+    if visual_novel_text_contains_source_identifiers(accessible):
+        raise OneStarMissionReportError(
+            "accessible_text_source_identifier"
+        )
+    return accessible
 
 
 def render_one_star_mission_report_boards(

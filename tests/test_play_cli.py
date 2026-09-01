@@ -2009,7 +2009,7 @@ class TestActingDescribe:
                         kind="narration",
                         text="The crest is weathered silver.",
                         )],
-                        rendered_event_id="evt_crest",
+                        rendered_event_ids=["evt_crest"],
                     )
                 ])
             },

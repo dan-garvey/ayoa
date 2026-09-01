@@ -1362,6 +1362,12 @@ Response:
 checkpoint artifacts. The `stream` field remains on the request for
 compatibility but is not a live Discord streaming feature.
 
+Visual-novel responses use ordered `VisualNovelRenderSegment` records. Each
+segment carries one or more `rendered_event_ids`: ordinary narration keeps one
+segment per canonical event, while an explicitly compressed sequence may use
+one passage whose ordered ids preserve stage, media, and System-panel
+provenance across every event it summarizes.
+
 `reaction_prompts` is the D&D adapter's combat-reaction UI signal:
 `character_id → canonical_event_id` for combatants whose reaction
 window is open. It is `{}` outside D&D combat. The Discord bot uses
@@ -1878,7 +1884,17 @@ remains, or `max_agent_cascades_per_beat` is reached. A targetless result gets
 one grounded continuation attempt and then ends unless a newly committed agent
 turn creates a new frontier. This is the ordinary turn loop under a smaller
 story-configured cap, not a scheduler, scene variable, mission feed, or second
-combat loop.
+combat loop. At a forced Master-facing boundary, the narrator compresses that
+batch into one rapid sequence, eliding repeated combat exchanges and chatter
+while preserving consequential actions, injuries, deaths, objective progress,
+and the terminal result. Ordinary non-batch narration remains event-aligned.
+
+After a mission report, the active guide may make one concrete prompt for the
+Master's next management choice. If the Master defers, that bound handoff goes
+back through ordinary router selection so a genuinely pressured co-present
+non-guide Hero may act; it does not resume the guide, rotate a debrief, or
+invent interface motion. Existing autonomous Hero handoffs still resume their
+owed output directly when the player defers.
 
 The router may mark a consequential mission update as `critical`, `boss_kill`,
 or `dialogue` and credit exact party Heroes. Mission end must nominate a party

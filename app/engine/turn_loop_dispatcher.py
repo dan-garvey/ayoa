@@ -3512,6 +3512,7 @@ class LLMDispatcher:
         user_input: str = "",
         handoff_policy: str = "forced",
         handoff_context: str = "",
+        narration_mode: narrator_module.NarrationMode = "event_aligned",
     ) -> tuple[NarratorOutput, "TranscriptEntry"]:
         """Render per-POV prose via narrator.compose_pov_render.
 
@@ -3547,6 +3548,7 @@ class LLMDispatcher:
             user_input=user_input,
             handoff_policy=handoff_policy,
             handoff_context=handoff_context,
+            narration_mode=narration_mode,
         )
         return envelope, entry
 

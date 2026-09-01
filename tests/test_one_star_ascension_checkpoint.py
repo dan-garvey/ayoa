@@ -447,16 +447,15 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert floor_one.model_dump(exclude={"pressure_beats"}) == {
         "mission_id": "floor_1_goblin_ambush",
         "destination": "tower_floor_1_goblin_ambush",
-        "premise": "Survive the goblin ambush and reach the exit.",
+        "premise": "Survive the goblin ambush.",
         "completion_declaration": (
-            "At least one deployed Hero has survived the goblin ambush and "
-            "reached the exit."
+            "At least one deployed Hero remains alive after the several "
+            "goblins present at arrival have been killed, driven off, or "
+            "made unable to continue the attack."
         ),
-        "failure_declaration": (
-            "No deployed Hero remains alive and able to reach the exit."
-        ),
+        "failure_declaration": "No deployed Hero remains alive.",
         "counters": [
-            {"counter_id": "survivor_reaches_exit", "current": 0, "target": 1},
+            {"counter_id": "ambush_survived", "current": 0, "target": 1},
         ],
     }
     assert len(floor_one.pressure_beats) == 2
@@ -464,6 +463,8 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert "armed goblins already rushing to kill them" in opening_pressure
     assert "no safe briefing" in opening_pressure.lower()
     assert "puzzle mechanism" in opening_pressure
+    assert "do not invent reinforcements" in opening_pressure
+    assert "mission ends as soon as" in opening_pressure
     assert "Edren Marr" in edren_pressure
     assert "action already taken by another Hero" in edren_pressure
     assert "His own desperate intention" in edren_pressure

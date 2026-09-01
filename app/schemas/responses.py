@@ -68,18 +68,20 @@ class DiceRollDisplay(BaseModel):
 
 
 class VisualNovelRenderSegment(BaseModel):
-    """One accepted POV beat and its canonical stage provenance."""
+    """One accepted POV passage and its canonical stage provenance."""
 
     pages: list[VisualNovelPage] = Field(min_length=1)
-    rendered_event_id: str = Field(min_length=1)
+    rendered_event_ids: list[str] = Field(min_length=1)
     sprite_variant_keys_by_label: dict[str, str] = Field(default_factory=dict)
 
-    @field_validator("rendered_event_id")
+    @field_validator("rendered_event_ids")
     @classmethod
-    def _require_nonempty_event_id(cls, value: str) -> str:
-        cleaned = value.strip()
-        if not cleaned:
-            raise ValueError("rendered_event_id cannot be blank")
+    def _require_nonempty_event_ids(cls, value: list[str]) -> list[str]:
+        cleaned = [event_id.strip() for event_id in value]
+        if any(not event_id for event_id in cleaned):
+            raise ValueError("rendered_event_ids cannot contain blanks")
+        if len(cleaned) != len(set(cleaned)):
+            raise ValueError("rendered_event_ids cannot contain duplicates")
         return cleaned
 
     @field_validator("sprite_variant_keys_by_label")

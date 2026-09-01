@@ -1179,11 +1179,11 @@ class TestVisualNovelRender:
                 text="Scene two.",
                 sprites=["Wren"],
             )],
-            rendered_event_id="evt_second",
+            rendered_event_ids=["evt_second"],
             sprite_variant_keys_by_label={"Wren": "skeptical"},
         )])
 
-        assert render.segments[0].rendered_event_id == "evt_second"
+        assert render.segments[0].rendered_event_ids == ["evt_second"]
         assert render.segments[0].pages[0].text == "Scene two."
         assert render.segments[0].sprite_variant_keys_by_label == {
             "Wren": "skeptical"
@@ -1207,20 +1207,24 @@ class TestVisualNovelRender:
         with pytest.raises(ValidationError, match="source-shaped ids"):
             VisualNovelRenderSegment(
                 pages=[page],
-                rendered_event_id="evt_one",
+                rendered_event_ids=["evt_one"],
             )
 
     @pytest.mark.parametrize(
         "kwargs",
         [
-            {"pages": [], "rendered_event_id": "evt_one"},
+            {"pages": [], "rendered_event_ids": ["evt_one"]},
             {
                 "pages": [VisualNovelPage(kind="narration", text="Scene.")],
-                "rendered_event_id": "",
+                "rendered_event_ids": [],
             },
             {
                 "pages": [VisualNovelPage(kind="narration", text="Scene.")],
-                "rendered_event_id": "   ",
+                "rendered_event_ids": ["   "],
+            },
+            {
+                "pages": [VisualNovelPage(kind="narration", text="Scene.")],
+                "rendered_event_ids": ["evt_one", "evt_one"],
             },
         ],
     )
@@ -1247,7 +1251,7 @@ class TestVisualNovelRender:
                     text="Wren waits.",
                     sprites=["Wren"],
                 )],
-                rendered_event_id="evt_one",
+                rendered_event_ids=["evt_one"],
                 sprite_variant_keys_by_label=snapshot,
             )
 
@@ -1458,7 +1462,7 @@ class TestTurnResponse:
                             kind="narration",
                             text=summary,
                         )],
-                        rendered_event_id="evt1",
+                        rendered_event_ids=["evt1"],
                     ),
                 ]),
             },
@@ -1516,7 +1520,7 @@ class TestTurnResponse:
                                 "https:///private/vn/leaked.pem"
                             ),
                         )],
-                        rendered_event_id="evt1",
+                        rendered_event_ids=["evt1"],
                     ),
                 ]),
             },
@@ -1667,6 +1671,9 @@ class TestCheckpointFile:
                     event_actor_ids=["alice", "pip"],
                     acting_player_id="alice",
                     acting_player_input="I look around",
+                    narration_modes_by_pov={
+                        "alice": "compressed_sequence"
+                    },
                     roll_keys_before=[("txn_1", "roll_1")],
                     commitment_revision_character_id="alice",
                     commitment_revision_id="commit_watch",
@@ -1682,4 +1689,7 @@ class TestCheckpointFile:
         pending = rebuilt.session.pending_narrator_render
         assert pending is not None
         assert pending.acting_player_input == "I look around"
+        assert pending.narration_modes_by_pov == {
+            "alice": "compressed_sequence"
+        }
         assert pending.roll_keys_before == [("txn_1", "roll_1")]

@@ -71,6 +71,7 @@ from app.engine import (
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
 from app.engine.action_rejection import PlayerActionRejected
 from app.engine.narrator import (
+    NarrationMode,
     assert_narrator_handoff_policy,
     commit_pov_render,
     resolve_buffered_events_for_render,
@@ -869,10 +870,14 @@ def flush_render_buffer(
 def _visual_novel_variant_snapshot_by_label(
     ckpt: CheckpointFile,
     *,
-    buffered: RenderBufferEntry,
+    buffered_events: list[RenderBufferEntry],
     pages: list[object],
 ) -> dict[str, str]:
     """Project private character-id state onto page-approved safe labels."""
+
+    if not buffered_events:
+        return {}
+    buffered = buffered_events[-1]
 
     labels = {
         label
@@ -3012,6 +3017,7 @@ class Dispatcher(Protocol):
         user_input: str = "",
         handoff_policy: str = "forced",
         handoff_context: str = "",
+        narration_mode: NarrationMode = "event_aligned",
     ) -> tuple[NarratorOutput, TranscriptEntry]:
         """Render this human's POV presentation for the beat. Input: their
         buffered events since last render, observation levels tagged.
@@ -3262,6 +3268,11 @@ async def run_beat(
     prepared_event_objects: set[int] = set()
     one_star_mission_batch_active = False
     one_star_batch_continuation_after_agent_count = -1
+
+    def _one_star_batch_narration_modes() -> dict[str, NarrationMode]:
+        if not one_star_mission_batch_active:
+            return {}
+        return {actor_id: "compressed_sequence"}
 
     async def _prepare_event_once(
         event: EventRouterOutput,
@@ -3522,6 +3533,7 @@ async def run_beat(
             acting_player_id=actor_id,
             acting_player_input=intention,
             suppress_reaction_prompts=suppress_reaction_prompts,
+            narration_modes_by_pov=_one_star_batch_narration_modes(),
         )
 
     async def _advance_or_render(
@@ -3613,6 +3625,7 @@ async def run_beat(
                 acting_player_id=actor_id,
                 acting_player_input=intention,
                 suppress_reaction_prompts=suppress_reaction_prompts,
+                narration_modes_by_pov=_one_star_batch_narration_modes(),
             )
 
         if one_star_mission_batch_active:
@@ -3634,6 +3647,9 @@ async def run_beat(
                     acting_player_id=actor_id,
                     acting_player_input=intention,
                     suppress_reaction_prompts=suppress_reaction_prompts,
+                    narration_modes_by_pov=(
+                        _one_star_batch_narration_modes()
+                    ),
                 )
 
             targets = _binding_aware_next_output_targets(ckpt, result)
@@ -3701,6 +3717,7 @@ async def run_beat(
                 acting_player_id=actor_id,
                 acting_player_input=intention,
                 suppress_reaction_prompts=suppress_reaction_prompts,
+                narration_modes_by_pov=_one_star_batch_narration_modes(),
             )
 
         if (
@@ -3796,6 +3813,9 @@ async def run_beat(
                     acting_player_id=actor_id,
                     acting_player_input=intention,
                     suppress_reaction_prompts=suppress_reaction_prompts,
+                    narration_modes_by_pov=(
+                        _one_star_batch_narration_modes()
+                    ),
                 )
             return await _end_beat(
                 ckpt,
@@ -3874,6 +3894,9 @@ async def run_beat(
                     acting_player_id=actor_id,
                     acting_player_input=intention,
                     suppress_reaction_prompts=suppress_reaction_prompts,
+                    narration_modes_by_pov=(
+                        _one_star_batch_narration_modes()
+                    ),
                 )
 
         if handoff.continue_requested:
@@ -4708,6 +4731,7 @@ async def _end_beat(
     acting_player_input: str = "",
     suppress_reaction_prompts: bool = False,
     soft_handoff_candidate: bool = False,
+    narration_modes_by_pov: dict[str, NarrationMode] | None = None,
 ) -> BeatResult:
     """Compose per-human renders, flush buffers, and optionally release
     beat slots.
@@ -4736,6 +4760,9 @@ async def _end_beat(
     renders: dict[str, str] = {}
     visual_novel_renders: dict[str, VisualNovelRender] = {}
     transcript_entries: dict[str, TranscriptEntry] = {}
+    narration_modes = dict(narration_modes_by_pov or {})
+    if soft_handoff_candidate and "compressed_sequence" in narration_modes.values():
+        raise ValueError("compressed narration requires a forced render boundary")
     from app.engine.context_builder import collect_player_ids
     player_ids = collect_player_ids(ckpt)
     reaction_prompts = _eligible_combat_reaction_prompts(
@@ -4829,6 +4856,7 @@ async def _end_beat(
                     if soft_handoff_candidate and gate_buffer
                     else ""
                 ),
+                narration_modes_by_pov=narration_modes,
                 pending_spawn_records=list(staged_spawn_records),
             )
 
@@ -4862,6 +4890,7 @@ async def _end_beat(
                 "candidate" if candidate_handoff else "forced"
             ),
             handoff_context=handoff_context,
+            narration_mode=narration_modes.get(h, "event_aligned"),
         )
         return h, envelope, entry
 
@@ -4969,6 +4998,7 @@ async def _end_beat(
                 buffered_events=dict(targets)[h],
                 result=envelope,
                 user_input=entry.user,
+                narration_mode=narration_modes.get(h, "event_aligned"),
             )
             renders[h] = narrator_plain_text(envelope)
             if isinstance(envelope, VisualNovelNarratorOutput):
@@ -4976,33 +5006,61 @@ async def _end_beat(
                     ckpt,
                     dict(targets)[h],
                 )
-                if len(envelope.beats) != len(resolved):
-                    raise RuntimeError(
-                        "accepted visual-novel narrator output lost event alignment"
-                    )
-                visual_novel_renders[h] = VisualNovelRender(
-                    segments=[
+                narration_mode = narration_modes.get(h, "event_aligned")
+                if narration_mode == "compressed_sequence":
+                    if len(envelope.beats) != 1:
+                        raise RuntimeError(
+                            "accepted compressed narrator output lost sequence alignment"
+                        )
+                    beat = envelope.beats[0]
+                    visual_novel_renders[h] = VisualNovelRender(segments=[
                         VisualNovelRenderSegment(
                             pages=[
                                 page.model_copy(deep=True)
                                 for page in beat.pages
                             ],
-                            rendered_event_id=buffered.event_id,
+                            rendered_event_ids=[
+                                buffered.event_id for buffered, _event in resolved
+                            ],
                             sprite_variant_keys_by_label=(
                                 _visual_novel_variant_snapshot_by_label(
                                     ckpt,
-                                    buffered=buffered,
+                                    buffered_events=[
+                                        buffered for buffered, _event in resolved
+                                    ],
                                     pages=list(beat.pages),
                                 )
                             ),
                         )
-                        for beat, (buffered, _event) in zip(
-                            envelope.beats,
-                            resolved,
-                            strict=True,
+                    ])
+                else:
+                    if len(envelope.beats) != len(resolved):
+                        raise RuntimeError(
+                            "accepted visual-novel narrator output lost event alignment"
                         )
-                    ]
-                )
+                    visual_novel_renders[h] = VisualNovelRender(
+                        segments=[
+                            VisualNovelRenderSegment(
+                                pages=[
+                                    page.model_copy(deep=True)
+                                    for page in beat.pages
+                                ],
+                                rendered_event_ids=[buffered.event_id],
+                                sprite_variant_keys_by_label=(
+                                    _visual_novel_variant_snapshot_by_label(
+                                        ckpt,
+                                        buffered_events=[buffered],
+                                        pages=list(beat.pages),
+                                    )
+                                ),
+                            )
+                            for beat, (buffered, _event) in zip(
+                                envelope.beats,
+                                resolved,
+                                strict=True,
+                            )
+                        ]
+                    )
             transcript_entries[h] = entry
 
     _accept_speculative_spawn_roster(ckpt)

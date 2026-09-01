@@ -366,7 +366,7 @@ class TestEngineBridgeVisualNovelPresentation:
                             text=" ".join(["Stay on the first stage."] * 45),
                         )
                     ],
-                    rendered_event_id="evt_first",
+                    rendered_event_ids=["evt_first", "evt_middle"],
                 ),
                 VisualNovelRenderSegment(
                     pages=[
@@ -376,7 +376,7 @@ class TestEngineBridgeVisualNovelPresentation:
                             text="Now the scene has changed.",
                         )
                     ],
-                    rendered_event_id="evt_second",
+                    rendered_event_ids=["evt_second"],
                 ),
             ]
         )
@@ -430,7 +430,7 @@ class TestEngineBridgeVisualNovelPresentation:
         wait_call.assert_awaited_once()
         assert wait_call.await_args.kwargs["session_id"] == "session"
         assert wait_call.await_args.kwargs["rendered_event_ids_by_pov"] == {
-            "alice": ["evt_first", "evt_second"]
+            "alice": ["evt_first", "evt_middle", "evt_second"]
         }
         wait_timeout = wait_call.await_args.kwargs["timeout"]
         assert 0 < wait_timeout <= 20
@@ -440,7 +440,7 @@ class TestEngineBridgeVisualNovelPresentation:
                 mock_bridge.image_generation.resolve_visual_novel_stage.call_args_list
             )
         ] == [
-            ["evt_first"],
+            ["evt_first", "evt_middle"],
             ["evt_second"],
         ]
         iselle_cards = [card for card in deck.cards if card.speaker == "Iselle"]
@@ -469,7 +469,7 @@ class TestEngineBridgeVisualNovelPresentation:
                 renders_by_pov={"alice": VisualNovelRender(segments=[
                     VisualNovelRenderSegment(
                         pages=[VisualNovelPage(kind="narration", text="Rain.")],
-                        rendered_event_id="evt_rain",
+                        rendered_event_ids=["evt_rain"],
                     )
                 ])},
                 timeout=0.01,
@@ -522,7 +522,7 @@ class TestEngineBridgeVisualNovelPresentation:
         )
         render = VisualNovelRender(segments=[VisualNovelRenderSegment(
             pages=[VisualNovelPage(kind="narration", text="Rain.")],
-            rendered_event_id="evt_rain",
+            rendered_event_ids=["evt_rain"],
         )])
 
         result = asyncio.run(mock_bridge.prepare_visual_novel_deck(
@@ -609,7 +609,7 @@ class TestEngineBridgeVisualNovelPresentation:
         )
         render = VisualNovelRender(segments=[VisualNovelRenderSegment(
             pages=[page],
-            rendered_event_id="evt_promotion",
+            rendered_event_ids=["evt_promotion"],
             sprite_variant_keys_by_label={"Renna Holt": "tense"},
         )])
 
@@ -3506,7 +3506,7 @@ class TestVisualNovelDiscordDeck:
                             kind="dialogue", speaker="Iselle", text="Hello."
                         )
                     ],
-                    rendered_event_id="evt_1",
+                    rendered_event_ids=["evt_1"],
                 )
             ]
         )
@@ -3639,7 +3639,7 @@ class TestVisualNovelDiscordDeck:
                             kind="dialogue", speaker="Iselle", text="Hello."
                         )
                     ],
-                    rendered_event_id="evt_1",
+                    rendered_event_ids=["evt_1"],
                 )
             ]
         )
@@ -3705,7 +3705,7 @@ class TestVisualNovelDiscordDeck:
                             kind="dialogue", speaker="Iselle", text="Hello."
                         )
                     ],
-                    rendered_event_id="evt_1",
+                    rendered_event_ids=["evt_1"],
                 )
             ]
         )
@@ -3777,7 +3777,7 @@ class TestVisualNovelJoinArrival:
                             text="Alice steps into the lantern light.",
                         )
                     ],
-                    rendered_event_id="evt_arrive",
+                    rendered_event_ids=["evt_arrive"],
                 )
             ]
         )
@@ -3790,7 +3790,7 @@ class TestVisualNovelJoinArrival:
                             text="Bob sees Alice arrive.",
                         )
                     ],
-                    rendered_event_id="evt_arrive",
+                    rendered_event_ids=["evt_arrive"],
                 )
             ]
         )

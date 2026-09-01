@@ -171,7 +171,7 @@ def _completed_report_checkpoints():
 def _render(event_id: str) -> VisualNovelRender:
     return VisualNovelRender(segments=[VisualNovelRenderSegment(
         pages=[VisualNovelPage(kind="narration", text="The party returns.")],
-        rendered_event_id=event_id,
+        rendered_event_ids=["evt_floor_start", event_id],
     )])
 
 
@@ -195,6 +195,33 @@ def test_report_projects_marked_public_facts_without_private_leakage() -> None:
     assert report.reward.unlocked_floor == 2
     assert report.mvp_character_id == "hero"
     assert report.mvp_evidence_event_id == "evt_boss_falls"
+
+
+def test_report_projects_character_ids_before_vn_board_render() -> None:
+    previous, checkpoint, _end = _completed_report_checkpoints()
+    checkpoint.characters.append(_named_hero("renna_holt", "Renna Holt"))
+    highlight_event = next(
+        event
+        for event in checkpoint.canonical_events
+        if event.event_id == "evt_boss_falls"
+    )
+    highlight_event.canonical_event.observable_facts[0].text = (
+        "renna_holt opens the tyrant's guard for Arden's final blow."
+    )
+
+    report = new_one_star_mission_reports(checkpoint, previous)[0]
+    accessible = render_one_star_mission_report_accessibility(
+        checkpoint=checkpoint,
+        report=report,
+    )
+    boards = render_one_star_mission_report_boards(
+        checkpoint=checkpoint,
+        report=report,
+    )
+
+    assert report.boss_kills[0].text.startswith("Renna Holt opens")
+    assert "renna_holt" not in accessible
+    assert all("renna_holt" not in board.accessible_text for board in boards)
 
 
 def test_report_recipient_selection_matches_system_sight() -> None:

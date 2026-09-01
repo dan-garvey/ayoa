@@ -213,6 +213,104 @@ class TestComposePovRender:
         assert "Available foreground characters:\n- Pip" in second
 
     @pytest.mark.asyncio
+    async def test_compressed_sequence_groups_visual_novel_events(
+        self,
+        mock_client,
+        prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        ckpt.canonical_events[1].canonical_event.observable_facts = [
+            ObservableFact.all(
+                "Pip ends the ambush.",
+                visual_subject_ids=["pip"],
+            )
+        ]
+        provider_output = VisualNovelNarratorOutput(
+            handoff="render",
+            handoff_reason="The rapid sequence is complete.",
+            beats=[
+                VisualNovelBeatPages(pages=[VisualNovelPage(
+                    kind="narration",
+                    text="Steel rings in the ruin.",
+                    sprites=["Pip"],
+                )]),
+                VisualNovelBeatPages(pages=[VisualNovelPage(
+                    kind="narration",
+                    text="The last goblin falls.",
+                    sprites=["Pip"],
+                )]),
+            ],
+        )
+        mock_client.complete = AsyncMock(
+            return_value=llm_response(provider_output)
+        )
+        buffered = [
+            RenderBufferEntry(
+                event_id="evt_alpha",
+                observation_level="direct",
+            ),
+            RenderBufferEntry(
+                event_id="evt_beta",
+                observation_level="direct",
+            ),
+        ]
+
+        result, entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            partial_mode=False,
+            user_input="(defer)",
+            narration_mode="compressed_sequence",
+        )
+
+        assert len(result.beats) == 1
+        assert [page.text for page in result.beats[0].pages] == [
+            "Steel rings in the ruin.",
+            "The last goblin falls.",
+        ]
+        user_text = mock_client.complete.await_args.kwargs["messages"][-1][
+            "content"
+        ]
+        assert user_text.count("Available foreground characters:\n- Pip") == 2
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=result,
+            user_input=entry.user,
+            narration_mode="compressed_sequence",
+        )
+        assert len(ckpt.narrator_conversations["alice"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_compressed_sequence_rejects_partial_render(
+        self,
+        mock_client,
+        prompt_manager,
+    ):
+        ckpt = _ckpt()
+
+        with pytest.raises(ValueError, match="cannot render a partial beat"):
+            await compose_pov_render(
+                client=mock_client,
+                prompt_mgr=prompt_manager,
+                ckpt=ckpt,
+                pov_character_id="alice",
+                buffered_events=[RenderBufferEntry(
+                    event_id="evt_alpha",
+                    observation_level="direct",
+                )],
+                partial_mode=True,
+                narration_mode="compressed_sequence",
+            )
+
+        mock_client.complete.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_visual_novel_filters_repeated_cross_beat_sprite_cue(
         self,
         mock_client,

@@ -507,7 +507,7 @@ def test_turn_response_preserves_visual_novel_beat_segments():
     ckpt = _ckpt(bindings={"alice": "u1"})
     first = VisualNovelRenderSegment(
         pages=[VisualNovelPage(kind="narration", text="Scene A.")],
-        rendered_event_id="evt_a",
+        rendered_event_ids=["evt_a"],
     )
     second = VisualNovelRenderSegment(
         pages=[VisualNovelPage(
@@ -515,7 +515,7 @@ def test_turn_response_preserves_visual_novel_beat_segments():
             speaker="Alice",
             text="Scene B.",
         )],
-        rendered_event_id="evt_b",
+        rendered_event_ids=["evt_b"],
     )
 
     response = _turn_response_from_beat_results(
@@ -550,9 +550,9 @@ def test_turn_response_preserves_visual_novel_beat_segments():
     assert response is not None
     assert response.output_text == "Scene A. Alice: Scene B."
     render = response.per_player_visual_novel_renders["alice"]
-    assert [segment.rendered_event_id for segment in render.segments] == [
-        "evt_a",
-        "evt_b",
+    assert [segment.rendered_event_ids for segment in render.segments] == [
+        ["evt_a"],
+        ["evt_b"],
     ]
     assert [
         page.text for segment in render.segments for page in segment.pages
@@ -805,6 +805,64 @@ class TestHappyPath:
         assert len(FakeDispatcher.route_calls) == 1
         assert FakeDispatcher.route_calls[0]["actor_id"] == "alice"
         assert FakeDispatcher.route_calls[0]["intention"] == "(defer)"
+
+    @pytest.mark.asyncio
+    async def test_bound_defer_can_route_an_alternate_autonomous_target(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.canonical_events.append(_router_out(
+            event_id="evt_guide_prompts_master",
+            event_kind="response_requested",
+            agent_ids=["alice"],
+            observer_ids=["alice", "pip"],
+            facts=[ObservableFact.all(
+                "The guide asks the Master for a concrete next choice."
+            )],
+        ))
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_router_out(
+            event_id="evt_master_defers",
+            event_kind="beat_continues",
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+        ))
+        FakeDispatcher.queue_agent(
+            "Pip confronts the unresolved pressure himself."
+        )
+        FakeDispatcher.queue_route(_router_out(
+            event_id="evt_pip_acts",
+            event_kind="cascade_exhausted",
+            observer_ids=["alice", "pip"],
+            facts=[ObservableFact.all(
+                "Pip confronts the unresolved pressure."
+            )],
+        ))
+        FakeDispatcher.queue_narrator(
+            handoff="continue",
+            reason="Pip has an immediate response.",
+            text="",
+        )
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="(defer)",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "cascade_exhausted"
+        assert [call["actor_id"] for call in FakeDispatcher.route_calls] == [
+            "alice",
+            "pip",
+        ]
+        assert [call["character_id"] for call in FakeDispatcher.agent_calls] == [
+            "pip"
+        ]
+        assert [event.event_id for event in ckpt.canonical_events] == [
+            "evt_guide_prompts_master",
+            "evt_master_defers",
+            "evt_pip_acts",
+        ]
 
     @pytest.mark.asyncio
     async def test_narrator_failure_preserves_beat_for_render_retry(

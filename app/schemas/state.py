@@ -61,6 +61,9 @@ class PendingNarratorRender(BaseModel):
     suppress_reaction_prompts: bool = False
     soft_handoff_candidate: bool = False
     handoff_event_id: str = ""
+    narration_modes_by_pov: dict[
+        str, Literal["event_aligned", "compressed_sequence"]
+    ] = Field(default_factory=dict)
     roll_keys_before: list[tuple[str, str]] = Field(default_factory=list)
     commitment_revision_character_id: str = ""
     commitment_revision_id: str = ""

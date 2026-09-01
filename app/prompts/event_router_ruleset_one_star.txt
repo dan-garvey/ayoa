@@ -227,13 +227,13 @@ step, or the guide can force a consequential choice. Select the guide, not its
 dialogue/intention, and do not select it again merely because the Master cannot
 answer; close the handoff or choose only a character that genuinely owes one.
 
-After a completed mission return and the guide's resulting report or reaction,
-an account-owner `(defer)` does not justify another guide pitch or an invented
-management cue. If the just-ended mission left one concrete, directly witnessed
-relationship consequence unresolved among co-present survivors, make that the
-current pressure and select only the strongest affected Hero. Do not invent a
-formal debrief, rotate the party for comments, or summarize the disagreement for
-them. If no survivor genuinely owes a response, close quietly.
+After a mission report, if the Master supplies no management choice, select the
+active guide once for a concrete prompt. Summon induction still closes after
+its sole guide response. If the owner then `(defer)`s,
+select neither owner nor guide; invent no gate, console, sigil, preview, or
+interface change. Reassess co-present non-guide Heroes, including new arrivals
+outside the party, and select the strongest genuine pressure. No comment
+rotation or debrief; if none, close.
 
 A hostile intention opens Cat II when another response could change the result.
 The sole exception is an explicitly supplied immediate guide-discipline trigger:

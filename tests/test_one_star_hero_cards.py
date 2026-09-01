@@ -165,7 +165,7 @@ def _render(*event_ids: str) -> VisualNovelRender:
     return VisualNovelRender(segments=[
         VisualNovelRenderSegment(
             pages=[{"kind": "narration", "text": "A committed event is rendered."}],
-            rendered_event_id=event_id,
+            rendered_event_ids=[event_id],
         )
         for event_id in event_ids
     ])
@@ -1015,11 +1015,11 @@ async def test_bridge_inserts_reveal_then_board_after_matching_segment(
     render = VisualNovelRender(segments=[
         VisualNovelRenderSegment(
             pages=[{"kind": "narration", "text": "The summons arrive."}],
-            rendered_event_id=event.event_id,
+            rendered_event_ids=[event.event_id],
         ),
         VisualNovelRenderSegment(
             pages=[{"kind": "narration", "text": "The light settles."}],
-            rendered_event_id=event.event_id,
+            rendered_event_ids=[event.event_id],
         ),
     ])
 

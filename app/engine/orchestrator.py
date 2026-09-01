@@ -988,6 +988,7 @@ class Orchestrator:
                 acting_player_input=pending.acting_player_input,
                 suppress_reaction_prompts=pending.suppress_reaction_prompts,
                 soft_handoff_candidate=pending.soft_handoff_candidate,
+                narration_modes_by_pov=pending.narration_modes_by_pov,
             )
             if beat_result.continue_requested:
                 prior_result = next(

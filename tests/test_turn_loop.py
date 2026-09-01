@@ -1132,6 +1132,82 @@ class TestBeatCascade:
         ] == ["pip", "pip"]
         assert fake.continuation_calls == []
         assert len(fake.narrator_calls) == 1
+        assert (
+            fake.narrator_calls[0]["narration_mode"]
+            == "compressed_sequence"
+        )
+
+    def test_one_star_mission_batch_is_one_grouped_visual_novel_segment(
+        self,
+        monkeypatch,
+    ):
+        from app.engine import one_star_adapter
+
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.presentation_mode = "visual_novel"
+        ckpt.session.config.settings.max_agent_cascades_per_beat = 2
+
+        class VisualNovelDispatcher(FakeDispatcher):
+            async def narrator_compose(self, **kwargs):
+                envelope, entry = await super().narrator_compose(**kwargs)
+                return VisualNovelNarratorOutput(
+                    handoff=envelope.handoff,
+                    handoff_reason=envelope.handoff_reason,
+                    beats=[VisualNovelBeatPages(pages=[VisualNovelPage(
+                        kind="narration",
+                        text="The ambush resolves in one violent rush.",
+                    )])],
+                ), entry
+
+        fake = VisualNovelDispatcher()
+        fake.queue_route(_router_out(
+            event_id="evt_ambush_opens",
+            agent_ids=["pip"],
+            event_kind="beat_continues",
+        ))
+        fake.queue_route(_router_out(
+            event_id="evt_ambush_turns",
+            agent_ids=["pip"],
+            event_kind="beat_continues",
+        ))
+        fake.queue_route(_router_out(
+            event_id="evt_ambush_closes",
+            agent_ids=["pip"],
+            event_kind="beat_continues",
+        ))
+        fake.queue_agent("Pip makes one scene-sized survival move.")
+        fake.queue_agent("Pip finishes the initial attackers.")
+        account = SimpleNamespace(
+            state=SimpleNamespace(active_mission=object()),
+        )
+        monkeypatch.setattr(
+            one_star_adapter,
+            "one_star_should_autonomous_mission_batch_after_result",
+            lambda *_args, **_kwargs: True,
+        )
+        monkeypatch.setattr(
+            one_star_adapter,
+            "load_one_star_account",
+            lambda _ckpt: (object(), account),
+        )
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="(defer)",
+        ))
+
+        render = result.visual_novel_renders["alice"]
+        assert len(render.segments) == 1
+        assert render.segments[0].rendered_event_ids == [
+            "evt_ambush_opens",
+            "evt_ambush_turns",
+            "evt_ambush_closes",
+        ]
+        assert fake.narrator_calls[0]["narration_mode"] == (
+            "compressed_sequence"
+        )
 
     def test_one_star_mission_batch_tries_one_targetless_continuation(
         self,
@@ -4128,9 +4204,9 @@ class TestNarratorHandoff:
         }
         render = result.visual_novel_renders["alice"]
         assert len(render.segments) == 2
-        assert [segment.rendered_event_id for segment in render.segments] == [
-            "evt_motion",
-            "evt_arrival",
+        assert [segment.rendered_event_ids for segment in render.segments] == [
+            ["evt_motion"],
+            ["evt_arrival"],
         ]
         assert [
             page.text

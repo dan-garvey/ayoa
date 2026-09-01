@@ -13,6 +13,7 @@ import json
 import logging
 import re
 import time
+from typing import Literal
 
 from app.engine.prompt_manager import PromptManager
 from app.engine.context_builder import (
@@ -37,6 +38,7 @@ from app.schemas.narrator import (
     NarratorFinalOutput,
     NarratorOutput,
     TranscriptEntry,
+    VisualNovelBeatPages,
     VisualNovelNarratorOutput,
     narrator_plain_text,
     visual_novel_pages_contain_source_identifiers,
@@ -45,6 +47,8 @@ from app.schemas.narrator import (
 from app.schemas.state import RenderBufferEntry
 
 logger = logging.getLogger(__name__)
+
+NarrationMode = Literal["event_aligned", "compressed_sequence"]
 
 
 def _safe_narrator_prompt_context(value: object) -> str:
@@ -110,6 +114,33 @@ def _visual_novel_sprite_roster(
         label for label in dict.fromkeys(labels) if labels.count(label) == 1
     )
     return unique_labels
+
+
+def _visual_novel_output_sprite_rosters(
+    ckpt: CheckpointFile,
+    *,
+    viewer_id: str,
+    resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
+    narration_mode: NarrationMode,
+) -> tuple[tuple[str, ...], ...]:
+    """Return the safe foreground roster for each requested output segment."""
+
+    if narration_mode == "compressed_sequence":
+        return (
+            _visual_novel_sprite_roster(
+                ckpt,
+                viewer_id=viewer_id,
+                resolved=resolved,
+            ),
+        )
+    return tuple(
+        _visual_novel_sprite_roster(
+            ckpt,
+            viewer_id=viewer_id,
+            resolved=[pair],
+        )
+        for pair in resolved
+    )
 
 
 def _assert_visual_novel_sprite_cues(
@@ -437,6 +468,7 @@ async def compose_pov_render(
     user_input: str = "",
     handoff_policy: str = "forced",
     handoff_context: str = "",
+    narration_mode: NarrationMode = "event_aligned",
 ) -> tuple[NarratorOutput, "TranscriptEntry"]:
     """v11 per-POV narrator entry point.
 
@@ -469,6 +501,10 @@ async def compose_pov_render(
     `commit_pov_render`; rejected handoff candidates must not affect narrator
     history or visual-introduction state.
     """
+    if narration_mode not in {"event_aligned", "compressed_sequence"}:
+        raise ValueError(f"unknown narrator mode: {narration_mode!r}")
+    if narration_mode == "compressed_sequence" and partial_mode:
+        raise ValueError("compressed narration cannot render a partial beat")
     resolved = resolve_buffered_events_for_render(ckpt, buffered_events)
 
     # POV character identity. Fall back to the raw id if the roster
@@ -489,20 +525,23 @@ async def compose_pov_render(
     player_characters_block = build_narrator_player_characters_block(
         ckpt, pov_character_id
     )
-    sprite_labels_by_beat = tuple(
-        _visual_novel_sprite_roster(
-            ckpt,
-            viewer_id=pov_character_id,
-            resolved=[pair],
-        )
-        for pair in resolved
+    output_sprite_rosters = _visual_novel_output_sprite_rosters(
+        ckpt,
+        viewer_id=pov_character_id,
+        resolved=resolved,
+        narration_mode=narration_mode,
+    )
+    input_sprite_rosters = (
+        output_sprite_rosters * len(resolved)
+        if narration_mode == "compressed_sequence"
+        else output_sprite_rosters
     )
     visible_events_block = _format_visible_events_block(
         resolved,
         pov_character_id,
         ckpt,
         sprite_labels_by_beat=(
-            sprite_labels_by_beat
+            input_sprite_rosters
             if ckpt.session.config.settings.presentation_mode == "visual_novel"
             else ()
         ),
@@ -515,11 +554,16 @@ async def compose_pov_render(
     visual_intro_block = format_narrator_visual_introductions(
         visual_intro_plan.loadouts,
     )
-    rendering_note = (
-        PARTIAL_MODE_MARKER
-        if partial_mode
-        else "Write through to the natural handoff point."
-    )
+    if partial_mode:
+        rendering_note = PARTIAL_MODE_MARKER
+    elif narration_mode == "compressed_sequence":
+        rendering_note = (
+            "Treat every supplied visible beat as one rapid conflict sequence. "
+            "Return one concise passage for the whole sequence, normally one "
+            "to three visual-novel pages when that format is active."
+        )
+    else:
+        rendering_note = "Write through to the natural handoff point."
 
     pov_history = ckpt.narrator_conversations.get(pov_character_id, [])
 
@@ -542,11 +586,12 @@ async def compose_pov_render(
     render_ms = (time.monotonic() - render_t0) * 1000
 
     logger.info(
-        "compose_pov_render: pov=%s events=%d partial=%s history=%d msgs "
+        "compose_pov_render: pov=%s events=%d partial=%s mode=%s history=%d msgs "
         "(prompt_render_ms=%.1f)",
         pov_character_id,
         len(resolved),
         partial_mode,
+        narration_mode,
         len(pov_history),
         render_ms,
     )
@@ -573,12 +618,22 @@ async def compose_pov_render(
             handoff_policy=handoff_policy,
         )
         if isinstance(result, VisualNovelNarratorOutput):
+            if (
+                narration_mode == "compressed_sequence"
+                and result.handoff == "render"
+                and len(result.beats) > 1
+            ):
+                result.beats = [VisualNovelBeatPages(pages=[
+                    page
+                    for beat in result.beats
+                    for page in beat.pages
+                ])]
             if rejected_result is not None:
                 _assert_visual_novel_correction_preserves_contract(
                     rejected_result,
                     result,
                     source_ids=roster_source_ids,
-                    allowed_sprite_labels_by_beat=sprite_labels_by_beat,
+                    allowed_sprite_labels_by_beat=output_sprite_rosters,
                 )
             try:
                 _assert_visual_novel_output_is_player_safe(ckpt, result)
@@ -589,17 +644,17 @@ async def compose_pov_render(
                 try:
                     _assert_visual_novel_sprite_cues(
                         result,
-                        allowed_labels_by_beat=sprite_labels_by_beat,
+                        allowed_labels_by_beat=output_sprite_rosters,
                     )
                 except ValueError:
                     if attempt:
                         repaired = _repair_visual_novel_sprite_cues(
                             result,
-                            allowed_labels_by_beat=sprite_labels_by_beat,
+                            allowed_labels_by_beat=output_sprite_rosters,
                         )
                         _assert_visual_novel_sprite_cues(
                             repaired,
-                            allowed_labels_by_beat=sprite_labels_by_beat,
+                            allowed_labels_by_beat=output_sprite_rosters,
                         )
                         logger.warning(
                             "visual-novel narrator sprite cues required "
@@ -664,6 +719,7 @@ def commit_pov_render(
     buffered_events: list[RenderBufferEntry],
     result: NarratorOutput,
     user_input: str,
+    narration_mode: NarrationMode = "event_aligned",
 ) -> None:
     """Persist one accepted POV conversation turn and visual introductions."""
     resolved = resolve_buffered_events_for_render(ckpt, buffered_events)
@@ -671,13 +727,11 @@ def commit_pov_render(
         _assert_visual_novel_output_is_player_safe(ckpt, result)
         _assert_visual_novel_sprite_cues(
             result,
-            allowed_labels_by_beat=tuple(
-                _visual_novel_sprite_roster(
-                    ckpt,
-                    viewer_id=pov_character_id,
-                    resolved=[pair],
-                )
-                for pair in resolved
+            allowed_labels_by_beat=_visual_novel_output_sprite_rosters(
+                ckpt,
+                viewer_id=pov_character_id,
+                resolved=resolved,
+                narration_mode=narration_mode,
             ),
         )
     visual_intro_plan = plan_render_visual_introductions(

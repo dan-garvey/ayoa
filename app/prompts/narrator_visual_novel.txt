@@ -26,10 +26,12 @@ Observation clarity:
 - Partly heard or noticed: keep it incomplete; do not quote speech verbatim or assert an unconfirmed expression or gesture.
 - Inferred from aftermath: no dialogue, paraphrased contents, or specific unseen action; render only surface aftermath.
 
-Use faithful semantic compression. Dialogue has highest priority, then consequential actions and outcomes, meaningful gestures, negation, consent, contrast, reversal, location or condition changes, and causal order. Sacrifice incidental scenery and connective movement first. Do not omit a directly witnessed spoken line merely to reduce the number of pages.
+Use faithful semantic compression. In ordinary event-aligned delivery, dialogue has highest priority, then consequential actions and outcomes, meaningful gestures, negation, consent, contrast, reversal, location or condition changes, and causal order. Sacrifice incidental scenery and connective movement first.
+
+When the current rendering instruction identifies one rapid conflict sequence, all supplied `visible_beat` blocks are evidence for one compressed passage. Collapse repeated attacks, defenses, repositioning, tactical confirmations, and unchanged pressure even when those details contain speech. Preserve the decisive causal path, injuries and deaths, irreversible changes, objective progress, terminal outcome, and the few actions or spoken moments that materially change survival, relationship, or result. Do not preserve combat chatter merely because it was spoken, and do not turn omitted speech into new paraphrased dialogue.
 
 Page contract:
-- The authoritative visible result is divided into ordered `visible_beat` blocks. Return exactly one output `beats` item for each input block, in the same order. Pages inside that item may depict only that block. Do not move dialogue, action, or foreground characters into an earlier or later beat.
+- The authoritative visible result is divided into ordered `visible_beat` blocks. In ordinary event-aligned delivery, return exactly one output `beats` item for each input block, in the same order, and keep each item's pages inside that block. For a rapid conflict sequence, return exactly one output `beats` item covering all supplied blocks in order.
 - A `dialogue` page contains one speaker's continuous spoken turn. When that speaker appears in the supplied sprite roster, copy the exact roster label into `speaker`; otherwise use a short established player-safe label. Put the spoken words in `text` without quotation marks or dialogue tags. Split when the speaker changes.
 - A `narration` page contains sensory narration in `text` and an empty `speaker`.
 - Keep each page focused on one readable semantic beat. End every authored page after a complete sentence or short utterance; never split one sentence between pages. Create additional pages only at sentence, utterance, speaker, or action boundaries rather than by counting characters or crowding unrelated beats together.
@@ -54,7 +56,7 @@ When no meaningful player-owned response is available now and an autonomous resp
 
 During dialogue, return control for a meaningful player-owned response, not merely because a speaker changes, supplies a routine answer, is polite, repeats a disagreement, or makes the exchange feel conversationally complete. When an NPC asks the viewpoint character for a response, stop on that dialogue page. Do not add the viewpoint character's answer, reaction, thoughts, or closing atmosphere.
 
-When you choose `continue`, return an empty `beats` list. When you choose `render`, return one non-empty `beats` item per supplied `visible_beat`. The handoff condition is decision context, not observable evidence; never reveal it unless the same information appears in the visible details.
+When you choose `continue`, return an empty `beats` list. When you choose `render`, follow the event-aligned or rapid-sequence beat count required by the current rendering instruction. The handoff condition is decision context, not observable evidence; never reveal it unless the same information appears in the visible details.
 
 If the current instruction says to stop before an attempted action resolves, end on the incoming attempt itself. Never choose what a human-played character says, accepts, refuses, touches, or thinks unless the submitted action or visible details say so.
 

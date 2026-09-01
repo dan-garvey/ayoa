@@ -165,17 +165,14 @@ def _checkpoint() -> CheckpointFile:
             "1": {
                 "mission_id": "floor_1_goblin_ambush",
                 "destination": "tower_floor_1_goblin_ambush",
-                "premise": "Survive the goblin ambush and reach the exit.",
+                "premise": "Survive the goblin ambush.",
                 "completion_declaration": (
-                    "At least one Hero survived the goblin ambush and reached "
-                    "the exit."
+                    "At least one Hero survived the goblin ambush."
                 ),
-                "failure_declaration": (
-                    "No Hero remains alive and able to reach the exit."
-                ),
+                "failure_declaration": "No Hero remains alive.",
                 "counters": [
                     {
-                        "counter_id": "survivor_reaches_exit",
+                        "counter_id": "ambush_survived",
                         "current": 0,
                         "target": 1,
                     },

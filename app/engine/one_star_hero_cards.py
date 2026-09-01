@@ -306,7 +306,11 @@ def one_star_hero_card_events_for_render(
             previous_checkpoint,
         )
     }
-    rendered_ids = [segment.rendered_event_id for segment in render.segments]
+    rendered_ids = [
+        event_id
+        for segment in render.segments
+        for event_id in segment.rendered_event_ids
+    ]
     missing = set(required) - set(rendered_ids)
     if missing:
         raise OneStarHeroCardError("master_render_missing_card_event")

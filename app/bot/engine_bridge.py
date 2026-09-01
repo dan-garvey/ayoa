@@ -478,7 +478,7 @@ class EngineBridge:
             resolution, stage_media = self.image_generation.resolve_visual_novel_stage(
                 session_id=session_id,
                 pov_character_id=pov_character_id,
-                rendered_event_ids=[segment.rendered_event_id],
+                rendered_event_ids=segment.rendered_event_ids,
             )
             if resolution.fallback_reason:
                 logger.info(
@@ -508,61 +508,64 @@ class EngineBridge:
                         ),
                     )
                 )
-            card_event = card_events_by_id.get(segment.rendered_event_id)
-            if (
-                card_event is not None
-                and card_event.event_id not in inserted_card_event_ids
-            ):
-                for reveal in render_one_star_summon_reveals(
-                    checkpoint=checkpoint,
-                    viewer_character_id=pov_character_id,
-                    event=card_event,
-                    generation=self.image_generation,
+            for rendered_event_id in segment.rendered_event_ids:
+                card_event = card_events_by_id.get(rendered_event_id)
+                if (
+                    card_event is not None
+                    and card_event.event_id not in inserted_card_event_ids
                 ):
-                    sections.append(VisualNovelDeckSection(
-                        pages=(VisualNovelPage(
-                            kind="narration",
-                            text=reveal.accessible_text,
-                        ),),
-                        stage_media=reveal.media,
-                        card_style="system_panel",
-                    ))
-                for board in render_one_star_hero_card_boards(
-                    checkpoint=checkpoint,
-                    viewer_character_id=pov_character_id,
-                    event=card_event,
-                    generation=self.image_generation,
+                    for reveal in render_one_star_summon_reveals(
+                        checkpoint=checkpoint,
+                        viewer_character_id=pov_character_id,
+                        event=card_event,
+                        generation=self.image_generation,
+                    ):
+                        sections.append(VisualNovelDeckSection(
+                            pages=(VisualNovelPage(
+                                kind="narration",
+                                text=reveal.accessible_text,
+                            ),),
+                            stage_media=reveal.media,
+                            card_style="system_panel",
+                        ))
+                    for board in render_one_star_hero_card_boards(
+                        checkpoint=checkpoint,
+                        viewer_character_id=pov_character_id,
+                        event=card_event,
+                        generation=self.image_generation,
+                    ):
+                        sections.append(VisualNovelDeckSection(
+                            pages=(VisualNovelPage(
+                                kind="narration",
+                                text=board.accessible_text,
+                            ),),
+                            stage_media=board.media,
+                            card_style="system_panel",
+                        ))
+                    inserted_card_event_ids.add(card_event.event_id)
+                mission_report = mission_reports_by_id.get(
+                    rendered_event_id
+                )
+                if (
+                    mission_report is not None
+                    and mission_report.event_id
+                    not in inserted_mission_report_ids
                 ):
-                    sections.append(VisualNovelDeckSection(
-                        pages=(VisualNovelPage(
-                            kind="narration",
-                            text=board.accessible_text,
-                        ),),
-                        stage_media=board.media,
-                        card_style="system_panel",
-                    ))
-                inserted_card_event_ids.add(card_event.event_id)
-            mission_report = mission_reports_by_id.get(
-                segment.rendered_event_id
-            )
-            if (
-                mission_report is not None
-                and mission_report.event_id
-                not in inserted_mission_report_ids
-            ):
-                for board in render_one_star_mission_report_boards(
-                    checkpoint=checkpoint,
-                    report=mission_report,
-                ):
-                    sections.append(VisualNovelDeckSection(
-                        pages=(VisualNovelPage(
-                            kind="narration",
-                            text=board.accessible_text,
-                        ),),
-                        stage_media=board.media,
-                        card_style="system_panel",
-                    ))
-                inserted_mission_report_ids.add(mission_report.event_id)
+                    for board in render_one_star_mission_report_boards(
+                        checkpoint=checkpoint,
+                        report=mission_report,
+                    ):
+                        sections.append(VisualNovelDeckSection(
+                            pages=(VisualNovelPage(
+                                kind="narration",
+                                text=board.accessible_text,
+                            ),),
+                            stage_media=board.media,
+                            card_style="system_panel",
+                        ))
+                    inserted_mission_report_ids.add(
+                        mission_report.event_id
+                    )
 
         if previous_checkpoint is not None:
             for transition in identity_transitions:
@@ -913,11 +916,11 @@ class EngineBridge:
             seen: set[str] = set()
             event_ids: list[str] = []
             for segment in render.segments:
-                event_id = segment.rendered_event_id
-                if event_id in seen:
-                    continue
-                seen.add(event_id)
-                event_ids.append(event_id)
+                for event_id in segment.rendered_event_ids:
+                    if event_id in seen:
+                        continue
+                    seen.add(event_id)
+                    event_ids.append(event_id)
             rendered_event_ids_by_pov[pov_character_id] = event_ids
 
         timeout = None if timeout is None else max(0.0, float(timeout))
