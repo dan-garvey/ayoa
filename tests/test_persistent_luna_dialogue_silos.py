@@ -416,8 +416,13 @@ def test_private_reflection_parser_requires_the_exact_anchored_shape() -> None:
     )
 
     parsed = _parse_private_reflection(raw, expected_nonce=nonce)
+    parsed_single_newline = _parse_private_reflection(
+        raw.replace("between them.\n\n(", "between them.\n("),
+        expected_nonce=nonce,
+    )
 
     assert parsed.public_body == "She keeps the cup between them."
+    assert parsed_single_newline.public_body == parsed.public_body
     assert parsed.reflection.nonce == nonce
     assert (
         parsed.reflection.fields["public_attempt"] == "I make the request sound casual."
