@@ -20,6 +20,7 @@ from scripts.run_persistent_luna_dialogue_silos import (
     WorkerBinding,
     _parse_private_reflection,
     _proxy_prompt,
+    _replace_system_prompt,
     _session_id_from_jsonl,
     build_conversation_plans,
     run_persistent_luna_silos,
@@ -437,6 +438,48 @@ def test_private_reflection_parser_requires_the_exact_anchored_shape() -> None:
             raw.replace("She keeps", "<actor_private_reflection> She keeps"),
             expected_nonce=nonce,
         )
+    with pytest.raises(ReflectionOutputError, match="trimmed one-line"):
+        _parse_private_reflection(
+            raw.replace("I want an answer", "I want\u2028an answer"),
+            expected_nonce=nonce,
+        )
+
+
+def test_private_reflection_parser_enforces_field_and_suffix_bounds() -> None:
+    nonce = "R-0123456789abcdef0123456789abcdef"
+
+    def response(lengths: list[int]) -> str:
+        payload = {
+            field: "x" * length
+            for field, length in zip(
+                (
+                    "present_true_position",
+                    "public_attempt",
+                    "deliberately_unsaid_truth",
+                    "unavailable_because",
+                    "relationship_status_cost",
+                    "continuity_pressure",
+                ),
+                lengths,
+                strict=True,
+            )
+        }
+        return (
+            "Public body.\n\n"
+            f'(<actor_private_reflection id="{nonce}">'
+            f"{json.dumps(payload, separators=(',', ':'))}"
+            "</actor_private_reflection>)"
+        )
+
+    assert _parse_private_reflection(
+        response([180, 1, 1, 1, 1, 1]), expected_nonce=nonce
+    )
+    with pytest.raises(ReflectionOutputError, match="1-180"):
+        _parse_private_reflection(response([181, 1, 1, 1, 1, 1]), expected_nonce=nonce)
+    with pytest.raises(ReflectionOutputError, match="1200 UTF-8 bytes"):
+        _parse_private_reflection(
+            response([180, 180, 180, 180, 180, 180]), expected_nonce=nonce
+        )
 
 
 def test_private_reflection_mode_keeps_raw_suffixes_out_of_public_relay(
@@ -524,6 +567,31 @@ def test_malformed_private_reflection_discards_the_conversation_and_restarts(
     )
 
 
+def test_reflection_restart_budget_survives_scheduler_relaunch(tmp_path: Path) -> None:
+    case = _case("budget", "left", "right")
+    config = SchedulerConfig(
+        conversation_count=1,
+        turn_count=4,
+        initial_concurrency=1,
+        max_concurrency=1,
+        auto_fanout=False,
+        max_technical_retries=0,
+        retry_backoff_seconds=0,
+        private_reflections=True,
+        max_reflection_conversation_restarts=0,
+    )
+
+    with pytest.raises(SchedulerError, match="invalidated the conversation"):
+        _run(
+            (case,),
+            tmp_path,
+            config=config,
+            executor=FakeLunaExecutor(outcomes=["malformed_reflection"]),
+        )
+    with pytest.raises(SchedulerError, match="restart budget is already exhausted"):
+        _run((case,), tmp_path, config=config, executor=FakeLunaExecutor())
+
+
 def test_persistent_delta_resume_excludes_history_and_carries_current_packet_and_nonce() -> (
     None
 ):
@@ -578,3 +646,91 @@ def test_default_proxy_prompt_remains_the_original_full_request_wrapper() -> Non
         "continuation for one actor; use nothing outside it.\n"
         f"<exact_character_agent_request>\n{payload}\n</exact_character_agent_request>\n"
     )
+
+
+def test_system_prompt_override_changes_only_the_proxy_projection(
+    tmp_path: Path,
+) -> None:
+    case = _case("override", "left", "right")
+    executor = FakeLunaExecutor()
+    override = "<role>Live this moment as yourself.</role>"
+    config = SchedulerConfig(
+        conversation_count=1,
+        turn_count=4,
+        initial_concurrency=1,
+        max_concurrency=1,
+        auto_fanout=False,
+        max_technical_retries=0,
+        retry_backoff_seconds=0,
+        persistent_delta_proxy=True,
+        system_prompt_override=override,
+    )
+
+    _run((case,), tmp_path, config=config, executor=executor)
+
+    assert all(
+        call["request"]["messages"][0]["content"] == override for call in executor.calls
+    )
+    ledger = json.loads(
+        (tmp_path / "conversations" / "01-override" / "response_ledger.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert ledger["responses"][0]["request"]["messages"][0]["content"] != override
+    state = json.loads((tmp_path / "scheduler_state.json").read_text(encoding="utf-8"))
+    assert len(state["run"]["system_prompt_override_sha256"]) == 64
+    source = {"messages": [{"role": "system", "content": "original"}]}
+    projected = _replace_system_prompt(source, override)
+    assert source["messages"][0]["content"] == "original"
+    assert projected["messages"][0]["content"] == override
+
+
+def test_delta_scheduler_refuses_an_uncertain_inflight_restart(tmp_path: Path) -> None:
+    case = _case("inflight", "left", "right")
+    config = SchedulerConfig(
+        conversation_count=1,
+        turn_count=4,
+        initial_concurrency=1,
+        max_concurrency=1,
+        auto_fanout=False,
+        max_technical_retries=0,
+        retry_backoff_seconds=0,
+        persistent_delta_proxy=True,
+    )
+    _run((case,), tmp_path, config=config, executor=FakeLunaExecutor())
+    state_path = tmp_path / "scheduler_state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["inflight_delta_calls"]["uncertain"] = {"ledger_sequence": 4}
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    with pytest.raises(SchedulerError, match="uncertain model state"):
+        _run((case,), tmp_path, config=config, executor=FakeLunaExecutor())
+
+
+def test_private_reflection_delta_mode_runs_eight_conversations_concurrently(
+    tmp_path: Path,
+) -> None:
+    cases = tuple(
+        _case(f"parallel_{index}", f"left_{index}", f"right_{index}")
+        for index in range(8)
+    )
+    executor = FakeLunaExecutor(delay_seconds=0.001)
+    config = SchedulerConfig(
+        conversation_count=8,
+        turn_count=4,
+        initial_concurrency=8,
+        max_concurrency=8,
+        auto_fanout=False,
+        max_technical_retries=0,
+        retry_backoff_seconds=0,
+        private_reflections=True,
+        persistent_delta_proxy=True,
+    )
+
+    result = _run(cases, tmp_path, config=config, executor=executor)
+
+    assert len(result.results) == 8
+    assert executor.max_active_calls == 8
+    state = json.loads(result.state_path.read_text(encoding="utf-8"))
+    assert len(state["private_reflection_turns"]) == 32
+    assert state["inflight_delta_calls"] == {}
