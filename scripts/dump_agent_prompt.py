@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sys
 from pathlib import Path
 
@@ -42,8 +43,8 @@ def _content_text(content) -> str:
 def _render_system_and_user_template(checkpoint, character) -> tuple[str, str]:
     """Render the generic system prefix and one representative user packet."""
     from app.engine.context_builder import (
+        build_character_turn_identity_seed,
         build_character_turn_request_packet,
-        build_dnd_character_identity_sentence,
         build_dnd_player_identities_block,
         format_elapsed_agent_turn_block,
         format_pending_observations_block,
@@ -55,8 +56,10 @@ def _render_system_and_user_template(checkpoint, character) -> tuple[str, str]:
     current_moment = "\n\n".join(
         block.strip()
         for block in (
-            build_dnd_character_identity_sentence(checkpoint, character),
-            build_dnd_player_identities_block(checkpoint),
+            build_dnd_player_identities_block(
+                checkpoint,
+                exclude_character_id=character.character_id,
+            ),
             format_elapsed_agent_turn_block(character, checkpoint),
             format_pending_observations_block(character),
             format_character_moment(
@@ -68,10 +71,15 @@ def _render_system_and_user_template(checkpoint, character) -> tuple[str, str]:
         )
         if block.strip()
     )
+    identity_seed = build_character_turn_identity_seed(character, checkpoint)
+    identity_hash = hashlib.sha256(identity_seed.encode("utf-8")).hexdigest()
     request_packet = build_character_turn_request_packet(
-        character,
-        checkpoint,
         current_moment,
+        identity_seed=(
+            identity_seed
+            if character.agent_identity_seed_sha256 != identity_hash else ""
+        ),
+        supersedes_identity=bool(character.agent_identity_seed_sha256),
     )
     ruleset_id = str(
         getattr(

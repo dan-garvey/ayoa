@@ -32,7 +32,10 @@ from app.schemas.event_router import (
 from app.schemas.dnd_cat_ii import DndCombatManagerAdjudication, RulesAdjudication
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.content_pack import SafeAssetRevealPayload
-from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
+from app.schemas.content_privacy import (
+    PRIVATE_RUNTIME_METADATA_CONTEXT,
+    REDACTED_IMPORT_SENTINEL,
+)
 from app.schemas.narrator import (
     NarratorFinalOutput,
     VisualNovelBeatPages,
@@ -253,6 +256,23 @@ class TestCharacterRecord:
         cr = CharacterRecord(**CHARACTER_EXAMPLE)
         rebuilt = CharacterRecord(**cr.model_dump())
         assert rebuilt == cr
+
+    def test_identity_seed_hash_is_validated_and_private(self):
+        seed_hash = "a" * 64
+        cr = CharacterRecord(
+            **CHARACTER_EXAMPLE,
+            agent_identity_seed_sha256=seed_hash,
+        )
+
+        assert cr.model_dump()["agent_identity_seed_sha256"] == ""
+        assert cr.model_dump(context={
+            PRIVATE_RUNTIME_METADATA_CONTEXT: True,
+        })["agent_identity_seed_sha256"] == seed_hash
+        with pytest.raises(ValidationError):
+            CharacterRecord(
+                **CHARACTER_EXAMPLE,
+                agent_identity_seed_sha256="not-a-sha256",
+            )
 
     def test_invalid_status(self):
         data = {**CHARACTER_EXAMPLE, "status": "exploded"}
@@ -1524,7 +1544,7 @@ class TestCheckpointFile:
             world_state=WorldState(**WORLD_STATE_EXAMPLE),
             characters=[CharacterRecord(**CHARACTER_EXAMPLE)],
         )
-        assert ckpt.schema_version == "5.0"  # per-POV history hard break
+        assert ckpt.schema_version == "6.0"  # identity seed hard break
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
         assert not hasattr(ckpt, "importer_version")

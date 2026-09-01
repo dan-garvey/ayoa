@@ -448,7 +448,6 @@ class TestCharacterAgent:
             "twenty years",
             "hidden passage",
         ):
-            assert value in live_user
             assert value in saved[0].content
         _assert_no_legacy_character_markers(mock_client.complete.await_args.kwargs["messages"])
         saved_assistant = saved[1].content[0]["text"]
@@ -710,7 +709,7 @@ class TestCharacterAgent:
         assert guard_character.last_agent_turn_at_s is None
 
     @pytest.mark.asyncio
-    async def test_prompt_contains_character_context(
+    async def test_prompt_seeds_character_context_outside_current_packet(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -829,6 +828,32 @@ class TestCharacterAgent:
         assert "D&D Player Character Identities" not in system_text
         assert "Hill Dwarf" not in system_text
         assert "Lyra: Hill Dwarf; Cleric 3" in user_text
+
+    @pytest.mark.asyncio
+    async def test_dnd_current_tail_excludes_the_acting_characters_identity(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        sample_checkpoint.session.config.settings.ruleset_id = "dnd5e_basic"
+        sample_checkpoint.session.character_bindings = {"guard_17": "player"}
+        guard_character.mechanics = {
+            "ruleset_id": "dnd5e_basic",
+            "dnd5e_sheet": {
+                "identity": {"species": "Hill Dwarf"},
+                "statblock": {},
+            },
+        }
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+
+        await CharacterAgent(mock_client, prompt_manager).turn(
+            guard_character, sample_checkpoint,
+        )
+
+        user_text = mock_client.complete.await_args.kwargs["messages"][-1][
+            "content"
+        ]
+        assert user_text.count("Hill Dwarf") == 1
+        assert "D&D Player Character Identities" not in user_text
 
     @pytest.mark.asyncio
     async def test_dnd_player_identity_absent_outside_dnd_ruleset(
@@ -1210,7 +1235,7 @@ class TestCharacterAgent:
             assert value not in system_text
             assert value in first_user
             assert value in historical_user
-            assert value in current_user
+            assert value not in current_user
         assert "The fountain cracks again." in first_user
         assert "The fountain cracks again." in historical_user
         assert "Rain starts falling." in current_user
@@ -1326,13 +1351,14 @@ class TestCharacterAgentTurnParser:
 class TestCharacterAgentTurnHistory:
     """Character turn frames share one turn prompt and one actor history.
 
-    Every user turn is a complete actor/current-input packet.  It stays in the
-    rolling conversation verbatim (apart from the disposable presentation
-    catalog), and provider-side context compaction is intentionally disabled.
+    One owner-only identity seed precedes the full uncompacted history. Every
+    later user turn contains only that moment's new current input (apart from
+    the disposable presentation catalog), and provider-side context
+    compaction is intentionally disabled.
     """
 
     @pytest.mark.asyncio
-    async def test_full_actor_packet_repeats_without_compaction_or_self_stripping(
+    async def test_identity_seed_is_once_and_current_history_is_uncompacted(
         self,
         mock_client,
         prompt_manager,
@@ -1362,10 +1388,12 @@ class TestCharacterAgentTurnHistory:
         assert "First unique observation." not in first_system
         assert "First unique observation." in first_user
         assert re.search(r"\bYou are\b[^\n]*Captain Vero", first_user)
+        assert "<identity>" in first_user
         assert mock_client.complete.await_args_list[0].kwargs["compact"] is False
         _assert_no_legacy_character_markers(first_messages)
 
         guard_character.pending_observations = ["Second unique observation."]
+        guard_character.location = "gatehouse"
         await agent.turn(guard_character, sample_checkpoint)
         second_messages = mock_client.complete.await_args_list[1].kwargs[
             "messages"
@@ -1374,14 +1402,95 @@ class TestCharacterAgentTurnHistory:
         historical_user = _message_text(second_messages[1])
         second_user = _message_text(second_messages[-1])
         assert actor_fact not in second_system
-        for user_text in (historical_user, second_user):
-            assert actor_fact in user_text
-            assert "Captain Vero" in user_text
+        assert actor_fact in historical_user
+        assert "Captain Vero" in historical_user
+        assert actor_fact not in second_user
+        assert "Captain Vero" not in second_user
         assert "First unique observation." in historical_user
         assert "Second unique observation." in second_user
         assert historical_user == first_user
+        assert sum("<identity>" in _message_text(message) for message in second_messages) == 1
         assert mock_client.complete.await_args_list[1].kwargs["compact"] is False
         _assert_no_legacy_character_markers(second_messages)
+
+    @pytest.mark.asyncio
+    async def test_perception_history_precedes_one_normal_turn_identity_seed(
+        self,
+        mock_client,
+        prompt_manager,
+        guard_character,
+        sample_checkpoint,
+        sample_agent_text,
+    ):
+        agent = CharacterAgent(mock_client, prompt_manager)
+        mock_client.complete.return_value = _llm_response(
+            "Polished armor, parade-rest posture.",
+        )
+        await agent.perceive(guard_character, sample_checkpoint)
+
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        guard_character.pending_observations = ["A bell rings at the gate."]
+        await agent.turn(guard_character, sample_checkpoint)
+
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        assert "hidden passage" not in _message_text(messages[1])
+        assert "hidden passage" in _message_text(messages[3])
+        assert "A bell rings at the gate." in _message_text(messages[-1])
+        assert "<identity>" in _message_text(messages[-1])
+        history = sample_checkpoint.character_conversations["guard_17"]
+        assert [message.role for message in history] == [
+            "user", "assistant", "user", "assistant",
+        ]
+        assert sum("<identity>" in str(message.content) for message in history) == 1
+
+    @pytest.mark.asyncio
+    async def test_failed_draft_retries_identity_seed_without_committing_it(
+        self,
+        mock_client,
+        prompt_manager,
+        guard_character,
+        sample_checkpoint,
+        sample_agent_text,
+    ):
+        agent = CharacterAgent(mock_client, prompt_manager)
+        mock_client.complete.side_effect = [
+            _llm_response("<private_carry>not committed</private_carry>"),
+            _llm_response(sample_agent_text),
+        ]
+
+        with pytest.raises(CharacterAgentOutputError, match="retired"):
+            await agent.draft_turn(guard_character, sample_checkpoint)
+        assert guard_character.character_id not in sample_checkpoint.character_conversations
+        assert guard_character.agent_identity_seed_sha256 == ""
+
+        await agent.turn(guard_character, sample_checkpoint)
+        retry_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
+        assert sum("<identity>" in _message_text(message) for message in retry_messages) == 1
+        history = sample_checkpoint.character_conversations["guard_17"]
+        assert sum("<identity>" in str(message.content) for message in history) == 1
+
+    @pytest.mark.asyncio
+    async def test_identity_changes_seed_one_new_revision(
+        self,
+        mock_client,
+        prompt_manager,
+        guard_character,
+        sample_checkpoint,
+        sample_agent_text,
+    ):
+        agent = CharacterAgent(mock_client, prompt_manager)
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        await agent.turn(guard_character, sample_checkpoint)
+        first_hash = guard_character.agent_identity_seed_sha256
+
+        guard_character.actor.facts.append(ActorFact(text="A new private fact."))
+        await agent.turn(guard_character, sample_checkpoint)
+
+        revision_request = mock_client.complete.await_args.kwargs["messages"][-1]
+        assert "<identity>" in revision_request["content"]
+        assert "supersedes earlier identity packets" in revision_request["content"]
+        assert "A new private fact." in revision_request["content"]
+        assert guard_character.agent_identity_seed_sha256 != first_hash
 
     @pytest.mark.asyncio
     async def test_foreground_and_background_share_same_system_prefix(
@@ -1421,7 +1530,7 @@ class TestCharacterAgentTurnHistory:
         _assert_no_legacy_character_markers(background_messages)
 
     @pytest.mark.asyncio
-    async def test_different_characters_keep_stable_system_and_full_user_identity(
+    async def test_different_characters_keep_stable_system_and_private_identity_seed(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -1481,7 +1590,7 @@ class TestCharacterAgentTurnHistory:
         _assert_no_legacy_character_markers(other_messages)
 
     @pytest.mark.asyncio
-    async def test_turn_user_message_contains_full_packet_without_legacy_labels(
+    async def test_turn_current_packet_has_no_repeated_identity(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -1496,7 +1605,7 @@ class TestCharacterAgentTurnHistory:
         assert "Captain Vero" in user_content
         assert "A unique current observation." not in system_content
         assert "A unique current observation." in user_content
-        assert re.search(r"\bYou are\b[^\n]*Captain Vero", user_content)
+        assert "<identity>" in user_content
         assert "## Scene" not in user_content
         assert "## What You Observe This Turn" not in user_content
         assert "## Other Characters' Responses This Turn" not in user_content
@@ -1576,14 +1685,14 @@ class TestCharacterAgentTurnHistory:
         keys = list(sample_checkpoint.character_conversations.keys())
         assert keys == ["guard_17"]
         convo = sample_checkpoint.character_conversations["guard_17"]
-        # 2 user/assistant pairs = 4 messages total.
+        # Two full user/assistant pairs; the first user packet seeds identity.
         assert len(convo) == 4
-        # Sequence: first user, first assistant, background user,
+        # Sequence: first user/assistant, background user,
         # background assistant.
         assert convo[0].role == "user"
         assert "Captain Vero" in convo[0].content
         assert convo[2].role == "user"
-        assert "Captain Vero" in convo[2].content
+        assert "Captain Vero" not in convo[2].content
         assert convo[0].content != convo[2].content
 
 
@@ -1711,6 +1820,7 @@ class TestPerceptionMode:
         mock_client.complete.return_value = self._llm_text_only("loadout")
         agent = CharacterAgent(mock_client, prompt_manager)
         await agent.perceive(guard_character, sample_checkpoint)
+        assert guard_character.agent_identity_seed_sha256 == ""
         messages = mock_client.complete.call_args.kwargs["messages"]
         system_content = _message_text(messages[0])
         user_content = _message_text(messages[-1])

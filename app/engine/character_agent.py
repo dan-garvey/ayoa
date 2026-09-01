@@ -8,9 +8,9 @@ before the response is persisted or forwarded to any other role.
 
 Foreground and private/background calls share the turn contract while their
 frame and witnessed input remain in the user tail. Character identity and
-sparse actor-owned facts are supplied in that current packet. Each character
-keeps its own rolling history; character calls do not request provider-side
-context compaction.
+sparse actor-owned facts are seeded once into that actor's private history.
+Each character keeps its own rolling history; character calls do not request
+provider-side context compaction.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from hashlib import sha256
 from dataclasses import dataclass
 from typing import Any
 
@@ -32,8 +33,8 @@ from app.engine.dnd_combat_access import (
 )
 from app.engine.context_builder import (
     build_character_perception_request_packet,
+    build_character_turn_identity_seed,
     build_character_turn_request_packet,
-    build_dnd_character_identity_sentence,
     build_dnd_player_identities_block,
     clear_character_inbox,
     format_character_location_for_agent,
@@ -80,6 +81,7 @@ class CharacterAgentTurnDraft:
     output: CharacterAgentOutput
     user_message: ConversationMessage
     assistant_message: ConversationMessage
+    identity_seed_sha256: str = ""
 
 
 _SILENCE_MARKER = "<silence/>"
@@ -87,7 +89,6 @@ _SILENCE_TOKEN_RE = re.compile(
     r"<\s*/?\s*silence\b",
     re.IGNORECASE,
 )
-
 
 class CharacterAgentOutputError(ValueError):
     """A character response violated the observable turn contract."""
@@ -325,17 +326,6 @@ class CharacterAgent:
                 "agent_ruleset_one_star"
             ).strip()
         return ""
-
-    @staticmethod
-    def _dnd_character_identity_block(
-        character: CharacterRecord,
-        checkpoint: CheckpointFile,
-    ) -> str:
-        """Keep active D&D identity in the current adapter-tail packet."""
-
-        if _session_ruleset_id(checkpoint) != DND5E_BASIC_RULESET_ID:
-            return ""
-        return build_dnd_character_identity_sentence(checkpoint, character).strip()
 
     @staticmethod
     def _one_star_agent_state_block(
@@ -608,6 +598,8 @@ class CharacterAgent:
             character.character_id, [],
         )
         conv.extend([draft.user_message, draft.assistant_message])
+        if draft.identity_seed_sha256:
+            character.agent_identity_seed_sha256 = draft.identity_seed_sha256
         apply_character_presentation_choice(
             checkpoint,
             character,
@@ -642,12 +634,17 @@ class CharacterAgent:
         stays in one place.
 
         The generic system contract is shared across characters. This
-        character's identity and current fictional circumstance live in the
-        user packet, which is retained verbatim in history except for a
-        disposable presentation catalog.
+        character's rendered identity joins the current packet only when its
+        revision changes; the current fictional circumstance is retained
+        verbatim except for a disposable presentation catalog.
 
         """
         history = checkpoint.character_conversations.get(character.character_id, [])
+        identity_seed = build_character_turn_identity_seed(character, checkpoint)
+        identity_seed_sha256 = sha256(identity_seed.encode("utf-8")).hexdigest()
+        needs_identity_seed = (
+            character.agent_identity_seed_sha256 != identity_seed_sha256
+        )
 
         elapsed_time_block = format_elapsed_agent_turn_block(
             character, checkpoint,
@@ -656,16 +653,18 @@ class CharacterAgent:
             character, checkpoint
         )
         request_packet = build_character_turn_request_packet(
-            character,
-            checkpoint,
             _join_prompt_blocks(
-                self._dnd_character_identity_block(character, checkpoint),
-                build_dnd_player_identities_block(checkpoint),
+                build_dnd_player_identities_block(
+                    checkpoint,
+                    exclude_character_id=character.character_id,
+                ),
                 elapsed_time_block,
                 format_pending_observations_block(character),
                 current_moment,
                 one_star_state,
             ),
+            identity_seed=identity_seed if needs_identity_seed else "",
+            supersedes_identity=bool(character.agent_identity_seed_sha256),
         )
 
         render_t0 = time.monotonic()
@@ -735,4 +734,7 @@ class CharacterAgent:
             output=result,
             user_message=user_message,
             assistant_message=assistant_message,
+            identity_seed_sha256=(
+                identity_seed_sha256 if needs_identity_seed else ""
+            ),
         )

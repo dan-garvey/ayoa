@@ -312,6 +312,23 @@ class CharacterRecord(BaseModel):
     # them. Cross-actor consumers (router, narrator, other agents) learn only
     # through in-fiction signals (a courier, an observable fact, a witnessed
     # action), never an actor-local hidden summary.
+    # Engine-owned revision of the exact owner-only identity packet retained
+    # in this character's private conversation. It is checkpoint metadata,
+    # not character knowledge or model input.
+    agent_identity_seed_sha256: str = Field(
+        default="",
+        pattern=r"^(?:|[0-9a-f]{64})$",
+    )
+
+    @field_serializer("agent_identity_seed_sha256")
+    def _serialize_agent_identity_seed_sha256(
+        self,
+        value: str,
+        info: SerializationInfo,
+    ) -> str:
+        if should_include_private_runtime_metadata(info.context):
+            return value
+        return ""
 
     @model_validator(mode="after")
     def _validate_entity_kind(self) -> "CharacterRecord":
