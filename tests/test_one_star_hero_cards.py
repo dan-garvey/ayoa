@@ -19,6 +19,7 @@ from app.engine.one_star_hero_cards import (
     OneStarHeroCardError,
     OneStarHeroCardBoard,
     OneStarHeroCardEvent,
+    OneStarSummonCardBoards,
     OneStarSummonReveal,
     committed_one_star_hero_card_event,
     generated_portrait_prewarm_character_ids,
@@ -27,6 +28,7 @@ from app.engine.one_star_hero_cards import (
     one_star_summon_reveal_band,
     render_one_star_hero_card,
     render_one_star_hero_card_boards,
+    render_one_star_summon_card_boards,
     render_one_star_summon_reveals,
 )
 from app.engine.one_star_visuals import sprite_set_id_for_viewer
@@ -514,7 +516,7 @@ def test_summon_reveals_use_current_rank_order_and_master_only(
         for band in ("under_3", "3_to_4", "5_to_6", "7")
     ]
     assert all(reveal.media.mime_type == "image/gif" for reveal in reveals)
-    assert all("static result" in reveal.accessible_text for reveal in reveals)
+    assert all("next static card" in reveal.accessible_text for reveal in reveals)
     assert all(
         hero.name not in reveal.accessible_text
         for hero in heroes
@@ -546,6 +548,96 @@ def test_summon_reveals_use_current_rank_order_and_master_only(
             event=event,
             generation=_FakeGeneration(unavailable_ids={missing_reference}),
         )
+
+
+def test_summon_card_boards_render_each_pull_then_unchanged_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checkpoint = _seed()
+    event = OneStarHeroCardEvent(
+        event_id="evt_individual_then_group",
+        kind="summon",
+        characters=tuple(
+            _character(checkpoint, character_id)
+            for character_id in (
+                "renna_holt",
+                "mirelle_voss",
+                "edren_marr",
+            )
+        ),
+    )
+    _owner, account = load_one_star_account(checkpoint)
+    presentation = account.config.visual_novel_presentation
+    assert presentation is not None
+    frame_id = presentation.hero_card_frame_reference_id
+    frame_media = _file_media(_FRAME)
+    portrait_media = _media(
+        Image.new("RGBA", (280, 430), (63, 91, 127, 255))
+    )
+
+    def resolve(reference, *, runtime_root):
+        del runtime_root
+        return (
+            frame_media
+            if reference.reference_id == frame_id
+            else portrait_media
+        )
+
+    monkeypatch.setattr(
+        hero_cards,
+        "resolve_frozen_visual_reference_media",
+        resolve,
+    )
+    generation = _FakeGeneration(generated_media=portrait_media)
+
+    result = render_one_star_summon_card_boards(
+        checkpoint=checkpoint,
+        viewer_character_id="the_master",
+        event=event,
+        generation=generation,
+    )
+    ordinary_group = render_one_star_hero_card_boards(
+        checkpoint=checkpoint,
+        viewer_character_id="the_master",
+        event=event,
+        generation=generation,
+    )
+
+    assert [board.layout for board in result.individual_boards] == [
+        "individual",
+        "individual",
+        "individual",
+    ]
+    assert [board.accessible_text for board in result.individual_boards] == [
+        "System panel — Hero acquired (pull 1 of 3): Renna Holt — 1 star",
+        "System panel — Hero acquired (pull 2 of 3): Mirelle Voss — 3 stars",
+        "System panel — Hero acquired (pull 3 of 3): Edren Marr — 1 star",
+    ]
+    assert len({board.media.sha256 for board in result.individual_boards}) == 3
+    assert [board.media.data for board in result.group_boards] == [
+        board.media.data for board in ordinary_group
+    ]
+    assert result.group_boards[0].layout == "group"
+    assert result.group_boards[0].accessible_text == (
+        "System panel — Heroes acquired: Renna Holt — 1 star; "
+        "Mirelle Voss — 3 stars; Edren Marr — 1 star"
+    )
+    assert render_one_star_summon_card_boards(
+        checkpoint=checkpoint,
+        viewer_character_id="renna_holt",
+        event=event,
+        generation=generation,
+    ) == OneStarSummonCardBoards((), ())
+    assert render_one_star_summon_card_boards(
+        checkpoint=checkpoint,
+        viewer_character_id="the_master",
+        event=OneStarHeroCardEvent(
+            event_id="evt_formation",
+            kind="mission_start",
+            characters=event.characters,
+        ),
+        generation=generation,
+    ) == OneStarSummonCardBoards((), ())
 
 
 def test_deployment_card_preserves_validated_party_order() -> None:
@@ -940,39 +1032,79 @@ def test_board_uses_current_rank_after_promotion(
 
 
 @pytest.mark.asyncio
-async def test_bridge_inserts_reveal_then_board_after_matching_segment(
+async def test_bridge_interleaves_each_reveal_and_card_then_group_board(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     checkpoint = _seed()
-    hero = _character(checkpoint, "renna_holt")
+    heroes = (
+        _character(checkpoint, "renna_holt"),
+        _character(checkpoint, "mirelle_voss"),
+    )
     event = OneStarHeroCardEvent(
         event_id="evt_ordered_board",
         kind="summon",
-        characters=(hero,),
+        characters=heroes,
     )
-    panel_media = _media(
+    group_media = _media(
         Image.new("RGB", (1024, 576), (11, 27, 49)),
-        filename="one-star-board.png",
+        filename="one-star-group-board.png",
     )
-    board = OneStarHeroCardBoard(
-        media=panel_media,
-        accessible_text="System panel — Heroes acquired: Renna Holt — 1 star",
+    individual_media = (
+        _media(
+            Image.new("RGB", (1024, 576), (31, 47, 67)),
+            filename="one-star-pull-01.png",
+        ),
+        _media(
+            Image.new("RGB", (1024, 576), (71, 83, 101)),
+            filename="one-star-pull-02.png",
+        ),
+    )
+    individual_boards = tuple(
+        OneStarHeroCardBoard(
+            media=media,
+            accessible_text=(
+                f"System panel — Hero acquired (pull {index} of 2): "
+                f"{hero.name}"
+            ),
+            event_id=event.event_id,
+            kind="summon",
+            page_number=index,
+            page_count=2,
+            layout="individual",
+        )
+        for index, (hero, media) in enumerate(
+            zip(heroes, individual_media, strict=True),
+            start=1,
+        )
+    )
+    group_board = OneStarHeroCardBoard(
+        media=group_media,
+        accessible_text=(
+            "System panel — Heroes acquired: Renna Holt — 1 star; "
+            "Mirelle Voss — 3 stars"
+        ),
         event_id=event.event_id,
         kind="summon",
         page_number=1,
         page_count=1,
     )
-    reveal_media = _file_media(_SUMMON_REVEALS["under_3"])
-    reveal = OneStarSummonReveal(
-        media=reveal_media,
-        accessible_text=(
-            "Summon reveal — pull 1 of 1: an iron response signals a "
-            "one- or two-star result. The static result follows."
-        ),
-        event_id=event.event_id,
-        band="under_3",
-        pull_number=1,
-        pull_count=1,
+    reveal_media = (
+        _file_media(_SUMMON_REVEALS["under_3"]),
+        _file_media(_SUMMON_REVEALS["3_to_4"]),
+    )
+    reveals = tuple(
+        OneStarSummonReveal(
+            media=media,
+            accessible_text=f"Summon reveal — pull {index} of 2",
+            event_id=event.event_id,
+            band=band,
+            pull_number=index,
+            pull_count=2,
+        )
+        for index, (band, media) in enumerate(
+            zip(("under_3", "3_to_4"), reveal_media, strict=True),
+            start=1,
+        )
     )
     bridge = EngineBridge.__new__(EngineBridge)
     bridge.load_checkpoint = MagicMock(return_value=checkpoint)  # type: ignore[method-assign]
@@ -986,7 +1118,7 @@ async def test_bridge_inserts_reveal_then_board_after_matching_segment(
     bridge.image_generation = MagicMock()
     bridge.image_generation.resolve_visual_novel_stage.return_value = (
         SimpleNamespace(fallback_reason=""),
-        panel_media,
+        group_media,
     )
     bridge.visual_novel_renderer = MagicMock()
     bridge.visual_novel_renderer.render_deck.side_effect = tuple
@@ -998,12 +1130,20 @@ async def test_bridge_inserts_reveal_then_board_after_matching_segment(
         "app.bot.engine_bridge.generated_portrait_prewarm_character_ids",
         lambda **_kwargs: (),
     )
-    render_boards = MagicMock(return_value=(board,))
+    render_boards = MagicMock(return_value=(group_board,))
     monkeypatch.setattr(
         "app.bot.engine_bridge.render_one_star_hero_card_boards",
         render_boards,
     )
-    render_reveals = MagicMock(return_value=(reveal,))
+    render_summon_boards = MagicMock(return_value=OneStarSummonCardBoards(
+        individual_boards=individual_boards,
+        group_boards=(group_board,),
+    ))
+    monkeypatch.setattr(
+        "app.bot.engine_bridge.render_one_star_summon_card_boards",
+        render_summon_boards,
+    )
+    render_reveals = MagicMock(return_value=reveals)
     monkeypatch.setattr(
         "app.bot.engine_bridge.render_one_star_summon_reveals",
         render_reveals,
@@ -1034,20 +1174,32 @@ async def test_bridge_inserts_reveal_then_board_after_matching_segment(
     assert all(isinstance(section, VisualNovelDeckSection) for section in sections)
     assert [section.pages[0].text for section in sections] == [
         "The summons arrive.",
-        reveal.accessible_text,
-        board.accessible_text,
+        reveals[0].accessible_text,
+        individual_boards[0].accessible_text,
+        reveals[1].accessible_text,
+        individual_boards[1].accessible_text,
+        group_board.accessible_text,
         "The light settles.",
     ]
     assert [section.card_style for section in sections] == [
         "adv",
         "system_panel",
         "system_panel",
+        "system_panel",
+        "system_panel",
+        "system_panel",
         "adv",
     ]
-    assert sections[1].stage_media is reveal_media
-    assert sections[2].stage_media is panel_media
+    assert [section.stage_media for section in sections[1:6]] == [
+        reveal_media[0],
+        individual_media[0],
+        reveal_media[1],
+        individual_media[1],
+        group_media,
+    ]
     render_reveals.assert_called_once()
-    render_boards.assert_called_once()
+    render_summon_boards.assert_called_once()
+    render_boards.assert_not_called()
 
 
 @pytest.mark.asyncio

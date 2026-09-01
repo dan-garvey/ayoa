@@ -77,6 +77,7 @@ from app.engine.one_star_hero_cards import (
     new_one_star_hero_card_events,
     one_star_hero_card_events_for_render,
     render_one_star_hero_card_boards,
+    render_one_star_summon_card_boards,
     render_one_star_summon_reveals,
 )
 from app.engine.one_star_adapter import (
@@ -514,32 +515,47 @@ class EngineBridge:
                     card_event is not None
                     and card_event.event_id not in inserted_card_event_ids
                 ):
-                    for reveal in render_one_star_summon_reveals(
+                    reveals = render_one_star_summon_reveals(
                         checkpoint=checkpoint,
                         viewer_character_id=pov_character_id,
                         event=card_event,
                         generation=self.image_generation,
-                    ):
+                    )
+                    if reveals:
+                        summon_boards = render_one_star_summon_card_boards(
+                            checkpoint=checkpoint,
+                            viewer_character_id=pov_character_id,
+                            event=card_event,
+                            generation=self.image_generation,
+                        )
+                        if len(reveals) != len(
+                            summon_boards.individual_boards
+                        ):
+                            raise OneStarHeroCardError(
+                                "summon_reveal_card_count_mismatch"
+                            )
+                        ordered_panels = []
+                        for reveal, board in zip(
+                            reveals,
+                            summon_boards.individual_boards,
+                            strict=True,
+                        ):
+                            ordered_panels.extend((reveal, board))
+                        ordered_panels.extend(summon_boards.group_boards)
+                    else:
+                        ordered_panels = render_one_star_hero_card_boards(
+                            checkpoint=checkpoint,
+                            viewer_character_id=pov_character_id,
+                            event=card_event,
+                            generation=self.image_generation,
+                        )
+                    for panel in ordered_panels:
                         sections.append(VisualNovelDeckSection(
                             pages=(VisualNovelPage(
                                 kind="narration",
-                                text=reveal.accessible_text,
+                                text=panel.accessible_text,
                             ),),
-                            stage_media=reveal.media,
-                            card_style="system_panel",
-                        ))
-                    for board in render_one_star_hero_card_boards(
-                        checkpoint=checkpoint,
-                        viewer_character_id=pov_character_id,
-                        event=card_event,
-                        generation=self.image_generation,
-                    ):
-                        sections.append(VisualNovelDeckSection(
-                            pages=(VisualNovelPage(
-                                kind="narration",
-                                text=board.accessible_text,
-                            ),),
-                            stage_media=board.media,
+                            stage_media=panel.media,
                             card_style="system_panel",
                         ))
                     inserted_card_event_ids.add(card_event.event_id)

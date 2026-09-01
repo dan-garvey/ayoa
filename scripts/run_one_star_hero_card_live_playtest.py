@@ -386,7 +386,12 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                     * (
                         event_page_counts[segment.rendered_event_id]
                         + (
-                            len(card_events_by_id[segment.rendered_event_id].characters)
+                            2
+                            * len(
+                                card_events_by_id[
+                                    segment.rendered_event_id
+                                ].characters
+                            )
                             if reveal_enabled
                             and card_events_by_id[segment.rendered_event_id].kind
                             == "summon"
@@ -583,7 +588,18 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         for panel in system_panels
         if panel["accessible_text"].startswith("Summon reveal — pull")
     ]
-    static_panels = [*summon_panels, *mission_panels]
+    individual_summon_panels = [
+        panel
+        for panel in system_panels
+        if panel["accessible_text"].startswith(
+            "System panel — Hero acquired (pull"
+        )
+    ]
+    static_panels = [
+        *individual_summon_panels,
+        *summon_panels,
+        *mission_panels,
+    ]
     frame_id = "osa_hero_card_frame_obsidian_orrery_v1"
     source_tokens = [
         frame_id,
@@ -621,6 +637,7 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         else []
     )
     expected_reveal_bands = []
+    expected_individual_cards: list[tuple[str, str]] = []
     for character in summon_event.characters if summon_event is not None else ():
         hero = load_one_star_hero(character)
         if hero is None:
@@ -628,6 +645,13 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         expected_reveal_bands.append(
             one_star_summon_reveal_band(hero.current_stars)
         )
+        expected_individual_cards.append((
+            character.name,
+            (
+                f"{hero.current_stars} "
+                f"{'star' if hero.current_stars == 1 else 'stars'}"
+            ),
+        ))
     band_tokens = {
         "under_3": "iron response",
         "3_to_4": "silver response",
@@ -675,6 +699,8 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
         "one_deployment_board": len(mission_panels) == 1,
         "one_reveal_per_summoned_hero": bool(summon_ids)
         and len(reveal_panels) == len(summon_ids),
+        "one_individual_card_per_summoned_hero": bool(summon_ids)
+        and len(individual_summon_panels) == len(summon_ids),
         "summon_reveals_preserve_pull_and_rank_band_order": (
             len(reveal_panels) == len(expected_reveal_bands)
             and all(
@@ -687,11 +713,37 @@ async def _run(args: argparse.Namespace) -> tuple[Path, dict[str, Any]]:
                 )
             )
         ),
-        "summon_reveals_precede_static_result": bool(summon_sequence)
-        and len(summon_sequence) == len(reveal_panels) + len(summon_panels)
+        "individual_cards_preserve_pull_identity_and_rank_order": (
+            len(individual_summon_panels) == len(expected_individual_cards)
+            and all(
+                f"pull {index} of {len(expected_individual_cards)}"
+                in panel["accessible_text"]
+                and name in panel["accessible_text"]
+                and rank in panel["accessible_text"]
+                for index, (panel, (name, rank)) in enumerate(
+                    zip(
+                        individual_summon_panels,
+                        expected_individual_cards,
+                        strict=True,
+                    ),
+                    start=1,
+                )
+            )
+        ),
+        "summon_reveals_interleave_cards_before_group": bool(summon_sequence)
+        and len(summon_sequence) == (
+            len(reveal_panels)
+            + len(individual_summon_panels)
+            + len(summon_panels)
+        )
         and all(
-            panel["accessible_text"].startswith("Summon reveal — pull")
-            for panel in summon_sequence[: len(reveal_panels)]
+            summon_sequence[index * 2]["accessible_text"].startswith(
+                "Summon reveal — pull"
+            )
+            and summon_sequence[index * 2 + 1]["accessible_text"].startswith(
+                "System panel — Hero acquired (pull"
+            )
+            for index in range(len(reveal_panels))
         )
         and summon_sequence[-1]["accessible_text"].startswith(
             "System panel — Heroes acquired"

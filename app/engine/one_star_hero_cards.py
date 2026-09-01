@@ -60,6 +60,7 @@ _SANS = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
 _SANS_BOLD = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 
 HeroCardEventKind = Literal["summon", "mission_start"]
+HeroCardBoardLayout = Literal["group", "individual"]
 PortraitSource = Literal["override", "neutral", "unavailable"]
 Color = tuple[int, int, int]
 
@@ -92,6 +93,13 @@ class OneStarHeroCardBoard:
     kind: HeroCardEventKind
     page_number: int
     page_count: int
+    layout: HeroCardBoardLayout = "group"
+
+
+@dataclass(frozen=True)
+class OneStarSummonCardBoards:
+    individual_boards: tuple[OneStarHeroCardBoard, ...]
+    group_boards: tuple[OneStarHeroCardBoard, ...]
 
 
 @dataclass(frozen=True)
@@ -364,9 +372,87 @@ def render_one_star_hero_card_boards(
 ) -> tuple[OneStarHeroCardBoard, ...]:
     """Compose deterministic, transport-neutral boards for one event."""
 
+    rendered = _rendered_one_star_hero_cards(
+        checkpoint=checkpoint,
+        viewer_character_id=viewer_character_id,
+        event=event,
+        generation=generation,
+    )
+    if rendered is None:
+        return ()
+    return _render_one_star_group_boards(event=event, rendered=rendered)
+
+
+def render_one_star_summon_card_boards(
+    *,
+    checkpoint: CheckpointFile,
+    viewer_character_id: str,
+    event: OneStarHeroCardEvent,
+    generation: ImageGenerationCoordinator,
+) -> OneStarSummonCardBoards:
+    """Compose each pull result and the final party summary in one pass."""
+
+    if event.kind != "summon":
+        return OneStarSummonCardBoards((), ())
+    rendered = _rendered_one_star_hero_cards(
+        checkpoint=checkpoint,
+        viewer_character_id=viewer_character_id,
+        event=event,
+        generation=generation,
+    )
+    if rendered is None:
+        return OneStarSummonCardBoards((), ())
+
+    pull_count = len(rendered)
+    individual_boards: list[OneStarHeroCardBoard] = []
+    for pull_number, (character, portrait, card) in enumerate(
+        rendered,
+        start=1,
+    ):
+        board = _render_board(
+            (card,),
+            kind="summon",
+            page_number=pull_number,
+            page_count=pull_count,
+            layout="individual",
+        )
+        individual_boards.append(OneStarHeroCardBoard(
+            media=_board_media(
+                board,
+                filename=(
+                    f"one-star-hero-pull-{pull_number:02d}-of-"
+                    f"{pull_count:02d}.png"
+                ),
+            ),
+            accessible_text=(
+                f"System panel — Hero acquired (pull {pull_number} of "
+                f"{pull_count}): {_hero_card_accessible_entry(character, portrait)}"
+            ),
+            event_id=event.event_id,
+            kind=event.kind,
+            page_number=pull_number,
+            page_count=pull_count,
+            layout="individual",
+        ))
+    return OneStarSummonCardBoards(
+        individual_boards=tuple(individual_boards),
+        group_boards=_render_one_star_group_boards(
+            event=event,
+            rendered=rendered,
+        ),
+    )
+
+
+def _rendered_one_star_hero_cards(
+    *,
+    checkpoint: CheckpointFile,
+    viewer_character_id: str,
+    event: OneStarHeroCardEvent,
+    generation: ImageGenerationCoordinator,
+) -> list[tuple[CharacterRecord, _Portrait, Image.Image]] | None:
     configured = one_star_visual_novel_config(checkpoint)
     if configured is None or configured[0] != viewer_character_id:
-        return ()
+        return None
     _owner_id, presentation = configured
     frame_id = presentation.hero_card_frame_reference_id
     if not frame_id:
@@ -388,66 +474,59 @@ def render_one_star_hero_card_boards(
     if frame.size != CARD_SIZE:
         raise OneStarHeroCardError("presentation_frame_dimensions_mismatch")
 
-    resolved: list[tuple[CharacterRecord, _Portrait]] = []
+    rendered: list[tuple[CharacterRecord, _Portrait, Image.Image]] = []
     for character in event.characters:
-        resolved.append((
+        portrait = _resolve_portrait(
+            checkpoint=checkpoint,
+            viewer_character_id=viewer_character_id,
+            character=character,
+            generation=generation,
+        )
+        rendered.append((
             character,
-            _resolve_portrait(
-                checkpoint=checkpoint,
-                viewer_character_id=viewer_character_id,
-                character=character,
-                generation=generation,
-            ),
-        ))
-
-    groups = [
-        resolved[start:start + MAX_HEROES_PER_BOARD]
-        for start in range(0, len(resolved), MAX_HEROES_PER_BOARD)
-    ]
-    page_count = len(groups)
-    boards: list[OneStarHeroCardBoard] = []
-    for page_number, group in enumerate(groups, start=1):
-        cards = [
+            portrait,
             render_one_star_hero_card(
                 frame=frame,
                 portrait=portrait.media,
                 portrait_source=portrait.source,
                 display_name=character.name,
                 stars=_current_stars(character),
-            )
-            for character, portrait in group
-        ]
+            ),
+        ))
+    return rendered
+
+
+def _render_one_star_group_boards(
+    *,
+    event: OneStarHeroCardEvent,
+    rendered: Sequence[tuple[CharacterRecord, _Portrait, Image.Image]],
+) -> tuple[OneStarHeroCardBoard, ...]:
+
+    groups = [
+        rendered[start:start + MAX_HEROES_PER_BOARD]
+        for start in range(0, len(rendered), MAX_HEROES_PER_BOARD)
+    ]
+    page_count = len(groups)
+    boards: list[OneStarHeroCardBoard] = []
+    for page_number, group in enumerate(groups, start=1):
         board = _render_board(
-            cards,
+            [card for _character, _portrait, card in group],
             kind=event.kind,
             page_number=page_number,
             page_count=page_count,
         )
-        data = _png_bytes(board)
-        digest = hashlib.sha256(data).hexdigest()
         title = _BOARD_TITLES[event.kind][1]
-        entries = []
-        for character, portrait in group:
-            stars = _current_stars(character)
-            entry = (
-                f"{character.name} — {stars} "
-                f"{'star' if stars == 1 else 'stars'}"
-            )
-            if portrait.source == "unavailable":
-                entry += " (portrait unavailable)"
-            entries.append(entry)
+        entries = [
+            _hero_card_accessible_entry(character, portrait)
+            for character, portrait, _card in group
+        ]
         page_suffix = (
             f" (page {page_number} of {page_count})" if page_count > 1 else ""
         )
         boards.append(OneStarHeroCardBoard(
-            media=ResolvedPlayerMedia(
+            media=_board_media(
+                board,
                 filename=f"one-star-hero-board-{page_number:02d}.png",
-                mime_type="image/png",
-                data=data,
-                sha256=digest,
-                byte_count=len(data),
-                width=BOARD_SIZE[0],
-                height=BOARD_SIZE[1],
             ),
             accessible_text=(
                 f"System panel — {title}{page_suffix}: " + "; ".join(entries)
@@ -458,6 +537,33 @@ def render_one_star_hero_card_boards(
             page_count=page_count,
         ))
     return tuple(boards)
+
+
+def _hero_card_accessible_entry(
+    character: CharacterRecord,
+    portrait: _Portrait,
+) -> str:
+    stars = _current_stars(character)
+    entry = (
+        f"{character.name} — {stars} "
+        f"{'star' if stars == 1 else 'stars'}"
+    )
+    if portrait.source == "unavailable":
+        entry += " (portrait unavailable)"
+    return entry
+
+
+def _board_media(board: Image.Image, *, filename: str) -> ResolvedPlayerMedia:
+    data = _png_bytes(board)
+    return ResolvedPlayerMedia(
+        filename=filename,
+        mime_type="image/png",
+        data=data,
+        sha256=hashlib.sha256(data).hexdigest(),
+        byte_count=len(data),
+        width=BOARD_SIZE[0],
+        height=BOARD_SIZE[1],
+    )
 
 
 def one_star_summon_reveal_band(stars: int) -> OneStarSummonRevealBand:
@@ -525,7 +631,7 @@ def render_one_star_summon_reveals(
                 f"Summon reveal — pull {pull_number} of {pull_count}: the seal "
                 f"strains, recoils, and releases; "
                 f"{_SUMMON_REVEAL_ACCESSIBLE_BANDS[band]}. "
-                "The Hero identity remains sealed until the static result."
+                "The Hero identity remains sealed until the next static card."
             ),
             event_id=event.event_id,
             band=band,
@@ -991,27 +1097,36 @@ def _render_board(
     kind: HeroCardEventKind,
     page_number: int,
     page_count: int,
+    layout: HeroCardBoardLayout = "group",
 ) -> Image.Image:
     board = _gradient(BOARD_SIZE, (8, 19, 37), (2, 5, 13)).convert("RGBA")
     draw = ImageDraw.Draw(board)
     draw.rectangle((0, 0, 1023, 575), outline=(144, 116, 66, 170), width=3)
-    title = _BOARD_TITLES[kind][0]
+    title = "HERO ACQUIRED" if layout == "individual" else _BOARD_TITLES[kind][0]
     draw.text(
         (38, 24),
         title,
         font=_font(_SERIF_BOLD, 29),
         fill=(239, 235, 222, 255),
     )
-    subtitle = "CURRENT HERO RANK"
-    if page_count > 1:
-        subtitle += f"  •  PAGE {page_number} OF {page_count}"
+    if layout == "individual":
+        if len(cards) != 1 or not 1 <= page_number <= page_count:
+            raise ValueError("individual Hero board requires one valid pull")
+        subtitle = f"PULL {page_number} OF {page_count}  •  CURRENT HERO RANK"
+    else:
+        subtitle = "CURRENT HERO RANK"
+        if page_count > 1:
+            subtitle += f"  •  PAGE {page_number} OF {page_count}"
     draw.text(
         (40, 64),
         subtitle,
         font=_font(_SANS, 16),
         fill=(153, 177, 195, 255),
     )
-    width, height, gap = 174, 278, 18
+    if layout == "individual":
+        width, height, gap, y = 269, 430, 0, 108
+    else:
+        width, height, gap, y = 174, 278, 18, 123
     total = width * len(cards) + gap * max(0, len(cards) - 1)
     x = (BOARD_SIZE[0] - total) // 2
     for card in cards:
@@ -1019,7 +1134,7 @@ def _render_board(
             (width, height),
             Image.Resampling.LANCZOS,
         ).convert("RGBA")
-        _place_with_shadow(board, thumbnail, (x, 123))
+        _place_with_shadow(board, thumbnail, (x, y))
         x += width + gap
     return board.convert("RGB")
 
