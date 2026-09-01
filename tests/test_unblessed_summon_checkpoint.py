@@ -138,7 +138,7 @@ def by_id(checkpoint: CheckpointFile) -> dict:
 
 
 def test_checkpoint_loads_at_current_schema(checkpoint: CheckpointFile) -> None:
-    assert checkpoint.schema_version == "5.0"
+    assert checkpoint.schema_version == "6.0"
     assert checkpoint.session.story_id == "the_unblessed_summon"
     assert checkpoint.session.session_id == "the_unblessed_summon"
 

@@ -119,7 +119,7 @@ def _may_act_offstage(character: object) -> bool:
 def test_checkpoint_loads_as_typed_one_star_story() -> None:
     checkpoint = _load_checkpoint()
 
-    assert checkpoint.schema_version == "5.0"
+    assert checkpoint.schema_version == "6.0"
     assert checkpoint.session.story_id == "one_star_ascension_s1"
     assert checkpoint.session.session_id == "one_star_ascension_s1"
     assert checkpoint.session.config.settings.ruleset_id == ONE_STAR_RULESET_ID
