@@ -1,0 +1,34 @@
+{
+  "schema_version": "persistent_luna_whole_conversation_key_v1",
+  "shuffle_seed_sha256": "b936d44ff8124160f110ae5971338abe0640890d8beac15f41bc7a9466fea9bf",
+  "conversations": [
+    {
+      "blind_id": "sample-01",
+      "case_id": "wa2_hs_transfer_b",
+      "cell": "C",
+      "conversation_id": "fpfx-c-20260831:wa2_hs_transfer_b",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    },
+    {
+      "blind_id": "sample-24",
+      "case_id": "wa2_hs_transfer_a",
+      "cell": "C",
+      "conversation_id": "fpfx-c-20260831:wa2_hs_transfer_a",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    },
+    {
+      "blind_id": "sample-36",
+      "case_id": "sg_okabe_kurisu_transfer_c",
+      "cell": "C",
+      "conversation_id": "fpfx-c-20260831:sg_okabe_kurisu_transfer_c",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    },
+    {
+      "blind_id": "sample-47",
+      "case_id": "wa2_sk_transfer_a",
+      "cell": "C",
+      "conversation_id": "fpfx-c-20260831:wa2_sk_transfer_a",
+      "source_protocol": "persistent_luna_dialogue_silos_v2"
+    }
+  ]
+}

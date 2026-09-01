@@ -48,6 +48,14 @@ from scripts.run_character_dialogue_benchmark import (
 
 SCHEDULER_SCHEMA_VERSION = "persistent_luna_dialogue_silos_v2"
 LUNA_MODEL = "gpt-5.6-luna"
+LUNA_REASONING_EFFORT_CHOICES = (
+    "none",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+)
 DEFAULT_CONVERSATION_COUNT = 8
 FIXED_TURN_COUNT = 16
 REFLECTION_FIELD_NAMES = (
@@ -101,6 +109,17 @@ class LunaWorkerError(SchedulerError):
 
 class ReflectionOutputError(SchedulerError):
     """An experiment-only private reflection violated its sealed contract."""
+
+
+def _normalize_luna_reasoning_effort(value: str | None) -> str | None:
+    """Validate a Codex effort without conflating it with an omitted override."""
+
+    if value is None:
+        return None
+    if value not in LUNA_REASONING_EFFORT_CHOICES:
+        supported = ", ".join(LUNA_REASONING_EFFORT_CHOICES)
+        raise ValueError(f"luna_reasoning_effort must be one of: {supported}")
+    return value
 
 
 @dataclass(frozen=True)
@@ -169,8 +188,14 @@ class SchedulerConfig:
     max_reflection_conversation_restarts: int = 1
     persistent_delta_proxy: bool = False
     system_prompt_override: str | None = None
+    luna_reasoning_effort: str | None = None
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "luna_reasoning_effort",
+            _normalize_luna_reasoning_effort(self.luna_reasoning_effort),
+        )
         if self.conversation_count < 1 or self.turn_count < 1:
             raise ValueError("conversation_count and turn_count must be positive")
         if not 1 <= self.initial_concurrency <= self.max_concurrency:
@@ -503,6 +528,29 @@ def build_conversation_plans(
     return tuple(plans)
 
 
+def select_benchmark_cases(
+    cases: Sequence[BenchmarkCase], case_ids: Sequence[str] | None = None
+) -> tuple[BenchmarkCase, ...]:
+    """Return an explicitly requested, ordered subset of one frozen manifest."""
+
+    available: dict[str, BenchmarkCase] = {}
+    for case in cases:
+        if not case.case_id.strip() or case.case_id in available:
+            raise SchedulerError("benchmark manifest case ids must be unique and nonblank")
+        available[case.case_id] = case
+    requested = tuple(case_ids or ())
+    if not requested:
+        return tuple(cases)
+    if any(not case_id.strip() for case_id in requested):
+        raise SchedulerError("--case-id cannot be blank")
+    if len(set(requested)) != len(requested):
+        raise SchedulerError("--case-id values must be unique")
+    missing = [case_id for case_id in requested if case_id not in available]
+    if missing:
+        raise SchedulerError(f"--case-id is absent from the manifest: {missing[0]}")
+    return tuple(available[case_id] for case_id in requested)
+
+
 class SchedulerAudit:
     """Small durable ledger for worker ownership and technical telemetry."""
 
@@ -513,7 +561,14 @@ class SchedulerAudit:
         manifest_sha256: str,
         run_id: str,
         config: SchedulerConfig,
+        selected_case_ids: Sequence[str],
     ) -> None:
+        if (
+            len(selected_case_ids) != config.conversation_count
+            or not all(case_id.strip() for case_id in selected_case_ids)
+            or len(set(selected_case_ids)) != len(selected_case_ids)
+        ):
+            raise SchedulerError("scheduled case ids do not match the frozen run")
         self.path = path
         expected = {
             "manifest_sha256": _frozen_sha256(manifest_sha256),
@@ -521,6 +576,7 @@ class SchedulerAudit:
             "model": LUNA_MODEL,
             "conversation_count": config.conversation_count,
             "turn_count": config.turn_count,
+            "selected_case_ids": list(selected_case_ids),
         }
         if config.private_reflections:
             expected["private_reflections"] = True
@@ -533,6 +589,8 @@ class SchedulerAudit:
             expected["system_prompt_override_sha256"] = hashlib.sha256(
                 config.system_prompt_override.encode("utf-8")
             ).hexdigest()
+        if config.luna_reasoning_effort is not None:
+            expected["luna_reasoning_effort"] = config.luna_reasoning_effort
         if path.exists():
             self.data = _read_json(path, label="scheduler state")
             if self.data.get("schema_version") != SCHEDULER_SCHEMA_VERSION:
@@ -1044,12 +1102,55 @@ class CodexLunaCliExecutor:
         workers_root: Path,
         timeout_seconds: float = 300.0,
         command: Sequence[str] = ("codex",),
+        reasoning_effort: str | None = None,
     ) -> None:
         if not command:
             raise ValueError("Codex command cannot be empty")
         self.workers_root = workers_root
         self.timeout_seconds = timeout_seconds
         self.command = tuple(command)
+        self.reasoning_effort = _normalize_luna_reasoning_effort(reasoning_effort)
+
+    def _reasoning_effort_args(self) -> tuple[str, ...]:
+        if self.reasoning_effort is None:
+            return ()
+        return ("-c", f'model_reasoning_effort="{self.reasoning_effort}"')
+
+    def _start_command(self, response_path: Path) -> tuple[str, ...]:
+        return (
+            *self.command,
+            "exec",
+            *self._reasoning_effort_args(),
+            "--model",
+            LUNA_MODEL,
+            "--sandbox",
+            "read-only",
+            "--skip-git-repo-check",
+            "--ignore-rules",
+            "--json",
+            "--output-last-message",
+            str(response_path),
+            "-",
+        )
+
+    def _resume_command(
+        self, worker_session_id: str, response_path: Path
+    ) -> tuple[str, ...]:
+        return (
+            *self.command,
+            "exec",
+            "resume",
+            *self._reasoning_effort_args(),
+            worker_session_id,
+            "--model",
+            LUNA_MODEL,
+            "--skip-git-repo-check",
+            "--ignore-rules",
+            "--json",
+            "--output-last-message",
+            str(response_path),
+            "-",
+        )
 
     def _response_path(
         self, binding: WorkerBinding, request: Mapping[str, Any], attempt: int
@@ -1143,20 +1244,7 @@ class CodexLunaCliExecutor:
         persistent_delta_proxy: bool = False,
     ) -> LunaWorkerResponse:
         response_path = self._response_path(binding, request, attempt)
-        command = (
-            *self.command,
-            "exec",
-            "--model",
-            LUNA_MODEL,
-            "--sandbox",
-            "read-only",
-            "--skip-git-repo-check",
-            "--ignore-rules",
-            "--json",
-            "--output-last-message",
-            str(response_path),
-            "-",
-        )
+        command = self._start_command(response_path)
         raw, stdout, elapsed_ms = await self._invoke(
             command=command,
             binding=binding,
@@ -1179,20 +1267,7 @@ class CodexLunaCliExecutor:
         persistent_delta_proxy: bool = False,
     ) -> LunaWorkerResponse:
         response_path = self._response_path(binding, request, attempt)
-        command = (
-            *self.command,
-            "exec",
-            "resume",
-            worker_session_id,
-            "--model",
-            LUNA_MODEL,
-            "--skip-git-repo-check",
-            "--ignore-rules",
-            "--json",
-            "--output-last-message",
-            str(response_path),
-            "-",
-        )
+        command = self._resume_command(worker_session_id, response_path)
         raw, stdout, elapsed_ms = await self._invoke(
             command=command,
             binding=binding,
@@ -1667,6 +1742,7 @@ async def run_persistent_luna_silos(
         manifest_sha256=manifest_sha256,
         run_id=run_id,
         config=config,
+        selected_case_ids=tuple(plan.case.case_id for plan in plans),
     )
     gate = AdaptiveGate(config, audit)
     results = await asyncio.gather(
@@ -1691,7 +1767,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--frozen-manifest-sha256", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--conversations", type=int, default=DEFAULT_CONVERSATION_COUNT)
+    parser.add_argument(
+        "--case-id",
+        action="append",
+        help="repeatable ordered case id selector from the frozen manifest",
+    )
+    parser.add_argument(
+        "--conversations",
+        type=int,
+        help="scheduled conversation count; defaults to the selected case count",
+    )
     parser.add_argument("--initial-concurrency", type=int, default=1)
     parser.add_argument("--max-concurrency", type=int, default=8)
     parser.add_argument("--fanout-after-successes", type=int, default=16)
@@ -1716,6 +1801,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=Path,
         help="experiment-only system-message body used instead of the rendered prompt",
     )
+    parser.add_argument(
+        "--reasoning-effort",
+        choices=LUNA_REASONING_EFFORT_CHOICES,
+        default=None,
+        help="explicit Codex Luna reasoning setting; omit to preserve the provider default",
+    )
     parser.add_argument("--execute", action="store_true")
     return parser
 
@@ -1726,6 +1817,15 @@ async def _run_cli(args: argparse.Namespace) -> int:
         raise SystemExit(
             "frozen manifest hash mismatch; refusing to start Luna sessions"
         )
+    try:
+        cases = select_benchmark_cases(
+            load_benchmark_manifest(args.manifest), args.case_id
+        )
+    except SchedulerError as error:
+        raise SystemExit(str(error)) from error
+    conversation_count = (
+        args.conversations if args.conversations is not None else len(cases)
+    )
     system_prompt_override = None
     if args.system_prompt_override is not None:
         try:
@@ -1735,7 +1835,7 @@ async def _run_cli(args: argparse.Namespace) -> int:
         except OSError as error:
             raise SystemExit(f"cannot read system prompt override: {error}") from error
     config = SchedulerConfig(
-        conversation_count=args.conversations,
+        conversation_count=conversation_count,
         initial_concurrency=args.initial_concurrency,
         max_concurrency=args.max_concurrency,
         auto_fanout=not args.no_auto_fanout,
@@ -1746,8 +1846,8 @@ async def _run_cli(args: argparse.Namespace) -> int:
         private_reflections=args.private_reflections,
         persistent_delta_proxy=args.persistent_delta_proxy,
         system_prompt_override=system_prompt_override,
+        luna_reasoning_effort=args.reasoning_effort,
     )
-    cases = load_benchmark_manifest(args.manifest)
     plans = build_conversation_plans(
         cases, output_dir=args.output, run_id=args.run_id, config=config
     )
@@ -1760,6 +1860,8 @@ async def _run_cli(args: argparse.Namespace) -> int:
                     "conversation_count": len(plans),
                     "worker_count": len(plans) * 2,
                     "turn_count_per_conversation": FIXED_TURN_COUNT,
+                    "selected_case_ids": [plan.case.case_id for plan in plans],
+                    "luna_reasoning_effort": config.luna_reasoning_effort,
                     "system_prompt_override_sha256": (
                         hashlib.sha256(
                             system_prompt_override.encode("utf-8")
@@ -1784,6 +1886,7 @@ async def _run_cli(args: argparse.Namespace) -> int:
                 else args.output / "worker_sessions"
             ),
             timeout_seconds=config.worker_timeout_seconds,
+            reasoning_effort=config.luna_reasoning_effort,
         ),
     )
     print(
@@ -1793,6 +1896,7 @@ async def _run_cli(args: argparse.Namespace) -> int:
                 "state": str(result.state_path),
                 "conversation_count": len(result.results),
                 "model": LUNA_MODEL,
+                "luna_reasoning_effort": config.luna_reasoning_effort,
             }
         )
     )

@@ -1,0 +1,180 @@
+{
+  "schema_version": "luna_reasoning_effort_ab_v1",
+  "purpose": "Compare explicit medium versus max reasoning effort on the four strongest whole conversations from winning prompt-factorial cell C while changing no prompt, character, scenario, turn, history, reflection, or orchestration variable.",
+  "selection": {
+    "population": "The eight completed conversations in cell C: one-time second-person identity, current CharacterAgent instructions, and no private reflection.",
+    "rule": [
+      "Sort descending by finalized whole-conversation consensus status scored pass=2, mixed=1, fail=0.",
+      "Then sort descending by the sum of the two original reviewers' whole-conversation statuses on the same 0-2 scale.",
+      "Then sort descending by the sum of all 24 original reviewer dimension ratings on the same 0-2 scale.",
+      "Break any remaining tie by ascending blind_id. Select the first four."
+    ],
+    "ranked_cell_c": [
+      {
+        "rank": 1,
+        "blind_id": "sample-24",
+        "case_id": "wa2_hs_transfer_a",
+        "consensus": "pass",
+        "reviewer_statuses": ["pass", "pass"],
+        "reviewer_overall_score_sum": 4,
+        "dimension_score_sum": 48,
+        "dimension_score_max": 48,
+        "selected": true
+      },
+      {
+        "rank": 2,
+        "blind_id": "sample-01",
+        "case_id": "wa2_hs_transfer_b",
+        "consensus": "pass",
+        "reviewer_statuses": ["pass", "pass"],
+        "reviewer_overall_score_sum": 4,
+        "dimension_score_sum": 46,
+        "dimension_score_max": 48,
+        "selected": true
+      },
+      {
+        "rank": 3,
+        "blind_id": "sample-47",
+        "case_id": "wa2_sk_transfer_a",
+        "consensus": "pass",
+        "reviewer_statuses": ["pass", "pass"],
+        "reviewer_overall_score_sum": 4,
+        "dimension_score_sum": 46,
+        "dimension_score_max": 48,
+        "selected": true
+      },
+      {
+        "rank": 4,
+        "blind_id": "sample-36",
+        "case_id": "sg_okabe_kurisu_transfer_c",
+        "consensus": "pass",
+        "reviewer_statuses": ["mixed", "pass"],
+        "reviewer_overall_score_sum": 3,
+        "dimension_score_sum": 46,
+        "dimension_score_max": 48,
+        "selected": true
+      },
+      {
+        "rank": 5,
+        "blind_id": "sample-06",
+        "case_id": "sg_okabe_kurisu_transfer_b",
+        "consensus": "pass",
+        "reviewer_statuses": ["mixed", "pass"],
+        "reviewer_overall_score_sum": 3,
+        "dimension_score_sum": 45,
+        "dimension_score_max": 48,
+        "selected": false
+      },
+      {
+        "rank": 6,
+        "blind_id": "sample-04",
+        "case_id": "sg_okabe_kurisu_transfer_d",
+        "consensus": "mixed",
+        "reviewer_statuses": ["mixed", "mixed"],
+        "reviewer_overall_score_sum": 2,
+        "dimension_score_sum": 36,
+        "dimension_score_max": 48,
+        "selected": false
+      },
+      {
+        "rank": 7,
+        "blind_id": "sample-05",
+        "case_id": "wa2_sk_transfer_b",
+        "consensus": "mixed",
+        "reviewer_statuses": ["mixed", "mixed"],
+        "reviewer_overall_score_sum": 2,
+        "dimension_score_sum": 35,
+        "dimension_score_max": 48,
+        "selected": false
+      },
+      {
+        "rank": 8,
+        "blind_id": "sample-03",
+        "case_id": "sg_okabe_kurisu_transfer_a",
+        "consensus": "mixed",
+        "reviewer_statuses": ["mixed", "mixed"],
+        "reviewer_overall_score_sum": 2,
+        "dimension_score_sum": 30,
+        "dimension_score_max": 48,
+        "selected": false
+      }
+    ],
+    "limitation": "Selecting prior top performers makes this a ceiling and robustness test. It is not an unbiased estimate of reasoning effort over the full scenario distribution."
+  },
+  "frozen_sources": {
+    "source_commit": "bf16decb78ef794fb28dc30d304a15bbf65366a6",
+    "base_manifest": "../control-manifest.json",
+    "base_manifest_sha256": "886b461c9cd80bc3be21173ec05264cefdff4a3422ff39c834c14619ed4c87e3",
+    "selected_control_manifest": "./selected-control-manifest.json",
+    "selected_control_manifest_sha256": "380db45f6500d6a17e7ec3024dd48d1d07cddcfbb52cc8d0824f9d1c75326738",
+    "source_answer_key_sha256": "349c4d183f5aa1b6eaa20ba5714c65a449b7f7ae91a3c03486484a8a74b41f77",
+    "source_reviewer_1_sha256": "0f50de0148a2f3a4b3d1956dacfbca1dd9060d94c93e41dcbe36f90a509abdc9",
+    "source_reviewer_2_sha256": "e73ef78eff02d282c96c62f2f98a9faaff914932b9a967fbd5cfb068c574de70",
+    "source_adjudicator_sha256": "7e996a4affacb23ccfce5dae05be2707b90032de39c39de43ebc16173186d849",
+    "source_public_analysis_sha256": "897a54ec533666798a46988eebf0498e2de8d372be7d45ff165b78d377b608f8",
+    "runner_sha256": "43980f380c1d7659046464434ff539af81e7d80ec2ee0ac2796b476e86839ef0",
+    "runner_test_sha256": "0977c4a4d544f7116c6096e2353a981f1973e0d5542d104282596d024347d6b9",
+    "agent_turn_prompt_sha256": "220891f7efda350f5587f483d754bd80535c308901d4279030b662084e4ad031",
+    "one_time_identity_context_builder_sha256": "76a7500d58e07e2c6010aa4034b9461b53c51ceb4960fbd191a3e142f415950c",
+    "character_agent_sha256": "fadb829294dc51fd18d4349924050eac363ddb30179f3d9a28f59e78e05c799e",
+    "review_template_packet_sha256": "e126c0bcfa2d9689e7e9f693c2fa7c63923961f68ccf0b41ff56c8e8e69dd6bb",
+    "review_template_answer_key_sha256": "74440965667a7a04e831732078c3f789f68d1123cee7938accc5539ddb274ad1"
+  },
+  "conditions": [
+    {
+      "cell": "M",
+      "reasoning_effort": "medium"
+    },
+    {
+      "cell": "X",
+      "reasoning_effort": "max"
+    }
+  ],
+  "frozen_controls": {
+    "model": "gpt-5.6-luna",
+    "identity_delivery": "once per rendered identity revision and retained in actor-private history",
+    "system_instructions": "current agent_turn.txt",
+    "private_reflection": false,
+    "persistent_delta_proxy": true,
+    "provider_compaction_requested": false,
+    "turns_per_conversation": 16,
+    "case_order": [
+      "wa2_hs_transfer_a",
+      "wa2_hs_transfer_b",
+      "wa2_sk_transfer_a",
+      "sg_okabe_kurisu_transfer_c"
+    ],
+    "conversations_per_cell": 4,
+    "initial_concurrency_per_cell": 4,
+    "maximum_concurrency_per_cell": 4,
+    "auto_fanout": false,
+    "worker_timeout_seconds": 900,
+    "maximum_technical_retries": 2,
+    "retry_backoff_seconds": 1.0
+  },
+  "parallel_launch": {
+    "concurrent_cells": 2,
+    "concurrent_conversations": 8,
+    "persistent_actor_threads": 16,
+    "maximum_simultaneous_model_calls": 8,
+    "dependency_boundary": "The eight conversations are independent and launch together. Within each conversation, turns remain sequential because each actor must receive the other actor's preceding observable response."
+  },
+  "inspection_contract": {
+    "during_generation": "Technical telemetry only; do not read or judge dialogue prose.",
+    "allowed_telemetry": [
+      "accepted_turn_count",
+      "active_process_count",
+      "technical_error_count",
+      "retry_count",
+      "rate_limit_count"
+    ]
+  },
+  "review_contract": {
+    "blinding": "Assemble all eight completed conversations into one shuffled packet with reasoning condition and prior rank hidden.",
+    "reviewers": "Two independent max-reasoning Sol reviewers apply the existing whole-conversation dramatic-dialogue rubric.",
+    "adjudication": "A third max-reasoning Sol adjudicates only overall-status disagreements after both reviews are locked.",
+    "primary_comparison": "Matched per-case finalized whole-conversation status, scored pass=2, mixed=1, fail=0; report max wins, ties, losses, and mean paired score difference relative to medium.",
+    "secondary_comparison": "Original-reviewer dimension score differences, technical validity, latency, retries, and reasoning-token telemetry when available.",
+    "interpretation": "Do not infer that max is generally better or worse from four selected cases; treat any result as evidence about ceiling-case robustness requiring broader replication."
+  }
+}

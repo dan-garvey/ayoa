@@ -10,7 +10,9 @@ import pytest
 
 from scripts.run_character_dialogue_benchmark import load_benchmark_manifest
 from scripts.run_persistent_luna_dialogue_silos import (
+    CodexLunaCliExecutor,
     LUNA_MODEL,
+    LUNA_REASONING_EFFORT_CHOICES,
     LunaWorkerError,
     LunaWorkerResponse,
     ReflectionOutputError,
@@ -22,8 +24,10 @@ from scripts.run_persistent_luna_dialogue_silos import (
     _proxy_prompt,
     _replace_system_prompt,
     _session_id_from_jsonl,
+    build_arg_parser,
     build_conversation_plans,
     run_persistent_luna_silos,
+    select_benchmark_cases,
 )
 
 
@@ -399,6 +403,158 @@ def test_session_id_parser_accepts_codex_jsonl_event_envelopes() -> None:
         )
         == "payload-thread"
     )
+
+
+def test_codex_luna_executor_applies_reasoning_effort_on_start_and_resume_commands(
+    tmp_path: Path,
+) -> None:
+    executor = CodexLunaCliExecutor(
+        workers_root=tmp_path,
+        command=("codex",),
+        reasoning_effort="max",
+    )
+
+    start = executor._start_command(tmp_path / "start.txt")
+    resume = executor._resume_command("thread-123", tmp_path / "resume.txt")
+
+    expected_config = ('-c', 'model_reasoning_effort="max"')
+    assert start[:4] == ("codex", "exec", *expected_config)
+    assert resume[:5] == ("codex", "exec", "resume", *expected_config)
+    assert resume[5] == "thread-123"
+    assert ("--model", LUNA_MODEL) == start[4:6]
+    assert ("--model", LUNA_MODEL) == resume[6:8]
+    assert start[-1] == resume[-1] == "-"
+
+    no_override_executor = CodexLunaCliExecutor(
+        workers_root=tmp_path,
+        command=("codex",),
+        reasoning_effort=None,
+    )
+    assert "model_reasoning_effort" not in " ".join(
+        no_override_executor._start_command(tmp_path / "default.txt")
+    )
+    assert "model_reasoning_effort" not in " ".join(
+        no_override_executor._resume_command("thread-123", tmp_path / "default.txt")
+    )
+    none_executor = CodexLunaCliExecutor(
+        workers_root=tmp_path,
+        command=("codex",),
+        reasoning_effort="none",
+    )
+    explicit_none = 'model_reasoning_effort="none"'
+    assert explicit_none in none_executor._start_command(tmp_path / "none.txt")
+    assert explicit_none in none_executor._resume_command(
+        "thread-123", tmp_path / "none.txt"
+    )
+
+
+@pytest.mark.parametrize("effort", LUNA_REASONING_EFFORT_CHOICES)
+def test_scheduler_config_preserves_every_explicit_luna_reasoning_effort(
+    effort: str,
+) -> None:
+    assert SchedulerConfig(luna_reasoning_effort=effort).luna_reasoning_effort == effort
+
+
+def test_cli_parser_collects_ordered_case_filters_and_explicit_effort() -> None:
+    args = build_arg_parser().parse_args(
+        (
+            "--manifest",
+            "manifest.json",
+            "--frozen-manifest-sha256",
+            "a" * 64,
+            "--output",
+            "output",
+            "--run-id",
+            "run",
+            "--case-id",
+            "case_c",
+            "--case-id",
+            "case_a",
+            "--reasoning-effort",
+            "none",
+        )
+    )
+
+    assert args.case_id == ["case_c", "case_a"]
+    assert args.reasoning_effort == "none"
+    assert args.conversations is None
+
+
+def test_case_id_selection_preserves_requested_order_and_rejects_invalid_filters() -> (
+    None
+):
+    cases = (
+        _case("case_a", "a_left", "a_right"),
+        _case("case_b", "b_left", "b_right"),
+        _case("case_c", "c_left", "c_right"),
+    )
+
+    selected = select_benchmark_cases(cases, ("case_c", "case_a"))
+
+    assert [case.case_id for case in selected] == ["case_c", "case_a"]
+    with pytest.raises(SchedulerError, match="must be unique"):
+        select_benchmark_cases(cases, ("case_a", "case_a"))
+    with pytest.raises(SchedulerError, match="absent from the manifest"):
+        select_benchmark_cases(cases, ("not-a-case",))
+
+
+def test_scheduler_freezes_reasoning_effort_and_selected_case_ids(
+    tmp_path: Path,
+) -> None:
+    cases = (
+        _case("case_a", "a_left", "a_right"),
+        _case("case_b", "b_left", "b_right"),
+    )
+    config = SchedulerConfig(
+        conversation_count=2,
+        turn_count=4,
+        initial_concurrency=1,
+        max_concurrency=1,
+        auto_fanout=False,
+        max_technical_retries=0,
+        retry_backoff_seconds=0,
+        luna_reasoning_effort="max",
+    )
+
+    _run(cases, tmp_path, config=config, executor=FakeLunaExecutor())
+
+    state = json.loads((tmp_path / "scheduler_state.json").read_text(encoding="utf-8"))
+    assert state["run"]["luna_reasoning_effort"] == "max"
+    assert state["run"]["selected_case_ids"] == ["case_a", "case_b"]
+    with pytest.raises(SchedulerError, match="does not match this frozen run"):
+        _run(
+            cases,
+            tmp_path,
+            config=replace(config, luna_reasoning_effort="high"),
+            executor=FakeLunaExecutor(),
+        )
+    with pytest.raises(SchedulerError, match="does not match this frozen run"):
+        _run(
+            tuple(reversed(cases)),
+            tmp_path,
+            config=config,
+            executor=FakeLunaExecutor(),
+        )
+
+    explicit_none_path = tmp_path / "explicit-none"
+    explicit_none_config = replace(config, luna_reasoning_effort="none")
+    _run(
+        cases,
+        explicit_none_path,
+        config=explicit_none_config,
+        executor=FakeLunaExecutor(),
+    )
+    explicit_none_state = json.loads(
+        (explicit_none_path / "scheduler_state.json").read_text(encoding="utf-8")
+    )
+    assert explicit_none_state["run"]["luna_reasoning_effort"] == "none"
+    with pytest.raises(SchedulerError, match="does not match this frozen run"):
+        _run(
+            cases,
+            explicit_none_path,
+            config=replace(explicit_none_config, luna_reasoning_effort=None),
+            executor=FakeLunaExecutor(),
+        )
 
 
 def test_private_reflection_parser_requires_the_exact_anchored_shape() -> None:

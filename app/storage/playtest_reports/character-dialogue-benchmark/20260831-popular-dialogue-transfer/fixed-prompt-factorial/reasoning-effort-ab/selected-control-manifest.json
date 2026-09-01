@@ -1,0 +1,650 @@
+{
+  "schema_version": "character_dialogue_benchmark_manifest_v7",
+  "description": "Four preregistered top-performing cell-C cases selected for the Luna medium-versus-max reasoning A/B; case contents are byte-for-byte projections of the frozen eight-case control.",
+  "cases": [
+    {
+      "case_id": "wa2_hs_transfer_a",
+      "title": "The empty third chair",
+      "suite": "ordinary_surface",
+      "source_metadata": {
+        "conversation_id": "wa2-hs-transfer-a",
+        "source_basis": [
+          {
+            "character": "Haruki Kitahara",
+            "url": "https://aquaplus.jp/wa2/character.html",
+            "facts_used": [
+              "third-year Class 3-E student",
+              "first-term class representative",
+              "light-music club second guitarist and odd-job handler",
+              "habit of meddling and giving well-armed lectures"
+            ]
+          },
+          {
+            "character": "Setsuna Ogiso",
+            "url": "https://aquaplus.jp/wa2/character02.html",
+            "facts_used": [
+              "third-year student",
+              "school beauty title winner two years in a row",
+              "publicly calm, friendly, and modest while privately playful",
+              "private karaoke habit and old popular opening song"
+            ]
+          },
+          {
+            "character": "Kazusa Touma",
+            "url": "https://aquaplus.jp/wa2/character03.html",
+            "facts_used": [
+              "third-year Class 3-E student and Haruki's neighbor",
+              "habitual sleep and class avoidance",
+              "isolated, prickly distance from classmates"
+            ]
+          },
+          {
+            "character": "Touma Youko",
+            "url": "https://whitealbum2.jp/character/toumayouko.html",
+            "facts_used": [
+              "Kazusa's mother",
+              "world-famous pianist living in Paris",
+              "living separately from Kazusa"
+            ]
+          }
+        ],
+        "actor_material_source": "app/storage/playtest_reports/character-dialogue-benchmark/20260830-luna-popular-controls/white-album-2/spare-umbrella-control/control-manifest.json",
+        "selected_actor_facts": {
+          "setsuna_ogiso": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "haruki_kitahara": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      },
+      "actors": [
+        {
+          "character_id": "setsuna_ogiso",
+          "name": "Setsuna Ogiso",
+          "public_sheet": {
+            "role": "a popular third-year student and the light-music club's singer"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You keep this small karaoke booth private. You normally begin with the same older song, sing it alone, and put the second microphone out of reach until you finish."
+              },
+              {
+                "origin": "lived",
+                "text": "For years you let schoolmates see a calm, modest beauty-pageant winner. Haruki and Kazusa have also seen you tease, interfere, and continue an invitation after politeness would have let it die."
+              },
+              {
+                "origin": "lived",
+                "text": "You are Haruki's girlfriend. After the festival, you were the one who said the three of you should keep meeting together."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At home, you watched your mother keep two angry relatives at dinner by serving rice, changing the literal subject, and returning to the unanswered question only after they had eaten."
+              },
+              {
+                "origin": "lived",
+                "text": "When Haruki once arrived late with a careful explanation, you welcomed him normally, remembered the exact time he had promised, and repeated it to him later when nobody else could hear."
+              }
+            ]
+          }
+        },
+        {
+          "character_id": "haruki_kitahara",
+          "name": "Haruki Kitahara",
+          "public_sheet": {
+            "role": "an honors student, former class representative, and the light-music club's second guitarist"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You became the classmate who carries forms, fixes schedules, and lectures people after doing the favor they did not request."
+              },
+              {
+                "origin": "lived",
+                "text": "You are dating Setsuna and still care intensely about Kazusa. You keep arranging time for all three because you do not know how to choose between promises that conflict."
+              },
+              {
+                "origin": "told",
+                "text": "Kazusa's mother told you that she wants Kazusa to continue her music overseas after graduation. Kazusa has not given you permission to tell Setsuna."
+              },
+              {
+                "origin": "lived",
+                "text": "During a committee quarrel, you once rewrote the rota and announced the fair solution; only afterward did you learn that neither student had agreed to the job."
+              },
+              {
+                "origin": "lived",
+                "text": "When you withhold the important part, you become exact about the surrounding minutes, wording, and sequence. Setsuna once repeated one of those careful explanations back to you days later."
+              }
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "family_restaurant_departure",
+          "title": "After the club meeting",
+          "frame": "At 18:05 on Thursday, after an ordinary club meeting, Setsuna and Haruki sit at their usual family-restaurant corner table. On each of the previous four Thursdays Kazusa joined them; Setsuna ordered tea, Haruki stayed until she finished it, and Kazusa announced that she was leaving but remained until all three rose. Tonight Kazusa's phone lit once; she looked at it, took all of her belongings, and left before touching her tea. Her tea is untouched, Haruki's water is half full, the bill has not been requested, the third chair is empty, and nobody is required to stay.",
+          "actor_observations": {
+            "setsuna_ogiso": [
+              "You saw Haruki recognize the name on Kazusa's phone. You could not read it, and you do not know about the overseas offer or that Haruki knows about it."
+            ],
+            "haruki_kitahara": [
+              "You read the name as Kazusa's mother. You know her mother wants Kazusa to continue music overseas, Kazusa has not decided, and she gave you no permission to tell Setsuna. You do not know why Kazusa left or what she will decide."
+            ]
+          },
+          "turn_order": [
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara"
+          ]
+        },
+        {
+          "scene_id": "music_room_return",
+          "title": "Before the next meeting",
+          "frame": "Six school days later at 16:35, Setsuna and Haruki are alone in the music room before the club meeting. The instruments are closed, Kazusa is absent and has sent no shared message, the hallway is open, and late light falls across the room.",
+          "between_scene_public_history": "Six school days pass with ordinary school and club contact. Neither person witnesses any return to Kazusa's departure or her unfinished tea.",
+          "turn_order": [
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "wa2_hs_transfer_b",
+      "title": "The empty third chair",
+      "suite": "ordinary_surface",
+      "source_metadata": {
+        "conversation_id": "wa2-hs-transfer-b",
+        "source_basis": [
+          {
+            "character": "Haruki Kitahara",
+            "url": "https://aquaplus.jp/wa2/character.html",
+            "facts_used": [
+              "third-year Class 3-E student",
+              "first-term class representative",
+              "light-music club second guitarist and odd-job handler",
+              "habit of meddling and giving well-armed lectures"
+            ]
+          },
+          {
+            "character": "Setsuna Ogiso",
+            "url": "https://aquaplus.jp/wa2/character02.html",
+            "facts_used": [
+              "third-year student",
+              "school beauty title winner two years in a row",
+              "publicly calm, friendly, and modest while privately playful",
+              "private karaoke habit and old popular opening song"
+            ]
+          },
+          {
+            "character": "Kazusa Touma",
+            "url": "https://aquaplus.jp/wa2/character03.html",
+            "facts_used": [
+              "third-year Class 3-E student and Haruki's neighbor",
+              "habitual sleep and class avoidance",
+              "isolated, prickly distance from classmates"
+            ]
+          },
+          {
+            "character": "Touma Youko",
+            "url": "https://whitealbum2.jp/character/toumayouko.html",
+            "facts_used": [
+              "Kazusa's mother",
+              "world-famous pianist living in Paris",
+              "living separately from Kazusa"
+            ]
+          }
+        ],
+        "actor_material_source": "app/storage/playtest_reports/character-dialogue-benchmark/20260830-luna-popular-controls/white-album-2/spare-umbrella-control/control-manifest.json",
+        "selected_actor_facts": {
+          "setsuna_ogiso": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "haruki_kitahara": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      },
+      "actors": [
+        {
+          "character_id": "setsuna_ogiso",
+          "name": "Setsuna Ogiso",
+          "public_sheet": {
+            "role": "a popular third-year student and the light-music club's singer"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You keep this small karaoke booth private. You normally begin with the same older song, sing it alone, and put the second microphone out of reach until you finish."
+              },
+              {
+                "origin": "lived",
+                "text": "For years you let schoolmates see a calm, modest beauty-pageant winner. Haruki and Kazusa have also seen you tease, interfere, and continue an invitation after politeness would have let it die."
+              },
+              {
+                "origin": "lived",
+                "text": "You are Haruki's girlfriend. After the festival, you were the one who said the three of you should keep meeting together."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At home, you watched your mother keep two angry relatives at dinner by serving rice, changing the literal subject, and returning to the unanswered question only after they had eaten."
+              },
+              {
+                "origin": "lived",
+                "text": "When Haruki once arrived late with a careful explanation, you welcomed him normally, remembered the exact time he had promised, and repeated it to him later when nobody else could hear."
+              }
+            ]
+          }
+        },
+        {
+          "character_id": "haruki_kitahara",
+          "name": "Haruki Kitahara",
+          "public_sheet": {
+            "role": "an honors student, former class representative, and the light-music club's second guitarist"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You became the classmate who carries forms, fixes schedules, and lectures people after doing the favor they did not request."
+              },
+              {
+                "origin": "lived",
+                "text": "You are dating Setsuna and still care intensely about Kazusa. You keep arranging time for all three because you do not know how to choose between promises that conflict."
+              },
+              {
+                "origin": "told",
+                "text": "Kazusa's mother told you that she wants Kazusa to continue her music overseas after graduation. Kazusa has not given you permission to tell Setsuna."
+              },
+              {
+                "origin": "lived",
+                "text": "During a committee quarrel, you once rewrote the rota and announced the fair solution; only afterward did you learn that neither student had agreed to the job."
+              },
+              {
+                "origin": "lived",
+                "text": "When you withhold the important part, you become exact about the surrounding minutes, wording, and sequence. Setsuna once repeated one of those careful explanations back to you days later."
+              }
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "family_restaurant_departure",
+          "title": "After the club meeting",
+          "frame": "At 18:05 on Thursday, after an ordinary club meeting, Setsuna and Haruki sit at their usual family-restaurant corner table. On each of the previous four Thursdays Kazusa joined them; Setsuna ordered tea, Haruki stayed until she finished it, and Kazusa announced that she was leaving but remained until all three rose. Tonight Kazusa's phone lit once; she looked at it, took all of her belongings, and left before touching her tea. Her tea is untouched, Haruki's water is half full, the bill has not been requested, the third chair is empty, and nobody is required to stay.",
+          "actor_observations": {
+            "setsuna_ogiso": [
+              "You saw Haruki recognize the name on Kazusa's phone. You could not read it, and you do not know about the overseas offer or that Haruki knows about it."
+            ],
+            "haruki_kitahara": [
+              "You read the name as Kazusa's mother. You know her mother wants Kazusa to continue music overseas, Kazusa has not decided, and she gave you no permission to tell Setsuna. You do not know why Kazusa left or what she will decide."
+            ]
+          },
+          "turn_order": [
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara"
+          ]
+        },
+        {
+          "scene_id": "music_room_return",
+          "title": "Before the next meeting",
+          "frame": "Six school days later at 16:35, Setsuna and Haruki are alone in the music room before the club meeting. The instruments are closed, Kazusa is absent and has sent no shared message, the hallway is open, and late light falls across the room.",
+          "between_scene_public_history": "Six school days pass with ordinary school and club contact. Neither person witnesses any return to Kazusa's departure or her unfinished tea.",
+          "turn_order": [
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso",
+            "haruki_kitahara",
+            "setsuna_ogiso"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "wa2_sk_transfer_a",
+      "title": "The table kept",
+      "suite": "ordinary_surface",
+      "source_metadata": {
+        "conversation_id": "wa2-sk-transfer-a",
+        "source_basis": [
+          {
+            "character": "Haruki Kitahara",
+            "url": "https://aquaplus.jp/wa2/character.html",
+            "facts_used": [
+              "third-year Class 3-E student",
+              "first-term class representative",
+              "light-music club second guitarist and odd-job handler",
+              "habit of meddling and giving well-armed lectures"
+            ]
+          },
+          {
+            "character": "Setsuna Ogiso",
+            "url": "https://aquaplus.jp/wa2/character02.html",
+            "facts_used": [
+              "third-year student",
+              "school beauty title winner two years in a row",
+              "publicly calm, friendly, and modest while privately playful",
+              "private karaoke habit and old popular opening song"
+            ]
+          },
+          {
+            "character": "Kazusa Touma",
+            "url": "https://aquaplus.jp/wa2/character03.html",
+            "facts_used": [
+              "third-year Class 3-E student and Haruki's neighbor",
+              "habitual sleep and class avoidance",
+              "isolated, prickly distance from classmates"
+            ]
+          },
+          {
+            "character": "Touma Youko",
+            "url": "https://whitealbum2.jp/character/toumayouko.html",
+            "facts_used": [
+              "Kazusa's mother",
+              "world-famous pianist living in Paris",
+              "living separately from Kazusa"
+            ]
+          }
+        ],
+        "actor_material_source": "app/storage/playtest_reports/character-dialogue-benchmark/20260830-luna-popular-controls/white-album-2/spare-umbrella-control/control-manifest.json",
+        "selected_actor_facts": {
+          "setsuna_ogiso": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "kazusa_touma": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        }
+      },
+      "actors": [
+        {
+          "character_id": "setsuna_ogiso",
+          "name": "Setsuna Ogiso",
+          "public_sheet": {
+            "role": "a popular third-year student and the light-music club's singer"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You keep this small karaoke booth private. You normally begin with the same older song, sing it alone, and put the second microphone out of reach until you finish."
+              },
+              {
+                "origin": "lived",
+                "text": "For years you let schoolmates see a calm, modest beauty-pageant winner. Haruki and Kazusa have also seen you tease, interfere, and continue an invitation after politeness would have let it die."
+              },
+              {
+                "origin": "lived",
+                "text": "You are Haruki's girlfriend. After the festival, you were the one who said the three of you should keep meeting together."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At home, you watched your mother keep two angry relatives at dinner by serving rice, changing the literal subject, and returning to the unanswered question only after they had eaten."
+              },
+              {
+                "origin": "lived",
+                "text": "When Haruki once arrived late with a careful explanation, you welcomed him normally, remembered the exact time he had promised, and repeated it to him later when nobody else could hear."
+              }
+            ]
+          }
+        },
+        {
+          "character_id": "kazusa_touma",
+          "name": "Kazusa Touma",
+          "public_sheet": {
+            "role": "an isolated third-year student and gifted pianist"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You sleep by the classroom window, skip lessons, and leave praise unanswered; distance has usually cost less than letting classmates decide what your talent means."
+              },
+              {
+                "origin": "told",
+                "text": "Your mother, a famous pianist who has lived apart from you, wants you to continue your music overseas after graduation."
+              },
+              {
+                "origin": "lived",
+                "text": "You have not decided whether to go overseas and have not told Setsuna. Haruki knows what your mother wants."
+              },
+              {
+                "origin": "lived",
+                "text": "You accepted Setsuna as a close friend and came to the booth because she asked. You did not tell her that being included makes the overseas choice harder."
+              },
+              {
+                "origin": "lived",
+                "text": "When Haruki once walked you toward the station without asking, you criticized his route, crossed to the longer platform, and kept walking beside him."
+              },
+              {
+                "origin": "lived",
+                "text": "The last time Haruki explained your silence for you, you answered no twice, then told him in one breath how he had turned a refusal into permission; you left before he could answer."
+              }
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "family_restaurant_absence",
+          "title": "The table without Haruki",
+          "frame": "At 18:05 on Thursday, after an ordinary club meeting, Setsuna and Kazusa sit at their usual family-restaurant corner table. On each of the previous four Thursdays Haruki joined them; Setsuna ordered tea, Haruki stayed until she finished it, and Kazusa announced that she was leaving but remained until all three rose. Tonight Haruki sent a plain message that he is absent for class duty. Setsuna and Kazusa came anyway. Kazusa's phone lit once while they were seated. Tea and water have arrived, the third chair is empty, the bill has not been requested, and nobody is required to stay.",
+          "actor_observations": {
+            "setsuna_ogiso": [
+              "This is the first time you have kept the usual table without Haruki. You do not know about the overseas offer or that Haruki knows about it. You saw Kazusa look at you when the message arrived."
+            ],
+            "kazusa_touma": [
+              "Your mother wrote again about continuing music overseas. You have not decided, Haruki knows, Setsuna does not, and you came to the table anyway."
+            ]
+          },
+          "turn_order": [
+            "kazusa_touma",
+            "setsuna_ogiso",
+            "kazusa_touma",
+            "setsuna_ogiso",
+            "kazusa_touma",
+            "setsuna_ogiso",
+            "kazusa_touma",
+            "setsuna_ogiso"
+          ]
+        },
+        {
+          "scene_id": "music_room_without_haruki",
+          "title": "Before the next meeting",
+          "frame": "Six school days later at 16:35, Setsuna and Kazusa are alone in the music room before the club meeting. The instruments are closed, Haruki is absent and has sent no shared message, the hallway is open, and late light falls across the room.",
+          "between_scene_public_history": "Six school days pass with ordinary school and club contact. Neither person witnesses any return to the table or Haruki's absence.",
+          "turn_order": [
+            "setsuna_ogiso",
+            "kazusa_touma",
+            "setsuna_ogiso",
+            "kazusa_touma",
+            "setsuna_ogiso",
+            "kazusa_touma",
+            "setsuna_ogiso",
+            "kazusa_touma"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "sg_okabe_kurisu_transfer_c",
+      "title": "The unlabeled bun",
+      "suite": "ordinary_surface",
+      "source_metadata": {
+        "conversation_id": "sg-okabe-kurisu-transfer-c"
+      },
+      "actors": [
+        {
+          "character_id": "okabe_rintaro",
+          "name": "Rintaro Okabe",
+          "public_sheet": {
+            "role": "a university student who founded a small laboratory"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You founded the Future Gadget Laboratory and are happiest when a room lets you perform as its self-appointed leader, even when nobody asked for one."
+              },
+              {
+                "origin": "lived",
+                "text": "When a joke starts to work, you prolong the bit past its useful point to see who makes you stop."
+              },
+              {
+                "origin": "inferred",
+                "text": "You have often mistaken Mayuri's gentle refusal to interrupt you for agreement, then learned too late that she had been waiting for somebody else to say no."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At a university open day, Kurisu corrected your explanation in front of visitors, the room followed her answer, and you felt your usual standing disappear until you turned it into a challenge."
+              },
+              {
+                "origin": "lived",
+                "text": "When Kurisu gives only the practical half of an answer, you turn the missing half into a contest instead of letting the question close."
+              },
+              {
+                "origin": "lived",
+                "text": "On Fridays, Mayuri leaves one unlabeled bakery bun for you to taste first; you make a ceremony of guessing before anyone tells you what is inside."
+              }
+            ]
+          }
+        },
+        {
+          "character_id": "kurisu_makise",
+          "name": "Kurisu Makise",
+          "public_sheet": {
+            "role": "a young researcher with exacting methods"
+          },
+          "actor": {
+            "may_act_offstage": false,
+            "facts": [
+              {
+                "origin": "lived",
+                "text": "You are a young researcher whose precision has made older students mistake your correction for hostility."
+              },
+              {
+                "origin": "lived",
+                "text": "An interesting question holds you longer than politeness does, even when you know the person asking is trying to make a stage out of it."
+              },
+              {
+                "origin": "witnessed",
+                "text": "At a university open day, you corrected Okabe's explanation before visitors and the room began asking you questions instead of him; he kept treating the shift as a game."
+              },
+              {
+                "origin": "inferred",
+                "text": "When Okabe keeps elaborating, you sometimes let him continue because the question next to his performance is worth hearing."
+              },
+              {
+                "origin": "told",
+                "text": "Mayuri once taught you that walking somewhere together changes what people will say before they arrive; you began paying attention to movement as carefully as measurement."
+              },
+              {
+                "origin": "lived",
+                "text": "You taste a shared thing before correcting it, and when you are certain of the answer you leave the last bite untouched rather than argue over it."
+              }
+            ]
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "friday_bun",
+          "title": "After the fitting departure",
+          "frame": "At 17:20 on Friday, Mayuri has just left the laboratory for the costume fitting she mentioned to both of them earlier. Okabe and Kurisu remain alone. The usual Friday bakery bag holds one unlabeled bun on a napkin between two paper cups; it is untouched. The laboratory door is open, no other errand is pending, and neither person is required to stay.",
+          "actor_observations": {
+            "okabe_rintaro": [
+              "You saw Mayuri and Kurisu arrive together from the bakery. You do not know the filling or what Mayuri intended by leaving the bun."
+            ],
+            "kurisu_makise": [
+              "You know the bun is pear-custard. Mayuri asked you not to spoil Okabe's first guess before she was interrupted."
+            ]
+          },
+          "turn_order": [
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ]
+        },
+        {
+          "scene_id": "below_lab_stairs",
+          "title": "The two ways down",
+          "frame": "Four school days later at 18:10, Okabe and Kurisu stand below the laboratory stairs. The station is direct from the corner; the longer route begins across the street through the arcade. On earlier walks, Okabe has given theatrical reasons to take the arcade, Kurisu has corrected them, and Mayuri has stopped at the window there. Mayuri is absent for a commitment both of them know about. No route has been proposed, the stairwell door is open, and either person can leave.",
+          "between_scene_public_history": "Several ordinary school and laboratory days pass. Neither person receives a further shared explanation of the bun after Mayuri leaves for the fitting.",
+          "turn_order": [
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise",
+            "okabe_rintaro",
+            "kurisu_makise"
+          ]
+        }
+      ]
+    }
+  ]
+}
