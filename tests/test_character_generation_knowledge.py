@@ -6,7 +6,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.engine.character_agent import model_role_for_character
-from app.engine.character_manager import CharacterManager
+from app.engine.character_manager import (
+    CASTING_PLAN_MAX_TOKENS,
+    CHARACTER_MANAGER_MAX_TOKENS,
+    CastingBrief,
+    CastingPlan,
+    CharacterManager,
+)
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.characters import (
@@ -185,6 +191,46 @@ def _request(
 def _rendered_call(client: MagicMock, index: int = 0) -> tuple[str, str]:
     messages = client.complete.await_args_list[index].kwargs["messages"]
     return messages[0]["content"], messages[1]["content"]
+
+
+@pytest.mark.asyncio
+async def test_casting_plan_uses_full_character_manager_output_budget() -> None:
+    plan = CastingPlan(briefs=[
+        CastingBrief(character_id="mara_venn", brief="Keep the scout distinct."),
+        CastingBrief(character_id="orin_vale", brief="Keep the smith distinct."),
+    ])
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(return_value=LLMResponse(
+        parsed=plan,
+        content=plan.model_dump_json(),
+        model="offline-fixture",
+    ))
+    requests = [
+        _request(tier=1),
+        SpawnRequest(
+            character_id="orin_vale",
+            seed={
+                "role": "smith",
+                "reason": "A new smith wakes in the lower hall",
+                "location": "lower_hall",
+                "objectives": ["Inspect the worn tools"],
+                "knowledge_tier": 1,
+            },
+        ),
+    ]
+
+    briefs = await CharacterManager(
+        client, PromptManager("app/prompts"),
+    )._make_casting_plan(_checkpoint(), requests)
+
+    assert [brief.character_id for brief in briefs] == [
+        "mara_venn",
+        "orin_vale",
+    ]
+    assert CASTING_PLAN_MAX_TOKENS == CHARACTER_MANAGER_MAX_TOKENS == 8_000
+    assert client.complete.await_args.kwargs["max_tokens"] == (
+        CHARACTER_MANAGER_MAX_TOKENS
+    )
 
 
 @pytest.mark.asyncio

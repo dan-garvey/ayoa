@@ -28,11 +28,11 @@ logger = logging.getLogger(__name__)
 # Max spawns per turn to prevent latency blowups
 MAX_SPAWNS_PER_TURN = 3
 
-# Claude 5 counts adaptive-thinking tokens and visible structured output
-# against the same ceiling. Character authoring is a one-time call, and its
-# ruleset overlays are substantially larger than recurring character turns.
+# Reasoning tokens and visible structured output share the same response
+# ceiling. Character authoring and its sibling casting plan are one-time calls,
+# and both need enough room for a max-reasoning model before emitting JSON.
 CHARACTER_MANAGER_MAX_TOKENS = 8_000
-CASTING_PLAN_MAX_TOKENS = 2_000
+CASTING_PLAN_MAX_TOKENS = CHARACTER_MANAGER_MAX_TOKENS
 
 
 # Per-line cap for LLM-authored player-character summaries after newline
