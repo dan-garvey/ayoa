@@ -1672,8 +1672,6 @@ class TestSlotRejection:
                 "value": "",
                 "details": [
                     "counter=clear:1/1",
-                    "report_kind=progress",
-                    "credit=hero",
                 ],
             }],
         ))
@@ -1730,8 +1728,6 @@ class TestSlotRejection:
                 "value": "",
                 "details": [
                     "counter=clear:1/1",
-                    "report_kind=progress",
-                    "credit=hero",
                 ],
             }],
         ))

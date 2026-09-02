@@ -1051,25 +1051,12 @@ class OneStarMissionUpdateOperation(BaseModel):
     operation: Literal["mission_update"]
     mission_id: str
     counters: list[OneStarMissionCounter]
-    report_kind: Literal["critical", "boss_kill", "dialogue"] | None = None
-    report_credit: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_counters(self) -> "OneStarMissionUpdateOperation":
         counter_ids = [entry.counter_id for entry in self.counters]
         if not counter_ids or len(counter_ids) != len(set(counter_ids)):
             raise ValueError("mission update counter ids must be non-empty and unique")
-        self.report_credit = [
-            character_id.strip() for character_id in self.report_credit
-        ]
-        if any(not character_id for character_id in self.report_credit):
-            raise ValueError("mission report credit ids cannot be blank")
-        if len(self.report_credit) != len(set(self.report_credit)):
-            raise ValueError("mission report credit ids must be unique")
-        if (self.report_kind is None) != (not self.report_credit):
-            raise ValueError(
-                "mission report kind and credited party ids must appear together"
-            )
         return self
 
 
@@ -1080,16 +1067,6 @@ class OneStarMissionEndOperation(BaseModel):
     outcome: Literal["completed", "failed", "escaped"]
     return_destination: str
     escape_authority_id: str
-    mvp_character_id: str
-    mvp_evidence_event_id: str
-
-    @model_validator(mode="after")
-    def _clean_mvp(self) -> "OneStarMissionEndOperation":
-        self.mvp_character_id = self.mvp_character_id.strip()
-        self.mvp_evidence_event_id = self.mvp_evidence_event_id.strip()
-        if not self.mvp_character_id or not self.mvp_evidence_event_id:
-            raise ValueError("mission end requires an MVP and evidence event id")
-        return self
 
 
 class OneStarPendingOpenOperation(BaseModel):

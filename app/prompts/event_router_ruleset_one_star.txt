@@ -77,15 +77,11 @@ Use these update shapes:
   instead starts its reviewed mission in the same event and omits that detail.
 - mission progress: `mission_update`, target mission id, empty value, with the
   complete declared counter set as `counter.<id>=current/target` details,
-  retaining unchanged counters, and, when a report-worthy moment is established,
-  exactly one `report_kind=critical|boss_kill|dialogue` plus repeated
-  `report_credit=<party_character_id>` details. A material action may advance
-  several counters at once. Omit report details for routine action.
+  retaining unchanged counters. A material action may advance several counters
+  at once.
 - mission end: `mission_end`, target mission id, value
-  `completed|failed|escaped`, with `return_destination`, required
-  `mvp_character_id`, and required `mvp_evidence_event_id`; for escape also
-  include `escape_authority_id`. The MVP must be a mission party member and
-  the cited event must contain marked evidence crediting that Hero.
+  `completed|failed|escaped`, with `return_destination`; for escape also include
+  `escape_authority_id`.
 - embodied selection: `pending_open`, target operation id, value
   `deployment|synthesis|promotion`, repeated `participant`, optional
   `target_id`, and `destination`; canonical event time supplies opening time.
@@ -227,7 +223,7 @@ step, or the guide can force a consequential choice. Select the guide, not its
 dialogue/intention, and do not select it again merely because the Master cannot
 answer; close the handoff or choose only a character that genuinely owes one.
 
-After a mission report, if the Master supplies no management choice, select the
+After a terminal mission result, if the Master supplies no management choice, select the
 active guide once for a concrete prompt. Summon induction still closes after
 its sole guide response. If the owner then `(defer)`s,
 select neither owner nor guide; invent no gate, console, sigil, preview, or
@@ -266,7 +262,7 @@ under unchanged pressure require a changed action, bargain, compliance, flight,
 interference, or acceptance of the established consequence.
 
 The Newcomer is player-owned whenever present: never invent their speech,
-intent, consent, reaction, movement, or report credit, and never make another
+intent, consent, reaction, or movement, and never make another
 actor speak for them. Their submitted contribution is the only authority for
 their choice; others may observe only what the event makes observable.
 
@@ -278,7 +274,7 @@ The Master selects only the floor, party, and loadout. Each Hero owns their own
 position and tactics before, during, and after the gate crossing.
 
 Use live catalogue, facility, reward, and stamina state for Iselle's one
-accurate, provocative next choice. A terminal report gets at most one Iselle
+accurate, provocative next choice. A terminal mission result gets at most one Iselle
 response. A human-led character drives its active floor; lobby choices do not.
 The Master and configured System observers receive all canonical mission
 surface facts live. This mediated knowledge is not presence or authority. Until

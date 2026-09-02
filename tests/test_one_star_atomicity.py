@@ -250,23 +250,17 @@ def _direct_opening_transaction(
 def _marked_mission_update(
     *,
     current: int,
-    credited_id: str = "hero",
-    report_kind: str = "critical",
 ) -> dict:
     return {
         "operation": "mission_update",
         "mission_id": "mission_1",
         "counters": [{"counter_id": "clear", "current": current, "target": 1}],
-        "report_kind": report_kind,
-        "report_credit": [credited_id],
     }
 
 
 def _mission_end(
     *,
-    event_id: str,
     outcome: str,
-    mvp_character_id: str = "hero",
     escape_authority_id: str = "",
 ) -> dict:
     return {
@@ -275,8 +269,6 @@ def _mission_end(
         "outcome": outcome,
         "return_destination": "lobby" if outcome != "failed" else "",
         "escape_authority_id": escape_authority_id,
-        "mvp_character_id": mvp_character_id,
-        "mvp_evidence_event_id": event_id,
     }
 
 
@@ -1039,7 +1031,6 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
             transaction=_transaction(
                 _marked_mission_update(current=0),
                 _mission_end(
-                    event_id="premature_mission_complete",
                     outcome="completed",
                 ),
             ),
@@ -1051,7 +1042,7 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
         event_id="mission_complete",
         transaction=_transaction(
             _marked_mission_update(current=1),
-            _mission_end(event_id="mission_complete", outcome="completed"),
+            _mission_end(outcome="completed"),
         ),
         canonical_at_s=1,
     )
@@ -1070,7 +1061,6 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
         consequence.text for consequence in completed.system_consequences
     )
     assert "Floor 1 first-clear reward applied" in consequence_text
-    assert "Mission report MVP is Hero" in consequence_text
     assert "mission_1" not in consequence_text
     assert "mission_complete" not in consequence_text
 
@@ -1222,6 +1212,43 @@ def test_resolved_cat_ii_can_kill_despite_original_master_initiator() -> None:
         if character.character_id == "hero"
     )
     assert hero.status is CharacterStatus.culled
+
+
+def test_mission_death_emits_exact_system_notice_to_live_observers() -> None:
+    checkpoint = _checkpoint(
+        heroes=[_hero(location="tower_floor_1")],
+        active_mission=_mission(),
+    )
+    checkpoint.characters.append(CharacterRecord(
+        character_id="guide",
+        name="Guide",
+        location="lobby",
+    ))
+    owner, account = load_one_star_account(checkpoint)
+    account.state.guide_character_ids = ["guide"]
+    account.state.system_observer_ids = ["guide"]
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
+
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="hero_dies_on_floor",
+        transaction=_transaction(_hero_delta(
+            hp_current=0,
+            terminal_action="death",
+            death_cause="a goblin blade through the torso",
+        )),
+    )
+
+    death_notices = [
+        consequence
+        for consequence in prepared.system_consequences
+        if consequence.text == "System: Hero died."
+    ]
+    assert len(death_notices) == 1
+    assert death_notices[0].recipient_character_ids == (
+        "account_owner",
+        "guide",
+    )
 
 
 def test_guide_tutorial_delivery_records_active_recipient_exactly_once() -> None:
@@ -2073,10 +2100,9 @@ def test_escape_authority_added_in_same_mission_end_event_cannot_authorize_escap
             checkpoint,
             event_id="escape_with_new_skill",
             transaction=_transaction(
-                _marked_mission_update(current=0, report_kind="dialogue"),
+                _marked_mission_update(current=0),
                 _hero_delta(skills_add=[_add_escape_skill()]),
                 _mission_end(
-                    event_id="escape_with_new_skill",
                     outcome="escaped",
                     escape_authority_id="escape_skill",
                 ),
@@ -2092,9 +2118,8 @@ def test_preexisting_escape_authority_allows_escaped_mission_return() -> None:
         checkpoint,
         event_id="escape_with_old_skill",
         transaction=_transaction(
-            _marked_mission_update(current=0, report_kind="dialogue"),
+            _marked_mission_update(current=0),
             _mission_end(
-                event_id="escape_with_old_skill",
                 outcome="escaped",
                 escape_authority_id="escape_skill",
             ),
@@ -2458,7 +2483,6 @@ def test_repeat_reward_minimum_is_seed_authored(
         transaction=_transaction(
             _marked_mission_update(current=1),
             _mission_end(
-                event_id=f"repeat_minimum_{minimum}",
                 outcome="completed",
             ),
         ),

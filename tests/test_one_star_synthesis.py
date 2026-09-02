@@ -477,12 +477,9 @@ def test_completed_mission_awards_each_living_survivor_with_overlevel_multiplier
         transaction=_transaction(
             _marked_mission_update(
                 current=1,
-                credited_id="hero_1",
             ),
             _mission_end(
-                event_id="floor_one_complete",
                 outcome="completed",
-                mvp_character_id="hero_1",
             ),
         ),
     )
@@ -495,7 +492,7 @@ def test_completed_mission_awards_each_living_survivor_with_overlevel_multiplier
     assert load_one_star_hero(by_id["dead"]).experience_points == 0
     assert any(
         "guide" in consequence.recipient_character_ids
-        and "Mission report MVP" in consequence.text
+        and "Floor 1 first-clear reward applied" in consequence.text
         for consequence in prepared.system_consequences
     )
     assert all(
@@ -519,7 +516,6 @@ def test_first_and_repeat_completion_use_the_same_floor_xp_authority() -> None:
             transaction=_transaction(
                 _marked_mission_update(current=1),
                 _mission_end(
-                    event_id=f"complete_{already_cleared}",
                     outcome="completed",
                 ),
             ),

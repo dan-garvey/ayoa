@@ -1893,7 +1893,9 @@ While any mission is active, a fresh Master defer/watch or accepted One-Star
 state mutation may also admit one lobby-liveness thread before mission
 continuation. This is a player-beat cadence, not one call per mission event:
 autonomous floor actions cannot multiply it, and no calls happen merely because
-wall-clock time passed. The adapter projects only active, unbound, nonparty
+wall-clock time passed. An already owed floor handoff is held intact while the
+private lobby thread runs, then that exact Hero handoff resumes rather than
+being rerouted or discarded. The adapter projects only active, unbound, nonparty
 Heroes who are physically in the lobby and not pinned, selected for an embodied
 operation, or already occupied by an open commitment. It also projects the
 currently installed facility ids. A closed router continuation chooses exactly
@@ -1913,21 +1915,21 @@ charging the private events or lobby initiator against the floor event and
 cascade budgets. A human-led floor remains untouched; only the private lobby
 thread runs on the Master's disjoint turn.
 
-After a mission report, the active guide may make one concrete prompt for the
+After a terminal mission result, the active guide may make one concrete prompt for the
 Master's next management choice. If the Master defers, that bound handoff goes
 back through ordinary router selection so a genuinely pressured co-present
 non-guide Hero may act; it does not resume the guide, rotate a debrief, or
 invent interface motion. Existing autonomous Hero handoffs still resume their
 owed output directly when the player defers.
 
-The router may mark a consequential mission update as `critical`, `boss_kill`,
-or `dialogue` and credit exact party Heroes. Mission end must nominate a party
-MVP and cite a marked canonical event that credited that Hero. The adapter
-validates those references; a deterministic projector then derives deaths,
-highlights, rewards, unlocks, and MVP evidence from canonical mission events.
-New reports are delivered as System prose or visual-novel panels only to bound
-eligible System POVs. They are presentation of committed truth, not a durable
-feed or another source of mission state.
+Mission state remains deterministic: the adapter validates counters, outcomes,
+survivors, returns, rewards, progression, unlocks, and replay safety. Those
+mutations add only their exact System consequences to the same canonical
+terminal event. The ordinary narrator presents that committed event once; no
+second projector rescans mission history or appends separate report prose or
+visual-novel panels. A terminal Hero mutation similarly adds an exact scoped
+death notice so live System observers receive the state change without gaining
+physical presence or response ownership.
 
 Character-agent, status, and image projections are viewer-scoped. The account
 owner sees the local account roster, public XP progress, and exact usable stored

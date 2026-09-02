@@ -3272,12 +3272,12 @@ async def run_beat(
     one_star_batch_continuation_after_agent_count = -1
     one_star_lobby_liveness_checked = False
     one_star_lobby_liveness_request: Any | None = None
+    one_star_lobby_resume_handoff: EventRouterOutput | None = None
     one_star_lobby_liveness_cue_pending = False
     one_star_lobby_liveness_agent_attempts = 0
     one_star_lobby_liveness_events_closed = 0
     one_star_lobby_liveness_may_start = bool(
-        resume_after_handoff is None
-        and cat_ii_event_id is None
+        cat_ii_event_id is None
         and combat_reaction_event_id is None
     )
 
@@ -3376,7 +3376,7 @@ async def run_beat(
         )
         if autonomous_batch_checkpoint is not None:
             # One-Star may repair only its compact update list during
-            # preparation and may append trusted, scoped System report facts.
+            # preparation and may append trusted, scoped System consequences.
             # Re-check the prepared result against the pre-mutation mission so
             # a repair cannot widen this autonomous floor transaction.
             from app.engine.one_star_adapter import (
@@ -3621,6 +3621,45 @@ async def run_beat(
             narration_modes_by_pov=_one_star_batch_narration_modes(),
         )
 
+    async def _resume_one_star_lobby_floor_handoff() -> BeatResult | None:
+        """Resume the exact floor frontier held across one private lobby beat."""
+
+        nonlocal one_star_lobby_liveness_request
+        nonlocal one_star_lobby_resume_handoff
+
+        prior_result = one_star_lobby_resume_handoff
+        one_star_lobby_resume_handoff = None
+        one_star_lobby_liveness_request = None
+        if prior_result is None:
+            return None
+
+        targets = _binding_aware_next_output_targets(ckpt, prior_result)
+        if targets:
+            prepared = await _prepare_speculative_next_output(
+                prior_result,
+                targets,
+            )
+            if prepared.checkpoint is not None:
+                _adopt_speculative_next_output(prepared)
+            if prepared.outcome == "queued":
+                return None
+            if prepared.outcome == "cap":
+                return await _end_for_cascade_cap()
+            if prepared.outcome == "human":
+                return await _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason="awaiting_player_turn",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=suppress_reaction_prompts,
+                )
+
+        await _queue_router_continuation(prior_result)
+        return None
+
     async def _advance_or_render(
         result: EventRouterOutput,
         *,
@@ -3639,6 +3678,8 @@ async def run_beat(
             and not result.required_responders
             and not result.next_output_character_ids
         ):
+            if one_star_lobby_resume_handoff is not None:
+                return await _resume_one_star_lobby_floor_handoff()
             one_star_lobby_liveness_request = None
 
         if not one_star_human_led_mission_guard and not one_star_mission_batch_active:
@@ -4164,33 +4205,57 @@ async def run_beat(
             )
 
     if resume_after_handoff is not None:
-        resume_targets = _binding_aware_next_output_targets(
-            ckpt, resume_after_handoff,
+        from app.engine.one_star_adapter import (
+            one_star_lobby_liveness_request_after_result,
         )
-        if resume_targets:
-            prepared = await _prepare_speculative_next_output(
-                resume_after_handoff,
-                resume_targets,
+
+        liveness_request = (
+            one_star_lobby_liveness_request_after_result(
+                ckpt,
+                actor_id=actor_id,
+                result=resume_after_handoff,
+                user_input=intention,
             )
-            if prepared.checkpoint is not None:
-                _adopt_speculative_next_output(prepared)
-            if prepared.outcome == "cap":
-                return await _end_for_cascade_cap()
-            if prepared.outcome == "human":
-                return await _end_beat(
-                    ckpt,
-                    dispatcher,
-                    ended_reason="awaiting_player_turn",
-                    events_closed=events_closed,
-                    event_actor_ids=event_actor_ids,
-                    acting_player_id=actor_id,
-                    acting_player_input=intention,
-                    suppress_reaction_prompts=suppress_reaction_prompts,
-                )
-            if prepared.outcome != "queued":
-                await _queue_router_continuation(resume_after_handoff)
+            if one_star_lobby_liveness_may_start
+            else None
+        )
+        if liveness_request is not None:
+            one_star_lobby_liveness_checked = True
+            one_star_lobby_liveness_request = liveness_request
+            one_star_lobby_resume_handoff = resume_after_handoff
+            one_star_lobby_liveness_cue_pending = True
+            await _queue_router_continuation(
+                resume_after_handoff,
+                one_star_lobby_liveness=liveness_request,
+            )
         else:
-            await _queue_router_continuation(resume_after_handoff)
+            resume_targets = _binding_aware_next_output_targets(
+                ckpt, resume_after_handoff,
+            )
+            if resume_targets:
+                prepared = await _prepare_speculative_next_output(
+                    resume_after_handoff,
+                    resume_targets,
+                )
+                if prepared.checkpoint is not None:
+                    _adopt_speculative_next_output(prepared)
+                if prepared.outcome == "cap":
+                    return await _end_for_cascade_cap()
+                if prepared.outcome == "human":
+                    return await _end_beat(
+                        ckpt,
+                        dispatcher,
+                        ended_reason="awaiting_player_turn",
+                        events_closed=events_closed,
+                        event_actor_ids=event_actor_ids,
+                        acting_player_id=actor_id,
+                        acting_player_input=intention,
+                        suppress_reaction_prompts=suppress_reaction_prompts,
+                    )
+                if prepared.outcome != "queued":
+                    await _queue_router_continuation(resume_after_handoff)
+            else:
+                await _queue_router_continuation(resume_after_handoff)
 
     while True:
         if pending_result is None:
@@ -4668,6 +4733,8 @@ async def run_beat(
             )
             if liveness_request is not None:
                 one_star_lobby_liveness_request = liveness_request
+                if result.next_output_character_ids:
+                    one_star_lobby_resume_handoff = result
                 one_star_lobby_liveness_cue_pending = True
                 await _queue_router_continuation(
                     result,

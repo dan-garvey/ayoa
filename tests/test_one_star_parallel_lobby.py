@@ -183,7 +183,7 @@ def test_human_led_validator_rejects_floor_progress_without_a_pin() -> None:
         "kind": "mission_update",
         "target_id": "mission_1",
         "value": "",
-        "details": ["counter=clear:1/1", "report_kind=progress"],
+        "details": ["counter=clear:1/1"],
     }])
 
     with pytest.raises(OneStarTransactionError, match="mission_update"):
@@ -474,6 +474,20 @@ def test_lobby_liveness_request_respects_existing_frontiers_and_cadence() -> Non
         is None
     )
 
+    floor_frontier = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        agent_ids=["hero"],
+        event_kind="beat_continues",
+    )
+    request = one_star_lobby_liveness_request_after_result(
+        checkpoint,
+        actor_id="account_owner",
+        result=floor_frontier,
+        user_input="(defer)",
+    )
+    assert request is not None
+    assert request.party_ids == ("hero",)
+
     mutation = _one_star_result(
         state_updates=[
             {
@@ -710,6 +724,172 @@ def test_master_defer_runs_one_private_lobby_activity_before_floor_batch() -> No
     assert "evt_lobby_activity" not in rendered_ids
 
 
+def test_master_state_change_holds_floor_handoff_across_lobby_activity() -> None:
+    checkpoint = _active_checkpoint(bind_party=False)
+    checkpoint.session.character_bindings["account_owner"] = "master-player"
+    checkpoint.session.config.settings.max_events_per_beat = 1
+    dispatcher = InstanceFakeDispatcher()
+
+    initial = _one_star_result(
+        state_updates=[{
+            "kind": "mission_update",
+            "target_id": "mission_1",
+            "value": "",
+            "details": ["counter.clear=0/1"],
+        }],
+        observer_ids=["account_owner", "hero"],
+        agent_ids=["hero"],
+        event_kind="beat_continues",
+        facts=[ObservableFact.only(
+            "The Master confirms the active deployment.",
+            ["account_owner", "hero"],
+        )],
+    )
+    initial.event_id = "evt_master_mission_change"
+    cue = _one_star_result(
+        observer_ids=["reserve"],
+        agent_ids=["reserve"],
+        event_kind="public_fact",
+        facts=[ObservableFact.all("The kitchen fire needs tending.")],
+    )
+    cue.event_id = "evt_state_change_lobby_cue"
+    activity = _one_star_result(
+        observer_ids=["reserve"],
+        facts=[ObservableFact.all(
+            "Reserve tends a pot over the kitchen fire.",
+            visual_subject_ids=["reserve"],
+        )],
+    )
+    activity.event_id = "evt_state_change_lobby_activity"
+    floor_action = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        facts=[ObservableFact.only(
+            "Hero advances into the floor's danger.",
+            ["account_owner", "hero"],
+            visual_subject_ids=["hero"],
+        )],
+    )
+    floor_action.event_id = "evt_state_change_floor_action"
+
+    for response in (initial, cue, activity, floor_action):
+        dispatcher.queue_route(response)
+    dispatcher.queue_agent("Reserve tends the kitchen fire.")
+    dispatcher.queue_agent("Hero advances into the danger.")
+
+    result = asyncio.run(run_beat(
+        ckpt=checkpoint,
+        dispatcher=dispatcher,
+        actor_id="account_owner",
+        intention="Confirm the active deployment.",
+    ))
+
+    assert result.ended_reason == "max_events_cap"
+    assert [call["character_id"] for call in dispatcher.agent_calls] == [
+        "reserve",
+        "hero",
+    ]
+    assert dispatcher.continuation_calls[0]["prior_result"] is initial
+    assert [event.event_id for event in checkpoint.canonical_events] == [
+        "evt_master_mission_change",
+        "evt_state_change_lobby_cue",
+        "evt_state_change_lobby_activity",
+        "evt_state_change_floor_action",
+    ]
+
+
+def test_resumed_floor_handoff_survives_private_lobby_activity() -> None:
+    checkpoint = _active_checkpoint(bind_party=False)
+    checkpoint.session.character_bindings["account_owner"] = "master-player"
+    checkpoint.session.config.settings.max_agent_cascades_per_beat = 1
+    checkpoint.session.config.settings.max_events_per_beat = 3
+    dispatcher = InstanceFakeDispatcher()
+
+    owed_floor_handoff = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        agent_ids=["hero"],
+        event_kind="beat_continues",
+        facts=[ObservableFact.only(
+            "Hero faces the unresolved goblin rush.",
+            ["account_owner", "hero"],
+            visual_subject_ids=["hero"],
+        )],
+    )
+    owed_floor_handoff.event_id = "evt_owed_floor_handoff"
+    broadcast_event(checkpoint, owed_floor_handoff, actor_id="hero")
+
+    cue = _one_star_result(
+        observer_ids=["reserve"],
+        agent_ids=["reserve"],
+        event_kind="public_fact",
+        facts=[ObservableFact.all("The training room stands briefly empty.")],
+    )
+    cue.event_id = "evt_resumed_lobby_cue"
+    activity = _one_star_result(
+        observer_ids=["reserve"],
+        facts=[ObservableFact.all(
+            "Reserve begins a measured practice routine.",
+            visual_subject_ids=["reserve"],
+        )],
+    )
+    activity.event_id = "evt_resumed_lobby_activity"
+    floor_action = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        facts=[ObservableFact.only(
+            "Hero drives back into the unresolved goblin rush.",
+            ["account_owner", "hero"],
+            visual_subject_ids=["hero"],
+        )],
+    )
+    floor_action.event_id = "evt_resumed_floor_action"
+    floor_frontier = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        agent_ids=["hero"],
+        event_kind="beat_continues",
+        facts=[ObservableFact.only(
+            "Another goblin closes on Hero.",
+            ["account_owner", "hero"],
+            visual_subject_ids=["hero"],
+        )],
+    )
+    floor_frontier.event_id = "evt_resumed_floor_frontier"
+
+    for response in (cue, activity, floor_action, floor_frontier):
+        dispatcher.queue_route(response)
+    dispatcher.queue_agent("Reserve begins a measured practice routine.")
+    dispatcher.queue_agent("Hero drives back into the goblin rush.")
+
+    result = asyncio.run(run_beat(
+        ckpt=checkpoint,
+        dispatcher=dispatcher,
+        actor_id="account_owner",
+        intention="(defer)",
+        resume_after_handoff=owed_floor_handoff,
+    ))
+
+    assert result.ended_reason == "cascade_cap"
+    assert [call["character_id"] for call in dispatcher.agent_calls] == [
+        "reserve",
+        "hero",
+    ]
+    assert dispatcher.agent_calls[0]["frame"] == "background"
+    assert dispatcher.agent_calls[1]["frame"] == "foreground"
+    assert dispatcher.continuation_calls[0]["prior_result"] is owed_floor_handoff
+    assert dispatcher.continuation_calls[0]["one_star_lobby_liveness"]
+    assert [event.event_id for event in checkpoint.canonical_events] == [
+        "evt_owed_floor_handoff",
+        "evt_resumed_lobby_cue",
+        "evt_resumed_lobby_activity",
+        "evt_resumed_floor_action",
+        "evt_resumed_floor_frontier",
+    ]
+    rendered_ids = {
+        event.event_id for event in dispatcher.narrator_calls[0]["buffered_events"]
+    }
+    assert "evt_resumed_lobby_cue" not in rendered_ids
+    assert "evt_resumed_lobby_activity" not in rendered_ids
+    assert "evt_resumed_floor_action" in rendered_ids
+
+
 def test_lobby_activity_leaves_a_human_led_floor_untouched() -> None:
     checkpoint = _active_checkpoint(bind_party=True)
     checkpoint.session.character_bindings["account_owner"] = "master-player"
@@ -927,8 +1107,6 @@ def test_terminal_mission_event_may_hand_off_once_to_live_system_guide() -> None
             "value": "completed",
             "details": [
                 "return_destination=lobby",
-                "mvp_character_id=hero",
-                "mvp_evidence_event_id=evt_parallel",
             ],
         }],
         observer_ids=["account_owner", "hero", "iselle"],
@@ -958,8 +1136,6 @@ def test_terminal_mission_event_cannot_route_a_non_guide_system_observer() -> No
             "value": "completed",
             "details": [
                 "return_destination=lobby",
-                "mvp_character_id=hero",
-                "mvp_evidence_event_id=evt_parallel",
             ],
         }],
         observer_ids=["account_owner", "hero", "iselle"],
@@ -989,8 +1165,6 @@ def test_autonomous_mission_validator_allows_scoped_terminal_system_recipient() 
             "value": "completed",
             "details": [
                 "return_destination=lobby",
-                "mvp_character_id=hero",
-                "mvp_evidence_event_id=evt_parallel",
             ],
         }],
         observer_ids=["account_owner", "hero", "newcomer"],
@@ -1001,7 +1175,7 @@ def test_autonomous_mission_validator_allows_scoped_terminal_system_recipient() 
                 visual_subject_ids=["hero"],
             ),
             ObservableFact.only(
-                "The System posts the terminal floor report.",
+                "The System posts the terminal floor result.",
                 ["account_owner", "newcomer"],
             ),
         ],

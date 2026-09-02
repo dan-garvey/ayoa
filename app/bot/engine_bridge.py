@@ -80,17 +80,7 @@ from app.engine.one_star_hero_cards import (
     render_one_star_summon_card_boards,
     render_one_star_summon_reveals,
 )
-from app.engine.one_star_adapter import (
-    one_star_mission_report_recipient_ids,
-    one_star_opening_account_owner_actor_id,
-)
-from app.engine.one_star_mission_reports import (
-    OneStarMissionReportError,
-    new_one_star_mission_reports,
-    one_star_mission_reports_for_render,
-    render_one_star_mission_report_accessibility,
-    render_one_star_mission_report_boards,
-)
+from app.engine.one_star_adapter import one_star_opening_account_owner_actor_id
 from app.engine.prompt_manager import PromptManager
 from app.engine.reviewed_visual_references import (
     freeze_story_visual_references,
@@ -408,12 +398,6 @@ class EngineBridge:
             viewer_character_id=pov_character_id,
             render=render,
         )
-        mission_reports = one_star_mission_reports_for_render(
-            checkpoint=checkpoint,
-            previous_checkpoint=previous_checkpoint,
-            viewer_character_id=pov_character_id,
-            render=render,
-        )
         required_portrait_ids = generated_portrait_prewarm_character_ids(
             checkpoint=checkpoint,
             viewer_character_id=pov_character_id,
@@ -470,10 +454,6 @@ class EngineBridge:
         sections: list[VisualNovelDeckSection] = []
         card_events_by_id = {event.event_id: event for event in card_events}
         inserted_card_event_ids: set[str] = set()
-        mission_reports_by_id = {
-            report.event_id: report for report in mission_reports
-        }
-        inserted_mission_report_ids: set[str] = set()
         final_stage_media = None
         for segment_index, segment in enumerate(render.segments, start=1):
             resolution, stage_media = self.image_generation.resolve_visual_novel_stage(
@@ -559,29 +539,6 @@ class EngineBridge:
                             card_style="system_panel",
                         ))
                     inserted_card_event_ids.add(card_event.event_id)
-                mission_report = mission_reports_by_id.get(
-                    rendered_event_id
-                )
-                if (
-                    mission_report is not None
-                    and mission_report.event_id
-                    not in inserted_mission_report_ids
-                ):
-                    for board in render_one_star_mission_report_boards(
-                        checkpoint=checkpoint,
-                        report=mission_report,
-                    ):
-                        sections.append(VisualNovelDeckSection(
-                            pages=(VisualNovelPage(
-                                kind="narration",
-                                text=board.accessible_text,
-                            ),),
-                            stage_media=board.media,
-                            card_style="system_panel",
-                        ))
-                    inserted_mission_report_ids.add(
-                        mission_report.event_id
-                    )
 
         if previous_checkpoint is not None:
             for transition in identity_transitions:
@@ -823,94 +780,6 @@ class EngineBridge:
             viewer_character_id=owner_id,
             render=render,
         )
-
-    def _append_one_star_mission_report_prose(
-        self,
-        response: TurnResponse,
-        *,
-        acting_character_id: str = "",
-    ) -> None:
-        """Attach the deterministic terminal report to bound eligible POVs."""
-
-        if not response.checkpoint_id:
-            return
-        try:
-            checkpoint = self.load_checkpoint(
-                response.session_id,
-                response.checkpoint_id,
-            )
-        except FileNotFoundError:
-            return
-        previous = self._previous_visual_novel_checkpoint(
-            session_id=response.session_id,
-            checkpoint_id=response.checkpoint_id,
-        )
-        reports = new_one_star_mission_reports(checkpoint, previous)
-        if not reports:
-            return
-        report_text = "\n\n".join(
-            render_one_star_mission_report_accessibility(
-                checkpoint=checkpoint,
-                report=report,
-            )
-            for report in reports
-        )
-        bound_recipient_ids = (
-            set(one_star_mission_report_recipient_ids(checkpoint))
-            & set(checkpoint.session.character_bindings)
-        )
-        for character_id in bound_recipient_ids:
-            existing = response.per_player_renders.get(
-                character_id,
-                "",
-            ).rstrip()
-            response.per_player_renders[character_id] = "\n\n".join(
-                value for value in (existing, report_text) if value
-            )
-        if acting_character_id in bound_recipient_ids:
-            response.output_text = response.per_player_renders[
-                acting_character_id
-            ]
-
-    def _validate_one_star_mission_report_routing(
-        self,
-        response: TurnResponse,
-    ) -> None:
-        """Require each bound System POV to carry the report's end segment."""
-
-        if not response.checkpoint_id:
-            return
-        try:
-            checkpoint = self.load_checkpoint(
-                response.session_id,
-                response.checkpoint_id,
-            )
-        except FileNotFoundError:
-            return
-        if checkpoint.session.config.settings.presentation_mode != "visual_novel":
-            return
-        previous = self._previous_visual_novel_checkpoint(
-            session_id=response.session_id,
-            checkpoint_id=response.checkpoint_id,
-        )
-        if not new_one_star_mission_reports(checkpoint, previous):
-            return
-        bound_recipient_ids = (
-            set(one_star_mission_report_recipient_ids(checkpoint))
-            & set(checkpoint.session.character_bindings)
-        )
-        for character_id in bound_recipient_ids:
-            render = response.per_player_visual_novel_renders.get(character_id)
-            if render is None:
-                raise OneStarMissionReportError(
-                    "recipient_render_missing_mission_end"
-                )
-            one_star_mission_reports_for_render(
-                checkpoint=checkpoint,
-                previous_checkpoint=previous,
-                viewer_character_id=character_id,
-                render=render,
-            )
 
     async def wait_for_visual_novel_stage_work(
         self,
@@ -4284,15 +4153,8 @@ class EngineBridge:
             *(response.pre_turn_resolutions or []),
         ]
         for resolved_response in response.pre_turn_resolutions:
-            self._append_one_star_mission_report_prose(resolved_response)
             self._validate_one_star_hero_card_routing(resolved_response)
-            self._validate_one_star_mission_report_routing(resolved_response)
-        self._append_one_star_mission_report_prose(
-            response,
-            acting_character_id=acting_character_id,
-        )
         self._validate_one_star_hero_card_routing(response)
-        self._validate_one_star_mission_report_routing(response)
         await self._prewarm_visual_novel_sprites(session_id=session_id)
         return response
 

@@ -412,10 +412,11 @@ def one_star_lobby_liveness_request_after_result(
 ) -> OneStarLobbyLivenessRequest | None:
     """Return one player-beat-scoped lobby request when background life is due.
 
-    Existing response ownership wins.  Otherwise a Master defer/watch or an
-    accepted One-Star mutation may open at most one liveness thread.  Autonomous
-    mission micro-events never call this helper, so combat batching cannot turn
-    into a background-call multiplier.
+    Responder ownership and nonparty handoffs win.  A floor-party handoff may
+    be held intact while one disjoint lobby thread runs, then resumed exactly.
+    Otherwise a Master defer/watch or an accepted One-Star mutation may open at
+    most one liveness thread. Autonomous mission micro-events never call this
+    helper, so combat batching cannot turn into a background-call multiplier.
     """
 
     request = _one_star_lobby_liveness_request(checkpoint)
@@ -424,8 +425,9 @@ def one_star_lobby_liveness_request_after_result(
     if (
         result.requires_responders
         or result.required_responders
-        or result.next_output_character_ids
     ):
+        return None
+    if set(result.next_output_character_ids) - set(request.party_ids):
         return None
     if not (
         _one_star_mission_watch_requested(user_input)
@@ -1075,7 +1077,7 @@ def prepare_one_star_live_mission_observers(
             observers_by_id[character_id] = observer
 
     updates = tuple(getattr(result, "state_updates", ()))
-    terminal_report = any(
+    terminal_result = any(
         update.kind == "mission_end"
         and update.target_id.strip() == mission.mission_id
         for update in updates
@@ -1083,7 +1085,7 @@ def prepare_one_star_live_mission_observers(
     terminal_guide_ids = (
         set(remote_system_observer_ids)
         & set(getattr(account.state, "guide_character_ids", ()))
-        if terminal_report
+        if terminal_result
         else set()
     )
     for character_id in remote_system_observer_ids:
@@ -1199,20 +1201,20 @@ def validate_one_star_autonomous_mission_batch_result(
         result=result,
     ))
     updates = tuple(getattr(result, "state_updates", ()))
-    terminal_report = any(
+    terminal_result = any(
         update.kind == "mission_end"
         and update.target_id.strip() == mission.mission_id
         for update in updates
     )
     terminal_system_guide_ids = (
         system_remote_ids & set(account.state.guide_character_ids)
-        if terminal_report
+        if terminal_result
         else set()
     )
     passive_remote_ids = {owner.character_id, *system_remote_ids}
-    if terminal_report:
+    if terminal_result:
         passive_remote_ids.update(
-            one_star_mission_report_recipient_ids(checkpoint)
+            one_star_terminal_system_recipient_ids(checkpoint)
         )
     allowed_observer_ids = floor_character_ids | passive_remote_ids
     observer_ids = {
@@ -1258,7 +1260,7 @@ def validate_one_star_autonomous_mission_batch_result(
             + ", ".join(sorted(non_floor_routing))
         )
 
-    remote_report_ids = (
+    remote_system_result_ids = (
         passive_remote_ids
         - floor_character_ids
         - {owner.character_id}
@@ -1272,11 +1274,11 @@ def validate_one_star_autonomous_mission_batch_result(
                     "autonomous mission batch fact names non-floor recipients: "
                     + ", ".join(sorted(unrelated_recipients))
                 )
-        elif remote_report_ids:
-            report_observers = observer_ids & remote_report_ids
-            if report_observers:
+        elif remote_system_result_ids:
+            result_observers = observer_ids & remote_system_result_ids
+            if result_observers:
                 raise OneStarTransactionError(
-                    "autonomous mission batch System report recipients cannot "
+                    "autonomous mission batch terminal System recipients cannot "
                     "inherit broad floor facts"
                 )
         non_floor_subjects = (
@@ -1928,12 +1930,10 @@ def _validate_state_update_detail_keys(
             "failure",
             "duration_s",
         }),
-        "mission_update": frozenset({"report_kind", "report_credit"}),
+        "mission_update": frozenset(),
         "mission_end": frozenset({
             "return_destination",
             "escape_authority_id",
-            "mvp_character_id",
-            "mvp_evidence_event_id",
         }),
         "pending_open": frozenset({
             "participant",
@@ -2337,11 +2337,6 @@ def one_star_state_updates_to_transaction(
             continue
 
         if kind == "mission_update":
-            report_kind = _single_detail(
-                details,
-                "report_kind",
-                default="",
-            )
             operations.append(OneStarMissionUpdateOperation(
                 operation=kind,
                 mission_id=target_id,
@@ -2350,8 +2345,6 @@ def one_star_state_updates_to_transaction(
                     for key, values in details.items()
                     if key.startswith("counter.")
                 ],
-                report_kind=report_kind or None,
-                report_credit=details.get("report_credit", []),
             ))
             continue
 
@@ -2369,11 +2362,6 @@ def one_star_state_updates_to_transaction(
                     details,
                     "escape_authority_id",
                     default="",
-                ),
-                mvp_character_id=_single_detail(details, "mvp_character_id"),
-                mvp_evidence_event_id=_single_detail(
-                    details,
-                    "mvp_evidence_event_id",
                 ),
             ))
             continue
@@ -2768,10 +2756,10 @@ def _system_window_recipients(
     )
 
 
-def one_star_mission_report_recipient_ids(
+def one_star_terminal_system_recipient_ids(
     checkpoint: CheckpointFile,
 ) -> tuple[str, ...]:
-    """Return active POVs entitled to the terminal System mission report."""
+    """Return active POVs entitled to terminal mission System facts."""
 
     if not is_one_star_checkpoint(checkpoint):
         return ()
@@ -3786,7 +3774,7 @@ def _apply_hero_delta(
     checkpoint: CheckpointFile,
     config: OneStarRulesConfig,
     event_id: str,
-) -> None:
+) -> str:
     character, hero = _require_local_active_hero(checkpoint, operation.hero_id, config)
     if operation.hp_current is not None:
         hero.hp_current = operation.hp_current
@@ -3864,6 +3852,7 @@ def _apply_hero_delta(
         ) from exc
     _validate_hero_progression_state(validated_hero, config)
     _store_hero(character, validated_hero)
+    return character.name if operation.terminal_action == "death" else ""
 
 
 def _validate_global_equipment_ids(
@@ -4120,86 +4109,7 @@ def _apply_mission_update(
         declared = current_counters[key]
         if counter.target != declared.target or counter.current < declared.current:
             raise OneStarTransactionError("mission counters cannot change targets or regress")
-    unknown_credit = set(operation.report_credit) - set(mission.party_ids)
-    if unknown_credit:
-        raise OneStarTransactionError(
-            "mission report credit must name only active party Heroes: "
-            + ", ".join(sorted(unknown_credit))
-        )
     mission.counters = list(operation.counters)
-
-
-def _mission_update_marker_from_state_update(
-    update: OneStarStateUpdate,
-    *,
-    mission_id: str,
-) -> tuple[str, tuple[str, ...]] | None:
-    if update.kind != "mission_update" or update.target_id.strip() != mission_id:
-        return None
-    details = _state_update_details(update)
-    kinds = details.get("report_kind", [])
-    credits = tuple(details.get("report_credit", []))
-    if not kinds and not credits:
-        return None
-    if (
-        len(kinds) != 1
-        or kinds[0] not in {"critical", "boss_kill", "dialogue"}
-        or not credits
-        or any(not character_id for character_id in credits)
-        or len(credits) != len(set(credits))
-    ):
-        raise OneStarTransactionError(
-            "canonical mission report marker has an invalid shape"
-        )
-    return kinds[0], credits
-
-
-def _mission_mvp_has_evidence(
-    *,
-    checkpoint: CheckpointFile,
-    mission_id: str,
-    nominee_id: str,
-    evidence_event_id: str,
-    current_event_id: str,
-    current_operations: Iterable[OneStarOperation],
-) -> bool:
-    if evidence_event_id == current_event_id:
-        return any(
-            isinstance(operation, OneStarMissionUpdateOperation)
-            and operation.mission_id == mission_id
-            and operation.report_kind is not None
-            and nominee_id in operation.report_credit
-            for operation in current_operations
-        )
-
-    latest_start_index = -1
-    for index, event in enumerate(checkpoint.canonical_events):
-        if any(
-            update.kind == "mission_start"
-            and update.target_id.strip() == mission_id
-            for update in getattr(event, "state_updates", ())
-        ):
-            latest_start_index = index
-    if latest_start_index < 0:
-        return False
-
-    matching_events = [
-        event
-        for event in checkpoint.canonical_events[latest_start_index:]
-        if event.event_id == evidence_event_id
-    ]
-    if len(matching_events) != 1:
-        return False
-    return any(
-        nominee_id in marker[1]
-        for update in getattr(matching_events[0], "state_updates", ())
-        if (
-            marker := _mission_update_marker_from_state_update(
-                update,
-                mission_id=mission_id,
-            )
-        ) is not None
-    )
 
 
 def _mission_xp_award(
@@ -4228,8 +4138,6 @@ def _apply_mission_end(
     now_s: int,
     pre_event_escape_authorities: Mapping[str, set[str]],
     owner_character_id: str,
-    event_id: str,
-    current_operations: Iterable[OneStarOperation],
 ) -> tuple[OneStarSystemConsequence, ...]:
     mission = state.active_mission
     if mission is None or mission.mission_id != operation.mission_id:
@@ -4252,20 +4160,6 @@ def _apply_mission_end(
             )
         if character.status == CharacterStatus.active:
             survivors.append((character, hero))
-    if operation.mvp_character_id not in mission.party_ids:
-        raise OneStarTransactionError("mission MVP must belong to the mission party")
-    if not _mission_mvp_has_evidence(
-        checkpoint=checkpoint,
-        mission_id=mission.mission_id,
-        nominee_id=operation.mvp_character_id,
-        evidence_event_id=operation.mvp_evidence_event_id,
-        current_event_id=event_id,
-        current_operations=current_operations,
-    ):
-        raise OneStarTransactionError(
-            "mission MVP evidence must cite a prior or current marked event "
-            "credited to the nominee"
-        )
     if operation.outcome == "escaped":
         authority_id = operation.escape_authority_id.strip()
         if not authority_id:
@@ -4284,7 +4178,7 @@ def _apply_mission_end(
             "a failed mission with living Heroes cannot return them through the sealed gate"
         )
     system_consequences: list[OneStarSystemConsequence] = []
-    report_recipient_ids = one_star_mission_report_recipient_ids(checkpoint)
+    result_recipient_ids = one_star_terminal_system_recipient_ids(checkpoint)
     if operation.outcome == "completed":
         incomplete_counters = [
             counter.counter_id
@@ -4333,12 +4227,12 @@ def _apply_mission_end(
                 f"applied: {_resource_amount_text(reward_delta)}. "
                 f"Account resources now: {balance}."
             ),
-            recipient_character_ids=report_recipient_ids,
+            recipient_character_ids=result_recipient_ids,
         ))
         if unlocked_floor:
             system_consequences.append(OneStarSystemConsequence(
                 text=f"System: Tower floor {unlocked_floor} unlocked.",
-                recipient_character_ids=report_recipient_ids,
+                recipient_character_ids=result_recipient_ids,
             ))
     else:
         system_consequences.append(OneStarSystemConsequence(
@@ -4347,13 +4241,8 @@ def _apply_mission_end(
                 f"{operation.outcome}; "
                 "no floor reward or unlock was granted."
             ),
-            recipient_character_ids=report_recipient_ids,
+            recipient_character_ids=result_recipient_ids,
         ))
-    mvp = _require_character(checkpoint, operation.mvp_character_id)
-    system_consequences.append(OneStarSystemConsequence(
-        text=f"System: Mission report MVP is {mvp.name}.",
-        recipient_character_ids=report_recipient_ids,
-    ))
     if operation.outcome == "completed":
         for character, hero in survivors:
             award = _mission_xp_award(
@@ -5350,7 +5239,6 @@ def prepare_one_star_transaction(
                 f"only the account owner may initiate {operation_name}"
             )
 
-    processed_operations: list[OneStarOperation] = []
     for operation in transaction.operations:
         if isinstance(operation, OneStarCatalogueApplyOperation):
             require_account_owner("a catalogue operation")
@@ -5391,7 +5279,18 @@ def prepare_one_star_transaction(
             require_account_owner("a Gem purchase")
             _apply_gem_purchase(operation, state, config)
         elif isinstance(operation, OneStarHeroDeltaOperation):
-            _apply_hero_delta(operation, after, config, event_id)
+            death_name = _apply_hero_delta(operation, after, config, event_id)
+            if (
+                death_name
+                and state.active_mission is not None
+                and operation.hero_id in state.active_mission.party_ids
+            ):
+                system_consequences.append(OneStarSystemConsequence(
+                    text=f"System: {death_name} died.",
+                    recipient_character_ids=(
+                        one_star_terminal_system_recipient_ids(after)
+                    ),
+                ))
         elif isinstance(operation, OneStarMissionStartOperation):
             _apply_mission_start(
                 operation,
@@ -5426,8 +5325,6 @@ def prepare_one_star_transaction(
                 now_s,
                 pre_event_escape_authorities,
                 owner.character_id,
-                event_id,
-                processed_operations,
             ))
         elif isinstance(operation, OneStarPendingOpenOperation):
             require_account_owner("an embodied operation selection")
@@ -5482,7 +5379,6 @@ def prepare_one_star_transaction(
             _apply_tutorial(operation, state, after)
         else:  # pragma: no cover - discriminated union prevents this at parse time.
             raise OneStarTransactionError(f"unsupported One-Star operation {operation!r}")
-        processed_operations.append(operation)
     if summon_ids != expected_summon_ids:
         raise OneStarTransactionError(
             "fresh spawns or unowned Hero activations require exactly one matching summon"

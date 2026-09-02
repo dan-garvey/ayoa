@@ -477,7 +477,9 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert config.floor_scenarios[4].counters[0].target == 2
     assert "safe exit" in config.floor_scenarios[4].pressure_beats[0]
     assert config.floor_scenarios[5].counters[0].target == 300
-    assert "morally revealing" in config.floor_scenarios[5].pressure_beats[0]
+    floor_five_pressure = config.floor_scenarios[5].pressure_beats[0]
+    assert "optional to the System" in floor_five_pressure
+    assert "survival condition" in floor_five_pressure
     assert config.repeat_gold_numerator == 1
     assert config.repeat_gold_denominator == 4
     assert config.repeat_gold_minimum == 1
