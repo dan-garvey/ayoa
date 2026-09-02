@@ -40,6 +40,7 @@ from app.schemas.one_star import (
     OneStarStateUpdateList,
     OneStarTransaction,
 )
+from scripts.build_one_star_promotion_playtest_seed import build_checkpoint
 from scripts.run_one_star_promotion_sprite_playtest import (
     _promotion_comparison_pages,
 )
@@ -386,6 +387,7 @@ def test_playtest_seed_is_a_valid_visual_novel_story_copy() -> None:
     assert checkpoint.session.config.settings.presentation_mode == "visual_novel"
     assert checkpoint.world_state.opening is not None
     assert checkpoint.world_state.opening.allow_spawns is False
+    assert checkpoint.world_state.global_flags == {}
     assert "sealed promotion" not in (checkpoint.session.config.narrative_rules.lower())
     assert source.session.config.settings.presentation_mode == "visual_novel"
     assert source.visual_novel_onboarding is not None
@@ -435,6 +437,10 @@ def test_playtest_seed_is_a_valid_visual_novel_story_copy() -> None:
         checkpoint,
         story_dir=PLAYTEST_STORY_DIR,
     )
+
+
+def test_playtest_builder_does_not_restore_one_star_global_flags() -> None:
+    assert build_checkpoint().world_state.global_flags == {}
 
 
 def test_playtest_seed_inherits_current_one_star_motivation_policy() -> None:

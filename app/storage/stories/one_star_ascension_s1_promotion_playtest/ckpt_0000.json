@@ -125,13 +125,7 @@
       "strength_limits": "game-avatar heroics: a Hero's power scales with star rank, level, and learned skills. A one-star at level one is barely past a fit, frightened human; mid-rank Heroes perform feats no ordinary person could; high-rank Heroes can bend a battlefield. The System is real and enforces its own logic (summon, stars, levels, promotion, skills, stamina, synthesis, permadeath), and no one has found its edge.",
       "magic_enabled": true
     },
-    "global_flags": {
-      "floor": 0,
-      "phase": "promotion_playtest",
-      "master_present": true,
-      "lobby_freshly_instanced": true,
-      "rival_lobbies_ahead": true
-    },
+    "global_flags": {},
     "setting": {
       "title": "One-Star Ascension — Promotion Sprite Playtest",
       "recommended_players": "One player, claiming the Master",

@@ -121,13 +121,7 @@
       "strength_limits": "game-avatar heroics: a Hero's power scales with star rank, level, and learned skills. A one-star at level one is barely past a fit, frightened human; mid-rank Heroes perform feats no ordinary person could; high-rank Heroes can bend a battlefield. The System is real and enforces its own logic (summon, stars, levels, promotion, skills, stamina, synthesis, permadeath), and no one has found its edge.",
       "magic_enabled": true
     },
-    "global_flags": {
-      "floor": 1,
-      "phase": "floor_one_goblin_ambush",
-      "master_present": true,
-      "lobby_freshly_instanced": true,
-      "rival_lobbies_ahead": true
-    },
+    "global_flags": {},
     "setting": {
       "title": "One-Star Ascension",
       "recommended_players": "Best with two players as the Master and a player-authored Newcomer; Halcyon is an optional third, distant viewpoint",

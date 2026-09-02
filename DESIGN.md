@@ -1780,6 +1780,10 @@ Durable state stays on existing character records:
   promotion, or synthesis semantics;
 * `CharacterRecord.status` and `CharacterRecord.location` remain the only
   lifecycle and location authority. The adapter does not duplicate the roster;
+* `WorldState.global_flags` carries no One-Star progression or scene state.
+  Opening policy, canonical mission events, and the account record already own
+  those facts, so a static floor, phase, presence, or lobby flag would be a
+  contradictory second ledger;
 * story-authored configuration owns costs, rewards, caps, facilities, summon
   pool weights, deterministic progression inputs, progression prerequisites,
   floor scenarios, physical operation requirements, and any fixed cash-to-Gem

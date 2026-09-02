@@ -902,11 +902,9 @@ def test_direct_floor_one_start_and_summon_pool() -> None:
     checkpoint = _load_checkpoint()
     by_id = {c.character_id: c for c in checkpoint.characters}
 
-    # The tutorial starts on Floor 1, while the selected roster remains dormant
-    # until the opening event atomically summons and deploys it.
-    assert checkpoint.world_state.global_flags["floor"] == 1
-    assert checkpoint.world_state.global_flags["phase"] == "floor_one_goblin_ambush"
-    assert checkpoint.world_state.global_flags["lobby_freshly_instanced"] is True
+    # One-Star's opening policy and account own progression; the generic flag
+    # bag must not retain a second, static copy of that state.
+    assert checkpoint.world_state.global_flags == {}
 
     # The pre-authored characters are preserved as a dormant, quarantined pool:
     # not in play until the router summons/introduces one.
@@ -1273,7 +1271,6 @@ def test_system_sight_is_master_view_with_protagonist_exception() -> None:
 def test_direct_opening_master_and_later_lobby_framing() -> None:
     """The first summon enters the Tower while later management stays in Niflheim."""
     checkpoint = _load_checkpoint()
-    ws = checkpoint.world_state
     by_id = {c.character_id: c for c in checkpoint.characters}
 
     # Concern 1: no character carries the static "the Master's party" tag; a
@@ -1290,7 +1287,6 @@ def test_direct_opening_master_and_later_lobby_framing() -> None:
 
     # The first party enters Floor 1 directly; dormant blanks and the guide do
     # not get pulled into the opening until their selected contracts say so.
-    assert ws.global_flags["floor"] == 1
     assert by_id["one_star_newcomer"].location == "not_yet_fictional"
     assert by_id["iselle_the_guide"].location == "niflheim_lobby"
     assert "lobby vs. tower" in rules_lower

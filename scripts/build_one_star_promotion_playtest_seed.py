@@ -308,9 +308,6 @@ def build_checkpoint() -> CheckpointFile:
         "niflheim_lobby. The immediate choices are promotion and synthesis; do "
         "not replay the tutorial, first summon, or opening arrival."
     )
-    checkpoint.world_state.global_flags["floor"] = 0
-    checkpoint.world_state.global_flags["phase"] = "promotion_playtest"
-
     rules = checkpoint.session.config.narrative_rules
     rules = _replace_once(
         rules,
