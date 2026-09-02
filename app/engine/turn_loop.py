@@ -3440,6 +3440,64 @@ async def run_beat(
             pending_result, continuation_actor_id, kind="continuation",
         )
 
+    async def _maybe_start_one_star_lobby_liveness(
+        result: EventRouterOutput,
+        *,
+        result_actor_id: str,
+        result_is_continuation: bool,
+        preserve_result_for_resume: bool = False,
+    ) -> bool:
+        """Admit one private lobby beat after eligible player-owned state.
+
+        A reversible Cat II opening is not the accepted mutation yet, so it
+        must leave this check available for its inline resolution. When that
+        resolution starts or changes an autonomous mission, preserve it as the
+        exact continuation source even if the router has not selected the
+        first floor actor yet.
+        """
+
+        nonlocal one_star_lobby_liveness_checked
+        nonlocal one_star_lobby_liveness_request
+        nonlocal one_star_lobby_resume_handoff
+        nonlocal one_star_lobby_liveness_cue_pending
+
+        if not (
+            one_star_lobby_liveness_may_start
+            and not one_star_lobby_liveness_checked
+            and result_actor_id == actor_id
+            and not result_is_continuation
+        ):
+            return False
+
+        from app.engine.one_star_adapter import (
+            one_star_lobby_liveness_request_after_result,
+        )
+
+        liveness_request = one_star_lobby_liveness_request_after_result(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+            user_input=intention,
+        )
+        if liveness_request is None:
+            # An autonomous Cat II may resolve inside this same player beat.
+            # Its opening is only a reversible proposal, not the last chance
+            # to observe an accepted mission or account mutation.
+            if not result.requires_responders and not result.required_responders:
+                one_star_lobby_liveness_checked = True
+            return False
+
+        one_star_lobby_liveness_checked = True
+        one_star_lobby_liveness_request = liveness_request
+        if preserve_result_for_resume or result.next_output_character_ids:
+            one_star_lobby_resume_handoff = result
+        one_star_lobby_liveness_cue_pending = True
+        await _queue_router_continuation(
+            result,
+            one_star_lobby_liveness=liveness_request,
+        )
+        return True
+
     async def _prepare_speculative_next_output(
         prior_result: EventRouterOutput,
         ordered_targets: list[tuple[str, str]],
@@ -4622,6 +4680,13 @@ async def run_beat(
                     close_cat_ii(ckpt, evt.event_id)
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
+                if await _maybe_start_one_star_lobby_liveness(
+                    resolved,
+                    result_actor_id=evt.initiator_id,
+                    result_is_continuation=False,
+                    preserve_result_for_resume=True,
+                ):
+                    continue
                 completed = await _advance_or_render(
                     resolved,
                     default_ended_reason="cat_ii_resolution",
@@ -4714,33 +4779,14 @@ async def run_beat(
         events_closed += 1
 
         if (
-            one_star_lobby_liveness_may_start
-            and not one_star_lobby_liveness_checked
-            and events_closed == 1
-            and result_actor_id == actor_id
-            and not result_is_continuation
+            events_closed == 1
+            and await _maybe_start_one_star_lobby_liveness(
+                result,
+                result_actor_id=result_actor_id,
+                result_is_continuation=result_is_continuation,
+            )
         ):
-            one_star_lobby_liveness_checked = True
-            from app.engine.one_star_adapter import (
-                one_star_lobby_liveness_request_after_result,
-            )
-
-            liveness_request = one_star_lobby_liveness_request_after_result(
-                ckpt,
-                actor_id=actor_id,
-                result=result,
-                user_input=intention,
-            )
-            if liveness_request is not None:
-                one_star_lobby_liveness_request = liveness_request
-                if result.next_output_character_ids:
-                    one_star_lobby_resume_handoff = result
-                one_star_lobby_liveness_cue_pending = True
-                await _queue_router_continuation(
-                    result,
-                    one_star_lobby_liveness=liveness_request,
-                )
-                continue
+            continue
 
         completed = await _advance_or_render(result)
         if completed is not None:

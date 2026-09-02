@@ -71,6 +71,8 @@ def _one_star_result(
     state_updates: list[dict[str, object]] | None = None,
     observer_ids: list[str] | None = None,
     agent_ids: list[str] | None = None,
+    requires_responders: bool = False,
+    required_responders: list[str] | None = None,
     location_updates: list[dict[str, str]] | None = None,
     event_kind: str = "state_change",
     duration_s: int = 0,
@@ -81,6 +83,8 @@ def _one_star_result(
         event_kind=event_kind,
         observer_ids=observer_ids or ["account_owner"],
         agent_ids=agent_ids,
+        requires_responders=requires_responders,
+        required_responders=required_responders,
         duration_s=duration_s,
         facts=facts,
         location_updates=location_updates,
@@ -794,6 +798,116 @@ def test_master_state_change_holds_floor_handoff_across_lobby_activity() -> None
         "evt_state_change_lobby_cue",
         "evt_state_change_lobby_activity",
         "evt_state_change_floor_action",
+    ]
+
+
+def test_inline_cat_ii_resolution_runs_lobby_activity_before_floor_continuation(
+) -> None:
+    checkpoint = _active_checkpoint(bind_party=False)
+    checkpoint.session.character_bindings["account_owner"] = "master-player"
+    checkpoint.session.config.settings.max_agent_cascades_per_beat = 1
+    checkpoint.session.config.settings.max_events_per_beat = 4
+    dispatcher = InstanceFakeDispatcher()
+
+    selection = _one_star_result(
+        observer_ids=["account_owner", "reserve"],
+        requires_responders=True,
+        required_responders=["reserve"],
+        event_kind="cat_ii_open",
+        facts=[ObservableFact.all(
+            "The Master offers Reserve a reversible mission-side operation."
+        )],
+    )
+    selection.event_id = "evt_inline_selection"
+    resolution = _one_star_result(
+        state_updates=[{
+            "kind": "mission_update",
+            "target_id": "mission_1",
+            "value": "",
+            "details": ["counter.clear=0/1"],
+        }],
+        observer_ids=["account_owner", "hero", "reserve"],
+        event_kind="cat_ii_resolution",
+        facts=[ObservableFact.all(
+            "Reserve accepts while the deployed Hero's floor remains active."
+        )],
+    )
+    resolution.event_id = "evt_inline_resolution"
+    cue = _one_star_result(
+        observer_ids=["reserve"],
+        agent_ids=["reserve"],
+        event_kind="public_fact",
+        facts=[ObservableFact.all("The workshop bench stands free.")],
+    )
+    cue.event_id = "evt_inline_lobby_cue"
+    activity = _one_star_result(
+        observer_ids=["reserve"],
+        facts=[ObservableFact.all(
+            "Reserve begins sorting worn tools at the workshop bench.",
+            visual_subject_ids=["reserve"],
+        )],
+    )
+    activity.event_id = "evt_inline_lobby_activity"
+    floor_frontier = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        agent_ids=["hero"],
+        event_kind="beat_continues",
+        facts=[ObservableFact.only(
+            "The deployed Hero faces the next floor pressure.",
+            ["account_owner", "hero"],
+            visual_subject_ids=["hero"],
+        )],
+    )
+    floor_frontier.event_id = "evt_inline_floor_frontier"
+    floor_action = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        facts=[ObservableFact.only(
+            "The deployed Hero advances through the floor pressure.",
+            ["account_owner", "hero"],
+            visual_subject_ids=["hero"],
+        )],
+    )
+    floor_action.event_id = "evt_inline_floor_action"
+
+    for response in (
+        selection,
+        resolution,
+        cue,
+        activity,
+        floor_frontier,
+        floor_action,
+    ):
+        dispatcher.queue_route(response)
+    dispatcher.queue_agent("Reserve accepts the operation.")
+    dispatcher.queue_agent("Reserve sorts the worn tools.")
+    dispatcher.queue_agent("Hero advances through the pressure.")
+
+    result = asyncio.run(run_beat(
+        ckpt=checkpoint,
+        dispatcher=dispatcher,
+        actor_id="account_owner",
+        intention="Offer Reserve the operation.",
+    ))
+
+    assert result.ended_reason in {"cascade_cap", "max_events_cap"}
+    assert [call["character_id"] for call in dispatcher.agent_calls] == [
+        "reserve",
+        "reserve",
+        "hero",
+    ]
+    assert dispatcher.agent_calls[1]["frame"] == "background"
+    assert dispatcher.agent_calls[2]["frame"] == "foreground"
+    assert dispatcher.continuation_calls[0]["prior_result"] is resolution
+    assert dispatcher.continuation_calls[0]["one_star_lobby_liveness"]
+    assert dispatcher.continuation_calls[1]["prior_result"] is resolution
+    assert "one_star_lobby_liveness" not in dispatcher.continuation_calls[1]
+    assert [event.event_id for event in checkpoint.canonical_events] == [
+        "evt_inline_selection",
+        "evt_inline_resolution",
+        "evt_inline_lobby_cue",
+        "evt_inline_lobby_activity",
+        "evt_inline_floor_frontier",
+        "evt_inline_floor_action",
     ]
 
 
