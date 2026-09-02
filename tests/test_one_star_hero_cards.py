@@ -1212,15 +1212,15 @@ async def test_required_generated_prewarm_waits_only_for_exact_neutral_job() -> 
     )
     jobs = {
         "job-required-neutral": SimpleNamespace(request=SimpleNamespace(
-            character_id="fresh_hero",
+            subject_character_ids=["fresh_hero"],
             sprite_variant_key="neutral",
         )),
         "job-required-happy": SimpleNamespace(request=SimpleNamespace(
-            character_id="fresh_hero",
+            subject_character_ids=["fresh_hero"],
             sprite_variant_key="happy",
         )),
         "job-other": SimpleNamespace(request=SimpleNamespace(
-            character_id="other_hero",
+            subject_character_ids=["other_hero"],
             sprite_variant_key="neutral",
         )),
     }

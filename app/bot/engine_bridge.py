@@ -726,7 +726,9 @@ class EngineBridge:
                     job = self.image_generation.store.get(job_id)
                     if (
                         job is not None
-                        and job.request.character_id in required_id_set
+                        and len(job.request.subject_character_ids) == 1
+                        and job.request.subject_character_ids[0]
+                        in required_id_set
                         and job.request.sprite_variant_key == "neutral"
                     ):
                         terminal_jobs.append(
