@@ -1917,10 +1917,11 @@ thread runs on the Master's disjoint turn.
 
 After a terminal mission result, the active guide may make one concrete prompt for the
 Master's next management choice. If the Master defers, that bound handoff goes
-back through ordinary router selection so a genuinely pressured co-present
-non-guide Hero may act; it does not resume the guide, rotate a debrief, or
-invent interface motion. Existing autonomous Hero handoffs still resume their
-owed output directly when the player defers.
+back through ordinary router selection and gives exactly one eligible
+co-present non-guide Hero a grounded opportunity to act. Ordinary lobby
+breathing room is sufficient; this does not resume the guide, rotate a debrief,
+force speech, or invent interface motion. Existing autonomous Hero handoffs
+still resume their owed output directly when the player defers.
 
 Mission state remains deterministic: the adapter validates counters, outcomes,
 survivors, returns, rewards, progression, unlocks, and replay safety. Those
