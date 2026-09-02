@@ -2930,6 +2930,7 @@ class Dispatcher(Protocol):
         actor_id: str,
         intention: str,
         cat_ii_event: OpenCatIIEvent | None = None,
+        one_star_lobby_liveness: object | None = None,
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention. Returns a canonical
         event (with Cat I/II decision, observer routing roles, and
@@ -2949,6 +2950,7 @@ class Dispatcher(Protocol):
         actor_id: str,
         prior_result: EventRouterOutput,
         original_action: str = "",
+        one_star_lobby_liveness: object | None = None,
     ) -> EventRouterOutput:
         """Author another grounded event after a narrator continuation
         handoff keeps the current visible batch open."""
@@ -3268,6 +3270,16 @@ async def run_beat(
     prepared_event_objects: set[int] = set()
     one_star_mission_batch_active = False
     one_star_batch_continuation_after_agent_count = -1
+    one_star_lobby_liveness_checked = False
+    one_star_lobby_liveness_request: Any | None = None
+    one_star_lobby_liveness_cue_pending = False
+    one_star_lobby_liveness_agent_attempts = 0
+    one_star_lobby_liveness_events_closed = 0
+    one_star_lobby_liveness_may_start = bool(
+        resume_after_handoff is None
+        and cat_ii_event_id is None
+        and combat_reaction_event_id is None
+    )
 
     def _one_star_batch_narration_modes() -> dict[str, NarrationMode]:
         if not one_star_mission_batch_active:
@@ -3297,8 +3309,34 @@ async def run_beat(
         ruleset_actor_id: str | None = None,
         close_for_presentation: bool = True,
     ) -> list[str]:
+        nonlocal one_star_lobby_liveness_cue_pending
+        nonlocal one_star_lobby_liveness_events_closed
         autonomous_batch_checkpoint: CheckpointFile | None = None
-        if one_star_human_led_mission_guard:
+        if one_star_lobby_liveness_request is not None:
+            from app.engine.one_star_adapter import (
+                anchor_one_star_lobby_liveness_event,
+                validate_one_star_lobby_liveness_activity,
+                validate_one_star_lobby_liveness_cue,
+            )
+
+            anchor_one_star_lobby_liveness_event(
+                event,
+                request=one_star_lobby_liveness_request,
+            )
+            if one_star_lobby_liveness_cue_pending:
+                validate_one_star_lobby_liveness_cue(
+                    ckpt,
+                    request=one_star_lobby_liveness_request,
+                    result=event,
+                )
+            else:
+                validate_one_star_lobby_liveness_activity(
+                    ckpt,
+                    request=one_star_lobby_liveness_request,
+                    actor_id=event_actor_id,
+                    result=event,
+                )
+        elif one_star_human_led_mission_guard:
             from app.engine.one_star_adapter import (
                 OneStarTransactionError,
                 validate_one_star_human_led_mission_result,
@@ -3357,18 +3395,27 @@ async def run_beat(
                     autonomous_batch_checkpoint,
                 )
                 raise
-        return broadcast_event(
+        visible_humans = broadcast_event(
             ckpt,
             event,
             actor_id=event_actor_id,
             close_for_presentation=close_for_presentation,
             preflighted=True,
         )
+        if (
+            one_star_lobby_liveness_request is not None
+            and one_star_lobby_liveness_cue_pending
+        ):
+            one_star_lobby_liveness_cue_pending = False
+        if one_star_lobby_liveness_request is not None:
+            one_star_lobby_liveness_events_closed += 1
+        return visible_humans
 
     async def _queue_router_continuation(
         prior_result: EventRouterOutput,
         *,
         source_actor_id: str | None = None,
+        one_star_lobby_liveness: Any | None = None,
     ) -> None:
         nonlocal pending_result, pending_result_is_continuation
         nonlocal pending_result_actor_id
@@ -3376,11 +3423,15 @@ async def run_beat(
         continuation_actor_id = (
             actor_id if source_actor_id is None else source_actor_id
         )
+        continuation_kwargs: dict[str, Any] = {}
+        if one_star_lobby_liveness is not None:
+            continuation_kwargs["one_star_lobby_liveness"] = one_star_lobby_liveness
         pending_result = await dispatcher.route_continuation(
             ckpt=ckpt,
             actor_id=continuation_actor_id,
             prior_result=prior_result,
             original_action=intention,
+            **continuation_kwargs,
         )
         pending_result_is_continuation = True
         pending_result_actor_id = continuation_actor_id
@@ -3396,6 +3447,7 @@ async def run_beat(
         """Prepare one autonomous response without touching live state."""
 
         nonlocal agent_cascade_attempts, background_thread_attempts
+        nonlocal one_star_lobby_liveness_agent_attempts
         speculative_ckpt = _durable_checkpoint_copy(ckpt)
         from app.engine.context_builder import collect_player_ids
 
@@ -3407,7 +3459,10 @@ async def run_beat(
                     checkpoint=speculative_ckpt,
                     touched_actor_ids=touched_actor_ids,
                 )
-            if agent_cascade_attempts >= max_agent_cascades:
+            if (
+                one_star_lobby_liveness_request is None
+                and agent_cascade_attempts >= max_agent_cascades
+            ):
                 return _SpeculativeNextOutput(
                     outcome="cap",
                     checkpoint=speculative_ckpt,
@@ -3435,7 +3490,14 @@ async def run_beat(
                         touched_actor_ids=touched_actor_ids,
                     )
                 background_thread_attempts += 1
-            agent_cascade_attempts += 1
+            if one_star_lobby_liveness_request is not None:
+                if one_star_lobby_liveness_agent_attempts:
+                    raise RuntimeError(
+                        "One-Star lobby liveness tried to dispatch a second initiator"
+                    )
+                one_star_lobby_liveness_agent_attempts += 1
+            else:
+                agent_cascade_attempts += 1
             touched_actor_ids.append(target.character_id)
 
             local_context = (
@@ -3445,6 +3507,19 @@ async def run_beat(
                 if _router_target_needs_local_context(prior_result, target)
                 else ""
             )
+            if one_star_lobby_liveness_request is not None:
+                from app.engine.one_star_router_context import (
+                    render_one_star_lobby_activity_agent_context,
+                )
+
+                activity_context = render_one_star_lobby_activity_agent_context(
+                    one_star_lobby_liveness_request
+                )
+                local_context = "\n".join(
+                    block
+                    for block in (local_context.strip(), activity_context)
+                    if block
+                )
             agent_output = await _agent_intention_for_dispatch(
                 dispatcher,
                 speculative_ckpt,
@@ -3453,13 +3528,23 @@ async def run_beat(
                 local_context=local_context,
             )
             if agent_output is None:
+                if one_star_lobby_liveness_request is not None:
+                    raise RuntimeError(
+                        "One-Star lobby liveness Hero produced no dispatchable activity"
+                    )
                 continue
 
+            route_kwargs: dict[str, Any] = {}
+            if one_star_lobby_liveness_request is not None:
+                route_kwargs["one_star_lobby_liveness"] = (
+                    one_star_lobby_liveness_request
+                )
             routed = await dispatcher.route_intention(
                 ckpt=speculative_ckpt,
                 actor_id=target.character_id,
                 intention=agent_output,
                 cat_ii_event=None,
+                **route_kwargs,
             )
             _log_router_rationale(
                 routed,
@@ -3545,11 +3630,18 @@ async def run_beat(
         """Race narrator pacing against isolated autonomous next-output work."""
         nonlocal one_star_mission_batch_active
         nonlocal one_star_batch_continuation_after_agent_count
+        nonlocal one_star_lobby_liveness_request
 
         if (
-            not one_star_human_led_mission_guard
-            and not one_star_mission_batch_active
+            one_star_lobby_liveness_request is not None
+            and not one_star_lobby_liveness_cue_pending
+            and not result.requires_responders
+            and not result.required_responders
+            and not result.next_output_character_ids
         ):
+            one_star_lobby_liveness_request = None
+
+        if not one_star_human_led_mission_guard and not one_star_mission_batch_active:
             from app.engine.one_star_adapter import (
                 one_star_should_autonomous_mission_batch_after_result,
             )
@@ -3612,9 +3704,10 @@ async def run_beat(
                 standard_summon_guide_handoff = True
 
         if (
-            events_closed >= max_events
+            events_closed - one_star_lobby_liveness_events_closed >= max_events
             and default_ended_reason != "cat_ii_resolution"
             and not standard_summon_guide_handoff
+            and one_star_lobby_liveness_request is None
         ):
             return await _end_beat(
                 ckpt,
@@ -3783,11 +3876,14 @@ async def run_beat(
             not has_narrator_target
             or opening_autonomous_handoff
             or standard_summon_guide_handoff
+            or one_star_lobby_liveness_request is not None
         ):
             # `(begin)` may establish immediate autonomous motion, while an
             # accepted standard summon establishes an owed guide response.
-            # Carry through that routed handoff before offering the combined
-            # batch; ordinary narrator pacing resumes afterward.
+            # A One-Star lobby-liveness cue likewise owes its selected Hero one
+            # private activity before the Master-facing mission batch. Carry
+            # these handoffs through before offering the combined batch;
+            # ordinary narrator pacing resumes afterward.
             prepared = await _prepare_speculative_next_output(result, targets)
             if (
                 standard_summon_guide_handoff
@@ -4418,11 +4514,17 @@ async def run_beat(
             if cat_ii_is_ready(evt):
                 # No bound responders in the required list — resolve immediately.
                 try:
+                    resolution_kwargs: dict[str, Any] = {}
+                    if one_star_lobby_liveness_request is not None:
+                        resolution_kwargs["one_star_lobby_liveness"] = (
+                            one_star_lobby_liveness_request
+                        )
                     resolved = await dispatcher.route_intention(
                         ckpt=ckpt,
                         actor_id=evt.initiator_id,
                         intention=evt.initiator_intention,
                         cat_ii_event=evt,
+                        **resolution_kwargs,
                     )
                 except DndCatIIRollsPending:
                     return await _pause_for_pending_rolls()
@@ -4545,6 +4647,33 @@ async def run_beat(
         )
         event_actor_ids.append(result_actor_id)
         events_closed += 1
+
+        if (
+            one_star_lobby_liveness_may_start
+            and not one_star_lobby_liveness_checked
+            and events_closed == 1
+            and result_actor_id == actor_id
+            and not result_is_continuation
+        ):
+            one_star_lobby_liveness_checked = True
+            from app.engine.one_star_adapter import (
+                one_star_lobby_liveness_request_after_result,
+            )
+
+            liveness_request = one_star_lobby_liveness_request_after_result(
+                ckpt,
+                actor_id=actor_id,
+                result=result,
+                user_input=intention,
+            )
+            if liveness_request is not None:
+                one_star_lobby_liveness_request = liveness_request
+                one_star_lobby_liveness_cue_pending = True
+                await _queue_router_continuation(
+                    result,
+                    one_star_lobby_liveness=liveness_request,
+                )
+                continue
 
         completed = await _advance_or_render(result)
         if completed is not None:

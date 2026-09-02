@@ -1889,6 +1889,30 @@ batch into one rapid sequence, eliding repeated combat exchanges and chatter
 while preserving consequential actions, injuries, deaths, objective progress,
 and the terminal result. Ordinary non-batch narration remains event-aligned.
 
+While any mission is active, a fresh Master defer/watch or accepted One-Star
+state mutation may also admit one lobby-liveness thread before mission
+continuation. This is a player-beat cadence, not one call per mission event:
+autonomous floor actions cannot multiply it, and no calls happen merely because
+wall-clock time passed. The adapter projects only active, unbound, nonparty
+Heroes who are physically in the lobby and not pinned, selected for an embodied
+operation, or already occupied by an open commitment. It also projects the
+currently installed facility ids. A closed router continuation chooses exactly
+one eligible Hero and authors a private, zero-time environmental affordance;
+the cue cannot pre-author that Hero's action. The ordinary character agent then
+chooses the activity. Solo training, cooking, maintenance, crafting, rest, and
+similar work may use the generic open-commitment contract, while a spar or
+other mutually chosen activity uses ordinary Cat II response ownership and
+closes after resolution. Both cue and activity are pinned to the initiating
+player beat at zero duration, so longer work opens a commitment instead of
+advancing the shared clock underneath the deployed party. The activity cannot
+observe or depict the Master, guide, or deployed party, mutate the account or
+mission, or move anyone beyond the lobby. Its canonical facts and character
+memory persist, but it is absent from the Master's active-floor render buffer.
+Once it closes, the same beat resumes the autonomous mission batch without
+charging the private events or lobby initiator against the floor event and
+cascade budgets. A human-led floor remains untouched; only the private lobby
+thread runs on the Master's disjoint turn.
+
 After a mission report, the active guide may make one concrete prompt for the
 Master's next management choice. If the Master defers, that bound handoff goes
 back through ordinary router selection so a genuinely pressured co-present
@@ -1996,7 +2020,8 @@ Known stale or transitional areas:
 * `/query` is implemented as a mutating router/narrator turn, not a
   read-only information endpoint
 * router-selected background turns are not yet a generalized world-clock or
-  faction-clock system
+  faction-clock system; One-Star lobby liveness has only the bounded
+  player-beat cadence described in section 15.7
 * debug streaming and public HTTP APIs are not implemented
 * prompt version ids are not stored in checkpoints; git history is the
   version source

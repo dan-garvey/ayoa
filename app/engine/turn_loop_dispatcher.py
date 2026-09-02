@@ -48,6 +48,7 @@ from app.engine.dnd_cat_ii import (
     dnd_combat_manager_enabled,
 )
 from app.engine.dnd_combat_resolution import DndCombatResolver
+from app.engine.one_star_adapter import OneStarLobbyLivenessRequest
 from app.engine.turn_loop_contracts import (
     AuthoritativeContributionRequest,
     AuthoritativeResultPlan,
@@ -2627,6 +2628,7 @@ class LLMDispatcher:
         actor_id: str,
         intention: str,
         cat_ii_event: OpenCatIIEvent | None = None,
+        one_star_lobby_liveness: OneStarLobbyLivenessRequest | None = None,
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention through event_router."""
 
@@ -2715,11 +2717,27 @@ class LLMDispatcher:
                 )
                 intention_block = ""
 
+            lobby_activity_block = ""
+            if one_star_lobby_liveness is not None:
+                if not _one_star_router_enabled(ckpt):
+                    raise ValueError(
+                        "One-Star lobby liveness cannot enter another ruleset"
+                    )
+                from app.engine.one_star_router_context import (
+                    render_one_star_lobby_activity_contract,
+                )
+
+                lobby_activity_block = render_one_star_lobby_activity_contract(
+                    one_star_lobby_liveness,
+                    resolving_cat_ii=cat_ii_event is not None,
+                )
+
             router_input_block = _build_router_input_block(
                 _build_opening_context_block(ckpt, intention, actor_id),
                 ctx.pop("engine_state_updates_block", ""),
                 cat_ii_resolution_block,
                 intention_block,
+                lobby_activity_block,
             )
             template_vars = {
                 **ctx,
@@ -2767,6 +2785,22 @@ class LLMDispatcher:
             from app.engine.one_star_adapter import OneStarTransactionError
 
             def validate_candidate() -> None:
+                if one_star_lobby_liveness is not None:
+                    from app.engine.one_star_adapter import (
+                        anchor_one_star_lobby_liveness_event,
+                        validate_one_star_lobby_liveness_activity,
+                    )
+
+                    anchor_one_star_lobby_liveness_event(
+                        result,
+                        request=one_star_lobby_liveness,
+                    )
+                    validate_one_star_lobby_liveness_activity(
+                        ckpt,
+                        request=one_star_lobby_liveness,
+                        actor_id=actor_id,
+                        result=result,
+                    )
                 _include_one_star_synthesis_guide_responders(
                     ckpt,
                     actor_id=actor_id,
@@ -2965,8 +2999,9 @@ class LLMDispatcher:
         actor_id: str,
         prior_result: EventRouterOutput,
         original_action: str = "",
+        one_star_lobby_liveness: OneStarLobbyLivenessRequest | None = None,
     ) -> EventRouterOutput:
-        """Ask the router for another event after a narrator continue handoff."""
+        """Ask the router for grounded motion after a closed event."""
 
         router_snapshot = _router_call_snapshot(ckpt)
         try:
@@ -2990,10 +3025,23 @@ class LLMDispatcher:
                         content=initial_roster_record,
                     )
                 )
-            continuation_block = format_router_continuation_block(
-                prior_rationale=prior_result.decision_rationale,
-                original_action=original_action,
-            )
+            if one_star_lobby_liveness is None:
+                continuation_block = format_router_continuation_block(
+                    prior_rationale=prior_result.decision_rationale,
+                    original_action=original_action,
+                )
+            else:
+                if not _one_star_router_enabled(ckpt):
+                    raise ValueError(
+                        "One-Star lobby liveness cannot enter another ruleset"
+                    )
+                from app.engine.one_star_router_context import (
+                    render_one_star_lobby_liveness_cue,
+                )
+
+                continuation_block = render_one_star_lobby_liveness_cue(
+                    one_star_lobby_liveness
+                )
 
             router_input_block = _build_router_input_block(
                 ctx.pop("engine_state_updates_block", ""),
@@ -3037,6 +3085,21 @@ class LLMDispatcher:
             result: EventRouterOutput = response.parsed
 
             def validate_candidate() -> None:
+                if one_star_lobby_liveness is not None:
+                    from app.engine.one_star_adapter import (
+                        anchor_one_star_lobby_liveness_event,
+                        validate_one_star_lobby_liveness_cue,
+                    )
+
+                    anchor_one_star_lobby_liveness_event(
+                        result,
+                        request=one_star_lobby_liveness,
+                    )
+                    validate_one_star_lobby_liveness_cue(
+                        ckpt,
+                        request=one_star_lobby_liveness,
+                        result=result,
+                    )
                 if result.requires_responders or result.required_responders:
                     raise ValueError(
                         "One-Star continuation cannot open a new Cat II event"
@@ -3102,7 +3165,11 @@ class LLMDispatcher:
                 ckpt.session_conversation,
                 acting_character_id=actor_id,
                 result=result,
-                mode="continuation",
+                mode=(
+                    "one_star_lobby_liveness"
+                    if one_star_lobby_liveness is not None
+                    else "continuation"
+                ),
             )
             return result
         except Exception:

@@ -2,25 +2,37 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from app.engine.one_star_adapter import (
     OneStarTransactionError,
     one_star_active_mission_has_bound_party_member,
+    one_star_lobby_liveness_request_after_result,
     one_star_master_has_human_led_mission,
     one_star_master_may_act_while_mission_responder_pinned,
     one_star_should_autonomous_mission_batch_after_result,
     validate_one_star_autonomous_mission_batch_result,
     validate_one_star_human_led_mission_result,
+    validate_one_star_lobby_liveness_activity,
+    validate_one_star_lobby_liveness_cue,
 )
+from app.engine.turn_loop import run_beat
+from app.schemas.characters import PlayerSlotKind
 from app.schemas.events import ObservableFact
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_HERO_KEY,
     OneStarEventRouterOutput,
 )
-from app.schemas.state import OpenCatIIEvent, SlotEntry
-from tests.support.factories import character_record, checkpoint, router_output
+from app.schemas.state import OpenCatIIEvent, OpenCommitment, SlotEntry
+from tests.support.factories import (
+    InstanceFakeDispatcher,
+    character_record,
+    checkpoint,
+    router_output,
+)
 from tests.test_one_star_atomicity import _checkpoint, _hero, _mission
 
 
@@ -347,6 +359,417 @@ def test_autonomous_mission_batch_requires_owner_and_npc_only_party() -> None:
     ) is False
 
 
+def test_lobby_liveness_request_uses_idle_nonparty_autonomous_heroes() -> None:
+    checkpoint = _active_checkpoint(bind_party=False)
+    result = _one_star_result(observer_ids=["account_owner"])
+
+    request = one_star_lobby_liveness_request_after_result(
+        checkpoint,
+        actor_id="account_owner",
+        result=result,
+        user_input="(defer)",
+    )
+
+    assert request is not None
+    assert request.mission_id == "mission_1"
+    assert request.hero_ids == ("reserve",)
+    assert "hero" not in request.hero_ids
+    assert request.lobby_location == "lobby"
+
+    checkpoint.session.character_bindings["reserve"] = "reserve-player"
+    assert (
+        one_star_lobby_liveness_request_after_result(
+            checkpoint,
+            actor_id="account_owner",
+            result=result,
+            user_input="(defer)",
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("unavailable_kind", ["pinned", "committed", "authored"])
+def test_lobby_liveness_request_excludes_unavailable_lobby_heroes(
+    unavailable_kind: str,
+) -> None:
+    checkpoint = _active_checkpoint(bind_party=False)
+    reserve = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "reserve"
+    )
+    if unavailable_kind == "pinned":
+        checkpoint.session.active_act_slots["reserve"] = SlotEntry(
+            reason="cat_ii_responder",
+            cat_ii_event_id="cat_two",
+        )
+    elif unavailable_kind == "committed":
+        checkpoint.session.open_commitments = [
+            OpenCommitment(
+                commitment_id="reserve_work",
+                actor_ids=["reserve"],
+                description="Reserve is already repairing equipment.",
+                location_label="lobby",
+            )
+        ]
+    else:
+        reserve.player_slot_kind = PlayerSlotKind.player_authored
+
+    assert (
+        one_star_lobby_liveness_request_after_result(
+            checkpoint,
+            actor_id="account_owner",
+            result=_one_star_result(observer_ids=["account_owner"]),
+            user_input="(defer)",
+        )
+        is None
+    )
+
+
+def test_lobby_liveness_request_respects_existing_frontiers_and_cadence() -> None:
+    checkpoint = _active_checkpoint(bind_party=False)
+    quiet = _one_star_result(observer_ids=["account_owner"])
+
+    assert (
+        one_star_lobby_liveness_request_after_result(
+            checkpoint,
+            actor_id="account_owner",
+            result=quiet,
+            user_input="How much gold do I have?",
+        )
+        is None
+    )
+    assert (
+        one_star_lobby_liveness_request_after_result(
+            checkpoint,
+            actor_id="reserve",
+            result=quiet,
+            user_input="(defer)",
+        )
+        is None
+    )
+
+    existing_frontier = _one_star_result(
+        observer_ids=["account_owner", "reserve"],
+        agent_ids=["reserve"],
+    )
+    assert (
+        one_star_lobby_liveness_request_after_result(
+            checkpoint,
+            actor_id="account_owner",
+            result=existing_frontier,
+            user_input="(defer)",
+        )
+        is None
+    )
+
+    mutation = _one_star_result(
+        state_updates=[
+            {
+                "kind": "catalogue_apply",
+                "target_id": "synthesis_chamber",
+                "value": "1",
+                "details": [],
+            }
+        ]
+    )
+    assert (
+        one_star_lobby_liveness_request_after_result(
+            checkpoint,
+            actor_id="account_owner",
+            result=mutation,
+        )
+        is not None
+    )
+
+
+def test_lobby_liveness_cue_preserves_hero_choice_and_floor_separation() -> None:
+    checkpoint = _active_checkpoint(bind_party=False)
+    request = one_star_lobby_liveness_request_after_result(
+        checkpoint,
+        actor_id="account_owner",
+        result=_one_star_result(observer_ids=["account_owner"]),
+        user_input="(defer)",
+    )
+    assert request is not None
+    cue = _one_star_result(
+        observer_ids=["reserve"],
+        agent_ids=["reserve"],
+        event_kind="public_fact",
+        facts=[ObservableFact.all("The training room is quiet and available.")],
+    )
+
+    validate_one_star_lobby_liveness_cue(
+        checkpoint,
+        request=request,
+        result=cue,
+    )
+
+    cue.canonical_event.observable_facts[0].visual_subject_ids = ["reserve"]
+    with pytest.raises(ValueError, match="pre-author"):
+        validate_one_star_lobby_liveness_cue(
+            checkpoint,
+            request=request,
+            result=cue,
+        )
+
+    leaked = _one_star_result(
+        observer_ids=["account_owner", "reserve"],
+        agent_ids=["reserve"],
+        event_kind="public_fact",
+        facts=[ObservableFact.all("The training room is quiet and available.")],
+    )
+    with pytest.raises(ValueError, match="private"):
+        validate_one_star_lobby_liveness_cue(
+            checkpoint,
+            request=request,
+            result=leaked,
+        )
+
+
+def test_lobby_liveness_activity_can_open_work_but_not_route_a_chat_chain() -> None:
+    checkpoint = _active_checkpoint(bind_party=False)
+    request = one_star_lobby_liveness_request_after_result(
+        checkpoint,
+        actor_id="account_owner",
+        result=_one_star_result(observer_ids=["account_owner"]),
+        user_input="(defer)",
+    )
+    assert request is not None
+    activity = _one_star_result(
+        observer_ids=["reserve"],
+        facts=[
+            ObservableFact.all(
+                "Reserve begins a measured practice routine.",
+                visual_subject_ids=["reserve"],
+            )
+        ],
+    )
+    activity.commitment_open.present = True
+    activity.commitment_open.actor_ids = ["reserve"]
+    activity.commitment_open.description = "practice in the lobby"
+    activity.commitment_open.expected_duration_s = 1800
+    activity.commitment_open.max_duration_s = 3600
+    activity.commitment_open.location_label = "lobby"
+
+    validate_one_star_lobby_liveness_activity(
+        checkpoint,
+        request=request,
+        actor_id="reserve",
+        result=activity,
+    )
+
+    activity.duration_s = 1
+    with pytest.raises(ValueError, match="canonical instant"):
+        validate_one_star_lobby_liveness_activity(
+            checkpoint,
+            request=request,
+            actor_id="reserve",
+            result=activity,
+        )
+    activity.duration_s = 0
+
+    routed = _one_star_result(
+        observer_ids=["reserve"],
+        agent_ids=["reserve"],
+        event_kind="beat_continues",
+        facts=[ObservableFact.all("Reserve pauses over the practice blade.")],
+    )
+    with pytest.raises(ValueError, match="close without another routed output"):
+        validate_one_star_lobby_liveness_activity(
+            checkpoint,
+            request=request,
+            actor_id="reserve",
+            result=routed,
+        )
+
+    floor_leak = _one_star_result(
+        observer_ids=["reserve", "hero"],
+        facts=[ObservableFact.all("The deployed Hero appears in the room.")],
+    )
+    with pytest.raises(ValueError, match="deployed party"):
+        validate_one_star_lobby_liveness_activity(
+            checkpoint,
+            request=request,
+            actor_id="reserve",
+            result=floor_leak,
+        )
+
+
+def test_master_defer_runs_one_private_lobby_activity_before_floor_batch() -> None:
+    checkpoint = _active_checkpoint(bind_party=False)
+    checkpoint.session.character_bindings["account_owner"] = "master-player"
+    checkpoint.session.config.settings.max_agent_cascades_per_beat = 1
+    checkpoint.session.config.settings.max_events_per_beat = 3
+    dispatcher = InstanceFakeDispatcher()
+
+    initial = _one_star_result(
+        observer_ids=["account_owner"],
+        facts=[
+            ObservableFact.only(
+                "The watched floor remains active.",
+                ["account_owner"],
+            )
+        ],
+    )
+    initial.event_id = "evt_master_defer"
+    cue = _one_star_result(
+        observer_ids=["reserve"],
+        agent_ids=["reserve"],
+        event_kind="public_fact",
+        facts=[ObservableFact.all("The practice room is open and quiet.")],
+    )
+    cue.event_id = "evt_lobby_cue"
+    activity = _one_star_result(
+        observer_ids=["reserve"],
+        facts=[
+            ObservableFact.all(
+                "Reserve begins a deliberate practice routine.",
+                visual_subject_ids=["reserve"],
+            )
+        ],
+    )
+    activity.event_id = "evt_lobby_activity"
+    floor_frontier = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        agent_ids=["hero"],
+        event_kind="beat_continues",
+        facts=[
+            ObservableFact.only(
+                "Hero sees the goblins regroup on the floor.",
+                ["account_owner", "hero"],
+                visual_subject_ids=["hero"],
+            )
+        ],
+    )
+    floor_frontier.event_id = "evt_floor_frontier"
+    floor_action = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        agent_ids=["hero"],
+        event_kind="beat_continues",
+        facts=[
+            ObservableFact.only(
+                "Hero drives into the regrouping goblins.",
+                ["account_owner", "hero"],
+                visual_subject_ids=["hero"],
+            )
+        ],
+    )
+    floor_action.event_id = "evt_floor_action"
+
+    for response in (initial, cue, activity, floor_frontier, floor_action):
+        dispatcher.queue_route(response)
+    dispatcher.queue_agent("Reserve begins a deliberate practice routine.")
+    dispatcher.queue_agent("Hero drives into the regrouping goblins.")
+
+    result = asyncio.run(
+        run_beat(
+            ckpt=checkpoint,
+            dispatcher=dispatcher,
+            actor_id="account_owner",
+            intention="(defer)",
+        )
+    )
+
+    assert result.ended_reason == "max_events_cap"
+    assert [call["character_id"] for call in dispatcher.agent_calls] == [
+        "reserve",
+        "hero",
+    ]
+    assert dispatcher.agent_calls[0]["frame"] == "background"
+    assert (
+        "A stretch of mission-time is yours"
+        in (dispatcher.agent_calls[0]["local_context"])
+    )
+    assert dispatcher.continuation_calls[0]["one_star_lobby_liveness"]
+    assert dispatcher.continuation_calls[1]["actor_id"] == ""
+    assert "one_star_lobby_liveness" not in dispatcher.continuation_calls[1]
+    assert [event.event_id for event in checkpoint.canonical_events] == [
+        "evt_master_defer",
+        "evt_lobby_cue",
+        "evt_lobby_activity",
+        "evt_floor_frontier",
+        "evt_floor_action",
+    ]
+    assert dispatcher.narrator_calls[0]["narration_mode"] == ("compressed_sequence")
+    rendered_ids = {
+        event.event_id for event in dispatcher.narrator_calls[0]["buffered_events"]
+    }
+    assert "evt_lobby_cue" not in rendered_ids
+    assert "evt_lobby_activity" not in rendered_ids
+
+
+def test_lobby_activity_leaves_a_human_led_floor_untouched() -> None:
+    checkpoint = _active_checkpoint(bind_party=True)
+    checkpoint.session.character_bindings["account_owner"] = "master-player"
+    dispatcher = InstanceFakeDispatcher()
+
+    initial = _one_star_result(
+        observer_ids=["account_owner"],
+        facts=[
+            ObservableFact.only(
+                "The Master leaves the deployed party to its own choices.",
+                ["account_owner"],
+            )
+        ],
+    )
+    initial.event_id = "evt_human_floor_defer"
+    cue = _one_star_result(
+        observer_ids=["reserve"],
+        agent_ids=["reserve"],
+        event_kind="public_fact",
+        facts=[ObservableFact.all("An unused workbench stands ready.")],
+    )
+    cue.event_id = "evt_human_floor_lobby_cue"
+    activity = _one_star_result(
+        observer_ids=["reserve"],
+        facts=[
+            ObservableFact.all(
+                "Reserve begins restoring a battered shield.",
+                visual_subject_ids=["reserve"],
+            )
+        ],
+    )
+    activity.event_id = "evt_human_floor_lobby_activity"
+    activity.commitment_open.present = True
+    activity.commitment_open.actor_ids = ["reserve"]
+    activity.commitment_open.description = "restore the battered shield"
+    activity.commitment_open.expected_duration_s = 1800
+    activity.commitment_open.max_duration_s = 3600
+    activity.commitment_open.location_label = "lobby"
+
+    for response in (initial, cue, activity):
+        dispatcher.queue_route(response)
+    dispatcher.queue_agent("Reserve begins restoring a battered shield.")
+
+    result = asyncio.run(
+        run_beat(
+            ckpt=checkpoint,
+            dispatcher=dispatcher,
+            actor_id="account_owner",
+            intention="(defer)",
+            one_star_human_led_mission_guard=True,
+        )
+    )
+
+    assert result.ended_reason == "state_change"
+    assert [call["character_id"] for call in dispatcher.agent_calls] == ["reserve"]
+    assert [event.event_id for event in checkpoint.canonical_events] == [
+        "evt_human_floor_defer",
+        "evt_human_floor_lobby_cue",
+        "evt_human_floor_lobby_activity",
+    ]
+    assert checkpoint.session.open_commitments[0].actor_ids == ["reserve"]
+    party = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "hero"
+    )
+    assert party.location == "tower_floor_1"
+    assert party.clock_at_s == 0
+    assert party.pending_observations == []
+
+
 def test_autonomous_mission_validator_allows_floor_fiction_and_passive_owner() -> None:
     checkpoint = _active_checkpoint(bind_party=False)
     result = _one_star_result(
@@ -505,3 +928,12 @@ def test_human_led_helpers_leave_rules_neutral_sessions_unchanged() -> None:
         result=result,
         user_input="watch the mission",
     ) is False
+    assert (
+        one_star_lobby_liveness_request_after_result(
+            generic,
+            actor_id="alice",
+            result=result,
+            user_input="(defer)",
+        )
+        is None
+    )

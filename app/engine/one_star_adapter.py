@@ -163,6 +163,36 @@ class OneStarSummonDraw:
     existing_character_id: str = ""
 
 
+@dataclass(frozen=True, slots=True)
+class OneStarLobbyLivenessHero:
+    """One autonomous nonparty Hero available for an offscreen lobby beat."""
+
+    character_id: str
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class OneStarLobbyLivenessRequest:
+    """Volatile router authority for one bounded active-mission lobby beat.
+
+    This is deliberately not checkpoint state.  A fresh Master turn is the
+    cadence boundary; canonical events and ordinary character conversations
+    preserve whatever the selected Hero actually does.
+    """
+
+    owner_id: str
+    mission_id: str
+    party_ids: tuple[str, ...]
+    heroes: tuple[OneStarLobbyLivenessHero, ...]
+    facilities: tuple[tuple[str, int], ...]
+    lobby_location: str
+    canonical_at_s: int
+
+    @property
+    def hero_ids(self) -> tuple[str, ...]:
+        return tuple(hero.character_id for hero in self.heroes)
+
+
 def is_one_star_checkpoint(checkpoint: CheckpointFile) -> bool:
     return checkpoint.session.config.settings.ruleset_id == ONE_STAR_RULESET_ID
 
@@ -258,6 +288,322 @@ def _one_star_lobby_safe_locations(
             if kind != "deployment" and requirement.required_location
         ),
     }
+
+
+def _one_star_lobby_liveness_request(
+    checkpoint: CheckpointFile,
+) -> OneStarLobbyLivenessRequest | None:
+    """Describe idle autonomous Heroes available during an active mission."""
+
+    if not is_one_star_checkpoint(checkpoint):
+        return None
+    try:
+        owner, account = load_one_star_account(checkpoint)
+    except (OneStarTransactionError, ValidationError):
+        return None
+    mission = account.state.active_mission
+    if mission is None:
+        return None
+
+    human_ids = set(checkpoint.session.character_bindings)
+    if checkpoint.session.player_character_id:
+        human_ids.add(checkpoint.session.player_character_id)
+    blocked_ids = set(checkpoint.session.active_act_slots)
+    committed_ids = {
+        character_id
+        for commitment in checkpoint.session.open_commitments
+        for character_id in commitment.actor_ids
+    }
+    pending = account.state.pending_operation
+    operation_ids = (
+        {
+            *pending.participant_ids,
+            *([pending.target_id] if pending.target_id else []),
+        }
+        if pending is not None
+        else set()
+    )
+    party_ids = set(mission.party_ids)
+    candidates: list[CharacterRecord] = []
+    for character in checkpoint.characters:
+        hero = load_one_star_hero(character)
+        if (
+            character.status != CharacterStatus.active
+            or character.character_id in party_ids
+            or character.character_id in human_ids
+            or character.character_id in blocked_ids
+            or character.character_id in committed_ids
+            or character.character_id in operation_ids
+            or is_player_authored_slot(character)
+            or character.location != account.config.lobby_location_label
+            or hero is None
+            or hero.owner_lobby_id != account.config.lobby_id
+        ):
+            continue
+        candidates.append(character)
+
+    if not candidates:
+        return None
+
+    # This is advisory ordering, not actor selection.  The router retains the
+    # exact fictional choice while seeing overlooked Heroes first.
+    candidates.sort(
+        key=lambda character: (
+            len(checkpoint.character_conversations.get(character.character_id, ())),
+            character.last_agent_turn_at_s
+            if character.last_agent_turn_at_s is not None
+            else -1,
+            character.character_id,
+        )
+    )
+    return OneStarLobbyLivenessRequest(
+        owner_id=owner.character_id,
+        mission_id=mission.mission_id,
+        party_ids=tuple(mission.party_ids),
+        heroes=tuple(
+            OneStarLobbyLivenessHero(
+                character_id=character.character_id,
+                name=character.name,
+            )
+            for character in candidates
+        ),
+        facilities=tuple(
+            sorted(
+                (facility_id, level)
+                for facility_id, level in account.state.facilities.items()
+                if level > 0
+            )
+        ),
+        lobby_location=account.config.lobby_location_label,
+        canonical_at_s=max(0, checkpoint.session.leading_at_s),
+    )
+
+
+def _one_star_mission_watch_requested(user_input: str) -> bool:
+    normalized = " ".join((user_input or "").lower().split())
+    if normalized in {"(defer)", "/defer", "defer"}:
+        return True
+    words = set(re.findall(r"[a-z]+", normalized))
+    return bool(
+        words
+        & {
+            "mission",
+            "tower",
+            "floor",
+            "deployed",
+            "deployment",
+            "party",
+        }
+        and words & {"watch", "observe", "monitor", "view", "status", "check"}
+    )
+
+
+def one_star_lobby_liveness_request_after_result(
+    checkpoint: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+    user_input: str = "",
+) -> OneStarLobbyLivenessRequest | None:
+    """Return one player-beat-scoped lobby request when background life is due.
+
+    Existing response ownership wins.  Otherwise a Master defer/watch or an
+    accepted One-Star mutation may open at most one liveness thread.  Autonomous
+    mission micro-events never call this helper, so combat batching cannot turn
+    into a background-call multiplier.
+    """
+
+    request = _one_star_lobby_liveness_request(checkpoint)
+    if request is None or actor_id.strip() != request.owner_id:
+        return None
+    if (
+        result.requires_responders
+        or result.required_responders
+        or result.next_output_character_ids
+    ):
+        return None
+    if not (
+        _one_star_mission_watch_requested(user_input)
+        or bool(getattr(result, "state_updates", ()))
+    ):
+        return None
+    return request
+
+
+def _one_star_liveness_has_forbidden_side_effects(
+    result: EventRouterOutput,
+) -> bool:
+    return bool(
+        getattr(result, "state_updates", ())
+        or result.spawn
+        or result.activate
+        or result.dormant
+        or result.cull
+        or result.commitment_resolutions
+        or result.commitment_interrupts
+    )
+
+
+def anchor_one_star_lobby_liveness_event(
+    result: EventRouterOutput,
+    *,
+    request: OneStarLobbyLivenessRequest,
+) -> None:
+    """Pin a parallel lobby event to the player beat's canonical instant.
+
+    The router owns the fiction, but it does not get to advance the shared
+    clock from this private parallel scene. Long work lives in the ordinary
+    commitment signal rather than in the opening event's duration.
+    """
+
+    result.effective_at_s = request.canonical_at_s
+
+
+def _validate_one_star_lobby_liveness_time(
+    result: EventRouterOutput,
+    *,
+    request: OneStarLobbyLivenessRequest,
+) -> None:
+    if result.effective_at_s != request.canonical_at_s or result.duration_s != 0:
+        raise ValueError(
+            "One-Star lobby liveness must stay at the current canonical instant"
+        )
+
+
+def validate_one_star_lobby_liveness_cue(
+    checkpoint: CheckpointFile,
+    *,
+    request: OneStarLobbyLivenessRequest,
+    result: EventRouterOutput,
+) -> None:
+    """Require a private, choice-preserving cue for exactly one idle Hero."""
+
+    current = _one_star_lobby_liveness_request(checkpoint)
+    if (
+        current is None
+        or current.mission_id != request.mission_id
+        or current.canonical_at_s != request.canonical_at_s
+    ):
+        raise ValueError("One-Star lobby liveness requires the same active mission")
+    _validate_one_star_lobby_liveness_time(result, request=request)
+    eligible_ids = set(current.hero_ids) & set(request.hero_ids)
+    selected = result.next_output_character_ids
+    if len(selected) != 1 or selected[0] not in eligible_ids:
+        raise ValueError(
+            "One-Star lobby liveness must select exactly one eligible idle Hero"
+        )
+    selected_id = selected[0]
+    if result.event_kind != "public_fact" or result.duration_s != 0:
+        raise ValueError(
+            "One-Star lobby liveness cue must be a zero-duration public_fact"
+        )
+    if (
+        not result.canonical_event.world_adjudication.feasible
+        or result.requires_responders
+        or result.required_responders
+        or result.perception_enrichment_character_ids
+        or _one_star_liveness_has_forbidden_side_effects(result)
+        or result.location_updates
+        or result.commitment_open.present
+        or result.commitment_resolutions
+        or result.commitment_interrupts
+    ):
+        raise ValueError(
+            "One-Star lobby liveness cue must be a closed side-effect-free affordance"
+        )
+    if len(result.observers) != 1:
+        raise ValueError(
+            "One-Star lobby liveness cue must be private to its selected Hero"
+        )
+    observer = result.observers[0]
+    if (
+        observer.character_id != selected_id
+        or observer.observation_level != "d"
+        or observer.routing_role != "next_output"
+    ):
+        raise ValueError(
+            "One-Star lobby liveness cue must directly route its selected Hero"
+        )
+    facts = result.canonical_event.observable_facts
+    if not facts or not any(fact.is_visible_to(selected_id) for fact in facts):
+        raise ValueError(
+            "One-Star lobby liveness cue must give its selected Hero a visible affordance"
+        )
+    if any(fact.visual_subject_ids for fact in facts):
+        raise ValueError(
+            "One-Star lobby liveness cue cannot pre-author a Hero's action"
+        )
+
+
+def validate_one_star_lobby_liveness_activity(
+    checkpoint: CheckpointFile,
+    *,
+    request: OneStarLobbyLivenessRequest,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> None:
+    """Keep the selected Hero's activity wholly inside the idle lobby cast."""
+
+    current = _one_star_lobby_liveness_request(checkpoint)
+    if (
+        current is None
+        or current.mission_id != request.mission_id
+        or current.canonical_at_s != request.canonical_at_s
+    ):
+        raise ValueError("One-Star lobby activity requires the same active mission")
+    _validate_one_star_lobby_liveness_time(result, request=request)
+    eligible_ids = set(current.hero_ids) & set(request.hero_ids)
+    clean_actor_id = actor_id.strip()
+    if clean_actor_id not in eligible_ids:
+        raise ValueError("One-Star lobby activity actor is not an eligible idle Hero")
+    if (
+        result.next_output_character_ids
+        or result.perception_enrichment_character_ids
+        or _one_star_liveness_has_forbidden_side_effects(result)
+    ):
+        raise ValueError(
+            "One-Star lobby activity must close without another routed output or account change"
+        )
+
+    structured_ids = {
+        *result.required_responders,
+        *(observer.character_id for observer in result.observers),
+        *(
+            character_id
+            for fact in result.canonical_event.observable_facts
+            for character_id in (*fact.visible_to, *fact.visual_subject_ids)
+        ),
+        *(update.character_id for update in result.location_updates),
+    }
+    if structured_ids - eligible_ids:
+        raise ValueError(
+            "One-Star lobby activity cannot observe, route, depict, or move "
+            "the Master, deployed party, or unavailable lobby characters"
+        )
+    if result.requires_responders != bool(result.required_responders):
+        raise ValueError(
+            "One-Star lobby activity responder classification is inconsistent"
+        )
+    if clean_actor_id in result.required_responders:
+        raise ValueError("One-Star lobby activity actor cannot answer themself")
+
+    for update in result.location_updates:
+        if update.location_label != request.lobby_location:
+            raise ValueError(
+                "One-Star lobby activity cannot move a Hero beyond the lobby"
+            )
+
+    if result.commitment_open.present:
+        commitment_ids = set(result.commitment_open.actor_ids)
+        if (
+            clean_actor_id not in commitment_ids
+            or not commitment_ids
+            or commitment_ids - eligible_ids
+            or result.commitment_open.location_label not in {"", request.lobby_location}
+        ):
+            raise ValueError(
+                "One-Star lobby activity commitment must belong to available lobby Heroes"
+            )
 
 
 def _one_star_human_led_lobby_hero_is_safe(
@@ -804,27 +1150,7 @@ def one_star_should_autonomous_mission_batch_after_result(
     if set(result.next_output_character_ids) & set(mission.party_ids):
         return True
 
-    normalized = " ".join(user_input.lower().split())
-    if normalized in {"(defer)", "/defer", "defer"}:
-        return True
-    mission_terms = {
-        "mission",
-        "tower",
-        "floor",
-        "deployed",
-        "deployment",
-        "party",
-    }
-    watch_terms = {
-        "watch",
-        "observe",
-        "monitor",
-        "view",
-        "status",
-        "check",
-    }
-    words = set(re.findall(r"[a-z]+", normalized))
-    return bool(words & mission_terms and words & watch_terms)
+    return _one_star_mission_watch_requested(user_input)
 
 
 def one_star_standard_summon_guide_handoff_authority(
