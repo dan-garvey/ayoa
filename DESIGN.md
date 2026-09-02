@@ -1932,9 +1932,11 @@ feed or another source of mission state.
 Character-agent, status, and image projections are viewer-scoped. The account
 owner sees the local account roster, public XP progress, and exact usable stored
 gear; Heroes see their own body at the authored System-detail level; configured
-guides receive lobby-management and tutorial state but not mission-party facts
-they did not observe; image prompts receive only visible current equipment.
-Narrator input remains canonical observable facts rather than raw adapter state.
+guides receive lobby-management and tutorial state, while characters separately
+listed as System observers receive the live canonical mission feed without
+becoming physically present or response-eligible before mission end; image
+prompts receive only visible current equipment. Narrator input remains
+canonical observable facts rather than raw adapter state.
 
 The read-only `/master status`, `/master heroes`, and `/master hero` commands
 use the same viewer-scoped projection through `EngineBridge` in both CLI and

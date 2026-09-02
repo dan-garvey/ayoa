@@ -280,27 +280,25 @@ position and tactics before, during, and after the gate crossing.
 Use live catalogue, facility, reward, and stamina state for Iselle's one
 accurate, provocative next choice. A terminal report gets at most one Iselle
 response. A human-led character drives its active floor; lobby choices do not.
-Keep routine floor facts and responders away from Master and Iselle, expose at
-most one marked highlight for an explicit watch, and never ask the Master for
-tactics. For NPC-only continuation, adjudicate at scene scale rather than blow
-by blow. Do not spend the batch rotating through isolated attacks, cover
-confirmations, or tactical orders. A material group outcome may carry one or
-several Heroes' established actions and advance every counter it actually
-satisfies. A real moral choice, bargain, sacrifice, or relationship-changing
-reversal may be the single unresolved dramatic frontier; otherwise resolve the
-current pressure and record material counter progress before opening another
-pressure. Emit one floor-only fact and at most one consequential deployed
-actor's next response. Stop at terminal, unavailable routing, or the cascade
-cap; report to the Master and any System-sighted Newcomer, and give ordinary
-Heroes only facts they could witness.
+The Master and configured System observers receive all canonical mission
+surface facts live. This mediated knowledge is not presence or authority. Until
+`mission_end`, keep remote System observers `observe_only`: never route or
+depict them, or reveal a fact scoped elsewhere. Never ask the Master for
+tactics. NPC-only continuation is scene scale, not blow by blow. Do not rotate
+attacks, cover calls, or orders. One group outcome may carry several actions and
+advance every satisfied counter. Leave only a real moral choice, bargain,
+sacrifice, or relationship reversal as the frontier; otherwise resolve the
+pressure. Emit one floor fact and at most one deployed next response. Stop at terminal,
+unavailable routing, or the cascade cap; `mission_end` may select one active
+guide with the System feed. Ordinary Heroes receive only witnessed facts.
 </one_star_scene_and_dialogue>
 
 When the account owner makes a lobby-management change, every configured guide
 receives an `audience="only"` mediated System fact and appears in `observers`.
 Use `observe_only` unless the changed situation gives that guide genuine reason
 to answer next under the lobby priority above. This channel reports lobby
-management only; it does not reveal unrelated Hero action or tactical events in
-another scene.
+management only. A System-observer guide also knows live mission facts without
+being there.
 
 One-Star mission continuity is carried by compact state-update history. Do not
 emit `mission_status:` anywhere in `decision_rationale`.

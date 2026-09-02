@@ -13,12 +13,13 @@ from app.engine.one_star_adapter import (
     one_star_master_has_human_led_mission,
     one_star_master_may_act_while_mission_responder_pinned,
     one_star_should_autonomous_mission_batch_after_result,
+    prepare_one_star_live_mission_observers,
     validate_one_star_autonomous_mission_batch_result,
     validate_one_star_human_led_mission_result,
     validate_one_star_lobby_liveness_activity,
     validate_one_star_lobby_liveness_cue,
 )
-from app.engine.turn_loop import run_beat
+from app.engine.turn_loop import broadcast_event, run_beat
 from app.schemas.characters import PlayerSlotKind
 from app.schemas.events import ObservableFact
 from app.schemas.one_star import (
@@ -36,7 +37,12 @@ from tests.support.factories import (
 from tests.test_one_star_atomicity import _checkpoint, _hero, _mission
 
 
-def _active_checkpoint(*, bind_party: bool, include_guide: bool = False):
+def _active_checkpoint(
+    *,
+    bind_party: bool,
+    include_guide: bool = False,
+    include_system_observer: bool = False,
+):
     party = _hero(location="tower_floor_1")
     reserve = _hero(location="lobby")
     reserve.character_id = "reserve"
@@ -47,10 +53,15 @@ def _active_checkpoint(*, bind_party: bool, include_guide: bool = False):
     )
     if bind_party:
         checkpoint.session.character_bindings["hero"] = "player-hero"
-    if include_guide:
+    if include_guide or include_system_observer:
         checkpoint.characters.append(character_record("iselle", location="lobby"))
+    if include_guide:
         checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["state"][
             "guide_character_ids"
+        ] = ["iselle"]
+    if include_system_observer:
+        checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["state"][
+            "system_observer_ids"
         ] = ["iselle"]
     return checkpoint
 
@@ -794,6 +805,174 @@ def test_autonomous_mission_validator_allows_floor_fiction_and_passive_owner() -
         actor_id="hero",
         result=result,
     )
+
+
+def test_live_system_observer_receives_broad_floor_facts_without_private_leak() -> None:
+    checkpoint = _active_checkpoint(
+        bind_party=False,
+        include_guide=True,
+        include_system_observer=True,
+    )
+    result = _one_star_result(
+        state_updates=[{
+            "kind": "mission_update",
+            "target_id": "mission_1",
+            "value": "",
+            "details": ["counter.clear=0/1"],
+        }],
+        observer_ids=["account_owner", "hero"],
+        facts=[
+            ObservableFact.all(
+                "Hero drives the goblins back from the watched arch.",
+                visual_subject_ids=["hero"],
+            ),
+            ObservableFact.only(
+                "Hero privately recognizes the sigil.",
+                ["hero"],
+            ),
+        ],
+    )
+
+    assert prepare_one_star_live_mission_observers(
+        checkpoint,
+        actor_id="hero",
+        result=result,
+    ) == ("iselle",)
+    observer = next(
+        entry for entry in result.observers if entry.character_id == "iselle"
+    )
+    assert observer.observation_level == "d"
+    assert observer.routing_role == "observe_only"
+    validate_one_star_autonomous_mission_batch_result(
+        checkpoint,
+        actor_id="hero",
+        result=result,
+    )
+
+    broadcast_event(checkpoint, result, actor_id="hero")
+
+    iselle = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "iselle"
+    )
+    assert any("drives the goblins back" in fact for fact in iselle.pending_observations)
+    assert all("privately recognizes" not in fact for fact in iselle.pending_observations)
+
+
+def test_live_system_observer_is_added_to_human_led_floor_events() -> None:
+    checkpoint = _active_checkpoint(
+        bind_party=True,
+        include_guide=True,
+        include_system_observer=True,
+    )
+    result = _one_star_result(
+        observer_ids=["hero"],
+        facts=[ObservableFact.all("Hero crosses the flooded gallery.")],
+    )
+
+    assert prepare_one_star_live_mission_observers(
+        checkpoint,
+        actor_id="hero",
+        result=result,
+    ) == ("iselle",)
+    assert result.observers[-1].character_id == "iselle"
+    assert result.observers[-1].routing_role == "observe_only"
+
+
+def test_live_system_observer_cannot_speak_or_appear_midmission() -> None:
+    checkpoint = _active_checkpoint(
+        bind_party=False,
+        include_guide=True,
+        include_system_observer=True,
+    )
+    routed = _one_star_result(
+        observer_ids=["account_owner", "hero", "iselle"],
+        agent_ids=["iselle"],
+        facts=[ObservableFact.all("Hero holds the stair against the goblins.")],
+    )
+
+    with pytest.raises(OneStarTransactionError, match="remain observe_only"):
+        prepare_one_star_live_mission_observers(
+            checkpoint,
+            actor_id="hero",
+            result=routed,
+        )
+
+    depicted = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        facts=[ObservableFact.all(
+            "Iselle appears beside Hero on the mission floor.",
+            visual_subject_ids=["iselle", "hero"],
+        )],
+    )
+    with pytest.raises(OneStarTransactionError, match="cannot be depicted"):
+        prepare_one_star_live_mission_observers(
+            checkpoint,
+            actor_id="hero",
+            result=depicted,
+        )
+
+
+def test_terminal_mission_event_may_hand_off_once_to_live_system_guide() -> None:
+    checkpoint = _active_checkpoint(
+        bind_party=False,
+        include_guide=True,
+        include_system_observer=True,
+    )
+    result = _one_star_result(
+        state_updates=[{
+            "kind": "mission_end",
+            "target_id": "mission_1",
+            "value": "completed",
+            "details": [
+                "return_destination=lobby",
+                "mvp_character_id=hero",
+                "mvp_evidence_event_id=evt_parallel",
+            ],
+        }],
+        observer_ids=["account_owner", "hero", "iselle"],
+        agent_ids=["iselle"],
+        facts=[ObservableFact.all(
+            "Hero survives the final rush and the mission closes.",
+            visual_subject_ids=["hero"],
+        )],
+    )
+
+    validate_one_star_autonomous_mission_batch_result(
+        checkpoint,
+        actor_id="hero",
+        result=result,
+    )
+
+
+def test_terminal_mission_event_cannot_route_a_non_guide_system_observer() -> None:
+    checkpoint = _active_checkpoint(
+        bind_party=False,
+        include_system_observer=True,
+    )
+    result = _one_star_result(
+        state_updates=[{
+            "kind": "mission_end",
+            "target_id": "mission_1",
+            "value": "completed",
+            "details": [
+                "return_destination=lobby",
+                "mvp_character_id=hero",
+                "mvp_evidence_event_id=evt_parallel",
+            ],
+        }],
+        observer_ids=["account_owner", "hero", "iselle"],
+        agent_ids=["iselle"],
+        facts=[ObservableFact.all("The mission closes around Hero.")],
+    )
+
+    with pytest.raises(OneStarTransactionError, match="eligible guide"):
+        prepare_one_star_live_mission_observers(
+            checkpoint,
+            actor_id="hero",
+            result=result,
+        )
 
 
 def test_autonomous_mission_validator_allows_scoped_terminal_system_recipient() -> None:

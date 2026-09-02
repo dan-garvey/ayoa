@@ -34,6 +34,7 @@ from app.llm.client import LLMClient, _openai_strict_json_schema
 from app.schemas.one_star import (
     ClosedOneStarEventRouterOutput,
     OneStarEventRouterOutput,
+    ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_RULESET_ID,
     OneStarCost,
     OneStarOpeningRosterBoundPlayerActorSlot,
@@ -195,10 +196,16 @@ def _liveness_checkpoint():
     reserve = _hero(location="lobby")
     reserve.character_id = "reserve"
     reserve.name = "Reserve"
-    return _checkpoint(
+    ckpt = _checkpoint(
         heroes=[party, reserve],
         active_mission=_mission(),
     )
+    ckpt.characters.append(character_record("iselle", location="lobby"))
+    ckpt.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["state"].update({
+        "guide_character_ids": ["iselle"],
+        "system_observer_ids": ["iselle"],
+    })
+    return ckpt
 
 
 def _liveness_request(ckpt):
@@ -649,6 +656,7 @@ def test_lobby_liveness_cue_is_a_volatile_closed_router_turn() -> None:
     assert "<one_star_lobby_liveness>" in call["messages"][-1]["content"]
     assert "<one_star_lobby_liveness>" not in call["messages"][0]["content"]
     assert "reserve" in call["messages"][-1]["content"]
+    assert {observer.character_id for observer in result.observers} == {"reserve"}
     assert "mode=one_star_lobby_liveness" in (ckpt.session_conversation[-1].content)
 
 
@@ -819,6 +827,84 @@ def test_one_star_continuation_retries_non_floor_observer_before_commit(
     history = "\n".join(message.content for message in ckpt.session_conversation)
     assert "corrected_floor_observers" in history
     assert "invalid_dead_hero_observer" not in history
+
+
+def test_autonomous_floor_correction_accepts_live_system_observer(
+    monkeypatch,
+):
+    _stub_one_star_router_context(monkeypatch)
+    hero = _hero(location="tower_floor_1")
+    ckpt = _checkpoint(
+        heroes=[hero],
+        active_mission=_mission(),
+    )
+    ckpt.characters.append(character_record("iselle", location="lobby"))
+    ckpt.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["state"][
+        "guide_character_ids"
+    ] = ["iselle"]
+    ckpt.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["state"][
+        "system_observer_ids"
+    ] = ["iselle"]
+
+    invalid_data = router_output(
+        event_id="invalid_floor_lifecycle",
+        observer_ids=["account_owner", "hero"],
+        facts=[ObservableFact.all(
+            "Hero drives into the remaining goblins.",
+            visual_subject_ids=["hero"],
+        )],
+        location_updates=[{
+            "character_id": "hero",
+            "location_label": "lobby",
+        }],
+    ).model_dump(mode="json")
+    invalid_data["state_updates"] = [{
+        "kind": "mission_update",
+        "target_id": "mission_1",
+        "value": "",
+        "details": ["counter.clear=0/1"],
+    }]
+    invalid = OneStarEventRouterOutput.model_validate(invalid_data)
+
+    corrected_data = router_output(
+        event_id="corrected_live_system_feed",
+        observer_ids=["account_owner", "hero", "iselle"],
+        facts=[ObservableFact.all(
+            "Hero drives into the remaining goblins.",
+            visual_subject_ids=["hero"],
+        )],
+    ).model_dump(mode="json")
+    corrected_data["state_updates"] = [{
+        "kind": "mission_update",
+        "target_id": "mission_1",
+        "value": "",
+        "details": ["counter.clear=0/1"],
+    }]
+    corrected = OneStarEventRouterOutput.model_validate(corrected_data)
+    dispatcher, client = _dispatcher(invalid, corrected)
+
+    result = asyncio.run(
+        dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="hero",
+            intention="Hero drives into the remaining goblins.",
+        )
+    )
+
+    assert result is corrected
+    assert client.complete.await_count == 2
+    assert next(
+        observer
+        for observer in result.observers
+        if observer.character_id == "iselle"
+    ).routing_role == "observe_only"
+    correction = client.complete.await_args_list[1].kwargs["messages"][-1][
+        "content"
+    ]
+    assert "generic lifecycle" in correction
+    history = "\n".join(message.content for message in ckpt.session_conversation)
+    assert "corrected_live_system_feed" in history
+    assert "invalid_floor_lifecycle" not in history
 
 
 def test_repeated_invalid_one_star_continuation_restores_router_snapshot(

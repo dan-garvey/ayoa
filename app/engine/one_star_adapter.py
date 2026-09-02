@@ -36,7 +36,12 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
-from app.schemas.event_router import EventRouterOutput, SpawnRequest, WakeSignal
+from app.schemas.event_router import (
+    EventRouterOutput,
+    ObserverEntry,
+    SpawnRequest,
+    WakeSignal,
+)
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_COMBATANT_KEY,
@@ -949,6 +954,196 @@ def validate_one_star_human_led_mission_result(
         )
 
 
+def _one_star_mission_floor_character_ids(
+    checkpoint: CheckpointFile,
+    *,
+    owner_character_id: str,
+    party_ids: set[str],
+    destination: str,
+) -> set[str]:
+    return {
+        character.character_id
+        for character in checkpoint.characters
+        if (
+            character.status == CharacterStatus.active
+            and character.character_id != owner_character_id
+            and (
+                character.character_id in party_ids
+                or character.location == destination
+            )
+        )
+    }
+
+
+def _active_one_star_system_observer_ids(
+    checkpoint: CheckpointFile,
+    state: OneStarAccountState,
+) -> tuple[str, ...]:
+    characters = {
+        character.character_id: character
+        for character in checkpoint.characters
+        if character.character_id
+    }
+    return tuple(
+        character_id
+        for character_id in dict.fromkeys(
+            getattr(state, "system_observer_ids", ())
+        )
+        if (
+            character_id in characters
+            and characters[character_id].status == CharacterStatus.active
+        )
+    )
+
+
+def prepare_one_star_live_mission_observers(
+    checkpoint: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> tuple[str, ...]:
+    """Materialize and guard configured live System mission observers.
+
+    The established event observer list is the sole delivery path.  A clear
+    System feed is direct perception even when its recipient remains in the
+    lobby, so broad mission facts may flow through ordinary event broadcast.
+    The feed grants knowledge only: before the terminal event it never grants
+    response ownership, physical presence, or authority over the floor.
+
+    Returns the active remote System observer ids when ``result`` is a live
+    mission-floor event, otherwise an empty tuple.  Repeated calls are
+    idempotent so router validation and commit-time validation share the same
+    normalization.
+    """
+
+    if not is_one_star_checkpoint(checkpoint):
+        return ()
+    try:
+        owner, account = load_one_star_account(checkpoint)
+    except (OneStarTransactionError, ValidationError):
+        # Schema-only router fixtures can select the ruleset without carrying
+        # an account. The ordinary One-Star transaction path remains
+        # responsible for rejecting a malformed real checkpoint.
+        return ()
+    mission = getattr(account.state, "active_mission", None)
+    if mission is None:
+        return ()
+
+    party_ids = set(mission.party_ids)
+    floor_character_ids = _one_star_mission_floor_character_ids(
+        checkpoint,
+        owner_character_id=owner.character_id,
+        party_ids=party_ids,
+        destination=mission.destination,
+    )
+    clean_actor_id = actor_id.strip()
+    if clean_actor_id:
+        if clean_actor_id not in floor_character_ids:
+            return ()
+    elif one_star_active_mission_has_bound_party_member(checkpoint):
+        # Router-owned autonomous continuations exist only for NPC-only
+        # missions. Human-led continuations retain their floor actor id.
+        return ()
+
+    remote_system_observer_ids = tuple(
+        character_id
+        for character_id in _active_one_star_system_observer_ids(
+            checkpoint,
+            account.state,
+        )
+        if (
+            character_id != owner.character_id
+            and character_id not in floor_character_ids
+        )
+    )
+    if not remote_system_observer_ids:
+        return ()
+
+    observers_by_id = {
+        observer.character_id: observer
+        for observer in result.observers
+        if observer.character_id
+    }
+    for character_id in remote_system_observer_ids:
+        if character_id not in observers_by_id:
+            observer = ObserverEntry(
+                character_id=character_id,
+                observation_level="d",
+                routing_role="observe_only",
+            )
+            result.observers.append(observer)
+            observers_by_id[character_id] = observer
+
+    updates = tuple(getattr(result, "state_updates", ()))
+    terminal_report = any(
+        update.kind == "mission_end"
+        and update.target_id.strip() == mission.mission_id
+        for update in updates
+    )
+    terminal_guide_ids = (
+        set(remote_system_observer_ids)
+        & set(getattr(account.state, "guide_character_ids", ()))
+        if terminal_report
+        else set()
+    )
+    for character_id in remote_system_observer_ids:
+        observer = observers_by_id[character_id]
+        if observer.observation_level != "d":
+            raise OneStarTransactionError(
+                "live One-Star System observers require clear direct mediated "
+                f"observation: {character_id}"
+            )
+        if observer.routing_role == "observe_only":
+            continue
+        if (
+            observer.routing_role == "next_output"
+            and character_id in terminal_guide_ids
+        ):
+            continue
+        raise OneStarTransactionError(
+            "live One-Star System observers must remain observe_only unless "
+            "selected as an eligible guide at mission end: "
+            f"{character_id}"
+        )
+
+    remote_ids = set(remote_system_observer_ids)
+    forbidden_routed_ids = remote_ids & {
+        *result.required_responders,
+        *result.perception_enrichment_character_ids,
+    }
+    if forbidden_routed_ids:
+        raise OneStarTransactionError(
+            "live One-Star System observers cannot become responders or "
+            "perception targets: "
+            + ", ".join(sorted(forbidden_routed_ids))
+        )
+    remote_next_output_ids = remote_ids & set(result.next_output_character_ids)
+    if remote_next_output_ids - terminal_guide_ids:
+        raise OneStarTransactionError(
+            "live One-Star System observers cannot receive midmission output: "
+            + ", ".join(sorted(remote_next_output_ids - terminal_guide_ids))
+        )
+    if len(remote_next_output_ids) > 1:
+        raise OneStarTransactionError(
+            "mission end may hand off to at most one live System guide"
+        )
+
+    depicted_remote_ids = {
+        character_id
+        for fact in result.canonical_event.observable_facts
+        for character_id in fact.visual_subject_ids
+        if character_id in remote_ids
+    }
+    if depicted_remote_ids:
+        raise OneStarTransactionError(
+            "live One-Star System observers cannot be depicted on the mission "
+            "floor: "
+            + ", ".join(sorted(depicted_remote_ids))
+        )
+
+    return remote_system_observer_ids
+
+
 def validate_one_star_autonomous_mission_batch_result(
     checkpoint: CheckpointFile,
     *,
@@ -959,11 +1154,12 @@ def validate_one_star_autonomous_mission_batch_result(
 
     The initiating owner event is validated and committed before the batch is
     admitted, so this guard applies only to subsequent agent turns and
-    router-owned continuations.  The owner may keep watching as an
-    ``observe_only`` recipient, but cannot become the fictional actor, a
-    response target, or the authority for another account operation.  Adapter-
-    authored terminal System notices may add their configured recipients after
-    this validation without widening the router-authored floor event.
+    router-owned continuations.  The owner and configured System observers may
+    keep watching without becoming fictional floor actors or account-operation
+    authorities. System observers remain ``observe_only`` before mission end;
+    a terminal event may hand off once to a configured guide. Adapter-authored
+    terminal System notices may add other scoped recipients without widening
+    the router-authored floor event.
     """
 
     if not is_one_star_checkpoint(checkpoint):
@@ -979,18 +1175,12 @@ def validate_one_star_autonomous_mission_batch_result(
         )
 
     party_ids = set(mission.party_ids)
-    floor_character_ids = {
-        character.character_id
-        for character in checkpoint.characters
-        if (
-            character.status == CharacterStatus.active
-            and character.character_id != owner.character_id
-            and (
-                character.character_id in party_ids
-                or character.location == mission.destination
-            )
-        )
-    }
+    floor_character_ids = _one_star_mission_floor_character_ids(
+        checkpoint,
+        owner_character_id=owner.character_id,
+        party_ids=party_ids,
+        destination=mission.destination,
+    )
     known_character_ids = {
         character.character_id
         for character in checkpoint.characters
@@ -1003,13 +1193,23 @@ def validate_one_star_autonomous_mission_batch_result(
             "active floor character"
         )
 
+    system_remote_ids = set(prepare_one_star_live_mission_observers(
+        checkpoint,
+        actor_id=clean_actor_id,
+        result=result,
+    ))
     updates = tuple(getattr(result, "state_updates", ()))
     terminal_report = any(
         update.kind == "mission_end"
         and update.target_id.strip() == mission.mission_id
         for update in updates
     )
-    passive_remote_ids = {owner.character_id}
+    terminal_system_guide_ids = (
+        system_remote_ids & set(account.state.guide_character_ids)
+        if terminal_report
+        else set()
+    )
+    passive_remote_ids = {owner.character_id, *system_remote_ids}
     if terminal_report:
         passive_remote_ids.update(
             one_star_mission_report_recipient_ids(checkpoint)
@@ -1029,19 +1229,29 @@ def validate_one_star_autonomous_mission_batch_result(
     for observer in result.observers:
         if (
             observer.character_id in passive_remote_ids - floor_character_ids
-            and observer.routing_role != "observe_only"
+            and not (
+                observer.routing_role == "observe_only"
+                or (
+                    observer.character_id in terminal_system_guide_ids
+                    and observer.routing_role == "next_output"
+                )
+            )
         ):
             raise OneStarTransactionError(
                 "autonomous mission batch remote viewers must remain "
-                "observe_only"
+                "observe_only until an eligible terminal guide handoff"
             )
 
-    routed_ids = {
+    always_floor_routed_ids = {
         *result.required_responders,
-        *result.next_output_character_ids,
         *result.perception_enrichment_character_ids,
     }
-    non_floor_routing = routed_ids - floor_character_ids
+    non_floor_routing = always_floor_routed_ids - floor_character_ids
+    non_floor_routing.update(
+        set(result.next_output_character_ids)
+        - floor_character_ids
+        - terminal_system_guide_ids
+    )
     if non_floor_routing:
         raise OneStarTransactionError(
             "autonomous mission batch cannot route non-floor characters: "
@@ -1049,7 +1259,10 @@ def validate_one_star_autonomous_mission_batch_result(
         )
 
     remote_report_ids = (
-        passive_remote_ids - floor_character_ids - {owner.character_id}
+        passive_remote_ids
+        - floor_character_ids
+        - {owner.character_id}
+        - system_remote_ids
     )
     for fact in result.canonical_event.observable_facts:
         if fact.audience == "only":
@@ -2572,13 +2785,22 @@ def one_star_mission_report_recipient_ids(
             and hero.owner_lobby_id == account.config.lobby_id
         )
     )
-    return _system_window_recipients(
+    ordinary_recipients = _system_window_recipients(
         checkpoint,
         account.state,
         account.config,
         owner.character_id,
         local_active_hero_ids,
         include_management_observers=False,
+    )
+    return _system_recipients(
+        owner.character_id,
+        *_active_one_star_system_observer_ids(checkpoint, account.state),
+        *(
+            character_id
+            for character_id in ordinary_recipients
+            if character_id != owner.character_id
+        ),
     )
 
 

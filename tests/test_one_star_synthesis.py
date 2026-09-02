@@ -493,9 +493,15 @@ def test_completed_mission_awards_each_living_survivor_with_overlevel_multiplier
         hero = load_one_star_hero(by_id[f"hero_{level}"])
         assert hero.experience_points == experience_to_reach_level(level, config) + multiplier
     assert load_one_star_hero(by_id["dead"]).experience_points == 0
+    assert any(
+        "guide" in consequence.recipient_character_ids
+        and "Mission report MVP" in consequence.text
+        for consequence in prepared.system_consequences
+    )
     assert all(
         "guide" not in consequence.recipient_character_ids
         for consequence in prepared.system_consequences
+        if " mission reward:" in consequence.text
     )
 
 

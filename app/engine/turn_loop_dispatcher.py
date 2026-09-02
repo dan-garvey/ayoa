@@ -48,7 +48,10 @@ from app.engine.dnd_cat_ii import (
     dnd_combat_manager_enabled,
 )
 from app.engine.dnd_combat_resolution import DndCombatResolver
-from app.engine.one_star_adapter import OneStarLobbyLivenessRequest
+from app.engine.one_star_adapter import (
+    OneStarLobbyLivenessRequest,
+    prepare_one_star_live_mission_observers,
+)
 from app.engine.turn_loop_contracts import (
     AuthoritativeContributionRequest,
     AuthoritativeResultPlan,
@@ -744,6 +747,28 @@ def _validate_one_star_autonomous_floor_routing(
     except OneStarTransactionError as exc:
         # Routing/visibility errors require a complete envelope correction,
         # not the narrower state-update-only repair.
+        raise ValueError(str(exc)) from exc
+
+
+def _prepare_one_star_live_mission_observer_routing(
+    ckpt: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> None:
+    """Normalize the configured feed and route defects to envelope repair."""
+
+    if not _one_star_router_enabled(ckpt):
+        return
+    from app.engine.one_star_adapter import OneStarTransactionError
+
+    try:
+        prepare_one_star_live_mission_observers(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+        )
+    except OneStarTransactionError as exc:
         raise ValueError(str(exc)) from exc
 
 
@@ -2801,6 +2826,12 @@ class LLMDispatcher:
                         actor_id=actor_id,
                         result=result,
                     )
+                else:
+                    _prepare_one_star_live_mission_observer_routing(
+                        ckpt,
+                        actor_id=actor_id,
+                        result=result,
+                    )
                 _include_one_star_synthesis_guide_responders(
                     ckpt,
                     actor_id=actor_id,
@@ -3098,6 +3129,12 @@ class LLMDispatcher:
                     validate_one_star_lobby_liveness_cue(
                         ckpt,
                         request=one_star_lobby_liveness,
+                        result=result,
+                    )
+                else:
+                    _prepare_one_star_live_mission_observer_routing(
+                        ckpt,
+                        actor_id=actor_id,
                         result=result,
                     )
                 if result.requires_responders or result.required_responders:

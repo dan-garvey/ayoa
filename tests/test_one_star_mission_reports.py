@@ -33,7 +33,7 @@ from app.schemas.one_star import (
 )
 from app.schemas.responses import VisualNovelRender, VisualNovelRenderSegment
 from app.schemas.responses import TurnResponse
-from tests.support.factories import router_output
+from tests.support.factories import character_record, router_output
 from tests.test_one_star_atomicity import _checkpoint, _hero
 
 
@@ -252,6 +252,16 @@ def test_report_recipient_selection_matches_system_sight() -> None:
     ) == ()
 
     owner, account = load_one_star_account(checkpoint)
+    checkpoint.characters.append(character_record("iselle", location="lobby"))
+    account.state.guide_character_ids = ["iselle"]
+    account.state.system_observer_ids = ["iselle"]
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
+    assert one_star_mission_report_recipient_ids(checkpoint) == (
+        "account_owner",
+        "iselle",
+        "newcomer",
+    )
+
     account.config.hero_system_visibility_research_key = "system_sight"
     account.state.research_levels["system_sight"] = 1
     owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
