@@ -76,6 +76,13 @@ from app.engine.narrator import (
     commit_pov_render,
     resolve_buffered_events_for_render,
 )
+from app.engine.scene_ticks import (
+    SceneTickRequest,
+    anchor_scene_tick_result,
+    discover_scene_tick_requests,
+    scene_tick_blocked_character_ids,
+    validate_scene_tick_result,
+)
 from app.engine.dnd_combat_access import (
     checkpoint_active_combat,
     combatant_character_id as _combatant_character_id,
@@ -141,6 +148,7 @@ narrator_handoff_logger = logging.getLogger(
 narrator_handoff_logger.setLevel(logging.INFO)
 
 MAX_BACKGROUND_THREADS_PER_BEAT = 4
+MAX_CONCURRENT_SCENE_TICKS_PER_BEAT = 4
 _RECENT_HANDOFF_SUBMISSION_LIMIT = 6
 _HISTORICAL_HANDOFF_SUBMISSION_LIMIT = 24
 _NON_SUBSTANTIVE_HANDOFF_INPUTS = {
@@ -2930,7 +2938,7 @@ class Dispatcher(Protocol):
         actor_id: str,
         intention: str,
         cat_ii_event: OpenCatIIEvent | None = None,
-        one_star_lobby_liveness: object | None = None,
+        scene_tick: SceneTickRequest | None = None,
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention. Returns a canonical
         event (with Cat I/II decision, observer routing roles, and
@@ -2950,7 +2958,6 @@ class Dispatcher(Protocol):
         actor_id: str,
         prior_result: EventRouterOutput,
         original_action: str = "",
-        one_star_lobby_liveness: object | None = None,
     ) -> EventRouterOutput:
         """Author another grounded event after a narrator continuation
         handoff keeps the current visible batch open."""
@@ -3093,6 +3100,17 @@ class _SpeculativeNextOutput:
     touched_actor_ids: list[str] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class _PreparedSceneTick:
+    """One isolated, validated scene result awaiting deterministic merge."""
+
+    request: SceneTickRequest
+    source_checkpoint: CheckpointFile
+    checkpoint: CheckpointFile
+    result: EventRouterOutput
+    router_history_suffix: list[Any]
+
+
 def _durable_checkpoint_copy(ckpt: CheckpointFile) -> CheckpointFile:
     """Clone model state without copying live tasks or runtime handles."""
 
@@ -3203,6 +3221,231 @@ def _adopt_speculative_router_state(
     )
 
 
+def _scene_tick_agent_context(
+    checkpoint: CheckpointFile,
+    request: SceneTickRequest,
+) -> str:
+    """Give one actor a fictional opportunity without prescribing its choice."""
+
+    blocks = [
+        _router_target_local_context(checkpoint, request.actor_id),
+        (
+            "No immediate exchange is waiting on you. A stretch of time is "
+            "yours here. Choose one concrete thing you do for your own reasons: "
+            "work, upkeep, rest, practice, private business, or reaching toward "
+            "someone nearby. Stop before deciding another person's response."
+        ),
+    ]
+    if request.adapter_context is not None:
+        from app.engine.one_star_adapter import OneStarSceneTickContext
+        from app.engine.one_star_router_context import (
+            render_one_star_scene_tick_agent_context,
+        )
+
+        if not isinstance(request.adapter_context, OneStarSceneTickContext):
+            raise ValueError("unknown scene tick adapter context")
+        blocks.append(
+            render_one_star_scene_tick_agent_context(request.adapter_context)
+        )
+    return "\n\n".join(block.strip() for block in blocks if block.strip())
+
+
+def _validate_scene_tick_branch_mutations(
+    source: CheckpointFile,
+    branch: CheckpointFile,
+    *,
+    request: SceneTickRequest,
+) -> list[Any]:
+    """Require a branch to change only its actor memory and router suffix."""
+
+    allowed_fields = {
+        "characters",
+        "character_conversations",
+        "session_conversation",
+    }
+    for field_name in CheckpointFile.model_fields:
+        if field_name in allowed_fields:
+            continue
+        if getattr(branch, field_name) != getattr(source, field_name):
+            raise RuntimeError(
+                "scene tick branch mutated shared checkpoint field "
+                f"{field_name!r}"
+            )
+
+    source_characters = {
+        character.character_id: character for character in source.characters
+    }
+    branch_characters = {
+        character.character_id: character for character in branch.characters
+    }
+    if source_characters.keys() != branch_characters.keys():
+        raise RuntimeError("scene tick branch changed the roster")
+    for character_id, source_character in source_characters.items():
+        if character_id == request.actor_id:
+            continue
+        if branch_characters[character_id] != source_character:
+            raise RuntimeError(
+                "scene tick branch mutated another character: "
+                f"{character_id}"
+            )
+
+    for character_id in (
+        set(source.character_conversations)
+        | set(branch.character_conversations)
+    ):
+        source_history = source.character_conversations.get(character_id, [])
+        branch_history = branch.character_conversations.get(character_id, [])
+        if character_id == request.actor_id:
+            if branch_history[:len(source_history)] != source_history:
+                raise RuntimeError(
+                    "scene tick rewrote its actor's prior conversation"
+                )
+            continue
+        if branch_history != source_history:
+            raise RuntimeError(
+                "scene tick branch changed another actor's conversation: "
+                f"{character_id}"
+            )
+
+    source_router_history = source.session_conversation
+    branch_router_history = branch.session_conversation
+    if branch_router_history[:len(source_router_history)] != source_router_history:
+        raise RuntimeError("scene tick rewrote canonical router history")
+    suffix = deepcopy(branch_router_history[len(source_router_history):])
+    return suffix
+
+
+async def _prepare_scene_tick_branch(
+    dispatcher: Dispatcher,
+    source: CheckpointFile,
+    request: SceneTickRequest,
+) -> _PreparedSceneTick:
+    """Draft and route one location without touching any live state."""
+
+    branch = _durable_checkpoint_copy(source)
+    intention = await _agent_intention_for_dispatch(
+        dispatcher,
+        branch,
+        request.actor_id,
+        frame="background",
+        local_context=_scene_tick_agent_context(branch, request),
+    )
+    if intention is None:
+        raise RuntimeError(
+            f"scene tick actor {request.actor_id!r} produced no usable intention"
+        )
+    result = await dispatcher.route_intention(
+        ckpt=branch,
+        actor_id=request.actor_id,
+        intention=intention,
+        cat_ii_event=None,
+        scene_tick=request,
+    )
+    anchor_scene_tick_result(result, request=request)
+    validate_scene_tick_result(branch, request=request, result=result)
+    suffix = _validate_scene_tick_branch_mutations(
+        source,
+        branch,
+        request=request,
+    )
+    return _PreparedSceneTick(
+        request=request,
+        source_checkpoint=source,
+        checkpoint=branch,
+        result=result,
+        router_history_suffix=suffix,
+    )
+
+
+async def _prepare_scene_tick_branches(
+    dispatcher: Dispatcher,
+    source: CheckpointFile,
+    requests: list[SceneTickRequest],
+) -> list[_PreparedSceneTick]:
+    """Prepare every independent scene concurrently and fail as one set."""
+
+    prepared = await asyncio.gather(
+        *(
+            _prepare_scene_tick_branch(dispatcher, source, request)
+            for request in requests
+        ),
+        return_exceptions=True,
+    )
+    failures = [item for item in prepared if isinstance(item, BaseException)]
+    if failures:
+        raise failures[0]
+    return [item for item in prepared if isinstance(item, _PreparedSceneTick)]
+
+
+def _assert_scene_tick_actor_is_unchanged(
+    live: CheckpointFile,
+    prepared: _PreparedSceneTick,
+) -> None:
+    """Reject a merge if foreground work touched the supposedly disjoint actor."""
+
+    actor_id = prepared.request.actor_id
+    live_actor = next(
+        (character for character in live.characters if character.character_id == actor_id),
+        None,
+    )
+    source_actor = next(
+        (
+            character
+            for character in prepared.source_checkpoint.characters
+            if character.character_id == actor_id
+        ),
+        None,
+    )
+    if live_actor is None or source_actor is None or live_actor != source_actor:
+        raise RuntimeError(
+            "scene tick lost independence before merge for actor "
+            f"{actor_id!r}"
+        )
+    if live.character_conversations.get(actor_id, []) != (
+        prepared.source_checkpoint.character_conversations.get(actor_id, [])
+    ):
+        raise RuntimeError(
+            "scene tick actor conversation changed before merge for "
+            f"{actor_id!r}"
+        )
+
+
+def _adopt_scene_tick_actor_state(
+    live: CheckpointFile,
+    prepared: _PreparedSceneTick,
+) -> None:
+    actor_id = prepared.request.actor_id
+    branch_actor = next(
+        (
+            character
+            for character in prepared.checkpoint.characters
+            if character.character_id == actor_id
+        ),
+        None,
+    )
+    live_actor = next(
+        (character for character in live.characters if character.character_id == actor_id),
+        None,
+    )
+    if live_actor is None or branch_actor is None:
+        raise RuntimeError(f"scene tick actor disappeared: {actor_id!r}")
+    for field_name in CharacterRecord.model_fields:
+        setattr(
+            live_actor,
+            field_name,
+            deepcopy(getattr(branch_actor, field_name)),
+        )
+    if actor_id in prepared.checkpoint.character_conversations:
+        live.character_conversations[actor_id] = deepcopy(
+            prepared.checkpoint.character_conversations[actor_id]
+        )
+    else:
+        live.character_conversations.pop(actor_id, None)
+    live.session_conversation.extend(
+        deepcopy(prepared.router_history_suffix)
+    )
+
+
 async def run_beat(
     ckpt: CheckpointFile,
     dispatcher: Dispatcher,
@@ -3270,15 +3513,14 @@ async def run_beat(
     prepared_event_objects: set[int] = set()
     one_star_mission_batch_active = False
     one_star_batch_continuation_after_agent_count = -1
-    one_star_lobby_liveness_checked = False
-    one_star_lobby_liveness_request: Any | None = None
-    one_star_lobby_resume_handoff: EventRouterOutput | None = None
-    one_star_lobby_liveness_cue_pending = False
-    one_star_lobby_liveness_agent_attempts = 0
-    one_star_lobby_liveness_events_closed = 0
-    one_star_lobby_liveness_may_start = bool(
-        cat_ii_event_id is None
-        and combat_reaction_event_id is None
+    scene_tick_checked = False
+    scene_tick_task: asyncio.Task[list[_PreparedSceneTick]] | None = None
+    scene_tick_events_closed = 0
+    from app.engine.context_builder import collect_player_ids
+
+    scene_ticks_may_start = bool(
+        combat_reaction_event_id is None
+        and actor_id in collect_player_ids(ckpt)
     )
 
     def _one_star_batch_narration_modes() -> dict[str, NarrationMode]:
@@ -3308,34 +3550,16 @@ async def run_beat(
         event_actor_id: str = "",
         ruleset_actor_id: str | None = None,
         close_for_presentation: bool = True,
+        scene_tick: SceneTickRequest | None = None,
     ) -> list[str]:
-        nonlocal one_star_lobby_liveness_cue_pending
-        nonlocal one_star_lobby_liveness_events_closed
         autonomous_batch_checkpoint: CheckpointFile | None = None
-        if one_star_lobby_liveness_request is not None:
-            from app.engine.one_star_adapter import (
-                anchor_one_star_lobby_liveness_event,
-                validate_one_star_lobby_liveness_activity,
-                validate_one_star_lobby_liveness_cue,
+        if scene_tick is not None:
+            anchor_scene_tick_result(event, request=scene_tick)
+            validate_scene_tick_result(
+                ckpt,
+                request=scene_tick,
+                result=event,
             )
-
-            anchor_one_star_lobby_liveness_event(
-                event,
-                request=one_star_lobby_liveness_request,
-            )
-            if one_star_lobby_liveness_cue_pending:
-                validate_one_star_lobby_liveness_cue(
-                    ckpt,
-                    request=one_star_lobby_liveness_request,
-                    result=event,
-                )
-            else:
-                validate_one_star_lobby_liveness_activity(
-                    ckpt,
-                    request=one_star_lobby_liveness_request,
-                    actor_id=event_actor_id,
-                    result=event,
-                )
         elif one_star_human_led_mission_guard:
             from app.engine.one_star_adapter import (
                 OneStarTransactionError,
@@ -3355,7 +3579,7 @@ async def run_beat(
                     "watch/query.",
                     reason="one_star_human_led_mission_rejected",
                 ) from exc
-        if one_star_mission_batch_active:
+        if one_star_mission_batch_active and scene_tick is None:
             from app.engine.one_star_adapter import (
                 validate_one_star_autonomous_mission_batch_result,
             )
@@ -3402,20 +3626,12 @@ async def run_beat(
             close_for_presentation=close_for_presentation,
             preflighted=True,
         )
-        if (
-            one_star_lobby_liveness_request is not None
-            and one_star_lobby_liveness_cue_pending
-        ):
-            one_star_lobby_liveness_cue_pending = False
-        if one_star_lobby_liveness_request is not None:
-            one_star_lobby_liveness_events_closed += 1
         return visible_humans
 
     async def _queue_router_continuation(
         prior_result: EventRouterOutput,
         *,
         source_actor_id: str | None = None,
-        one_star_lobby_liveness: Any | None = None,
     ) -> None:
         nonlocal pending_result, pending_result_is_continuation
         nonlocal pending_result_actor_id
@@ -3423,15 +3639,11 @@ async def run_beat(
         continuation_actor_id = (
             actor_id if source_actor_id is None else source_actor_id
         )
-        continuation_kwargs: dict[str, Any] = {}
-        if one_star_lobby_liveness is not None:
-            continuation_kwargs["one_star_lobby_liveness"] = one_star_lobby_liveness
         pending_result = await dispatcher.route_continuation(
             ckpt=ckpt,
             actor_id=continuation_actor_id,
             prior_result=prior_result,
             original_action=intention,
-            **continuation_kwargs,
         )
         pending_result_is_continuation = True
         pending_result_actor_id = continuation_actor_id
@@ -3440,63 +3652,106 @@ async def run_beat(
             pending_result, continuation_actor_id, kind="continuation",
         )
 
-    async def _maybe_start_one_star_lobby_liveness(
-        result: EventRouterOutput,
-        *,
-        result_actor_id: str,
-        result_is_continuation: bool,
-        preserve_result_for_resume: bool = False,
-    ) -> bool:
-        """Admit one private lobby beat after eligible player-owned state.
+    async def _start_scene_ticks(blocked_ids: set[str]) -> None:
+        """Start one isolated branch per eligible unnarrated scene."""
 
-        A reversible Cat II opening is not the accepted mutation yet, so it
-        must leave this check available for its inline resolution. When that
-        resolution starts or changes an autonomous mission, preserve it as the
-        exact continuation source even if the router has not selected the
-        first floor actor yet.
-        """
-
-        nonlocal one_star_lobby_liveness_checked
-        nonlocal one_star_lobby_liveness_request
-        nonlocal one_star_lobby_resume_handoff
-        nonlocal one_star_lobby_liveness_cue_pending
-
-        if not (
-            one_star_lobby_liveness_may_start
-            and not one_star_lobby_liveness_checked
-            and result_actor_id == actor_id
-            and not result_is_continuation
-        ):
-            return False
-
-        from app.engine.one_star_adapter import (
-            one_star_lobby_liveness_request_after_result,
-        )
-
-        liveness_request = one_star_lobby_liveness_request_after_result(
+        nonlocal scene_tick_checked
+        nonlocal scene_tick_task
+        if scene_tick_checked or not scene_ticks_may_start:
+            return
+        scene_tick_checked = True
+        requests = discover_scene_tick_requests(
             ckpt,
-            actor_id=actor_id,
-            result=result,
-            user_input=intention,
+            blocked_character_ids=blocked_ids,
+            max_scenes=MAX_CONCURRENT_SCENE_TICKS_PER_BEAT,
         )
-        if liveness_request is None:
-            # An autonomous Cat II may resolve inside this same player beat.
-            # Its opening is only a reversible proposal, not the last chance
-            # to observe an accepted mission or account mutation.
-            if not result.requires_responders and not result.required_responders:
-                one_star_lobby_liveness_checked = True
-            return False
+        if not requests:
+            return
+        source = _durable_checkpoint_copy(ckpt)
+        scene_tick_task = asyncio.create_task(
+            _prepare_scene_tick_branches(
+                dispatcher,
+                source,
+                requests,
+            )
+        )
+        logger.info(
+            "Started %d independent scene tick(s): %s",
+            len(requests),
+            ", ".join(request.location for request in requests),
+        )
 
-        one_star_lobby_liveness_checked = True
-        one_star_lobby_liveness_request = liveness_request
-        if preserve_result_for_resume or result.next_output_character_ids:
-            one_star_lobby_resume_handoff = result
-        one_star_lobby_liveness_cue_pending = True
-        await _queue_router_continuation(
-            result,
-            one_star_lobby_liveness=liveness_request,
-        )
-        return True
+    async def _cancel_scene_ticks() -> None:
+        nonlocal scene_tick_task
+        task = scene_tick_task
+        scene_tick_task = None
+        if task is None:
+            return
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    async def _flush_scene_ticks() -> None:
+        """Validate and merge every completed scene in deterministic order."""
+
+        nonlocal events_closed
+        nonlocal scene_tick_events_closed
+        nonlocal scene_tick_task
+        task = scene_tick_task
+        if task is None:
+            return
+        scene_tick_task = None
+        prepared = await task
+        if not prepared:
+            return
+
+        existing_event_ids = {event.event_id for event in ckpt.canonical_events}
+        branch_event_ids: set[str] = set()
+        for item in prepared:
+            _assert_scene_tick_actor_is_unchanged(ckpt, item)
+            anchor_scene_tick_result(item.result, request=item.request)
+            validate_scene_tick_result(
+                ckpt,
+                request=item.request,
+                result=item.result,
+            )
+            if (
+                item.result.event_id in existing_event_ids
+                or item.result.event_id in branch_event_ids
+            ):
+                raise RuntimeError(
+                    "scene tick produced a duplicate canonical event id: "
+                    f"{item.result.event_id}"
+                )
+            branch_event_ids.add(item.result.event_id)
+
+        merge_snapshot = _durable_checkpoint_copy(ckpt)
+        try:
+            for item in prepared:
+                _adopt_scene_tick_actor_state(ckpt, item)
+                result = item.result.model_copy(deep=True)
+                visible_humans = await _commit_event(
+                    result,
+                    event_actor_id=item.request.actor_id,
+                    scene_tick=item.request,
+                )
+                if visible_humans:
+                    raise RuntimeError(
+                        "scene tick reached a human narrator viewpoint: "
+                        + ", ".join(visible_humans)
+                    )
+                event_actor_ids.append(item.request.actor_id)
+                events_closed += 1
+                scene_tick_events_closed += 1
+        except BaseException:
+            _restore_checkpoint_state(ckpt, merge_snapshot)
+            raise
+
+    async def _finish_with_scene_ticks(result: BeatResult) -> BeatResult:
+        await _flush_scene_ticks()
+        result.events_closed = events_closed
+        result.event_actor_ids = list(event_actor_ids)
+        return result
 
     async def _prepare_speculative_next_output(
         prior_result: EventRouterOutput,
@@ -3505,7 +3760,6 @@ async def run_beat(
         """Prepare one autonomous response without touching live state."""
 
         nonlocal agent_cascade_attempts, background_thread_attempts
-        nonlocal one_star_lobby_liveness_agent_attempts
         speculative_ckpt = _durable_checkpoint_copy(ckpt)
         from app.engine.context_builder import collect_player_ids
 
@@ -3517,10 +3771,7 @@ async def run_beat(
                     checkpoint=speculative_ckpt,
                     touched_actor_ids=touched_actor_ids,
                 )
-            if (
-                one_star_lobby_liveness_request is None
-                and agent_cascade_attempts >= max_agent_cascades
-            ):
+            if agent_cascade_attempts >= max_agent_cascades:
                 return _SpeculativeNextOutput(
                     outcome="cap",
                     checkpoint=speculative_ckpt,
@@ -3548,14 +3799,7 @@ async def run_beat(
                         touched_actor_ids=touched_actor_ids,
                     )
                 background_thread_attempts += 1
-            if one_star_lobby_liveness_request is not None:
-                if one_star_lobby_liveness_agent_attempts:
-                    raise RuntimeError(
-                        "One-Star lobby liveness tried to dispatch a second initiator"
-                    )
-                one_star_lobby_liveness_agent_attempts += 1
-            else:
-                agent_cascade_attempts += 1
+            agent_cascade_attempts += 1
             touched_actor_ids.append(target.character_id)
 
             local_context = (
@@ -3565,19 +3809,6 @@ async def run_beat(
                 if _router_target_needs_local_context(prior_result, target)
                 else ""
             )
-            if one_star_lobby_liveness_request is not None:
-                from app.engine.one_star_router_context import (
-                    render_one_star_lobby_activity_agent_context,
-                )
-
-                activity_context = render_one_star_lobby_activity_agent_context(
-                    one_star_lobby_liveness_request
-                )
-                local_context = "\n".join(
-                    block
-                    for block in (local_context.strip(), activity_context)
-                    if block
-                )
             agent_output = await _agent_intention_for_dispatch(
                 dispatcher,
                 speculative_ckpt,
@@ -3586,23 +3817,13 @@ async def run_beat(
                 local_context=local_context,
             )
             if agent_output is None:
-                if one_star_lobby_liveness_request is not None:
-                    raise RuntimeError(
-                        "One-Star lobby liveness Hero produced no dispatchable activity"
-                    )
                 continue
 
-            route_kwargs: dict[str, Any] = {}
-            if one_star_lobby_liveness_request is not None:
-                route_kwargs["one_star_lobby_liveness"] = (
-                    one_star_lobby_liveness_request
-                )
             routed = await dispatcher.route_intention(
                 ckpt=speculative_ckpt,
                 actor_id=target.character_id,
                 intention=agent_output,
                 cat_ii_event=None,
-                **route_kwargs,
             )
             _log_router_rationale(
                 routed,
@@ -3679,45 +3900,6 @@ async def run_beat(
             narration_modes_by_pov=_one_star_batch_narration_modes(),
         )
 
-    async def _resume_one_star_lobby_floor_handoff() -> BeatResult | None:
-        """Resume the exact floor frontier held across one private lobby beat."""
-
-        nonlocal one_star_lobby_liveness_request
-        nonlocal one_star_lobby_resume_handoff
-
-        prior_result = one_star_lobby_resume_handoff
-        one_star_lobby_resume_handoff = None
-        one_star_lobby_liveness_request = None
-        if prior_result is None:
-            return None
-
-        targets = _binding_aware_next_output_targets(ckpt, prior_result)
-        if targets:
-            prepared = await _prepare_speculative_next_output(
-                prior_result,
-                targets,
-            )
-            if prepared.checkpoint is not None:
-                _adopt_speculative_next_output(prepared)
-            if prepared.outcome == "queued":
-                return None
-            if prepared.outcome == "cap":
-                return await _end_for_cascade_cap()
-            if prepared.outcome == "human":
-                return await _end_beat(
-                    ckpt,
-                    dispatcher,
-                    ended_reason="awaiting_player_turn",
-                    events_closed=events_closed,
-                    event_actor_ids=event_actor_ids,
-                    acting_player_id=actor_id,
-                    acting_player_input=intention,
-                    suppress_reaction_prompts=suppress_reaction_prompts,
-                )
-
-        await _queue_router_continuation(prior_result)
-        return None
-
     async def _advance_or_render(
         result: EventRouterOutput,
         *,
@@ -3727,18 +3909,6 @@ async def run_beat(
         """Race narrator pacing against isolated autonomous next-output work."""
         nonlocal one_star_mission_batch_active
         nonlocal one_star_batch_continuation_after_agent_count
-        nonlocal one_star_lobby_liveness_request
-
-        if (
-            one_star_lobby_liveness_request is not None
-            and not one_star_lobby_liveness_cue_pending
-            and not result.requires_responders
-            and not result.required_responders
-            and not result.next_output_character_ids
-        ):
-            if one_star_lobby_resume_handoff is not None:
-                return await _resume_one_star_lobby_floor_handoff()
-            one_star_lobby_liveness_request = None
 
         if not one_star_human_led_mission_guard and not one_star_mission_batch_active:
             from app.engine.one_star_adapter import (
@@ -3803,10 +3973,9 @@ async def run_beat(
                 standard_summon_guide_handoff = True
 
         if (
-            events_closed - one_star_lobby_liveness_events_closed >= max_events
+            events_closed - scene_tick_events_closed >= max_events
             and default_ended_reason != "cat_ii_resolution"
             and not standard_summon_guide_handoff
-            and one_star_lobby_liveness_request is None
         ):
             return await _end_beat(
                 ckpt,
@@ -3975,14 +4144,12 @@ async def run_beat(
             not has_narrator_target
             or opening_autonomous_handoff
             or standard_summon_guide_handoff
-            or one_star_lobby_liveness_request is not None
         ):
             # `(begin)` may establish immediate autonomous motion, while an
             # accepted standard summon establishes an owed guide response.
-            # A One-Star lobby-liveness cue likewise owes its selected Hero one
-            # private activity before the Master-facing mission batch. Carry
-            # these handoffs through before offering the combined batch;
-            # ordinary narrator pacing resumes afterward.
+            # Carry those handoffs through before offering the combined batch;
+            # ordinary narrator pacing resumes afterward. Independent scene
+            # ticks run beside this work and merge at the next causal boundary.
             prepared = await _prepare_speculative_next_output(result, targets)
             if (
                 standard_summon_guide_handoff
@@ -4263,30 +4430,13 @@ async def run_beat(
             )
 
     if resume_after_handoff is not None:
-        from app.engine.one_star_adapter import (
-            one_star_lobby_liveness_request_after_result,
-        )
-
-        liveness_request = (
-            one_star_lobby_liveness_request_after_result(
-                ckpt,
-                actor_id=actor_id,
-                result=resume_after_handoff,
-                user_input=intention,
-            )
-            if one_star_lobby_liveness_may_start
-            else None
-        )
-        if liveness_request is not None:
-            one_star_lobby_liveness_checked = True
-            one_star_lobby_liveness_request = liveness_request
-            one_star_lobby_resume_handoff = resume_after_handoff
-            one_star_lobby_liveness_cue_pending = True
-            await _queue_router_continuation(
+        await _start_scene_ticks(
+            scene_tick_blocked_character_ids(
                 resume_after_handoff,
-                one_star_lobby_liveness=liveness_request,
+                actor_id=actor_id,
             )
-        else:
+        )
+        try:
             resume_targets = _binding_aware_next_output_targets(
                 ckpt, resume_after_handoff,
             )
@@ -4298,24 +4448,32 @@ async def run_beat(
                 if prepared.checkpoint is not None:
                     _adopt_speculative_next_output(prepared)
                 if prepared.outcome == "cap":
-                    return await _end_for_cascade_cap()
+                    return await _finish_with_scene_ticks(
+                        await _end_for_cascade_cap()
+                    )
                 if prepared.outcome == "human":
-                    return await _end_beat(
-                        ckpt,
-                        dispatcher,
-                        ended_reason="awaiting_player_turn",
-                        events_closed=events_closed,
-                        event_actor_ids=event_actor_ids,
-                        acting_player_id=actor_id,
-                        acting_player_input=intention,
-                        suppress_reaction_prompts=suppress_reaction_prompts,
+                    return await _finish_with_scene_ticks(
+                        await _end_beat(
+                            ckpt,
+                            dispatcher,
+                            ended_reason="awaiting_player_turn",
+                            events_closed=events_closed,
+                            event_actor_ids=event_actor_ids,
+                            acting_player_id=actor_id,
+                            acting_player_input=intention,
+                            suppress_reaction_prompts=suppress_reaction_prompts,
+                        )
                     )
                 if prepared.outcome != "queued":
                     await _queue_router_continuation(resume_after_handoff)
             else:
                 await _queue_router_continuation(resume_after_handoff)
+        except BaseException:
+            await _cancel_scene_ticks()
+            raise
 
     while True:
+        await _flush_scene_ticks()
         if pending_result is None:
             # Route the current actor submission.
             result = await dispatcher.route_intention(
@@ -4637,17 +4795,11 @@ async def run_beat(
             if cat_ii_is_ready(evt):
                 # No bound responders in the required list — resolve immediately.
                 try:
-                    resolution_kwargs: dict[str, Any] = {}
-                    if one_star_lobby_liveness_request is not None:
-                        resolution_kwargs["one_star_lobby_liveness"] = (
-                            one_star_lobby_liveness_request
-                        )
                     resolved = await dispatcher.route_intention(
                         ckpt=ckpt,
                         actor_id=evt.initiator_id,
                         intention=evt.initiator_intention,
                         cat_ii_event=evt,
-                        **resolution_kwargs,
                     )
                 except DndCatIIRollsPending:
                     return await _pause_for_pending_rolls()
@@ -4680,20 +4832,23 @@ async def run_beat(
                     close_cat_ii(ckpt, evt.event_id)
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
-                if await _maybe_start_one_star_lobby_liveness(
-                    resolved,
-                    result_actor_id=evt.initiator_id,
-                    result_is_continuation=False,
-                    preserve_result_for_resume=True,
-                ):
-                    continue
-                completed = await _advance_or_render(
-                    resolved,
-                    default_ended_reason="cat_ii_resolution",
-                    resolved_cat_ii=evt,
+                await _start_scene_ticks(
+                    scene_tick_blocked_character_ids(
+                        resolved,
+                        actor_id=evt.initiator_id,
+                    )
                 )
+                try:
+                    completed = await _advance_or_render(
+                        resolved,
+                        default_ended_reason="cat_ii_resolution",
+                        resolved_cat_ii=evt,
+                    )
+                except BaseException:
+                    await _cancel_scene_ticks()
+                    raise
                 if completed is not None:
-                    return completed
+                    return await _finish_with_scene_ticks(completed)
                 continue
             # Bound responders are pinned — pause the beat here. Their /acts will
             # re-enter run_beat with their cat_ii_event_id.
@@ -4778,19 +4933,19 @@ async def run_beat(
         event_actor_ids.append(result_actor_id)
         events_closed += 1
 
-        if (
-            events_closed == 1
-            and await _maybe_start_one_star_lobby_liveness(
+        await _start_scene_ticks(
+            scene_tick_blocked_character_ids(
                 result,
-                result_actor_id=result_actor_id,
-                result_is_continuation=result_is_continuation,
+                actor_id=result_actor_id,
             )
-        ):
-            continue
-
-        completed = await _advance_or_render(result)
+        )
+        try:
+            completed = await _advance_or_render(result)
+        except BaseException:
+            await _cancel_scene_ticks()
+            raise
         if completed is not None:
-            return completed
+            return await _finish_with_scene_ticks(completed)
 
 
 async def _stage_closed_event_spawns_for_render(

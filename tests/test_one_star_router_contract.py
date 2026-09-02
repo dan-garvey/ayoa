@@ -11,10 +11,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.engine.prompt_manager import PromptManager
-from app.engine.one_star_adapter import (
-    OneStarTransactionError,
-    one_star_lobby_liveness_request_after_result,
-)
+from app.engine.one_star_adapter import OneStarTransactionError
+from app.engine.scene_ticks import discover_scene_tick_requests
 from app.engine.turn_loop_dispatcher import (
     LLMDispatcher,
     _build_router_context,
@@ -46,6 +44,7 @@ from app.schemas.one_star import (
     OneStarStateUpdateList,
     OneStarTransaction,
 )
+from app.schemas.characters import ActorRecord
 from app.schemas.conversation import ConversationMessage
 from app.schemas.state import OpenCatIIEvent
 from app.engine.turn_loop_contracts import format_actor_submission
@@ -191,11 +190,12 @@ def _dispatcher(*responses):
     return LLMDispatcher(client, PromptManager("app/prompts")), client
 
 
-def _liveness_checkpoint():
+def _scene_tick_checkpoint():
     party = _hero(location="tower_floor_1")
     reserve = _hero(location="lobby")
     reserve.character_id = "reserve"
     reserve.name = "Reserve"
+    reserve.actor = ActorRecord(may_act_offstage=True)
     ckpt = _checkpoint(
         heroes=[party, reserve],
         active_mission=_mission(),
@@ -208,44 +208,13 @@ def _liveness_checkpoint():
     return ckpt
 
 
-def _liveness_request(ckpt):
-    request = one_star_lobby_liveness_request_after_result(
-        ckpt,
-        actor_id="account_owner",
-        result=OneStarEventRouterOutput.model_validate(
-            {
-                **router_output(
-                    observer_ids=["account_owner"],
-                ).model_dump(mode="json"),
-                "state_updates": [],
-            }
-        ),
-        user_input="(defer)",
-    )
-    assert request is not None
-    return request
+def _scene_tick_request(ckpt):
+    requests = discover_scene_tick_requests(ckpt, max_scenes=1)
+    assert len(requests) == 1
+    return requests[0]
 
 
-def _liveness_cue_output() -> ClosedOneStarEventRouterOutput:
-    return ClosedOneStarEventRouterOutput.model_validate(
-        {
-            **router_output(
-                event_id="evt_lobby_cue",
-                event_kind="public_fact",
-                observer_ids=["reserve"],
-                agent_ids=["reserve"],
-                facts=[
-                    ObservableFact.all(
-                        "The training room is open and quiet.",
-                    )
-                ],
-            ).model_dump(mode="json"),
-            "state_updates": [],
-        }
-    )
-
-
-def _liveness_activity_output() -> OneStarEventRouterOutput:
+def _scene_tick_output() -> OneStarEventRouterOutput:
     return OneStarEventRouterOutput.model_validate(
         {
             **router_output(
@@ -631,39 +600,10 @@ def test_one_star_continuation_uses_the_closed_schema(monkeypatch):
     )
 
 
-def test_lobby_liveness_cue_is_a_volatile_closed_router_turn() -> None:
-    ckpt = _liveness_checkpoint()
-    ckpt.session.leading_at_s = 73
-    request = _liveness_request(ckpt)
-    cue = _liveness_cue_output()
-    cue.effective_at_s = 999
-    dispatcher, client = _dispatcher(cue)
-
-    result = asyncio.run(
-        dispatcher.route_continuation(
-            ckpt=ckpt,
-            actor_id="account_owner",
-            prior_result=_one_star_output(),
-            original_action="(defer)",
-            one_star_lobby_liveness=request,
-        )
-    )
-
-    assert result is cue
-    assert result.effective_at_s == 73
-    call = client.complete.await_args.kwargs
-    assert call["response_model"] is ClosedOneStarEventRouterOutput
-    assert "<one_star_lobby_liveness>" in call["messages"][-1]["content"]
-    assert "<one_star_lobby_liveness>" not in call["messages"][0]["content"]
-    assert "reserve" in call["messages"][-1]["content"]
-    assert {observer.character_id for observer in result.observers} == {"reserve"}
-    assert "mode=one_star_lobby_liveness" in (ckpt.session_conversation[-1].content)
-
-
-def test_lobby_activity_contract_stays_in_the_router_user_tail() -> None:
-    ckpt = _liveness_checkpoint()
-    request = _liveness_request(ckpt)
-    activity = _liveness_activity_output()
+def test_scene_tick_contract_stays_in_the_router_user_tail() -> None:
+    ckpt = _scene_tick_checkpoint()
+    request = _scene_tick_request(ckpt)
+    activity = _scene_tick_output()
     dispatcher, client = _dispatcher(activity)
 
     result = asyncio.run(
@@ -671,15 +611,18 @@ def test_lobby_activity_contract_stays_in_the_router_user_tail() -> None:
             ckpt=ckpt,
             actor_id="reserve",
             intention="Reserve begins a silent practice routine.",
-            one_star_lobby_liveness=request,
+            scene_tick=request,
         )
     )
 
     assert result is activity
     messages = client.complete.await_args.kwargs["messages"]
-    assert "<one_star_lobby_activity>" in messages[-1]["content"]
-    assert "<one_star_lobby_activity>" not in messages[0]["content"]
+    assert "<scene_tick>" in messages[-1]["content"]
+    assert "<one_star_scene_tick>" in messages[-1]["content"]
+    assert "<scene_tick>" not in messages[0]["content"]
+    assert "<one_star_scene_tick>" not in messages[0]["content"]
     assert "state_updates=[]" in messages[-1]["content"]
+    assert "mode=scene_tick" in ckpt.session_conversation[-1].content
 
 
 def _lobby_return_continuation(*, guide_delivery: bool):

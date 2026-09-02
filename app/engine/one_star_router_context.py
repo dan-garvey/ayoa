@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.engine.one_star_adapter import (
-    OneStarLobbyLivenessRequest,
+    OneStarSceneTickContext,
     effective_one_star_discretionary_funds,
     effective_one_star_stamina,
     format_one_star_discretionary_funds,
@@ -94,107 +94,45 @@ def _render_summon_pool(pool_id: str, pool: OneStarSummonPool) -> str:
     raise TypeError(f"unsupported One-Star summon pool type: {type(pool).__name__}")
 
 
-def render_one_star_lobby_liveness_cue(
-    request: OneStarLobbyLivenessRequest,
+def render_one_star_scene_tick_contract(
+    context: OneStarSceneTickContext,
 ) -> str:
-    """Render one volatile router-only request for offscreen lobby life."""
+    """Add One-Star domain limits to the generic scene-tick contract."""
 
-    hero_lines = [f"- {hero.character_id}: name={hero.name}" for hero in request.heroes]
     facility_lines = [
-        f"- {facility_id}: level={level}" for facility_id, level in request.facilities
+        f"- {facility_id}: level={level}"
+        for facility_id, level in context.facilities
     ] or ["- none established"]
     return "\n".join(
         [
-            "<one_star_lobby_liveness>",
-            "A mission is active while autonomous nonparty Heroes remain in "
-            "Niflheim. Author one short offscreen lobby affordance now, then "
-            "select exactly one eligible Hero with routing_role=next_output so "
-            "that Hero owns the activity they choose.",
-            "",
-            "Eligible Heroes are ordered with the least recently active first:",
-            *hero_lines,
-            "",
-            "Currently installed facilities:",
+            "<one_star_scene_tick>",
+            "This self-directed activity occurs in Niflheim while another party "
+            "is deployed. Ground it in the lobby and its installed facilities; "
+            "do not turn it into commentary on the distant mission.",
+            "Installed facilities:",
             *facility_lines,
-            "",
-            f"Use event_kind=public_fact, effective_at_s={request.canonical_at_s}, "
-            "and duration_s=0. Give only the selected Hero direct observation. "
-            "Keep the Master, guides, deployed party, and every unavailable Hero "
-            "out of observers and facts. The cue may "
-            "single out a concrete mundane opportunity supported by the lobby "
-            "and installed facilities, such as practice, a possible spar, food, "
-            "maintenance, craft, chores, rest, or social contact. It must not "
-            "invent the selected Hero's action, speech, feeling, or decision; "
-            "leave visual_subject_ids empty.",
-            "",
-            "Emit no One-Star state update, lifecycle change, location change, "
-            "commitment, responder request, or perception enrichment. This cue "
-            "is private to its lobby scene and does not reveal mission events.",
-            f"Active mission id: {request.mission_id}",
-            f"Deployed party ids: {', '.join(request.party_ids)}",
-            "</one_star_lobby_liveness>",
-        ]
-    )
-
-
-def render_one_star_lobby_activity_contract(
-    request: OneStarLobbyLivenessRequest,
-    *,
-    resolving_cat_ii: bool,
-) -> str:
-    """Constrain one Hero-owned liveness activity after its private cue."""
-
-    phase = (
-        "Resolve the collected lobby response and close this activity."
-        if resolving_cat_ii
-        else (
-            "Canonicalize this Hero's self-directed lobby activity. If another "
-            "eligible Hero must choose whether to participate, open Cat II with "
-            "that Hero as a required responder; otherwise close the activity."
-        )
-    )
-    return "\n".join(
-        [
-            "<one_star_lobby_activity>",
-            phase,
-            "This is one compact offscreen activity, not a dialogue rotation. "
-            f"Use effective_at_s={request.canonical_at_s} and duration_s=0. "
-            "This activity begins concurrently with the mission; represent "
-            "longer work with commitment_open rather than event duration. "
-            "Return no next_output or perception-enrichment target. A lasting "
-            "solo task such as training, cooking, repair, craft, rest, or watch "
-            "may open the ordinary commitment for its real duration; a mutually "
-            "chosen activity such as sparring may open a shared commitment only "
-            "after its response is resolved.",
-            "Keep all observers, responders, depicted subjects, movement, and "
-            "commitment actors within these eligible lobby Hero ids: "
-            + ", ".join(request.hero_ids)
-            + ".",
             "Do not include the Master, a guide, the deployed party, or mission "
-            "facts. Emit state_updates=[] and no spawn, activation, dormancy, "
-            "cull, commitment resolution or interruption, account operation, "
-            "mission change, or movement beyond "
-            f"{request.lobby_location}.",
-            "</one_star_lobby_activity>",
+            "facts. Emit state_updates=[] and no account operation or mission "
+            "change. Deployed party ids: " + ", ".join(context.party_ids) + ".",
+            "</one_star_scene_tick>",
         ]
     )
 
 
-def render_one_star_lobby_activity_agent_context(
-    request: OneStarLobbyLivenessRequest,
+def render_one_star_scene_tick_agent_context(
+    context: OneStarSceneTickContext,
 ) -> str:
-    """Give the selected Hero a fictional-choice frame, not a prescribed act."""
+    """Expose facilities as fictional affordances, not a prescribed act."""
 
     installed = (
-        ", ".join(facility_id for facility_id, _level in request.facilities)
+        ", ".join(facility_id for facility_id, _level in context.facilities)
         or "no specialized facility"
     )
     return (
-        "A stretch of mission-time is yours in the lobby. Choose one concrete "
-        "thing you do for your own reasons instead of waiting for orders or "
-        "commenting on the distant mission. Routine practice, work, food, "
-        "maintenance, craft, rest, or reaching toward another person are open "
-        "only where the established place supports them. Installed facilities: "
+        "The lobby supports routine practice, work, food, maintenance, craft, "
+        "rest, or reaching toward another person where the established place "
+        "makes it possible. Do not comment on the distant mission merely to fill "
+        "the moment. Installed facilities: "
         f"{installed}."
     )
 

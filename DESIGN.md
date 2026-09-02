@@ -986,6 +986,38 @@ and `actor.may_act_offstage=true` may be picked by the router; a dormant
 character does not act until a router/spawn/authored state change activates
 them.
 
+Independent unnarrated scene ticks are a second use of that same actor
+authority, not another story scheduler. Once per accepted player beat, after
+the source event is canonical, the generic turn loop derives causal lanes from
+non-empty `CharacterRecord.location` labels. Locations are opaque identities,
+not an engine-owned scene graph. A location containing a human viewpoint or a
+character on the current foreground frontier is narrator-active and cannot
+tick. Open Cat II contests and active combat also keep their existing
+sequential rules paths. Every remaining location with an eligible active
+autonomous actor may contribute one bounded tick, up to four locations per
+beat. Conversation depth, last committed agent time, and roster order choose
+the least-used actor deterministically without a second cadence ledger.
+
+Each selected lane forks the same post-event checkpoint. Its character agent
+chooses one concrete local action and the router canonicalizes one closed,
+zero-duration event. Different lanes run concurrently with each other and with
+foreground narrator or next-output preparation. One location never fans out
+multiple simultaneous actor choices: social contact stops before another
+character's reply, so same-scene causality remains sequential on later beats.
+A lasting local task may open the ordinary commitment, but a tick cannot move
+characters, open a response frontier, change lifecycle or rules state, or
+observe or depict another scene.
+
+Branches may change only the selected actor's record and conversation plus
+their appended compact router record. All results are validated against their
+common source, then merged by the single live checkpoint writer in stable
+request order, regardless of completion order. A conflict, invalid result, or
+failed branch rejects the whole tick set loudly and restores the pre-merge
+checkpoint. The resulting canonical facts and actor memory persist for future
+turns, but no human render receives a scene with no human observer. This is a
+player-beat liveness boundary, not a wall-clock, faction-clock, or periodic
+simulation loop.
+
 ### 6.8 Begin, Arrive, Defer, And Query
 
 The public commands for non-standard turns are router entries:
@@ -1893,31 +1925,23 @@ batch into one rapid sequence, eliding repeated combat exchanges and chatter
 while preserving consequential actions, injuries, deaths, objective progress,
 and the terminal result. Ordinary non-batch narration remains event-aligned.
 
-While any mission is active, a fresh Master defer/watch or accepted One-Star
-state mutation may also admit one lobby-liveness thread before mission
-continuation. This is a player-beat cadence, not one call per mission event:
-autonomous floor actions cannot multiply it, and no calls happen merely because
-wall-clock time passed. An already owed floor handoff is held intact while the
-private lobby thread runs, then that exact Hero handoff resumes rather than
-being rerouted or discarded. The adapter projects only active, unbound, nonparty
-Heroes who are physically in the lobby and not pinned, selected for an embodied
-operation, or already occupied by an open commitment. It also projects the
-currently installed facility ids. A closed router continuation chooses exactly
-one eligible Hero and authors a private, zero-time environmental affordance;
-the cue cannot pre-author that Hero's action. The ordinary character agent then
-chooses the activity. Solo training, cooking, maintenance, crafting, rest, and
-similar work may use the generic open-commitment contract, while a spar or
-other mutually chosen activity uses ordinary Cat II response ownership and
-closes after resolution. Both cue and activity are pinned to the initiating
-player beat at zero duration, so longer work opens a commitment instead of
-advancing the shared clock underneath the deployed party. The activity cannot
-observe or depict the Master, guide, or deployed party, mutate the account or
-mission, or move anyone beyond the lobby. Its canonical facts and character
-memory persist, but it is absent from the Master's active-floor render buffer.
-Once it closes, the same beat resumes the autonomous mission batch without
-charging the private events or lobby initiator against the floor event and
-cascade budgets. A human-led floor remains untouched; only the private lobby
-thread runs on the Master's disjoint turn.
+While any mission is active, the One-Star adapter contributes lobby eligibility
+and facility context to the generic scene-tick contract. It exposes only active,
+unbound, nonparty Heroes physically in the lobby who are not pinned, selected
+for an embodied operation, or occupied by an open commitment. The generic
+scheduler fairly selects one Hero; that Hero's ordinary character agent chooses
+the activity, and one router call canonicalizes it. There is no private router
+cue, held floor handoff, resume path, or One-Star scheduler.
+
+Lobby preparation can run at the same time as the foreground narrator,
+autonomous mission preparation, and ticks in other independent scenes. Training,
+cooking, maintenance, crafting, rest, and similar lasting work may open the
+ordinary commitment. Reaching toward another lobby Hero stops before that
+Hero's reply, preserving same-scene order for a later beat. The closed event is
+pinned to the common player-beat instant and cannot observe or depict the
+Master, guide, or deployed party, mutate the account or mission, or move anyone
+beyond the lobby. Its canonical facts and character memory persist without
+entering the Master's active-floor render. A human-led floor remains untouched.
 
 After a terminal mission result, the active guide may make one concrete prompt for the
 Master's next management choice. If the Master defers, that bound handoff goes
@@ -2028,9 +2052,8 @@ Known stale or transitional areas:
   `canonical_events`, render buffers, and NPC inboxes
 * `/query` is implemented as a mutating router/narrator turn, not a
   read-only information endpoint
-* router-selected background turns are not yet a generalized world-clock or
-  faction-clock system; One-Star lobby liveness has only the bounded
-  player-beat cadence described in section 15.7
+* autonomous scene ticks provide bounded player-beat liveness, not a
+  generalized world clock, faction clock, or periodic simulation
 * debug streaming and public HTTP APIs are not implemented
 * prompt version ids are not stored in checkpoints; git history is the
   version source
@@ -2082,11 +2105,15 @@ turns are sequential: one target produces public output, the router
 canonicalizes it, and only then can another target in that scene act with the
 updated context. This matches live table pacing better than parallel NPC
 fan-out, because later speakers know what earlier speakers just said or did.
-The exception is a set of independent autonomous Cat II responders: each must
-react to the same attempt rather than to a sibling's draft, so those intentions
-run concurrently on isolated snapshots and merge atomically in router-required
-order. Multi-character authoring uses the same isolation-and-atomic-merge
-principle. Neither case changes the sequential canonical-event order.
+The first exception is a set of independent autonomous Cat II responders: each
+must react to the same attempt rather than to a sibling's draft, so those
+intentions run concurrently on isolated snapshots and merge atomically in
+router-required order. The second is independent unnarrated scene lanes: each
+location still advances through one sequential actor-router event, while
+different locations prepare beside one another and the foreground before a
+deterministic atomic merge. Multi-character authoring uses the same
+isolation-and-atomic-merge principle. None of these cases changes the sequential
+canonical-event order.
 
 This should not be framed as "returning player control" as a special runtime
 ontology. A human-bound character is a participant whose immediate output is
@@ -2287,7 +2314,8 @@ The current engine is healthy when:
    to checkpoint state.
 10. `/query` answers through the router/narrator path without leaking
     knowledge outside the querying POV.
-11. Router-selected private/background agent turns can advance eligible
-    NPCs and land their public results as router-canonicalized events.
+11. Router-selected private/background turns and independent unnarrated scene
+    ticks advance eligible NPCs as router-canonicalized events without
+    parallelizing same-scene causality.
 12. `/rewind` removes later checkpoints and cleans up tracked Discord
     turn messages.

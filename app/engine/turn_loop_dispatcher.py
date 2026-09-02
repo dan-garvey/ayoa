@@ -49,8 +49,12 @@ from app.engine.dnd_cat_ii import (
 )
 from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.engine.one_star_adapter import (
-    OneStarLobbyLivenessRequest,
     prepare_one_star_live_mission_observers,
+)
+from app.engine.scene_ticks import (
+    SceneTickRequest,
+    anchor_scene_tick_result,
+    validate_scene_tick_result,
 )
 from app.engine.turn_loop_contracts import (
     AuthoritativeContributionRequest,
@@ -59,6 +63,7 @@ from app.engine.turn_loop_contracts import (
     format_authoritative_result_block,
     format_cat_ii_resolution_block,
     format_router_continuation_block,
+    format_scene_tick_contract,
 )
 from app.llm.client import LLMClient
 from app.schemas.characters import CharacterRecord, is_non_social_hazard
@@ -2653,7 +2658,7 @@ class LLMDispatcher:
         actor_id: str,
         intention: str,
         cat_ii_event: OpenCatIIEvent | None = None,
-        one_star_lobby_liveness: OneStarLobbyLivenessRequest | None = None,
+        scene_tick: SceneTickRequest | None = None,
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention through event_router."""
 
@@ -2700,16 +2705,18 @@ class LLMDispatcher:
 
         router_snapshot = _router_call_snapshot(ckpt)
         try:
-            await _append_router_content_lookup_records(
-                ckpt,
-                actor_id=actor_id,
-                current_input=intention,
-                client=self.client,
-                prompt_mgr=self.prompt_mgr,
-            )
+            if scene_tick is None:
+                await _append_router_content_lookup_records(
+                    ckpt,
+                    actor_id=actor_id,
+                    current_input=intention,
+                    client=self.client,
+                    prompt_mgr=self.prompt_mgr,
+                )
             ctx = _build_router_context(
                 ckpt,
                 actor_id,
+                include_engine_state_updates=scene_tick is None,
             )
             initial_roster_record = ctx.pop("initial_roster_block", "")
             if initial_roster_record:
@@ -2742,27 +2749,41 @@ class LLMDispatcher:
                 )
                 intention_block = ""
 
-            lobby_activity_block = ""
-            if one_star_lobby_liveness is not None:
-                if not _one_star_router_enabled(ckpt):
+            scene_tick_block = ""
+            if scene_tick is not None:
+                if cat_ii_event is not None or actor_id != scene_tick.actor_id:
                     raise ValueError(
-                        "One-Star lobby liveness cannot enter another ruleset"
+                        "scene tick must be one fresh intention from its selected actor"
                     )
-                from app.engine.one_star_router_context import (
-                    render_one_star_lobby_activity_contract,
-                )
+                scene_tick_blocks = [format_scene_tick_contract(scene_tick)]
+                if scene_tick.adapter_context is not None:
+                    if not _one_star_router_enabled(ckpt):
+                        raise ValueError(
+                            "One-Star scene context cannot enter another ruleset"
+                        )
+                    from app.engine.one_star_adapter import OneStarSceneTickContext
+                    from app.engine.one_star_router_context import (
+                        render_one_star_scene_tick_contract,
+                    )
 
-                lobby_activity_block = render_one_star_lobby_activity_contract(
-                    one_star_lobby_liveness,
-                    resolving_cat_ii=cat_ii_event is not None,
-                )
+                    if not isinstance(
+                        scene_tick.adapter_context,
+                        OneStarSceneTickContext,
+                    ):
+                        raise ValueError("unknown scene tick adapter context")
+                    scene_tick_blocks.append(
+                        render_one_star_scene_tick_contract(
+                            scene_tick.adapter_context
+                        )
+                    )
+                scene_tick_block = "\n".join(scene_tick_blocks)
 
             router_input_block = _build_router_input_block(
                 _build_opening_context_block(ckpt, intention, actor_id),
                 ctx.pop("engine_state_updates_block", ""),
                 cat_ii_resolution_block,
                 intention_block,
-                lobby_activity_block,
+                scene_tick_block,
             )
             template_vars = {
                 **ctx,
@@ -2810,20 +2831,11 @@ class LLMDispatcher:
             from app.engine.one_star_adapter import OneStarTransactionError
 
             def validate_candidate() -> None:
-                if one_star_lobby_liveness is not None:
-                    from app.engine.one_star_adapter import (
-                        anchor_one_star_lobby_liveness_event,
-                        validate_one_star_lobby_liveness_activity,
-                    )
-
-                    anchor_one_star_lobby_liveness_event(
-                        result,
-                        request=one_star_lobby_liveness,
-                    )
-                    validate_one_star_lobby_liveness_activity(
+                if scene_tick is not None:
+                    anchor_scene_tick_result(result, request=scene_tick)
+                    validate_scene_tick_result(
                         ckpt,
-                        request=one_star_lobby_liveness,
-                        actor_id=actor_id,
+                        request=scene_tick,
                         result=result,
                     )
                 else:
@@ -2918,9 +2930,17 @@ class LLMDispatcher:
             ckpt.session_conversation,
             acting_character_id=actor_id,
             result=result,
-            mode="cat_ii_resolution" if cat_ii_event else "intention",
+            mode=(
+                "scene_tick"
+                if scene_tick is not None
+                else "cat_ii_resolution"
+                if cat_ii_event
+                else "intention"
+            ),
             user_prompt=(
-                _defer_history_user_prompt(intention) if cat_ii_event is None else ""
+                _defer_history_user_prompt(intention)
+                if cat_ii_event is None and scene_tick is None
+                else ""
             ),
         )
         return result
@@ -3030,7 +3050,6 @@ class LLMDispatcher:
         actor_id: str,
         prior_result: EventRouterOutput,
         original_action: str = "",
-        one_star_lobby_liveness: OneStarLobbyLivenessRequest | None = None,
     ) -> EventRouterOutput:
         """Ask the router for grounded motion after a closed event."""
 
@@ -3056,23 +3075,10 @@ class LLMDispatcher:
                         content=initial_roster_record,
                     )
                 )
-            if one_star_lobby_liveness is None:
-                continuation_block = format_router_continuation_block(
-                    prior_rationale=prior_result.decision_rationale,
-                    original_action=original_action,
-                )
-            else:
-                if not _one_star_router_enabled(ckpt):
-                    raise ValueError(
-                        "One-Star lobby liveness cannot enter another ruleset"
-                    )
-                from app.engine.one_star_router_context import (
-                    render_one_star_lobby_liveness_cue,
-                )
-
-                continuation_block = render_one_star_lobby_liveness_cue(
-                    one_star_lobby_liveness
-                )
+            continuation_block = format_router_continuation_block(
+                prior_rationale=prior_result.decision_rationale,
+                original_action=original_action,
+            )
 
             router_input_block = _build_router_input_block(
                 ctx.pop("engine_state_updates_block", ""),
@@ -3116,27 +3122,11 @@ class LLMDispatcher:
             result: EventRouterOutput = response.parsed
 
             def validate_candidate() -> None:
-                if one_star_lobby_liveness is not None:
-                    from app.engine.one_star_adapter import (
-                        anchor_one_star_lobby_liveness_event,
-                        validate_one_star_lobby_liveness_cue,
-                    )
-
-                    anchor_one_star_lobby_liveness_event(
-                        result,
-                        request=one_star_lobby_liveness,
-                    )
-                    validate_one_star_lobby_liveness_cue(
-                        ckpt,
-                        request=one_star_lobby_liveness,
-                        result=result,
-                    )
-                else:
-                    _prepare_one_star_live_mission_observer_routing(
-                        ckpt,
-                        actor_id=actor_id,
-                        result=result,
-                    )
+                _prepare_one_star_live_mission_observer_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
                 if result.requires_responders or result.required_responders:
                     raise ValueError(
                         "One-Star continuation cannot open a new Cat II event"
@@ -3202,11 +3192,7 @@ class LLMDispatcher:
                 ckpt.session_conversation,
                 acting_character_id=actor_id,
                 result=result,
-                mode=(
-                    "one_star_lobby_liveness"
-                    if one_star_lobby_liveness is not None
-                    else "continuation"
-                ),
+                mode="continuation",
             )
             return result
         except Exception:

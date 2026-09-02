@@ -12,6 +12,8 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from app.engine.scene_ticks import SceneTickRequest
+
 PARTIAL_MODE_MARKER = (
     "Stop before the attempted action resolves; the player supplies the response."
 )
@@ -255,3 +257,29 @@ def format_character_moment(
             cleaned_local_context,
         ])
     return "\n".join(lines)
+
+
+def format_scene_tick_contract(request: SceneTickRequest) -> str:
+    """Constrain one autonomous intention to its independent scene."""
+
+    participants = ", ".join(request.participant_ids)
+    return "\n".join([
+        "<scene_tick>",
+        f"Scene location: {request.location}",
+        f"Submitting actor: {request.actor_id}",
+        f"Characters available in this scene: {participants}",
+        "",
+        "Canonicalize only the submitting actor's concrete self-directed choice "
+        "and its immediate local result. No human-controlled viewpoint is "
+        "present here. Keep every observer, depicted character, and private "
+        "recipient inside the available character ids above.",
+        "",
+        f"Use effective_at_s={request.canonical_at_s} and duration_s=0. The "
+        "event must close without responders, next output, perception "
+        "enrichment, movement, lifecycle changes, commitment resolution, or "
+        "rules-state changes. A longer local task may begin through "
+        "commitment_open; include the submitting actor and only characters in "
+        "this scene, and stop before inventing another character's consent or "
+        "reply.",
+        "</scene_tick>",
+    ])
