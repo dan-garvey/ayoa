@@ -1004,13 +1004,21 @@ def prepare_one_star_live_mission_observers(
     actor_id: str,
     result: EventRouterOutput,
 ) -> tuple[str, ...]:
-    """Materialize and guard configured live System mission observers.
+    """Materialize configured live System mission observers.
 
     The established event observer list is the sole delivery path.  A clear
     System feed is direct perception even when its recipient remains in the
     lobby, so broad mission facts may flow through ordinary event broadcast.
     The feed grants knowledge only: before the terminal event it never grants
     response ownership, physical presence, or authority over the floor.
+
+    The configured feed is engine authority, not a routing choice the model
+    can weaken or turn into physical presence. Normalize its observation and
+    presentation metadata deterministically: remote viewers receive direct
+    observation, remain passive before mission end, and never enter a floor
+    sprite roster merely because the router repeated their id in
+    ``visual_subject_ids``. Genuine responder or perception targeting remains
+    invalid below because that changes event semantics rather than metadata.
 
     Returns the active remote System observer ids when ``result`` is a live
     mission-floor event, otherwise an empty tuple.  Repeated calls are
@@ -1088,27 +1096,33 @@ def prepare_one_star_live_mission_observers(
         if terminal_result
         else set()
     )
+    remote_ids = set(remote_system_observer_ids)
     for character_id in remote_system_observer_ids:
         observer = observers_by_id[character_id]
-        if observer.observation_level != "d":
-            raise OneStarTransactionError(
-                "live One-Star System observers require clear direct mediated "
-                f"observation: {character_id}"
-            )
-        if observer.routing_role == "observe_only":
-            continue
         if (
+            terminal_result
+            and observer.routing_role == "next_output"
+            and character_id not in terminal_guide_ids
+        ):
+            raise OneStarTransactionError(
+                "live One-Star System observers must remain observe_only unless "
+                "selected as an eligible guide at mission end: "
+                f"{character_id}"
+            )
+        observer.observation_level = "d"
+        if not (
             observer.routing_role == "next_output"
             and character_id in terminal_guide_ids
         ):
-            continue
-        raise OneStarTransactionError(
-            "live One-Star System observers must remain observe_only unless "
-            "selected as an eligible guide at mission end: "
-            f"{character_id}"
-        )
+            observer.routing_role = "observe_only"
 
-    remote_ids = set(remote_system_observer_ids)
+    for fact in result.canonical_event.observable_facts:
+        fact.visual_subject_ids = [
+            character_id
+            for character_id in fact.visual_subject_ids
+            if character_id not in remote_ids
+        ]
+
     forbidden_routed_ids = remote_ids & {
         *result.required_responders,
         *result.perception_enrichment_character_ids,
@@ -1128,19 +1142,6 @@ def prepare_one_star_live_mission_observers(
     if len(remote_next_output_ids) > 1:
         raise OneStarTransactionError(
             "mission end may hand off to at most one live System guide"
-        )
-
-    depicted_remote_ids = {
-        character_id
-        for fact in result.canonical_event.observable_facts
-        for character_id in fact.visual_subject_ids
-        if character_id in remote_ids
-    }
-    if depicted_remote_ids:
-        raise OneStarTransactionError(
-            "live One-Star System observers cannot be depicted on the mission "
-            "floor: "
-            + ", ".join(sorted(depicted_remote_ids))
         )
 
     return remote_system_observer_ids

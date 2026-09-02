@@ -1060,7 +1060,7 @@ def test_live_system_observer_is_added_to_human_led_floor_events() -> None:
     assert result.observers[-1].routing_role == "observe_only"
 
 
-def test_live_system_observer_cannot_speak_or_appear_midmission() -> None:
+def test_live_system_observer_routing_and_visual_metadata_are_normalized() -> None:
     checkpoint = _active_checkpoint(
         bind_party=False,
         include_guide=True,
@@ -1069,29 +1069,34 @@ def test_live_system_observer_cannot_speak_or_appear_midmission() -> None:
     routed = _one_star_result(
         observer_ids=["account_owner", "hero", "iselle"],
         agent_ids=["iselle"],
-        facts=[ObservableFact.all("Hero holds the stair against the goblins.")],
-    )
-
-    with pytest.raises(OneStarTransactionError, match="remain observe_only"):
-        prepare_one_star_live_mission_observers(
-            checkpoint,
-            actor_id="hero",
-            result=routed,
-        )
-
-    depicted = _one_star_result(
-        observer_ids=["account_owner", "hero"],
         facts=[ObservableFact.all(
-            "Iselle appears beside Hero on the mission floor.",
+            "Hero holds the stair against the goblins.",
             visual_subject_ids=["iselle", "hero"],
         )],
     )
-    with pytest.raises(OneStarTransactionError, match="cannot be depicted"):
-        prepare_one_star_live_mission_observers(
-            checkpoint,
-            actor_id="hero",
-            result=depicted,
-        )
+    iselle_observer = next(
+        observer
+        for observer in routed.observers
+        if observer.character_id == "iselle"
+    )
+    iselle_observer.observation_level = "i"
+
+    assert prepare_one_star_live_mission_observers(
+        checkpoint,
+        actor_id="hero",
+        result=routed,
+    ) == ("iselle",)
+    assert iselle_observer.observation_level == "d"
+    assert iselle_observer.routing_role == "observe_only"
+    assert routed.next_output_character_ids == []
+    assert routed.canonical_event.observable_facts[0].visual_subject_ids == [
+        "hero"
+    ]
+    validate_one_star_autonomous_mission_batch_result(
+        checkpoint,
+        actor_id="hero",
+        result=routed,
+    )
 
 
 def test_terminal_mission_event_may_hand_off_once_to_live_system_guide() -> None:
