@@ -30,8 +30,9 @@ MAX_SPAWNS_PER_TURN = 3
 
 # Reasoning tokens and visible structured output share the same response
 # ceiling. Character authoring and its sibling casting plan are one-time calls,
-# and both need enough room for a max-reasoning model before emitting JSON.
-CHARACTER_MANAGER_MAX_TOKENS = 8_000
+# and both need enough headroom for a max-reasoning model before emitting JSON.
+# This is a ceiling, not a requested spend; completed responses stop earlier.
+CHARACTER_MANAGER_MAX_TOKENS = 32_000
 CASTING_PLAN_MAX_TOKENS = CHARACTER_MANAGER_MAX_TOKENS
 
 

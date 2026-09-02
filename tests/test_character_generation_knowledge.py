@@ -227,7 +227,7 @@ async def test_casting_plan_uses_full_character_manager_output_budget() -> None:
         "mara_venn",
         "orin_vale",
     ]
-    assert CASTING_PLAN_MAX_TOKENS == CHARACTER_MANAGER_MAX_TOKENS == 8_000
+    assert CASTING_PLAN_MAX_TOKENS == CHARACTER_MANAGER_MAX_TOKENS == 32_000
     assert client.complete.await_args.kwargs["max_tokens"] == (
         CHARACTER_MANAGER_MAX_TOKENS
     )
@@ -492,7 +492,7 @@ async def test_one_star_summon_membership_selects_hero_generation_overlay() -> N
     assert ONE_STAR_HERO_KEY in spawned[0].mechanics
     assert client.complete.await_args.kwargs["response_model"] is AuthoredOneStarCharacter
     assert client.complete.await_args.kwargs["role"] == "character_manager"
-    assert client.complete.await_args.kwargs["max_tokens"] == 8_000
+    assert client.complete.await_args.kwargs["max_tokens"] == 32_000
     assert spawned[0].agent_tier is CharacterAgentTier.utility
     assert model_role_for_character(spawned[0]) == "agent_convenience"
     assert spawned[0].mechanics[ONE_STAR_HERO_KEY]["generated_for_summon"] is True
