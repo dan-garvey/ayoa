@@ -1,0 +1,110 @@
+{
+  "cards": [
+    {
+      "count": 2,
+      "filename": "page-001.png",
+      "index": 1,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "13868619a2a0b89eeef75d77573da99fc05fa79d61d3da6d7b5f53be7298d63c",
+      "speaker": "",
+      "text": "The live lobby view remains fixed on Wren, Rowan Kest, Liora Fen, Odelia\nMarr, and Perrin Vale around the fading summon circle."
+    },
+    {
+      "count": 2,
+      "filename": "page-002.png",
+      "index": 2,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "3953ff94255a2ebe886b1460585da7e2f2a689484146ccdcbed33e87a1205b1e",
+      "speaker": "",
+      "text": "At the far side of Niflheim's lobby, the sealed Tower gate gives off a thin\nblue glow that brightens the stone before it."
+    }
+  ],
+  "deck_id": "caaabee4a9eccb45a5f62f8fd43da2df2be3e9c94b9ddff109d30b42c4109c68",
+  "identity": {
+    "card_size": [
+      1024,
+      576
+    ],
+    "fonts": {
+      "bold_sha256": "d1c3ff99f1e1ce1827a33efd4dad81f40babda06bff9e43bd7591c86662a287b",
+      "regular_sha256": "690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648"
+    },
+    "renderer": "classic-adv-v10-panel-media",
+    "sections": [
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "The live lobby view remains fixed on Wren, Rowan Kest, Liora Fen, Odelia\nMarr, and Perrin Vale around the fading summon circle."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_wren_thelantern_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 668852,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "2e1f619de0397b02f0125536a0bd446be8c9d35f3c5e3232473b3dcd844433e5",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.bc280646c96cbec354e007fa",
+            "variant_handle": "osa_vnsprite_wren_thelantern_neutral_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_rowan_kest_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 728381,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "b608f0ad84e492db6e7026c0ac8bfead1aa4a90b7b5a234b7e42e285ecf5d969",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.5dc96cd027305d6ef812c1ff",
+            "variant_handle": "osa_vnsprite_rowan_kest_neutral_v1"
+          }
+        ],
+        "stage_sha256": "82b568c7b8676c4122e24b5f853bc005738285c31fa5e15b14e129cca4b640ce",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "At the far side of Niflheim's lobby, the sealed Tower gate gives off a thin\nblue glow that brightens the stone before it."
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "82b568c7b8676c4122e24b5f853bc005738285c31fa5e15b14e129cca4b640ce",
+        "used_neutral_stage": false
+      }
+    ]
+  },
+  "transcript": "The live lobby view remains fixed on Wren, Rowan Kest, Liora Fen, Odelia Marr, and Perrin Vale around the fading summon circle.\n\nAt the far side of Niflheim's lobby, the sealed Tower gate gives off a thin blue glow that brightens the stone before it.",
+  "used_neutral_stage": false,
+  "version": 3
+}

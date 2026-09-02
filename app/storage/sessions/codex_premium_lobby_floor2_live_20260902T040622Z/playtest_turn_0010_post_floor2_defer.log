@@ -1,0 +1,30 @@
+* resolving…
+2026-09-01 23:50:57,778 INFO app.engine.orchestrator: Turn 9 for session codex_premium_lobby_floor2_live_20260902T040622Z (acting=the_master)
+2026-09-01 23:50:57,817 INFO app.engine.character_agent: Agent Iselle (iselle_the_guide) turn [foreground]: history=4 msgs
+2026-09-01 23:51:16,988 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:51:17,088 INFO app.llm.client: LLM usage role=agent_convenience provider=openai model=gpt-5.6-luna in=4910 out=1686 visible_out=134 reasoning=1552 cache_read=1200 cache_write=0 full_in=6110 total=7796
+2026-09-01 23:51:17,088 INFO app.engine.character_agent: Agent Iselle turn: 480 chars public, silence=False
+2026-09-01 23:51:17,102 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=iselle_the_guide cat_ii=None
+2026-09-01 23:51:36,149 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:51:36,219 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=11036 out=1591 visible_out=862 reasoning=729 cache_read=19813 cache_write=0 full_in=30849 total=32440
+2026-09-01 23:51:36,220 INFO app.engine.turn_loop: router[speculative_route] actor=iselle_the_guide cat=I forced_handoff=False kind='response_requested' next=['the_master'] enrich=[] :: mission_status: id=floor_2_lantern_flood; state=cleared; completion=The party has carried the failing blue flame through the flooded archives and relit the upper beacon.; progress=blue_flame_carried=1/1, upper_beacon_relit=1/1; failure=The blue flame has failed before the party could relight the upper beacon.; timing=untimed
+Iselle's completed-floor report presents a concrete management choice directly to the_master, who is the only immediate responder; the lobby Heroes receive the report without being asked to decide.
+2026-09-01 23:51:36,385 INFO app.engine.narrator: compose_pov_render: pov=the_master events=1 partial=False mode=event_aligned history=14 msgs (prompt_render_ms=0.9)
+2026-09-01 23:51:38,469 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:51:38,509 INFO app.llm.client: LLM usage role=image_director provider=openai model=gpt-5-mini-2025-08-07 in=1749 out=151 visible_out=87 reasoning=64 cache_read=0 cache_write=0 full_in=1749 total=1900
+2026-09-01 23:51:39,605 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:51:39,693 INFO app.llm.client: LLM usage role=narrator provider=openai model=gpt-5.6-terra in=2210 out=231 visible_out=184 reasoning=47 cache_read=5363 cache_write=0 full_in=7573 total=7804
+2026-09-01 23:51:39,693 INFO app.engine.narrator: compose_pov_render: pov=the_master rendered 461 chars
+2026-09-01 23:51:39,693 INFO app.engine.turn_loop.narrator_handoff: Narrator handoff judgment: pov=the_master decision=render reason=Iselle asks the Master to choose the next risk. events=1
+2026-09-01 23:51:39,697 INFO app.engine.turn_loop: Beat closed: events=1 reason=awaiting_player_turn renders=1 release_slots=True force_partial=False reaction_prompts=0
+2026-09-01 23:51:39,703 INFO app.engine.checkpoint_manager: Saved checkpoint ckpt_0010 for session codex_premium_lobby_floor2_live_20260902T040622Z
+
+--- Story update 10 · viewed as the Master ---
+* illustrating…
+The live lobby view shows Iselle spinning before the Tower gate and snapping her cap straight.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/1861fc1fe3ad650b24bdf230868a096f3f6cde1075d8af687642be9b9307c7b4.png
+Iselle: Floor Two cleared! The upper beacon is relit; the account gained 5 Gold and 1 Building Resource, bringing it to 49 Gold and 5 Building Resources. Floor Three is unlocked, and stamina is down to 3/5.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/abafb135f9852154fb9c1038a4eec75628a090395a29708439df9904968e1c38.png
+Iselle: Now choose: buy one basic summon for 2 Gold, or send Renna Holt and Mirelle Voss back through the gate for Floor Three. Which risk gets the next turn, Master?
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/ea4d10cdbebfb536a922246cb57976a0c58a4d255ec2b62e44b4aa3d550ecab6.png
+

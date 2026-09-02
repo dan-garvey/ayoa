@@ -1,0 +1,55 @@
+* opening the scene…
+2026-09-01 23:07:21,412 INFO app.bot.engine_bridge: run_begin_turn: session=codex_premium_lobby_floor2_live_20260902T040622Z actor=the_master bound=['the_master']
+2026-09-01 23:07:21,691 INFO app.engine.orchestrator: Turn 1 for session codex_premium_lobby_floor2_live_20260902T040622Z (acting=the_master)
+2026-09-01 23:07:21,801 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=the_master cat_ii=None
+2026-09-01 23:07:31,930 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:07:32,047 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=20882 out=833 visible_out=586 reasoning=247 cache_read=0 cache_write=0 full_in=20882 total=21715
+2026-09-01 23:07:32,051 INFO app.engine.turn_loop: router[route] actor=the_master cat=I forced_handoff=False kind='beat_continues' next=['edren_marr'] enrich=[] :: The direct opening-roster authority places the party immediately under the fixed Floor 1 ambush. Edren Marr alone has immediate autonomous response pressure under the rushing attack.
+mission_status: id=floor_1_goblin_ambush; state=active; completion=At least one deployed Hero remains alive after the several goblins present at arrival have been killed, driven off, or made unable to continue the attack.; progress=ambush_survived=0/1; failure=No deployed Hero remains alive.; timing=untimed
+2026-09-01 23:07:32,072 INFO app.engine.character_manager: Character renna_holt woken to active at tower_floor_1_goblin_ambush
+2026-09-01 23:07:32,072 INFO app.engine.character_manager: Character mirelle_voss woken to active at tower_floor_1_goblin_ambush
+2026-09-01 23:07:32,072 INFO app.engine.character_manager: Character edren_marr woken to active at tower_floor_1_goblin_ambush
+2026-09-01 23:07:32,108 INFO app.engine.character_agent: Agent Edren Marr (edren_marr) turn [foreground]: history=0 msgs
+2026-09-01 23:07:48,782 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:07:48,838 INFO app.llm.client: LLM usage role=agent_convenience provider=openai model=gpt-5.6-luna in=1946 out=1105 visible_out=71 reasoning=1034 cache_read=0 cache_write=0 full_in=1946 total=3051
+2026-09-01 23:07:48,838 INFO app.engine.character_agent: Agent Edren Marr turn: 241 chars public, silence=False
+2026-09-01 23:07:48,840 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=edren_marr cat_ii=None
+2026-09-01 23:08:01,059 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:08:01,131 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=1182 out=972 visible_out=560 reasoning=412 cache_read=19767 cache_write=0 full_in=20949 total=21921
+2026-09-01 23:08:01,131 INFO app.llm.client: LLM reasoning summary role=event_router provider=openai model=gpt-5.6-terra part=1/1: **Analyzing event response**\n\nI'm thinking about recommendations regarding material that has changed state and whether there should be a subsequent response. It seems like there's an imminent hostile response that could be viable. Also, this "event_kind" of “beat_continues” might imply some pressure. I'm pondering whether the current state of the event world makes this feasible or true. There seems to be a lot to consider about the implications and next steps here!
+2026-09-01 23:08:01,136 INFO app.engine.turn_loop: router[speculative_route] actor=edren_marr cat=I forced_handoff=False kind='beat_continues' next=['mirelle_voss'] enrich=[] :: mission_status: id=floor_1_goblin_ambush; state=active; completion=At least one deployed Hero remains alive after the several goblins present at arrival have been killed, driven off, or made unable to continue the attack.; progress=ambush_survived=0/1; failure=No deployed Hero remains alive.; timing=untimed
+Edren Marr's flight exposes the established fatal opening; the goblins' immediate attack kills him. Mirelle Voss has the strongest immediate combat pressure as the remaining armed close-range Hero.
+2026-09-01 23:08:01,178 INFO app.engine.character_agent: Agent Mirelle Voss (mirelle_voss) turn [foreground]: history=0 msgs
+2026-09-01 23:08:22,350 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:08:22,401 INFO app.llm.client: LLM usage role=agent_standard provider=openai model=gpt-5.6-luna in=1114 out=1535 visible_out=67 reasoning=1468 cache_read=1200 cache_write=0 full_in=2314 total=3849
+2026-09-01 23:08:22,402 INFO app.engine.character_agent: Agent Mirelle Voss turn: 202 chars public, silence=False
+2026-09-01 23:08:22,403 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=mirelle_voss cat_ii=None
+2026-09-01 23:08:39,563 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:08:39,641 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=1438 out=1340 visible_out=520 reasoning=820 cache_read=19767 cache_write=0 full_in=21205 total=22545
+2026-09-01 23:08:39,645 INFO app.engine.turn_loop: router[speculative_route] actor=mirelle_voss cat=I forced_handoff=False kind='beat_continues' next=['renna_holt'] enrich=[] :: Mirelle's superior reach and rank let her disrupt the immediate rush and kill an exposed attacker, but the remaining armed goblins still threaten the surviving party. Renna Holt has immediate battlefield pressure and is selected for the next consequential response.
+mission_status: id=floor_1_goblin_ambush; state=active; completion=At least one deployed Hero remains alive after the several goblins present at arrival have been killed, driven off, or made unable to continue the attack.; progress=ambush_survived=0/1; failure=No deployed Hero remains alive.; timing=untimed
+2026-09-01 23:08:39,682 INFO app.engine.character_agent: Agent Renna Holt (renna_holt) turn [foreground]: history=0 msgs
+2026-09-01 23:08:53,241 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:08:53,287 INFO app.llm.client: LLM usage role=agent_convenience provider=openai model=gpt-5.6-luna in=1015 out=1059 visible_out=54 reasoning=1005 cache_read=1200 cache_write=0 full_in=2215 total=3274
+2026-09-01 23:08:53,287 INFO app.engine.character_agent: Agent Renna Holt turn: 138 chars public, silence=False
+2026-09-01 23:08:53,292 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=renna_holt cat_ii=None
+2026-09-01 23:09:03,506 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:09:03,601 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=1603 out=798 visible_out=461 reasoning=337 cache_read=19767 cache_write=0 full_in=21370 total=22168
+2026-09-01 23:09:03,607 INFO app.engine.turn_loop: router[speculative_route] actor=renna_holt cat=I forced_handoff=False kind='state_change' next=[] enrich=[] :: mission_status: id=floor_1_goblin_ambush; state=active; completion=At least one deployed Hero remains alive after the several goblins present at arrival have been killed, driven off, or made unable to continue the attack.; progress=ambush_survived=0/1; failure=No deployed Hero remains alive.; timing=untimed
+Renna Holt's grounded shot can resolve against the already-established nameless attackers. It removes one immediate threat but leaves the ambush active; the changed combat surface is delivered without another planning turn.
+2026-09-01 23:09:03,731 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_continuation: actor=
+2026-09-01 23:09:13,893 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:09:13,971 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=21711 out=786 visible_out=426 reasoning=360 cache_read=0 cache_write=0 full_in=21711 total=22497
+2026-09-01 23:09:13,976 INFO app.engine.turn_loop: router[continuation] actor= cat=I forced_handoff=False kind='beat_continues' next=['mirelle_voss'] enrich=[] :: mission_status: id=floor_1_goblin_ambush; state=active; completion=At least one deployed Hero remains alive after the several goblins present at arrival have been killed, driven off, or made unable to continue the attack.; progress=ambush_survived=0/1; failure=No deployed Hero remains alive.; timing=untimed
+The remaining established goblins create immediate concrete pressure rather than allowing another planning pause. mirelle_voss is selected because the frontal attacker is closing on her and her next action can materially affect both exposed survivors.
+2026-09-01 23:09:14,016 INFO app.engine.character_agent: Agent Mirelle Voss (mirelle_voss) turn [foreground]: history=2 msgs
+2026-09-01 23:09:33,260 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:09:33,319 INFO app.llm.client: LLM usage role=agent_standard provider=openai model=gpt-5.6-luna in=1427 out=1356 visible_out=65 reasoning=1291 cache_read=1200 cache_write=0 full_in=2627 total=3983
+2026-09-01 23:09:33,319 INFO app.engine.character_agent: Agent Mirelle Voss turn: 214 chars public, silence=False
+2026-09-01 23:09:33,321 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=mirelle_voss cat_ii=None
+2026-09-01 23:09:48,197 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:09:48,264 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=1877 out=1301 visible_out=785 reasoning=516 cache_read=19767 cache_write=0 full_in=21644 total=22945
+2026-09-01 23:09:48,268 WARNING app.engine.turn_loop_dispatcher: Retrying invalid One-Star router output once: live One-Star System observers cannot be depicted on the mission floor: iselle_the_guide
+2026-09-01 23:09:58,209 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:09:58,281 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=1024 out=1137 visible_out=788 reasoning=349 cache_read=21641 cache_write=0 full_in=22665 total=23802
+error: One-Star router output remained invalid after one correction: live One-Star System observers cannot be depicted on the mission floor: iselle_the_guide

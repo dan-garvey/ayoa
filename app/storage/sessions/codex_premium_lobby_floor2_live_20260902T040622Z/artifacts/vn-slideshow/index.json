@@ -1,0 +1,478 @@
+{
+  "version": 1,
+  "card_count": 59,
+  "cards": [
+    {
+      "filename": "001__presentation-01-opening__narration__page-001.png",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-001.png",
+      "sha256": "8103fba2838bca2da93eb045e21bfd4d428e43a58d68b6228334b774511cda20",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "002__presentation-01-opening__edren-marr__page-002.png",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-002.png",
+      "sha256": "4abe2341748b7fbaee644c2760b9f5f95ce44605bb8148af7a4196916e47f2b2",
+      "mime_type": "image/png",
+      "speaker": "Edren Marr",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "003__presentation-01-opening__narration__page-003.png",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-003.png",
+      "sha256": "65852e93eef8e33ddd67b994aafd60d5742cf436d5101f215b868ce439205d30",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "004__presentation-01-opening__narration__page-004.png",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-004.png",
+      "sha256": "642ba91dc1eded0999e48a7ef807faff6891762d17adae772792008a1bdca12c",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "005__presentation-01-opening__narration__page-005.png",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-005.png",
+      "sha256": "fd2efd00b11125158a0f6430d433e859267fbd4cf0f3ebace1a54d08caa855fe",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "006__presentation-01-opening__narration__page-006.png",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-006.png",
+      "sha256": "a5f8601991a8295629c38c0b63f5e12b7212222163f53cc0c5ec2f380aee4eb9",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "007__presentation-01-opening__narration__page-007.gif",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-007.gif",
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "mime_type": "image/gif",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "008__presentation-01-opening__narration__page-008.png",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-008.png",
+      "sha256": "30ed7c338b9942f9b7fd6cc176ee760ce2d0035cb9bf10f2d2f41eeedb1da8d3",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "009__presentation-01-opening__narration__page-009.gif",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-009.gif",
+      "sha256": "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+      "mime_type": "image/gif",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "010__presentation-01-opening__narration__page-010.png",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-010.png",
+      "sha256": "7b0e1ba1ed3d313273bbd6af2d978b0447b8f3d624799874f3635cb9f41dee38",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "011__presentation-01-opening__narration__page-011.gif",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-011.gif",
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "mime_type": "image/gif",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "012__presentation-01-opening__narration__page-012.png",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-012.png",
+      "sha256": "ac9b1b5ed058d5b1d172b2159773e3f7d4d16d97ca2d0b2ad2e694a58eac5e85",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "013__presentation-01-opening__narration__page-013.png",
+      "source": "presentation/01-opening/decks/cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5/page-013.png",
+      "sha256": "5fd9613f3110fcc5f628d8804590b16e492228dd161f4552f38507fb5ae2b75f",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "014__presentation-02-floor1-clear__narration__page-001.png",
+      "source": "presentation/02-floor1-clear/decks/03730fc20971e6f9453167d24a2c8848b513dc5d33d4f8794414b31c770c6fd3/page-001.png",
+      "sha256": "2e13f9c27ecffe6d62e757705a38a38060e3f50cc4ab0a2c54ad928139f0c2d4",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "015__presentation-02-floor1-clear__narration__page-002.png",
+      "source": "presentation/02-floor1-clear/decks/03730fc20971e6f9453167d24a2c8848b513dc5d33d4f8794414b31c770c6fd3/page-002.png",
+      "sha256": "04bccbbd442df4c1eaa3d15d2fbc41db1fe4d63b1fbebe306000ab8b44b9dbe4",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "016__presentation-02-floor1-clear__narration__page-003.png",
+      "source": "presentation/02-floor1-clear/decks/03730fc20971e6f9453167d24a2c8848b513dc5d33d4f8794414b31c770c6fd3/page-003.png",
+      "sha256": "05265df6f03b630347ce3436b1a385ede32898deb57c3f5612cce4da26860747",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "017__presentation-02-floor1-clear__narration__page-004.png",
+      "source": "presentation/02-floor1-clear/decks/03730fc20971e6f9453167d24a2c8848b513dc5d33d4f8794414b31c770c6fd3/page-004.png",
+      "sha256": "1c31284005261da6f31e47b146d5c98636664b14e178bd1e01803d57daf9e2eb",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "018__presentation-02-floor1-clear__narration__page-005.png",
+      "source": "presentation/02-floor1-clear/decks/03730fc20971e6f9453167d24a2c8848b513dc5d33d4f8794414b31c770c6fd3/page-005.png",
+      "sha256": "87fe0f3429a968dfeed6d1143fb93f38f5a85bc43e3ebf46baaf272df3f58f11",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "019__presentation-02-floor1-clear__iselle__page-006.png",
+      "source": "presentation/02-floor1-clear/decks/03730fc20971e6f9453167d24a2c8848b513dc5d33d4f8794414b31c770c6fd3/page-006.png",
+      "sha256": "4ff750dc0751b53679dd0301a45384e66c3cf1c2998abedd83159912e74b0637",
+      "mime_type": "image/png",
+      "speaker": "Iselle",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "020__presentation-02-floor1-clear__iselle__page-007.png",
+      "source": "presentation/02-floor1-clear/decks/03730fc20971e6f9453167d24a2c8848b513dc5d33d4f8794414b31c770c6fd3/page-007.png",
+      "sha256": "70bb52b0c1a06e3709400ce1ca5e81036a588f4aaae62f012d71f0d2afedd9d5",
+      "mime_type": "image/png",
+      "speaker": "Iselle",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "021__presentation-03-five-premium-summons__narration__page-001.png",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-001.png",
+      "sha256": "ae07cfe175988b6f3bca34bfedb2365d6e6c2b614f75ded543ab17fb17dccb53",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "022__presentation-03-five-premium-summons__narration__page-002.gif",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-002.gif",
+      "sha256": "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+      "mime_type": "image/gif",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "023__presentation-03-five-premium-summons__narration__page-003.png",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-003.png",
+      "sha256": "034450dbcc7218028c3070487e76f4388e7845867315825653a2d1d854ae317d",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "024__presentation-03-five-premium-summons__narration__page-004.gif",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-004.gif",
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "mime_type": "image/gif",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "025__presentation-03-five-premium-summons__narration__page-005.png",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-005.png",
+      "sha256": "f5d6225a6531f997bbe4923cc70ed2a6fe1587d8902be686a1dd4df477804760",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "026__presentation-03-five-premium-summons__narration__page-006.gif",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-006.gif",
+      "sha256": "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+      "mime_type": "image/gif",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "027__presentation-03-five-premium-summons__narration__page-007.png",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-007.png",
+      "sha256": "15d9a299623e5d705b4b6b082b3a4dee235bce12a34a4ed16bf8c3d5517b59c8",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "028__presentation-03-five-premium-summons__narration__page-008.gif",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-008.gif",
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "mime_type": "image/gif",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "029__presentation-03-five-premium-summons__narration__page-009.png",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-009.png",
+      "sha256": "08debf42ba9c692e9d538af70cc062c552f5c08e269b8dc253027b1f7d82b75f",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "030__presentation-03-five-premium-summons__narration__page-010.gif",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-010.gif",
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "mime_type": "image/gif",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "031__presentation-03-five-premium-summons__narration__page-011.png",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-011.png",
+      "sha256": "9f0528f15bb4b5b2ee3eb7b96b66dc45a47d2934c953964d3dabb4358a00c33c",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "032__presentation-03-five-premium-summons__narration__page-012.png",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-012.png",
+      "sha256": "6f2c4e3a59e554c400a449ded410aa45fb89bc428fc1bb91ea51d6bcf50c0538",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "033__presentation-03-five-premium-summons__narration__page-013.png",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-013.png",
+      "sha256": "6761044c99bcef035dde85f41dfae6b4f46135be1b340b4a569d11579cc3a5c8",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "034__presentation-03-five-premium-summons__iselle__page-014.png",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-014.png",
+      "sha256": "cf1025ba297429faf00c4de5564c901037d0bb05b7a7930be9404781974dbf32",
+      "mime_type": "image/png",
+      "speaker": "Iselle",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "035__presentation-03-five-premium-summons__iselle__page-015.png",
+      "source": "presentation/03-five-premium-summons/decks/a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157/page-015.png",
+      "sha256": "6aba6b10823db5442cc0b3497d785859c57ed256ae97cdcd6409e79581a3840d",
+      "mime_type": "image/png",
+      "speaker": "Iselle",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "036__presentation-04-quiet-watch__narration__page-001.png",
+      "source": "presentation/04-quiet-watch/decks/caaabee4a9eccb45a5f62f8fd43da2df2be3e9c94b9ddff109d30b42c4109c68/page-001.png",
+      "sha256": "13868619a2a0b89eeef75d77573da99fc05fa79d61d3da6d7b5f53be7298d63c",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "037__presentation-04-quiet-watch__narration__page-002.png",
+      "source": "presentation/04-quiet-watch/decks/caaabee4a9eccb45a5f62f8fd43da2df2be3e9c94b9ddff109d30b42c4109c68/page-002.png",
+      "sha256": "3953ff94255a2ebe886b1460585da7e2f2a689484146ccdcbed33e87a1205b1e",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "038__presentation-05-preselection-dialogue__narration__page-001.png",
+      "source": "presentation/05-preselection-dialogue/decks/19adeef20affa399cc9e65648b704789c37499f98b83329f777617cdddf33f65/page-001.png",
+      "sha256": "de6a33fe355e4a96897946f88aa67d937d363d04c2a2d3bca706295ded2ed79f",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "039__presentation-05-preselection-dialogue__narration__page-002.png",
+      "source": "presentation/05-preselection-dialogue/decks/19adeef20affa399cc9e65648b704789c37499f98b83329f777617cdddf33f65/page-002.png",
+      "sha256": "809f1e14c0350375cb71032964f8dc4520c6ebc534cfe557455110ae7fa7bb54",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "040__presentation-05-preselection-dialogue__renna-holt__page-003.png",
+      "source": "presentation/05-preselection-dialogue/decks/19adeef20affa399cc9e65648b704789c37499f98b83329f777617cdddf33f65/page-003.png",
+      "sha256": "b0263f6f41f3335faaccee08b4fd6999e063a16d29f3b7b290abcb7f114111a4",
+      "mime_type": "image/png",
+      "speaker": "Renna Holt",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "041__presentation-05-preselection-dialogue__mirelle-voss__page-004.png",
+      "source": "presentation/05-preselection-dialogue/decks/19adeef20affa399cc9e65648b704789c37499f98b83329f777617cdddf33f65/page-004.png",
+      "sha256": "eeece234ca8e04e7f502ca97ef844fdf782dffc73f9efdbaf258e814609be6be",
+      "mime_type": "image/png",
+      "speaker": "Mirelle Voss",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "042__presentation-05-preselection-dialogue__narration__page-005.png",
+      "source": "presentation/05-preselection-dialogue/decks/19adeef20affa399cc9e65648b704789c37499f98b83329f777617cdddf33f65/page-005.png",
+      "sha256": "3d91884960b82a2bce08d155c1ca8dfa725ebdf53b036c20a8f562ba4cc08ade",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "043__presentation-05-preselection-dialogue__mirelle-voss__page-006.png",
+      "source": "presentation/05-preselection-dialogue/decks/19adeef20affa399cc9e65648b704789c37499f98b83329f777617cdddf33f65/page-006.png",
+      "sha256": "e862e16388c2c98eb5fa165e0f9d363de83cf57bb2da258d6cbbf6256855e89b",
+      "mime_type": "image/png",
+      "speaker": "Mirelle Voss",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "044__presentation-05-preselection-dialogue__narration__page-007.png",
+      "source": "presentation/05-preselection-dialogue/decks/19adeef20affa399cc9e65648b704789c37499f98b83329f777617cdddf33f65/page-007.png",
+      "sha256": "796a7bb88f5fe6deffe75bf4aa4b094c5048ebfb667b4e58fd76539187ab8e45",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "045__presentation-05-preselection-dialogue__renna-holt__page-008.png",
+      "source": "presentation/05-preselection-dialogue/decks/19adeef20affa399cc9e65648b704789c37499f98b83329f777617cdddf33f65/page-008.png",
+      "sha256": "9bb02950254578b6ac72910883aeb2c7ce8376baac5c0e149e4080d5a68d9ae3",
+      "mime_type": "image/png",
+      "speaker": "Renna Holt",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "046__presentation-06-floor2-deployment-and-progress__narration__page-001.png",
+      "source": "presentation/06-floor2-deployment-and-progress/decks/426bd91efa9f22971afe5b224c05dfeebd4596275c5099506bccb1859abb86cc/page-001.png",
+      "sha256": "2e88db56a3151ccdba5ba46e4011cc29006a010506819711c2737d31d1096e4a",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "047__presentation-06-floor2-deployment-and-progress__narration__page-002.png",
+      "source": "presentation/06-floor2-deployment-and-progress/decks/426bd91efa9f22971afe5b224c05dfeebd4596275c5099506bccb1859abb86cc/page-002.png",
+      "sha256": "843975a8390dcd18f6bfb29275372300c7e4d75fd956765912ffaefc64f1f1bc",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "048__presentation-06-floor2-deployment-and-progress__narration__page-003.png",
+      "source": "presentation/06-floor2-deployment-and-progress/decks/426bd91efa9f22971afe5b224c05dfeebd4596275c5099506bccb1859abb86cc/page-003.png",
+      "sha256": "0067ae2a57f8fbef3ca5ae389da7e64d86236112c1995400407d4068a1f92cd9",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "049__presentation-06-floor2-deployment-and-progress__mirelle-voss__page-004.png",
+      "source": "presentation/06-floor2-deployment-and-progress/decks/426bd91efa9f22971afe5b224c05dfeebd4596275c5099506bccb1859abb86cc/page-004.png",
+      "sha256": "be36dba7556197f4c7766531a7db5cfb44fefce5cea8ba5fe490f677b3923940",
+      "mime_type": "image/png",
+      "speaker": "Mirelle Voss",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "050__presentation-06-floor2-deployment-and-progress__narration__page-005.png",
+      "source": "presentation/06-floor2-deployment-and-progress/decks/426bd91efa9f22971afe5b224c05dfeebd4596275c5099506bccb1859abb86cc/page-005.png",
+      "sha256": "de75a2dc4f6ff7ba928e4bf16854e362664d573770b353ae3f84c0a3b9d7a762",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "051__presentation-06-floor2-deployment-and-progress__mirelle-voss__page-006.png",
+      "source": "presentation/06-floor2-deployment-and-progress/decks/426bd91efa9f22971afe5b224c05dfeebd4596275c5099506bccb1859abb86cc/page-006.png",
+      "sha256": "69712454387f407085bf249be5068c07e1ad7da1a548091670d8822d7edc6d08",
+      "mime_type": "image/png",
+      "speaker": "Mirelle Voss",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "052__presentation-06-floor2-deployment-and-progress__narration__page-007.png",
+      "source": "presentation/06-floor2-deployment-and-progress/decks/426bd91efa9f22971afe5b224c05dfeebd4596275c5099506bccb1859abb86cc/page-007.png",
+      "sha256": "dd4be5e6980acf12d2b9fe3be3259e6f1e9f846c25aabdbd8a6f9d689f150f61",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "053__presentation-06-floor2-deployment-and-progress__narration__page-008.png",
+      "source": "presentation/06-floor2-deployment-and-progress/decks/426bd91efa9f22971afe5b224c05dfeebd4596275c5099506bccb1859abb86cc/page-008.png",
+      "sha256": "fd0f04585f967f0d37f527547d43499885e0ac55dbf8f4974aa912aedb0457af",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "054__presentation-07-floor2-clear__narration__page-001.png",
+      "source": "presentation/07-floor2-clear/decks/c47b6de702adbc02f3791f75c849cf54c762aa08c4df22c5d93f63b293373208/page-001.png",
+      "sha256": "5000e5348a60544087749cf242bc2b6c52ed9f1b76569b7ed8e46fe11869f4f0",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "055__presentation-07-floor2-clear__narration__page-002.png",
+      "source": "presentation/07-floor2-clear/decks/c47b6de702adbc02f3791f75c849cf54c762aa08c4df22c5d93f63b293373208/page-002.png",
+      "sha256": "e73dc3d3dba43368a7fef53b8b1dbbf672fa0d7cbd5e514715fd045277c735d2",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "056__presentation-07-floor2-clear__narration__page-003.png",
+      "source": "presentation/07-floor2-clear/decks/c47b6de702adbc02f3791f75c849cf54c762aa08c4df22c5d93f63b293373208/page-003.png",
+      "sha256": "d4ec11ba08754ddbf6a317561a1752e4f8aab4c86e5fc1d643789c018a884bda",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "057__presentation-08-final-iselle-prompt__narration__page-001.png",
+      "source": "presentation/08-final-iselle-prompt/decks/cee7aa112fd9c9b61be137fdad2238607999733ee0276a173e04c6cd6f321148/page-001.png",
+      "sha256": "1861fc1fe3ad650b24bdf230868a096f3f6cde1075d8af687642be9b9307c7b4",
+      "mime_type": "image/png",
+      "speaker": "",
+      "kind": "narration"
+    },
+    {
+      "filename": "058__presentation-08-final-iselle-prompt__iselle__page-002.png",
+      "source": "presentation/08-final-iselle-prompt/decks/cee7aa112fd9c9b61be137fdad2238607999733ee0276a173e04c6cd6f321148/page-002.png",
+      "sha256": "abafb135f9852154fb9c1038a4eec75628a090395a29708439df9904968e1c38",
+      "mime_type": "image/png",
+      "speaker": "Iselle",
+      "kind": "dialogue"
+    },
+    {
+      "filename": "059__presentation-08-final-iselle-prompt__iselle__page-003.png",
+      "source": "presentation/08-final-iselle-prompt/decks/cee7aa112fd9c9b61be137fdad2238607999733ee0276a173e04c6cd6f321148/page-003.png",
+      "sha256": "ea4d10cdbebfb536a922246cb57976a0c58a4d255ec2b62e44b4aa3d550ecab6",
+      "mime_type": "image/png",
+      "speaker": "Iselle",
+      "kind": "dialogue"
+    }
+  ]
+}

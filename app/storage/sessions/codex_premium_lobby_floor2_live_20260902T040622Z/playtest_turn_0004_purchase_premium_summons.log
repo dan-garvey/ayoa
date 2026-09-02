@@ -1,0 +1,55 @@
+* resolving…
+2026-09-01 23:22:26,767 INFO app.engine.orchestrator: Turn 3 for session codex_premium_lobby_floor2_live_20260902T040622Z (acting=the_master)
+2026-09-01 23:22:26,798 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=the_master cat_ii=None
+2026-09-01 23:22:43,784 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:22:43,922 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=3321 out=921 visible_out=499 reasoning=422 cache_read=19767 cache_write=0 full_in=23088 total=24009
+2026-09-01 23:22:43,929 INFO app.engine.turn_loop: router[route] actor=the_master cat=I forced_handoff=False kind='beat_continues' next=['iselle_the_guide'] enrich=[] :: The requested whole 20-Gem pack and five-pull premium batch are configured management operations. Five new arrivals visibly materialize in the lobby; Iselle is selected as the sole immediate next output for the required arrival induction.
+2026-09-01 23:23:06,423 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:23:06,467 ERROR __main__: run_turn failed
+Traceback (most recent call last):
+  File "/home/dan/ayoa/scripts/play.py", line 3271, in _act
+    response = await self.engine.run_turn(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/bot/engine_bridge.py", line 3930, in run_turn
+    return await self._run_turn_locked(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/bot/engine_bridge.py", line 4143, in _run_turn_locked
+    response = await self.orchestrator.process_turn(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/orchestrator.py", line 1629, in process_turn
+    beat_result = await run_beat(
+                  ^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/turn_loop.py", line 4709, in run_beat
+    await _commit_event(
+  File "/home/dan/ayoa/app/engine/turn_loop.py", line 3369, in _commit_event
+    await _prepare_event_once(
+  File "/home/dan/ayoa/app/engine/turn_loop.py", line 3297, in _prepare_event_once
+    await prepare_event_for_broadcast(
+  File "/home/dan/ayoa/app/engine/turn_loop.py", line 2130, in prepare_event_for_broadcast
+    await preparer(
+  File "/home/dan/ayoa/app/engine/turn_loop_dispatcher.py", line 2284, in prepare_ruleset_event
+    await self.materialize_spawns(
+  File "/home/dan/ayoa/app/engine/turn_loop_dispatcher.py", line 2147, in materialize_spawns
+    records = await runtime.authored_records(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/closed_event_runtime.py", line 178, in authored_records
+    return await self.spawn_authoring.result(key)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/spawn_authoring.py", line 145, in result
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/spawn_authoring.py", line 455, in _author
+    records = await self.character_manager.spawn_characters(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/character_manager.py", line 699, in spawn_characters
+    await self._make_casting_plan(checkpoint, spawn_requests)
+  File "/home/dan/ayoa/app/engine/character_manager.py", line 530, in _make_casting_plan
+    response = await self.client.complete(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/llm/client.py", line 509, in complete
+    return await self._complete_openai(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/llm/client.py", line 652, in _complete_openai
+    raise ValueError(
+ValueError: OpenAI response incomplete at max_tokens=2000 (max_output_tokens).
+error: The engine hit an internal error while processing that action. Your last saved checkpoint is intact. Try again, or use /rewind to inspect recent checkpoints if the scene looks wrong.

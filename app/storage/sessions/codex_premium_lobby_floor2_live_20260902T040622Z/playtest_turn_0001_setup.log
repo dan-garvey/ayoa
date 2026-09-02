@@ -1,0 +1,5 @@
+2026-09-01 23:06:51,219 INFO app.bot.engine_bridge: Created empty session codex_premium_lobby_floor2_live_20260902T040622Z at app/storage/sessions/codex_premium_lobby_floor2_live_20260902T040622Z
+2026-09-01 23:06:55,835 INFO app.engine.checkpoint_manager: Saved checkpoint ckpt_0001 for session codex_premium_lobby_floor2_live_20260902T040622Z
+2026-09-01 23:06:55,836 INFO app.bot.engine_bridge: Loaded story one_star_ascension_s1 into session codex_premium_lobby_floor2_live_20260902T040622Z
+usage: /join <name|#> [--name "Name"] [--appearance "Description"]
+error: Master commands are available only to the character that owns this System account.

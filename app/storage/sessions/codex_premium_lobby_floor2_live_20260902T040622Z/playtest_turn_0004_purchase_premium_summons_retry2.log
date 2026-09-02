@@ -1,0 +1,81 @@
+* resolving…
+2026-09-01 23:28:03,303 INFO app.engine.orchestrator: Turn 3 for session codex_premium_lobby_floor2_live_20260902T040622Z (acting=the_master)
+2026-09-01 23:28:03,326 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=the_master cat_ii=None
+2026-09-01 23:28:15,212 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:28:15,333 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=3 out=949 visible_out=478 reasoning=471 cache_read=23085 cache_write=0 full_in=23088 total=24037
+2026-09-01 23:28:15,339 INFO app.engine.turn_loop: router[route] actor=the_master cat=I forced_handoff=False kind='state_change' next=['iselle_the_guide'] enrich=[] :: The Master’s configured 20-Gem purchase and five-premium-pull batch are valid account operations. The purchases materially change the lobby as five new arrivals form; Iselle is selected as the sole immediate next output to deliver the required survival induction.
+2026-09-01 23:28:51,186 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:28:51,243 INFO app.llm.client: LLM usage role=character_manager provider=openai model=gpt-5.6-luna in=3 out=3164 visible_out=225 reasoning=2939 cache_read=2936 cache_write=0 full_in=2939 total=6103
+2026-09-01 23:31:24,677 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:31:24,791 INFO app.llm.client: LLM usage role=character_manager provider=openai model=gpt-5.6-luna in=1454 out=14950 visible_out=599 reasoning=14351 cache_read=2241 cache_write=0 full_in=3695 total=18645
+2026-09-01 23:31:58,973 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:31:59,175 INFO app.llm.client: LLM usage role=character_manager provider=openai model=gpt-5.6-luna in=1563 out=16803 visible_out=747 reasoning=16056 cache_read=2241 cache_write=0 full_in=3804 total=20607
+2026-09-01 23:31:59,176 INFO app.engine.character_manager: Spawned character: Odelia Marr (niflheim_premium_0002)
+2026-09-01 23:31:59,176 INFO app.engine.character_manager: Spawned character: Perrin Vale (niflheim_premium_0005)
+2026-09-01 23:31:59,200 INFO app.engine.character_manager: Character wren_thelantern woken to active at niflheim_lobby
+2026-09-01 23:31:59,200 INFO app.engine.character_manager: Character liora_fen woken to active at niflheim_lobby
+2026-09-01 23:31:59,200 INFO app.engine.character_manager: Character rowan_kest woken to active at niflheim_lobby
+2026-09-01 23:31:59,328 INFO app.engine.character_agent: Agent Iselle (iselle_the_guide) turn [foreground]: history=2 msgs
+2026-09-01 23:32:13,200 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:32:13,253 INFO app.llm.client: LLM usage role=agent_convenience provider=openai model=gpt-5.6-luna in=3220 out=1137 visible_out=115 reasoning=1022 cache_read=1200 cache_write=0 full_in=4420 total=5557
+2026-09-01 23:32:13,253 INFO app.engine.character_agent: Agent Iselle turn: 462 chars public, silence=False
+2026-09-01 23:32:13,255 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=iselle_the_guide cat_ii=None
+2026-09-01 23:32:26,834 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:32:26,902 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=5080 out=1204 visible_out=688 reasoning=516 cache_read=19767 cache_write=0 full_in=24847 total=26051
+2026-09-01 23:32:26,904 INFO app.engine.turn_loop: router[speculative_route] actor=iselle_the_guide cat=I forced_handoff=False kind='cascade_exhausted' next=[] enrich=[] :: Iselle delivers the required single immediate survival induction to the five direct premium-summon arrivals. The induction contract closes without listener reactions, a question round, or a discretionary Master handoff.
+2026-09-01 23:32:27,057 INFO app.engine.narrator: compose_pov_render: pov=the_master events=2 partial=False mode=event_aligned history=4 msgs (prompt_render_ms=1.7)
+2026-09-01 23:32:30,297 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:32:30,341 INFO app.llm.client: LLM usage role=image_director provider=openai model=gpt-5-mini-2025-08-07 in=1684 out=192 visible_out=64 reasoning=128 cache_read=0 cache_write=0 full_in=1684 total=1876
+2026-09-01 23:32:32,057 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:32:32,152 INFO app.llm.client: LLM usage role=narrator provider=openai model=gpt-5.6-terra in=1074 out=362 visible_out=239 reasoning=123 cache_read=5363 cache_write=0 full_in=6437 total=6799
+2026-09-01 23:32:32,153 INFO app.engine.narrator: compose_pov_render: pov=the_master rendered 669 chars
+2026-09-01 23:32:32,153 INFO app.engine.turn_loop.narrator_handoff: Narrator handoff judgment: pov=the_master decision=render reason=Iselle’s arrival briefing has concluded after the five summons resolve. events=2
+2026-09-01 23:32:32,158 INFO app.engine.turn_loop: Beat closed: events=2 reason=cascade_exhausted renders=1 release_slots=True force_partial=False reaction_prompts=0
+2026-09-01 23:32:32,159 INFO app.engine.character_manager: Character wren_thelantern woken to active at niflheim_lobby
+2026-09-01 23:32:32,159 INFO app.engine.character_manager: Character liora_fen woken to active at niflheim_lobby
+2026-09-01 23:32:32,159 INFO app.engine.character_manager: Character rowan_kest woken to active at niflheim_lobby
+2026-09-01 23:32:32,162 INFO app.engine.checkpoint_manager: Saved checkpoint ckpt_0004 for session codex_premium_lobby_floor2_live_20260902T040622Z
+
+--- Story update 4 · viewed as the Master ---
+* illustrating…
+2026-09-01 23:32:33,463 ERROR app.bot.engine_bridge: visual-novel sprite prewarm failed session=codex_premium_lobby_floor2_live_20260902T040622Z
+Traceback (most recent call last):
+  File "/home/dan/ayoa/app/bot/engine_bridge.py", line 729, in _prewarm_visual_novel_sprites
+    and job.request.character_id in required_id_set
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/.venv/lib/python3.12/site-packages/pydantic/main.py", line 1026, in __getattr__
+    raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+AttributeError: 'ImageGenerationRequest' object has no attribute 'character_id'
+2026-09-01 23:32:33,788 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:32:33,835 INFO app.llm.client: LLM usage role=image_director provider=openai model=gpt-5-mini-2025-08-07 in=1838 out=255 visible_out=63 reasoning=192 cache_read=0 cache_write=0 full_in=1838 total=2093
+Five columns of premium summon-light descend into Niflheim’s lobby and resolve into five newly summoned Heroes around the circle. [ 20-Gem pack purchase accepted ] [ Premium Summons performed: 5 ]
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/ae07cfe175988b6f3bca34bfedb2365d6e6c2b614f75ded543ab17fb17dccb53.png
+Summon reveal — pull 1 of 5: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59.gif
+System panel — Hero acquired (pull 1 of 5): Odelia Marr — 3 stars (portrait unavailable)
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/034450dbcc7218028c3070487e76f4388e7845867315825653a2d1d854ae317d.png
+Summon reveal — pull 2 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded.gif
+System panel — Hero acquired (pull 2 of 5): Perrin Vale — 2 stars (portrait unavailable)
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/f5d6225a6531f997bbe4923cc70ed2a6fe1587d8902be686a1dd4df477804760.png
+Summon reveal — pull 3 of 5: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59.gif
+System panel — Hero acquired (pull 3 of 5): Wren — 3 stars
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/15d9a299623e5d705b4b6b082b3a4dee235bce12a34a4ed16bf8c3d5517b59c8.png
+Summon reveal — pull 4 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded.gif
+System panel — Hero acquired (pull 4 of 5): Liora Fen — 2 stars
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/08debf42ba9c692e9d538af70cc062c552f5c08e269b8dc253027b1f7d82b75f.png
+Summon reveal — pull 5 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded.gif
+System panel — Hero acquired (pull 5 of 5): Rowan Kest — 2 stars
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/9f0528f15bb4b5b2ee3eb7b96b66dc45a47d2934c953964d3dabb4358a00c33c.png
+System panel — Heroes acquired: Odelia Marr — 3 stars (portrait unavailable); Perrin Vale — 2 stars (portrait unavailable); Wren — 3 stars; Liora Fen — 2 stars; Rowan Kest — 2 stars
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/6f2c4e3a59e554c400a449ded410aa45fb89bc428fc1bb91ea51d6bcf50c0538.png
+Iselle zips into the center of the fading summon-light, wings buzzing, her smile bright and sharp.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/6761044c99bcef035dde85f41dfae6b4f46135be1b340b4a569d11579cc3a5c8.png
+Iselle: Welcome to Niflheim, fresh arrivals—the lobby! That silent Master owns this roster and decides who gets deployed. The gate leads to a separate, lethal floor. Once deployed, you choose how you fight; clear the objective and survivors return. The ordinary gate will not bring you back early.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/cf1025ba297429faf00c4de5564c901037d0bb05b7a7930be9404781974dbf32.png
+Iselle: Death or synthesis is permanent. Cheerful, simple, and absolutely final!
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/6aba6b10823db5442cc0b3497d785859c57ed256ae97cdcd6409e79581a3840d.png
+

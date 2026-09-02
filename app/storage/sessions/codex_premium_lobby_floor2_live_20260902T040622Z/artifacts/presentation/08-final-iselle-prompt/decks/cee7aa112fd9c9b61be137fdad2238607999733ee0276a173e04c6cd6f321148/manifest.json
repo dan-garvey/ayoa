@@ -1,0 +1,126 @@
+{
+  "cards": [
+    {
+      "count": 3,
+      "filename": "page-001.png",
+      "index": 1,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "1861fc1fe3ad650b24bdf230868a096f3f6cde1075d8af687642be9b9307c7b4",
+      "speaker": "",
+      "text": "The live lobby view shows Iselle spinning before the Tower gate and\nsnapping her cap straight."
+    },
+    {
+      "count": 3,
+      "filename": "page-002.png",
+      "index": 2,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "abafb135f9852154fb9c1038a4eec75628a090395a29708439df9904968e1c38",
+      "speaker": "Iselle",
+      "text": "Floor Two cleared! The upper beacon is relit; the account gained 5 Gold and\n1 Building Resource, bringing it to 49 Gold and 5 Building Resources. Floor\nThree is unlocked, and stamina is down to 3/5."
+    },
+    {
+      "count": 3,
+      "filename": "page-003.png",
+      "index": 3,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "ea4d10cdbebfb536a922246cb57976a0c58a4d255ec2b62e44b4aa3d550ecab6",
+      "speaker": "Iselle",
+      "text": "Now choose: buy one basic summon for 2 Gold, or send Renna Holt and\nMirelle Voss back through the gate for Floor Three. Which risk gets the next\nturn, Master?"
+    }
+  ],
+  "deck_id": "cee7aa112fd9c9b61be137fdad2238607999733ee0276a173e04c6cd6f321148",
+  "identity": {
+    "card_size": [
+      1024,
+      576
+    ],
+    "fonts": {
+      "bold_sha256": "d1c3ff99f1e1ce1827a33efd4dad81f40babda06bff9e43bd7591c86662a287b",
+      "regular_sha256": "690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648"
+    },
+    "renderer": "classic-adv-v10-panel-media",
+    "sections": [
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "The live lobby view shows Iselle spinning before the Tower gate and\nsnapping her cap straight."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              512,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_iselle_the_guide_v1",
+            "scale_percent": 98,
+            "slot": "center",
+            "source_byte_count": 909059,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "5405f02372122db2188eb43cb2133789edee02a9e372bee48fcc1ad26468791b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.108fba821d348c939290e52c",
+            "variant_handle": "osa_vnsprite_iselle_the_guide_happy_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Iselle",
+            "text": "Floor Two cleared! The upper beacon is relit; the account gained 5 Gold and\n1 Building Resource, bringing it to 49 Gold and 5 Building Resources. Floor\nThree is unlocked, and stamina is down to 3/5."
+          },
+          {
+            "kind": "dialogue",
+            "speaker": "Iselle",
+            "text": "Now choose: buy one basic summon for 2 Gold, or send Renna Holt and\nMirelle Voss back through the gate for Floor Three. Which risk gets the next\nturn, Master?"
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              512,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_iselle_the_guide_v1",
+            "scale_percent": 98,
+            "slot": "center",
+            "source_byte_count": 909059,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "5405f02372122db2188eb43cb2133789edee02a9e372bee48fcc1ad26468791b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.108fba821d348c939290e52c",
+            "variant_handle": "osa_vnsprite_iselle_the_guide_happy_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      }
+    ]
+  },
+  "transcript": "The live lobby view shows Iselle spinning before the Tower gate and snapping her cap straight.\n\nIselle: Floor Two cleared! The upper beacon is relit; the account gained 5 Gold and 1 Building Resource, bringing it to 49 Gold and 5 Building Resources. Floor Three is unlocked, and stamina is down to 3/5.\n\nIselle: Now choose: buy one basic summon for 2 Gold, or send Renna Holt and Mirelle Voss back through the gate for Floor Three. Which risk gets the next turn, Master?",
+  "used_neutral_stage": false,
+  "version": 3
+}

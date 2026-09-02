@@ -1,0 +1,316 @@
+{
+  "cards": [
+    {
+      "count": 7,
+      "filename": "page-001.png",
+      "index": 1,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "2e13f9c27ecffe6d62e757705a38a38060e3f50cc4ab0a2c54ad928139f0c2d4",
+      "speaker": "",
+      "text": "Renna Holt angles away from Mirelle Voss's bleeding arm, draws to her\ncheek, and sends an arrow into the last goblin's weapon shoulder. Its blade\ndrops. It collapses against the rubble and cannot rise."
+    },
+    {
+      "count": 7,
+      "filename": "page-002.png",
+      "index": 2,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "04bccbbd442df4c1eaa3d15d2fbc41db1fe4d63b1fbebe306000ab8b44b9dbe4",
+      "speaker": "",
+      "text": "Pale summon-light gathers around Renna and Mirelle, carrying them out of\nthe ruined stone."
+    },
+    {
+      "count": 7,
+      "filename": "page-003.png",
+      "index": 3,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "05265df6f03b630347ce3436b1a385ede32898deb57c3f5612cce4da26860747",
+      "speaker": "",
+      "text": "[ Floor 1 mission complete ] [ Floor 1 first-clear reward applied: 4 Gold and 1\nBuilding Resources ] [ Account resources now: 44 Gold, 5 Gems, 4 Building\nResources ] [ Tower floor 2 unlocked ] [ Renna Holt mission reward: 100 XP\napplied; 1 level gained; agility +1 ] [ Mirelle Voss mission reward:"
+    },
+    {
+      "count": 7,
+      "filename": "page-004.png",
+      "index": 4,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "1c31284005261da6f31e47b146d5c98636664b14e178bd1e01803d57daf9e2eb",
+      "speaker": "",
+      "text": "100 XP applied; 1 level gained; power +1 ]"
+    },
+    {
+      "count": 7,
+      "filename": "page-005.png",
+      "index": 5,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "87fe0f3429a968dfeed6d1143fb93f38f5a85bc43e3ebf46baaf272df3f58f11",
+      "speaker": "",
+      "text": "The live lobby view shows Iselle flitting beside the gate and clapping."
+    },
+    {
+      "count": 7,
+      "filename": "page-006.png",
+      "index": 6,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "4ff750dc0751b53679dd0301a45384e66c3cf1c2998abedd83159912e74b0637",
+      "speaker": "Iselle",
+      "text": "Floor One cleared! Renna Holt and Mirelle Voss came back. Edren Marr is\ndead—permanent, no undo. The first-clear payout leaves the account with\n44 Gold, 5 Gems, and 4 Building Resources, and Floor Two is unlocked."
+    },
+    {
+      "count": 7,
+      "filename": "page-007.png",
+      "index": 7,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "70bb52b0c1a06e3709400ce1ca5e81036a588f4aaae62f012d71f0d2afedd9d5",
+      "speaker": "Iselle",
+      "text": "Spend 2 Gold on one basic summon to put another body in the roster, or\nsend those two straight through the next gate with stamina at 4/5. Choose\nwhat you want to risk next, Master."
+    }
+  ],
+  "deck_id": "03730fc20971e6f9453167d24a2c8848b513dc5d33d4f8794414b31c770c6fd3",
+  "identity": {
+    "card_size": [
+      1024,
+      576
+    ],
+    "fonts": {
+      "bold_sha256": "d1c3ff99f1e1ce1827a33efd4dad81f40babda06bff9e43bd7591c86662a287b",
+      "regular_sha256": "690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648"
+    },
+    "renderer": "classic-adv-v10-panel-media",
+    "sections": [
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Renna Holt angles away from Mirelle Voss's bleeding arm, draws to her\ncheek, and sends an arrow into the last goblin's weapon shoulder. Its blade\ndrops. It collapses against the rubble and cannot rise."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 649523,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "eed94ccca8fd3c16e1c5b21f34334f150854d9b954c5d3d99ca02118fc28d6e9",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_tense_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 1111710,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "72c33dd0079439a28a9cdc2110412c65d6b5e69b66ea2c6032e98efe83e1696b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_angry_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Pale summon-light gathers around Renna and Mirelle, carrying them out of\nthe ruined stone."
+          },
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "[ Floor 1 mission complete ] [ Floor 1 first-clear reward applied: 4 Gold and 1\nBuilding Resources ] [ Account resources now: 44 Gold, 5 Gems, 4 Building\nResources ] [ Tower floor 2 unlocked ] [ Renna Holt mission reward: 100 XP\napplied; 1 level gained; agility +1 ] [ Mirelle Voss mission reward:"
+          },
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "100 XP applied; 1 level gained; power +1 ]"
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 649523,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "eed94ccca8fd3c16e1c5b21f34334f150854d9b954c5d3d99ca02118fc28d6e9",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_tense_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 1111710,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "72c33dd0079439a28a9cdc2110412c65d6b5e69b66ea2c6032e98efe83e1696b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_angry_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "The live lobby view shows Iselle flitting beside the gate and clapping."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              512,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_iselle_the_guide_v1",
+            "scale_percent": 98,
+            "slot": "center",
+            "source_byte_count": 909059,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "5405f02372122db2188eb43cb2133789edee02a9e372bee48fcc1ad26468791b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.108fba821d348c939290e52c",
+            "variant_handle": "osa_vnsprite_iselle_the_guide_happy_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Iselle",
+            "text": "Floor One cleared! Renna Holt and Mirelle Voss came back. Edren Marr is\ndead—permanent, no undo. The first-clear payout leaves the account with\n44 Gold, 5 Gems, and 4 Building Resources, and Floor Two is unlocked."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              512,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_iselle_the_guide_v1",
+            "scale_percent": 98,
+            "slot": "center",
+            "source_byte_count": 909059,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "5405f02372122db2188eb43cb2133789edee02a9e372bee48fcc1ad26468791b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.108fba821d348c939290e52c",
+            "variant_handle": "osa_vnsprite_iselle_the_guide_happy_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Iselle",
+            "text": "Spend 2 Gold on one basic summon to put another body in the roster, or\nsend those two straight through the next gate with stamina at 4/5. Choose\nwhat you want to risk next, Master."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              512,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_iselle_the_guide_v1",
+            "scale_percent": 98,
+            "slot": "center",
+            "source_byte_count": 909059,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "5405f02372122db2188eb43cb2133789edee02a9e372bee48fcc1ad26468791b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.108fba821d348c939290e52c",
+            "variant_handle": "osa_vnsprite_iselle_the_guide_happy_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      }
+    ]
+  },
+  "transcript": "Renna Holt angles away from Mirelle Voss's bleeding arm, draws to her cheek, and sends an arrow into the last goblin's weapon shoulder. Its blade drops. It collapses against the rubble and cannot rise.\n\nPale summon-light gathers around Renna and Mirelle, carrying them out of the ruined stone.\n\n[ Floor 1 mission complete ] [ Floor 1 first-clear reward applied: 4 Gold and 1 Building Resources ] [ Account resources now: 44 Gold, 5 Gems, 4 Building Resources ] [ Tower floor 2 unlocked ] [ Renna Holt mission reward: 100 XP applied; 1 level gained; agility +1 ] [ Mirelle Voss mission reward:\n\n100 XP applied; 1 level gained; power +1 ]\n\nThe live lobby view shows Iselle flitting beside the gate and clapping.\n\nIselle: Floor One cleared! Renna Holt and Mirelle Voss came back. Edren Marr is dead—permanent, no undo. The first-clear payout leaves the account with 44 Gold, 5 Gems, and 4 Building Resources, and Floor Two is unlocked.\n\nIselle: Spend 2 Gold on one basic summon to put another body in the roster, or send those two straight through the next gate with stamina at 4/5. Choose what you want to risk next, Master.",
+  "used_neutral_stage": true,
+  "version": 3
+}

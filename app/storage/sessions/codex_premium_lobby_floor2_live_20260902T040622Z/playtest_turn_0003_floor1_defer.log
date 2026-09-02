@@ -1,0 +1,56 @@
+* resolving…
+2026-09-01 23:19:59,819 INFO app.engine.orchestrator: Turn 2 for session codex_premium_lobby_floor2_live_20260902T040622Z (acting=the_master)
+2026-09-01 23:19:59,853 INFO app.engine.character_agent: Agent Renna Holt (renna_holt) turn [foreground]: history=4 msgs
+2026-09-01 23:20:06,628 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:20:06,731 INFO app.llm.client: LLM usage role=agent_convenience provider=openai model=gpt-5.6-luna in=1536 out=490 visible_out=55 reasoning=435 cache_read=1200 cache_write=0 full_in=2736 total=3226
+2026-09-01 23:20:06,731 INFO app.engine.character_agent: Agent Renna Holt turn: 179 chars public, silence=False
+2026-09-01 23:20:06,752 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=renna_holt cat_ii=None
+2026-09-01 23:20:21,501 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:20:21,566 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=2386 out=1227 visible_out=711 reasoning=516 cache_read=19767 cache_write=0 full_in=22153 total=23380
+2026-09-01 23:20:21,571 WARNING app.engine.turn_loop_dispatcher: Retrying invalid One-Star router output once: autonomous mission batch cannot author generic lifecycle, commitment, or location changes
+2026-09-01 23:20:34,420 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:20:34,493 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=946 out=1211 visible_out=695 reasoning=516 cache_read=22150 cache_write=0 full_in=23096 total=24307
+2026-09-01 23:20:34,499 INFO app.engine.turn_loop: router[speculative_route] actor=renna_holt cat=I forced_handoff=False kind='state_change' next=['iselle_the_guide'] enrich=[] :: mission_status: id=floor_1_goblin_ambush; state=cleared; completion=At least one deployed Hero remains alive after the several goblins present at arrival have been killed, driven off, or made unable to continue the attack.; progress=ambush_survived=1/1; failure=No deployed Hero remains alive.; timing=untimed
+Renna Holt has a clear shot after Mirelle Voss breaks the press. The final goblin is made unable to continue, satisfying the fixed survival condition. The terminal mission result returns the surviving party under mission authority; iselle_the_guide has the sole immediate post-mission lobby prompt.
+2026-09-01 23:20:34,577 INFO app.engine.character_agent: Agent Iselle (iselle_the_guide) turn [foreground]: history=0 msgs
+2026-09-01 23:20:34,629 INFO app.engine.narrator: compose_pov_render: pov=the_master events=1 partial=False mode=event_aligned history=2 msgs (prompt_render_ms=1.5)
+2026-09-01 23:20:38,525 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:20:38,595 INFO app.llm.client: LLM usage role=narrator provider=openai model=gpt-5.6-terra in=741 out=151 visible_out=41 reasoning=110 cache_read=5363 cache_write=0 full_in=6104 total=6255
+2026-09-01 23:20:38,595 INFO app.engine.narrator: compose_pov_render: pov=the_master rendered 0 chars
+2026-09-01 23:20:38,595 INFO app.engine.turn_loop.narrator_handoff: Narrator handoff judgment: pov=the_master decision=continue reason=The survivors' autonomous finishing move and return proceed without a player-owned response. events=1
+2026-09-01 23:21:16,287 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:21:16,340 INFO app.llm.client: LLM usage role=agent_convenience provider=openai model=gpt-5.6-luna in=2383 out=3897 visible_out=159 reasoning=3738 cache_read=1200 cache_write=0 full_in=3583 total=7480
+2026-09-01 23:21:16,340 INFO app.engine.character_agent: Agent Iselle turn: 562 chars public, silence=False
+2026-09-01 23:21:16,343 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=iselle_the_guide cat_ii=None
+2026-09-01 23:21:39,050 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:21:39,122 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=3014 out=1812 visible_out=783 reasoning=1029 cache_read=19767 cache_write=0 full_in=22781 total=24593
+2026-09-01 23:21:39,124 INFO app.engine.turn_loop: router[speculative_route] actor=iselle_the_guide cat=I forced_handoff=False kind='response_requested' next=['the_master'] enrich=[] :: mission_status: id=floor_1_goblin_ambush; state=cleared; completion=At least one deployed Hero remains alive after the several goblins present at arrival have been killed, driven off, or made unable to continue the attack.; progress=ambush_survived=1/1; failure=No deployed Hero remains alive.; timing=untimed
+Iselle's supplied debrief and management prompt follow the cleared mission return. The_master is directly addressed for the next lobby-management choice; Renna Holt and Mirelle Voss receive the co-present announcement but are not owed tactical responses.
+2026-09-01 23:21:39,250 INFO app.engine.narrator: compose_pov_render: pov=the_master events=2 partial=False mode=event_aligned history=2 msgs (prompt_render_ms=0.4)
+2026-09-01 23:21:44,688 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:21:44,755 INFO app.llm.client: LLM usage role=narrator provider=openai model=gpt-5.6-terra in=919 out=474 visible_out=433 reasoning=41 cache_read=5363 cache_write=0 full_in=6282 total=6756
+2026-09-01 23:21:44,756 INFO app.engine.narrator: compose_pov_render: pov=the_master rendered 1121 chars
+2026-09-01 23:21:44,756 INFO app.engine.turn_loop.narrator_handoff: Narrator handoff judgment: pov=the_master decision=render reason=Iselle asks you to choose between a basic summon and another deployment. events=2
+2026-09-01 23:21:44,773 INFO app.engine.turn_loop: Beat closed: events=2 reason=awaiting_player_turn renders=1 release_slots=True force_partial=False reaction_prompts=0
+2026-09-01 23:21:44,778 INFO app.engine.checkpoint_manager: Saved checkpoint ckpt_0003 for session codex_premium_lobby_floor2_live_20260902T040622Z
+
+--- Story update 3 · viewed as the Master ---
+* illustrating…
+2026-09-01 23:22:05,002 INFO app.bot.engine_bridge: visual-novel stage generation exceeded presentation budget session=codex_premium_lobby_floor2_live_20260902T040622Z
+2026-09-01 23:22:05,011 INFO app.bot.engine_bridge: visual-novel neutral stage session=codex_premium_lobby_floor2_live_20260902T040622Z pov=the_master segment=1 reason=current_direction_failed
+2026-09-01 23:22:05,032 INFO app.bot.engine_bridge: visual-novel neutral stage session=codex_premium_lobby_floor2_live_20260902T040622Z pov=the_master segment=2 reason=current_direction_failed
+Renna Holt angles away from Mirelle Voss's bleeding arm, draws to her cheek, and sends an arrow into the last goblin's weapon shoulder. Its blade drops. It collapses against the rubble and cannot rise.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/2e13f9c27ecffe6d62e757705a38a38060e3f50cc4ab0a2c54ad928139f0c2d4.png
+Pale summon-light gathers around Renna and Mirelle, carrying them out of the ruined stone.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/04bccbbd442df4c1eaa3d15d2fbc41db1fe4d63b1fbebe306000ab8b44b9dbe4.png
+[ Floor 1 mission complete ] [ Floor 1 first-clear reward applied: 4 Gold and 1 Building Resources ] [ Account resources now: 44 Gold, 5 Gems, 4 Building Resources ] [ Tower floor 2 unlocked ] [ Renna Holt mission reward: 100 XP applied; 1 level gained; agility +1 ] [ Mirelle Voss mission reward:
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/05265df6f03b630347ce3436b1a385ede32898deb57c3f5612cce4da26860747.png
+100 XP applied; 1 level gained; power +1 ]
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/1c31284005261da6f31e47b146d5c98636664b14e178bd1e01803d57daf9e2eb.png
+The live lobby view shows Iselle flitting beside the gate and clapping.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/87fe0f3429a968dfeed6d1143fb93f38f5a85bc43e3ebf46baaf272df3f58f11.png
+Iselle: Floor One cleared! Renna Holt and Mirelle Voss came back. Edren Marr is dead—permanent, no undo. The first-clear payout leaves the account with 44 Gold, 5 Gems, and 4 Building Resources, and Floor Two is unlocked.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/4ff750dc0751b53679dd0301a45384e66c3cf1c2998abedd83159912e74b0637.png
+Iselle: Spend 2 Gold on one basic summon to put another body in the roster, or send those two straight through the next gate with stamina at 4/5. Choose what you want to risk next, Master.
+Card image: app/storage/runtime/visual_novel_presentation/cli_cache/session-349d0c880c91926e/70bb52b0c1a06e3709400ce1ca5e81036a588f4aaae62f012d71f0d2afedd9d5.png
+

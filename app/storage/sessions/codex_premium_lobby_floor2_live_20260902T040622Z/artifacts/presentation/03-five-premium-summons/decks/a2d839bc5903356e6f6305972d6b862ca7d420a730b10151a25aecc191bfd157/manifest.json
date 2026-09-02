@@ -1,0 +1,414 @@
+{
+  "cards": [
+    {
+      "count": 15,
+      "filename": "page-001.png",
+      "index": 1,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "ae07cfe175988b6f3bca34bfedb2365d6e6c2b614f75ded543ab17fb17dccb53",
+      "speaker": "",
+      "text": "Five columns of premium summon-light descend into Niflheim’s lobby and\nresolve into five newly summoned Heroes around the circle. [ 20-Gem pack\npurchase accepted ] [ Premium Summons performed: 5 ]"
+    },
+    {
+      "count": 15,
+      "filename": "page-002.gif",
+      "index": 2,
+      "kind": "narration",
+      "mime_type": "image/gif",
+      "sha256": "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+      "speaker": "",
+      "text": "Summon reveal — pull 1 of 5: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card."
+    },
+    {
+      "count": 15,
+      "filename": "page-003.png",
+      "index": 3,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "034450dbcc7218028c3070487e76f4388e7845867315825653a2d1d854ae317d",
+      "speaker": "",
+      "text": "System panel — Hero acquired (pull 1 of 5): Odelia Marr — 3 stars (portrait unavailable)"
+    },
+    {
+      "count": 15,
+      "filename": "page-004.gif",
+      "index": 4,
+      "kind": "narration",
+      "mime_type": "image/gif",
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "speaker": "",
+      "text": "Summon reveal — pull 2 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card."
+    },
+    {
+      "count": 15,
+      "filename": "page-005.png",
+      "index": 5,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "f5d6225a6531f997bbe4923cc70ed2a6fe1587d8902be686a1dd4df477804760",
+      "speaker": "",
+      "text": "System panel — Hero acquired (pull 2 of 5): Perrin Vale — 2 stars (portrait unavailable)"
+    },
+    {
+      "count": 15,
+      "filename": "page-006.gif",
+      "index": 6,
+      "kind": "narration",
+      "mime_type": "image/gif",
+      "sha256": "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+      "speaker": "",
+      "text": "Summon reveal — pull 3 of 5: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card."
+    },
+    {
+      "count": 15,
+      "filename": "page-007.png",
+      "index": 7,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "15d9a299623e5d705b4b6b082b3a4dee235bce12a34a4ed16bf8c3d5517b59c8",
+      "speaker": "",
+      "text": "System panel — Hero acquired (pull 3 of 5): Wren — 3 stars"
+    },
+    {
+      "count": 15,
+      "filename": "page-008.gif",
+      "index": 8,
+      "kind": "narration",
+      "mime_type": "image/gif",
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "speaker": "",
+      "text": "Summon reveal — pull 4 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card."
+    },
+    {
+      "count": 15,
+      "filename": "page-009.png",
+      "index": 9,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "08debf42ba9c692e9d538af70cc062c552f5c08e269b8dc253027b1f7d82b75f",
+      "speaker": "",
+      "text": "System panel — Hero acquired (pull 4 of 5): Liora Fen — 2 stars"
+    },
+    {
+      "count": 15,
+      "filename": "page-010.gif",
+      "index": 10,
+      "kind": "narration",
+      "mime_type": "image/gif",
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "speaker": "",
+      "text": "Summon reveal — pull 5 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card."
+    },
+    {
+      "count": 15,
+      "filename": "page-011.png",
+      "index": 11,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "9f0528f15bb4b5b2ee3eb7b96b66dc45a47d2934c953964d3dabb4358a00c33c",
+      "speaker": "",
+      "text": "System panel — Hero acquired (pull 5 of 5): Rowan Kest — 2 stars"
+    },
+    {
+      "count": 15,
+      "filename": "page-012.png",
+      "index": 12,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "6f2c4e3a59e554c400a449ded410aa45fb89bc428fc1bb91ea51d6bcf50c0538",
+      "speaker": "",
+      "text": "System panel — Heroes acquired: Odelia Marr — 3 stars (portrait unavailable); Perrin Vale — 2 stars (portrait unavailable); Wren — 3 stars; Liora Fen — 2 stars; Rowan Kest — 2 stars"
+    },
+    {
+      "count": 15,
+      "filename": "page-013.png",
+      "index": 13,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "6761044c99bcef035dde85f41dfae6b4f46135be1b340b4a569d11579cc3a5c8",
+      "speaker": "",
+      "text": "Iselle zips into the center of the fading summon-light, wings buzzing, her\nsmile bright and sharp."
+    },
+    {
+      "count": 15,
+      "filename": "page-014.png",
+      "index": 14,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "cf1025ba297429faf00c4de5564c901037d0bb05b7a7930be9404781974dbf32",
+      "speaker": "Iselle",
+      "text": "Welcome to Niflheim, fresh arrivals—the lobby! That silent Master owns this\nroster and decides who gets deployed. The gate leads to a separate, lethal\nfloor. Once deployed, you choose how you fight; clear the objective and\nsurvivors return. The ordinary gate will not bring you back early."
+    },
+    {
+      "count": 15,
+      "filename": "page-015.png",
+      "index": 15,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "6aba6b10823db5442cc0b3497d785859c57ed256ae97cdcd6409e79581a3840d",
+      "speaker": "Iselle",
+      "text": "Death or synthesis is permanent. Cheerful, simple, and absolutely final!"
+    }
+  ],
+  "deck_id": "a2d839bc5903356e6f6305972d6b862ca7d420a730b10151a25aecc191bfd157",
+  "identity": {
+    "card_size": [
+      1024,
+      576
+    ],
+    "fonts": {
+      "bold_sha256": "d1c3ff99f1e1ce1827a33efd4dad81f40babda06bff9e43bd7591c86662a287b",
+      "regular_sha256": "690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648"
+    },
+    "renderer": "classic-adv-v10-panel-media",
+    "sections": [
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Five columns of premium summon-light descend into Niflheim’s lobby and\nresolve into five newly summoned Heroes around the circle. [ 20-Gem pack\npurchase accepted ] [ Premium Summons performed: 5 ]"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "82b568c7b8676c4122e24b5f853bc005738285c31fa5e15b14e129cca4b640ce",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/gif",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Summon reveal — pull 1 of 5: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card."
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Hero acquired (pull 1 of 5): Odelia Marr — 3 stars (portrait unavailable)"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "034450dbcc7218028c3070487e76f4388e7845867315825653a2d1d854ae317d",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/gif",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Summon reveal — pull 2 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card."
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Hero acquired (pull 2 of 5): Perrin Vale — 2 stars (portrait unavailable)"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "f5d6225a6531f997bbe4923cc70ed2a6fe1587d8902be686a1dd4df477804760",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/gif",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Summon reveal — pull 3 of 5: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card."
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Hero acquired (pull 3 of 5): Wren — 3 stars"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "15d9a299623e5d705b4b6b082b3a4dee235bce12a34a4ed16bf8c3d5517b59c8",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/gif",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Summon reveal — pull 4 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card."
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Hero acquired (pull 4 of 5): Liora Fen — 2 stars"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "08debf42ba9c692e9d538af70cc062c552f5c08e269b8dc253027b1f7d82b75f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/gif",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Summon reveal — pull 5 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card."
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Hero acquired (pull 5 of 5): Rowan Kest — 2 stars"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "9f0528f15bb4b5b2ee3eb7b96b66dc45a47d2934c953964d3dabb4358a00c33c",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Heroes acquired: Odelia Marr — 3 stars (portrait unavailable); Perrin Vale — 2 stars (portrait unavailable); Wren — 3 stars; Liora Fen — 2 stars; Rowan Kest — 2 stars"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "6f2c4e3a59e554c400a449ded410aa45fb89bc428fc1bb91ea51d6bcf50c0538",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Iselle zips into the center of the fading summon-light, wings buzzing, her\nsmile bright and sharp."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              512,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_iselle_the_guide_v1",
+            "scale_percent": 98,
+            "slot": "center",
+            "source_byte_count": 909059,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "5405f02372122db2188eb43cb2133789edee02a9e372bee48fcc1ad26468791b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.108fba821d348c939290e52c",
+            "variant_handle": "osa_vnsprite_iselle_the_guide_happy_v1"
+          }
+        ],
+        "stage_sha256": "82b568c7b8676c4122e24b5f853bc005738285c31fa5e15b14e129cca4b640ce",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Iselle",
+            "text": "Welcome to Niflheim, fresh arrivals—the lobby! That silent Master owns this\nroster and decides who gets deployed. The gate leads to a separate, lethal\nfloor. Once deployed, you choose how you fight; clear the objective and\nsurvivors return. The ordinary gate will not bring you back early."
+          },
+          {
+            "kind": "dialogue",
+            "speaker": "Iselle",
+            "text": "Death or synthesis is permanent. Cheerful, simple, and absolutely final!"
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              512,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_iselle_the_guide_v1",
+            "scale_percent": 98,
+            "slot": "center",
+            "source_byte_count": 909059,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "5405f02372122db2188eb43cb2133789edee02a9e372bee48fcc1ad26468791b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.108fba821d348c939290e52c",
+            "variant_handle": "osa_vnsprite_iselle_the_guide_happy_v1"
+          }
+        ],
+        "stage_sha256": "82b568c7b8676c4122e24b5f853bc005738285c31fa5e15b14e129cca4b640ce",
+        "used_neutral_stage": false
+      }
+    ]
+  },
+  "transcript": "Five columns of premium summon-light descend into Niflheim’s lobby and resolve into five newly summoned Heroes around the circle. [ 20-Gem pack purchase accepted ] [ Premium Summons performed: 5 ]\n\nSummon reveal — pull 1 of 5: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card.\n\nSystem panel — Hero acquired (pull 1 of 5): Odelia Marr — 3 stars (portrait unavailable)\n\nSummon reveal — pull 2 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card.\n\nSystem panel — Hero acquired (pull 2 of 5): Perrin Vale — 2 stars (portrait unavailable)\n\nSummon reveal — pull 3 of 5: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card.\n\nSystem panel — Hero acquired (pull 3 of 5): Wren — 3 stars\n\nSummon reveal — pull 4 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card.\n\nSystem panel — Hero acquired (pull 4 of 5): Liora Fen — 2 stars\n\nSummon reveal — pull 5 of 5: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card.\n\nSystem panel — Hero acquired (pull 5 of 5): Rowan Kest — 2 stars\n\nSystem panel — Heroes acquired: Odelia Marr — 3 stars (portrait unavailable); Perrin Vale — 2 stars (portrait unavailable); Wren — 3 stars; Liora Fen — 2 stars; Rowan Kest — 2 stars\n\nIselle zips into the center of the fading summon-light, wings buzzing, her smile bright and sharp.\n\nIselle: Welcome to Niflheim, fresh arrivals—the lobby! That silent Master owns this roster and decides who gets deployed. The gate leads to a separate, lethal floor. Once deployed, you choose how you fight; clear the objective and survivors return. The ordinary gate will not bring you back early.\n\nIselle: Death or synthesis is permanent. Cheerful, simple, and absolutely final!",
+  "used_neutral_stage": false,
+  "version": 3
+}

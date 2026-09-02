@@ -1,0 +1,400 @@
+{
+  "cards": [
+    {
+      "count": 8,
+      "filename": "page-001.png",
+      "index": 1,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "2e88db56a3151ccdba5ba46e4011cc29006a010506819711c2737d31d1096e4a",
+      "speaker": "",
+      "text": "[ Floor 2 deployment: Renna Holt, Mirelle Voss ] Pale deployment light closes\naround Renna Holt and Mirelle Voss at the Tower gate."
+    },
+    {
+      "count": 8,
+      "filename": "page-002.png",
+      "index": 2,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "843975a8390dcd18f6bfb29275372300c7e4d75fd956765912ffaefc64f1f1bc",
+      "speaker": "",
+      "text": "Renna keeps pressure on Mirelle's upper arm until the light takes them; then\nthey vanish from Niflheim and arrive knee-deep in cold water between\nflooded archive shelves. A bronze lantern burns ahead with a failing blue\nflame."
+    },
+    {
+      "count": 8,
+      "filename": "page-003.png",
+      "index": 3,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "0067ae2a57f8fbef3ca5ae389da7e64d86236112c1995400407d4068a1f92cd9",
+      "speaker": "",
+      "text": "Beyond it, a soaked scavenger lies pinned beneath a collapsed shelf, one\narm above the water."
+    },
+    {
+      "count": 8,
+      "filename": "page-004.png",
+      "index": 4,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "be36dba7556197f4c7766531a7db5cfb44fefce5cea8ba5fe490f677b3923940",
+      "speaker": "Mirelle Voss",
+      "text": "Keep your head above the water. I’m getting you out."
+    },
+    {
+      "count": 8,
+      "filename": "page-005.png",
+      "index": 5,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "de75a2dc4f6ff7ba928e4bf16854e362664d573770b353ae3f84c0a3b9d7a762",
+      "speaker": "",
+      "text": "Mirelle levers the shelf up with her spear and uninjured arm, freeing the\nscavenger. As the blue flame sputters down toward its wick, Renna lifts the\nlantern from the water and finds a soot-stiffened slider beneath its base.\nShe shields the low flame with her body."
+    },
+    {
+      "count": 8,
+      "filename": "page-006.png",
+      "index": 6,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "69712454387f407085bf249be5068c07e1ad7da1a548091670d8822d7edc6d08",
+      "speaker": "Mirelle Voss",
+      "text": "Bring the lantern, Renna. I’ll get them to higher stone."
+    },
+    {
+      "count": 8,
+      "filename": "page-007.png",
+      "index": 7,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "dd4be5e6980acf12d2b9fe3be3259e6f1e9f846c25aabdbd8a6f9d689f150f61",
+      "speaker": "",
+      "text": "With the scavenger held above the floodwater, Mirelle wades after the pull\nof loose papers toward a broad aisle rising into darkness. The lantern's\nwavering blue reflection leads the same way."
+    },
+    {
+      "count": 8,
+      "filename": "page-008.png",
+      "index": 8,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "fd0f04585f967f0d37f527547d43499885e0ac55dbf8f4974aa912aedb0457af",
+      "speaker": "",
+      "text": "System panel — Deployment confirmed: Renna Holt — 1 star; Mirelle Voss — 3 stars"
+    }
+  ],
+  "deck_id": "426bd91efa9f22971afe5b224c05dfeebd4596275c5099506bccb1859abb86cc",
+  "identity": {
+    "card_size": [
+      1024,
+      576
+    ],
+    "fonts": {
+      "bold_sha256": "d1c3ff99f1e1ce1827a33efd4dad81f40babda06bff9e43bd7591c86662a287b",
+      "regular_sha256": "690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648"
+    },
+    "renderer": "classic-adv-v10-panel-media",
+    "sections": [
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "[ Floor 2 deployment: Renna Holt, Mirelle Voss ] Pale deployment light closes\naround Renna Holt and Mirelle Voss at the Tower gate."
+          },
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Renna keeps pressure on Mirelle's upper arm until the light takes them; then\nthey vanish from Niflheim and arrive knee-deep in cold water between\nflooded archive shelves. A bronze lantern burns ahead with a failing blue\nflame."
+          },
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Beyond it, a soaked scavenger lies pinned beneath a collapsed shelf, one\narm above the water."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Mirelle Voss",
+            "text": "Keep your head above the water. I’m getting you out."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Mirelle levers the shelf up with her spear and uninjured arm, freeing the\nscavenger. As the blue flame sputters down toward its wick, Renna lifts the\nlantern from the water and finds a soot-stiffened slider beneath its base.\nShe shields the low flame with her body."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Mirelle Voss",
+            "text": "Bring the lantern, Renna. I’ll get them to higher stone."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "With the scavenger held above the floodwater, Mirelle wades after the pull\nof loose papers toward a broad aisle rising into darkness. The lantern's\nwavering blue reflection leads the same way."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Deployment confirmed: Renna Holt — 1 star; Mirelle Voss — 3 stars"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "fd0f04585f967f0d37f527547d43499885e0ac55dbf8f4974aa912aedb0457af",
+        "used_neutral_stage": false
+      }
+    ]
+  },
+  "transcript": "[ Floor 2 deployment: Renna Holt, Mirelle Voss ] Pale deployment light closes around Renna Holt and Mirelle Voss at the Tower gate.\n\nRenna keeps pressure on Mirelle's upper arm until the light takes them; then they vanish from Niflheim and arrive knee-deep in cold water between flooded archive shelves. A bronze lantern burns ahead with a failing blue flame.\n\nBeyond it, a soaked scavenger lies pinned beneath a collapsed shelf, one arm above the water.\n\nMirelle Voss: Keep your head above the water. I’m getting you out.\n\nMirelle levers the shelf up with her spear and uninjured arm, freeing the scavenger. As the blue flame sputters down toward its wick, Renna lifts the lantern from the water and finds a soot-stiffened slider beneath its base. She shields the low flame with her body.\n\nMirelle Voss: Bring the lantern, Renna. I’ll get them to higher stone.\n\nWith the scavenger held above the floodwater, Mirelle wades after the pull of loose papers toward a broad aisle rising into darkness. The lantern's wavering blue reflection leads the same way.\n\nSystem panel — Deployment confirmed: Renna Holt — 1 star; Mirelle Voss — 3 stars",
+  "used_neutral_stage": true,
+  "version": 3
+}

@@ -1,0 +1,65 @@
+* resolving…
+2026-09-01 23:24:34,928 INFO app.engine.orchestrator: Turn 3 for session codex_premium_lobby_floor2_live_20260902T040622Z (acting=the_master)
+2026-09-01 23:24:34,958 INFO app.engine.turn_loop_dispatcher: LLMDispatcher.route_intention: actor=the_master cat_ii=None
+2026-09-01 23:24:49,945 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:24:50,079 INFO app.llm.client: LLM usage role=event_router provider=openai model=gpt-5.6-terra in=3 out=916 visible_out=416 reasoning=500 cache_read=23085 cache_write=0 full_in=23088 total=24004
+2026-09-01 23:24:50,079 INFO app.llm.client: LLM reasoning summary role=event_router provider=openai model=gpt-5.6-terra part=1/3: **Evaluating output schema**\n\nI’m noticing that the output schema oddly excludes state_updates, even though the definition includes them. We need to clarify the response format; OneStar includes state_updates. It’s essential to assess the feasibility of gem purchases, as spending 25 gems costs 25, with 5 + 20 as current. Also, summon results and arrivals are yet unknown. It seems I need to keep track of Iselle and her mediated actions while ensuring confusion regarding identities during summoning is addressed.
+2026-09-01 23:24:50,080 INFO app.llm.client: LLM reasoning summary role=event_router provider=openai model=gpt-5.6-terra part=2/3: **Analyzing management action**\n\nI’m considering that this is a management action with a duration of 0 and state updates only for selected operations. The 00 seems to indicate $100, possibly relating to a config pack of 20/$100. However, there's confusion because no clear identities or facts are arriving, so perhaps the Master sees a system notice about premium summons, but the details remain hidden. It seems Iselle might only observe summon light in the lobby, while the Master could have a live view. I need to clarify how identities are handled in this scenario.
+2026-09-01 23:24:50,080 INFO app.llm.client: LLM reasoning summary role=event_router provider=openai model=gpt-5.6-terra part=3/3: **Evaluating dialogue and action**\n\nI’m wondering if dialogue leads to action next, and whether everything is packed appropriately. The Master has direct visual/audio access in the lobby, so both he and Iselle can see what's happening. It seems there are newly summoned people, but their names are unavailable, preventing me from creating observer entries. Induction recipients need to be delivered later, and there's no tutorial yet. I think Iselle is likely next in line for something. I need to ensure that all schema fields are filled properly, even if it means including blank values.
+2026-09-01 23:24:50,085 INFO app.engine.turn_loop: router[route] actor=the_master cat=I forced_handoff=False kind='state_change' next=['iselle_the_guide'] enrich=[] :: The Master’s valid account-management request purchases one configured 20-Gem pack and uses the resulting 25 Gems for the maximum five premium pulls. The summons materially change the lobby; Iselle is the sole immediate next output because ordinary summon arrivals require her compact survival induction.
+2026-09-01 23:25:09,267 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:25:09,325 INFO app.llm.client: LLM usage role=character_manager provider=openai model=gpt-5.6-luna in=3 out=1698 visible_out=176 reasoning=1522 cache_read=2936 cache_write=0 full_in=2939 total=4637
+2026-09-01 23:26:27,551 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:26:27,610 INFO app.llm.client: LLM usage role=character_manager provider=openai model=gpt-5.6-luna in=1405 out=7471 visible_out=739 reasoning=6732 cache_read=2241 cache_write=0 full_in=3646 total=11117
+2026-09-01 23:26:35,509 INFO httpx: HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2026-09-01 23:26:35,590 ERROR __main__: run_turn failed
+Traceback (most recent call last):
+  File "/home/dan/ayoa/scripts/play.py", line 3271, in _act
+    response = await self.engine.run_turn(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/bot/engine_bridge.py", line 3930, in run_turn
+    return await self._run_turn_locked(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/bot/engine_bridge.py", line 4143, in _run_turn_locked
+    response = await self.orchestrator.process_turn(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/orchestrator.py", line 1629, in process_turn
+    beat_result = await run_beat(
+                  ^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/turn_loop.py", line 4709, in run_beat
+    await _commit_event(
+  File "/home/dan/ayoa/app/engine/turn_loop.py", line 3369, in _commit_event
+    await _prepare_event_once(
+  File "/home/dan/ayoa/app/engine/turn_loop.py", line 3297, in _prepare_event_once
+    await prepare_event_for_broadcast(
+  File "/home/dan/ayoa/app/engine/turn_loop.py", line 2130, in prepare_event_for_broadcast
+    await preparer(
+  File "/home/dan/ayoa/app/engine/turn_loop_dispatcher.py", line 2284, in prepare_ruleset_event
+    await self.materialize_spawns(
+  File "/home/dan/ayoa/app/engine/turn_loop_dispatcher.py", line 2147, in materialize_spawns
+    records = await runtime.authored_records(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/closed_event_runtime.py", line 178, in authored_records
+    return await self.spawn_authoring.result(key)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/spawn_authoring.py", line 145, in result
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/spawn_authoring.py", line 455, in _author
+    records = await self.character_manager.spawn_characters(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/character_manager.py", line 732, in spawn_characters
+    raise failures[0]
+  File "/home/dan/ayoa/app/engine/character_manager.py", line 715, in generate_one
+    return await self._spawn_one(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/engine/character_manager.py", line 885, in _spawn_one
+    response = await self.client.complete(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/llm/client.py", line 509, in complete
+    return await self._complete_openai(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/dan/ayoa/app/llm/client.py", line 652, in _complete_openai
+    raise ValueError(
+ValueError: OpenAI response incomplete at max_tokens=8000 (max_output_tokens).
+error: The engine hit an internal error while processing that action. Your last saved checkpoint is intact. Try again, or use /rewind to inspect recent checkpoints if the scene looks wrong.

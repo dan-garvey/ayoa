@@ -1,0 +1,216 @@
+{
+  "cards": [
+    {
+      "count": 3,
+      "filename": "page-001.png",
+      "index": 1,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "5000e5348a60544087749cf242bc2b6c52ed9f1b76569b7ed8e46fe11869f4f0",
+      "speaker": "",
+      "text": "Renna Holt follows Mirelle Voss up the rising aisle with the bronze lantern\nheld high, its blue flame burning low. At the dry stair, Mirelle keeps the\nrescued scavenger above the water and says, “One step at a time. Renna,\ntake the lantern to that beacon; I’ll keep them above the water.”"
+    },
+    {
+      "count": 3,
+      "filename": "page-002.png",
+      "index": 2,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "e73dc3d3dba43368a7fef53b8b1dbbf672fa0d7cbd5e514715fd045277c735d2",
+      "speaker": "",
+      "text": "Renna climbs to the unlit bronze beacon, finds the covered socket in its\nbase, and fits the lantern into it as damp air crosses the landing. “Mirelle,\nI’m setting it in.” Bronze clicks; blue fire races through the beacon and\nflares over the flooded archives."
+    },
+    {
+      "count": 3,
+      "filename": "page-003.png",
+      "index": 3,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "d4ec11ba08754ddbf6a317561a1752e4f8aab4c86e5fc1d643789c018a884bda",
+      "speaker": "",
+      "text": "Pale summon-light carries Renna and Mirelle back to Niflheim. [ Floor 2\nfirst-clear reward applied: 5 Gold and 1 Building Resources ] [ Account\nresources now: 49 Gold and 5 Building Resources ] [ Tower floor 3 unlocked ]\n[ LEVEL UP: Renna Holt ] [ LEVEL UP: Mirelle Voss ]"
+    }
+  ],
+  "deck_id": "c47b6de702adbc02f3791f75c849cf54c762aa08c4df22c5d93f63b293373208",
+  "identity": {
+    "card_size": [
+      1024,
+      576
+    ],
+    "fonts": {
+      "bold_sha256": "d1c3ff99f1e1ce1827a33efd4dad81f40babda06bff9e43bd7591c86662a287b",
+      "regular_sha256": "690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648"
+    },
+    "renderer": "classic-adv-v10-panel-media",
+    "sections": [
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Renna Holt follows Mirelle Voss up the rising aisle with the bronze lantern\nheld high, its blue flame burning low. At the dry stair, Mirelle keeps the\nrescued scavenger above the water and says, “One step at a time. Renna,\ntake the lantern to that beacon; I’ll keep them above the water.”"
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Renna climbs to the unlit bronze beacon, finds the covered socket in its\nbase, and fits the lantern into it as damp air crosses the landing. “Mirelle,\nI’m setting it in.” Bronze clicks; blue fire races through the beacon and\nflares over the flooded archives."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Pale summon-light carries Renna and Mirelle back to Niflheim. [ Floor 2\nfirst-clear reward applied: 5 Gold and 1 Building Resources ] [ Account\nresources now: 49 Gold and 5 Building Resources ] [ Tower floor 3 unlocked ]\n[ LEVEL UP: Renna Holt ] [ LEVEL UP: Mirelle Voss ]"
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      }
+    ]
+  },
+  "transcript": "Renna Holt follows Mirelle Voss up the rising aisle with the bronze lantern held high, its blue flame burning low. At the dry stair, Mirelle keeps the rescued scavenger above the water and says, “One step at a time. Renna, take the lantern to that beacon; I’ll keep them above the water.”\n\nRenna climbs to the unlit bronze beacon, finds the covered socket in its base, and fits the lantern into it as damp air crosses the landing. “Mirelle, I’m setting it in.” Bronze clicks; blue fire races through the beacon and flares over the flooded archives.\n\nPale summon-light carries Renna and Mirelle back to Niflheim. [ Floor 2 first-clear reward applied: 5 Gold and 1 Building Resources ] [ Account resources now: 49 Gold and 5 Building Resources ] [ Tower floor 3 unlocked ] [ LEVEL UP: Renna Holt ] [ LEVEL UP: Mirelle Voss ]",
+  "used_neutral_stage": false,
+  "version": 3
+}

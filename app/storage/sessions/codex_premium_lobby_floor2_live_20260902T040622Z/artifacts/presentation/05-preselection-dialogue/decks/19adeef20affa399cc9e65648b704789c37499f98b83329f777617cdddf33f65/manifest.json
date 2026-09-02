@@ -1,0 +1,541 @@
+{
+  "cards": [
+    {
+      "count": 8,
+      "filename": "page-001.png",
+      "index": 1,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "de6a33fe355e4a96897946f88aa67d937d363d04c2a2d3bca706295ded2ed79f",
+      "speaker": "",
+      "text": "The fading summon-light leaves Renna Holt and Mirelle Voss standing\namong the five new arrivals in Niflheim's lobby. No third survivor stands\nwhere Edren Marr had arrived with them."
+    },
+    {
+      "count": 8,
+      "filename": "page-002.png",
+      "index": 2,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "809f1e14c0350375cb71032964f8dc4520c6ebc534cfe557455110ae7fa7bb54",
+      "speaker": "",
+      "text": "Renna looks from Mirelle's blood-marked sleeve to the empty patch of stone\nwhere Edren fell, then checks her bowstring once."
+    },
+    {
+      "count": 8,
+      "filename": "page-003.png",
+      "index": 3,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "b0263f6f41f3335faaccee08b4fd6999e063a16d29f3b7b290abcb7f114111a4",
+      "speaker": "Renna Holt",
+      "text": "He’s dead. Your arm is bleeding, Mirelle. Before anyone goes through\nanother gate, that needs tending."
+    },
+    {
+      "count": 8,
+      "filename": "page-004.png",
+      "index": 4,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "eeece234ca8e04e7f502ca97ef844fdf782dffc73f9efdbaf258e814609be6be",
+      "speaker": "Mirelle Voss",
+      "text": "You’re right. I let that blade through and kept fighting."
+    },
+    {
+      "count": 8,
+      "filename": "page-005.png",
+      "index": 5,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "3d91884960b82a2bce08d155c1ca8dfa725ebdf53b036c20a8f562ba4cc08ade",
+      "speaker": "",
+      "text": "Mirelle tears a narrow strip from the repaired cuff, presses it to her bleeding\nupper arm, and offers its loose end toward Renna."
+    },
+    {
+      "count": 8,
+      "filename": "page-006.png",
+      "index": 6,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "e862e16388c2c98eb5fa165e0f9d363de83cf57bb2da258d6cbbf6256855e89b",
+      "speaker": "Mirelle Voss",
+      "text": "Hold this a breath, please. I’m not calling myself fit just because I’m\nstanding."
+    },
+    {
+      "count": 8,
+      "filename": "page-007.png",
+      "index": 7,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "796a7bb88f5fe6deffe75bf4aa4b094c5048ebfb667b4e58fd76539187ab8e45",
+      "speaker": "",
+      "text": "Renna takes the loose end of the cloth and holds it snug against Mirelle's\nupper arm."
+    },
+    {
+      "count": 8,
+      "filename": "page-008.png",
+      "index": 8,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "9bb02950254578b6ac72910883aeb2c7ce8376baac5c0e149e4080d5a68d9ae3",
+      "speaker": "Renna Holt",
+      "text": "I've got it. Standing isn't the same as fit."
+    }
+  ],
+  "deck_id": "19adeef20affa399cc9e65648b704789c37499f98b83329f777617cdddf33f65",
+  "identity": {
+    "card_size": [
+      1024,
+      576
+    ],
+    "fonts": {
+      "bold_sha256": "d1c3ff99f1e1ce1827a33efd4dad81f40babda06bff9e43bd7591c86662a287b",
+      "regular_sha256": "690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648"
+    },
+    "renderer": "classic-adv-v10-panel-media",
+    "sections": [
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "The fading summon-light leaves Renna Holt and Mirelle Voss standing\namong the five new arrivals in Niflheim's lobby. No third survivor stands\nwhere Edren Marr had arrived with them."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 698202,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "8c4f4549c52be89f7754d1348f9d9621b6d847701d5cb02772f47ec224b15735",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_neutral_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 833991,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "e0f70522d1adb64d7f938dd66064d26934619b493ece444047b6753b8dfdcf57",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_neutral_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Renna looks from Mirelle's blood-marked sleeve to the empty patch of stone\nwhere Edren fell, then checks her bowstring once."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 833991,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "e0f70522d1adb64d7f938dd66064d26934619b493ece444047b6753b8dfdcf57",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_neutral_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Renna Holt",
+            "text": "He’s dead. Your arm is bleeding, Mirelle. Before anyone goes through\nanother gate, that needs tending."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 833991,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "e0f70522d1adb64d7f938dd66064d26934619b493ece444047b6753b8dfdcf57",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_neutral_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Mirelle Voss",
+            "text": "You’re right. I let that blade through and kept fighting."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Mirelle tears a narrow strip from the repaired cuff, presses it to her bleeding\nupper arm, and offers its loose end toward Renna."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Mirelle Voss",
+            "text": "Hold this a breath, please. I’m not calling myself fit just because I’m\nstanding."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Renna takes the loose end of the cloth and holds it snug against Mirelle's\nupper arm."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Renna Holt",
+            "text": "I've got it. Standing isn't the same as fit."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 651418,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "6c19e7ba5eabf08de4f04b093171fde6d933c3be53a2e6447f214ced780e844c",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_concerned_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 921901,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "d49ed897da327f716d0998926decabe3a341bb9556f92774a02b38ac905d33bd",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_concerned_v1"
+          }
+        ],
+        "stage_sha256": "04ac3c7d7926fb783e40b979254ac77d4956f450153b37f13bb61bd10d8f228f",
+        "used_neutral_stage": false
+      }
+    ]
+  },
+  "transcript": "The fading summon-light leaves Renna Holt and Mirelle Voss standing among the five new arrivals in Niflheim's lobby. No third survivor stands where Edren Marr had arrived with them.\n\nRenna looks from Mirelle's blood-marked sleeve to the empty patch of stone where Edren fell, then checks her bowstring once.\n\nRenna Holt: He’s dead. Your arm is bleeding, Mirelle. Before anyone goes through another gate, that needs tending.\n\nMirelle Voss: You’re right. I let that blade through and kept fighting.\n\nMirelle tears a narrow strip from the repaired cuff, presses it to her bleeding upper arm, and offers its loose end toward Renna.\n\nMirelle Voss: Hold this a breath, please. I’m not calling myself fit just because I’m standing.\n\nRenna takes the loose end of the cloth and holds it snug against Mirelle's upper arm.\n\nRenna Holt: I've got it. Standing isn't the same as fit.",
+  "used_neutral_stage": false,
+  "version": 3
+}

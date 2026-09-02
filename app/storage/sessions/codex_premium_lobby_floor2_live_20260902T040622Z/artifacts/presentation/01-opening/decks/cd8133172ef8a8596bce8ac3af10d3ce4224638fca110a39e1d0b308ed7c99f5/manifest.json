@@ -1,0 +1,489 @@
+{
+  "cards": [
+    {
+      "count": 13,
+      "filename": "page-001.png",
+      "index": 1,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "8103fba2838bca2da93eb045e21bfd4d428e43a58d68b6228334b774511cda20",
+      "speaker": "",
+      "text": "Summon-light drops Renna Holt, Mirelle Voss, and Edren Marr into a\ncramped stone ruin. Armed goblins rush through the broken stone with their\nweapons raised."
+    },
+    {
+      "count": 13,
+      "filename": "page-002.png",
+      "index": 2,
+      "kind": "dialogue",
+      "mime_type": "image/png",
+      "sha256": "4abe2341748b7fbaee644c2760b9f5f95ce44605bb8148af7a4196916e47f2b2",
+      "speaker": "Edren Marr",
+      "text": "Goblins—I can’t fight them!"
+    },
+    {
+      "count": 13,
+      "filename": "page-003.png",
+      "index": 3,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "65852e93eef8e33ddd67b994aafd60d5742cf436d5101f215b868ce439205d30",
+      "speaker": "",
+      "text": "Edren bolts with his hooked pole clutched across his chest. A goblin cuts him\ndown from behind; he hits the debris and does not rise. [ HERO LOST: Edren\nMarr, one-star ]"
+    },
+    {
+      "count": 13,
+      "filename": "page-004.png",
+      "index": 4,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "642ba91dc1eded0999e48a7ef807faff6891762d17adae772792008a1bdca12c",
+      "speaker": "",
+      "text": "Mirelle steps beside Edren's body and drives her red-tasseled spear into the\nforemost goblin, holding its shaft across the narrow ruin. Renna slips behind\nher shoulder, wall at her back, and sends an arrow into a goblin trying to\npress around the spear. It falls among the stones."
+    },
+    {
+      "count": 13,
+      "filename": "page-005.png",
+      "index": 5,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "fd2efd00b11125158a0f6430d433e859267fbd4cf0f3ebace1a54d08caa855fe",
+      "speaker": "",
+      "text": "A goblin comes along the broken wall toward Renna. She ducks beneath its\nblade, cuts inward, and looses an arrow into its ribs before returning toward\nMirelle's spear. The others hook the spear aside long enough to slash\nMirelle's upper arm. Blood marks her sleeve."
+    },
+    {
+      "count": 13,
+      "filename": "page-006.png",
+      "index": 6,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "a5f8601991a8295629c38c0b63f5e12b7212222163f53cc0c5ec2f380aee4eb9",
+      "speaker": "",
+      "text": "She surges into the press, breaks one goblin's weapon arm aside with the\nspear's butt, and drives the leaf-blade into its chest. One armed goblin\nremains before her."
+    },
+    {
+      "count": 13,
+      "filename": "page-007.gif",
+      "index": 7,
+      "kind": "narration",
+      "mime_type": "image/gif",
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "speaker": "",
+      "text": "Summon reveal — pull 1 of 3: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card."
+    },
+    {
+      "count": 13,
+      "filename": "page-008.png",
+      "index": 8,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "30ed7c338b9942f9b7fd6cc176ee760ce2d0035cb9bf10f2d2f41eeedb1da8d3",
+      "speaker": "",
+      "text": "System panel — Hero acquired (pull 1 of 3): Renna Holt — 1 star"
+    },
+    {
+      "count": 13,
+      "filename": "page-009.gif",
+      "index": 9,
+      "kind": "narration",
+      "mime_type": "image/gif",
+      "sha256": "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+      "speaker": "",
+      "text": "Summon reveal — pull 2 of 3: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card."
+    },
+    {
+      "count": 13,
+      "filename": "page-010.png",
+      "index": 10,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "7b0e1ba1ed3d313273bbd6af2d978b0447b8f3d624799874f3635cb9f41dee38",
+      "speaker": "",
+      "text": "System panel — Hero acquired (pull 2 of 3): Mirelle Voss — 3 stars"
+    },
+    {
+      "count": 13,
+      "filename": "page-011.gif",
+      "index": 11,
+      "kind": "narration",
+      "mime_type": "image/gif",
+      "sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+      "speaker": "",
+      "text": "Summon reveal — pull 3 of 3: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card."
+    },
+    {
+      "count": 13,
+      "filename": "page-012.png",
+      "index": 12,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "ac9b1b5ed058d5b1d172b2159773e3f7d4d16d97ca2d0b2ad2e694a58eac5e85",
+      "speaker": "",
+      "text": "System panel — Hero acquired (pull 3 of 3): Edren Marr — 1 star"
+    },
+    {
+      "count": 13,
+      "filename": "page-013.png",
+      "index": 13,
+      "kind": "narration",
+      "mime_type": "image/png",
+      "sha256": "5fd9613f3110fcc5f628d8804590b16e492228dd161f4552f38507fb5ae2b75f",
+      "speaker": "",
+      "text": "System panel — Heroes acquired: Renna Holt — 1 star; Mirelle Voss — 3 stars; Edren Marr — 1 star"
+    }
+  ],
+  "deck_id": "cd8133172ef8a8596bce8ac3af10d3ce4224638fca110a39e1d0b308ed7c99f5",
+  "identity": {
+    "card_size": [
+      1024,
+      576
+    ],
+    "fonts": {
+      "bold_sha256": "d1c3ff99f1e1ce1827a33efd4dad81f40babda06bff9e43bd7591c86662a287b",
+      "regular_sha256": "690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648"
+    },
+    "renderer": "classic-adv-v10-panel-media",
+    "sections": [
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Summon-light drops Renna Holt, Mirelle Voss, and Edren Marr into a\ncramped stone ruin. Armed goblins rush through the broken stone with their\nweapons raised."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 649523,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "eed94ccca8fd3c16e1c5b21f34334f150854d9b954c5d3d99ca02118fc28d6e9",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_tense_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 1111710,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "72c33dd0079439a28a9cdc2110412c65d6b5e69b66ea2c6032e98efe83e1696b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_angry_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "dialogue",
+            "speaker": "Edren Marr",
+            "text": "Goblins—I can’t fight them!"
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              512,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 98,
+            "slot": "center",
+            "source_byte_count": 1111710,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "72c33dd0079439a28a9cdc2110412c65d6b5e69b66ea2c6032e98efe83e1696b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_angry_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Edren bolts with his hooked pole clutched across his chest. A goblin cuts him\ndown from behind; he hits the debris and does not rise. [ HERO LOST: Edren\nMarr, one-star ]"
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              512,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 98,
+            "slot": "center",
+            "source_byte_count": 649523,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "eed94ccca8fd3c16e1c5b21f34334f150854d9b954c5d3d99ca02118fc28d6e9",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_tense_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Mirelle steps beside Edren's body and drives her red-tasseled spear into the\nforemost goblin, holding its shaft across the narrow ruin. Renna slips behind\nher shoulder, wall at her back, and sends an arrow into a goblin trying to\npress around the spear. It falls among the stones."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 1111710,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "72c33dd0079439a28a9cdc2110412c65d6b5e69b66ea2c6032e98efe83e1696b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_angry_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 649523,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "eed94ccca8fd3c16e1c5b21f34334f150854d9b954c5d3d99ca02118fc28d6e9",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_tense_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "adv",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "A goblin comes along the broken wall toward Renna. She ducks beneath its\nblade, cuts inward, and looses an arrow into its ribs before returning toward\nMirelle's spear. The others hook the spear aside long enough to slash\nMirelle's upper arm. Blood marks her sleeve."
+          },
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "She surges into the press, breaks one goblin's weapon arm aside with the\nspear's butt, and drives the leaf-blade into its chest. One armed goblin\nremains before her."
+          }
+        ],
+        "sprites": [
+          {
+            "anchor": [
+              292,
+              565
+            ],
+            "facing": "right",
+            "identity_handle": "osa_vnset_mirelle_voss_v1",
+            "scale_percent": 92,
+            "slot": "left",
+            "source_byte_count": 1111710,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "72c33dd0079439a28a9cdc2110412c65d6b5e69b66ea2c6032e98efe83e1696b",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.feb0a7ed19add1df23f95650",
+            "variant_handle": "osa_vnsprite_mirelle_voss_angry_v1"
+          },
+          {
+            "anchor": [
+              732,
+              565
+            ],
+            "facing": "left",
+            "identity_handle": "osa_vnset_veiled_feminine_v1",
+            "scale_percent": 92,
+            "slot": "right",
+            "source_byte_count": 649523,
+            "source_facing": "right",
+            "source_mime_type": "image/png",
+            "source_sha256": "eed94ccca8fd3c16e1c5b21f34334f150854d9b954c5d3d99ca02118fc28d6e9",
+            "source_size": [
+              1100,
+              1500
+            ],
+            "subject_handle": "vnsubject.104ac0c196e3e225752d426e",
+            "variant_handle": "osa_vnsprite_veiled_feminine_tense_v1"
+          }
+        ],
+        "stage_sha256": "0b2ecf51d18e9fad0d262b8eafa899e85df59e83d6e3d82f1e94c18e60558238",
+        "used_neutral_stage": true
+      },
+      {
+        "card_mime_type": "image/gif",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Summon reveal — pull 1 of 3: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card."
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Hero acquired (pull 1 of 3): Renna Holt — 1 star"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "30ed7c338b9942f9b7fd6cc176ee760ce2d0035cb9bf10f2d2f41eeedb1da8d3",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/gif",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Summon reveal — pull 2 of 3: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card."
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "8f56cf02247c1c951b43379f08ad21c89478c23d348dac196861813020753d59",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Hero acquired (pull 2 of 3): Mirelle Voss — 3 stars"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "7b0e1ba1ed3d313273bbd6af2d978b0447b8f3d624799874f3635cb9f41dee38",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/gif",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "Summon reveal — pull 3 of 3: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card."
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "62cd33c6d6679c1b785ef4e9cd5f08f4bedf70dc4a5830f2d7592d5c76345ded",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Hero acquired (pull 3 of 3): Edren Marr — 1 star"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "ac9b1b5ed058d5b1d172b2159773e3f7d4d16d97ca2d0b2ad2e694a58eac5e85",
+        "used_neutral_stage": false
+      },
+      {
+        "card_mime_type": "image/png",
+        "card_style": "system_panel",
+        "pages": [
+          {
+            "kind": "narration",
+            "speaker": "",
+            "text": "System panel — Heroes acquired: Renna Holt — 1 star; Mirelle Voss — 3 stars; Edren Marr — 1 star"
+          }
+        ],
+        "sprites": [],
+        "stage_sha256": "5fd9613f3110fcc5f628d8804590b16e492228dd161f4552f38507fb5ae2b75f",
+        "used_neutral_stage": false
+      }
+    ]
+  },
+  "transcript": "Summon-light drops Renna Holt, Mirelle Voss, and Edren Marr into a cramped stone ruin. Armed goblins rush through the broken stone with their weapons raised.\n\nEdren Marr: Goblins—I can’t fight them!\n\nEdren bolts with his hooked pole clutched across his chest. A goblin cuts him down from behind; he hits the debris and does not rise. [ HERO LOST: Edren Marr, one-star ]\n\nMirelle steps beside Edren's body and drives her red-tasseled spear into the foremost goblin, holding its shaft across the narrow ruin. Renna slips behind her shoulder, wall at her back, and sends an arrow into a goblin trying to press around the spear. It falls among the stones.\n\nA goblin comes along the broken wall toward Renna. She ducks beneath its blade, cuts inward, and looses an arrow into its ribs before returning toward Mirelle's spear. The others hook the spear aside long enough to slash Mirelle's upper arm. Blood marks her sleeve.\n\nShe surges into the press, breaks one goblin's weapon arm aside with the spear's butt, and drives the leaf-blade into its chest. One armed goblin remains before her.\n\nSummon reveal — pull 1 of 3: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card.\n\nSystem panel — Hero acquired (pull 1 of 3): Renna Holt — 1 star\n\nSummon reveal — pull 2 of 3: the seal strains, recoils, and releases; a silver response signals a three- or four-star result. The Hero identity remains sealed until the next static card.\n\nSystem panel — Hero acquired (pull 2 of 3): Mirelle Voss — 3 stars\n\nSummon reveal — pull 3 of 3: the seal strains, recoils, and releases; an iron response signals a one- or two-star result. The Hero identity remains sealed until the next static card.\n\nSystem panel — Hero acquired (pull 3 of 3): Edren Marr — 1 star\n\nSystem panel — Heroes acquired: Renna Holt — 1 star; Mirelle Voss — 3 stars; Edren Marr — 1 star",
+  "used_neutral_stage": true,
+  "version": 3
+}
