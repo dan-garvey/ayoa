@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.engine.turn_loop_contracts import (
     ACTOR_SUBMISSION_HEADER,
     ROUTER_CONTINUATION_HEADER,
@@ -69,6 +71,22 @@ class TestRouterContinuationBlock:
         assert "autonomous" not in block.lower()
         assert "player" not in block.lower()
         assert "agent" not in block.lower()
+
+    def test_router_does_not_license_fabricated_continuation_props(self):
+        prompt = Path("app/prompts/event_router.txt").read_text(
+            encoding="utf-8"
+        ).lower()
+        block = format_router_continuation_block(
+            prior_rationale="The exchange has settled.",
+        ).lower()
+
+        for retired_license in (
+            "minor utility surface facts such as a bell",
+            "marked object, opened path, blocked path",
+            "create a grounded environmental or mechanical cue",
+        ):
+            assert retired_license not in prompt
+            assert retired_license not in block
 
 
 class TestAgentModeContract:

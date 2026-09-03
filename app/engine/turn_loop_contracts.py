@@ -12,7 +12,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from app.engine.scene_ticks import SceneTickRequest
+from app.engine.background_threads import BackgroundThreadRequest
 
 PARTIAL_MODE_MARKER = (
     "Stop before the attempted action resolves; the player supplies the response."
@@ -197,16 +197,15 @@ def format_router_continuation_block(
         ),
         "",
         (
-            "Author the next canonical event that gives the active moment forward "
-            "motion. Use concrete observable facts, a meaningful "
-            "environmental or production cue, an existing off-screen "
-            "character moving into perception, or a narratively meaningful "
-            "spawn. Do not invent an action by the acting character unless "
-            "the established situation already makes that action unavoidable."
+            "Author the next canonical event by advancing established motion or "
+            "selecting a character who already has concrete pressure to act. Do "
+            "not manufacture a prop, signal, interface change, environmental "
+            "change, or named character action merely to keep the beat open."
         ),
         "",
         (
-            "Do not open Cat II in this mode. Author a closed cue or select a "
+            "Do not open Cat II in this mode. Author a closed established change "
+            "or select a "
             "character with `routing_role=next_output`. Never emit "
             "`event_kind=beat_continues` without a next-output character."
         ),
@@ -248,7 +247,7 @@ def format_character_moment(
     cleaned_location = (location or "").strip()
     if cleaned_location:
         lines.append(f"You are at {cleaned_location}.")
-    else:
+    elif not cleaned_local_context:
         lines.append("You are away from the immediate exchange; the place is not established.")
     if cleaned_local_context:
         lines.extend([
@@ -259,27 +258,28 @@ def format_character_moment(
     return "\n".join(lines)
 
 
-def format_scene_tick_contract(request: SceneTickRequest) -> str:
-    """Constrain one autonomous intention to its independent scene."""
+def format_background_thread_contract(request: BackgroundThreadRequest) -> str:
+    """Constrain one router-selected autonomous semantic thread."""
 
     participants = ", ".join(request.participant_ids)
     return "\n".join([
-        "<scene_tick>",
-        f"Scene location: {request.location}",
+        "<background_thread>",
         f"Submitting actor: {request.actor_id}",
-        f"Characters available in this scene: {participants}",
+        f"Characters available in this thread: {participants}",
         "",
-        "Canonicalize only the submitting actor's concrete self-directed choice "
-        "and its immediate local result. No human-controlled viewpoint is "
-        "present here. Keep every observer, depicted character, and private "
-        "recipient inside the available character ids above.",
+        "Canonicalize only the submitting actor's concrete choice and its "
+        "immediate result. Judge what they know from their submitted action and "
+        "personally witnessed history; facts from the simultaneous focal event "
+        "did not reach this thread. No human-controlled viewpoint is present. "
+        "Keep every observer, depicted character, and private recipient inside "
+        "the available character ids above.",
         "",
         f"Use effective_at_s={request.canonical_at_s} and duration_s=0. The "
         "event must close without responders, next output, perception "
-        "enrichment, movement, lifecycle changes, commitment resolution, or "
-        "rules-state changes. A longer local task may begin through "
-        "commitment_open; include the submitting actor and only characters in "
-        "this scene, and stop before inventing another character's consent or "
-        "reply.",
-        "</scene_tick>",
+        "enrichment, nested background threads, location changes, lifecycle "
+        "changes, commitment resolution, or rules-state changes. A longer task "
+        "may begin through commitment_open with an empty location_label; include "
+        "the submitting actor and only characters in this thread, and stop "
+        "before inventing another character's consent or reply.",
+        "</background_thread>",
     ])

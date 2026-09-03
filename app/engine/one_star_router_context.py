@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from app.engine.one_star_adapter import (
-    OneStarSceneTickContext,
     effective_one_star_discretionary_funds,
     effective_one_star_stamina,
     format_one_star_discretionary_funds,
@@ -92,49 +91,6 @@ def _render_summon_pool(pool_id: str, pool: OneStarSummonPool) -> str:
             f"count={len(pool.slots)}; slots[{','.join(slots)}]"
         )
     raise TypeError(f"unsupported One-Star summon pool type: {type(pool).__name__}")
-
-
-def render_one_star_scene_tick_contract(
-    context: OneStarSceneTickContext,
-) -> str:
-    """Add One-Star domain limits to the generic scene-tick contract."""
-
-    facility_lines = [
-        f"- {facility_id}: level={level}"
-        for facility_id, level in context.facilities
-    ] or ["- none established"]
-    return "\n".join(
-        [
-            "<one_star_scene_tick>",
-            "This self-directed activity occurs in Niflheim while another party "
-            "is deployed. Ground it in the lobby and its installed facilities; "
-            "do not turn it into commentary on the distant mission.",
-            "Installed facilities:",
-            *facility_lines,
-            "Do not include the Master, a guide, the deployed party, or mission "
-            "facts. Emit state_updates=[] and no account operation or mission "
-            "change. Deployed party ids: " + ", ".join(context.party_ids) + ".",
-            "</one_star_scene_tick>",
-        ]
-    )
-
-
-def render_one_star_scene_tick_agent_context(
-    context: OneStarSceneTickContext,
-) -> str:
-    """Expose facilities as fictional affordances, not a prescribed act."""
-
-    installed = (
-        ", ".join(facility_id for facility_id, _level in context.facilities)
-        or "no specialized facility"
-    )
-    return (
-        "The lobby supports routine practice, work, food, maintenance, craft, "
-        "rest, or reaching toward another person where the established place "
-        "makes it possible. Do not comment on the distant mission merely to fill "
-        "the moment. Installed facilities: "
-        f"{installed}."
-    )
 
 
 def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:

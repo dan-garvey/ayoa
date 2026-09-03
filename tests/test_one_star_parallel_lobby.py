@@ -11,26 +11,26 @@ from app.engine.one_star_adapter import (
     one_star_active_mission_has_bound_party_member,
     one_star_master_has_human_led_mission,
     one_star_master_may_act_while_mission_responder_pinned,
-    one_star_scene_tick_context,
     one_star_should_autonomous_mission_batch_after_result,
     prepare_one_star_live_mission_observers,
     validate_one_star_autonomous_mission_batch_result,
     validate_one_star_human_led_mission_result,
 )
-from app.engine.scene_ticks import (
-    anchor_scene_tick_result,
-    discover_scene_tick_requests,
-    validate_scene_tick_result,
+from app.engine.background_threads import (
+    BackgroundThreadRequest,
+    anchor_background_thread_result,
+    background_thread_requests,
+    validate_background_thread_result,
 )
 from app.engine.turn_loop import broadcast_event, run_beat
-from app.schemas.characters import ActorRecord, PlayerSlotKind
+from app.schemas.characters import ActorRecord
 from app.schemas.events import ObservableFact
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_HERO_KEY,
     OneStarEventRouterOutput,
 )
-from app.schemas.state import OpenCatIIEvent, OpenCommitment, SlotEntry
+from app.schemas.state import OpenCatIIEvent, SlotEntry
 from tests.support.factories import (
     InstanceFakeDispatcher,
     character_record,
@@ -82,6 +82,7 @@ def _one_star_result(
     event_kind: str = "state_change",
     duration_s: int = 0,
     facts: list[ObservableFact] | None = None,
+    background_threads: list[dict[str, object]] | None = None,
 ) -> OneStarEventRouterOutput:
     payload = router_output(
         event_id="evt_parallel",
@@ -93,6 +94,7 @@ def _one_star_result(
         duration_s=duration_s,
         facts=facts,
         location_updates=location_updates,
+        background_threads=background_threads,
     ).model_dump(mode="json")
     payload["state_updates"] = state_updates or []
     return OneStarEventRouterOutput.model_validate(payload)
@@ -379,140 +381,73 @@ def test_autonomous_mission_batch_requires_owner_and_npc_only_party() -> None:
     ) is False
 
 
-def test_scene_tick_context_uses_idle_nonparty_autonomous_heroes() -> None:
-    checkpoint = _active_checkpoint(bind_party=False)
-
-    context = one_star_scene_tick_context(checkpoint)
-    requests = discover_scene_tick_requests(checkpoint, max_scenes=4)
-
-    assert context is not None
-    assert context.mission_id == "mission_1"
-    assert context.hero_ids == ("reserve",)
-    assert context.party_ids == ("hero",)
-    assert context.lobby_location == "lobby"
-    assert len(requests) == 1
-    assert requests[0].actor_id == "reserve"
-    assert requests[0].participant_ids == ("reserve",)
-    assert requests[0].adapter_context == context
-
-    checkpoint.session.character_bindings["reserve"] = "reserve-player"
-    assert one_star_scene_tick_context(checkpoint) is None
-    assert discover_scene_tick_requests(checkpoint, max_scenes=4) == []
-
-
-@pytest.mark.parametrize("unavailable_kind", ["pinned", "committed", "authored"])
-def test_scene_tick_context_excludes_unavailable_lobby_heroes(
-    unavailable_kind: str,
-) -> None:
-    checkpoint = _active_checkpoint(bind_party=False)
+def test_semantic_background_request_ignores_stale_hero_location() -> None:
+    checkpoint = _active_checkpoint(bind_party=True)
     reserve = next(
         character
         for character in checkpoint.characters
         if character.character_id == "reserve"
     )
-    if unavailable_kind == "pinned":
-        checkpoint.session.active_act_slots["reserve"] = SlotEntry(
-            reason="cat_ii_responder",
-            cat_ii_event_id="cat_two",
-        )
-    elif unavailable_kind == "committed":
-        checkpoint.session.open_commitments = [
-            OpenCommitment(
-                commitment_id="reserve_work",
-                actor_ids=["reserve"],
-                description="Reserve is already repairing equipment.",
-                location_label="lobby",
-            )
-        ]
-    else:
-        reserve.player_slot_kind = PlayerSlotKind.player_authored
-
-    assert one_star_scene_tick_context(checkpoint) is None
-    assert discover_scene_tick_requests(checkpoint, max_scenes=4) == []
-
-
-def test_scene_tick_discovery_respects_foreground_scene_boundaries() -> None:
-    checkpoint = _active_checkpoint(bind_party=False)
-
-    assert discover_scene_tick_requests(
-        checkpoint,
-        blocked_character_ids={"reserve"},
-        max_scenes=4,
-    ) == []
-
-    requests = discover_scene_tick_requests(
-        checkpoint,
-        blocked_character_ids={"hero"},
-        max_scenes=4,
+    reserve.location = "stale_tower_floor_1"
+    source = _one_star_result(
+        observer_ids=["account_owner", "hero"],
+        background_threads=[{
+            "actor_id": "reserve",
+            "participant_ids": ["reserve"],
+        }],
     )
-    assert len(requests) == 1
-    assert requests[0].actor_id == "reserve"
+
+    assert background_thread_requests(
+        checkpoint,
+        result=source,
+        actor_id="account_owner",
+    ) == [
+        BackgroundThreadRequest(
+            actor_id="reserve",
+            participant_ids=("reserve",),
+            canonical_at_s=0,
+        )
+    ]
 
 
-def test_scene_tick_can_open_local_work_but_not_route_a_chat_chain() -> None:
-    checkpoint = _active_checkpoint(bind_party=False)
-    request = discover_scene_tick_requests(checkpoint, max_scenes=1)[0]
+def test_background_thread_can_open_work_without_location_authority() -> None:
+    checkpoint = _active_checkpoint(bind_party=True)
+    request = BackgroundThreadRequest(
+        actor_id="reserve",
+        participant_ids=("reserve",),
+        canonical_at_s=0,
+    )
     activity = _one_star_result(
         observer_ids=["reserve"],
-        facts=[
-            ObservableFact.all(
-                "Reserve begins a measured practice routine.",
-                visual_subject_ids=["reserve"],
-            )
-        ],
+        facts=[ObservableFact.all(
+            "Reserve begins repairing a battered shield.",
+            visual_subject_ids=["reserve"],
+        )],
     )
     activity.commitment_open.present = True
     activity.commitment_open.actor_ids = ["reserve"]
-    activity.commitment_open.description = "practice in the lobby"
+    activity.commitment_open.description = "repair the battered shield"
     activity.commitment_open.expected_duration_s = 1800
     activity.commitment_open.max_duration_s = 3600
-    activity.commitment_open.location_label = "lobby"
-    anchor_scene_tick_result(activity, request=request)
+    activity.commitment_open.location_label = ""
+    anchor_background_thread_result(activity, request=request)
 
-    validate_scene_tick_result(
+    validate_background_thread_result(
         checkpoint,
         request=request,
         result=activity,
     )
 
-    activity.duration_s = 1
-    with pytest.raises(ValueError, match="canonical instant"):
-        validate_scene_tick_result(
+    activity.commitment_open.location_label = "lobby"
+    with pytest.raises(ValueError, match="no location authority"):
+        validate_background_thread_result(
             checkpoint,
             request=request,
             result=activity,
         )
-    activity.duration_s = 0
-
-    routed = _one_star_result(
-        observer_ids=["reserve"],
-        agent_ids=["reserve"],
-        event_kind="beat_continues",
-        facts=[ObservableFact.all("Reserve pauses over the practice blade.")],
-    )
-    anchor_scene_tick_result(routed, request=request)
-    with pytest.raises(ValueError, match="close without a response frontier"):
-        validate_scene_tick_result(
-            checkpoint,
-            request=request,
-            result=routed,
-        )
-
-    floor_leak = _one_star_result(
-        observer_ids=["reserve", "hero"],
-        facts=[ObservableFact.all("The deployed Hero appears in the room.")],
-    )
-    anchor_scene_tick_result(floor_leak, request=request)
-    with pytest.raises(ValueError, match="local and observe-only"):
-        validate_scene_tick_result(
-            checkpoint,
-            request=request,
-            result=floor_leak,
-        )
 
 
-def test_scene_tick_uses_no_private_cue_and_leaves_human_led_floor_untouched(
-) -> None:
+def test_background_thread_leaves_human_led_floor_untouched() -> None:
     checkpoint = _active_checkpoint(bind_party=True)
     checkpoint.session.character_bindings["account_owner"] = "master-player"
     dispatcher = InstanceFakeDispatcher()
@@ -525,6 +460,10 @@ def test_scene_tick_uses_no_private_cue_and_leaves_human_led_floor_untouched(
                 ["account_owner"],
             )
         ],
+        background_threads=[{
+            "actor_id": "reserve",
+            "participant_ids": ["reserve"],
+        }],
     )
     initial.event_id = "evt_human_floor_defer"
     activity = _one_star_result(
@@ -542,7 +481,7 @@ def test_scene_tick_uses_no_private_cue_and_leaves_human_led_floor_untouched(
     activity.commitment_open.description = "restore the battered shield"
     activity.commitment_open.expected_duration_s = 1800
     activity.commitment_open.max_duration_s = 3600
-    activity.commitment_open.location_label = "lobby"
+    activity.commitment_open.location_label = ""
 
     dispatcher.queue_route(initial)
     dispatcher.queue_route(activity)
@@ -563,7 +502,8 @@ def test_scene_tick_uses_no_private_cue_and_leaves_human_led_floor_untouched(
     assert [call["character_id"] for call in dispatcher.agent_calls] == ["reserve"]
     assert dispatcher.agent_calls[0]["frame"] == "background"
     assert len(dispatcher.route_calls) == 2
-    assert dispatcher.route_calls[1]["scene_tick"].actor_id == "reserve"
+    assert dispatcher.route_calls[1]["background_thread"].actor_id == "reserve"
+    assert "lobby" not in dispatcher.agent_calls[0]["local_context"].lower()
     assert dispatcher.continuation_calls == []
     assert [event.event_id for event in checkpoint.canonical_events] == [
         "evt_human_floor_defer",
@@ -905,4 +845,3 @@ def test_human_led_helpers_leave_rules_neutral_sessions_unchanged() -> None:
         result=result,
         user_input="watch the mission",
     ) is False
-    assert one_star_scene_tick_context(generic) is None

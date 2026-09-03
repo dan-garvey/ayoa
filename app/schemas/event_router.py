@@ -24,7 +24,7 @@ EventKind = Literal[
     "beat_continues",
     # A public or semi-public information event. The event is still a normal
     # canonical event: observers receive visible facts through the usual inbox
-    # path. `next_output` observers may also receive a background turn.
+    # path. `next_output` observers may owe an immediate same-thread response.
     "public_fact",
     "response_requested",
     "state_change",
@@ -204,6 +204,39 @@ class ObserverEntry(BaseModel):
     character_id: str
     observation_level: str
     routing_role: ObserverRoutingRole
+
+
+class BackgroundThreadPick(BaseModel):
+    """Router-selected autonomous motion outside the current focal event.
+
+    ``participant_ids`` is a transient semantic boundary for one independently
+    prepared turn.  It is not a location, scene ledger, or visibility claim
+    about the focal event.  The submitting actor must be one of the listed
+    participants; runtime validates that separate picks do not overlap.
+
+    All fields are required for the fixed structured-output grammar.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    actor_id: str
+    participant_ids: list[str]
+
+    @model_validator(mode="after")
+    def _clean(self) -> "BackgroundThreadPick":
+        self.actor_id = self.actor_id.strip()
+        self.participant_ids = [
+            character_id.strip()
+            for character_id in dict.fromkeys(self.participant_ids)
+            if character_id.strip()
+        ]
+        if not self.actor_id:
+            raise ValueError("background thread actor_id must not be empty")
+        if self.actor_id not in self.participant_ids:
+            raise ValueError(
+                "background thread actor must appear in participant_ids"
+            )
+        return self
 
 
 class DndObserverEntry(ObserverEntry):
@@ -442,6 +475,10 @@ class EventRouterOutput(BaseModel):
     # future intend() calls. `routing_role` on each observer is the routing
     # decision for that character.
     observers: list[ObserverEntry]
+    # Independent off-screen turns selected by semantic story context.  These
+    # are transient scheduling directives, not observers of this event and not
+    # durable scene/location state.
+    background_threads: list[BackgroundThreadPick]
     spawn: list[SpawnRequest]
     dormant: list[str]
     cull: list[str]
@@ -450,20 +487,28 @@ class EventRouterOutput(BaseModel):
     commitment_interrupts: list[CommitmentInterruptSignal]
     location_updates: list[LocationUpdateSignal]
     # Wake dormant characters back into play (inverse of `dormant`). Kept
-    # required in the LLM grammar like its siblings; `_default_activate` fills
-    # it for hand-built/older EventRouterOutput constructions that omit it.
+    # required in the LLM grammar like its siblings;
+    # `_default_new_required_lists` fills it for hand-built/older
+    # EventRouterOutput constructions that omit it.
     activate: list[WakeSignal]
 
     @model_validator(mode="before")
     @classmethod
-    def _default_activate(cls, data: Any) -> Any:
-        """Fill `activate` for constructors and fixtures that predate it, the
-        same way `_assign_event_id` defaults event_id. The field stays required
-        in the emitted schema (no Field default), so the router must still emit
-        it, but Python-side construction without it keeps working."""
-        if isinstance(data, dict) and "activate" not in data:
+    def _default_new_required_lists(cls, data: Any) -> Any:
+        """Fill newer fields for hand-built fixtures while keeping them required.
+
+        The emitted strict schema still requires both keys from the router.  A
+        before-validator keeps older Python constructors concise without adding
+        Pydantic defaults and reopening the provider grammar explosion.
+        """
+        if isinstance(data, dict) and (
+            "activate" not in data or "background_threads" not in data
+        ):
             data = dict(data)
-            data["activate"] = []
+            if "activate" not in data:
+                data["activate"] = []
+            if "background_threads" not in data:
+                data["background_threads"] = []
         return data
 
     @model_validator(mode="before")

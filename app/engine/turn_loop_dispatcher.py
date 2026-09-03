@@ -51,19 +51,22 @@ from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.engine.one_star_adapter import (
     prepare_one_star_live_mission_observers,
 )
-from app.engine.scene_ticks import (
-    SceneTickRequest,
-    anchor_scene_tick_result,
-    validate_scene_tick_result,
+from app.engine.background_threads import (
+    BackgroundThreadRequest,
+    anchor_background_thread_result,
+    background_thread_candidate_ids,
+    format_background_thread_selection_contract,
+    validate_background_thread_result,
+    validate_background_thread_selection,
 )
 from app.engine.turn_loop_contracts import (
     AuthoritativeContributionRequest,
     AuthoritativeResultPlan,
     format_actor_submission,
     format_authoritative_result_block,
+    format_background_thread_contract,
     format_cat_ii_resolution_block,
     format_router_continuation_block,
-    format_scene_tick_contract,
 )
 from app.llm.client import LLMClient
 from app.schemas.characters import CharacterRecord, is_non_social_hazard
@@ -2658,7 +2661,10 @@ class LLMDispatcher:
         actor_id: str,
         intention: str,
         cat_ii_event: OpenCatIIEvent | None = None,
-        scene_tick: SceneTickRequest | None = None,
+        background_thread: BackgroundThreadRequest | None = None,
+        background_thread_selection: bool = False,
+        background_thread_excluded_ids: tuple[str, ...] = (),
+        background_thread_max_threads: int = 4,
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention through event_router."""
 
@@ -2705,7 +2711,7 @@ class LLMDispatcher:
 
         router_snapshot = _router_call_snapshot(ckpt)
         try:
-            if scene_tick is None:
+            if background_thread is None:
                 await _append_router_content_lookup_records(
                     ckpt,
                     actor_id=actor_id,
@@ -2716,7 +2722,7 @@ class LLMDispatcher:
             ctx = _build_router_context(
                 ckpt,
                 actor_id,
-                include_engine_state_updates=scene_tick is None,
+                include_engine_state_updates=background_thread is None,
             )
             initial_roster_record = ctx.pop("initial_roster_block", "")
             if initial_roster_record:
@@ -2749,41 +2755,55 @@ class LLMDispatcher:
                 )
                 intention_block = ""
 
-            scene_tick_block = ""
-            if scene_tick is not None:
-                if cat_ii_event is not None or actor_id != scene_tick.actor_id:
+            selection_enabled = bool(
+                background_thread is None
+                and background_thread_selection
+                and background_thread_max_threads > 0
+            )
+            background_candidate_ids = (
+                [
+                    character_id
+                    for character_id in background_thread_candidate_ids(ckpt)
+                    if character_id not in background_thread_excluded_ids
+                ]
+                if selection_enabled
+                else []
+            )
+            background_selection_block = (
+                format_background_thread_selection_contract(
+                    ckpt,
+                    background_candidate_ids,
+                    max_threads=background_thread_max_threads,
+                )
+                if selection_enabled
+                else "\n".join([
+                    "<background_thread_selection>",
+                    "No background selection is requested in this call. Emit "
+                    "background_threads=[].",
+                    "</background_thread_selection>",
+                ])
+            )
+            background_thread_block = ""
+            if background_thread is not None:
+                if (
+                    cat_ii_event is not None
+                    or actor_id != background_thread.actor_id
+                ):
                     raise ValueError(
-                        "scene tick must be one fresh intention from its selected actor"
+                        "background thread must be one fresh intention from its "
+                        "selected actor"
                     )
-                scene_tick_blocks = [format_scene_tick_contract(scene_tick)]
-                if scene_tick.adapter_context is not None:
-                    if not _one_star_router_enabled(ckpt):
-                        raise ValueError(
-                            "One-Star scene context cannot enter another ruleset"
-                        )
-                    from app.engine.one_star_adapter import OneStarSceneTickContext
-                    from app.engine.one_star_router_context import (
-                        render_one_star_scene_tick_contract,
-                    )
-
-                    if not isinstance(
-                        scene_tick.adapter_context,
-                        OneStarSceneTickContext,
-                    ):
-                        raise ValueError("unknown scene tick adapter context")
-                    scene_tick_blocks.append(
-                        render_one_star_scene_tick_contract(
-                            scene_tick.adapter_context
-                        )
-                    )
-                scene_tick_block = "\n".join(scene_tick_blocks)
+                background_thread_block = format_background_thread_contract(
+                    background_thread
+                )
 
             router_input_block = _build_router_input_block(
                 _build_opening_context_block(ckpt, intention, actor_id),
                 ctx.pop("engine_state_updates_block", ""),
                 cat_ii_resolution_block,
                 intention_block,
-                scene_tick_block,
+                background_selection_block,
+                background_thread_block,
             )
             template_vars = {
                 **ctx,
@@ -2831,11 +2851,14 @@ class LLMDispatcher:
             from app.engine.one_star_adapter import OneStarTransactionError
 
             def validate_candidate() -> None:
-                if scene_tick is not None:
-                    anchor_scene_tick_result(result, request=scene_tick)
-                    validate_scene_tick_result(
+                if background_thread is not None:
+                    anchor_background_thread_result(
+                        result,
+                        request=background_thread,
+                    )
+                    validate_background_thread_result(
                         ckpt,
-                        request=scene_tick,
+                        request=background_thread,
                         result=result,
                     )
                 else:
@@ -2871,6 +2894,20 @@ class LLMDispatcher:
                     ckpt,
                     actor_id=actor_id,
                     result=result,
+                )
+                # Adapter validation above may add required responders or
+                # normalize observers.  Evaluate the semantic foreground only
+                # after those authoritative edits are complete.
+                validate_background_thread_selection(
+                    ckpt,
+                    result=result,
+                    actor_id=actor_id,
+                    candidate_ids=background_candidate_ids,
+                    require_when_offscreen=selection_enabled,
+                    excluded_participant_ids=set(
+                        background_thread_excluded_ids
+                    ),
+                    max_threads=background_thread_max_threads,
                 )
 
             try:
@@ -2931,15 +2968,15 @@ class LLMDispatcher:
             acting_character_id=actor_id,
             result=result,
             mode=(
-                "scene_tick"
-                if scene_tick is not None
+                "background_thread"
+                if background_thread is not None
                 else "cat_ii_resolution"
                 if cat_ii_event
                 else "intention"
             ),
             user_prompt=(
                 _defer_history_user_prompt(intention)
-                if cat_ii_event is None and scene_tick is None
+                if cat_ii_event is None and background_thread is None
                 else ""
             ),
         )
@@ -3050,6 +3087,9 @@ class LLMDispatcher:
         actor_id: str,
         prior_result: EventRouterOutput,
         original_action: str = "",
+        background_thread_selection: bool = False,
+        background_thread_excluded_ids: tuple[str, ...] = (),
+        background_thread_max_threads: int = 4,
     ) -> EventRouterOutput:
         """Ask the router for grounded motion after a closed event."""
 
@@ -3079,10 +3119,36 @@ class LLMDispatcher:
                 prior_rationale=prior_result.decision_rationale,
                 original_action=original_action,
             )
+            background_candidate_ids = (
+                [
+                    character_id
+                    for character_id in background_thread_candidate_ids(ckpt)
+                    if character_id not in background_thread_excluded_ids
+                ]
+                if background_thread_selection
+                and background_thread_max_threads > 0
+                else []
+            )
+            background_selection_block = (
+                format_background_thread_selection_contract(
+                    ckpt,
+                    background_candidate_ids,
+                    max_threads=background_thread_max_threads,
+                )
+                if background_thread_selection
+                and background_thread_max_threads > 0
+                else "\n".join([
+                    "<background_thread_selection>",
+                    "No background selection is requested in this call. Emit "
+                    "background_threads=[].",
+                    "</background_thread_selection>",
+                ])
+            )
 
             router_input_block = _build_router_input_block(
                 ctx.pop("engine_state_updates_block", ""),
                 continuation_block,
+                background_selection_block,
             )
             template_vars = {
                 **ctx,
@@ -3162,6 +3228,20 @@ class LLMDispatcher:
                     ckpt,
                     actor_id=actor_id,
                     result=result,
+                )
+                validate_background_thread_selection(
+                    ckpt,
+                    result=result,
+                    actor_id=actor_id,
+                    candidate_ids=background_candidate_ids,
+                    require_when_offscreen=(
+                        background_thread_selection
+                        and background_thread_max_threads > 0
+                    ),
+                    excluded_participant_ids=set(
+                        background_thread_excluded_ids
+                    ),
+                    max_threads=background_thread_max_threads,
                 )
 
             try:
@@ -3458,6 +3538,7 @@ class LLMDispatcher:
         character_id: str,
         frame: str = "foreground",
         local_context: str = "",
+        include_location: bool = True,
     ) -> str:
         """Invoke the character agent and return its prose for the router.
 
@@ -3495,6 +3576,7 @@ class LLMDispatcher:
             checkpoint=ckpt,
             frame=frame,
             local_context=local_context,
+            include_location=include_location,
         )
         public = output.public_text.strip()
         if public:

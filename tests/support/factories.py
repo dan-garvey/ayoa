@@ -185,6 +185,7 @@ def router_output(
     dormant: list[str] | None = None,
     cull: list[str] | None = None,
     activate: list[dict] | None = None,
+    background_threads: list[dict] | None = None,
 ) -> EventRouterOutput:
     picks = agent_ids or []
     required = required_responders or []
@@ -221,6 +222,7 @@ def router_output(
         ),
         event_kind=resolved_event_kind,
         observers=observers,
+        background_threads=background_threads or [],
         requires_responders=requires_responders,
         required_responders=required,
         spawn=spawn or [],

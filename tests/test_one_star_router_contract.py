@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from app.engine.prompt_manager import PromptManager
 from app.engine.one_star_adapter import OneStarTransactionError
-from app.engine.scene_ticks import discover_scene_tick_requests
+from app.engine.background_threads import BackgroundThreadRequest
 from app.engine.turn_loop_dispatcher import (
     LLMDispatcher,
     _build_router_context,
@@ -49,6 +49,7 @@ from app.schemas.conversation import ConversationMessage
 from app.schemas.state import OpenCatIIEvent
 from app.engine.turn_loop_contracts import format_actor_submission
 from app.schemas.event_router import (
+    BackgroundThreadPick,
     EventRouterOutput,
     LocationUpdateSignal,
     ObserverEntry,
@@ -190,7 +191,7 @@ def _dispatcher(*responses):
     return LLMDispatcher(client, PromptManager("app/prompts")), client
 
 
-def _scene_tick_checkpoint():
+def _background_thread_checkpoint():
     party = _hero(location="tower_floor_1")
     reserve = _hero(location="lobby")
     reserve.character_id = "reserve"
@@ -208,13 +209,15 @@ def _scene_tick_checkpoint():
     return ckpt
 
 
-def _scene_tick_request(ckpt):
-    requests = discover_scene_tick_requests(ckpt, max_scenes=1)
-    assert len(requests) == 1
-    return requests[0]
+def _background_thread_request() -> BackgroundThreadRequest:
+    return BackgroundThreadRequest(
+        actor_id="reserve",
+        participant_ids=("reserve",),
+        canonical_at_s=0,
+    )
 
 
-def _scene_tick_output() -> OneStarEventRouterOutput:
+def _background_thread_output() -> OneStarEventRouterOutput:
     return OneStarEventRouterOutput.model_validate(
         {
             **router_output(
@@ -600,10 +603,10 @@ def test_one_star_continuation_uses_the_closed_schema(monkeypatch):
     )
 
 
-def test_scene_tick_contract_stays_in_the_router_user_tail() -> None:
-    ckpt = _scene_tick_checkpoint()
-    request = _scene_tick_request(ckpt)
-    activity = _scene_tick_output()
+def test_background_thread_contract_stays_in_the_router_user_tail() -> None:
+    ckpt = _background_thread_checkpoint()
+    request = _background_thread_request()
+    activity = _background_thread_output()
     dispatcher, client = _dispatcher(activity)
 
     result = asyncio.run(
@@ -611,18 +614,55 @@ def test_scene_tick_contract_stays_in_the_router_user_tail() -> None:
             ckpt=ckpt,
             actor_id="reserve",
             intention="Reserve begins a silent practice routine.",
-            scene_tick=request,
+            background_thread=request,
         )
     )
 
     assert result is activity
     messages = client.complete.await_args.kwargs["messages"]
-    assert "<scene_tick>" in messages[-1]["content"]
-    assert "<one_star_scene_tick>" in messages[-1]["content"]
-    assert "<scene_tick>" not in messages[0]["content"]
-    assert "<one_star_scene_tick>" not in messages[0]["content"]
-    assert "state_updates=[]" in messages[-1]["content"]
-    assert "mode=scene_tick" in ckpt.session_conversation[-1].content
+    assert "<background_thread>" in messages[-1]["content"]
+    assert "Characters available in this thread: reserve" in messages[-1]["content"]
+    assert "Scene location" not in messages[-1]["content"]
+    assert "<background_thread>" not in messages[0]["content"]
+    assert "background_threads=[]" in messages[-1]["content"]
+    assert "mode=background_thread" in ckpt.session_conversation[-1].content
+
+
+def test_background_selection_candidates_stay_in_the_router_user_tail() -> None:
+    ckpt = _background_thread_checkpoint()
+    event = _one_star_output()
+    event.canonical_event.observable_facts = [
+        ObservableFact.only("The expedition advances.", ["account_owner"])
+    ]
+    event.observers = [
+        ObserverEntry(
+            character_id="account_owner",
+            observation_level="d",
+            routing_role="observe_only",
+        )
+    ]
+    event.background_threads = [
+        BackgroundThreadPick(
+            actor_id="reserve",
+            participant_ids=["reserve"],
+        )
+    ]
+    dispatcher, client = _dispatcher(event)
+
+    result = asyncio.run(
+        dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="account_owner",
+            intention="Keep watching the expedition.",
+            background_thread_selection=True,
+        )
+    )
+
+    assert result.background_threads[0].actor_id == "reserve"
+    messages = client.complete.await_args.kwargs["messages"]
+    candidate_line = "Eligible autonomous initiators: reserve (Reserve)"
+    assert candidate_line in messages[-1]["content"]
+    assert candidate_line not in messages[0]["content"]
 
 
 def _lobby_return_continuation(*, guide_delivery: bool):

@@ -53,6 +53,21 @@ def test_activate_wakes_dormant_character_and_places_them() -> None:
     assert wren.location == "niflheim_lobby"
 
 
+def test_activate_replay_does_not_move_an_already_active_character() -> None:
+    checkpoint = _seed()
+    wren = next(c for c in checkpoint.characters if c.character_id == "wren_thelantern")
+    routed = router_output(activate=[
+        {"character_id": "wren_thelantern", "location_label": "tower_floor_1"},
+    ])
+
+    CharacterManager().apply_roster_updates(checkpoint, routed)
+    wren.location = "niflheim_lobby"
+    CharacterManager().apply_roster_updates(checkpoint, routed)
+
+    assert wren.status == CharacterStatus.active
+    assert wren.location == "niflheim_lobby"
+
+
 def test_activate_cannot_wake_the_culled() -> None:
     checkpoint = _seed()
     wren = next(c for c in checkpoint.characters if c.character_id == "wren_thelantern")

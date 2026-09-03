@@ -14,7 +14,6 @@ import json
 import re
 from dataclasses import dataclass, field
 from collections.abc import Iterable, Mapping
-from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
@@ -86,10 +85,6 @@ from app.schemas.one_star import (
     OneStarDurabilityUpdate,
     OneStarEquipmentMoveOperation,
 )
-
-if TYPE_CHECKING:
-    from app.engine.scene_ticks import SceneTickRequest
-
 
 class OneStarTransactionError(ValueError):
     """A compact One-Star update cannot be committed safely."""
@@ -170,23 +165,6 @@ class OneStarSummonDraw:
     slot: int
     birth_stars: int
     existing_character_id: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class OneStarSceneTickContext:
-    """Adapter context for one generic active-mission lobby scene tick.
-
-    This is deliberately not checkpoint state. The generic scene scheduler
-    owns cadence and actor selection; canonical events and ordinary character
-    conversations preserve whatever the selected Hero actually does.
-    """
-
-    owner_id: str
-    mission_id: str
-    party_ids: tuple[str, ...]
-    hero_ids: tuple[str, ...]
-    facilities: tuple[tuple[str, int], ...]
-    lobby_location: str
 
 
 def is_one_star_checkpoint(checkpoint: CheckpointFile) -> bool:
@@ -286,88 +264,6 @@ def _one_star_lobby_safe_locations(
     }
 
 
-def one_star_scene_tick_context(
-    checkpoint: CheckpointFile,
-) -> OneStarSceneTickContext | None:
-    """Describe idle autonomous Heroes available during an active mission."""
-
-    if not is_one_star_checkpoint(checkpoint):
-        return None
-    try:
-        owner, account = load_one_star_account(checkpoint)
-    except (OneStarTransactionError, ValidationError):
-        return None
-    mission = account.state.active_mission
-    if mission is None:
-        return None
-
-    human_ids = set(checkpoint.session.character_bindings)
-    if checkpoint.session.player_character_id:
-        human_ids.add(checkpoint.session.player_character_id)
-    blocked_ids = set(checkpoint.session.active_act_slots)
-    committed_ids = {
-        character_id
-        for commitment in checkpoint.session.open_commitments
-        for character_id in commitment.actor_ids
-    }
-    pending = account.state.pending_operation
-    operation_ids = (
-        {
-            *pending.participant_ids,
-            *([pending.target_id] if pending.target_id else []),
-        }
-        if pending is not None
-        else set()
-    )
-    party_ids = set(mission.party_ids)
-    candidates: list[CharacterRecord] = []
-    for character in checkpoint.characters:
-        hero = load_one_star_hero(character)
-        if (
-            character.status != CharacterStatus.active
-            or character.character_id in party_ids
-            or character.character_id in human_ids
-            or character.character_id in blocked_ids
-            or character.character_id in committed_ids
-            or character.character_id in operation_ids
-            or is_player_authored_slot(character)
-            or character.location != account.config.lobby_location_label
-            or hero is None
-            or hero.owner_lobby_id != account.config.lobby_id
-        ):
-            continue
-        candidates.append(character)
-
-    if not candidates:
-        return None
-
-    # Keep the adapter projection stable; the generic scene scheduler computes
-    # the final fair actor choice from the same checkpoint.
-    candidates.sort(
-        key=lambda character: (
-            len(checkpoint.character_conversations.get(character.character_id, ())),
-            character.last_agent_turn_at_s
-            if character.last_agent_turn_at_s is not None
-            else -1,
-            character.character_id,
-        )
-    )
-    return OneStarSceneTickContext(
-        owner_id=owner.character_id,
-        mission_id=mission.mission_id,
-        party_ids=tuple(mission.party_ids),
-        hero_ids=tuple(character.character_id for character in candidates),
-        facilities=tuple(
-            sorted(
-                (facility_id, level)
-                for facility_id, level in account.state.facilities.items()
-                if level > 0
-            )
-        ),
-        lobby_location=account.config.lobby_location_label,
-    )
-
-
 def _one_star_mission_watch_requested(user_input: str) -> bool:
     normalized = " ".join((user_input or "").lower().split())
     if normalized in {"(defer)", "/defer", "defer"}:
@@ -385,48 +281,6 @@ def _one_star_mission_watch_requested(user_input: str) -> bool:
         }
         and words & {"watch", "observe", "monitor", "view", "status", "check"}
     )
-
-
-def validate_one_star_scene_tick_result(
-    checkpoint: CheckpointFile,
-    *,
-    context: OneStarSceneTickContext,
-    request: "SceneTickRequest",
-    result: EventRouterOutput,
-) -> None:
-    """Keep a generic tick wholly inside the idle One-Star lobby cast."""
-
-    current = one_star_scene_tick_context(checkpoint)
-    if (
-        current is None
-        or current.mission_id != context.mission_id
-        or current.lobby_location != request.location
-    ):
-        raise ValueError("One-Star scene tick requires the same active mission")
-    eligible_ids = set(current.hero_ids) & set(context.hero_ids)
-    clean_actor_id = request.actor_id.strip()
-    if clean_actor_id not in eligible_ids:
-        raise ValueError("One-Star scene tick actor is not an eligible idle Hero")
-    if set(request.participant_ids) - eligible_ids:
-        raise ValueError("One-Star scene tick includes an unavailable lobby Hero")
-    if getattr(result, "state_updates", ()):
-        raise ValueError("One-Star scene tick cannot change account or mission state")
-
-    structured_ids = {
-        *result.required_responders,
-        *(observer.character_id for observer in result.observers),
-        *(
-            character_id
-            for fact in result.canonical_event.observable_facts
-            for character_id in (*fact.visible_to, *fact.visual_subject_ids)
-        ),
-        *(update.character_id for update in result.location_updates),
-    }
-    if structured_ids - eligible_ids:
-        raise ValueError(
-            "One-Star scene tick cannot observe, route, depict, or move "
-            "the Master, deployed party, or unavailable lobby characters"
-        )
 
 
 def _one_star_human_led_lobby_hero_is_safe(

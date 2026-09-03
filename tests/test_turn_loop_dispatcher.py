@@ -2873,6 +2873,7 @@ class TestAgentIntend:
             checkpoint,
             frame="foreground",
             local_context="",
+            include_location=True,
         ):
             return CharacterAgentOutput(
                 character_id=character.character_id,
@@ -2908,6 +2909,7 @@ class TestAgentIntend:
             checkpoint,
             frame="foreground",
             local_context="",
+            include_location=True,
         ):
             return CharacterAgentOutput(
                 character_id=character.character_id,

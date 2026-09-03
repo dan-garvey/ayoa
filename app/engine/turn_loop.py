@@ -76,12 +76,12 @@ from app.engine.narrator import (
     commit_pov_render,
     resolve_buffered_events_for_render,
 )
-from app.engine.scene_ticks import (
-    SceneTickRequest,
-    anchor_scene_tick_result,
-    discover_scene_tick_requests,
-    scene_tick_blocked_character_ids,
-    validate_scene_tick_result,
+from app.engine.background_threads import (
+    MAX_CONCURRENT_BACKGROUND_THREADS,
+    BackgroundThreadRequest,
+    anchor_background_thread_result,
+    background_thread_requests,
+    validate_background_thread_result,
 )
 from app.engine.dnd_combat_access import (
     checkpoint_active_combat,
@@ -147,8 +147,7 @@ narrator_handoff_logger = logging.getLogger(
 # configured persistent file handler.
 narrator_handoff_logger.setLevel(logging.INFO)
 
-MAX_BACKGROUND_THREADS_PER_BEAT = 4
-MAX_CONCURRENT_SCENE_TICKS_PER_BEAT = 4
+MAX_BACKGROUND_CASCADE_OUTPUTS_PER_BEAT = 4
 _RECENT_HANDOFF_SUBMISSION_LIMIT = 6
 _HISTORICAL_HANDOFF_SUBMISSION_LIMIT = 24
 _NON_SUBSTANTIVE_HANDOFF_INPUTS = {
@@ -1802,6 +1801,7 @@ async def _agent_intention_for_dispatch(
     *,
     frame: str = "foreground",
     local_context: str = "",
+    include_location: bool = True,
 ) -> str | None:
     """Fetch one NPC intention and normalize empty/refusal outputs."""
     from app.engine.context_builder import is_unbound_player_authored_slot
@@ -1817,6 +1817,7 @@ async def _agent_intention_for_dispatch(
         character_id=character_id,
         frame=frame,
         local_context=local_context,
+        include_location=include_location,
     )
     if raw and raw.strip() and not _is_agent_refusal(raw):
         return raw
@@ -2938,7 +2939,10 @@ class Dispatcher(Protocol):
         actor_id: str,
         intention: str,
         cat_ii_event: OpenCatIIEvent | None = None,
-        scene_tick: SceneTickRequest | None = None,
+        background_thread: BackgroundThreadRequest | None = None,
+        background_thread_selection: bool = False,
+        background_thread_excluded_ids: tuple[str, ...] = (),
+        background_thread_max_threads: int = 4,
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention. Returns a canonical
         event (with Cat I/II decision, observer routing roles, and
@@ -2958,6 +2962,9 @@ class Dispatcher(Protocol):
         actor_id: str,
         prior_result: EventRouterOutput,
         original_action: str = "",
+        background_thread_selection: bool = False,
+        background_thread_excluded_ids: tuple[str, ...] = (),
+        background_thread_max_threads: int = 4,
     ) -> EventRouterOutput:
         """Author another grounded event after a narrator continuation
         handoff keeps the current visible batch open."""
@@ -2988,6 +2995,7 @@ class Dispatcher(Protocol):
         character_id: str,
         frame: str = "foreground",
         local_context: str = "",
+        include_location: bool = True,
     ) -> str:
         """Ask an agent for their next intention (as free-form text).
         Returns the intention string; the orchestrator re-routes it
@@ -3101,10 +3109,10 @@ class _SpeculativeNextOutput:
 
 
 @dataclass(slots=True)
-class _PreparedSceneTick:
-    """One isolated, validated scene result awaiting deterministic merge."""
+class _PreparedBackgroundThread:
+    """One isolated semantic-thread result awaiting deterministic merge."""
 
-    request: SceneTickRequest
+    request: BackgroundThreadRequest
     source_checkpoint: CheckpointFile
     checkpoint: CheckpointFile
     result: EventRouterOutput
@@ -3221,40 +3229,35 @@ def _adopt_speculative_router_state(
     )
 
 
-def _scene_tick_agent_context(
+def _background_thread_agent_context(
     checkpoint: CheckpointFile,
-    request: SceneTickRequest,
+    request: BackgroundThreadRequest,
 ) -> str:
-    """Give one actor a fictional opportunity without prescribing its choice."""
+    """Expose only router-selected company and actor-owned prior context."""
 
-    blocks = [
-        _router_target_local_context(checkpoint, request.actor_id),
-        (
-            "No immediate exchange is waiting on you. A stretch of time is "
-            "yours here. Choose one concrete thing you do for your own reasons: "
-            "work, upkeep, rest, practice, private business, or reaching toward "
-            "someone nearby. Stop before deciding another person's response."
-        ),
+    names = {
+        character.character_id: character.name
+        for character in checkpoint.characters
+    }
+    others = [
+        f"{names.get(character_id, character_id)} ({character_id})"
+        for character_id in request.participant_ids
+        if character_id != request.actor_id
     ]
-    if request.adapter_context is not None:
-        from app.engine.one_star_adapter import OneStarSceneTickContext
-        from app.engine.one_star_router_context import (
-            render_one_star_scene_tick_agent_context,
-        )
-
-        if not isinstance(request.adapter_context, OneStarSceneTickContext):
-            raise ValueError("unknown scene tick adapter context")
-        blocks.append(
-            render_one_star_scene_tick_agent_context(request.adapter_context)
-        )
-    return "\n\n".join(block.strip() for block in blocks if block.strip())
+    available = ", ".join(others) if others else "no one else"
+    return (
+        "People presently available to perceive or answer you: "
+        f"{available}. Choose one concrete action from your own objectives and "
+        "what you personally witnessed. You have not perceived events from any "
+        "simultaneous thread. Stop before deciding another person's response."
+    )
 
 
-def _validate_scene_tick_branch_mutations(
+def _validate_background_thread_branch_mutations(
     source: CheckpointFile,
     branch: CheckpointFile,
     *,
-    request: SceneTickRequest,
+    request: BackgroundThreadRequest,
 ) -> list[Any]:
     """Require a branch to change only its actor memory and router suffix."""
 
@@ -3268,7 +3271,7 @@ def _validate_scene_tick_branch_mutations(
             continue
         if getattr(branch, field_name) != getattr(source, field_name):
             raise RuntimeError(
-                "scene tick branch mutated shared checkpoint field "
+                "background thread branch mutated shared checkpoint field "
                 f"{field_name!r}"
             )
 
@@ -3279,13 +3282,13 @@ def _validate_scene_tick_branch_mutations(
         character.character_id: character for character in branch.characters
     }
     if source_characters.keys() != branch_characters.keys():
-        raise RuntimeError("scene tick branch changed the roster")
+        raise RuntimeError("background thread branch changed the roster")
     for character_id, source_character in source_characters.items():
         if character_id == request.actor_id:
             continue
         if branch_characters[character_id] != source_character:
             raise RuntimeError(
-                "scene tick branch mutated another character: "
+                "background thread branch mutated another character: "
                 f"{character_id}"
             )
 
@@ -3298,29 +3301,29 @@ def _validate_scene_tick_branch_mutations(
         if character_id == request.actor_id:
             if branch_history[:len(source_history)] != source_history:
                 raise RuntimeError(
-                    "scene tick rewrote its actor's prior conversation"
+                    "background thread rewrote its actor's prior conversation"
                 )
             continue
         if branch_history != source_history:
             raise RuntimeError(
-                "scene tick branch changed another actor's conversation: "
+                "background thread branch changed another actor's conversation: "
                 f"{character_id}"
             )
 
     source_router_history = source.session_conversation
     branch_router_history = branch.session_conversation
     if branch_router_history[:len(source_router_history)] != source_router_history:
-        raise RuntimeError("scene tick rewrote canonical router history")
+        raise RuntimeError("background thread rewrote canonical router history")
     suffix = deepcopy(branch_router_history[len(source_router_history):])
     return suffix
 
 
-async def _prepare_scene_tick_branch(
+async def _prepare_background_thread_branch(
     dispatcher: Dispatcher,
     source: CheckpointFile,
-    request: SceneTickRequest,
-) -> _PreparedSceneTick:
-    """Draft and route one location without touching any live state."""
+    request: BackgroundThreadRequest,
+) -> _PreparedBackgroundThread:
+    """Draft and route one semantic thread without touching live state."""
 
     branch = _durable_checkpoint_copy(source)
     intention = await _agent_intention_for_dispatch(
@@ -3328,27 +3331,29 @@ async def _prepare_scene_tick_branch(
         branch,
         request.actor_id,
         frame="background",
-        local_context=_scene_tick_agent_context(branch, request),
+        local_context=_background_thread_agent_context(branch, request),
+        include_location=False,
     )
     if intention is None:
         raise RuntimeError(
-            f"scene tick actor {request.actor_id!r} produced no usable intention"
+            "background thread actor "
+            f"{request.actor_id!r} produced no usable intention"
         )
     result = await dispatcher.route_intention(
         ckpt=branch,
         actor_id=request.actor_id,
         intention=intention,
         cat_ii_event=None,
-        scene_tick=request,
+        background_thread=request,
     )
-    anchor_scene_tick_result(result, request=request)
-    validate_scene_tick_result(branch, request=request, result=result)
-    suffix = _validate_scene_tick_branch_mutations(
+    anchor_background_thread_result(result, request=request)
+    validate_background_thread_result(branch, request=request, result=result)
+    suffix = _validate_background_thread_branch_mutations(
         source,
         branch,
         request=request,
     )
-    return _PreparedSceneTick(
+    return _PreparedBackgroundThread(
         request=request,
         source_checkpoint=source,
         checkpoint=branch,
@@ -3357,16 +3362,16 @@ async def _prepare_scene_tick_branch(
     )
 
 
-async def _prepare_scene_tick_branches(
+async def _prepare_background_thread_branches(
     dispatcher: Dispatcher,
     source: CheckpointFile,
-    requests: list[SceneTickRequest],
-) -> list[_PreparedSceneTick]:
-    """Prepare every independent scene concurrently and fail as one set."""
+    requests: list[BackgroundThreadRequest],
+) -> list[_PreparedBackgroundThread]:
+    """Prepare every independent semantic thread concurrently as one set."""
 
     prepared = await asyncio.gather(
         *(
-            _prepare_scene_tick_branch(dispatcher, source, request)
+            _prepare_background_thread_branch(dispatcher, source, request)
             for request in requests
         ),
         return_exceptions=True,
@@ -3374,45 +3379,51 @@ async def _prepare_scene_tick_branches(
     failures = [item for item in prepared if isinstance(item, BaseException)]
     if failures:
         raise failures[0]
-    return [item for item in prepared if isinstance(item, _PreparedSceneTick)]
+    return [
+        item
+        for item in prepared
+        if isinstance(item, _PreparedBackgroundThread)
+    ]
 
 
-def _assert_scene_tick_actor_is_unchanged(
+def _assert_background_thread_participants_are_unchanged(
     live: CheckpointFile,
-    prepared: _PreparedSceneTick,
+    prepared: _PreparedBackgroundThread,
 ) -> None:
-    """Reject a merge if foreground work touched the supposedly disjoint actor."""
+    """Reject a merge if foreground work touched the semantic branch."""
 
-    actor_id = prepared.request.actor_id
-    live_actor = next(
-        (character for character in live.characters if character.character_id == actor_id),
-        None,
-    )
-    source_actor = next(
-        (
-            character
-            for character in prepared.source_checkpoint.characters
-            if character.character_id == actor_id
-        ),
-        None,
-    )
-    if live_actor is None or source_actor is None or live_actor != source_actor:
-        raise RuntimeError(
-            "scene tick lost independence before merge for actor "
-            f"{actor_id!r}"
-        )
-    if live.character_conversations.get(actor_id, []) != (
-        prepared.source_checkpoint.character_conversations.get(actor_id, [])
-    ):
-        raise RuntimeError(
-            "scene tick actor conversation changed before merge for "
-            f"{actor_id!r}"
-        )
+    live_by_id = {
+        character.character_id: character for character in live.characters
+    }
+    source_by_id = {
+        character.character_id: character
+        for character in prepared.source_checkpoint.characters
+    }
+    for character_id in prepared.request.participant_ids:
+        if (
+            live_by_id.get(character_id) is None
+            or source_by_id.get(character_id) is None
+            or live_by_id[character_id] != source_by_id[character_id]
+        ):
+            raise RuntimeError(
+                "background thread lost independence before merge for "
+                f"participant {character_id!r}"
+            )
+        if live.character_conversations.get(character_id, []) != (
+            prepared.source_checkpoint.character_conversations.get(
+                character_id,
+                [],
+            )
+        ):
+            raise RuntimeError(
+                "background thread participant conversation changed before "
+                f"merge for {character_id!r}"
+            )
 
 
-def _adopt_scene_tick_actor_state(
+def _adopt_background_thread_actor_state(
     live: CheckpointFile,
-    prepared: _PreparedSceneTick,
+    prepared: _PreparedBackgroundThread,
 ) -> None:
     actor_id = prepared.request.actor_id
     branch_actor = next(
@@ -3428,7 +3439,7 @@ def _adopt_scene_tick_actor_state(
         None,
     )
     if live_actor is None or branch_actor is None:
-        raise RuntimeError(f"scene tick actor disappeared: {actor_id!r}")
+        raise RuntimeError(f"background thread actor disappeared: {actor_id!r}")
     for field_name in CharacterRecord.model_fields:
         setattr(
             live_actor,
@@ -3501,7 +3512,7 @@ async def run_beat(
     )
     events_closed = max(0, int(resume_events_closed))
     agent_cascade_attempts = 0
-    background_thread_attempts = 0
+    background_cascade_attempts = 0
     event_actor_ids = list(resume_event_actor_ids or [])
     current_intention = intention
     current_actor = actor_id
@@ -3513,15 +3524,35 @@ async def run_beat(
     prepared_event_objects: set[int] = set()
     one_star_mission_batch_active = False
     one_star_batch_continuation_after_agent_count = -1
-    scene_tick_checked = False
-    scene_tick_task: asyncio.Task[list[_PreparedSceneTick]] | None = None
-    scene_tick_events_closed = 0
+    background_thread_tasks: list[
+        asyncio.Task[list[_PreparedBackgroundThread]]
+    ] = []
+    background_thread_participant_ids: list[str] = []
+    background_thread_request_count = 0
+    background_thread_events_closed = 0
     from app.engine.context_builder import collect_player_ids
 
-    scene_ticks_may_start = bool(
+    background_threads_may_start = bool(
         combat_reaction_event_id is None
         and actor_id in collect_player_ids(ckpt)
+        and resume_after_handoff is None
     )
+
+    def _background_thread_selection_kwargs() -> dict[str, Any]:
+        remaining = max(
+            0,
+            MAX_CONCURRENT_BACKGROUND_THREADS
+            - background_thread_request_count,
+        )
+        return {
+            "background_thread_selection": bool(
+                background_threads_may_start and remaining > 0
+            ),
+            "background_thread_excluded_ids": tuple(
+                background_thread_participant_ids
+            ),
+            "background_thread_max_threads": remaining,
+        }
 
     def _one_star_batch_narration_modes() -> dict[str, NarrationMode]:
         if not one_star_mission_batch_active:
@@ -3550,14 +3581,14 @@ async def run_beat(
         event_actor_id: str = "",
         ruleset_actor_id: str | None = None,
         close_for_presentation: bool = True,
-        scene_tick: SceneTickRequest | None = None,
+        background_thread: BackgroundThreadRequest | None = None,
     ) -> list[str]:
         autonomous_batch_checkpoint: CheckpointFile | None = None
-        if scene_tick is not None:
-            anchor_scene_tick_result(event, request=scene_tick)
-            validate_scene_tick_result(
+        if background_thread is not None:
+            anchor_background_thread_result(event, request=background_thread)
+            validate_background_thread_result(
                 ckpt,
-                request=scene_tick,
+                request=background_thread,
                 result=event,
             )
         elif one_star_human_led_mission_guard:
@@ -3579,7 +3610,7 @@ async def run_beat(
                     "watch/query.",
                     reason="one_star_human_led_mission_rejected",
                 ) from exc
-        if one_star_mission_batch_active and scene_tick is None:
+        if one_star_mission_batch_active and background_thread is None:
             from app.engine.one_star_adapter import (
                 validate_one_star_autonomous_mission_batch_result,
             )
@@ -3644,6 +3675,7 @@ async def run_beat(
             actor_id=continuation_actor_id,
             prior_result=prior_result,
             original_action=intention,
+            **_background_thread_selection_kwargs(),
         )
         pending_result_is_continuation = True
         pending_result_actor_id = continuation_actor_id
@@ -3652,65 +3684,104 @@ async def run_beat(
             pending_result, continuation_actor_id, kind="continuation",
         )
 
-    async def _start_scene_ticks(blocked_ids: set[str]) -> None:
-        """Start one isolated branch per eligible unnarrated scene."""
+    async def _start_background_threads(
+        source_event: EventRouterOutput,
+        *,
+        source_actor_id: str,
+    ) -> None:
+        """Start every router-selected independent semantic branch."""
 
-        nonlocal scene_tick_checked
-        nonlocal scene_tick_task
-        if scene_tick_checked or not scene_ticks_may_start:
+        nonlocal background_thread_request_count
+        if not background_threads_may_start:
+            if source_event.background_threads:
+                raise RuntimeError(
+                    "router selected background threads outside an eligible "
+                    "player beat"
+                )
             return
-        scene_tick_checked = True
-        requests = discover_scene_tick_requests(
+        remaining = (
+            MAX_CONCURRENT_BACKGROUND_THREADS
+            - background_thread_request_count
+        )
+        if remaining <= 0:
+            if source_event.background_threads:
+                raise RuntimeError(
+                    "router selected background threads after the per-beat cap"
+                )
+            return
+        requests = background_thread_requests(
             ckpt,
-            blocked_character_ids=blocked_ids,
-            max_scenes=MAX_CONCURRENT_SCENE_TICKS_PER_BEAT,
+            result=source_event,
+            actor_id=source_actor_id,
+            excluded_participant_ids=set(
+                background_thread_participant_ids
+            ),
+            max_threads=remaining,
         )
         if not requests:
             return
+        background_thread_request_count += len(requests)
+        for request in requests:
+            for character_id in request.participant_ids:
+                if character_id not in background_thread_participant_ids:
+                    background_thread_participant_ids.append(character_id)
         source = _durable_checkpoint_copy(ckpt)
-        scene_tick_task = asyncio.create_task(
-            _prepare_scene_tick_branches(
+        background_thread_tasks.append(asyncio.create_task(
+            _prepare_background_thread_branches(
                 dispatcher,
                 source,
                 requests,
             )
-        )
+        ))
         logger.info(
-            "Started %d independent scene tick(s): %s",
+            "Started %d router-selected background thread(s): %s",
             len(requests),
-            ", ".join(request.location for request in requests),
+            ", ".join(request.actor_id for request in requests),
         )
 
-    async def _cancel_scene_ticks() -> None:
-        nonlocal scene_tick_task
-        task = scene_tick_task
-        scene_tick_task = None
-        if task is None:
+    async def _cancel_background_threads() -> None:
+        tasks = list(background_thread_tasks)
+        background_thread_tasks.clear()
+        if not tasks:
             return
-        if not task.done():
-            task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _flush_scene_ticks() -> None:
-        """Validate and merge every completed scene in deterministic order."""
+    async def _flush_background_threads() -> None:
+        """Validate and merge completed threads in router-selected order."""
 
         nonlocal events_closed
-        nonlocal scene_tick_events_closed
-        nonlocal scene_tick_task
-        task = scene_tick_task
-        if task is None:
+        nonlocal background_thread_events_closed
+        tasks = list(background_thread_tasks)
+        background_thread_tasks.clear()
+        if not tasks:
             return
-        scene_tick_task = None
-        prepared = await task
+        prepared_sets = await asyncio.gather(
+            *tasks,
+            return_exceptions=True,
+        )
+        failures = [
+            item for item in prepared_sets if isinstance(item, BaseException)
+        ]
+        if failures:
+            raise failures[0]
+        prepared = [
+            item
+            for prepared_set in prepared_sets
+            if isinstance(prepared_set, list)
+            for item in prepared_set
+        ]
         if not prepared:
             return
 
         existing_event_ids = {event.event_id for event in ckpt.canonical_events}
         branch_event_ids: set[str] = set()
         for item in prepared:
-            _assert_scene_tick_actor_is_unchanged(ckpt, item)
-            anchor_scene_tick_result(item.result, request=item.request)
-            validate_scene_tick_result(
+            _assert_background_thread_participants_are_unchanged(ckpt, item)
+            anchor_background_thread_result(item.result, request=item.request)
+            validate_background_thread_result(
                 ckpt,
                 request=item.request,
                 result=item.result,
@@ -3720,7 +3791,7 @@ async def run_beat(
                 or item.result.event_id in branch_event_ids
             ):
                 raise RuntimeError(
-                    "scene tick produced a duplicate canonical event id: "
+                    "background thread produced a duplicate canonical event id: "
                     f"{item.result.event_id}"
                 )
             branch_event_ids.add(item.result.event_id)
@@ -3728,30 +3799,40 @@ async def run_beat(
         merge_snapshot = _durable_checkpoint_copy(ckpt)
         try:
             for item in prepared:
-                _adopt_scene_tick_actor_state(ckpt, item)
+                _adopt_background_thread_actor_state(ckpt, item)
                 result = item.result.model_copy(deep=True)
                 visible_humans = await _commit_event(
                     result,
                     event_actor_id=item.request.actor_id,
-                    scene_tick=item.request,
+                    background_thread=item.request,
                 )
                 if visible_humans:
                     raise RuntimeError(
-                        "scene tick reached a human narrator viewpoint: "
+                        "background thread reached a human narrator viewpoint: "
                         + ", ".join(visible_humans)
                     )
                 event_actor_ids.append(item.request.actor_id)
                 events_closed += 1
-                scene_tick_events_closed += 1
+                background_thread_events_closed += 1
         except BaseException:
             _restore_checkpoint_state(ckpt, merge_snapshot)
             raise
 
-    async def _finish_with_scene_ticks(result: BeatResult) -> BeatResult:
-        await _flush_scene_ticks()
+    async def _finish_with_background_threads(result: BeatResult) -> BeatResult:
+        await _flush_background_threads()
         result.events_closed = events_closed
         result.event_actor_ids = list(event_actor_ids)
         return result
+
+    async def _await_and_finish_background_threads(pending_beat: Any) -> BeatResult:
+        """Keep background failures transactional with foreground narration."""
+
+        try:
+            result = await pending_beat
+        except BaseException:
+            await _cancel_background_threads()
+            raise
+        return await _finish_with_background_threads(result)
 
     async def _prepare_speculative_next_output(
         prior_result: EventRouterOutput,
@@ -3759,7 +3840,7 @@ async def run_beat(
     ) -> _SpeculativeNextOutput:
         """Prepare one autonomous response without touching live state."""
 
-        nonlocal agent_cascade_attempts, background_thread_attempts
+        nonlocal agent_cascade_attempts, background_cascade_attempts
         speculative_ckpt = _durable_checkpoint_copy(ckpt)
         from app.engine.context_builder import collect_player_ids
 
@@ -3790,15 +3871,15 @@ async def run_beat(
             if target.frame == "background":
                 if (
                     not one_star_mission_batch_active
-                    and background_thread_attempts
-                    >= MAX_BACKGROUND_THREADS_PER_BEAT
+                    and background_cascade_attempts
+                    >= MAX_BACKGROUND_CASCADE_OUTPUTS_PER_BEAT
                 ):
                     return _SpeculativeNextOutput(
                         outcome="cap",
                         checkpoint=speculative_ckpt,
                         touched_actor_ids=touched_actor_ids,
                     )
-                background_thread_attempts += 1
+                background_cascade_attempts += 1
             agent_cascade_attempts += 1
             touched_actor_ids.append(target.character_id)
 
@@ -3824,6 +3905,7 @@ async def run_beat(
                 actor_id=target.character_id,
                 intention=agent_output,
                 cat_ii_event=None,
+                **_background_thread_selection_kwargs(),
             )
             _log_router_rationale(
                 routed,
@@ -3973,7 +4055,7 @@ async def run_beat(
                 standard_summon_guide_handoff = True
 
         if (
-            events_closed - scene_tick_events_closed >= max_events
+            events_closed - background_thread_events_closed >= max_events
             and default_ended_reason != "cat_ii_resolution"
             and not standard_summon_guide_handoff
         ):
@@ -4148,8 +4230,8 @@ async def run_beat(
             # `(begin)` may establish immediate autonomous motion, while an
             # accepted standard summon establishes an owed guide response.
             # Carry those handoffs through before offering the combined batch;
-            # ordinary narrator pacing resumes afterward. Independent scene
-            # ticks run beside this work and merge at the next causal boundary.
+            # ordinary narrator pacing resumes afterward. Independent semantic
+            # threads run beside this work and merge at the next causal boundary.
             prepared = await _prepare_speculative_next_output(result, targets)
             if (
                 standard_summon_guide_handoff
@@ -4302,6 +4384,7 @@ async def run_beat(
                 actor_id=evt.initiator_id,
                 intention=evt.initiator_intention,
                 cat_ii_event=evt,
+                **_background_thread_selection_kwargs(),
             )
         except DndCatIIRollsPending:
             return await _pause_for_pending_rolls()
@@ -4339,14 +4422,22 @@ async def run_beat(
             close_cat_ii(ckpt, evt.event_id)
         events_closed = 1
         event_actor_ids.append(evt.initiator_id)
-
-        completed = await _advance_or_render(
+        await _start_background_threads(
             resolved,
-            default_ended_reason="cat_ii_resolution",
-            resolved_cat_ii=evt,
+            source_actor_id=evt.initiator_id,
         )
+
+        try:
+            completed = await _advance_or_render(
+                resolved,
+                default_ended_reason="cat_ii_resolution",
+                resolved_cat_ii=evt,
+            )
+        except BaseException:
+            await _cancel_background_threads()
+            raise
         if completed is not None:
-            return completed
+            return await _finish_with_background_threads(completed)
 
     if resume_after_handoff is None and combat_reaction_event_id is not None:
         release_character_slot(ckpt, actor_id)
@@ -4430,12 +4521,6 @@ async def run_beat(
             )
 
     if resume_after_handoff is not None:
-        await _start_scene_ticks(
-            scene_tick_blocked_character_ids(
-                resume_after_handoff,
-                actor_id=actor_id,
-            )
-        )
         try:
             resume_targets = _binding_aware_next_output_targets(
                 ckpt, resume_after_handoff,
@@ -4448,11 +4533,11 @@ async def run_beat(
                 if prepared.checkpoint is not None:
                     _adopt_speculative_next_output(prepared)
                 if prepared.outcome == "cap":
-                    return await _finish_with_scene_ticks(
+                    return await _finish_with_background_threads(
                         await _end_for_cascade_cap()
                     )
                 if prepared.outcome == "human":
-                    return await _finish_with_scene_ticks(
+                    return await _finish_with_background_threads(
                         await _end_beat(
                             ckpt,
                             dispatcher,
@@ -4469,11 +4554,11 @@ async def run_beat(
             else:
                 await _queue_router_continuation(resume_after_handoff)
         except BaseException:
-            await _cancel_scene_ticks()
+            await _cancel_background_threads()
             raise
 
     while True:
-        await _flush_scene_ticks()
+        await _flush_background_threads()
         if pending_result is None:
             # Route the current actor submission.
             result = await dispatcher.route_intention(
@@ -4481,6 +4566,7 @@ async def run_beat(
                 actor_id=current_actor,
                 intention=current_intention,
                 cat_ii_event=None,
+                **_background_thread_selection_kwargs(),
             )
             result_actor_id = current_actor
             result_submission = current_intention
@@ -4552,15 +4638,21 @@ async def run_beat(
                 await _commit_event(result, event_actor_id=signal_actor_id)
                 event_actor_ids.append(signal_actor_id)
                 events_closed += 1
-                return await _end_beat(
-                    ckpt,
-                    dispatcher,
-                    ended_reason="combat_start_blocked",
-                    events_closed=events_closed,
-                    event_actor_ids=event_actor_ids,
-                    acting_player_id=actor_id,
-                    acting_player_input=intention,
-                    suppress_reaction_prompts=True,
+                await _start_background_threads(
+                    result,
+                    source_actor_id=signal_actor_id,
+                )
+                return await _await_and_finish_background_threads(
+                    _end_beat(
+                        ckpt,
+                        dispatcher,
+                        ended_reason="combat_start_blocked",
+                        events_closed=events_closed,
+                        event_actor_ids=event_actor_ids,
+                        acting_player_id=actor_id,
+                        acting_player_input=intention,
+                        suppress_reaction_prompts=True,
+                    )
                 )
             started = _start_dnd_combat_from_router_signal(
                 ckpt,
@@ -4571,26 +4663,34 @@ async def run_beat(
             await _commit_event(result, event_actor_id=signal_actor_id)
             event_actor_ids.append(signal_actor_id)
             events_closed += 1
+            await _start_background_threads(
+                result,
+                source_actor_id=signal_actor_id,
+            )
             if not started:
-                return await _end_beat(
+                return await _await_and_finish_background_threads(
+                    _end_beat(
+                        ckpt,
+                        dispatcher,
+                        ended_reason="state_change",
+                        events_closed=events_closed,
+                        event_actor_ids=event_actor_ids,
+                        acting_player_id=actor_id,
+                        acting_player_input=intention,
+                        suppress_reaction_prompts=True,
+                    )
+                )
+            return await _await_and_finish_background_threads(
+                _end_beat(
                     ckpt,
                     dispatcher,
-                    ended_reason="state_change",
+                    ended_reason="combat_started",
                     events_closed=events_closed,
                     event_actor_ids=event_actor_ids,
                     acting_player_id=actor_id,
                     acting_player_input=intention,
                     suppress_reaction_prompts=True,
                 )
-            return await _end_beat(
-                ckpt,
-                dispatcher,
-                ended_reason="combat_started",
-                events_closed=events_closed,
-                event_actor_ids=event_actor_ids,
-                acting_player_id=actor_id,
-                acting_player_input=intention,
-                suppress_reaction_prompts=True,
             )
 
         if interaction_mode == "dnd_combat_end":
@@ -4601,15 +4701,21 @@ async def run_beat(
             await _commit_event(result, event_actor_id=signal_actor_id)
             event_actor_ids.append(signal_actor_id)
             events_closed += 1
-            return await _end_beat(
-                ckpt,
-                dispatcher,
-                ended_reason=_event_handoff_reason(result) or "state_change",
-                events_closed=events_closed,
-                event_actor_ids=event_actor_ids,
-                acting_player_id=actor_id,
-                acting_player_input=intention,
-                suppress_reaction_prompts=True,
+            await _start_background_threads(
+                result,
+                source_actor_id=signal_actor_id,
+            )
+            return await _await_and_finish_background_threads(
+                _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason=_event_handoff_reason(result) or "state_change",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=True,
+                )
             )
 
         if result.requires_responders:
@@ -4634,14 +4740,21 @@ async def run_beat(
                 )
                 event_actor_ids.append(suppressed_actor_id)
                 events_closed += 1
-                return await _end_beat(
-                    ckpt, dispatcher,
-                    ended_reason="ruleset_cat_ii_suppressed",
-                    events_closed=events_closed,
-                    event_actor_ids=event_actor_ids,
-                    acting_player_id=actor_id,
-                    acting_player_input=intention,
-                    suppress_reaction_prompts=True,
+                await _start_background_threads(
+                    result,
+                    source_actor_id=suppressed_actor_id,
+                )
+                return await _await_and_finish_background_threads(
+                    _end_beat(
+                        ckpt,
+                        dispatcher,
+                        ended_reason="ruleset_cat_ii_suppressed",
+                        events_closed=events_closed,
+                        event_actor_ids=event_actor_ids,
+                        acting_player_id=actor_id,
+                        acting_player_input=intention,
+                        suppress_reaction_prompts=True,
+                    )
                 )
             if result_is_continuation:
                 raise RuntimeError(
@@ -4680,9 +4793,13 @@ async def run_beat(
                     await _commit_event(result, event_actor_id=result_actor_id)
                     event_actor_ids.append(result_actor_id)
                     events_closed += 1
+                    await _start_background_threads(
+                        result,
+                        source_actor_id=result_actor_id,
+                    )
                     completed = await _advance_or_render(result)
                     if completed is not None:
-                        return completed
+                        return await _finish_with_background_threads(completed)
                     continue
 
                 _validate_cat_ii_open_participant_state(
@@ -4711,6 +4828,10 @@ async def run_beat(
                 await _commit_event(result, event_actor_id=result_actor_id)
                 event_actor_ids.append(result_actor_id)
                 events_closed += 1
+                await _start_background_threads(
+                    result,
+                    source_actor_id=result_actor_id,
+                )
 
                 # Install every human pin before dispatching any autonomous
                 # work. The branch snapshot below is shared semantically by
@@ -4789,6 +4910,7 @@ async def run_beat(
                             f"responder {responder_id!r}"
                         )
             except BaseException:
+                await _cancel_background_threads()
                 _restore_checkpoint_state(ckpt, cat_ii_snapshot)
                 raise
 
@@ -4800,9 +4922,12 @@ async def run_beat(
                         actor_id=evt.initiator_id,
                         intention=evt.initiator_intention,
                         cat_ii_event=evt,
+                        **_background_thread_selection_kwargs(),
                     )
                 except DndCatIIRollsPending:
-                    return await _pause_for_pending_rolls()
+                    return await _await_and_finish_background_threads(
+                        _pause_for_pending_rolls()
+                    )
                 _log_router_rationale(
                     resolved,
                     evt.initiator_id,
@@ -4832,11 +4957,9 @@ async def run_beat(
                     close_cat_ii(ckpt, evt.event_id)
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
-                await _start_scene_ticks(
-                    scene_tick_blocked_character_ids(
-                        resolved,
-                        actor_id=evt.initiator_id,
-                    )
+                await _start_background_threads(
+                    resolved,
+                    source_actor_id=evt.initiator_id,
                 )
                 try:
                     completed = await _advance_or_render(
@@ -4845,10 +4968,10 @@ async def run_beat(
                         resolved_cat_ii=evt,
                     )
                 except BaseException:
-                    await _cancel_scene_ticks()
+                    await _cancel_background_threads()
                     raise
                 if completed is not None:
-                    return await _finish_with_scene_ticks(completed)
+                    return await _finish_with_background_threads(completed)
                 continue
             # Bound responders are pinned — pause the beat here. Their /acts will
             # re-enter run_beat with their cat_ii_event_id.
@@ -4858,16 +4981,19 @@ async def run_beat(
             # observations render, not just the responder and initiator;
             # NPC observers already received their visible facts through
             # `broadcast_event`.
-            return await _end_beat(
-                ckpt, dispatcher,
-                ended_reason="cat_ii_pending",
-                events_closed=events_closed,
-                event_actor_ids=event_actor_ids,
-                release_slots=False,
-                force_partial=True,
-                acting_player_id=actor_id,
-                acting_player_input=intention,
-                suppress_reaction_prompts=suppress_reaction_prompts,
+            return await _await_and_finish_background_threads(
+                _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason="cat_ii_pending",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    release_slots=False,
+                    force_partial=True,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=suppress_reaction_prompts,
+                )
             )
 
         if result.next_output_character_ids:
@@ -4933,19 +5059,17 @@ async def run_beat(
         event_actor_ids.append(result_actor_id)
         events_closed += 1
 
-        await _start_scene_ticks(
-            scene_tick_blocked_character_ids(
-                result,
-                actor_id=result_actor_id,
-            )
+        await _start_background_threads(
+            result,
+            source_actor_id=result_actor_id,
         )
         try:
             completed = await _advance_or_render(result)
         except BaseException:
-            await _cancel_scene_ticks()
+            await _cancel_background_threads()
             raise
         if completed is not None:
-            return await _finish_with_scene_ticks(completed)
+            return await _finish_with_background_threads(completed)
 
 
 async def _stage_closed_event_spawns_for_render(

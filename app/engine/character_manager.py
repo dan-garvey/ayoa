@@ -425,6 +425,16 @@ class CharacterManager:
                     "not wake.", signal.character_id,
                 )
                 continue
+            if char.status == CharacterStatus.active:
+                # Activation is a dormant -> active lifecycle edge, not a
+                # movement command. Replaying a previously applied event after
+                # later canonical movement must therefore be a no-op; active
+                # movement belongs exclusively in location_updates.
+                logger.info(
+                    "Ignored activate replay on %s: character is already active.",
+                    signal.character_id,
+                )
+                continue
             char.status = CharacterStatus.active
             if signal.location_label:
                 char.location = signal.location_label

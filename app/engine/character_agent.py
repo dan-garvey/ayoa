@@ -314,6 +314,7 @@ class CharacterAgent:
         checkpoint: CheckpointFile,
         frame: str = "foreground",
         local_context: str = "",
+        include_location: bool = True,
     ) -> CharacterAgentOutput:
         """Committed agent turn in a router-selected frame."""
         draft = await self.draft_turn(
@@ -321,6 +322,7 @@ class CharacterAgent:
             checkpoint=checkpoint,
             frame=frame,
             local_context=local_context,
+            include_location=include_location,
         )
         self._commit_draft(character, checkpoint, draft)
         return draft.output
@@ -545,6 +547,7 @@ class CharacterAgent:
         checkpoint: CheckpointFile,
         frame: str = "foreground",
         local_context: str = "",
+        include_location: bool = True,
     ) -> CharacterAgentTurnDraft:
         """Prepare an agent turn without mutating agent memory."""
         if is_non_social_hazard(character):
@@ -555,9 +558,13 @@ class CharacterAgent:
         frame = (frame or "foreground").strip().lower()
         if frame not in {"foreground", "private", "background"}:
             frame = "foreground"
-        location_label = format_character_location_for_agent(
-            character.location,
-            checkpoint,
+        location_label = (
+            format_character_location_for_agent(
+                character.location,
+                checkpoint,
+            )
+            if include_location
+            else ""
         )
         foreground_block = (
             self._dnd_combat_context(character, checkpoint)

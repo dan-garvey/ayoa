@@ -223,16 +223,13 @@ step, or the guide can force a consequential choice. Select the guide, not its
 dialogue/intention, and do not select it again merely because the Master cannot
 answer; close the handoff or choose only a character that genuinely owes one.
 
-After a terminal mission result, if the Master supplies no management choice, select the
-active guide once for a concrete prompt. Summon induction still closes after
-its sole guide response. If the owner then `(defer)`s,
-select neither owner nor guide; invent no gate, console, sigil, preview, or
-interface change. If any active non-guide Hero is co-present in the lobby,
-select exactly one with the strongest grounded opportunity for an embodied
-lobby action or a specific response to what just happened. Quiet breathing
-room after the guide is enough; this does not require danger or an owed answer.
-No comment rotation or debrief, and do not force speech. Close only when no
-eligible co-present non-guide Hero exists.
+After a terminal mission result, if the Master supplies no management choice,
+select the active guide once for a concrete prompt. Summon induction still
+closes after its sole guide response. If the owner then `(defer)`s, select
+neither owner nor guide unless new established pressure genuinely requires
+one of them. Do not pull an off-screen Hero into the Master's focal event merely
+to give that Hero activity; the generic `background_threads` contract provides
+their independent opportunity without granting them the Master's view.
 
 A hostile intention opens Cat II when another response could change the result.
 The sole exception is an explicitly supplied immediate guide-discipline trigger:
