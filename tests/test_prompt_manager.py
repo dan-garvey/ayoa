@@ -121,6 +121,7 @@ class TestPromptManagerWithRealTemplates:
             router_ruleset_addon=mgr.render(
                 "event_router_ruleset_default",
             ).strip(),
+            router_output_schema_addon="",
             router_input_block="I try to lift the building.",
         )
         assert "I try to lift the building" in result
@@ -222,6 +223,7 @@ class TestPromptManagerWithRealTemplates:
             router_ruleset_addon=mgr.render(
                 "event_router_ruleset_default",
             ).strip(),
+            router_output_schema_addon="",
             router_input_block="",
         )
         assert len(messages) == 2
@@ -264,6 +266,7 @@ class TestPromptManagerWithRealTemplates:
             router_ruleset_addon=mgr.render(
                 "event_router_ruleset_default",
             ).strip(),
+            router_output_schema_addon="",
             router_input_block="I wait.",
         )
 
@@ -290,6 +293,7 @@ class TestPromptManagerWithRealTemplates:
                 hidden_facts="None.",
                 acting_character_id="alice",
                 router_ruleset_addon="",
+                router_output_schema_addon="",
                 router_input_block=(
                     "## Actor Submission\n\n"
                     "submitted_actor_id: alice\n"
@@ -396,6 +400,7 @@ class TestPromptManagerWithRealTemplates:
             router_ruleset_addon=mgr.render(
                 "event_router_ruleset_default",
             ).strip(),
+            router_output_schema_addon="",
             router_input_block="",
         )
         assert len(messages) == 4

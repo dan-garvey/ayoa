@@ -18,6 +18,7 @@ from app.engine.background_threads import (
 from app.engine.turn_loop import (
     _PreparedBackgroundThread,
     _assert_background_thread_participants_are_unchanged,
+    broadcast_event,
     run_beat,
 )
 from app.schemas.characters import ActorRecord
@@ -547,6 +548,149 @@ def test_selection_remains_enabled_until_post_departure_thread_can_act() -> None
         "expedition",
         "renna",
     ]
+
+
+class _DeferredFrontierBackgroundDispatcher:
+    def __init__(self, *, expect_selection: bool) -> None:
+        self.expect_selection = expect_selection
+        self.route_calls: list[dict] = []
+        self.agent_calls: list[dict] = []
+
+    async def route_intention(self, **kwargs) -> EventRouterOutput:
+        self.route_calls.append(kwargs)
+        actor_id = kwargs["actor_id"]
+        if kwargs.get("background_thread") is not None:
+            assert actor_id == "mirelle"
+            return _background_result(actor_id)
+
+        assert actor_id == "expedition"
+        assert kwargs["background_thread_selection"] is self.expect_selection
+        return router_output(
+            event_id="evt_floor_advance",
+            event_kind="state_change",
+            observer_ids=["player", "expedition"],
+            background_threads=(
+                [{"actor_id": "mirelle", "participant_ids": ["mirelle"]}]
+                if self.expect_selection
+                else []
+            ),
+            facts=[ObservableFact.all(
+                "The expedition advances while Mirelle remains elsewhere.",
+                visual_subject_ids=["expedition"],
+            )],
+        )
+
+    async def route_continuation(self, **_kwargs) -> EventRouterOutput:
+        raise AssertionError("continuation was not expected")
+
+    async def agent_intend(self, **kwargs) -> str:
+        self.agent_calls.append(kwargs)
+        if kwargs["character_id"] == "expedition":
+            return "I advance."
+        assert kwargs["character_id"] == "mirelle"
+        return "I answer the question Renna left me with."
+
+    async def narrator_compose(self, **kwargs):
+        return (
+            NarratorFinalOutput(
+                handoff="render",
+                handoff_reason="The resumed foreground move is complete.",
+                final_text="The expedition advances.",
+            ),
+            TranscriptEntry(
+                user=kwargs.get("user_input", ""),
+                assistant="The expedition advances.",
+            ),
+        )
+
+
+def _deferred_frontier_checkpoint_and_event():
+    ckpt = checkpoint(
+        bindings={"player": "human"},
+        player_character_id="player",
+        characters=[
+            character_record("player", is_playable=True),
+            _offstage_actor("expedition"),
+            _offstage_actor("mirelle"),
+        ],
+    )
+    prior = router_output(
+        event_id="evt_prior_frontier",
+        event_kind="beat_continues",
+        agent_ids=["expedition"],
+        observer_ids=["player", "expedition"],
+        facts=[ObservableFact.all(
+            "The expedition has the next move.",
+            visual_subject_ids=["expedition"],
+        )],
+    )
+    broadcast_event(ckpt, prior, actor_id="player")
+    return ckpt, prior
+
+
+def test_fresh_player_defer_keeps_background_selection_on_resumed_frontier() -> None:
+    async def _run():
+        dispatcher = _DeferredFrontierBackgroundDispatcher(
+            expect_selection=True,
+        )
+        ckpt, prior = _deferred_frontier_checkpoint_and_event()
+        # The prior event belonged to the previous, already rendered player
+        # beat. A new /defer accepts its autonomous frontier without carrying
+        # any closed events into this beat.
+        ckpt.session.render_buffers["player"] = []
+        result = await run_beat(
+            ckpt=ckpt,
+            dispatcher=dispatcher,
+            actor_id="player",
+            intention="(defer)",
+            resume_after_handoff=prior,
+        )
+        return ckpt, dispatcher, result
+
+    ckpt, dispatcher, result = asyncio.run(_run())
+
+    assert [call["character_id"] for call in dispatcher.agent_calls] == [
+        "expedition",
+        "mirelle",
+    ]
+    assert dispatcher.agent_calls[1]["frame"] == "background"
+    assert [event.event_id for event in ckpt.canonical_events] == [
+        "evt_prior_frontier",
+        "evt_floor_advance",
+        "evt_background_mirelle",
+    ]
+    assert result.events_closed == 2
+    assert result.event_actor_ids == ["expedition", "mirelle"]
+
+
+def test_saved_same_beat_resume_does_not_select_background_twice() -> None:
+    async def _run():
+        dispatcher = _DeferredFrontierBackgroundDispatcher(
+            expect_selection=False,
+        )
+        ckpt, prior = _deferred_frontier_checkpoint_and_event()
+        result = await run_beat(
+            ckpt=ckpt,
+            dispatcher=dispatcher,
+            actor_id="player",
+            intention="Original player action.",
+            resume_after_handoff=prior,
+            resume_events_closed=1,
+            resume_event_actor_ids=["player"],
+        )
+        return ckpt, dispatcher, result
+
+    ckpt, dispatcher, result = asyncio.run(_run())
+
+    assert [call["character_id"] for call in dispatcher.agent_calls] == [
+        "expedition"
+    ]
+    assert [event.event_id for event in ckpt.canonical_events] == [
+        "evt_prior_frontier",
+        "evt_floor_advance",
+    ]
+    assert result.events_closed == 2
+    assert result.event_actor_ids == ["player", "expedition"]
 
 
 def test_checkpoint_is_identical_across_thread_completion_orders() -> None:

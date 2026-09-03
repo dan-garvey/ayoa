@@ -3532,10 +3532,19 @@ async def run_beat(
     background_thread_events_closed = 0
     from app.engine.context_builder import collect_player_ids
 
+    # ``resume_after_handoff`` has two meanings.  A saved narrator retry
+    # resumes the same player beat and carries its already-closed events;
+    # an accepted player defer starts a new beat from the prior autonomous
+    # frontier and carries no events.  The latter still owes one independent
+    # thread-selection opportunity for this fresh external turn.
+    resumes_open_beat = bool(
+        resume_after_handoff is not None
+        and (events_closed or event_actor_ids)
+    )
     background_threads_may_start = bool(
         combat_reaction_event_id is None
         and actor_id in collect_player_ids(ckpt)
-        and resume_after_handoff is None
+        and not resumes_open_beat
     )
 
     def _background_thread_selection_kwargs() -> dict[str, Any]:

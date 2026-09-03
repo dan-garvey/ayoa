@@ -28,6 +28,7 @@ def _render_router_conversation(
         router_ruleset_addon=mgr.render(
             "event_router_ruleset_default",
         ).strip(),
+        router_output_schema_addon="",
         router_input_block=router_input_block,
     )
 

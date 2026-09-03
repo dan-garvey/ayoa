@@ -444,7 +444,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   ],
   "requires_responders": true or false,
   "required_responders": ["character_id - Cat II only, else empty"],
-  "event_kind": "string - one of: beat_continues | public_fact | response_requested | state_change | cascade_exhausted | cat_ii_open | cat_ii_resolution | ambient_pause | observation_harvest | query_response | ruleset_resolution | ruleset_cat_ii_suppressed | max_events_cap"
+  "event_kind": "string - one of: beat_continues | public_fact | response_requested | state_change | cascade_exhausted | cat_ii_open | cat_ii_resolution | ambient_pause | observation_harvest | query_response | ruleset_resolution | ruleset_cat_ii_suppressed | max_events_cap"{router_output_schema_addon}
 }}
 </output_schema>
 

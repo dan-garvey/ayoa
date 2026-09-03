@@ -80,7 +80,8 @@ Use these update shapes:
   retaining unchanged counters. A material action may advance several counters
   at once.
 - mission end: `mission_end`, target mission id, value
-  `completed|failed|escaped`, with `return_destination`; for escape also include
+  `completed|failed|escaped`. Completed and escaped missions require
+  `return_destination`; failed missions omit it. For escape also include
   `escape_authority_id`.
 - embodied selection: `pending_open`, target operation id, value
   `deployment|synthesis|promotion`, repeated `participant`, optional
@@ -182,11 +183,24 @@ contain the physical crossing, each participant's `location_update` to the
 pending destination, `pending_resolve` before `mission_start`, and no
 cancellation or pending state left across the gate.
 
+Each `mission_start`, including the opening roster, must convey its configured
+premise at crossing or arrival as a coarse actionable fact visible to every
+party Hero. Use established world or System phenomena, not invented guide
+dialogue; withhold counters, declarations, and crisp management UI. Preserve
+and answer any pre-crossing objective question in that event. Never deploy them
+without this objective.
+
 Once active, a living mission party stays beyond the sealed gate. Do not move
 one back with a plain location update; only a matching completed or
 properly-authorized escaped mission returns survivors. Escape authority must
-already be on a surviving party Hero; never invent it. A failed mission keeps
-survivors there, and outsiders cannot join by location update. Meanwhile the
+already be on a surviving party Hero; never invent it. A configured failure is
+lethal to every still-active deployed Hero. In its terminal event, visibly
+ground every death in the floor's consequences, then emit one `hero_delta` per
+remaining Hero with `hp_current=0`, `terminal_action=death`, and `death_cause`,
+before one `mission_end=failed` with no `return_destination`. Leave no survivor
+or further response; never invent an escape or substitute abstract System
+execution for the floor's consequences. Outsiders cannot join by location
+update. Meanwhile the
 account owner may observe/status-read, shift viewpoint, or perform authorized
 catalogue, facility, standard-summon, or Gem actions for non-party lobby Heroes.
 These actions cannot change the active floor, party, deployed state, or sealed

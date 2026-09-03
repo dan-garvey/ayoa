@@ -241,6 +241,9 @@ def test_router_ruleset_addon_defaults_but_drops_in_nonfresh_dnd(prompt_mgr):
     assert "D&D Exploration Spawn Authority" in dnd_fresh_vars["router_ruleset_addon"]
     assert "Category II examples" not in dnd_fresh_vars["router_ruleset_addon"]
     assert dnd_nonfresh_vars["router_ruleset_addon"] == ""
+    assert default_vars["router_output_schema_addon"] == ""
+    assert dnd_fresh_vars["router_output_schema_addon"] == ""
+    assert dnd_nonfresh_vars["router_output_schema_addon"] == ""
 
 
 def _queue_content_signal(
@@ -945,6 +948,12 @@ class TestRouteIntention:
             for message in call["messages"]
             if message.get("role") == "system"
         )
+        output_schema = (
+            system_content
+            .split("<output_schema>", 1)[1]
+            .split("</output_schema>", 1)[0]
+        )
+        assert '"state_updates"' not in output_schema
         assert "LAST_WORDS_SENTINEL" not in system_content
         assert "SYSTEM_RESULT_SENTINEL" not in system_content
         assert isinstance(result, ClosedOneStarEventRouterOutput)

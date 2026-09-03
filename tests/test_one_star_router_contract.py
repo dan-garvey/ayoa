@@ -15,6 +15,7 @@ from app.engine.one_star_adapter import OneStarTransactionError
 from app.engine.background_threads import BackgroundThreadRequest
 from app.engine.turn_loop_dispatcher import (
     LLMDispatcher,
+    _ONE_STAR_ROUTER_OUTPUT_SCHEMA_ADDON,
     _build_router_context,
     refresh_router_history_record,
     _router_history_record,
@@ -1146,6 +1147,9 @@ def test_default_and_dnd_ruleset_addons_stay_isolated(monkeypatch):
     assert "dnd_combat_start" in dnd["router_ruleset_addon"]
     assert "state_updates" not in default["router_ruleset_addon"]
     assert "state_updates" in one_star["router_ruleset_addon"]
+    assert default["router_output_schema_addon"] == ""
+    assert dnd["router_output_schema_addon"] == ""
+    assert '"state_updates"' in one_star["router_output_schema_addon"]
 
 
 def test_one_star_normal_router_request_has_no_live_ledger_tail():
@@ -1164,11 +1168,18 @@ def test_one_star_normal_router_request_has_no_live_ledger_tail():
             "event_router_ruleset_one_star",
             one_star_static_config="<one_star_rules_config>\nmax_batch=5\n</one_star_rules_config>",
         ),
+        router_output_schema_addon=_ONE_STAR_ROUTER_OUTPUT_SCHEMA_ADDON,
         router_input_block="submitted action",
     )
 
     system, user = messages
     assert "state_updates" in system["content"]
+    output_schema = (
+        system["content"]
+        .split("<output_schema>", 1)[1]
+        .split("</output_schema>", 1)[0]
+    )
+    assert '"state_updates"' in output_schema
     assert "max_batch=5" in system["content"]
     assert "Gold: 34" not in system["content"]
     assert "active_master_feed_id" not in system["content"]

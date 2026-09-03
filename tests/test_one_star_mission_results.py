@@ -11,8 +11,11 @@ from app.bot.engine_bridge import EngineBridge
 from app.engine.one_star_adapter import (
     load_one_star_account,
     load_one_star_hero,
+    one_star_state_updates_to_transaction,
     one_star_terminal_system_recipient_ids,
+    prepare_one_star_transaction,
 )
+from app.schemas.characters import CharacterStatus
 from app.schemas.events import ObservableFact
 from app.schemas.narrator import VisualNovelPage
 from app.schemas.one_star import (
@@ -21,10 +24,11 @@ from app.schemas.one_star import (
     OneStarEventRouterOutput,
     OneStarMissionEndOperation,
     OneStarMissionUpdateOperation,
+    OneStarStateUpdate,
 )
 from app.schemas.responses import VisualNovelRender, VisualNovelRenderSegment
 from tests.support.factories import character_record, router_output
-from tests.test_one_star_atomicity import _checkpoint, _hero
+from tests.test_one_star_atomicity import _checkpoint, _hero, _mission
 
 
 def test_retired_report_fields_are_not_valid_operations() -> None:
@@ -70,6 +74,71 @@ def test_terminal_system_recipients_follow_existing_system_visibility() -> None:
         "guide",
         "innate",
     )
+
+
+def test_failed_mission_compact_updates_kill_party_before_terminal_close() -> None:
+    first = _hero(location="tower_floor_1")
+    second = _hero(location="tower_floor_1")
+    second.character_id = "scout"
+    second.name = "Scout"
+    checkpoint = _checkpoint(
+        heroes=[first, second],
+        active_mission=_mission(party=["hero", "scout"]),
+    )
+    updates = [
+        OneStarStateUpdate(
+            kind="hero_delta",
+            target_id=hero_id,
+            value="",
+            details=[
+                "hp_current=0",
+                "terminal_action=death",
+                f"death_cause={cause}",
+            ],
+        )
+        for hero_id, cause in (
+            ("hero", "the failed ward floods the chamber"),
+            ("scout", "the failed ward floods the chamber"),
+        )
+    ]
+    updates.append(OneStarStateUpdate(
+        kind="mission_end",
+        target_id="mission_1",
+        value="failed",
+        details=[],
+    ))
+
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        updates,
+        canonical_at_s=12,
+    )
+    assert [operation.operation for operation in transaction.operations] == [
+        "hero_delta",
+        "hero_delta",
+        "mission_end",
+    ]
+
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="mission_failure_kills_party",
+        transaction=transaction,
+        canonical_at_s=12,
+    )
+    party = {
+        character.character_id: character
+        for character in prepared.after_checkpoint.characters
+        if character.character_id in {"hero", "scout"}
+    }
+    assert {character.status for character in party.values()} == {
+        CharacterStatus.culled
+    }
+    assert {character.location for character in party.values()} == {
+        "tower_floor_1"
+    }
+    assert load_one_star_account(
+        prepared.after_checkpoint
+    )[1].state.active_mission is None
 
 
 @pytest.mark.asyncio

@@ -95,6 +95,16 @@ logger = logging.getLogger(__name__)
 
 EVENT_ROUTER_MAX_TOKENS = 8000
 
+_ONE_STAR_ROUTER_OUTPUT_SCHEMA_ADDON = """,
+  "state_updates": [
+    {
+      "kind": "string - One-Star update kind",
+      "target_id": "string",
+      "value": "string",
+      "details": ["key=value"]
+    }
+  ]"""
+
 
 def _session_ruleset_id(ckpt: CheckpointFile) -> str:
     return str(getattr(ckpt.session.config.settings, "ruleset_id", "") or "")
@@ -1125,6 +1135,7 @@ def _router_ruleset_template_vars(
     ruleset_id: str,
     dnd_fresh: bool,
     ckpt: CheckpointFile | None = None,
+    include_one_star_state_updates_schema: bool = True,
 ) -> dict[str, str]:
     if ruleset_id == ONE_STAR_RULESET_ID:
         if ckpt is None:
@@ -1138,22 +1149,32 @@ def _router_ruleset_template_vars(
                 "event_router_ruleset_one_star",
                 one_star_static_config=render_one_star_router_static_config(ckpt),
             ).strip(),
+            "router_output_schema_addon": (
+                _ONE_STAR_ROUTER_OUTPUT_SCHEMA_ADDON
+                if include_one_star_state_updates_schema
+                else ""
+            ),
         }
     if dnd_fresh:
         return {
             "router_ruleset_addon": prompt_mgr.render(
                 "event_router_ruleset_dnd5e",
             ).strip(),
+            "router_output_schema_addon": "",
         }
     if ruleset_id == DND5E_BASIC_RULESET_ID:
         # Non-fresh D&D calls use a separate Cat II/combat resolver or are
         # canonicalizing already-committed output; the rules-neutral fresh
         # Cat II classifier would incorrectly reintroduce violence-as-Cat-II.
-        return {"router_ruleset_addon": ""}
+        return {
+            "router_ruleset_addon": "",
+            "router_output_schema_addon": "",
+        }
     return {
         "router_ruleset_addon": prompt_mgr.render(
             "event_router_ruleset_default",
         ).strip(),
+        "router_output_schema_addon": "",
     }
 
 
@@ -3322,6 +3343,7 @@ class LLMDispatcher:
                     ruleset_id=_session_ruleset_id(ckpt),
                     dnd_fresh=False,
                     ckpt=ckpt,
+                    include_one_star_state_updates_schema=False,
                 ),
                 router_input_block=authoritative_block,
             )
