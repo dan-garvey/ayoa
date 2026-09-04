@@ -235,8 +235,6 @@ def queue_front_signals_from_public_event(
 ) -> list[FrontSignalUpdate]:
     """Wire a canonical public consequence into imported front runtime state."""
 
-    if getattr(event, "event_kind", "") != "public_fact":
-        return []
     facts = _public_consequence_facts(event)
     if not facts:
         return []
@@ -482,8 +480,7 @@ def _clean_nonnegative_int(value: Any) -> int | None:
 
 def _public_consequence_facts(event: Any) -> list[str]:
     facts: list[str] = []
-    canonical = getattr(event, "canonical_event", None)
-    for fact in getattr(canonical, "observable_facts", []) or []:
+    for fact in getattr(event, "observable_facts", []) or []:
         text = _clean_text(getattr(fact, "text", ""))
         if not text:
             continue
@@ -496,8 +493,7 @@ def _public_consequence_facts(event: Any) -> list[str]:
 
 
 def _public_consequence_visibility(event: Any) -> str:
-    canonical = getattr(event, "canonical_event", None)
-    facts = list(getattr(canonical, "observable_facts", []) or [])
+    facts = list(getattr(event, "observable_facts", []) or [])
     if any(getattr(fact, "audience", "") == "all_observers" for fact in facts):
         return "public"
     return "semi_public"
@@ -523,9 +519,10 @@ def _front_action_for_consequence(front: Any, facts: Sequence[str]) -> Any | Non
         for action in actions
         if _action_matches_text(action, event_text)
     ]
-    candidates = matching or actions
+    if not matching:
+        return None
     return sorted(
-        candidates,
+        matching,
         key=lambda action: (-int(getattr(action, "priority", 0) or 0), getattr(action, "action_id", "")),
     )[0]
 

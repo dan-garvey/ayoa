@@ -10,8 +10,9 @@ from app.engine.checkpoint_manager import CheckpointManager
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.characters import CharacterRecord
 from app.schemas.dnd_inventory import DndLootOffer
-from app.schemas.event_router import DndEventRouterOutput
+from app.schemas.event_router import DndCanonicalEventRecord
 from app.schemas.state import SessionState, WorldState
+from tests.support.factories import dnd_canonical_event
 
 
 def _make_checkpoint(session_id: str = "test-session", turn_index: int = 0) -> CheckpointFile:
@@ -35,7 +36,7 @@ def test_current_schema_seed_sources_do_not_carry_retired_transcript():
 
     for path in seed_paths:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        if str(payload.get("schema_version")) == "6.0":
+        if str(payload.get("schema_version")) == "7.0":
             assert "transcript" not in payload, path
 
 
@@ -68,34 +69,15 @@ class TestCheckpointSaveLoad:
         mgr = CheckpointManager(save_dir=str(tmp_path))
         ckpt = _make_checkpoint(turn_index=1)
         ckpt.session.character_bindings = {"guard_17": "42"}
-        ckpt.canonical_events.append(DndEventRouterOutput(
+        ckpt.canonical_events.append(dnd_canonical_event(
             event_id="evt_loot",
+            lane_id="lane_loot",
             effective_at_s=0,
             duration_s=0,
-            decision_rationale="test",
-            canonical_event={
-                "world_adjudication": {"feasible": True},
-                "observable_facts": [
-                    {
-                        "text": "Captain Vero opens the chest.",
-                        "audience": "all_observers",
-                        "visible_to": [],
-                    }
-                ],
-            },
-            event_kind="ruleset_resolution",
-            observers=[
-                {
-                    "character_id": "guard_17",
-                    "observation_level": "d",
-                    "routing_role": "observe_only",
-                }
-            ],
-            spawn=[],
-            dormant=[],
-            cull=[],
+            actor_ids=["guard_17"],
+            observer_ids=["guard_17"],
+            facts=[{"text": "Captain Vero opens the chest."}],
             interaction_mode="narrative",
-            combatant_ids=[],
             loot_offer={
                 "present": True,
                 "source_kind": "container",
@@ -106,19 +88,6 @@ class TestCheckpointSaveLoad:
                 "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 5, "pp": 0},
                 "notes": "",
             },
-            requires_responders=False,
-            required_responders=[],
-            commitment_open={
-                "present": False,
-                "actor_ids": [],
-                "description": "",
-                "expected_duration_s": 0,
-                "max_duration_s": 0,
-                "location_label": "",
-            },
-            commitment_resolutions=[],
-            commitment_interrupts=[],
-            location_updates=[],
         ))
         ckpt.session.dnd_inventory_offers.append(DndLootOffer(
             offer_id="loot_evt_loot",
@@ -134,7 +103,7 @@ class TestCheckpointSaveLoad:
 
         assert len(loaded.canonical_events) == 1
         event = loaded.canonical_events[0]
-        assert isinstance(event, DndEventRouterOutput)
+        assert isinstance(event, DndCanonicalEventRecord)
         assert event.event_id == "evt_loot"
         assert event.interaction_mode == "narrative"
         assert event.loot_offer.present is True

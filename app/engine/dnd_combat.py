@@ -778,13 +778,14 @@ def _clear_combat_slots(session: SessionState) -> None:
         for transaction in session.cat_ii_roll_transactions
         if transaction.source == "combat" and transaction.status == "cancelled"
     }
-    session.active_act_slots = {
-        cid: slot for cid, slot in session.active_act_slots.items()
+    session.action_obligations = {
+        cid: obligation
+        for cid, obligation in session.action_obligations.items()
         if not (
-            slot.reason in {"combat_reaction", "combat_blocked"}
+            obligation.kind in {"combat_reaction", "combat_start_blocked"}
             or (
-                slot.reason == "cat_ii_roll"
-                and (slot.cat_ii_event_id or "") in cancelled_event_ids
+                obligation.kind == "cat_ii_roll"
+                and obligation.source_event_id in cancelled_event_ids
             )
         )
     }

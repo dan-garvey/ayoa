@@ -569,7 +569,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.turn(guard_character, sample_checkpoint, frame="background")
+        await agent.turn(guard_character, sample_checkpoint, frame="autonomous")
 
         messages = mock_client.complete.await_args.kwargs["messages"]
         flat = "\n".join(
@@ -1045,7 +1045,7 @@ class TestCharacterAgent:
         sample_checkpoint, sample_agent_text,
     ):
         """In-scene perception now reaches the agent through the
-        `pending_observations` inbox (populated by `broadcast_event`)
+        `pending_observations` inbox (populated by canonical event commit)
         rather than the dead `## What You Observe This Turn` block.
         Smoke that the inbox path delivers facts into the user
         message verbatim — that's the only path left for "what just

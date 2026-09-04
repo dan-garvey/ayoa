@@ -33,19 +33,6 @@ class SettingDef:
     render: Callable[[Any], str] = str
 
 
-def _parse_bool(raw: str) -> bool:
-    """Accept common user spellings for true/false."""
-    value = raw.strip().lower()
-    if value in ("true", "t", "yes", "y", "on", "1", "enable", "enabled"):
-        return True
-    if value in ("false", "f", "no", "n", "off", "0", "disable", "disabled"):
-        return False
-    raise ValueError(
-        f"Cannot interpret {raw!r} as a boolean. "
-        "Try true/false, on/off, yes/no, or 1/0."
-    )
-
-
 def _parse_int_nonneg(raw: str) -> int:
     """Parse a non-negative integer. Rejects floats and negatives."""
     s = raw.strip()
@@ -101,22 +88,12 @@ def _parse_presentation_mode(raw: str) -> str:
 
 SETTINGS: list[SettingDef] = [
     SettingDef(
-        key="max_events_per_beat",
-        default=40,
+        key="max_router_batches_without_player_input",
+        default=12,
         description=(
-            "Max canonical events that can close inside one beat before "
-            "the engine forces a render and releases the beat slot. "
+            "Max autonomous router batches between player submissions. "
+            "The durable causal frontier remains ready when the limit is reached. "
             "Must be >= 1."
-        ),
-        parse=_parse_int_positive,
-    ),
-    SettingDef(
-        key="max_agent_cascades_per_beat",
-        default=35,
-        description=(
-            "Max agent cascade handoff attempts inside one beat before "
-            "the engine forces a render. This limits NPC-to-NPC chains "
-            "separately from the canonical event cap. Must be >= 1."
         ),
         parse=_parse_int_positive,
     ),

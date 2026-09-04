@@ -41,7 +41,7 @@ from app.schemas.event_router import SpawnRequest
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_HERO_KEY,
-    OneStarEventRouterOutput,
+    OneStarCanonicalEventRecord,
 )
 from app.schemas.responses import (
     VisualNovelRender,
@@ -49,7 +49,7 @@ from app.schemas.responses import (
     TurnResponse,
 )
 from tests.support.factories import checkpoint as generic_checkpoint
-from tests.support.factories import router_output
+from tests.support.factories import canonical_event
 
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -105,7 +105,7 @@ def _commit_summon(
     *,
     event_id: str,
     character_ids: list[str],
-) -> OneStarEventRouterOutput:
+) -> OneStarCanonicalEventRecord:
     for character_id in character_ids:
         character = _character(checkpoint, character_id)
         hero = load_one_star_hero(character)
@@ -113,9 +113,8 @@ def _commit_summon(
         hero.acquisition_event_id = event_id
         hero.owner_lobby_id = "niflheim_lobby"
         character.mechanics[ONE_STAR_HERO_KEY] = hero.model_dump(mode="json")
-    payload = router_output(
+    payload = canonical_event(
         event_id=event_id,
-        event_kind="state_change",
         observer_ids=["the_master", *character_ids],
         activate=[
             {"character_id": character_id, "location_label": "Niflheim Lobby"}
@@ -128,7 +127,7 @@ def _commit_summon(
         "value": str(len(character_ids)),
         "details": [],
     }]
-    event = OneStarEventRouterOutput.model_validate(payload)
+    event = OneStarCanonicalEventRecord.model_validate(payload)
     checkpoint.canonical_events.append(event)
     _commit_fingerprint(checkpoint, event_id)
     return event
@@ -139,10 +138,9 @@ def _commit_mission_start(
     *,
     event_id: str,
     party_ids: list[str],
-) -> OneStarEventRouterOutput:
-    payload = router_output(
+) -> OneStarCanonicalEventRecord:
+    payload = canonical_event(
         event_id=event_id,
-        event_kind="state_change",
         observer_ids=["the_master", *party_ids],
     ).model_dump(mode="json")
     payload["state_updates"] = [{
@@ -157,7 +155,7 @@ def _commit_mission_start(
             "failure=the party is broken",
         ],
     }]
-    event = OneStarEventRouterOutput.model_validate(payload)
+    event = OneStarCanonicalEventRecord.model_validate(payload)
     checkpoint.canonical_events.append(event)
     _commit_fingerprint(checkpoint, event_id)
     return event

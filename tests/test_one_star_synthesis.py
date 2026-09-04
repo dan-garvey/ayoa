@@ -24,14 +24,14 @@ from app.schemas.one_star import (
     OneStarRulesConfig,
     OneStarStateUpdate,
 )
-from tests.test_one_star_atomicity import (
-    _checkpoint,
-    _config,
-    _hero,
-    _marked_mission_update,
-    _mission,
-    _mission_end,
-    _transaction,
+from tests.support.one_star_factories import (
+    marked_mission_update as _marked_mission_update,
+    mission_end as _mission_end,
+    one_star_checkpoint as _checkpoint,
+    one_star_config as _config,
+    one_star_hero as _hero,
+    one_star_mission as _mission,
+    one_star_transaction as _transaction,
 )
 
 
@@ -112,8 +112,56 @@ def _open_synthesis(checkpoint, *, operation_id: str = "synth"):
                 "opened_at_s": 0,
             },
         }),
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
     )
+
+
+def test_pending_selection_can_share_a_batched_guide_tutorial() -> None:
+    checkpoint = _checkpoint()
+    owner = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "account_owner"
+    )
+    owner.mechanics["one_star_account"]["state"]["guide_character_ids"] = [
+        "guide"
+    ]
+    checkpoint.characters.append(CharacterRecord(
+        character_id="guide",
+        name="Guide",
+    ))
+    transaction = _transaction(
+        {
+            "operation": "pending_open",
+            "pending": {
+                "operation_id": "deploy_hero",
+                "kind": "deployment",
+                "participant_ids": ["hero"],
+                "target_id": "",
+                "destination": "tower_floor_1",
+                "opened_at_s": 0,
+            },
+        },
+        {
+            "operation": "tutorial_delivery",
+            "tutorial_key": "survival_induction",
+            "delivered_to_ids": ["hero"],
+        },
+    )
+
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="batched_selection_and_tutorial",
+        transaction=transaction,
+        initiating_actor_ids=["account_owner", "guide"],
+    )
+
+    account = load_one_star_account(prepared.after_checkpoint)[1]
+    assert account.state.pending_operation is not None
+    assert account.state.pending_operation.operation_id == "deploy_hero"
+    assert account.state.tutorial_deliveries == {
+        "survival_induction": ["hero"]
+    }
 
 
 def _synthesis_checkpoint(*, chance_basis_points: int = 500):
@@ -258,13 +306,13 @@ def test_authoritative_synthesis_atomically_opens_moves_and_resolves_once() -> N
         "target": "synthesis_room",
     }
 
-    with pytest.raises(OneStarTransactionError, match="only One-Star operation"):
+    with pytest.raises(OneStarTransactionError, match="only with tutorial delivery"):
         prepare_one_star_transaction(
             checkpoint,
             event_id="system_synthesis",
             transaction=transaction,
             location_updates=locations,
-            initiating_actor_id="account_owner",
+            initiating_actor_ids=["account_owner"],
         )
 
     prepared = prepare_one_star_transaction(
@@ -272,7 +320,7 @@ def test_authoritative_synthesis_atomically_opens_moves_and_resolves_once() -> N
         event_id="system_synthesis",
         transaction=transaction,
         location_updates=locations,
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
         authoritative_system_result=True,
     )
     account = load_one_star_account(prepared.after_checkpoint)[1]
@@ -292,7 +340,7 @@ def test_authoritative_synthesis_atomically_opens_moves_and_resolves_once() -> N
         event_id="system_synthesis",
         transaction=transaction,
         location_updates=locations,
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
         authoritative_system_result=True,
     )
     assert replay.already_applied is True
@@ -400,7 +448,7 @@ def test_synthesis_cap_banks_once_then_promotion_releases_reachable_xp() -> None
                 "opened_at_s": 0,
             },
         }),
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
     )
     promoted = prepare_one_star_transaction(
         opened_promotion.after_checkpoint,

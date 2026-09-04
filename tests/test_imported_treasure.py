@@ -13,9 +13,9 @@ from app.schemas.content import (
     ContentTreasureOverlayState,
 )
 from app.schemas.events import ObservableFact
-from app.schemas.event_router import DndEventRouterOutput
+from app.schemas.event_router import DndCanonicalEventRecord
 from app.schemas.state import SessionState
-from tests.support.factories import dnd_router_output
+from tests.support.factories import dnd_canonical_event
 
 
 def _ckpt(
@@ -86,8 +86,8 @@ def _revealed_overlay(**overrides: object) -> ContentTreasureOverlayState:
     return ContentTreasureOverlayState(**data)
 
 
-def _no_loot_event() -> DndEventRouterOutput:
-    event = dnd_router_output(
+def _no_loot_event() -> DndCanonicalEventRecord:
+    event = dnd_canonical_event(
         event_id="evt_search",
         facts=[ObservableFact.all("Alice opens the chest and sees a key.")],
         observer_ids=["alice"],
@@ -103,9 +103,6 @@ def _no_loot_event() -> DndEventRouterOutput:
             "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 0, "pp": 0},
             "notes": "",
         },
-        requires_responders=False,
-        required_responders=[],
-        event_kind="state_change",
     )
     return event
 

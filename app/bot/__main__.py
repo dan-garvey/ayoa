@@ -21,7 +21,7 @@ import discord
 from discord import app_commands
 from dotenv import load_dotenv
 
-from app.bot.commands import register
+from app.bot.commands import deliver_pending_story_outbox, register
 from app.bot.engine_bridge import EngineBridge
 from app.bot.media_delivery import retry_media_cleanup_outbox
 from app.bot.session_map import SessionMap
@@ -76,6 +76,7 @@ async def _run() -> int:
 
     register(tree, engine, smap, guild)
     cleanup_task: asyncio.Task[None] | None = None
+    story_delivery_task: asyncio.Task[None] | None = None
 
     async def _cleanup_media_loop() -> None:
         while True:
@@ -87,9 +88,24 @@ async def _run() -> int:
                 logger.exception("media cleanup retry iteration failed")
             await asyncio.sleep(60)
 
+    async def _story_delivery_loop() -> None:
+        while True:
+            try:
+                delivered = await deliver_pending_story_outbox(
+                    client=client,
+                    smap=smap,
+                    engine=engine,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("story delivery iteration failed")
+                delivered = 0
+            await asyncio.sleep(0.25 if delivered else 1.0)
+
     @client.event
     async def on_ready():
-        nonlocal cleanup_task
+        nonlocal cleanup_task, story_delivery_task
         logger.info(
             "Bot connected as %s (id=%s). Syncing commands%s …",
             client.user,
@@ -97,10 +113,18 @@ async def _run() -> int:
             f" to guild {guild.id}" if guild else " globally",
         )
         await engine.start()
+        engine.resume_autonomous_sessions(
+            row.session_id for row in await smap.list_sessions()
+        )
         if cleanup_task is None or cleanup_task.done():
             cleanup_task = asyncio.create_task(
                 _cleanup_media_loop(),
                 name="ayoa-media-cleanup",
+            )
+        if story_delivery_task is None or story_delivery_task.done():
+            story_delivery_task = asyncio.create_task(
+                _story_delivery_loop(),
+                name="ayoa-story-delivery",
             )
         try:
             if guild is not None:
@@ -125,6 +149,9 @@ async def _run() -> int:
         if cleanup_task is not None:
             cleanup_task.cancel()
             await asyncio.gather(cleanup_task, return_exceptions=True)
+        if story_delivery_task is not None:
+            story_delivery_task.cancel()
+            await asyncio.gather(story_delivery_task, return_exceptions=True)
         await client.close()
         await engine.close()
     return 0

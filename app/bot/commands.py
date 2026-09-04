@@ -1429,7 +1429,7 @@ async def _post_actor_render(
     turn_index: Optional[int] = None,
     view: Optional[discord.ui.View] = None,
 ) -> tuple[str, Optional[discord.Thread]]:
-    """Post the actor's beat privately: POV thread first, then DM.
+    """Post the actor's update privately: POV thread first, then DM.
 
     Returns one of:
       - `("thread", thread)` — landed in the actor's private POV thread.
@@ -2244,7 +2244,7 @@ class _CombatReactionView(discord.ui.View):
             )
             return
 
-        is_stale = response.beat_ended_reason == "combat_reaction_stale"
+        is_stale = response.pause_reason == "combat_reaction_stale"
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 child.disabled = True
@@ -2739,6 +2739,24 @@ def _resolve_session_character_ref(
     )
 
 
+async def _acknowledge_transported_deliveries(
+    engine: EngineBridge,
+    *,
+    session_id: str,
+    response: TurnResponse,
+    pov_character_ids: list[str],
+) -> None:
+    """Advance POV knowledge only when a response actually carries leases."""
+
+    if not response.deliveries:
+        return
+    await engine.acknowledge_turn_deliveries(
+        session_id=session_id,
+        response=response,
+        pov_character_ids=pov_character_ids,
+    )
+
+
 async def _deliver_turn_response_to_povs(
     *,
     inter: discord.Interaction,
@@ -2757,7 +2775,7 @@ async def _deliver_turn_response_to_povs(
     closed if neither works. Other human POV renders fan out privately. This is shared by
     `/act` and router-backed private directives such as `/query`.
     """
-    if response.beat_ended_reason in {
+    if response.pause_reason in {
         "slot_rejected",
         "combat_start_blocked_deferred",
     }:
@@ -2768,7 +2786,7 @@ async def _deliver_turn_response_to_povs(
         return
 
     # Load bindings + roster ONCE for both fan-outs (pre-turn resolutions +
-    # the actor's beat). Failure here only kills DMs, not the actor's render.
+    # the actor's update). Failure here only kills DMs, not the actor's render.
     try:
         ckpt_for_fanout = engine.load_latest(session_id)
         bindings = ckpt_for_fanout.session.character_bindings or {}
@@ -2783,6 +2801,7 @@ async def _deliver_turn_response_to_povs(
     async def _dm_per_pov(
         renders: dict[str, str],
         *,
+        delivery_response: TurnResponse,
         skip_cid: str | None,
         turn_index: int,
         note_prefix: str = "",
@@ -2900,6 +2919,11 @@ async def _deliver_turn_response_to_povs(
                 )
             if ok:
                 notified.append(char_name)
+                await _acknowledge_transported_deliveries(engine,
+                    session_id=session_id,
+                    response=delivery_response,
+                    pov_character_ids=[cid],
+                )
         return notified
 
     async def _deliver_rolls_to_povs(
@@ -3062,6 +3086,7 @@ async def _deliver_turn_response_to_povs(
         )
         await _dm_per_pov(
             pre_resp.per_player_renders or {},
+            delivery_response=pre_resp,
             skip_cid=None,
             turn_index=pre_resp.turn_index,
             note_prefix="_(Resolved before your action.)_",
@@ -3080,7 +3105,7 @@ async def _deliver_turn_response_to_povs(
             response=pre_resp,
         )
 
-    if response.beat_ended_reason == "pre_turn_resolution":
+    if response.pause_reason == "pre_turn_resolution":
         await inter.followup.send(
             response.output_text
             or (
@@ -3198,11 +3223,11 @@ async def _deliver_turn_response_to_povs(
             view=reaction_view,
         )
 
-    combat_start_blocked = response.beat_ended_reason == "combat_start_blocked"
-    pending_rolls = response.beat_ended_reason == "cat_ii_pending_rolls"
-    reaction_pending = response.beat_ended_reason == "combat_reaction_pending"
+    combat_start_blocked = response.pause_reason == "combat_start_blocked"
+    pending_rolls = response.pause_reason == "cat_ii_pending_rolls"
+    reaction_pending = response.pause_reason == "combat_reaction_pending"
     if (
-        response.beat_ended_reason == "cat_ii_pending"
+        response.pause_reason == "cat_ii_pending"
         or pending_rolls
         or reaction_pending
         or combat_start_blocked
@@ -3211,7 +3236,7 @@ async def _deliver_turn_response_to_povs(
         if pending_rolls:
             pause_note = (
                 "_Scene paused — waiting on D&D roll prompt(s). "
-                "The beat will continue after the required roll(s)._"
+                "The scene will continue after the required roll(s)._"
             )
         elif combat_start_blocked:
             pause_note = (
@@ -3228,7 +3253,7 @@ async def _deliver_turn_response_to_povs(
         else:
             pause_note = (
                 "_Scene paused — waiting on another player's response. "
-                "You'll see the beat continue when they /act._"
+                "You'll see the scene continue when they /act._"
             )
         if actor_render:
             venue, thread = await _post_actor_story_render(
@@ -3238,9 +3263,19 @@ async def _deliver_turn_response_to_povs(
                 ),
             )
             if venue == "thread" and thread is not None:
+                await _acknowledge_transported_deliveries(engine,
+                    session_id=session_id,
+                    response=response,
+                    pov_character_ids=[actor_character_id],
+                )
                 if clear_interaction_response:
                     await _clear_interaction_response(inter)
             elif venue == "dm":
+                await _acknowledge_transported_deliveries(engine,
+                    session_id=session_id,
+                    response=response,
+                    pov_character_ids=[actor_character_id],
+                )
                 if clear_interaction_response:
                     await _clear_interaction_response(inter)
             else:
@@ -3270,9 +3305,19 @@ async def _deliver_turn_response_to_povs(
             intro_content=actor_revision_note or None,
         )
         if venue == "thread" and thread is not None:
+            await _acknowledge_transported_deliveries(engine,
+                session_id=session_id,
+                response=response,
+                pov_character_ids=[actor_character_id],
+            )
             if clear_interaction_response:
                 await _clear_interaction_response(inter)
         elif venue == "dm":
+            await _acknowledge_transported_deliveries(engine,
+                session_id=session_id,
+                response=response,
+                pov_character_ids=[actor_character_id],
+            )
             if clear_interaction_response:
                 await _clear_interaction_response(inter)
         else:
@@ -3290,6 +3335,7 @@ async def _deliver_turn_response_to_povs(
         )
         notified_names = await _dm_per_pov(
             per_player,
+            delivery_response=response,
             skip_cid=actor_character_id,
             turn_index=response.turn_index,
             reaction_prompts=reaction_prompts,
@@ -3329,6 +3375,119 @@ async def _deliver_turn_response_to_povs(
         session_id=session_id,
         response=response,
     )
+
+
+class _SilentFollowup:
+    async def send(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+
+@dataclass
+class _OutboxDeliveryInteraction:
+    """Small Discord transport context for delivery outside a slash command."""
+
+    client: discord.Client
+    channel: Any
+    channel_id: int
+    guild: Any
+    user: Any
+    followup: _SilentFollowup
+
+    async def delete_original_response(self) -> None:
+        return None
+
+
+@dataclass(frozen=True)
+class _BackgroundInvoker:
+    id: int = -1
+
+
+async def deliver_pending_story_outbox(
+    *,
+    client: discord.Client,
+    smap: SessionMap,
+    engine: EngineBridge,
+) -> int:
+    """Deliver all currently claimable narrator output to bound Discord POVs."""
+
+    attempted = 0
+    for row in await smap.list_sessions():
+        try:
+            checkpoint = engine.load_latest(row.session_id)
+        except Exception:
+            logger.exception(
+                "story outbox: failed to load session %s",
+                row.session_id,
+            )
+            continue
+        channel = client.get_channel(row.channel_id)
+        if channel is None:
+            try:
+                channel = await client.fetch_channel(row.channel_id)
+            except Exception:
+                logger.exception(
+                    "story outbox: failed to resolve channel %s",
+                    row.channel_id,
+                )
+                continue
+        guild = (
+            client.get_guild(row.guild_id)
+            if row.guild_id is not None
+            else getattr(channel, "guild", None)
+        )
+        for character_id, raw_user_id in (
+            checkpoint.session.character_bindings or {}
+        ).items():
+            try:
+                user_id = int(raw_user_id)
+            except (TypeError, ValueError):
+                continue
+            user = client.get_user(user_id)
+            if user is None:
+                try:
+                    user = await client.fetch_user(user_id)
+                except Exception:
+                    logger.exception(
+                        "story outbox: failed to resolve user %s",
+                        user_id,
+                    )
+                    continue
+            response = await engine.claim_pending_turn_deliveries(
+                session_id=row.session_id,
+                consumer_id=f"discord:{row.channel_id}:{user_id}",
+                pov_character_ids=[character_id],
+                expected_bindings={character_id: str(user_id)},
+            )
+            if not response.deliveries:
+                continue
+            attempted += len(response.deliveries)
+            interaction = _OutboxDeliveryInteraction(
+                client=client,
+                channel=channel,
+                channel_id=row.channel_id,
+                guild=guild,
+                user=_BackgroundInvoker(),
+                followup=_SilentFollowup(),
+            )
+            try:
+                await _deliver_turn_response_to_povs(
+                    inter=interaction,  # type: ignore[arg-type]
+                    smap=smap,
+                    engine=engine,
+                    session_id=row.session_id,
+                    story_id=row.story_id,
+                    actor_character_id=character_id,
+                    actor_user=user,
+                    response=response,
+                    clear_interaction_response=False,
+                )
+            except Exception:
+                logger.exception(
+                    "story outbox delivery failed for %s/%s",
+                    row.session_id,
+                    character_id,
+                )
+    return attempted
 
 
 async def _message_channel_for_ref(
@@ -5209,11 +5368,21 @@ def register(
 
         try:
             if venue == "thread" and thread is not None:
+                await _acknowledge_transported_deliveries(engine,
+                    session_id=session_id,
+                    response=response,
+                    pov_character_ids=[binding_cid],
+                )
                 await inter.followup.send(
                     f"**{char_name}** joined. Your story opens in {thread.mention}.",
                     ephemeral=True,
                 )
             elif venue == "dm":
+                await _acknowledge_transported_deliveries(engine,
+                    session_id=session_id,
+                    response=response,
+                    pov_character_ids=[binding_cid],
+                )
                 await inter.followup.send(
                     f"**{char_name}** joined. Your story opens in your DMs "
                     "(POV thread unavailable here).",
@@ -5231,6 +5400,7 @@ def register(
                 inter=inter,
                 session_id=session_id,
                 actor_cid=binding_cid,
+                response=response,
                 per_player=response.per_player_renders or {},
                 turn_index=response.turn_index,
                 visual_novel_renders=(response.per_player_visual_novel_renders or {}),
@@ -5241,12 +5411,13 @@ def register(
         inter: discord.Interaction,
         session_id: str,
         actor_cid: str,
+        response: TurnResponse,
         per_player: dict[str, str],
         turn_index: int,
         visual_novel_renders: dict[str, Any],
     ) -> None:
         """DM each non-acting bound human their POV render for the
-        last beat. Mirrors the /act fan-out path so multi-POV beats
+        last update. Mirrors the /act fan-out path so multi-POV events
         (joins, opening turns) don't drop bystanders.
 
         Logs and bails on each per-POV failure rather than aborting
@@ -5323,6 +5494,11 @@ def register(
                 )
             if ok:
                 notified.append(other_name)
+                await _acknowledge_transported_deliveries(engine,
+                    session_id=session_id,
+                    response=response,
+                    pov_character_ids=[cid],
+                )
         if notified:
             try:
                 phrase = ", ".join(f"**{n}**" for n in notified)
@@ -6252,7 +6428,7 @@ def register(
     #
     # No-arg slash command. Opens the canonical story for everyone in
     # the lobby — fires `(begin)` through `engine.run_begin_turn`,
-    # which composes the opening beat from world_state and places
+    # which composes the opening event from world_state and places
     # every bound player at the chosen starting location. Each bound
     # player gets their own POV render fanned out via the same per-
     # player path that /act uses.
@@ -6422,11 +6598,21 @@ def register(
                     turn_index=response.turn_index,
                 )
             if venue == "thread" and thread is not None:
+                await _acknowledge_transported_deliveries(engine,
+                    session_id=row.session_id,
+                    response=response,
+                    pov_character_ids=[triggering_cid],
+                )
                 await inter.followup.send(
                     f"The story opens in {thread.mention}.",
                     ephemeral=True,
                 )
             elif venue == "dm":
+                await _acknowledge_transported_deliveries(engine,
+                    session_id=row.session_id,
+                    response=response,
+                    pov_character_ids=[triggering_cid],
+                )
                 await inter.followup.send(
                     "The story opens in your DMs (POV thread unavailable here).",
                     ephemeral=True,
@@ -6449,6 +6635,7 @@ def register(
             inter=inter,
             session_id=row.session_id,
             actor_cid=triggering_cid,
+            response=response,
             per_player=per_player,
             turn_index=response.turn_index,
             visual_novel_renders=(response.per_player_visual_novel_renders or {}),
@@ -6810,7 +6997,7 @@ def register(
 
         response = result.response
         if (
-            response.beat_ended_reason == "no_pending_render"
+            response.pause_reason == "no_pending_render"
             or not result.actor_character_id
         ):
             await inter.followup.send(
@@ -8451,22 +8638,21 @@ def register(
         )
         return False
 
-    # v11-r3d: /abort_beat admin recovery command. A wedged Cat II event
+    # Admin recovery for a wedged Cat II event
     # (responder disconnected, session frozen) can only be cleared by an
-    # admin invoking this command; it force-releases the beat slot
-    # state and abandons any open Cat II events. The
+    # abandons open Cat II obligations. The
     # event LOG is preserved — this does not rewrite history, just
     # unblocks the next /act.
     @tree.command(
-        name="abort_beat",
-        description="[Admin] Force-unwedge the current beat.",
+        name="abort_pending",
+        description="[Admin] Cancel unresolved player obligations.",
         guild=guild,
     )
-    async def _abort_beat(inter: discord.Interaction):
+    async def _abort_pending(inter: discord.Interaction):
         # v11-A5: audit-log entry fires before any work so even a failure
         # path leaves a trail of who ran it, where, and when.
         logger.info(
-            "abort_beat invoked: admin_id=%s channel_id=%s",
+            "abort_pending invoked: admin_id=%s channel_id=%s",
             inter.user.id,
             inter.channel_id,
         )
@@ -8484,13 +8670,13 @@ def register(
             )
             return
         try:
-            from app.engine.turn_loop import abort_beat
-
             ckpt = engine.load_latest(row.session_id)
-            dropped = abort_beat(ckpt)
+            dropped = len(ckpt.session.action_obligations)
+            ckpt.session.action_obligations.clear()
+            ckpt.session.open_cat_ii_events.clear()
             engine.checkpoint_mgr.save(ckpt)
         except Exception as e:
-            logger.exception("abort_beat failed")
+            logger.exception("abort_pending failed")
             await inter.response.send_message(
                 f"abort failed: `{type(e).__name__}: {e}`",
                 ephemeral=True,
@@ -8499,27 +8685,24 @@ def register(
         # v11-A5: audit-log the outcome so ops can correlate an admin
         # identity with the events that got abandoned.
         logger.info(
-            "abort_beat completed: admin_id=%s channel_id=%s session_id=%s dropped=%d",
+            "abort_pending completed: admin_id=%s channel_id=%s session_id=%s dropped=%d",
             inter.user.id,
             inter.channel_id,
             row.session_id,
             dropped,
         )
         await inter.response.send_message(
-            f"Beat released. {dropped} pending reaction(s) "
-            f"cancelled. Next /act can claim the slot.",
+            f"Cancelled {dropped} pending player obligation(s).",
             ephemeral=True,
         )
         # v11-A5: thread-visible notification so players see that the
-        # beat was released without needing an admin to manually re-echo
+        # obligation was released without an admin manually re-echoing
         # the state. Skipped for no-op aborts (nothing to announce when
         # zero events were dropped).
         if dropped > 0:
             try:
                 await inter.followup.send(
-                    f"Beat released by admin. {dropped} pending "
-                    f"reaction(s) cancelled — the next /act reopens the "
-                    f"beat.",
+                    f"Pending player obligations cancelled by admin ({dropped}).",
                     ephemeral=False,
                 )
             except Exception:
@@ -8527,7 +8710,7 @@ def register(
                 # shifted or the interaction expired; swallow so the
                 # admin still sees their ephemeral confirmation.
                 logger.exception(
-                    "abort_beat: thread-visible notification failed",
+                    "abort_pending: thread-visible notification failed",
                 )
 
     if client is not None:

@@ -153,11 +153,11 @@ def _event_summary(
 ) -> dict[str, Any]:
     if event is None:
         return {}
-    event_kind = getattr(event, "event_kind", "")
+    record = getattr(event, "event", event)
     fact_details: list[dict[str, Any]] = []
     public_facts: list[str] = []
     private_facts: list[dict[str, Any]] = []
-    for fact in getattr(event.canonical_event, "observable_facts", []):
+    for fact in getattr(record, "observable_facts", []):
         text = str(getattr(fact, "text", "") or "")
         audience = str(getattr(fact, "audience", "") or "all_observers")
         visible_to = [
@@ -176,21 +176,18 @@ def _event_summary(
         else:
             public_facts.append(text)
     summary = {
-        "event_id": getattr(event, "event_id", ""),
-        "event_kind": event_kind,
-        "decision_rationale": getattr(event, "decision_rationale", ""),
+        "event_id": getattr(record, "event_id", ""),
+        "interaction_mode": getattr(record, "interaction_mode", "narrative"),
         "facts": public_facts,
         "private_facts": private_facts,
         "fact_details": fact_details,
     }
     if include_observers:
+        groups = getattr(record, "observers", None)
         summary["observers"] = [
-            {
-                "character_id": observer.character_id,
-                "observation_level": observer.observation_level,
-                "routing_role": observer.routing_role,
-            }
-            for observer in getattr(event, "observers", [])
+            {"character_id": character_id, "observation_level": level}
+            for level in ("direct", "indirect", "inferred")
+            for character_id in getattr(groups, level, ())
         ]
     return summary
 

@@ -1,46 +1,39 @@
 #!/usr/bin/env python3
-"""Targeted live playtest for the event router prompt.
+"""Live acceptance harness for the batched event-router contract.
 
-This is intentionally narrower than the full EngineBridge playtests:
-it calls the production router dispatcher directly with small synthetic
-checkpoints so regressions in the prompt contract are easier to spot.
-
-The cases focus on behavior we recently compressed or removed detail
-around:
-
-- addressed multi-recipient routing
-- NPC-to-NPC continuation instead of player-centric defaulting
-- defer/wait pacing
-- Cat II opening and resolution
-- Cat II resolution chronology without replaying the canonical opening
-- mediated perception without scene topology
-- custom player arrival guidance
+The cases call ``StoryDispatcher.route_batch`` directly. Saved artifacts include
+the exact provider messages, raw response, parsed batch, materialized canonical
+events, and behavioral checks needed to compare prompt revisions.
 
 Outputs:
   app/storage/playtest_reports/router_prompt_targeted_<timestamp>.json
   app/storage/playtest_reports/router_prompt_targeted_<timestamp>.md
+  app/storage/playtest_reports/router_prompt_targeted_<timestamp>.log
 """
 
 from __future__ import annotations
 
+# ruff: noqa: E402 -- executable scripts add the repository root to sys.path.
+
+import argparse
 import asyncio
 import json
 import logging
-import re
 import sys
 import traceback
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Any, Callable
 
 from dotenv import load_dotenv
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 from app.engine.prompt_manager import PromptManager
-from app.engine.turn_loop_dispatcher import LLMDispatcher
-from app.llm.client import LLMClient
+from app.engine.story_dispatcher import StoryDispatcher, append_router_history
+from app.llm.client import LLMClient, LLMResponse
 from app.llm.config import LLMConfig
 from app.schemas.characters import (
     ActorFact,
@@ -49,10 +42,14 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.conversation import ConversationMessage
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.event_router import (
+    CanonicalEventRecord,
+    ObserverGroups,
+    RouterBatchOutput,
+    RouterInputEnvelope,
+)
+from app.schemas.events import ObservableFact
 from app.schemas.state import (
-    OpenCatIIEvent,
     PhysicsRuleset,
     SessionConfig,
     SessionState,
@@ -61,57 +58,76 @@ from app.schemas.state import (
 )
 
 
-REPORT_DIR = Path("app/storage/playtest_reports")
-TS = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-JSON_PATH = REPORT_DIR / f"router_prompt_targeted_{TS}.json"
-MD_PATH = REPORT_DIR / f"router_prompt_targeted_{TS}.md"
-LOG_PATH = REPORT_DIR / f"router_prompt_targeted_{TS}.log"
-
-TARGETED_FACTS = [
-    (
-        "The venue is a live immersive show built inside an old estate: "
-        "a formal dinner hall, sound-isolated dating pods, a production "
-        "control room, and a security annex all matter tonight."
-    ),
-    (
-        "Camera feeds, microphones, earpieces, and intercoms can carry "
-        "some events to people who are not physically present. Audio "
-        "does not imply sight; video does not imply being seen by the "
-        "person on camera."
-    ),
-    (
-        "Current arrangement for these tests: Dan, Ashara, Rashid, and "
-        "Thessaly can share the dinner table when a dinner-table action "
-        "is described; Dan and Britney can occupy separate pods linked "
-        "only by live audio; Maya watches the production feeds from the "
-        "control room; Dante can hear production talkback through an "
-        "earpiece; Pip works the security annex."
-    ),
-    (
-        "All physical conflict is ordinary human-scale unless a fact "
-        "explicitly says otherwise. A responder's desired outcome is not "
-        "automatically the resolved outcome."
-    ),
-]
+REPORT_DIR = REPO_ROOT / "app/storage/playtest_reports"
+BASELINE_PATH = REPORT_DIR / "router_prompt_targeted_20260901T163651Z.json"
+TARGETED_FACTS = (
+    "The venue is a live immersive show inside an old estate. Its dinner hall, "
+    "sound-isolated dating pods, production control room, and security annex "
+    "can host simultaneous activity.",
+    "Camera feeds, microphones, earpieces, and intercoms can carry some events "
+    "to people who are not physically present. Audio does not imply sight; "
+    "video does not imply being seen by the person on camera.",
+    "Dan, Ashara, and Rashid are at the dinner table. Dan and Britney can speak "
+    "between separate pods through live audio. Maya monitors production feeds "
+    "from the control room. Dante hears Maya through an earpiece. Pip works in "
+    "the security annex.",
+    "All physical conflict is ordinary human-scale. A proposed outcome does not "
+    "become true merely because its actor wants it.",
+)
 
 
 @dataclass(frozen=True)
-class CaseResult:
+class CaseSpec:
     name: str
-    input_summary: str
-    output: dict
-    checks: list[dict[str, object]]
-    error: str = ""
+    summary: str
+    build: Callable[[], tuple[CheckpointFile, list[RouterInputEnvelope]]]
+    evaluate: Callable[[RouterBatchOutput, Any], list[dict[str, Any]]]
+
+
+class RecordingClient:
+    """Capture exact router calls without changing provider behavior."""
+
+    def __init__(self, inner: LLMClient) -> None:
+        self.inner = inner
+        self.config = inner.config
+        self.calls: list[dict[str, Any]] = []
+
+    async def complete(self, *args: Any, **kwargs: Any) -> LLMResponse:
+        response = await self.inner.complete(*args, **kwargs)
+        if kwargs.get("role") == "event_router":
+            raw_response = response.raw_response
+            if hasattr(raw_response, "model_dump"):
+                raw_response = raw_response.model_dump(mode="json")
+            elif raw_response is not None:
+                raw_response = repr(raw_response)
+            self.calls.append({
+                "messages": kwargs.get("messages", []),
+                "response_model": getattr(
+                    kwargs.get("response_model"),
+                    "__name__",
+                    "",
+                ),
+                "model": response.model,
+                "usage": dict(response.usage or {}),
+                "raw_content": response.content,
+                "parsed": (
+                    response.parsed.model_dump(mode="json")
+                    if hasattr(response.parsed, "model_dump")
+                    else response.parsed
+                ),
+                "reasoning_summaries": list(response.reasoning_summaries or ()),
+                "raw_response": raw_response,
+            })
+        return response
 
 
 def _char(
-    *,
     character_id: str,
     name: str,
     role: str,
-    appearance: str = "",
-    actor_facts: list[str] | None = None,
-    location: str = "",
+    *,
+    location: str,
+    facts: tuple[str, ...] = (),
     playable: bool = False,
 ) -> CharacterRecord:
     return CharacterRecord(
@@ -119,122 +135,105 @@ def _char(
         name=name,
         location=location,
         is_playable=playable,
-        public_sheet=PublicSheet(role=role, appearance=appearance),
+        public_sheet=PublicSheet(role=role),
         actor=ActorRecord(
             may_act_offstage=True,
-            facts=[ActorFact(text=fact) for fact in actor_facts or ()],
+            facts=[ActorFact(text=fact) for fact in facts],
         ),
     )
 
 
-def _base_characters() -> list[CharacterRecord]:
+def _characters() -> list[CharacterRecord]:
     return [
         _char(
-            character_id="dan",
-            name="Dan Gahvey",
-            role="contestant and heir",
-            appearance="tired, observant, plainly dressed",
-            location="dinner hall or pod A depending on the described action",
+            "dan",
+            "Dan Gahvey",
+            "contestant and heir",
+            location="dinner hall",
             playable=True,
         ),
         _char(
-            character_id="ashara",
-            name="Ashara Vel Kothren",
-            role="sharp dinner-table rival seated near Dan",
-            actor_facts=[
-                "You are controlled, direct, and protective of your leverage.",
-                "You answer only when the exchange gives you an advantage.",
-            ],
+            "ashara",
+            "Ashara Vel Kothren",
+            "controlled dinner-table rival",
             location="dinner hall",
+            facts=(
+                "You are direct and protective of your leverage.",
+                "You answer when an exchange gives you an advantage.",
+            ),
         ),
         _char(
-            character_id="rashid",
-            name="Rashid Vel Amara",
-            role="dinner-table observer with reasons to test Ashara",
-            actor_facts=[
-                "You are cool and analytical and often speak past the speaker.",
-                "You want to expose false alliances at the table.",
+            "rashid",
+            "Rashid Vel Amara",
+            "analytical dinner-table rival",
+            location="dinner hall",
+            facts=(
                 "You pressure Ashara when a useful opening appears.",
-            ],
-            location="dinner hall",
+                "You want to expose false alliances.",
+            ),
         ),
         _char(
-            character_id="thessaly",
-            name="Thessaly Morrow",
-            role="quiet dinner-table specialist",
-            actor_facts=[
-                "You are careful, slow to speak, and precise when addressed.",
-                "You watch for what the room hides in magical or social tells.",
-            ],
-            location="dinner hall",
-        ),
-        _char(
-            character_id="dante",
-            name="Dante Vale",
-            role="show host with an earpiece and responsibility for pacing",
-            actor_facts=[
-                "You are warm on camera and ruthless about keeping the show alive.",
-                "You give clear in-fiction prompts when the room stalls.",
-            ],
-            location="great hall",
-        ),
-        _char(
-            character_id="britney",
-            name="Britney Spears",
-            role="late-arriving contestant in pod B with live audio only",
-            appearance="glamorous, composed, camera-aware",
-            actor_facts=[
-                "You are famous, funny, guarded, and quick to puncture nonsense.",
-                "You want to know why production put you here.",
-                "You are testing whether Dan is a real ally or a setup.",
-            ],
+            "britney",
+            "Britney Spears",
+            "late-arriving contestant",
             location="pod B",
+            facts=(
+                "You are funny, guarded, and quick to puncture nonsense.",
+                "You want to learn why production brought you here.",
+            ),
             playable=True,
         ),
         _char(
-            character_id="maya",
-            name="Maya Cross",
-            role="producer in the control room with camera, audio, and talkback",
-            actor_facts=[
-                "You are decisive, pragmatic, and willing to manufacture a cue.",
-                "You feed Dante useful direction without appearing on stage.",
-            ],
+            "maya",
+            "Maya Cross",
+            "producer with camera, audio, and talkback access",
             location="control room",
+            facts=(
+                "You create practical cues when the production stalls.",
+                "You feed Dante useful direction without appearing on stage.",
+            ),
         ),
         _char(
-            character_id="pip",
-            name="Pip Arlen",
-            role="volatile security worker in the annex",
-            actor_facts=[
-                "You jump to force quickly but remain an ordinary human.",
-                "You intend to block Dan from getting past the security desk.",
-            ],
+            "dante",
+            "Dante Vale",
+            "show host responsible for pacing",
+            location="great hall",
+            facts=(
+                "You are warm on camera and ruthless about keeping things moving.",
+            ),
+        ),
+        _char(
+            "pip",
+            "Pip Arlen",
+            "volatile security worker",
             location="security annex",
+            facts=(
+                "You guard the emergency keys and block unauthorized access.",
+            ),
         ),
     ]
 
 
-def _ckpt(
-    *,
+def _checkpoint(
     session_id: str,
-    acting_player: str = "dan",
+    *,
+    player_id: str = "dan",
     bindings: dict[str, str] | None = None,
-    pending_changes: list[str] | None = None,
 ) -> CheckpointFile:
-    bindings = bindings if bindings is not None else {acting_player: "user-1"}
     return CheckpointFile(
         session=SessionState(
             session_id=session_id,
             story_id="router_prompt_targeted",
-            player_name="Dan",
-            player_character_id=acting_player,
-            character_bindings=bindings,
-            pending_router_state_changes=pending_changes or [],
+            player_name="Player",
+            player_character_id=player_id,
+            character_bindings=(
+                dict(bindings) if bindings is not None else {player_id: "user-1"}
+            ),
             config=SessionConfig(),
         ),
         player_primer=(
-            "You are inside a live immersive show where some people share "
-            "a room and others only share a feed."
+            "You are inside a live immersive show whose rooms have deliberately "
+            "uneven channels of perception."
         ),
         world_state=WorldState(
             facts=list(TARGETED_FACTS),
@@ -244,796 +243,759 @@ def _ckpt(
                 era="near future",
                 tone="tense, playable, character-driven",
                 premise=(
-                    "Contestants, rivals, production staff, and security "
-                    "create overlapping channels of perception."
+                    "Contestants, rivals, production staff, and security create "
+                    "overlapping channels of pressure and perception."
                 ),
             ),
             lore=(
-                "The show is filmed live. Production staff can observe feeds "
-                "and create prompts, but contestants only perceive what their "
-                "room, microphone, earpiece, or direct line actually gives them."
+                "The show is filmed live. Production staff can observe feeds and "
+                "create cues, but contestants perceive only their room or an "
+                "established microphone, earpiece, intercom, or camera feed."
             ),
             hidden_lore=(
-                "Production secretly inserted Britney as a ratings emergency. "
-                "Dante was not warned early enough to have a polished explanation."
+                "Production inserted Britney as a ratings emergency. Dante was "
+                "not warned early enough to have a polished explanation."
             ),
         ),
-        characters=_base_characters(),
+        characters=_characters(),
     )
 
 
-def _facts(result: EventRouterOutput) -> list[dict[str, object]]:
-    return [
-        {
-            "text": fact.text,
-            "audience": fact.audience,
-            "visible_to": fact.visible_to,
-        }
-        for fact in result.canonical_event.observable_facts
-    ]
-
-
-def _fact_text(result: EventRouterOutput) -> str:
-    return "\n".join(fact.text for fact in result.canonical_event.observable_facts)
-
-
-def _spoken_fact_text(result: EventRouterOutput) -> str:
-    """Return speech with the router's silent identity anchors removed."""
-
-    return re.sub(
-        r"\s+\[[a-z0-9_]+(?:,[a-z0-9_]+)*\]",
-        "",
-        _fact_text(result),
-        flags=re.IGNORECASE,
+def _input(
+    *,
+    index: int,
+    lane: str,
+    kind: str,
+    actor_ids: list[str],
+    participant_ids: list[str],
+    payload: str,
+    source_event_ids: list[str] | None = None,
+    chosen_at_s: int = 0,
+    observed_sequence: int = -1,
+) -> RouterInputEnvelope:
+    return RouterInputEnvelope(
+        submission_id=f"submission_{lane}_{index}",
+        input_index=index,
+        lane_id=lane,
+        kind=kind,
+        actor_ids=actor_ids,
+        participant_ids=participant_ids,
+        source_event_ids=list(source_event_ids or ()),
+        chosen_at_s=chosen_at_s,
+        observed_through_event_sequence=observed_sequence,
+        observed_through_s=chosen_at_s,
+        payload=payload,
     )
 
 
-def _observer_ids(result: EventRouterOutput) -> list[str]:
-    return [obs.character_id for obs in result.observers]
-
-
-def _contains_all(values: list[str], required: list[str]) -> bool:
-    return all(item in values for item in required)
-
-
-def _check(name: str, passed: bool, detail: str = "") -> dict[str, object]:
+def _check(name: str, passed: bool, detail: Any = "") -> dict[str, Any]:
     return {"name": name, "passed": bool(passed), "detail": detail}
 
 
-def _result_dict(result: EventRouterOutput) -> dict:
-    dumped = result.model_dump(mode="json")
-    dumped["fact_texts"] = _facts(result)
-    dumped["observer_ids"] = _observer_ids(result)
-    dumped["next_output_character_ids"] = list(result.next_output_character_ids)
-    dumped["perception_enrichment_character_ids"] = list(
-        result.perception_enrichment_character_ids
+def _fact_text(output: RouterBatchOutput) -> str:
+    return "\n".join(
+        fact.text for event in output.events for fact in event.observable_facts
     )
-    return dumped
 
 
-async def _multi_recipient(dispatcher: LLMDispatcher) -> CaseResult:
-    ckpt = _ckpt(session_id="targeted_multi_recipient")
-    text = (
-        'I look from Ashara to Rashid. "I am Dan. What do you both want '
-        'from this room before the night is over?"'
-    )
-    result = await dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="dan",
-        intention=text,
-    )
-    checks = [
-        _check("cat_i_dialogue", not result.requires_responders),
+def _events_for_input(output: RouterBatchOutput, index: int) -> list[Any]:
+    return [
+        event
+        for event in output.events
+        if index in event.feasible_input_indexes
+        or index in event.infeasible_input_indexes
+    ]
+
+
+def _next_actors(output: RouterBatchOutput, *, source: int | None = None) -> list[str]:
+    return [
+        turn.actor_id
+        for turn in output.next_turns
+        if turn.turn_kind == "character"
+        and (source is None or turn.source_event_index == source)
+    ]
+
+
+def _accounting_checks(
+    output: RouterBatchOutput,
+    count: int,
+) -> list[dict[str, Any]]:
+    accounted = [
+        index
+        for event in output.events
+        for index in (
+            *event.feasible_input_indexes,
+            *event.infeasible_input_indexes,
+        )
+    ]
+    return [
         _check(
-            "routes_both_addressed_npcs",
-            _contains_all(result.next_output_character_ids, ["ashara", "rashid"]),
-            f"next={result.next_output_character_ids}",
+            "exact_input_accounting",
+            sorted(accounted) == list(range(count)),
+            accounted,
         ),
         _check(
-            "keeps_beat_open",
-            bool(result.next_output_character_ids),
-            f"kind={result.event_kind} next={result.next_output_character_ids}",
-        ),
-        _check(
-            "dialogue_preserved",
-            "What do you both want from this room" in _spoken_fact_text(result),
+            "batch_bounds",
+            len(output.events) <= 5 and len(output.next_turns) <= 5,
         ),
     ]
-    return CaseResult(
-        name="multi_recipient_address",
-        input_summary=text,
-        output=_result_dict(result),
-        checks=checks,
-    )
 
 
-async def _npc_to_npc(dispatcher: LLMDispatcher) -> CaseResult:
-    ckpt = _ckpt(session_id="targeted_npc_to_npc")
-    text = (
-        'Rashid turns away from Dan and says to Ashara, "You do know the '
-        'host is using you as cover, yes?"'
-    )
-    result = await dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="rashid",
-        intention=text,
-    )
-    checks = [
-        _check("cat_i_dialogue", not result.requires_responders),
+def _evaluate_multi(output: RouterBatchOutput, _batch: Any) -> list[dict[str, Any]]:
+    event = _events_for_input(output, 0)[0]
+    event_index = output.events.index(event)
+    source_actors = _next_actors(output, source=event_index)
+    addressed = set(source_actors) & {"ashara", "rashid"}
+    text = _fact_text(output)
+    return [
+        *_accounting_checks(output, 1),
+        _check("dialogue_preserved", "What do you both want" in text, text),
         _check(
-            "routes_to_ashara",
-            "ashara" in result.next_output_character_ids,
-            f"next={result.next_output_character_ids}",
+            "one_same_lane_reply_selected",
+            len(addressed) == 1,
+            sorted(addressed),
         ),
+        _check("no_player_centering", "dan" not in source_actors, source_actors),
         _check(
-            "does_not_player_center_pick",
-            "dan" not in result.next_output_character_ids,
-            f"next={result.next_output_character_ids}",
-        ),
-        _check(
-            "keeps_beat_open_for_target",
-            bool(result.next_output_character_ids),
-            f"kind={result.event_kind}",
+            "dialogue_does_not_request_appearance",
+            not event.appearance_target_ids,
+            event.appearance_target_ids,
         ),
     ]
-    return CaseResult(
-        name="npc_to_npc_pressure",
-        input_summary=text,
-        output=_result_dict(result),
-        checks=checks,
-    )
 
 
-async def _defer_pacing(dispatcher: LLMDispatcher) -> CaseResult:
-    ckpt = _ckpt(session_id="targeted_defer_pacing")
-    result = await dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="dan",
-        intention="(defer)",
-    )
-    facts = _fact_text(result).lower()
-    invented_player_motion = any(
-        phrase in facts
-        for phrase in [
-            "dan waits",
-            "dan stays",
-            "dan looks",
-            "dan turns",
-            "dan hesitates",
-            "dan pauses",
-            "dan stands",
-            "dan sits",
-            "dan remains",
-        ]
-    )
-    non_empty_forward_motion = bool(facts.strip()) and any(
-        word in facts
-        for word in [
-            "dante",
-            "maya",
-            "producer",
-            "intercom",
-            "door",
-            "bell",
-            "signal",
-            "britney",
-            "cue",
-        ]
-    )
-    checks = [
-        _check("does_not_invent_player_action", not invented_player_motion),
-        _check(
-            "does_not_route_defer_back_to_player",
-            "dan" not in result.next_output_character_ids,
-            f"next={result.next_output_character_ids}",
-        ),
-        _check(
-            "no_dead_air_closed_beat",
-            not (
-                result.event_kind != "beat_continues"
-                and result.event_kind == "ambient_pause"
-                and not non_empty_forward_motion
-            ),
-            f"kind={result.event_kind}",
-        ),
-        _check(
-            "routes_actor_or_creates_affordance",
-            bool(result.next_output_character_ids)
-            or non_empty_forward_motion,
-            f"next={result.next_output_character_ids}",
-        ),
+def _evaluate_npc_pressure(
+    output: RouterBatchOutput,
+    _batch: Any,
+) -> list[dict[str, Any]]:
+    event = _events_for_input(output, 0)[0]
+    actors = _next_actors(output, source=output.events.index(event))
+    return [
+        *_accounting_checks(output, 1),
+        _check("routes_to_addressed_npc", actors == ["ashara"], actors),
+        _check("does_not_route_to_player", "dan" not in actors, actors),
     ]
-    return CaseResult(
-        name="defer_wait_pacing",
-        input_summary="(defer)",
-        output=_result_dict(result),
-        checks=checks,
-    )
 
 
-async def _defer_after_premature_boundary(dispatcher: LLMDispatcher) -> CaseResult:
-    ckpt = _ckpt(session_id="targeted_defer_after_premature_boundary")
-    ckpt.session_conversation.append(ConversationMessage(
-        role="assistant",
-        content=(
-            "prior_event evt_thin_prompt @120+8 source=dan mode=intention "
-            "kind=response_requested\n"
-            "fact all @0+8: Dante says, 'Dan, one name. Who do you trust "
-            "here?'\n"
-            "obs dan:d5 ashara:d2 rashid:d2 thessaly:d2 dante:d5 maya:d3"
-        ),
-    ))
-    result = await dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="dan",
-        intention="(defer)",
-    )
-    facts = _fact_text(result).lower()
-    invented_player_motion = any(
-        phrase in facts
-        for phrase in [
-            "dan waits",
-            "dan stays",
-            "dan looks",
-            "dan turns",
-            "dan hesitates",
-            "dan pauses",
-            "dan stands",
-            "dan sits",
-            "dan remains",
-        ]
-    )
-    stronger_boundary = any(
-        phrase in facts
-        for phrase in [
-            "door opens",
-            "new arrival",
-            "bell",
-            "producer",
-            "signal",
-            "message",
-            "blocked path",
-            "opened route",
-            "countdown",
-            "britney",
-        ]
-    )
-    thin_direct_return = (
-        result.event_kind == "response_requested"
-        and "dan" in result.next_output_character_ids
-        and not stronger_boundary
-    )
-    checks = [
-        _check("does_not_invent_player_action", not invented_player_motion),
-        _check(
-            "does_not_repeat_thin_direct_handoff",
-            "dan" not in result.next_output_character_ids
-            and not thin_direct_return,
-            f"kind={result.event_kind} facts={_fact_text(result)}",
-        ),
-        _check(
-            "keeps_open_or_creates_stronger_boundary",
-            (
-                bool(result.next_output_character_ids)
-                and "dan" not in result.next_output_character_ids
-            ) or (
-                result.event_kind in {
-                    "state_change",
-                    "cascade_exhausted",
-                    "ambient_pause",
-                }
-                and stronger_boundary
-            ),
-            (
-                f"kind={result.event_kind} "
-                f"next={result.next_output_character_ids}"
-            ),
-        ),
+def _evaluate_defer(output: RouterBatchOutput, _batch: Any) -> list[dict[str, Any]]:
+    player_facts = _fact_text(output).casefold()
+    independent = [
+        turn.actor_id
+        for turn in output.next_turns
+        if turn.turn_kind == "character" and turn.source_event_index == -1
     ]
-    return CaseResult(
-        name="defer_after_premature_boundary",
-        input_summary="(defer) after a prior thin response handoff",
-        output=_result_dict(result),
-        checks=checks,
-    )
-
-
-async def _cat_ii_open(dispatcher: LLMDispatcher) -> CaseResult:
-    ckpt = _ckpt(session_id="targeted_cat_ii_open")
-    for character in ckpt.characters:
-        if character.character_id == "dan":
-            character.location = "security_annex"
-        elif character.character_id == "pip":
-            character.location = "security_annex"
-    text = "I shove Pip aside and try to force my way through the restricted door."
-    result = await dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="dan",
-        intention=text,
-    )
-    lowered = _fact_text(result).lower()
-    resolving_words = ["knocks pip aside", "pip falls", "dan gets through", "door opens"]
-    checks = [
-        _check("requires_responder", result.requires_responders),
+    return [
+        *_accounting_checks(output, 1),
         _check(
-            "requires_pip",
-            "pip" in result.required_responders,
-            f"required={result.required_responders}",
-        ),
-        _check(
-            "kind_cat_ii_open",
-            result.event_kind == "cat_ii_open",
-            f"kind={result.event_kind}",
-        ),
-        _check(
-            "does_not_resolve_in_open",
-            not any(word in lowered for word in resolving_words),
-        ),
-        _check(
-            "does_not_apply_success_dependent_participant_state",
+            "defer_invents_no_player_behavior",
             not any(
-                update.character_id in {"dan", "pip"}
-                and update.location_label != "security_annex"
-                for update in result.location_updates
-            )
-            and not ({"dan", "pip"} & set(result.dormant))
-            and not ({"dan", "pip"} & set(result.cull))
-            and not any(
-                update.character_id in {"dan", "pip"}
-                for update in result.activate
+                phrase in player_facts
+                for phrase in (
+                    "dan waits",
+                    "dan hesitates",
+                    "dan looks",
+                    "dan remains",
+                )
             ),
-            (
-                f"locations={result.location_updates} "
-                f"dormant={result.dormant} cull={result.cull} "
-                f"activate={result.activate}"
+            player_facts,
+        ),
+        _check("off_lane_work_selected", bool(independent), independent),
+        _check("player_not_automated", "dan" not in independent, independent),
+    ]
+
+
+def _evaluate_cat_open(output: RouterBatchOutput, _batch: Any) -> list[dict[str, Any]]:
+    event = _events_for_input(output, 0)[0]
+    event_index = output.events.index(event)
+    return [
+        *_accounting_checks(output, 1),
+        _check(
+            "opens_contest_for_pip",
+            event.required_responders == ["pip"],
+            event.required_responders,
+        ),
+        _check("opening_is_instantaneous", event.duration_s == 0, event.duration_s),
+        _check(
+            "responder_has_direct_access",
+            "pip" in event.observers.direct,
+            event.observers.model_dump(),
+        ),
+        _check(
+            "opening_does_not_also_route",
+            not any(
+                turn.source_event_index == event_index
+                for turn in output.next_turns
             ),
+            [turn.model_dump() for turn in output.next_turns],
         ),
     ]
-    return CaseResult(
-        name="cat_ii_open_physical_contest",
-        input_summary=text,
-        output=_result_dict(result),
-        checks=checks,
-    )
 
 
-async def _cat_ii_resolution(dispatcher: LLMDispatcher) -> CaseResult:
-    ckpt = _ckpt(session_id="targeted_cat_ii_resolution")
-    evt = OpenCatIIEvent(
-        event_id="evt_targeted_cat_ii",
-        initiator_id="dan",
-        initiator_intention="I swing at Pip's jaw to get him away from the door.",
-        required_responders=["pip"],
-        collected_intentions={
-            "pip": (
-                "Pip taps Dan's wrist with one fingertip, instantly rendering "
-                "him unconscious."
-            ),
-        },
-        swept_responders=[],
-    )
-    result = await dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="dan",
-        intention="",
-        cat_ii_event=evt,
-    )
-    lowered = _fact_text(result).lower()
-    total_incapacitation_terms = [
-        "knocks him out",
-        "knocked out",
-        "unconscious",
-        "goes limp",
-        "stops responding",
-        "motionless",
-        "lies limp",
+def _evaluate_same_lane_contest(
+    output: RouterBatchOutput,
+    batch: Any,
+) -> list[dict[str, Any]]:
+    shared = [
+        event
+        for event in output.events
+        if 0 in event.feasible_input_indexes
+        and 1 in event.feasible_input_indexes
     ]
-    motion_upgrade_patterns = [
-        re.compile(
-            r"\bpip\b[^.!?]{0,100}\b"
-            r"(?:darts?|flicks?|jabs?|lunges?|snaps?|strikes?)\b"
-        ),
-        re.compile(
-            r"\b(?:finger|fingertip)\b[^.!?]{0,40}\b"
-            r"(?:jab|strike|nerve|pressure point)\b"
-        ),
-        re.compile(
-            r"\b(?:jarring dan|jars dan|numbing|numb|spasm|"
-            r"disrupting dan|disrupts dan|punch veers|swing veers|"
-            r"dan flinches|dan recoils|dan staggers|dan buckles)\b"
-        ),
-        re.compile(
-            r"\bpip\b[^.!?]{0,100}\b"
-            r"(?:chokes? dan|takes dan down|takedown)\b"
-        ),
-    ]
-    motion_upgrades = [
-        match.group(0)
-        for pattern in motion_upgrade_patterns
-        for match in pattern.finditer(lowered)
-    ]
-    checks = [
-        _check("resolved_no_more_required", not result.requires_responders),
+    event = shared[0] if shared else None
+    text = _fact_text(output)
+    return [
+        *_accounting_checks(output, 2),
+        _check("same_lane_inputs_share_one_event", len(shared) == 1),
         _check(
-            "kind_cat_ii_resolution",
-            result.event_kind == "cat_ii_resolution",
-            f"kind={result.event_kind}",
-        ),
-        _check("resolution_event_kind", result.event_kind == "cat_ii_resolution"),
-        _check(
-            "does_not_blindly_accept_total_knockout",
-            not any(term in lowered for term in total_incapacitation_terms),
-            _fact_text(result),
+            "opening_proposal_is_first_feasible_input",
+            event is not None and event.feasible_input_indexes[0] == 0,
+            event.feasible_input_indexes if event is not None else [],
         ),
         _check(
-            "does_not_upgrade_asserted_motion",
-            not motion_upgrades,
-            (
-                f"matches={motion_upgrades}; facts={_fact_text(result)}"
-                if motion_upgrades
-                else _fact_text(result)
-            ),
+            "contest_opens_for_pip",
+            event is not None and event.required_responders == ["pip"],
+            event.required_responders if event is not None else [],
         ),
+        _check(
+            "simultaneous_dialogue_is_preserved",
+            "Don't touch it" in text,
+            text,
+        ),
+        _check("materializes_one_causal_event", len(batch.events) == 1),
     ]
-    return CaseResult(
-        name="cat_ii_resolution_responder_overclaim",
-        input_summary=(
-            "Dan swings; Pip overclaims an instant knockout from a fingertip "
-            "touch at ordinary human scale."
-        ),
-        output=_result_dict(result),
-        checks=checks,
-    )
 
 
-async def _cat_ii_resolution_no_opening_replay(
-    dispatcher: LLMDispatcher,
-) -> CaseResult:
-    ckpt = _ckpt(session_id="targeted_cat_ii_no_opening_replay")
-    for character in ckpt.characters:
-        if character.character_id in {"dan", "pip"}:
-            character.location = "security_annex"
-    initiator_intention = (
-        "I reach for Pip's red badge and say, "
-        '"Keep your hands off the red badge."'
-    )
-    opening = await dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="dan",
-        intention=initiator_intention,
-    )
-    responder_intention = (
-        "Pip clamps the badge to his chest, steps behind the security desk, "
-        'and says, "No."'
-    )
-    evt = OpenCatIIEvent(
-        event_id="evt_targeted_no_opening_replay",
-        initiator_id="dan",
-        initiator_intention=initiator_intention,
-        required_responders=["pip"],
-        collected_intentions={"pip": responder_intention},
-        swept_responders=[],
-        opening_event_id=opening.event_id,
-        opening_observer_ids=_observer_ids(opening),
-        opening_observable_facts=[
-            fact.text for fact in opening.canonical_event.observable_facts
-        ],
-    )
-    resolution = await dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="dan",
-        intention="",
-        cat_ii_event=evt,
-    )
-    opening_text = _spoken_fact_text(opening).lower()
-    resolution_text = _spoken_fact_text(resolution).lower()
-    distinctive_line = "keep your hands off the red badge"
-    checks = [
+def _evaluate_cat_resolution(
+    output: RouterBatchOutput,
+    _batch: Any,
+) -> list[dict[str, Any]]:
+    event = _events_for_input(output, 0)[0]
+    text = "\n".join(fact.text for fact in event.observable_facts)
+    return [
+        *_accounting_checks(output, 1),
+        _check("contest_closes", not event.required_responders, event.required_responders),
+        _check("outcome_is_visible", bool(text.strip()), text),
         _check(
-            "opening_is_cat_ii",
-            opening.requires_responders and opening.event_kind == "cat_ii_open",
-            f"kind={opening.event_kind} required={opening.required_responders}",
-        ),
-        _check(
-            "opening_preserves_distinctive_dialogue",
-            distinctive_line in opening_text,
-            _fact_text(opening),
-        ),
-        _check(
-            "resolution_is_cat_ii",
-            not resolution.requires_responders
-            and resolution.event_kind == "cat_ii_resolution",
-            f"kind={resolution.event_kind}",
-        ),
-        _check(
-            "resolution_does_not_replay_opening_dialogue",
-            distinctive_line not in resolution_text,
-            _fact_text(resolution),
+            "opening_marker_not_replayed",
+            "has not resolved" not in text.casefold(),
+            text,
         ),
     ]
-    return CaseResult(
-        name="cat_ii_resolution_no_opening_replay",
-        input_summary=(
-            "Dan's canonical opening attempt includes distinctive dialogue; "
-            "Pip supplies a contested response before resolution."
-        ),
-        output=_result_dict(resolution),
-        checks=checks,
-    )
 
 
-async def _mediated_pod(dispatcher: LLMDispatcher) -> CaseResult:
-    ckpt = _ckpt(session_id="targeted_mediated_pod")
-    text = (
-        'I stay facing the wall of pod A and say into the microphone, '
-        '"Britney, are you hearing this, or am I talking to the room?"'
-    )
-    result = await dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="dan",
-        intention=text,
-    )
-    visual_leak_pattern = re.compile(r"\b(?:facing|wall)\b|\bpod[-\s]+a\b")
-    all_observer_visual = [
-        fact.text
-        for fact in result.canonical_event.observable_facts
-        if fact.audience == "all_observers"
-        and visual_leak_pattern.search(fact.text.lower())
+def _evaluate_mediated(
+    output: RouterBatchOutput,
+    _batch: Any,
+) -> list[dict[str, Any]]:
+    event = _events_for_input(output, 0)[0]
+    britney_facts = [
+        fact for fact in event.observable_facts if fact.is_visible_to("britney")
     ]
-    britney_visual_leak = [
-        fact.text
-        for fact in result.canonical_event.observable_facts
-        if fact.audience == "only"
-        and "britney" in fact.visible_to
-        and visual_leak_pattern.search(fact.text.lower())
+    sight_leaks = [
+        fact.model_dump(mode="json")
+        for fact in britney_facts
+        if fact.visual_subject_ids
     ]
-    checks = [
+    return [
+        *_accounting_checks(output, 1),
         _check(
-            "audio_recipient_observes",
-            "britney" in _observer_ids(result),
-            f"observers={_observer_ids(result)}",
+            "audio_reaches_britney",
+            bool(britney_facts),
+            [fact.text for fact in britney_facts],
         ),
+        _check("audio_does_not_grant_sight", not sight_leaks, sight_leaks),
         _check(
-            "production_can_observe",
-            "maya" in _observer_ids(result) or "dante" in _observer_ids(result),
-            f"observers={_observer_ids(result)}",
-        ),
-        _check(
-            "visual_details_not_broadcast_to_all_audio_observers",
-            not all_observer_visual,
-            " | ".join(all_observer_visual),
-        ),
-        _check(
-            "visual_details_not_visible_to_audio_only_recipient",
-            not britney_visual_leak,
-            " | ".join(britney_visual_leak),
-        ),
-        _check(
-            "routes_to_britney",
-            "britney" in result.next_output_character_ids,
-            f"next={result.next_output_character_ids}",
+            "britney_can_answer",
+            "britney" in _next_actors(output),
+            _next_actors(output),
         ),
     ]
-    return CaseResult(
-        name="mediated_pod_shared_audio_not_sight",
-        input_summary=text,
-        output=_result_dict(result),
-        checks=checks,
-    )
 
 
-async def _custom_arrival(dispatcher: LLMDispatcher) -> CaseResult:
-    ckpt = _ckpt(
-        session_id="targeted_custom_arrival",
-        acting_player="britney",
-        bindings={"britney": "user-2"},
-        pending_changes=[
-            (
-                "Britney has just appeared as a late contestant on the "
-                "production roster. No one in the fiction has explained "
-                "her role to Dan or Dante yet, and Dante needs an in-world "
-                "cue to make the entrance playable."
-            ),
-        ],
-    )
-    result = await dispatcher.route_intention(
-        ckpt=ckpt,
-        actor_id="britney",
-        intention="(begin)",
-    )
-    facts = _fact_text(result).lower()
-    forbidden = [
-        "state change",
-        "player-bound",
-        "custom character",
-        "checkpoint",
-        "router",
-        "schema",
-    ]
-    checks = [
+def _evaluate_arrival(output: RouterBatchOutput, _batch: Any) -> list[dict[str, Any]]:
+    text = _fact_text(output)
+    next_actors = _next_actors(output)
+    forbidden = ("router", "schema", "dispatcher", "api", "engine")
+    return [
+        *_accounting_checks(output, 1),
         _check(
-            "creates_story_substance",
-            any(term in facts for term in ["dante", "maya", "producer", "intercom", "britney"]),
-            _fact_text(result),
+            "arrival_materializes",
+            any(not event.is_no_event_resolution for event in output.events),
         ),
         _check(
             "no_procedural_leakage",
-            not any(term in facts for term in forbidden),
-            _fact_text(result),
+            not any(term in text.casefold() for term in forbidden),
+            text,
         ),
         _check(
-            "does_not_dead_end_arrival",
-            (
-                result.event_kind == "beat_continues"
-                and bool(result.next_output_character_ids)
-            )
-            or result.event_kind in {"state_change", "response_requested", "ambient_pause"},
-            f"kind={result.event_kind} next={result.next_output_character_ids}",
+            "arrival_does_not_speak_for_player",
+            '"' not in text and "“" not in text,
+            text,
+        ),
+        _check(
+            "already_active_arrival_is_not_activated",
+            not any(event.activate for event in output.events),
+            [
+                signal.model_dump(mode="json")
+                for event in output.events
+                for signal in event.activate
+            ],
+        ),
+        _check("story_can_continue", bool(next_actors), next_actors),
+    ]
+
+
+def _evaluate_fan_in(output: RouterBatchOutput, batch: Any) -> list[dict[str, Any]]:
+    first = _events_for_input(output, 0)
+    second = _events_for_input(output, 1)
+    first_observers = set(first[0].observers.all_ids) if first else set()
+    second_observers = set(second[0].observers.all_ids) if second else set()
+    return [
+        *_accounting_checks(output, 2),
+        _check(
+            "independent_inputs_stay_sibling_events",
+            len(first) == len(second) == 1 and first[0] is not second[0],
+        ),
+        _check(
+            "security_does_not_leak_to_dinner",
+            "pip" not in first_observers,
+            sorted(first_observers),
+        ),
+        _check(
+            "dinner_does_not_leak_to_security",
+            not {"dan", "ashara"} & second_observers,
+            sorted(second_observers),
+        ),
+        _check(
+            "materializes_two_causal_lanes",
+            len({event.record.causal_lane_id for event in batch.events}) == 2,
         ),
     ]
-    return CaseResult(
-        name="custom_arrival_story_direction",
-        input_summary="Britney enters via (begin) with a pending roster note.",
-        output=_result_dict(result),
-        checks=checks,
+
+
+def _simple_case(
+    name: str,
+    *,
+    kind: str,
+    actor_ids: list[str],
+    participant_ids: list[str],
+    payload: str,
+) -> tuple[CheckpointFile, list[RouterInputEnvelope]]:
+    checkpoint = _checkpoint(name)
+    return checkpoint, [
+        _input(
+            index=0,
+            lane=f"lane_{name}",
+            kind=kind,
+            actor_ids=actor_ids,
+            participant_ids=participant_ids,
+            payload=payload,
+        )
+    ]
+
+
+def _build_resolution() -> tuple[CheckpointFile, list[RouterInputEnvelope]]:
+    checkpoint = _checkpoint("cat_ii_resolution")
+    opening = CanonicalEventRecord(
+        event_id="evt_unresolved_badge_grab",
+        causal_lane_id="lane_security_contest",
+        effective_at_s=12,
+        duration_s=0,
+        actor_ids=["dan"],
+        source_submission_ids=["submission_opening"],
+        feasible_submission_ids=["submission_opening"],
+        infeasible_submission_ids=[],
+        observable_facts=[
+            ObservableFact.all(
+                "Dan reaches toward the badge on Pip's belt; the grab has not "
+                "resolved.",
+                visual_subject_ids=["dan", "pip"],
+            )
+        ],
+        observers=ObserverGroups(
+            direct=["dan", "pip"],
+            indirect=[],
+            inferred=[],
+        ),
+        spawn=[],
+        dormant=[],
+        cull=[],
+        commitment_opens=[],
+        commitment_resolutions=[],
+        commitment_interrupts=[],
+        location_updates=[],
+        activate=[],
     )
+    checkpoint.canonical_events.append(opening)
+    append_router_history(checkpoint, [opening])
+    payload = json.dumps({
+        "opening_event_id": opening.event_id,
+        "initiator": {
+            "character_id": "dan",
+            "intention": "I snatch the security badge from Pip's belt.",
+        },
+        "responses": [
+            {
+                "character_id": "pip",
+                "intention": (
+                    "I slap his hand away and step between him and the desk."
+                ),
+            }
+        ],
+    })
+    return checkpoint, [
+        _input(
+            index=0,
+            lane=opening.causal_lane_id,
+            kind="cat_ii_resolution",
+            actor_ids=["dan", "pip"],
+            participant_ids=["dan", "pip"],
+            payload=payload,
+            source_event_ids=[opening.event_id],
+            chosen_at_s=12,
+            observed_sequence=0,
+        )
+    ]
 
 
-CASES: list[tuple[str, Callable[[LLMDispatcher], Awaitable[CaseResult]]]] = [
-    ("multi_recipient_address", _multi_recipient),
-    ("npc_to_npc_pressure", _npc_to_npc),
-    ("defer_wait_pacing", _defer_pacing),
-    ("defer_after_premature_boundary", _defer_after_premature_boundary),
-    ("cat_ii_open_physical_contest", _cat_ii_open),
-    ("cat_ii_resolution_responder_overclaim", _cat_ii_resolution),
-    (
-        "cat_ii_resolution_no_opening_replay",
-        _cat_ii_resolution_no_opening_replay,
+def _build_cat_open() -> tuple[CheckpointFile, list[RouterInputEnvelope]]:
+    checkpoint = _checkpoint("cat_ii_open_physical_contest")
+    dan = next(item for item in checkpoint.characters if item.character_id == "dan")
+    dan.location = "security annex"
+    checkpoint.world_state.facts.append(
+        "For this case, Dan and Pip are physically together at the security desk."
+    )
+    return checkpoint, [
+        _input(
+            index=0,
+            lane="lane_security_contest",
+            kind="player",
+            actor_ids=["dan"],
+            participant_ids=["dan", "pip"],
+            payload="I snatch the security badge from Pip's belt.",
+        )
+    ]
+
+
+def _build_same_lane_contest() -> tuple[CheckpointFile, list[RouterInputEnvelope]]:
+    checkpoint = _checkpoint("same_lane_contest_merge")
+    for character in checkpoint.characters:
+        if character.character_id in {"dan", "pip", "ashara"}:
+            character.location = "security annex"
+    checkpoint.world_state.facts.append(
+        "Dan, Pip, and Ashara are together beside the security desk."
+    )
+    return checkpoint, [
+        _input(
+            index=0,
+            lane="lane_security_contest",
+            kind="player",
+            actor_ids=["dan"],
+            participant_ids=["dan", "pip"],
+            payload="I snatch the security badge from Pip's belt.",
+        ),
+        _input(
+            index=1,
+            lane="lane_security_contest",
+            kind="character",
+            actor_ids=["ashara"],
+            participant_ids=["ashara", "dan", "pip"],
+            payload='Ashara tells Dan, "Don\'t touch it."',
+        ),
+    ]
+
+
+def _build_arrival() -> tuple[CheckpointFile, list[RouterInputEnvelope]]:
+    checkpoint = _checkpoint(
+        "custom_arrival",
+        player_id="britney",
+        bindings={"britney": "user-2"},
+    )
+    britney = next(
+        item for item in checkpoint.characters if item.character_id == "britney"
+    )
+    britney.location = ""
+    britney.public_sheet.appearance = "glamorous, composed, and camera-aware"
+    return checkpoint, [
+        _input(
+            index=0,
+            lane="lane_britney_arrival",
+            kind="player",
+            actor_ids=["britney"],
+            participant_ids=["britney"],
+            payload="(arrive)",
+        )
+    ]
+
+
+def _build_fan_in() -> tuple[CheckpointFile, list[RouterInputEnvelope]]:
+    checkpoint = _checkpoint("offstage_fan_in")
+    return checkpoint, [
+        _input(
+            index=0,
+            lane="lane_dinner",
+            kind="player",
+            actor_ids=["dan"],
+            participant_ids=["dan", "ashara"],
+            payload='I ask Ashara, "Who warned you about the host?"',
+            chosen_at_s=20,
+        ),
+        _input(
+            index=1,
+            lane="lane_security",
+            kind="character",
+            actor_ids=["pip"],
+            participant_ids=["pip"],
+            payload="I inventory the emergency keys and lock the red case.",
+            chosen_at_s=20,
+        ),
+    ]
+
+
+CASES = (
+    CaseSpec(
+        "multi_recipient_address",
+        "One addressed exchange selects one strongest same-lane respondent.",
+        lambda: _simple_case(
+            "multi_recipient_address",
+            kind="player",
+            actor_ids=["dan"],
+            participant_ids=["dan", "ashara", "rashid"],
+            payload=(
+                'I look from Ashara to Rashid. "I am Dan. What do you both want '
+                'from this room before the night is over?"'
+            ),
+        ),
+        _evaluate_multi,
     ),
-    ("mediated_pod_shared_audio_not_sight", _mediated_pod),
-    ("custom_arrival_story_direction", _custom_arrival),
-]
+    CaseSpec(
+        "npc_to_npc_pressure",
+        "NPC dialogue routes to its target rather than centering the player.",
+        lambda: _simple_case(
+            "npc_to_npc_pressure",
+            kind="character",
+            actor_ids=["rashid"],
+            participant_ids=["rashid", "ashara"],
+            payload=(
+                'Rashid turns to Ashara. "You know the host is using you as '
+                'cover, yes?"'
+            ),
+        ),
+        _evaluate_npc_pressure,
+    ),
+    CaseSpec(
+        "defer_routes_off_lane",
+        "A defer invents no action and gives independent story work a turn.",
+        lambda: _simple_case(
+            "defer_routes_off_lane",
+            kind="player",
+            actor_ids=["dan"],
+            participant_ids=["dan"],
+            payload="(defer)",
+        ),
+        _evaluate_defer,
+    ),
+    CaseSpec(
+        "cat_ii_open_physical_contest",
+        "A physical contest opens an obligation without resolving success.",
+        _build_cat_open,
+        _evaluate_cat_open,
+    ),
+    CaseSpec(
+        "same_lane_contest_merge",
+        "A contest and simultaneous same-lane speech remain one event.",
+        _build_same_lane_contest,
+        _evaluate_same_lane_contest,
+    ),
+    CaseSpec(
+        "cat_ii_resolution",
+        "Collected intentions close once without replaying the opening as outcome.",
+        _build_resolution,
+        _evaluate_cat_resolution,
+    ),
+    CaseSpec(
+        "mediated_audio_not_sight",
+        "Established audio supports reply without granting visual access.",
+        lambda: _simple_case(
+            "mediated_audio_not_sight",
+            kind="player",
+            actor_ids=["dan"],
+            participant_ids=["dan", "britney", "maya"],
+            payload=(
+                'Through the pod microphone I tell Britney, "Production says '
+                'you asked for me. Is that true?"'
+            ),
+        ),
+        _evaluate_mediated,
+    ),
+    CaseSpec(
+        "custom_arrival",
+        "A player arrival receives neutral authored placement and story pressure.",
+        _build_arrival,
+        _evaluate_arrival,
+    ),
+    CaseSpec(
+        "offstage_batch_fan_in",
+        "Two disjoint proposals resolve in one router call as sibling lanes.",
+        _build_fan_in,
+        _evaluate_fan_in,
+    ),
+)
 
 
 async def _run_case(
-    name: str,
-    fn: Callable[[LLMDispatcher], Awaitable[CaseResult]],
-    dispatcher: LLMDispatcher,
-) -> CaseResult:
+    spec: CaseSpec,
+    dispatcher: StoryDispatcher,
+    client: RecordingClient,
+) -> dict[str, Any]:
+    checkpoint, inputs = spec.build()
+    call_start = len(client.calls)
     try:
-        return await fn(dispatcher)
+        batch = await dispatcher.route_batch(ckpt=checkpoint, inputs=inputs)
+        call = client.calls[-1]
+        output = RouterBatchOutput.model_validate(call["parsed"])
+        checks = spec.evaluate(output, batch)
+        return {
+            "name": spec.name,
+            "summary": spec.summary,
+            "inputs": [item.model_dump(mode="json") for item in inputs],
+            "router_output": output.model_dump(mode="json"),
+            "materialized": {
+                "events": [
+                    item.record.model_dump(mode="json") for item in batch.events
+                ],
+                "next_turns": [
+                    item.model_dump(mode="json") for item in batch.next_turns
+                ],
+                "feasible_submission_ids": list(batch.feasible_submission_ids),
+                "infeasible_submission_ids": list(batch.infeasible_submission_ids),
+            },
+            "provider_calls": client.calls[call_start:],
+            "checks": checks,
+            "passed": all(check["passed"] for check in checks),
+            "error": "",
+        }
     except Exception:
-        return CaseResult(
-            name=name,
-            input_summary="",
-            output={},
-            checks=[],
-            error=traceback.format_exc(),
-        )
+        return {
+            "name": spec.name,
+            "summary": spec.summary,
+            "inputs": [item.model_dump(mode="json") for item in inputs],
+            "router_output": {},
+            "materialized": {},
+            "provider_calls": client.calls[call_start:],
+            "checks": [],
+            "passed": False,
+            "error": traceback.format_exc(),
+        }
 
 
-def _markdown(report: dict) -> str:
+def _markdown(report: dict[str, Any]) -> str:
     lines = [
-        "# Router Prompt Targeted Playtest",
+        "# Batched Router Targeted Playtest",
         "",
         f"Generated: `{report['generated_at']}`",
-        f"Router provider: `{report['router_provider']}`",
-        f"Router model: `{report['router_model']}`",
-        f"Router reasoning effort: `{report['router_reasoning_effort']}`",
+        f"Router: `{report['provider']}:{report['model']}`",
+        f"Reasoning effort: `{report['reasoning_effort'] or 'provider default'}`",
+        f"Comparison baseline: `{report['comparison_baseline']}`",
+        f"All checks passed: `{report['all_passed']}`",
         "",
         "## Summary",
         "",
     ]
-    for item in report["cases"]:
-        passed = sum(1 for check in item["checks"] if check["passed"])
-        total = len(item["checks"])
-        status = "ERROR" if item["error"] else f"{passed}/{total}"
-        lines.append(f"- `{item['name']}`: {status}")
-    lines.append("")
-
-    for item in report["cases"]:
-        lines.extend([
-            f"## {item['name']}",
-            "",
-            f"Input: {item['input_summary'] or '(none)'}",
-            "",
-        ])
-        if item["error"]:
-            lines.extend(["```text", item["error"].strip(), "```", ""])
+    for case in report["cases"]:
+        total = len(case["checks"])
+        passed = sum(check["passed"] for check in case["checks"])
+        status = "ERROR" if case["error"] else f"{passed}/{total}"
+        lines.append(f"- `{case['name']}`: {status}")
+    for case in report["cases"]:
+        lines.extend(["", f"## {case['name']}", "", case["summary"], ""])
+        if case["error"]:
+            lines.extend(["```text", case["error"].strip(), "```"])
             continue
-
-        out = item["output"]
-        lines.extend([
-            f"event_kind=`{out.get('event_kind')}`",
-            f"requires_responders=`{out.get('requires_responders')}`",
-            f"required_responders=`{out.get('required_responders')}`",
-            f"next_output_character_ids=`{out.get('next_output_character_ids')}`",
-            f"observers=`{out.get('observer_ids')}`",
-            "",
-            f"Rationale: {out.get('decision_rationale', '').strip()}",
-            "",
-            "Checks:",
-        ])
-        for check in item["checks"]:
+        for check in case["checks"]:
             mark = "PASS" if check["passed"] else "FAIL"
-            detail = f" - {check['detail']}" if check.get("detail") else ""
+            detail = f" - {check['detail']}" if check["detail"] != "" else ""
             lines.append(f"- {mark}: `{check['name']}`{detail}")
-        lines.extend(["", "Observable facts:"])
-        for fact in out.get("fact_texts", []):
-            lines.append(
-                f"- [{fact['audience']} {fact['visible_to']}] {fact['text']}"
-            )
-        lines.append("")
-    return "\n".join(lines)
+        lines.extend([
+            "",
+            "```json",
+            json.dumps(case["router_output"], indent=2, ensure_ascii=False),
+            "```",
+        ])
+    return "\n".join(lines) + "\n"
 
 
-async def main() -> None:
-    load_dotenv()
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--case",
+        action="append",
+        choices=[case.name for case in CASES],
+        help="Run only this named case; repeat to select several.",
+    )
+    return parser.parse_args()
+
+
+async def main() -> int:
+    args = _parse_args()
+    load_dotenv(REPO_ROOT / ".env")
+    config = LLMConfig.from_env()
+    provider = config.provider_for_role("event_router")
+    if not config.api_key_for_provider(provider, role="event_router"):
+        raise SystemExit(f"No API key for event_router provider={provider!r}")
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    json_path = REPORT_DIR / f"router_prompt_targeted_{timestamp}.json"
+    markdown_path = REPORT_DIR / f"router_prompt_targeted_{timestamp}.md"
+    log_path = REPORT_DIR / f"router_prompt_targeted_{timestamp}.log"
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
-        filename=LOG_PATH,
+        filename=log_path,
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    config = LLMConfig.from_env()
-    provider = config.provider_for_role("event_router")
-    model = config.model_for_role("event_router")
-    api_key = config.api_key_for_provider(provider, role="event_router")
-    if not api_key:
-        names = (
-            config.openai_role_api_key_env_names("event_router")
-            if provider == "openai"
-            else ("ANTHROPIC_API_KEY",)
-        )
-        raise SystemExit(
-            f"No API key found for event_router provider={provider!r}. "
-            f"Expected one of: {', '.join(names)}"
-        )
-
-    client = LLMClient(config)
-    dispatcher = LLMDispatcher(client, PromptManager("app/prompts"))
+    selected = [case for case in CASES if not args.case or case.name in args.case]
+    inner = LLMClient(config)
+    client = RecordingClient(inner)
+    dispatcher = StoryDispatcher(
+        client,
+        PromptManager(str(REPO_ROOT / "app/prompts")),
+    )
     try:
-        results: list[CaseResult] = []
-        for name, fn in CASES:
-            print(f"running {name}...", flush=True)
-            results.append(await _run_case(name, fn, dispatcher))
+        results = []
+        for case in selected:
+            print(f"running {case.name}...", flush=True)
+            results.append(await _run_case(case, dispatcher, client))
     finally:
-        await client.close()
+        await inner.close()
 
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "router_provider": provider,
-        "router_model": model,
-        "router_reasoning_effort": config.openai_reasoning_effort_for_role(
-            "event_router"
-        ) if provider == "openai" else "",
-        "cases": [
-            {
-                "name": item.name,
-                "input_summary": item.input_summary,
-                "output": item.output,
-                "checks": item.checks,
-                "error": item.error,
-            }
-            for item in results
-        ],
+        "provider": provider,
+        "model": config.model_for_role("event_router"),
+        "reasoning_effort": (
+            config.openai_reasoning_effort_for_role("event_router")
+            if provider == "openai"
+            else ""
+        ),
+        "comparison_baseline": str(BASELINE_PATH),
+        "all_passed": all(result["passed"] for result in results),
+        "cases": results,
     }
-    JSON_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    MD_PATH.write_text(_markdown(report), encoding="utf-8")
-
-    print(JSON_PATH)
-    print(MD_PATH)
-    for item in report["cases"]:
-        if item["error"]:
-            print(f"{item['name']}: ERROR")
-        else:
-            passed = sum(1 for check in item["checks"] if check["passed"])
-            total = len(item["checks"])
-            reason = item["output"].get("event_kind")
-            picks = item["output"].get("next_output_character_ids")
-            print(f"{item['name']}: {passed}/{total} kind={reason} next={picks}")
+    json_path.write_text(
+        json.dumps(report, indent=2, ensure_ascii=False, default=str) + "\n",
+        encoding="utf-8",
+    )
+    markdown_path.write_text(_markdown(report), encoding="utf-8")
+    print(json_path)
+    print(markdown_path)
+    for result in results:
+        passed = sum(check["passed"] for check in result["checks"])
+        status = "ERROR" if result["error"] else f"{passed}/{len(result['checks'])}"
+        print(f"{result['name']}: {status}")
+    return 0 if report["all_passed"] else 1
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    raise SystemExit(asyncio.run(main()))

@@ -5,14 +5,14 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from app.engine.image_director import source_event_fingerprint
+from app.schemas.delivery import NarratorEventRef
 from app.engine.spawn_authoring import (
     SpawnAuthoringCoordinator,
     SpawnAuthoringKey,
 )
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput
-from app.schemas.state import RenderBufferEntry
+from app.schemas.event_router import CanonicalEventRecord
 
 
 class RenderCandidateImageSink(Protocol):
@@ -20,7 +20,7 @@ class RenderCandidateImageSink(Protocol):
         self,
         *,
         checkpoint: CheckpointFile,
-        buffered_events_by_pov: dict[str, list[RenderBufferEntry]],
+        buffered_events_by_pov: dict[str, list[NarratorEventRef]],
         source_turn_index: int,
         source_checkpoint_sha256: str,
         spawn_keys_by_event_id: dict[str, SpawnAuthoringKey],
@@ -73,7 +73,7 @@ class ClosedEventRuntime:
         self,
         *,
         checkpoint: CheckpointFile,
-        event: EventRouterOutput,
+        event: CanonicalEventRecord,
         event_sequence: int,
         actor_id: str,
     ) -> None:
@@ -88,7 +88,7 @@ class ClosedEventRuntime:
         self,
         *,
         checkpoint: CheckpointFile,
-        buffered_events_by_pov: dict[str, list[RenderBufferEntry]],
+        buffered_events_by_pov: dict[str, list[NarratorEventRef]],
         actor_ids_by_event_id: dict[str, str],
     ) -> str | None:
         if self.image_sink is None:
@@ -121,7 +121,7 @@ class ClosedEventRuntime:
         self,
         *,
         checkpoint: CheckpointFile,
-        event: EventRouterOutput,
+        event: CanonicalEventRecord,
         actor_id: str,
     ) -> SpawnAuthoringKey | None:
         fingerprint = source_event_fingerprint(event)
@@ -165,7 +165,7 @@ class ClosedEventRuntime:
         self,
         *,
         checkpoint: CheckpointFile,
-        event: EventRouterOutput,
+        event: CanonicalEventRecord,
         actor_id: str,
     ) -> tuple[CharacterRecord, ...]:
         key = self.spawn_keys_by_event_id.get(event.event_id)

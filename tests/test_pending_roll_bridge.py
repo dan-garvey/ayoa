@@ -11,13 +11,13 @@ from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.responses import DiceRollDisplay, TurnResponse
 from app.schemas.state import (
+    ActionObligation,
     CatIIRollRecord,
     CatIIRollTransaction,
     DndCombatantState,
     DndCombatState,
     OpenCatIIEvent,
     SessionState,
-    SlotEntry,
     WorldState,
 )
 
@@ -44,9 +44,10 @@ def _pending_roll_checkpoint() -> CheckpointFile:
         ],
     )
     ckpt.session.character_bindings["alice"] = "123"
-    ckpt.session.active_act_slots["alice"] = SlotEntry(
-        reason="cat_ii_roll",
-        cat_ii_event_id="evt_open",
+    ckpt.session.action_obligations["alice"] = ActionObligation(
+        kind="cat_ii_roll",
+        source_event_id="evt_open",
+        claimed_at="2026-01-01T00:00:00+00:00",
     )
     ckpt.session.open_cat_ii_events.append(
         OpenCatIIEvent(
@@ -115,9 +116,10 @@ def _pending_roll_checkpoint() -> CheckpointFile:
 def _combat_pending_roll_checkpoint() -> CheckpointFile:
     ckpt = _pending_roll_checkpoint()
     ckpt.session.open_cat_ii_events = []
-    ckpt.session.active_act_slots["alice"] = SlotEntry(
-        reason="cat_ii_roll",
-        cat_ii_event_id="cmb_open",
+    ckpt.session.action_obligations["alice"] = ActionObligation(
+        kind="cat_ii_roll",
+        source_event_id="cmb_open",
+        claimed_at="2026-01-01T00:00:00+00:00",
     )
     transaction = ckpt.session.cat_ii_roll_transactions[0]
     transaction.event_id = "cmb_open"
@@ -173,7 +175,7 @@ async def test_complete_pending_roll_saves_dice_before_router_finalize(
     assert latest.session.turn_index == 4
     assert latest.canonical_events == []
     assert latest.session.open_cat_ii_events[0].event_id == "evt_open"
-    assert latest.session.active_act_slots["alice"].reason == "cat_ii_roll"
+    assert latest.session.action_obligations["alice"].kind == "cat_ii_roll"
     assert transaction.status == "ready_to_finalize"
     assert transaction.final_event_id == ""
     assert transaction.rolls[0].status == "completed"
@@ -305,7 +307,7 @@ async def test_pending_roll_continuation_cannot_overwrite_waiting_setting(
             turn_index=5,
             output_text="resolved",
             per_player_renders={},
-            beat_ended_reason="resolved",
+            pause_reason="resolved",
         )
 
     monkeypatch.setattr(

@@ -21,11 +21,11 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_content_metadata_text
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.delivery import NarratorEventRef
+from app.schemas.event_router import CanonicalEventRecord
 from app.schemas.image_director import ImageDirectorOutput, ImageGenerationMode
 from app.schemas.image_generation import FrozenReferenceInput
 from app.schemas.state import (
-    RenderBufferEntry,
     SessionConfig,
     SessionState,
     SessionSettings,
@@ -268,7 +268,7 @@ class DurableDirectorRun:
     stage_reference: FrozenReferenceInput | None = None
 
 
-def source_event_fingerprint(event: EventRouterOutput) -> str:
+def source_event_fingerprint(event: CanonicalEventRecord) -> str:
     return hashlib.sha256(
         event.model_dump_json(
             exclude_none=False,
@@ -387,7 +387,7 @@ def projection_checkpoint_snapshot(
 def build_projection_groups(
     *,
     checkpoint: CheckpointFile,
-    event: EventRouterOutput,
+    event: CanonicalEventRecord,
     event_sequence: int,
     transaction_id: str,
     source_turn_index: int,
@@ -451,8 +451,7 @@ def build_projection_groups(
     }
 
     grouped: dict[str, VisibleEventProjection] = {}
-    for observer in event.observers:
-        viewer_id = observer.character_id
+    for viewer_id in event.observer_ids:
         if viewer_id not in human_ids:
             continue
         facts = tuple(
@@ -461,7 +460,7 @@ def build_projection_groups(
                 max(0, int(fact.at_offset_s)),
                 max(0, int(fact.duration_s)),
             )
-            for fact in event.canonical_event.observable_facts
+            for fact in event.observable_facts
             if fact.is_visible_to(viewer_id) and _safe_text(fact.text, 2_000)
         )
         if not facts:
@@ -515,7 +514,7 @@ def build_projection_groups(
             ),
             viewer_character_ids=(viewer_id,),
             perception_level=_OBSERVATION_LEVELS.get(
-                observer.observation_level,
+                event.observation_level_for(viewer_id),
                 "direct",
             ),
             effective_at_s=max(0, int(event.effective_at_s)),
@@ -547,7 +546,7 @@ def build_projection_groups(
 def build_render_batch_projection_groups(
     *,
     checkpoint: CheckpointFile,
-    buffered_events_by_pov: dict[str, Sequence[RenderBufferEntry]],
+    buffered_events_by_pov: dict[str, Sequence[NarratorEventRef]],
     eligible_viewer_ids: set[str],
     transaction_id: str,
     source_turn_index: int,
@@ -1287,7 +1286,7 @@ def _visible_event_block(projection: VisibleEventProjection) -> str:
 def _visible_location_label(
     *,
     checkpoint: CheckpointFile,
-    event: EventRouterOutput,
+    event: CanonicalEventRecord,
     viewer_character_id: str,
     directly_present_character_ids: set[str],
     by_id: dict[str, CharacterRecord],
@@ -1309,15 +1308,7 @@ def _visible_location_label(
     viewer_location = (
         _safe_identifier(character.location) if character is not None else ""
     )
-    observer = next(
-        (
-            item
-            for item in event.observers
-            if item.character_id == viewer_character_id
-        ),
-        None,
-    )
-    if observer is None or observer.observation_level != "d":
+    if event.observation_level_for(viewer_character_id) != "direct":
         return viewer_location
 
     depicted_location_by_character = {

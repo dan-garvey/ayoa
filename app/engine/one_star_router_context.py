@@ -148,13 +148,13 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
             f"{counter.counter_id}={counter.current}/{counter.target}"
             for counter in scenario.counters
         )
-        pressure = " | ".join(scenario.pressure_beats)
+        pressure = " | ".join(scenario.pressures)
         lines.append(
             f"- floor={floor}; mission_id={scenario.mission_id}; "
             f"destination={scenario.destination}; premise={scenario.premise}; "
             f"completion={scenario.completion_declaration}; "
             f"failure={scenario.failure_declaration}; counters[{counters}]; "
-            f"pressure_beats[{pressure}]"
+            f"pressures[{pressure}]"
         )
     lines.append("embodied_operation_requirements:")
     for operation_kind, requirement in sorted(config.operation_requirements.items()):

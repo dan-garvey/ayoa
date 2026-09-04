@@ -244,7 +244,9 @@ def apply_resolved_encounter_to_router_output(
             combatant_id for combatant_id in combatant_ids
             if combatant_id not in dropped_router_spawn_ids
         ]
-    combatant_ids.extend(spawn.character_id for spawn in resolved.combatant_spawns)
+    # `combatant_ids` names already-established roster participants. New
+    # creatures remain exclusively in `combatant_spawns` until the D&D adapter
+    # materializes them and assigns collision-safe canonical ids.
     result.combatant_ids = [cid for cid in dict.fromkeys(combatant_ids) if cid]
     if resolved.battle_map is not None:
         result.battle_map_seed = resolved.battle_map

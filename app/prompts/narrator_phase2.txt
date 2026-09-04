@@ -56,7 +56,7 @@ Use the recent `(defer)` frequency and historical substantive involvement in the
 
 When no meaningful player-owned response is available now and an autonomous response is selected next, do not render merely to report one NPC action or line. If recent submissions are mostly `(defer)` and prior substantive involvement is low, default to `continue` through that selected response. Override that default only when the visible result itself presents an explicit player-owned response or management choice, or when continuing would pass a consequential choice the player can actually make now.
 
-During dialogue, return control for a meaningful player-owned response, not merely because a speaker changes, supplies a routine answer, is polite, repeats a disagreement, or makes the exchange feel conversationally complete. Choose `continue` only when the additional exchange can complete or materially advance the current beat without crossing a meaningful player-owned opportunity. Do not let an autonomous exchange pass a consequential interruptible choice before rendering.
+During dialogue, return control for a meaningful player-owned response, not merely because a speaker changes, supplies a routine answer, is polite, repeats a disagreement, or makes the exchange feel conversationally complete. Choose `continue` only when the additional exchange can complete or materially advance the current moment without crossing a meaningful player-owned opportunity. Do not let an autonomous exchange pass a consequential interruptible choice before rendering.
 
 When you choose `continue`, set `final_text` to an empty string. No passage is delivered from that candidate, so do not spend output drafting provisional prose.
 

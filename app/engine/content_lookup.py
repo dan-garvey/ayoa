@@ -106,7 +106,7 @@ def append_router_content_lookup_records(
     pending signals are drained first, then pack-local aliases/catalog entries
     are matched against current actor input and location. A future LLM lookup
     prompt can plug into `plan_llm_router_content_lookup_requests` without
-    changing the ordinary EventRouterOutput schema.
+    changing the ordinary CanonicalEventRecord schema.
     """
     records = append_pending_router_content_records(ckpt)
 

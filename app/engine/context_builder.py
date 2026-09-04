@@ -292,22 +292,13 @@ def resolve_location_for_character(
 
 
 def build_setting_summary(checkpoint: CheckpointFile) -> str:
-    """Render the `## Setting` block shared across the router, narrator,
-    takeover, and character_gen prompt templates.
+    """Render the setting block shared by all story-facing model roles.
 
-    v11-r7j: collapsed three near-identical helpers (one in
-    `turn_loop_dispatcher`, one in `narrator`, plus inline
-    constructions in `engine_bridge._build_takeover_context` and
-    `character_manager._spawn_one`) into this single source of truth.
-    The shape this returns matches the `{setting_summary}` slot in
-    `event_router.txt`, `narrator_phase2.txt`, `takeover.txt`,
-    and `character_gen.txt`.
+    The shape matches the ``setting_summary`` slot in the router, narrator,
+    takeover, and character-generation templates.
 
     Empty fields are skipped — a story whose seed left, say, `era`
-    blank does not get a `Era: ` line. Pre-r7j the takeover and spawn
-    paths emitted those empty lines unconditionally and the router /
-    narrator paths skipped them; v11-r7j harmonizes on the conditional
-    shape (omit-empty is strictly better for the LLM).
+    blank does not get an ``Era:`` line.
     """
     setting = checkpoint.world_state.setting
     parts: list[str] = []
@@ -725,8 +716,8 @@ def clear_character_inbox(character: CharacterRecord) -> None:
 
     Population paths (v11-r9b):
 
-    - `broadcast_event` in `turn_loop.py` pushes each observer's visible
-      `observable_facts` (untagged — the entries are the agent's live
+    - canonical event commit pushes each observer's visible `observable_facts`
+      (untagged — the entries are the agent's live
       sensorium, no routing label needed) onto every local NPC observer
       who is not the actor, plus mediated/remote NPC observers explicitly
       named by fact-level `visible_to`. Pre-r9b this fan-out also covered

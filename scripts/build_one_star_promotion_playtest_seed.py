@@ -262,10 +262,12 @@ def build_checkpoint() -> CheckpointFile:
     checkpoint.session.character_bindings = {}
     checkpoint.session.visual_introductions = {}
     checkpoint.session.pending_engine_state_updates = []
-    checkpoint.session.active_act_slots = {}
+    checkpoint.session.action_obligations = {}
     checkpoint.session.open_cat_ii_events = []
-    checkpoint.session.render_buffers = {}
-    checkpoint.session.pending_narrator_render = None
+    checkpoint.session.router_frontier = []
+    checkpoint.session.narrator_render_jobs = []
+    checkpoint.session.delivery_outbox = []
+    checkpoint.session.last_acknowledged_event_sequence_by_pov = {}
     checkpoint.session.config.settings.presentation_mode = "visual_novel"
 
     checkpoint.session_conversation = []

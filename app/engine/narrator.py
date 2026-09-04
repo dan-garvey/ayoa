@@ -22,7 +22,7 @@ from app.engine.context_builder import (
 )
 from app.engine.text_safety import strip_terminal_control
 from app.schemas.content_privacy import redact_imported_content_metadata_text
-from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
+from app.engine.story_contracts import PARTIAL_MODE_MARKER
 from app.engine.visual_context import (
     format_narrator_visual_introductions,
     mark_visual_introductions,
@@ -32,7 +32,8 @@ from app.engine.visual_context import (
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.delivery import NarratorEventRef
+from app.schemas.event_router import CanonicalEventRecord
 from app.schemas.events import visible_fact_texts
 from app.schemas.narrator import (
     NarratorFinalOutput,
@@ -44,7 +45,6 @@ from app.schemas.narrator import (
     visual_novel_pages_contain_source_identifiers,
     visual_novel_text_contains_source_identifiers,
 )
-from app.schemas.state import RenderBufferEntry
 
 logger = logging.getLogger(__name__)
 
@@ -82,19 +82,19 @@ def _visual_novel_sprite_roster(
     ckpt: CheckpointFile,
     *,
     viewer_id: str,
-    resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
+    resolved: list[tuple[NarratorEventRef, CanonicalEventRecord]],
 ) -> tuple[str, ...]:
     texts: list[str] = []
     present_ids: set[str] = set()
     for entry, event in resolved:
         if entry.observation_level != "direct":
             continue
-        for fact in event.canonical_event.observable_facts:
+        for fact in event.observable_facts:
             if fact.is_visible_to(viewer_id):
                 present_ids.update(fact.visual_subject_ids)
         texts.extend(
             visible_fact_texts(
-                event.canonical_event.observable_facts,
+                event.observable_facts,
                 viewer_id,
                 include_all_observers=True,
             )
@@ -120,7 +120,7 @@ def _visual_novel_output_sprite_rosters(
     ckpt: CheckpointFile,
     *,
     viewer_id: str,
-    resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
+    resolved: list[tuple[NarratorEventRef, CanonicalEventRecord]],
     narration_mode: NarrationMode,
 ) -> tuple[tuple[str, ...], ...]:
     """Return the safe foreground roster for each requested output segment."""
@@ -350,8 +350,8 @@ def _strip_unmatched_trailing_closers(text: str) -> str:
 
 def resolve_buffered_events_for_render(
     ckpt: CheckpointFile,
-    buffered_events: list[RenderBufferEntry],
-) -> list[tuple[RenderBufferEntry, EventRouterOutput]]:
+    buffered_events: list[NarratorEventRef],
+) -> list[tuple[NarratorEventRef, CanonicalEventRecord]]:
     """Walk the render buffer and resolve each entry against
     `ckpt.canonical_events`.
 
@@ -359,7 +359,7 @@ def resolve_buffered_events_for_render(
     calling the narrator so the buffer remains available for diagnosis/retry
     instead of silently flushing an incomplete player-visible sequence.
     """
-    by_id: dict[str, EventRouterOutput] = {
+    by_id: dict[str, CanonicalEventRecord] = {
         ev.event_id: ev for ev in ckpt.canonical_events
     }
     missing_event_ids = [
@@ -371,7 +371,7 @@ def resolve_buffered_events_for_render(
             f"Narrator render buffer references missing canonical event(s): {missing}"
         )
 
-    resolved: list[tuple[RenderBufferEntry, EventRouterOutput]] = []
+    resolved: list[tuple[NarratorEventRef, CanonicalEventRecord]] = []
     for entry in buffered_events:
         resolved.append((entry, by_id[entry.event_id]))
     return sorted(
@@ -398,7 +398,7 @@ def _strip_loadout_tag(text: str) -> str:
 
 
 def _format_visible_events_block(
-    resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
+    resolved: list[tuple[NarratorEventRef, CanonicalEventRecord]],
     pov_character_id: str = "",
     ckpt: CheckpointFile | None = None,
     sprite_labels_by_beat: tuple[tuple[str, ...], ...] = (),
@@ -411,9 +411,8 @@ def _format_visible_events_block(
     sections: list[str] = []
     for beat_index, (entry, ev) in enumerate(resolved, start=1):
         header = _OBS_LEVEL_HEADERS.get(entry.observation_level, "Perceived:")
-        ca = ev.canonical_event
         visible_facts = []
-        for index, fact in enumerate(ca.observable_facts):
+        for index, fact in enumerate(ev.observable_facts):
             if fact.audience == "all_observers" or (
                 pov_character_id and fact.is_visible_to(pov_character_id)
             ):
@@ -463,7 +462,7 @@ async def compose_pov_render(
     prompt_mgr: PromptManager,
     ckpt: CheckpointFile,
     pov_character_id: str,
-    buffered_events: list[RenderBufferEntry],
+    buffered_events: list[NarratorEventRef],
     partial_mode: bool,
     user_input: str = "",
     handoff_policy: str = "forced",
@@ -716,7 +715,7 @@ def commit_pov_render(
     ckpt: CheckpointFile,
     *,
     pov_character_id: str,
-    buffered_events: list[RenderBufferEntry],
+    buffered_events: list[NarratorEventRef],
     result: NarratorOutput,
     user_input: str,
     narration_mode: NarrationMode = "event_aligned",

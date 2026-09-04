@@ -18,7 +18,7 @@ from app.engine.spawn_authoring import (
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.image_director import ImageDirectorOutput
-from app.schemas.state import RenderBufferEntry
+from app.schemas.delivery import NarratorEventRef
 
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ class EventImageSidecar:
         self,
         *,
         checkpoint: CheckpointFile,
-        buffered_events_by_pov: dict[str, list[RenderBufferEntry]],
+        buffered_events_by_pov: dict[str, list[NarratorEventRef]],
         source_turn_index: int,
         source_checkpoint_sha256: str,
         spawn_keys_by_event_id: dict[str, SpawnAuthoringKey],
@@ -197,7 +197,7 @@ class EventImageSidecar:
         self,
         *,
         checkpoint: CheckpointFile,
-        buffered_events_by_pov: dict[str, list[RenderBufferEntry]],
+        buffered_events_by_pov: dict[str, list[NarratorEventRef]],
         eligible_viewer_ids: set[str],
         transaction_id: str,
         source_turn_index: int,

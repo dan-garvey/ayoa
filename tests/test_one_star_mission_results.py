@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -15,20 +16,83 @@ from app.engine.one_star_adapter import (
     one_star_terminal_system_recipient_ids,
     prepare_one_star_transaction,
 )
-from app.schemas.characters import CharacterStatus
+from app.schemas.characters import CharacterStatus, CharacterVisuals
+from app.schemas.checkpoint import CheckpointFile
 from app.schemas.events import ObservableFact
 from app.schemas.narrator import VisualNovelPage
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_HERO_KEY,
-    OneStarEventRouterOutput,
+    OneStarCanonicalEventRecord,
+    OneStarMissionCounter,
     OneStarMissionEndOperation,
+    OneStarMissionState,
     OneStarMissionUpdateOperation,
     OneStarStateUpdate,
 )
 from app.schemas.responses import VisualNovelRender, VisualNovelRenderSegment
-from tests.support.factories import character_record, router_output
-from tests.test_one_star_atomicity import _checkpoint, _hero, _mission
+from tests.support.factories import canonical_event, character_record
+
+
+_SEED = (
+    Path(__file__).resolve().parents[1]
+    / "app/storage/stories/one_star_ascension_s1/ckpt_0000.json"
+)
+
+
+def _hero(*, location: str = "niflheim_lobby"):
+    checkpoint = CheckpointFile.model_validate_json(_SEED.read_text())
+    source = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "edren_marr"
+    ).model_copy(deep=True)
+    source.character_id = "hero"
+    source.name = "Hero"
+    source.status = CharacterStatus.active
+    source.location = location
+    hero = load_one_star_hero(source)
+    assert hero is not None
+    hero.owner_lobby_id = "niflheim"
+    hero.acquisition_event_id = "seed"
+    hero.equipment = []
+    source.mechanics[ONE_STAR_HERO_KEY] = hero.model_dump(mode="json")
+    return source
+
+
+def _mission(*, party: list[str] | None = None) -> OneStarMissionState:
+    return OneStarMissionState(
+        mission_id="mission_1",
+        floor=1,
+        party_ids=party or ["hero"],
+        destination="tower_floor_1",
+        completion_declaration="the floor is cleared",
+        failure_declaration="the party is broken",
+        counters=[OneStarMissionCounter(counter_id="clear", current=0, target=1)],
+        started_at_s=0,
+        deadline_at_s=0,
+    )
+
+
+def _checkpoint(*, heroes=None, active_mission=None) -> CheckpointFile:
+    checkpoint = CheckpointFile.model_validate_json(_SEED.read_text())
+    owner, account = load_one_star_account(checkpoint)
+    owner = owner.model_copy(deep=True)
+    owner.character_id = "account_owner"
+    account.state.active_mission = active_mission
+    account.state.guide_character_ids = []
+    account.state.system_observer_ids = []
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY] = account.model_dump(mode="json")
+    checkpoint.characters = [owner, *(heroes or [_hero()])]
+    for character in checkpoint.characters:
+        character.visuals = CharacterVisuals()
+    checkpoint.reviewed_visual_references = []
+    checkpoint.reviewed_visual_novel_sprite_sets = []
+    checkpoint.location_visual_reference_ids = {}
+    checkpoint.visual_novel_onboarding = None
+    checkpoint.session.character_bindings = {}
+    checkpoint.session.player_character_id = ""
+    return checkpoint
 
 
 def test_retired_report_fields_are_not_valid_operations() -> None:
@@ -147,9 +211,8 @@ async def test_vn_deck_uses_only_narrator_result_despite_raw_canonical_id(
 ) -> None:
     checkpoint = _checkpoint()
     checkpoint.session.character_bindings["account_owner"] = "master-player"
-    payload = router_output(
+    payload = canonical_event(
         event_id="evt_floor_complete",
-        event_kind="state_change",
         observer_ids=["account_owner", "hero"],
         facts=[ObservableFact.all(
             "The survivors return to niflheim_lobby after the floor clears."
@@ -162,7 +225,7 @@ async def test_vn_deck_uses_only_narrator_result_despite_raw_canonical_id(
         "details": ["return_destination=lobby"],
     }]
     checkpoint.canonical_events.append(
-        OneStarEventRouterOutput.model_validate(payload)
+        OneStarCanonicalEventRecord.model_validate(payload)
     )
     render = VisualNovelRender(segments=[VisualNovelRenderSegment(
         pages=[VisualNovelPage(

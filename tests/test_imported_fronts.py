@@ -20,12 +20,12 @@ from app.schemas.content import ContentPackState
 from app.schemas.conversation import ConversationMessage
 from app.schemas.content_pack import FrontDossierRecord
 from app.schemas.events import ObservableFact
-from app.schemas.state import RenderBufferEntry
 from tests.support.factories import (
+    canonical_event,
     character_record,
     checkpoint,
+    narrator_event_ref,
     narrator_llm_response,
-    router_output,
 )
 
 
@@ -173,7 +173,7 @@ def test_front_signal_router_history_does_not_reach_narrator_prompt() -> None:
         ConversationMessage(role="assistant", content=router_record)
     )
     ckpt.canonical_events.append(
-        router_output(
+        canonical_event(
             event_id="evt_public_wolves",
             observer_ids=["alice"],
             facts=[
@@ -193,7 +193,7 @@ def test_front_signal_router_history_does_not_reach_narrator_prompt() -> None:
             ckpt=ckpt,
             pov_character_id="alice",
             buffered_events=[
-                RenderBufferEntry(
+                narrator_event_ref(
                     event_id="evt_public_wolves",
                     observation_level="direct",
                 )

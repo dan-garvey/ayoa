@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import re
 import uuid
@@ -20,13 +21,13 @@ from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_asset_text
 from app.schemas.event_router import (
-    DndEventRouterOutput,
-    DndObserverEntry,
-    EventRouterOutput,
-    ObserverEntry,
-    empty_commitment_open_signal,
+    DndCanonicalEventRecord,
+    CanonicalEventRecord,
+    ObserverGroups,
 )
-from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
+from app.schemas.events import ObservableFact
+from app.schemas.dnd_inventory import DndCurrency, DndLootOfferSignal
+from app.schemas.dnd_spatial import DndBattleMapSeed
 from app.schemas.dnd_cat_ii import (
     CombatStateDelta,
     DndCombatActionUse,
@@ -46,11 +47,23 @@ from app.schemas.state import (
     CatIIRollResourceSpendRecord,
     CatIIRollTransaction,
     DndRuntimeEffect,
+    DndExperienceAwardDisplay,
     OpenCatIIEvent,
-    SlotEntry,
+    ActionObligation,
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class DndResolvedCanonicalEvent:
+    """Adapter result kept outside the durable canonical event schema."""
+
+    event: CanonicalEventRecord
+    next_turn_actor_ids: tuple[str, ...] = ()
+    reaction_candidate_ids: tuple[str, ...] = ()
+    transaction_event_id: str = ""
+    experience_awards: tuple[DndExperienceAwardDisplay, ...] = ()
 DND5E_BASIC_RULESET_ID = "dnd5e_basic"
 _DAMAGE_TYPES = {
     "acid",
@@ -294,7 +307,7 @@ class DndCatIIResolver:
         ckpt: CheckpointFile,
         cat_ii_event: OpenCatIIEvent,
         content_context_records: list[str] | None = None,
-    ) -> EventRouterOutput:
+    ) -> DndResolvedCanonicalEvent:
         packet = _build_contested_packet(
             ckpt,
             cat_ii_event,
@@ -325,10 +338,27 @@ class DndCatIIResolver:
         result = _compile_event_router_output(
             ckpt, cat_ii_event, transaction, adjudication
         )
+        followup_ids = _dedupe([
+            *_social_private_followup_responder_ids(
+                ckpt,
+                cat_ii_event,
+                transaction,
+                adjudication,
+            ),
+            *_stealth_recon_followup_responder_ids(
+                ckpt,
+                cat_ii_event,
+                transaction,
+            ),
+        ])
         transaction.status = "finalized"
         transaction.final_event_id = result.event_id
         transaction.updated_at = _utcnow_iso()
-        return result
+        return DndResolvedCanonicalEvent(
+            event=result,
+            next_turn_actor_ids=tuple(followup_ids),
+            transaction_event_id=transaction.event_id,
+        )
 
     async def _plan_rolls(self, packet: str) -> RollPlan:
         messages = self.prompt_mgr.render_messages(
@@ -373,20 +403,20 @@ class DndCatIIResolver:
 
 def _end_combat_after_adjudication(
     ckpt: CheckpointFile,
-    result: EventRouterOutput,
+    result: CanonicalEventRecord,
 ) -> None:
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None:
         return
     for fact in dnd_combat.drain_pending_visible_facts(combat):
-        result.canonical_event.observable_facts.append(ObservableFact.all(fact))
+        result.observable_facts.append(ObservableFact.all(fact))
     dnd_combat.append_audit_line(
         combat,
         f"Combat ended from D&D combat adjudication: {result.event_id}.",
     )
     dnd_combat.queue_router_observed_fact_updates(ckpt.session, combat)
     dnd_combat.end_combat(ckpt.session, characters=ckpt.characters)
-    result.canonical_event.observable_facts.append(ObservableFact.all(
+    result.observable_facts.append(ObservableFact.all(
         "D&D combat ends."
     ))
 
@@ -3943,70 +3973,67 @@ def _compile_event_router_output(
     cat_ii_event: OpenCatIIEvent,
     transaction: CatIIRollTransaction,
     adjudication: RulesAdjudication,
-) -> EventRouterOutput:
+) -> CanonicalEventRecord:
     observer_ids = _observer_ids(cat_ii_event)
-    social_followup_ids = _social_private_followup_responder_ids(
-        ckpt,
-        cat_ii_event,
-        transaction,
-        adjudication,
-    )
-    stealth_recon_followup_ids = _stealth_recon_followup_responder_ids(
-        ckpt,
-        cat_ii_event,
-        transaction,
-    )
-    followup_ids = _dedupe([
-        *social_followup_ids,
-        *stealth_recon_followup_ids,
-    ])
-    notes = "; ".join(adjudication.rules_notes)
-    rationale_parts = [
-        part for part in (
-            adjudication.mechanical_summary,
-            f"Rules notes: {notes}" if notes else "",
-            f"Fallback: {adjudication.fallback_reason}"
-            if adjudication.fallback_reason else "",
-        ) if part
+    outcome_facts = _outcome_observable_facts(adjudication)
+    fact_recipient_ids = {
+        value for fact in outcome_facts for value in fact.visible_to
+    }
+    direct_observer_ids = [
+        cid
+        for cid in observer_ids
+        if _character_exists(ckpt, cid)
+        and (
+            any(fact.audience == "all_observers" for fact in outcome_facts)
+            or cid in fact_recipient_ids
+        )
     ]
-    return EventRouterOutput(
-        event_id="",
-        effective_at_s=0,
+    source = next(
+        (
+            event
+            for event in ckpt.canonical_events
+            if event.event_id == cat_ii_event.opening_event_id
+        ),
+        None,
+    )
+    source_submission_id = f"resolution_{cat_ii_event.event_id}"
+    event_id = "evt_dnd_" + hashlib.sha256(
+        f"{ckpt.session.session_id}\x1f{cat_ii_event.event_id}".encode("utf-8")
+    ).hexdigest()[:12]
+    return CanonicalEventRecord(
+        event_id=event_id,
+        causal_lane_id=(
+            source.causal_lane_id if source is not None else f"lane_{cat_ii_event.event_id}"
+        ),
+        effective_at_s=(
+            source.effective_at_s + source.duration_s if source is not None else 0
+        ),
         duration_s=0,
-        decision_rationale=" ".join(rationale_parts) or "D&D Cat II adjudication.",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(
-                feasible=adjudication.feasible
-            ),
-            observable_facts=_outcome_observable_facts(adjudication),
+        actor_ids=_dedupe([
+            cat_ii_event.initiator_id,
+            *cat_ii_event.required_responders,
+        ]),
+        source_submission_ids=[source_submission_id],
+        feasible_submission_ids=(
+            [source_submission_id] if adjudication.feasible else []
         ),
-        event_kind=(
-            "cat_ii_resolution"
-            if not followup_ids
-            else "beat_continues"
+        infeasible_submission_ids=(
+            [] if adjudication.feasible else [source_submission_id]
         ),
-        requires_responders=False,
-        required_responders=[],
-        observers=[
-            ObserverEntry(
-                character_id=cid,
-                observation_level="d",
-                routing_role=(
-                    "next_output"
-                    if cid in followup_ids
-                    else "observe_only"
-                ),
-            )
-            for cid in observer_ids
-            if _character_exists(ckpt, cid)
-        ],
+        observable_facts=outcome_facts,
+        observers=ObserverGroups(
+            direct=direct_observer_ids,
+            indirect=[],
+            inferred=[],
+        ),
         spawn=[],
         dormant=[],
         cull=[],
-        commitment_open=empty_commitment_open_signal(),
+        commitment_opens=[],
         commitment_resolutions=[],
         commitment_interrupts=[],
         location_updates=[],
+        activate=[],
     )
 
 
@@ -4153,7 +4180,7 @@ def _compile_combat_router_output(
     ckpt: CheckpointFile,
     transaction: CatIIRollTransaction,
     adjudication: RulesAdjudication,
-) -> DndEventRouterOutput:
+) -> DndCanonicalEventRecord:
     combat = getattr(ckpt.session, "active_combat", None)
     affected_ids = _combat_affected_ids(transaction, adjudication)
     observer_ids = []
@@ -4181,54 +4208,77 @@ def _compile_combat_router_output(
         manager_facts=adjudication.visible_outcome_facts,
         adjudication=adjudication,
     )
-    notes = "; ".join(adjudication.rules_notes)
-    rationale_parts = [
-        part for part in (
-            adjudication.mechanical_summary,
-            f"Rules notes: {notes}" if notes else "",
-            f"Fallback: {adjudication.fallback_reason}"
-            if adjudication.fallback_reason else "",
-        ) if part
+    outcome_facts = [
+        ObservableFact.all(fact)
+        for fact in visible_facts
+    ] + _private_outcome_observable_facts(adjudication)
+    fact_recipient_ids = {
+        value for fact in outcome_facts for value in fact.visible_to
+    }
+    direct_observer_ids = [
+        cid
+        for cid in observer_ids
+        if _character_exists(ckpt, cid)
+        and (
+            any(fact.audience == "all_observers" for fact in outcome_facts)
+            or cid in fact_recipient_ids
+        )
     ]
-    return DndEventRouterOutput(
-        event_id="",
-        effective_at_s=0,
+    source_submission_id = f"combat_{transaction.event_id}"
+    event_id = "evt_dnd_" + hashlib.sha256(
+        f"{ckpt.session.session_id}\x1f{transaction.event_id}".encode("utf-8")
+    ).hexdigest()[:12]
+    return DndCanonicalEventRecord(
+        event_id=event_id,
+        causal_lane_id=f"lane_combat_{getattr(combat, 'combat_id', 'active')}",
+        effective_at_s=max(0, int(ckpt.session.leading_at_s)),
         duration_s=0,
-        decision_rationale=" ".join(rationale_parts) or "D&D combat adjudication.",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(
-                feasible=adjudication.feasible
-            ),
-            observable_facts=[
-                ObservableFact.all(fact)
-                for fact in visible_facts
-            ] + _private_outcome_observable_facts(adjudication),
+        actor_ids=[transaction.actor_id] if transaction.actor_id else [],
+        source_submission_ids=[source_submission_id],
+        feasible_submission_ids=(
+            [source_submission_id] if adjudication.feasible else []
         ),
-        event_kind="ruleset_resolution",
-        requires_responders=False,
-        required_responders=[],
-        observers=[
-            DndObserverEntry(
-                character_id=cid,
-                observation_level="d",
-                routing_role=(
-                    "dnd_reaction"
-                    if cid in affected_ids
-                    else "observe_only"
-                ),
-            )
-            for cid in observer_ids
-            if _character_exists(ckpt, cid)
-        ],
+        infeasible_submission_ids=(
+            [] if adjudication.feasible else [source_submission_id]
+        ),
+        observable_facts=outcome_facts,
+        observers=ObserverGroups(
+            direct=direct_observer_ids,
+            indirect=[],
+            inferred=[],
+        ),
         spawn=[],
         dormant=[],
         cull=[],
-        commitment_open=empty_commitment_open_signal(),
+        commitment_opens=[],
         commitment_resolutions=[],
         commitment_interrupts=[],
         location_updates=[],
+        activate=[],
         interaction_mode="narrative",
         combatant_ids=[],
+        combatant_spawns=[],
+        loot_offer=DndLootOfferSignal(
+            present=False,
+            source_kind="other",
+            source_label="",
+            visibility="table",
+            eligible_character_ids=[],
+            items=[],
+            currency=DndCurrency(cp=0, sp=0, ep=0, gp=0, pp=0),
+            notes="",
+        ),
+        battle_map_seed=DndBattleMapSeed(
+            present=False,
+            map_name="",
+            width=0,
+            height=0,
+            square_size_ft=5,
+            tokens=[],
+            terrain=[],
+            areas=[],
+            notes="",
+        ),
     )
 
 
@@ -5377,9 +5427,9 @@ def _pin_pending_player_rolls(
 ) -> None:
     now = _utcnow_iso()
     for record in _pending_player_rolls(transaction):
-        ckpt.session.active_act_slots[record.actor_id] = SlotEntry(
-            reason="cat_ii_roll",
-            cat_ii_event_id=transaction.event_id,
+        ckpt.session.action_obligations[record.actor_id] = ActionObligation(
+            kind="cat_ii_roll",
+            source_event_id=transaction.event_id,
             claimed_at=now,
         )
 
@@ -5389,13 +5439,13 @@ def _release_roll_slot(
     event_id: str,
     actor_id: str,
 ) -> None:
-    entry = ckpt.session.active_act_slots.get(actor_id)
+    entry = ckpt.session.action_obligations.get(actor_id)
     if (
         entry is not None
-        and entry.reason == "cat_ii_roll"
-        and entry.cat_ii_event_id == event_id
+        and entry.kind == "cat_ii_roll"
+        and entry.source_event_id == event_id
     ):
-        ckpt.session.active_act_slots.pop(actor_id, None)
+        ckpt.session.action_obligations.pop(actor_id, None)
 
 
 def _format_ledger_line(

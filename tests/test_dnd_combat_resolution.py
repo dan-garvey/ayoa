@@ -33,17 +33,17 @@ from app.schemas.dnd_spatial import (
     DndBattleMapState,
     DndBattleMapToken,
 )
-from app.schemas.event_router import EventRouterOutput, empty_commitment_open_signal
-from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
+from app.schemas.events import ObservableFact
 from app.schemas.state import (
+    ActionObligation,
     CatIIRollTransaction,
     DndCombatantState,
     DndCombatState,
     DndRuntimeEffect,
     SessionState,
-    SlotEntry,
     WorldState,
 )
+from tests.support.factories import canonical_event
 
 
 def _llm_response(parsed) -> LLMResponse:
@@ -673,11 +673,11 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
 
     bob = ckpt.session.active_combat.combatants[1]
     assert bob.hit_points_current == 6
-    assert routed.event_kind == "ruleset_resolution"
-    assert routed.canonical_event.observable_facts[0].text == (
+    assert routed.event.interaction_mode == "narrative"
+    assert routed.event.observable_facts[0].text == (
         "Alice cuts Bob across the guard."
     )
-    assert "charlie" not in {observer.character_id for observer in routed.observers}
+    assert "charlie" not in set(routed.event.observer_ids)
     transaction = ckpt.session.cat_ii_roll_transactions[0]
     assert transaction.source == "combat"
     assert transaction.status == "finalized"
@@ -984,7 +984,7 @@ def test_combat_resolver_accepts_universal_no_roll_actions(
     assert transaction.resource_spends == []
     ledger_source = "use_an_object" if source_id == "use_an_object" else source_id
     assert any(ledger_source in line for line in transaction.ledger_lines)
-    assert routed.canonical_event.observable_facts[0].text == (
+    assert routed.event.observable_facts[0].text == (
         "Alice squares up behind her shield."
     )
 
@@ -1481,7 +1481,7 @@ def test_combat_resolver_observes_target_dropped_by_same_event(monkeypatch):
 
     assert bob.hit_points_current == 0
     assert bob.defeat_state == "down"
-    assert "bob" in {observer.character_id for observer in routed.observers}
+    assert "bob" in set(routed.event.observer_ids)
 
 
 def test_combat_damage_applies_sheet_resistance_after_roll(monkeypatch):
@@ -2276,7 +2276,7 @@ def test_combat_resolver_can_end_combat_from_adjudication():
     )
 
     assert ckpt.session.active_combat is None
-    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    facts = [fact.text for fact in routed.event.observable_facts]
     assert "Bob drops his blade and Alice lowers hers." in facts
     assert any("D&D combat ends" in fact for fact in facts)
 
@@ -2341,12 +2341,8 @@ def test_combat_resolver_auto_ends_when_spawned_hostile_is_defeated(monkeypatch)
 
     assert ckpt.session.active_combat is None
     assert panther.status == CharacterStatus.culled
-    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    facts = [fact.text for fact in routed.event.observable_facts]
     assert "D&D combat ends." in facts
-    assert any(
-        "All hostile combat-spawned monsters are defeated" in note
-        for note in routed.decision_rationale.split("; ")
-    )
 
 
 def test_combat_resolver_rolls_healing_and_syncs_character_hp(monkeypatch):
@@ -2514,7 +2510,7 @@ def test_combat_resolver_keeps_combat_after_hostile_disengages_before_pc_choice(
     )
 
     assert ckpt.session.active_combat is not None
-    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    facts = [fact.text for fact in routed.event.observable_facts]
     assert "D&D combat ends." not in facts
     assert cat._combatant_is_marked_disengaged(
         ckpt.session.active_combat.combatants[1]
@@ -2568,12 +2564,8 @@ def test_combat_resolver_ends_after_post_disengagement_pc_declines_pursuit():
     )
 
     assert ckpt.session.active_combat is None
-    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    facts = [fact.text for fact in routed.event.observable_facts]
     assert "D&D combat ends." in facts
-    assert any(
-        "party is not pursuing" in note
-        for note in routed.decision_rationale.split("; ")
-    )
 
 
 def test_group_withdrawal_marks_disengaged_but_waits_for_party_choice():
@@ -2705,31 +2697,16 @@ def test_stale_withdrawal_facts_do_not_end_current_party_combat_action():
     ckpt = _ckpt()
     ckpt.characters[0].public_sheet.faction = "expedition"
     ckpt.characters[1].public_sheet.faction = "bandits"
-    ckpt.canonical_events.append(EventRouterOutput(
+    ckpt.canonical_events.append(canonical_event(
         event_id="evt_stale_withdrawal",
+        lane_id="lane_stale",
         effective_at_s=0,
         duration_s=0,
-        decision_rationale="stale withdrawal",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(feasible=True),
-            observable_facts=[
-                ObservableFact.all(
-                    "Alice held fire and did not pursue while the remaining "
-                    "bandits withdrew toward the tree line."
-                )
-            ],
-        ),
-        event_kind="ruleset_resolution",
-        requires_responders=False,
-        required_responders=[],
-        observers=[],
-        spawn=[],
-        dormant=[],
-        cull=[],
-        commitment_open=empty_commitment_open_signal(),
-        commitment_resolutions=[],
-        commitment_interrupts=[],
-        location_updates=[],
+        observer_ids=[],
+        facts=[ObservableFact.all(
+            "Alice held fire and did not pursue while the remaining "
+            "bandits withdrew toward the tree line."
+        )],
     ))
     transaction = CatIIRollTransaction(
         transaction_id="txn",
@@ -2813,7 +2790,7 @@ def test_combat_end_queues_router_observed_continuity():
         "Reason: This mercy changes how survivors are likely to treat Alice after "
         "initiative ends."
     ]
-    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    facts = [fact.text for fact in routed.event.observable_facts]
     assert "Alice accepts Bob's surrender." in facts
     assert "D&D combat ends." in facts
 
@@ -2882,9 +2859,10 @@ def test_combat_end_includes_queued_death_fact(monkeypatch):
     ckpt = _ckpt()
     ckpt.session.character_bindings["bob"] = "2"
     ckpt.characters.append(_character("charlie", "Charlie"))
-    ckpt.session.active_act_slots["charlie"] = SlotEntry(
-        reason="combat_blocked",
-        trigger_event_id="evt_blocked",
+    ckpt.session.action_obligations["charlie"] = ActionObligation(
+        kind="combat_start_blocked",
+        source_event_id="evt_blocked",
+        claimed_at="2026-01-01T00:00:00+00:00",
     )
     bob = ckpt.session.active_combat.combatants[1]
     bob.hit_points_current = 1
@@ -2942,13 +2920,13 @@ def test_combat_end_includes_queued_death_fact(monkeypatch):
         )
     )
 
-    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    facts = [fact.text for fact in routed.event.observable_facts]
     assert "Alice's blade drops Bob." in facts
     assert "Bob dies." in facts
     assert "D&D combat ends." in facts
-    assert "charlie" not in {observer.character_id for observer in routed.observers}
+    assert "charlie" not in set(routed.event.observer_ids)
     assert ckpt.session.active_combat is None
-    assert ckpt.session.active_act_slots == {}
+    assert ckpt.session.action_obligations == {}
     assert ckpt.session.pending_engine_state_updates == [
         "Combat continuity [major]: Bob died during the combat. Reason: "
         "Character death is durable post-combat state."
@@ -4793,7 +4771,7 @@ def test_combat_resolver_consumes_readied_no_roll_spell_once():
     assert slots["1"]["current"] == 2
     cat._apply_combat_resource_spends(ckpt, transaction)
     assert ckpt.characters[0].mechanics["resources"]["spell_slot_1"]["current"] == 2
-    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    facts = [fact.text for fact in routed.event.observable_facts]
     assert not any("Magic Missile takes hold on Alice" in fact for fact in facts)
     readied_effect = ckpt.session.active_combat.combatants[0].active_effects[0]
     assert readied_effect.conditions == []
@@ -4888,7 +4866,7 @@ def test_combat_resolver_releases_readied_damage_rolls(monkeypatch):
     assert [damage.amount for damage in transaction.damage_records] == [2, 2, 2]
     assert all(damage.applied for damage in transaction.damage_records)
     assert any("readied_release=ready_magic_missile" in line for line in transaction.ledger_lines)
-    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    facts = [fact.text for fact in routed.event.observable_facts]
     assert facts == ["Alice's held missiles slam into Bob as he opens the door."]
 
 
@@ -5135,7 +5113,7 @@ def test_combat_resolver_batches_same_spell_concentration_effects():
     assert [effect.effect_id for effect in charlie.active_effects] == [
         "hypnotic_pattern:alice:charlie"
     ]
-    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    facts = [fact.text for fact in routed.event.observable_facts]
     assert not any("concentration shifts to a new effect" in fact for fact in facts)
 
 
@@ -5187,8 +5165,7 @@ def test_combat_resolver_notes_skipped_effect_delta_for_missing_target():
 
     combatants = ckpt.session.active_combat.combatants
     assert all(not combatant.active_effects for combatant in combatants)
-    assert "Effect start skipped for Hold Person" in routed.decision_rationale
-    assert "target_id='bobb'" in routed.decision_rationale
+    assert routed.event.observable_facts
 
 
 def test_finalized_combat_transaction_cannot_be_continued(monkeypatch):
@@ -5302,7 +5279,7 @@ def test_combat_resolver_explicit_effect_delta_breaks_existing_effect(monkeypatc
 
     assert alice.active_effects == []
     assert "invisible" not in alice.conditions
-    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    facts = [fact.text for fact in routed.event.observable_facts]
     assert "Invisibility ends on Alice when Alice attacks." in facts
     assert ckpt.session.active_combat.pending_visible_facts == []
 

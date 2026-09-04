@@ -177,7 +177,7 @@ def _checkpoint() -> CheckpointFile:
                         "target": 1,
                     },
                 ],
-                "pressure_beats": ["Armed goblins attack immediately."],
+                "pressures": ["Armed goblins attack immediately."],
             },
         },
         "repeat_gold_numerator": 0,
@@ -597,7 +597,7 @@ def test_direct_opening_atomically_acquires_roster_and_starts_floor_one() -> Non
         transaction=transaction,
         activated_character_ids=list(activation_locations),
         activated_character_locations=activation_locations,
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
     )
     prepared_account = load_one_star_account(prepared.after_checkpoint)[1]
 
@@ -827,7 +827,7 @@ def test_exact_prefix_commits_once_and_failed_substitution_cannot_reroll() -> No
             ),
             activated_character_ids=exact_ids,
             activated_character_locations=activation_locations,
-            initiating_actor_id="account_owner",
+            initiating_actor_ids=["account_owner"],
         )
     assert load_one_star_account(checkpoint)[1].state.summon_draw_counters == {}
     assert one_star_summon_draw_preview(checkpoint, "basic", count=2) == preview
@@ -842,7 +842,7 @@ def test_exact_prefix_commits_once_and_failed_substitution_cannot_reroll() -> No
         ),
         activated_character_ids=exact_ids,
         activated_character_locations=activation_locations,
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
     )
     assert load_one_star_account(checkpoint)[1].state.summon_draw_counters == {}
     prepared_account = load_one_star_account(prepared.after_checkpoint)[1]
@@ -867,7 +867,7 @@ def test_exact_prefix_commits_once_and_failed_substitution_cannot_reroll() -> No
         ),
         activated_character_ids=exact_ids,
         activated_character_locations=activation_locations,
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
     )
     assert replay.already_applied is True
     assert load_one_star_account(checkpoint)[1].state.summon_draw_counters == {
@@ -889,7 +889,7 @@ def test_exhausted_reserve_grade_falls_back_to_fresh_generated_hero() -> None:
         ),
         activated_character_ids=reserve_ids,
         activated_character_locations={hero_id: "lobby" for hero_id in reserve_ids},
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
     )
     apply_one_star_prepared_mutation(checkpoint, prepared)
     next_draw = one_star_summon_draw_preview(checkpoint, "basic", count=1)[0]
@@ -917,7 +917,7 @@ def test_exhausted_reserve_grade_falls_back_to_fresh_generated_hero() -> None:
         event_id="fresh_pull",
         transaction=transaction,
         spawned_character_ids=[fresh_id],
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
     )
     assert load_one_star_account(fresh.after_checkpoint)[1].state.summon_draw_counters == {
         "basic": 3
@@ -945,6 +945,6 @@ def test_wrong_weighted_birth_grade_is_rejected_without_consumption() -> None:
                 ],
             ),
             spawned_character_ids=[fresh_id],
-            initiating_actor_id="account_owner",
+            initiating_actor_ids=["account_owner"],
         )
     assert load_one_star_account(checkpoint)[1].state.summon_draw_counters == {}

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
-import uuid
 
 from app.engine import dnd_cat_ii as cat
 from app.engine.prompt_manager import PromptManager
@@ -12,7 +12,7 @@ from app.schemas.dnd_cat_ii import (
     DndCombatManagerAdjudication,
     DndCombatTurnPlan,
 )
-from app.schemas.event_router import EventRouterOutput
+from app.engine.dnd_cat_ii import DndResolvedCanonicalEvent
 from app.schemas.state import CatIIRollTransaction
 
 
@@ -38,14 +38,21 @@ class DndCombatResolver:
         actor_id: str,
         intention: str,
         content_context_records: list[str] | None = None,
-    ) -> EventRouterOutput:
+    ) -> DndResolvedCanonicalEvent:
         packet = cat._build_combat_packet(
             ckpt,
             actor_id,
             intention,
             content_context_records=content_context_records,
         )
-        event_id = f"cmb_{uuid.uuid4().hex[:12]}"
+        event_id = "cmb_" + hashlib.sha256(
+            "\x1f".join((
+                ckpt.session.session_id,
+                str(ckpt.session.turn_index + 1),
+                actor_id,
+                intention,
+            )).encode("utf-8")
+        ).hexdigest()[:12]
         plan = await self._plan_turn(packet)
         transaction = cat._create_combat_transaction(
             ckpt=ckpt,
@@ -64,7 +71,7 @@ class DndCombatResolver:
         ckpt: CheckpointFile,
         event_id: str,
         content_context_records: list[str] | None = None,
-    ) -> EventRouterOutput:
+    ) -> DndResolvedCanonicalEvent:
         transaction = cat._find_transaction(ckpt, event_id)
         if transaction is None or transaction.source != "combat":
             raise ValueError(f"No D&D combat roll transaction for {event_id}.")
@@ -89,7 +96,7 @@ class DndCombatResolver:
         self,
         ckpt: CheckpointFile,
         transaction: CatIIRollTransaction,
-    ) -> EventRouterOutput:
+    ) -> DndResolvedCanonicalEvent:
         if cat._pending_player_rolls(transaction):
             transaction.status = "awaiting_player_rolls"
             transaction.updated_at = cat._utcnow_iso()
@@ -137,6 +144,15 @@ class DndCombatResolver:
         cat._sync_combat_effects(ckpt)
         cat._auto_end_if_spawned_hostiles_defeated(ckpt, adjudication)
         cat._auto_end_if_hostiles_disengaged(ckpt, transaction, adjudication)
+        active_combat = ckpt.session.active_combat
+        experience_awards = tuple(
+            active_combat.pending_experience_awards
+            if active_combat is not None
+            else ()
+        )
+        if active_combat is not None:
+            active_combat.pending_experience_awards = []
+        reaction_candidates = cat._combat_affected_ids(transaction, adjudication)
         result = cat._compile_combat_router_output(
             ckpt=ckpt,
             transaction=transaction,
@@ -147,7 +163,16 @@ class DndCombatResolver:
         transaction.status = "finalized"
         transaction.final_event_id = result.event_id
         transaction.updated_at = cat._utcnow_iso()
-        return result
+        return DndResolvedCanonicalEvent(
+            event=result,
+            reaction_candidate_ids=tuple(
+                character_id
+                for character_id in result.observer_ids
+                if character_id in reaction_candidates
+            ),
+            transaction_event_id=transaction.event_id,
+            experience_awards=experience_awards,
+        )
 
     async def _plan_turn(self, packet: str) -> DndCombatTurnPlan:
         messages = self.prompt_mgr.render_messages(

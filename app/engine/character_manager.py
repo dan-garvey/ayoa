@@ -21,7 +21,7 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
-from app.schemas.event_router import EventRouterOutput, SpawnRequest
+from app.schemas.event_router import CanonicalEventRecord, SpawnRequest
 
 logger = logging.getLogger(__name__)
 
@@ -162,9 +162,8 @@ def _normalize_router_summary(summary: str) -> str:
 
 
 def _pinned_character_ids(checkpoint: CheckpointFile) -> set[str]:
-    """Ids currently holding a beat slot or listed on an open Cat II event."""
-    pinned: set[str] = set()
-    pinned.update(checkpoint.session.active_act_slots.keys())
+    """Ids holding a typed obligation or listed on an open Cat II event."""
+    pinned: set[str] = set(checkpoint.session.action_obligations)
     for evt in checkpoint.session.open_cat_ii_events:
         pinned.add(evt.initiator_id)
         pinned.update(evt.required_responders)
@@ -390,22 +389,11 @@ class CharacterManager:
         return None
 
     def apply_roster_updates(
-        self, checkpoint: CheckpointFile, routed: EventRouterOutput,
+        self, checkpoint: CheckpointFile, routed: CanonicalEventRecord,
     ) -> None:
-        """Apply router-directed roster status changes (dormancy, culling).
+        """Apply validated router-directed roster status changes."""
+        from app.engine.event_runtime import purge_character_state
 
-        v11-A5: culled characters also have their v11 slot/event/buffer
-        state purged, so a character removed mid-beat cannot strand a pin
-        or leave their id inside an open Cat II event. Dormant characters
-        are NOT purged — they may return, and their state is still valid.
-        """
-        from app.engine.turn_loop import purge_character_state
-
-        # v11: a character who is currently pinned in a beat (initiator
-        # or Cat II responder) cannot coherently be dormanted or culled
-        # mid-beat — the fiction has them actively engaged. The router
-        # should not produce this shape; if it does, we skip the status
-        # change and log loudly so prompt drift is visible.
         pinned_ids = _pinned_character_ids(checkpoint)
 
         # Wake dormant characters back into play (inverse of dormant): a
@@ -414,27 +402,21 @@ class CharacterManager:
         for signal in getattr(routed, "activate", None) or []:
             char = self.get_character(checkpoint, signal.character_id)
             if char is None:
-                logger.warning(
-                    "Ignored activate on %s: no such character.",
-                    signal.character_id,
+                raise RuntimeError(
+                    f"activation targets unknown character {signal.character_id!r}"
                 )
-                continue
             if char.status == CharacterStatus.culled:
-                logger.warning(
-                    "Ignored activate on %s: character is culled; the dead do "
-                    "not wake.", signal.character_id,
+                raise RuntimeError(
+                    f"activation targets culled character {signal.character_id!r}"
                 )
-                continue
             if char.status == CharacterStatus.active:
                 # Activation is a dormant -> active lifecycle edge, not a
                 # movement command. Replaying a previously applied event after
                 # later canonical movement must therefore be a no-op; active
                 # movement belongs exclusively in location_updates.
-                logger.info(
-                    "Ignored activate replay on %s: character is already active.",
-                    signal.character_id,
+                raise RuntimeError(
+                    f"activation targets already-active character {signal.character_id!r}"
                 )
-                continue
             char.status = CharacterStatus.active
             if signal.location_label:
                 char.location = signal.location_label
@@ -445,48 +427,25 @@ class CharacterManager:
 
         for char_id in routed.dormant:
             if char_id in pinned_ids:
-                logger.warning(
-                    "Ignored dormant on %s: character is currently pinned in "
-                    "the active_act_slot or as a Cat II responder. "
-                    "The router should resolve the open event before "
-                    "dormanting them.",
-                    char_id,
+                raise RuntimeError(
+                    f"cannot make obligated character dormant: {char_id!r}"
                 )
-                continue
             char = self.get_character(checkpoint, char_id)
-            if char:
-                if char.status == CharacterStatus.culled:
-                    logger.warning(
-                        "Ignored dormant on %s: character is culled; terminal "
-                        "lifecycle cannot be downgraded.",
-                        char_id,
-                    )
-                    continue
-                char.status = CharacterStatus.dormant
-                logger.info("Character %s set to dormant", char_id)
+            if char is None or char.status == CharacterStatus.culled:
+                raise RuntimeError(
+                    f"dormant transition targets invalid character {char_id!r}"
+                )
+            char.status = CharacterStatus.dormant
+            logger.info("Character %s set to dormant", char_id)
 
         for char_id in routed.cull:
-            # Cull is terminal — unlike dormant, the character is gone
-            # for good. If they were pinned, `purge_character_state`
-            # already handles the cleanup (abandons open Cat II events
-            # they initiated; removes them from responder lists;
-            # clears their buffer). Warn but proceed; the alternative
-            # would leave the character both dead-in-fiction AND
-            # perpetually pinned, which is worse.
-            if char_id in pinned_ids:
-                logger.warning(
-                    "Culling %s mid-pin: their open Cat II event will be "
-                    "abandoned / they'll be removed from any responder "
-                    "list. The router should normally resolve the event "
-                    "before culling.",
-                    char_id,
-                )
             char = self.get_character(checkpoint, char_id)
-            if char:
-                char.status = CharacterStatus.culled
-                logger.info("Character %s culled", char_id)
-            # Purge v11 bookkeeping even if the character record is
-            # already missing — cull + purge must be idempotent.
+            if char is None:
+                raise RuntimeError(
+                    f"cull transition targets unknown character {char_id!r}"
+                )
+            char.status = CharacterStatus.culled
+            logger.info("Character %s culled", char_id)
             purge_character_state(checkpoint, char_id)
 
     @staticmethod

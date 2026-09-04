@@ -75,6 +75,21 @@ class TestSessionRowCrud:
         assert row.owner_user_id == 2
         assert row.story_id == "story-new"
 
+    def test_list_sessions_returns_every_active_subscription(self, smap: SessionMap):
+        arun(smap.upsert(
+            channel_id=12345, guild_id=999, session_id="one",
+            owner_user_id=1, story_id="story-one",
+        ))
+        arun(smap.upsert(
+            channel_id=67890, guild_id=None, session_id="two",
+            owner_user_id=2, story_id="story-two",
+        ))
+
+        assert [row.session_id for row in arun(smap.list_sessions())] == [
+            "one",
+            "two",
+        ]
+
     def test_delete_returns_true_when_present(self, smap: SessionMap):
         arun(smap.upsert(
             channel_id=12345, guild_id=999, session_id="x",

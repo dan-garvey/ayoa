@@ -54,14 +54,9 @@ from app.schemas.onboarding import (
     VisualNovelOnboardingPage,
 )
 from app.schemas.event_router import LocationUpdateSignal
-from app.schemas.state import (
-    RenderBufferEntry,
-    SessionState,
-    StorySetting,
-    WorldState,
-)
+from app.schemas.state import SessionState, StorySetting, WorldState
 from app.schemas.visual_references import ReviewedVisualReference
-from tests.support.factories import router_output
+from tests.support.factories import canonical_event, narrator_event_ref
 
 
 class _Worker:
@@ -189,7 +184,7 @@ async def test_fixed_visual_novel_stage_bypasses_the_image_director(tmp_path):
         if reference.reference_id == location.reference_id
     ).fixed_stage = True
     checkpoint.session.config.settings.presentation_mode = "visual_novel"
-    event = router_output(
+    event = canonical_event(
         event_id="evt_fixed_chamber",
         observer_ids=["alice"],
         facts=[ObservableFact.all("Alice waits inside the chamber.")],
@@ -260,7 +255,7 @@ async def test_live_feed_location_update_selects_fixed_stage_without_director(
             location="lobby",
         )
     )
-    selected = router_output(
+    selected = canonical_event(
         event_id="evt_selected",
         observer_ids=["alice"],
         facts=[
@@ -269,7 +264,7 @@ async def test_live_feed_location_update_selects_fixed_stage_without_director(
             )
         ],
     )
-    resolved = router_output(
+    resolved = canonical_event(
         event_id="evt_resolved",
         observer_ids=["alice"],
         facts=[
@@ -291,11 +286,11 @@ async def test_live_feed_location_update_selects_fixed_stage_without_director(
         checkpoint=checkpoint,
         buffered_events_by_pov={
             "alice": [
-                RenderBufferEntry(
+                narrator_event_ref(
                     event_id="evt_selected",
                     event_sequence=0,
                 ),
-                RenderBufferEntry(
+                narrator_event_ref(
                     event_id="evt_resolved",
                     event_sequence=1,
                 ),
@@ -665,7 +660,7 @@ async def test_llm_projection_exposes_only_authored_selection_metadata(tmp_path)
         assert secret not in public_snapshot.model_dump_json()
         assert secret in private_json
 
-    event = router_output(
+    event = canonical_event(
         event_id="evt_location",
         observer_ids=["alice"],
         facts=[ObservableFact.all("Rain passes across the platform.")],
@@ -690,12 +685,13 @@ async def test_llm_projection_exposes_only_authored_selection_metadata(tmp_path)
             location="hidden-laboratory",
         )
     )
-    mediated = router_output(
+    mediated = canonical_event(
         event_id="evt_mediated",
         observer_ids=["alice"],
         facts=[ObservableFact.all("A distant impact echoes through a speaker.")],
     )
-    mediated.observers[0].observation_level = "i"
+    mediated.observers.direct = []
+    mediated.observers.indirect = ["alice"]
     mediated_projection = build_projection_groups(
         checkpoint=checkpoint,
         event=mediated,
@@ -759,7 +755,7 @@ def test_direct_visual_scene_uses_embodied_cast_location_not_omit_viewer_screen(
         )
     )
 
-    visible = router_output(
+    visible = canonical_event(
         event_id="evt_remote_view",
         observer_ids=["alice"],
         facts=[ObservableFact.all("Bob steps into the rain at the station.")],
@@ -782,7 +778,7 @@ def test_direct_visual_scene_uses_embodied_cast_location_not_omit_viewer_screen(
         if option.scope == "location"
     ] == [location.reference_id]
 
-    split_scene = router_output(
+    split_scene = canonical_event(
         event_id="evt_split_scene",
         observer_ids=["alice"],
         facts=[
@@ -811,7 +807,7 @@ def test_direct_visual_scene_uses_embodied_cast_location_not_omit_viewer_screen(
     assert split_projection.engine_location_label == ""
     assert split_projection.has_location_reference is False
 
-    reported = router_output(
+    reported = canonical_event(
         event_id="evt_remote_report",
         observer_ids=["alice"],
         facts=[ObservableFact.all("A message reports Bob waits at the station.")],
@@ -847,12 +843,12 @@ def test_render_batch_offers_only_final_scene_location_references(tmp_path):
         laboratory.reference_id
     ]
 
-    platform_event = router_output(
+    platform_event = canonical_event(
         event_id="evt_platform",
         observer_ids=["alice"],
         facts=[ObservableFact.all("Alice waits on the station platform.")],
     )
-    laboratory_event = router_output(
+    laboratory_event = canonical_event(
         event_id="evt_laboratory",
         observer_ids=["alice"],
         facts=[ObservableFact.all("Alice enters the laboratory.")],
@@ -869,12 +865,12 @@ def test_render_batch_offers_only_final_scene_location_references(tmp_path):
         checkpoint=checkpoint,
         buffered_events_by_pov={
             "alice": [
-                RenderBufferEntry(
+                narrator_event_ref(
                     event_id=platform_event.event_id,
                     event_sequence=0,
                     visible_at_s=0,
                 ),
-                RenderBufferEntry(
+                narrator_event_ref(
                     event_id=laboratory_event.event_id,
                     event_sequence=1,
                     visible_at_s=1,
@@ -958,7 +954,7 @@ async def test_subject_then_location_references_forward_to_worker(tmp_path):
         edited = await coordinator.enqueue_direction(
             projection=build_projection_groups(
                 checkpoint=projection_checkpoint_snapshot(checkpoint),
-                event=router_output(
+                event=canonical_event(
                     event_id="evt_edit",
                     observer_ids=["alice"],
                     facts=[ObservableFact.all("Alice turns into the rain.")],

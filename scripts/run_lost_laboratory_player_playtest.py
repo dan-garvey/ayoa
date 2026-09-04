@@ -1246,11 +1246,17 @@ async def _run_playtest(args: argparse.Namespace) -> dict[str, Any]:
         parsed = getattr(response, "parsed", None)
         if role == "event_router" and parsed is not None:
             record["router_output"] = {
-                "interaction_mode": getattr(parsed, "interaction_mode", ""),
-                "agent_responder_picks": list(
-                    getattr(parsed, "agent_responder_picks", []) or []
-                ),
-                "decision_rationale": getattr(parsed, "decision_rationale", ""),
+                "event_count": len(parsed.events),
+                "interaction_modes": [
+                    getattr(event, "interaction_mode", "narrative")
+                    for event in parsed.events
+                ],
+                "required_responders": [
+                    list(event.required_responders) for event in parsed.events
+                ],
+                "next_turns": [
+                    turn.model_dump(mode="json") for turn in parsed.next_turns
+                ],
             }
         role_calls.append(record)
         return response

@@ -123,6 +123,7 @@ def test_engine_bridge_synthesis_command_uses_authoritative_result(monkeypatch) 
     bridge._session_locks = {}
     bridge._locks_mutex = asyncio.Lock()
     bridge.orchestrator = MagicMock()
+    bridge._lock_for = AsyncMock(return_value=asyncio.Lock())
     expected_response = MagicMock()
     expected_response.pre_turn_resolutions = []
     bridge.orchestrator.process_authoritative_result = AsyncMock(

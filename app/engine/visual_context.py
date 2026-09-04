@@ -9,9 +9,9 @@ from app.engine.one_star_visuals import first_look_override_for_viewer
 from app.schemas.characters import CharacterRecord, is_player_authored_slot
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_content_metadata_text
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.delivery import NarratorEventRef
+from app.schemas.event_router import CanonicalEventRecord
 from app.schemas.events import visible_fact_texts
-from app.schemas.state import RenderBufferEntry
 
 AGENT_FIRST_MEETING_CAP = 4
 NARRATOR_FIRST_MEETING_CAP = 6
@@ -929,7 +929,7 @@ def plan_event_visual_introductions(
     ckpt: CheckpointFile,
     *,
     viewer_id: str,
-    event: EventRouterOutput,
+    event: CanonicalEventRecord,
     observation_level: str,
     priority_target_ids: Iterable[str] = (),
     max_loadouts: int = AGENT_FIRST_MEETING_CAP,
@@ -937,7 +937,7 @@ def plan_event_visual_introductions(
     if observation_level != "direct":
         return VisualIntroductionPlan(loadouts=[], mark_character_ids=[])
     texts = visible_fact_texts(
-        event.canonical_event.observable_facts,
+        event.observable_facts,
         viewer_id,
         include_all_observers=True,
     )
@@ -955,7 +955,7 @@ def plan_render_visual_introductions(
     ckpt: CheckpointFile,
     *,
     viewer_id: str,
-    resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
+    resolved: list[tuple[NarratorEventRef, CanonicalEventRecord]],
     max_loadouts: int = NARRATOR_FIRST_MEETING_CAP,
 ) -> VisualIntroductionPlan:
     visible_texts: list[str] = []
@@ -964,7 +964,7 @@ def plan_render_visual_introductions(
             continue
         visible_texts.extend(
             visible_fact_texts(
-                event.canonical_event.observable_facts,
+                event.observable_facts,
                 viewer_id,
                 include_all_observers=True,
             )

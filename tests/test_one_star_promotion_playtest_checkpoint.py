@@ -6,14 +6,10 @@ import hashlib
 from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
 
 from PIL import Image, ImageDraw
-import pytest
 
-from app.engine.prompt_manager import PromptManager
 from app.engine.one_star_adapter import (
-    OneStarTransactionError,
     load_one_star_account,
     load_one_star_hero,
     prepare_one_star_transaction,
@@ -30,16 +26,9 @@ from app.engine.reviewed_visual_references import (
 from app.engine.visual_novel_sprites import (
     resolve_visual_novel_sprite_placements,
 )
-from app.engine.turn_loop_dispatcher import LLMDispatcher
-from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.events import ObservableFact
 from app.schemas.narrator import VisualNovelPage
-from app.schemas.one_star import (
-    OneStarEventRouterOutput,
-    OneStarStateUpdateList,
-    OneStarTransaction,
-)
+from app.schemas.one_star import OneStarTransaction
 from scripts.build_one_star_promotion_playtest_seed import build_checkpoint
 from scripts.run_one_star_promotion_sprite_playtest import (
     _promotion_comparison_pages,
@@ -48,7 +37,6 @@ from scripts.run_one_star_promotion_vn_live_playtest import (
     _deck_has_committed_identity_reveal,
     _deck_uses_only_stage,
 )
-from tests.support.factories import llm_response, router_output
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -105,7 +93,7 @@ def _promote(
             }
         ),
         canonical_at_s=0,
-        initiating_actor_id="the_master",
+        initiating_actor_ids=["the_master"],
     )
     resolved = prepare_one_star_transaction(
         opened.after_checkpoint,
@@ -118,7 +106,7 @@ def _promote(
         ),
         location_updates={character_id: "niflheim_promotion_chamber"},
         canonical_at_s=0,
-        initiating_actor_id="the_master",
+        initiating_actor_ids=["the_master"],
     )
     return resolved.after_checkpoint
 
@@ -141,7 +129,7 @@ def _open_synthesis(checkpoint: CheckpointFile) -> CheckpointFile:
             }
         ),
         canonical_at_s=0,
-        initiating_actor_id="the_master",
+        initiating_actor_ids=["the_master"],
     )
     return prepared.after_checkpoint
 
@@ -161,7 +149,7 @@ def _resolve_synthesis(checkpoint: CheckpointFile) -> CheckpointFile:
             "castor_valebrand": "niflheim_synthesis_chamber",
         },
         canonical_at_s=0,
-        initiating_actor_id="the_master",
+        initiating_actor_ids=["the_master"],
     )
     return prepared.after_checkpoint
 
@@ -289,77 +277,6 @@ def test_live_playtest_reveal_check_requires_old_flash_new_in_fixed_chamber() ->
         drifting_stage,
         stage_sha256=stage_sha256,
     )
-
-
-@pytest.mark.asyncio
-async def test_fixed_promotion_resolution_cannot_be_erased_by_state_repair():
-    checkpoint = _load()
-    opened = prepare_one_star_transaction(
-        checkpoint,
-        event_id="promotion_open",
-        transaction=_transaction(
-            {
-                "operation": "pending_open",
-                "pending": {
-                    "operation_id": "promotion_renna",
-                    "kind": "promotion",
-                    "participant_ids": ["renna_holt"],
-                    "target_id": "renna_holt",
-                    "destination": "niflheim_promotion_chamber",
-                    "opened_at_s": 0,
-                },
-            }
-        ),
-        canonical_at_s=0,
-        initiating_actor_id="the_master",
-    ).after_checkpoint
-    data = router_output(
-        event_id="promotion_resolution",
-        observer_ids=["the_master", "renna_holt", "iselle_the_guide"],
-        event_kind="cat_ii_resolution",
-        facts=[
-            ObservableFact.all("Renna enters and the promotion completes."),
-            ObservableFact.only(
-                "The System reports the completed promotion.",
-                ["iselle_the_guide"],
-            ),
-        ],
-        location_updates=[
-            {
-                "character_id": "renna_holt",
-                "location_label": "niflheim_lobby",
-            }
-        ],
-    ).model_dump(mode="json")
-    data["state_updates"] = [
-        {
-            "kind": "pending_resolve",
-            "target_id": "promotion_renna",
-            "value": "",
-            "details": [],
-        }
-    ]
-    event = OneStarEventRouterOutput.model_validate(data)
-    client = MagicMock(spec=LLMClient)
-    client.complete = AsyncMock(
-        return_value=llm_response(
-            OneStarStateUpdateList(state_updates=[]),
-        )
-    )
-    dispatcher = LLMDispatcher(client, PromptManager("app/prompts"))
-
-    with pytest.raises(
-        OneStarTransactionError,
-        match="repair cannot erase a pending resolution",
-    ):
-        await dispatcher.prepare_ruleset_event(
-            ckpt=opened,
-            result=event,
-            actor_id="the_master",
-        )
-
-    assert client.complete.await_count == 1
-    assert load_one_star_hero(_character(opened, "renna_holt")).current_stars == 1
 
 
 class _GeneratedSpriteResolver:

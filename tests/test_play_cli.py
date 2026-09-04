@@ -56,7 +56,7 @@ from app.schemas.responses import (
     VisualNovelRender,
     VisualNovelRenderSegment,
 )
-from app.schemas.state import SessionState, SlotEntry, WorldState
+from app.schemas.state import ActionObligation, SessionState, WorldState
 
 
 SESSION_ID = "cli_test"
@@ -196,7 +196,7 @@ def _narrated_ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
 
 def _turn_response(**overrides):
     base = {
-        "beat_ended_reason": "cascade_exhausted",
+        "pause_reason": "cascade_exhausted",
         "turn_index": 2,
         "output_text": "narration",
         "pre_turn_resolutions": [],
@@ -323,13 +323,13 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
     )
     engine.run_turn = AsyncMock()
     engine.run_query = AsyncMock(return_value=_turn_response(
-        beat_ended_reason="query_response",
+        pause_reason="query_response",
         turn_index=2,
         output_text="query narration",
         per_player_renders={"aldric": "query narration"},
     ))
     engine.run_begin_turn = AsyncMock(return_value=_turn_response(
-        beat_ended_reason="state_change",
+        pause_reason="state_change",
         turn_index=1,
         output_text="opening narration",
         per_player_renders={"aldric": "Aldric wakes."},
@@ -550,6 +550,28 @@ class TestInitialization:
         engine = _mock_engine(bindings={"aldric": "not-a-number"})
         state = CLIState(engine, SESSION_ID, STORY_ID)
         assert state.claims == {}
+
+    def test_poll_claims_async_delivery_for_only_this_terminal_povs(self):
+        engine = _mock_engine(bindings={"aldric": "1"})
+        response = _turn_response(
+            deliveries=[SimpleNamespace(pov_character_id="aldric")],
+        )
+        engine.claim_pending_turn_deliveries = AsyncMock(return_value=response)
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state._print_turn_response = AsyncMock()
+
+        assert asyncio.run(state.print_pending_deliveries()) is True
+
+        engine.claim_pending_turn_deliveries.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            consumer_id=state._delivery_consumer_id,
+            pov_character_ids={"aldric"},
+            expected_bindings={"aldric": "1"},
+        )
+        state._print_turn_response.assert_awaited_once_with(
+            response,
+            actor_id="aldric",
+        )
 
     def test_resume_prefers_claimed_current_combatant(self):
         engine = _mock_engine(bindings={"aldric": "1", "sera": "2"})
@@ -1121,7 +1143,7 @@ class TestDeferCommand:
     def test_defer_submits_null_turn_for_current_actor(self, run):
         engine = _mock_engine()
         engine.run_turn = AsyncMock(return_value=_turn_response(
-            beat_ended_reason="state_change",
+            pause_reason="state_change",
             turn_index=3,
             output_text="",
         ))
@@ -1161,7 +1183,7 @@ class TestActDisplayCommand:
     def test_act_forwards_existing_visual_novel_display_key(self, run):
         engine = _mock_engine()
         engine.run_turn = AsyncMock(return_value=_turn_response(
-            beat_ended_reason="cascade_exhausted",
+            pause_reason="cascade_exhausted",
             turn_index=3,
             output_text="Aldric holds his ground.",
         ))
@@ -1596,7 +1618,7 @@ class TestCombatCommand:
     ):
         engine = _mock_engine()
         engine.run_turn = AsyncMock(return_value=_turn_response(
-            beat_ended_reason="combat_started",
+            pause_reason="combat_started",
             turn_index=5,
             output_text="Seren reaches for steel.",
         ))
@@ -1638,13 +1660,14 @@ class TestCombatCommand:
     ):
         engine = _mock_engine()
         ckpt = _empty_ckpt({"aldric": "1", "sera": "2"})
-        ckpt.session.active_act_slots["sera"] = SlotEntry(
-            reason="cat_ii_responder",
-            cat_ii_event_id="evt_cat",
+        ckpt.session.action_obligations["sera"] = ActionObligation(
+            kind="cat_ii_response",
+            source_event_id="evt_cat",
+            claimed_at="2026-01-01T00:00:00+00:00",
         )
         engine.load_latest.return_value = ckpt
         engine.run_turn = AsyncMock(return_value=_turn_response(
-            beat_ended_reason="cat_ii_pending",
+            pause_reason="cat_ii_pending",
             turn_index=6,
             output_text="",
             per_player_renders={"aldric": "Aldric waits for Sera's answer."},
@@ -1759,7 +1782,7 @@ class TestRollCommand:
     def test_act_surfaces_pending_rolls(self, run, capsys):
         engine = _mock_engine()
         engine.run_turn = AsyncMock(return_value=_turn_response(
-            beat_ended_reason="cat_ii_pending_rolls",
+            pause_reason="cat_ii_pending_rolls",
             output_text="Ash's blade flashes toward the captain.",
         ))
         engine.pending_roll_prompts.return_value = [
@@ -1948,7 +1971,7 @@ class TestActingDescribe:
     def test_query_uses_bridge_and_prints_turn_response(self, run, capsys):
         engine = _mock_engine()
         engine.run_query = AsyncMock(return_value=_turn_response(
-            beat_ended_reason="query_response",
+            pause_reason="query_response",
             turn_index=4,
             output_text="The crest is weathered silver.",
             per_player_renders={"aldric": "The crest is weathered silver."},
@@ -1974,7 +1997,7 @@ class TestActingDescribe:
     ):
         engine = _mock_engine()
         engine.run_query = AsyncMock(return_value=_turn_response(
-            beat_ended_reason="query_response",
+            pause_reason="query_response",
             turn_index=4,
             output_text="The crest is weathered silver.",
             per_player_renders={"aldric": "The crest is weathered silver."},
@@ -1997,7 +2020,7 @@ class TestActingDescribe:
             side_effect=RuntimeError("test presentation fallback")
         )
         engine.run_query = AsyncMock(return_value=_turn_response(
-            beat_ended_reason="query_response",
+            pause_reason="query_response",
             turn_index=4,
             checkpoint_id="ckpt_0004",
             output_text="The crest is weathered silver.",
@@ -2192,7 +2215,7 @@ class TestActingDescribe:
     def test_pre_turn_resolution_header_is_player_facing(self, run, capsys):
         engine = _mock_engine()
         engine.run_turn = AsyncMock(return_value=_turn_response(
-            beat_ended_reason="pre_turn_resolution",
+            pause_reason="pre_turn_resolution",
             output_text="Submit again.",
             pre_turn_resolutions=[
                 _turn_response(

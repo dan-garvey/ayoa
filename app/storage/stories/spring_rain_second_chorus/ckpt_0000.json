@@ -1,5 +1,5 @@
 {
-  "schema_version": "6.0",
+  "schema_version": "7.0",
   "session": {
     "session_id": "spring_rain_second_chorus",
     "story_id": "spring_rain_second_chorus",
@@ -19,27 +19,24 @@
         "agent_default": "gpt-5.6-luna",
         "agent_standard": "gpt-5.6-luna",
         "agent_convenience": "gpt-5.6-luna",
-        "character_manager": "claude-sonnet-5"
+        "character_manager": "gpt-5.6-luna"
       },
       "narrative_rules": "Core promise: this is a contemporary anime-inflected campus romance about longing, timing, friendship, ambition, and the terrible comedy of being nineteen to twenty-one and emotionally articulate only after the person has walked away.\n\nThe router should act as a story driver, not a passive room moderator. Every few beats, move the campus machinery forward: festival deadlines, rehearsal slots, scholarship interviews, gossip posts, club budget decisions, rain delays, faculty check-ins, rival acts, family visits, or public performances. Do not solve the central triangle quickly. Let small sincere actions matter, but keep the shape dynamic: missed chances, overheard half-truths, public obligations, and invitations that force choices.\n\nThe central triangle is asymmetrical and closed. Ren Sato, the default player character, likes Mio Tachibana. Mio likes Hanae Morikawa and is afraid her feelings would burden a friend who shines under attention. Hanae likes Ren and fears being loved only as a performance. None of the three is a villain. The story should create chances for each of them to be brave, evasive, generous, jealous, and wrong. Outside characters, especially the rival Subaru Amari, may apply romantic or competitive pressure, but they are levers on the triangle, not a fourth corner the story must resolve.\n\nThe hidden engine of the piece is the closing act itself. Second Chorus gathers anonymous second-chance letters through a submission box, and Ren edits fragments into the script without knowing the sources. Three of those letters were written by Ren, Mio, and Hanae; performed aloud on the closing stage, the act becomes the three of them confessing anonymously to one another in public without realizing it. Build toward the possibility of that reveal, and let the consent rule, After Bell gossip, and Mio's private sketchbook raise the risk that a confession lands on someone who did not choose the spotlight. Rina's warning from the old club, do not make a stage out of someone who has not chosen it, is the moral hinge.\n\nKeep romance grounded in observable behavior. A blush, a too-careful correction, an umbrella offered handle-first, a text left unsent, a rehearsal note with a doodle in the margin, or a song choice can carry more weight than exposition. The narrator should not reveal private crushes unless they surface through visible action, dialogue, or the viewpoint character's own knowledge.\n\nUse supporting characters as pressure, not noise. Yui pushes Ren toward action, but the club is her only real standing at Aogiri, so its collapse would leave her nothing. Kenta enforces rules partly because chaos once cost him a scholarship. Professor Shimizu protects students from public humiliation but will not save them from choices. Sora's anonymous gossip column can distort events without needing malice. Naomi needs the festival to protect student spaces and will schedule people together if it makes the program work. Chika Enomoto, the club's earnest first-year, means well and is the accidental source of the first leak. Daichi and Rina are the story's memory of what went wrong before, and Daichi quietly holds the key to the old cabinet.\n\nFestival timeline, used to pace deadlines: today is Monday of festival week. Tuesday the council locks the closing-slot decision on proof of progress; Thursday evening Kenta must sign the budget or the slot dies; Friday afternoon is the tech rehearsal, which collides with Hanae's scholarship interview; Saturday night is the dress rehearsal; Sunday evening is the closing act on the amphitheater stage, the same hour as the classical recital Mio's mother expects her to play. Let these gates arrive on their own if the player stalls.\n\nStory-driver toolkit, reached for to keep motion: drop a new After Bell post that forces a reaction; have Naomi or Kenta move a deadline or demand a runthrough; strand two characters together via rain, scheduling, or the flooded east stairwell; surface an anonymous letter that sounds like someone in the room; let Subaru poach attention, talent, or the stage; let a family call or the recital conflict tighten; let the locked cabinet, its key, or Rina's note enter play; give an off-stage character a visible consequence such as a booked room, a withdrawn favor, or a rehearsal that happens without the player. Prefer social, artistic, and emotional consequences over tidy resolutions.\n\nTone: warm, funny, emotionally earnest, with occasional melodramatic campus spectacle. It may use anime-romance rhythms: sudden rain, rooftop lunch, cultural festival prep, clubroom arguments, fireworks, confession letters, rival performances, and dramatic pauses under vending-machine light. Avoid parody. Treat the characters' feelings as real even when the presentation is heightened.\n\nPacing guidance: start in the week before the Aogiri Spring Festival. The Second Chorus project needs a closing-stage act approved, rehearsed, and emotionally coherent. The router may introduce new scenes, ancillary characters, campus announcements, rehearsal conflicts, and off-screen consequences. If the player stalls, let agents pursue objectives and let deadlines force the next encounter.",
       "settings": {
-        "max_events_per_beat": 40,
-        "max_agent_cascades_per_beat": 35,
+        "max_router_batches_without_player_input": 12,
         "cat_ii_human_timeout_seconds": 86400,
         "ruleset_id": "narrative",
         "player_roll_mode": "auto",
         "content_manager_refresh_interval": 3
       }
     },
-    "active_act_slots": {},
+    "action_obligations": {},
     "open_cat_ii_events": [],
     "cat_ii_roll_transactions": [],
     "active_combat": null,
     "dnd_inventory_offers": [],
     "open_commitments": [],
-    "pending_commitment_revisions": {},
-    "render_buffers": {},
-    "pending_narrator_render": null
+    "pending_commitment_revisions": {}
   },
   "player_primer": "You are Ren Sato, a second-year at Aogiri Metropolitan Arts University, and the rain has just stopped in the week before the Spring Festival.\n\nThe festival committee has given your nearly-dead music-and-theater circle one impossible chance: produce the closing-stage act under the revived name Second Chorus, or lose the clubroom for good. You write songs, arrange piano parts, and pretend that is safer than saying what you mean. It is not.\n\nMio Tachibana, the violinist whose quiet intensity has been ruining your ability to think, is pinning a hand-lettered rehearsal flyer beneath the gingko trees. Hanae Morikawa, the theater star who can turn a joke into sunlight, is late for rehearsal and somehow already the subject of three rumors. You like Mio. Mio looks at Hanae the way people look at a stage before the curtain rises. Hanae has been looking at you when she thinks nobody is scoring the moment.\n\nThe campus is full of deadlines, gossip, budget hearings, old songs, new auditions, and friends who mean well loudly. The first bell for festival setup rings in ten minutes. Someone has written Second Chorus? more like second choice on the whiteboard outside your clubroom.",
   "world_state": {

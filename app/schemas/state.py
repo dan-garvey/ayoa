@@ -5,13 +5,17 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.characters import CharacterAgentTier, CharacterRecord
+from app.schemas.characters import CharacterAgentTier
 from app.schemas.content import ContentPackState
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.dnd_spatial import DndBattleMapSeed, DndBattleMapState
+from app.schemas.delivery import DeliveryOutboxEntry, NarratorRenderJob
+from app.schemas.event_router import FrontierTurn
 
 
 class ModelConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     event_router: str = "gpt-5.6-terra"
     narrator: str = "gpt-5.6-terra"
     image_director: str = "gpt-5-mini"
@@ -22,60 +26,30 @@ class ModelConfig(BaseModel):
     character_manager: str = "gpt-5.6-luna"
 
 
-class SlotEntry(BaseModel):
-    """v11: one participant in the session's active act slot. A beat may
-    have zero (free), one (initiator or single Cat II responder), or many
-    entries (multi-character Cat II). The reason determines what /act
-    from that user is allowed to do.
-    """
-    reason: str  # "initiator" | "cat_ii_responder" | "cat_ii_roll" | "combat_reaction" | "combat_blocked"
-    # When reason is tied to an open Cat II event, the open-event id this
-    # slot is pinned to. None for initiator entries.
-    cat_ii_event_id: str | None = None
-    # Neutral trigger link for slots that are tied to a closed canonical
-    # event rather than an open Cat II event. Currently used by D&D combat
-    # reaction prompts.
-    trigger_event_id: str | None = None
-    # ISO-8601 timestamp of when the slot was claimed. Read by
-    # `sweep_stale_combat_reaction_pins` to auto-pass `combat_reaction`
-    # pins whose human never answered (so AFK reactors cannot wedge
-    # initiative). Stamped by every slot-claim helper.
-    claimed_at: str = ""
+class ActionObligation(BaseModel):
+    """A specific player-owned interruption that blocks only its causal lane.
 
-
-class PendingNarratorRender(BaseModel):
-    """A closed beat whose upstream state is durable, but whose POV render
-    has not completed yet.
-
-    This lets a narrator-provider failure be retried without replaying the
-    router and character-agent calls that already mutated canonical state.
+    Ordinary player turns never claim a global slot. Only an unresolved Cat II
+    response, interactive roll, optional combat reaction, or blocked combat
+    start creates an obligation.
     """
 
-    ended_reason: str = ""
-    events_closed: int = 0
-    event_actor_ids: list[str] = Field(default_factory=list)
-    acting_player_id: str = ""
-    acting_player_input: str = ""
-    release_slots: bool = True
-    force_partial: bool = False
-    suppress_reaction_prompts: bool = False
-    soft_handoff_candidate: bool = False
-    handoff_event_id: str = ""
-    narration_modes_by_pov: dict[
-        str, Literal["event_aligned", "compressed_sequence"]
-    ] = Field(default_factory=dict)
-    roll_keys_before: list[tuple[str, str]] = Field(default_factory=list)
-    commitment_revision_character_id: str = ""
-    commitment_revision_id: str = ""
-    commitment_revision_trigger_id: str = ""
-    # Private runtime payload for a rejected render candidate. These authored
-    # records are deliberately not active roster entries until a retry render
-    # is accepted, but must survive process restart so character generation is
-    # never repeated for the already-closed canonical spawn event.
-    pending_spawn_records: list[CharacterRecord] = Field(default_factory=list)
-    pending_spawn_introductions: dict[str, list[str]] = Field(
-        default_factory=dict
-    )
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal[
+        "cat_ii_response",
+        "cat_ii_roll",
+        "combat_reaction",
+        "combat_start_blocked",
+    ]
+    source_event_id: str
+    claimed_at: str
+
+    @model_validator(mode="after")
+    def _validate_obligation(self) -> "ActionObligation":
+        if not self.source_event_id.strip() or not self.claimed_at.strip():
+            raise ValueError("action obligations require an event and timestamp")
+        return self
 
 
 class OpenCommitment(BaseModel):
@@ -615,29 +589,6 @@ class DndCombatState(BaseModel):
         return value
 
 
-class RenderBufferEntry(BaseModel):
-    """v11: one canonical event queued for a human's next render. Keyed
-    by an event_id stored in canonical_events. The narrator reads these
-    entries + the events themselves to compose per-beat prose.
-    """
-    event_id: str
-    # "direct" | "indirect" | "inferred" — observation level for this
-    # character, copied from the event's observer list at broadcast
-    # time.
-    observation_level: str = "direct"
-    # Fictional time when this POV has received the visible facts in this
-    # event. Narrator composition sorts by this rather than by append order.
-    visible_at_s: int = 0
-    # Stable event-log order tie-breaker for simultaneous visible events.
-    event_sequence: int = 0
-    # Character id -> character-owned presentation key at this exact visible
-    # event. This stays in checkpoint/runtime state and never enters narrator
-    # input or player-visible text.
-    sprite_variant_keys_by_character_id: dict[str, str] = Field(
-        default_factory=dict
-    )
-
-
 class SessionSettings(BaseModel):
     """User-tunable experimental toggles exposed via /settings.
 
@@ -646,18 +597,13 @@ class SessionSettings(BaseModel):
     fields meant for live tuning. Add new toggles here and they become
     automatically available in /settings list / set.
     """
-    # v11: hard cap on how many canonical events the router may chain
-    # inside a single beat before the orchestrator forces render + slot
-    # release. Prevents runaway event growth while allowing large
-    # ensemble beats to breathe.
-    max_events_per_beat: int = 40
-    # v11: hard cap on successful/attempted agent cascade handoffs inside
-    # one beat. This is distinct from canonical events because Cat II
-    # setup/resolution and router continuations can add events without a
-    # normal NPC handoff, while a long NPC-to-NPC chain needs its own
-    # budget guard.
-    max_agent_cascades_per_beat: int = 35
-    # v11: maximum seconds a Cat II pin may hold a human before the
+    # One logical limit for autonomous router batches between player inputs.
+    # Provider retries do not consume it; a successful player-inclusive batch
+    # resets it. Reaching the limit leaves the durable frontier sleeping.
+    max_router_batches_without_player_input: int = 12
+    model_config = ConfigDict(extra="forbid")
+
+    # Maximum seconds a Cat II obligation may hold a human before the
     # orchestrator's sweep auto-resolves them as "stays out." Default
     # 24 hours — long enough that async multiplayer (play over a day)
     # doesn't time out, short enough that abandoned sessions eventually
@@ -683,6 +629,8 @@ class SessionSettings(BaseModel):
     # skipped cycles.
     content_manager_refresh_interval: int = 3
 class SessionConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     models: ModelConfig = Field(default_factory=ModelConfig)
     # Long-form narrator style rules: prose discipline, pacing, subtext philosophy
     narrative_rules: str = ""
@@ -692,6 +640,8 @@ class SessionConfig(BaseModel):
 
 
 class SessionState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     session_id: str
     story_id: str = ""
     turn_index: int = 0
@@ -722,11 +672,10 @@ class SessionState(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     config: SessionConfig = Field(default_factory=SessionConfig)
 
-    # v11: beat-pacing state. Keyed by slot-holder character_id. The session
-    # has one live beat gate; contextual presence is routed through event
-    # observers rather than scene-local lock maps.
-    active_act_slots: dict[str, SlotEntry] = Field(default_factory=dict)
-    # v11: in-flight Cat II events awaiting responder intentions.
+    # Typed player-owned interruptions. There is deliberately no ordinary
+    # initiator entry and therefore no global turn lock in checkpoint state.
+    action_obligations: dict[str, ActionObligation] = Field(default_factory=dict)
+    # In-flight Cat II events awaiting responder intentions.
     open_cat_ii_events: list[OpenCatIIEvent] = Field(default_factory=list)
     # Durable mechanics audit for D&D Cat II resolution. These records are
     # intentionally not included in normal LLM rolling histories.
@@ -752,15 +701,18 @@ class SessionState(BaseModel):
     pending_commitment_revisions: dict[str, CommitmentRevisionPrompt] = Field(
         default_factory=dict
     )
-    # v11: per-player queue of canonical events awaiting render. Keyed by
-    # character_id (a human's bound character). Cleared after each render
-    # fires. An agent's "render buffer" is just its observation context
-    # on the next intend() call — no separate store here.
-    render_buffers: dict[str, list[RenderBufferEntry]] = Field(default_factory=dict)
-    # Non-empty only while a user-visible turn has completed router/agent
-    # work and is awaiting a successful narrator render. The latest
-    # checkpoint can resume the render without rerunning upstream LLM calls.
-    pending_narrator_render: PendingNarratorRender | None = None
+    # Unified causal work queue. There is no foreground/background split and no
+    # engine-owned scene or location scheduler; each entry came from a router
+    # decision and carries only its transient participant boundary.
+    router_frontier: list[FrontierTurn] = Field(default_factory=list)
+    autonomous_router_batches_since_player: int = 0
+    # Per-POV narrator work and successful delivery use one durable path for
+    # synchronous and autonomous events alike.
+    narrator_render_jobs: list[NarratorRenderJob] = Field(default_factory=list)
+    delivery_outbox: list[DeliveryOutboxEntry] = Field(default_factory=list)
+    last_acknowledged_event_sequence_by_pov: dict[str, int] = Field(
+        default_factory=dict
+    )
 
 
 class PhysicsRuleset(BaseModel):

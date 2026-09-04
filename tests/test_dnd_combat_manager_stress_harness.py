@@ -5,16 +5,15 @@ from app.engine.dnd_combat_harness import (
     _fact_asserts_condition,
     _scenario_findings,
 )
-from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
+from app.schemas.events import ObservableFact
+from tests.support.factories import canonical_event
 
 
-class _Event:
-    event_id = "evt"
-    event_kind = "ruleset_resolution"
-    decision_rationale = ""
-    canonical_event = CanonicalEvent(
-        world_adjudication=WorldAdjudication(feasible=True),
-        observable_facts=[
+def _event():
+    return canonical_event(
+        event_id="evt",
+        observer_ids=["ogre"],
+        facts=[
             ObservableFact.all("Everyone sees the ogre panic."),
             ObservableFact.only("You see your worst fear.", ["ogre"]),
         ],
@@ -33,7 +32,7 @@ def test_fact_asserts_condition_ignores_negated_condition_claims():
 
 
 def test_event_summary_keeps_private_facts_scoped():
-    summary = _event_summary(_Event())
+    summary = _event_summary(_event())
 
     assert summary["facts"] == ["Everyone sees the ogre panic."]
     assert summary["private_facts"] == [

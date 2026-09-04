@@ -202,12 +202,11 @@ def build_content_manager_dispatch_index_block(
 def build_recent_canonical_facts_block(ckpt: Any, *, limit: int = 12) -> str:
     rows: list[tuple[str, str]] = []
     for event in getattr(ckpt, "canonical_events", []) or []:
-        canonical = getattr(event, "canonical_event", None)
-        if canonical is None and isinstance(event, Mapping):
-            canonical = event.get("canonical_event")
-        facts = getattr(canonical, "observable_facts", []) if canonical else []
-        if isinstance(canonical, Mapping):
-            facts = canonical.get("observable_facts") or []
+        facts = (
+            event.get("observable_facts", [])
+            if isinstance(event, Mapping)
+            else getattr(event, "observable_facts", [])
+        )
         for fact in facts or []:
             text = _fact_text(fact)
             if not text:
@@ -308,12 +307,11 @@ def _dispatch_scope(
             for value in raw_value.values():
                 text_parts.append(_format_value(value))
     for event in getattr(ckpt, "canonical_events", [])[-12:]:
-        canonical = getattr(event, "canonical_event", None)
-        if canonical is None and isinstance(event, Mapping):
-            canonical = event.get("canonical_event")
-        facts = getattr(canonical, "observable_facts", []) if canonical else []
-        if isinstance(canonical, Mapping):
-            facts = canonical.get("observable_facts") or []
+        facts = (
+            event.get("observable_facts", [])
+            if isinstance(event, Mapping)
+            else getattr(event, "observable_facts", [])
+        )
         for fact in facts or []:
             text_parts.append(_fact_text(fact))
     return {
@@ -822,12 +820,11 @@ def _content_manager_refresh_interval(ckpt: Any) -> int:
 
 def _has_recent_canonical_facts(ckpt: Any) -> bool:
     for event in getattr(ckpt, "canonical_events", []) or []:
-        canonical = getattr(event, "canonical_event", None)
-        if canonical is None and isinstance(event, Mapping):
-            canonical = event.get("canonical_event")
-        facts = getattr(canonical, "observable_facts", []) if canonical else []
-        if isinstance(canonical, Mapping):
-            facts = canonical.get("observable_facts") or []
+        facts = (
+            event.get("observable_facts", [])
+            if isinstance(event, Mapping)
+            else getattr(event, "observable_facts", [])
+        )
         if any(_fact_text(fact) for fact in facts or []):
             return True
     return False

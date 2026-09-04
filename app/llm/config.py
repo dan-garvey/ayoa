@@ -216,19 +216,10 @@ class LLMConfig(BaseModel):
     # adaptive thinking by default and the client suppresses this legacy field
     # for them. Empty / missing role => no manual thinking request.
     #
-    # Event router at 2048: the router's adjudication call is the
-    # other multi-step reasoning surface in the engine — categorize
-    # the action (Cat I vs II), pick observers and observation
-    # levels, decide whether the beat ends, choose which NPCs to
-    # cascade and in what order, honor the addressed-NPC rule,
-    # author observable_facts that don't leak interior, etc. The
-    # decision_rationale field captures part of this thinking but
-    # has to fit in the structured output, so it's terse by
-    # construction; an extended-thinking budget lets the model
-    # reason freely before composing the JSON. The narrator and
-    # other roles still default to 0 — the narrator's job is
-    # transformation (facts → POV prose) and the others are narrow
-    # enough that a tight system prompt suffices.
+    # The event router resolves several potentially independent proposals,
+    # visibility groups, contested-action boundaries, and causal next turns in
+    # one strict batch. Its manual budget leaves room for that adjudication
+    # before the compact JSON response. Other roles use their model defaults.
     role_thinking_budgets: dict[str, int] = Field(default_factory=lambda: {
         "event_router": 2048,
     })

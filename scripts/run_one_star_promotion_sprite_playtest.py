@@ -105,7 +105,7 @@ def _promote(
             }
         ),
         canonical_at_s=0,
-        initiating_actor_id=MASTER_ID,
+        initiating_actor_ids=[MASTER_ID],
     )
     resolved = prepare_one_star_transaction(
         opened.after_checkpoint,
@@ -118,7 +118,7 @@ def _promote(
         ),
         location_updates={character_id: "niflheim_promotion_chamber"},
         canonical_at_s=0,
-        initiating_actor_id=MASTER_ID,
+        initiating_actor_ids=[MASTER_ID],
     )
     return resolved.after_checkpoint
 
@@ -143,7 +143,7 @@ def _synthesize_castor_into_mara(
             }
         ),
         canonical_at_s=0,
-        initiating_actor_id=MASTER_ID,
+        initiating_actor_ids=[MASTER_ID],
     )
     _owner, account = load_one_star_account(opened.after_checkpoint)
     pending = account.state.pending_operation
@@ -168,7 +168,7 @@ def _synthesize_castor_into_mara(
             "castor_valebrand": "niflheim_synthesis_chamber",
         },
         canonical_at_s=0,
-        initiating_actor_id=MASTER_ID,
+        initiating_actor_ids=[MASTER_ID],
     )
     return resolved.after_checkpoint, preview
 

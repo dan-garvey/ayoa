@@ -19,21 +19,20 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.event_router import CanonicalEventRecord
 from app.schemas.events import ObservableFact
-from app.schemas.state import RenderBufferEntry, SessionState
-from tests.support.factories import router_output
+from app.schemas.state import SessionState
+from tests.support.factories import canonical_event, narrator_event_ref
 
 
 ONE_STAR_CHECKPOINT = Path("app/storage/stories/one_star_ascension_s1/ckpt_0000.json")
 
 
-def _event(text: str) -> EventRouterOutput:
-    return router_output(
+def _event(text: str) -> CanonicalEventRecord:
+    return canonical_event(
         event_id="evt_group",
         facts=[ObservableFact.all(text)],
         observer_ids=["alice"],
-        event_kind="cascade_exhausted",
     )
 
 
@@ -126,7 +125,7 @@ def test_first_meeting_plan_caps_by_tier_and_leaves_overflow_unintroduced():
         ],
     )
     event = _event("Utility A, Standard A, Premium A, Utility B, and Standard B enter.")
-    resolved = [(RenderBufferEntry(event_id=event.event_id), event)]
+    resolved = [(narrator_event_ref(event_id=event.event_id), event)]
 
     first = plan_render_visual_introductions(
         ckpt,
@@ -178,7 +177,7 @@ def test_first_meeting_plan_uses_explicit_loadout_not_raw_appearance():
     plan = plan_render_visual_introductions(
         ckpt,
         viewer_id="alice",
-        resolved=[(RenderBufferEntry(event_id=event.event_id), event)],
+        resolved=[(narrator_event_ref(event_id=event.event_id), event)],
         max_loadouts=3,
     )
 
@@ -195,7 +194,7 @@ def test_one_star_master_first_look_is_veiled_until_reveal_threshold():
     )
     renna.status = "active"
     event = _event("Renna Holt steps into the lobby courtyard.")
-    resolved = [(RenderBufferEntry(event_id=event.event_id), event)]
+    resolved = [(narrator_event_ref(event_id=event.event_id), event)]
 
     veiled = plan_render_visual_introductions(
         ckpt,
@@ -234,7 +233,7 @@ def test_narrator_first_meeting_excludes_public_bio_without_exterior():
     plan = plan_render_visual_introductions(
         ckpt,
         viewer_id="alice",
-        resolved=[(RenderBufferEntry(event_id=event.event_id), event)],
+        resolved=[(narrator_event_ref(event_id=event.event_id), event)],
         max_loadouts=3,
     )
 
@@ -314,7 +313,7 @@ def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
             viewer_id="bob",
             resolved=[
                 (
-                    RenderBufferEntry(
+                    narrator_event_ref(
                         event_id=event.event_id,
                         observation_level="direct",
                     ),
@@ -414,7 +413,7 @@ def test_remote_references_preserve_later_physical_introduction():
                     viewer_id="bob",
                     resolved=[
                         (
-                            RenderBufferEntry(
+                            narrator_event_ref(
                                 event_id=remote_event.event_id,
                                 observation_level="direct",
                             ),
@@ -447,7 +446,7 @@ def test_remote_references_preserve_later_physical_introduction():
                     viewer_id="bob",
                     resolved=[
                         (
-                            RenderBufferEntry(
+                            narrator_event_ref(
                                 event_id=meeting_event.event_id,
                                 observation_level="direct",
                             ),
@@ -518,7 +517,7 @@ def test_narrator_remote_references_do_not_consume_intro_before_copresence():
             viewer_id="alice",
             resolved=[
                 (
-                    RenderBufferEntry(
+                    narrator_event_ref(
                         event_id=event.event_id,
                         observation_level="direct",
                     ),
@@ -538,7 +537,7 @@ def test_narrator_remote_references_do_not_consume_intro_before_copresence():
         viewer_id="alice",
         resolved=[
             (
-                RenderBufferEntry(
+                narrator_event_ref(
                     event_id=meeting.event_id,
                     observation_level="direct",
                 ),

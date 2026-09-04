@@ -50,7 +50,7 @@ def _render_system_and_user_template(checkpoint, character) -> tuple[str, str]:
         format_pending_observations_block,
     )
     from app.engine.prompt_manager import PromptManager
-    from app.engine.turn_loop_contracts import format_character_moment
+    from app.engine.story_contracts import format_character_moment
 
     pm = PromptManager()
     current_moment = "\n\n".join(

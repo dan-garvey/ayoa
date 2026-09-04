@@ -185,7 +185,7 @@ def test_runtime_character_prompts_do_not_contain_evaluator_vocabulary():
 
 def test_turn_prompt_does_not_restore_fixed_or_clipped_response_shape():
     prompt = Path("app/prompts/agent_turn.txt").read_text()
-    frame_source = Path("app/engine/turn_loop_contracts.py").read_text()
+    frame_source = Path("app/engine/story_contracts.py").read_text()
 
     forbidden = (
         r"\bone observable contribution\b",

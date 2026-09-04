@@ -35,6 +35,7 @@ from app.engine.frontend_views import (
     RetryRenderResult,
     StoryOnboardingChoiceView,
 )
+from app.engine.delivery_outbox import enqueue_delivery
 from app.engine.image_job_store import VisualNovelStageResolution
 from app.engine.player_media import ResolvedPlayerMedia
 from app.engine.visual_novel_presentation import (
@@ -46,6 +47,7 @@ from app.engine.visual_novel_sprites import VisualNovelSpriteIdentityTransition
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_pack import SafeAssetRevealPayload
+from app.schemas.delivery import DeliveryPayload, NarratorEventRef, NarratorRenderJob
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.narrator import VisualNovelPage
 from app.schemas.responses import (
@@ -54,12 +56,7 @@ from app.schemas.responses import (
     VisualNovelRender,
     VisualNovelRenderSegment,
 )
-from app.schemas.state import (
-    PendingNarratorRender,
-    SessionState,
-    StorySetting,
-    WorldState,
-)
+from app.schemas.state import SessionState, StorySetting, WorldState
 
 
 # ---- F3.9: admin env parsing ------------------------------------------------
@@ -655,14 +652,14 @@ class TestEngineBridgeVisualNovelPresentation:
 
 
 class TestEngineBridgeQuery:
-    def test_run_query_routes_through_turn_loop(self, mock_bridge: EngineBridge):
+    def test_run_query_routes_through_story_coordinator(self, mock_bridge: EngineBridge):
         response = TurnResponse(
             session_id="s",
             checkpoint_id="ckpt_0001",
             turn_index=1,
             output_text="You can see Pip's red coat.",
             per_player_renders={"alice": "You can see Pip's red coat."},
-            beat_ended_reason="query_response",
+            pause_reason="query_response",
         )
         mock_bridge.run_turn = AsyncMock(return_value=response)
 
@@ -691,13 +688,27 @@ class TestEngineBridgeRetry:
             session=SessionState(
                 session_id="session",
                 character_bindings={"alice": "42"},
-                pending_narrator_render=PendingNarratorRender(
-                    ended_reason="response_requested",
-                    events_closed=1,
-                    event_actor_ids=["alice"],
-                    acting_player_id="alice",
-                    acting_player_input="I look around",
-                ),
+                narrator_render_jobs=[NarratorRenderJob(
+                    job_id="narrator_retry",
+                    lane_id="lane_alice",
+                    pov_character_id="alice",
+                    source_event_ids=["evt_one"],
+                    event_refs=[NarratorEventRef(
+                        event_id="evt_one",
+                        observation_level="direct",
+                        visible_at_s=0,
+                        event_sequence=0,
+                        sprite_variant_keys_by_character_id={},
+                    )],
+                    highest_event_sequence=0,
+                    created_revision=1,
+                    user_input="I look around",
+                    partial_mode=False,
+                    narration_mode="event_aligned",
+                    status="failed",
+                    attempts=1,
+                    last_error="temporary failure",
+                )],
             ),
             world_state=WorldState(),
             characters=[CharacterRecord(character_id="alice", name="Alice")],
@@ -709,7 +720,7 @@ class TestEngineBridgeRetry:
             turn_index=1,
             output_text="Recovered POV",
             per_player_renders={"alice": "Recovered POV"},
-            beat_ended_reason="response_requested",
+            pause_reason="response_requested",
         )
         mock_bridge.sweep_stale_pins = MagicMock()
         mock_bridge.orchestrator.retry_pending_narrator_render = AsyncMock(
@@ -726,6 +737,88 @@ class TestEngineBridgeRetry:
         mock_bridge.orchestrator.process_turn.assert_not_called()
         retry = mock_bridge.orchestrator.retry_pending_narrator_render
         retry.assert_awaited_once_with("session")
+
+
+class TestEngineBridgeStoryDelivery:
+    def test_claim_pending_delivery_filters_by_current_bindings(
+        self,
+        mock_bridge: EngineBridge,
+    ):
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="delivery",
+                character_bindings={"alice": "42"},
+                turn_index=3,
+            ),
+            world_state=WorldState(),
+            characters=[
+                CharacterRecord(character_id="alice", name="Alice"),
+                CharacterRecord(character_id="bob", name="Bob"),
+            ],
+        )
+        for character_id in ("alice", "bob"):
+            enqueue_delivery(
+                ckpt,
+                pov_character_id=character_id,
+                source_event_ids=[],
+                highest_event_sequence=-1,
+                payload=DeliveryPayload(
+                    prose=f"For {character_id}",
+                    visual_novel=None,
+                    asset_reveals=[],
+                    reaction_prompt_event_id="",
+                    loot_offer_ids=[],
+                    commitment_revision_ids=[],
+                    dice_rolls=[],
+                    experience_awards=[],
+                    owner_error="",
+                ),
+            )
+        mock_bridge.checkpoint_mgr.save(ckpt)
+
+        response = asyncio.run(mock_bridge.claim_pending_turn_deliveries(
+            session_id="delivery",
+            consumer_id="discord:channel:user",
+            pov_character_ids=["alice", "bob"],
+            expected_bindings={"alice": "42", "bob": "99"},
+        ))
+
+        assert [item.pov_character_id for item in response.deliveries] == ["alice"]
+        reloaded = mock_bridge.load_latest("delivery")
+        statuses = {
+            item.pov_character_id: item.status
+            for item in reloaded.session.delivery_outbox
+        }
+        assert statuses == {"alice": "claimed", "bob": "pending"}
+
+    def test_frontend_activation_resumes_sessions_with_durable_frontier(
+        self,
+        mock_bridge: EngineBridge,
+    ):
+        from app.schemas.event_router import FrontierTurn
+
+        ckpt = CheckpointFile(
+            session=SessionState(session_id="resume"),
+            world_state=WorldState(),
+            characters=[CharacterRecord(character_id="bob", name="Bob")],
+        )
+        ckpt.session.router_frontier.append(FrontierTurn(
+            turn_id="turn_bob",
+            lane_id="lane_bob",
+            turn_kind="character",
+            actor_id="bob",
+            participant_ids=["bob"],
+            source_event_ids=[],
+            created_event_sequence=0,
+            gating_pov_ids=[],
+        ))
+        mock_bridge.checkpoint_mgr.save(ckpt)
+        mock_bridge.orchestrator.schedule_autonomous = MagicMock()
+
+        resumed = mock_bridge.resume_autonomous_sessions(["resume"])
+
+        assert resumed == 1
+        mock_bridge.orchestrator.schedule_autonomous.assert_called_once_with("resume")
 
     def test_retry_failed_render_noops_when_no_pending_render(
         self,
@@ -745,7 +838,7 @@ class TestEngineBridgeRetry:
         assert result.actor_character_id == ""
         assert result.actor_user_id == ""
         assert result.response.turn_index == 3
-        assert result.response.beat_ended_reason == "no_pending_render"
+        assert result.response.pause_reason == "no_pending_render"
         assert "No failed narrator render" in result.response.output_text
         mock_bridge.orchestrator.retry_pending_narrator_render.assert_not_called()
         mock_bridge.orchestrator.process_turn.assert_not_called()
@@ -773,7 +866,7 @@ class TestRetryCommandDelivery:
             turn_index=2,
             output_text="Recovered POV",
             per_player_renders={"alice": "Recovered POV"},
-            beat_ended_reason="response_requested",
+            pause_reason="response_requested",
         )
         result = RetryRenderResult(
             response=response,
@@ -850,7 +943,7 @@ class TestRetryCommandDelivery:
             turn_index=2,
             output_text="No failed narrator render is pending for this session.",
             per_player_renders={},
-            beat_ended_reason="no_pending_render",
+            pause_reason="no_pending_render",
         )
         engine = MagicMock()
         engine.retry_failed_render = AsyncMock(
@@ -1068,7 +1161,7 @@ class TestQueryCommandDelivery:
             turn_index=2,
             output_text="You can see Pip's red coat.",
             per_player_renders={"alice": "You can see Pip's red coat."},
-            beat_ended_reason="query_response",
+            pause_reason="query_response",
         )
 
         engine = MagicMock()
@@ -1346,7 +1439,7 @@ class TestOneStarMasterCommands:
             turn_index=2,
             output_text="The selection opens.",
             per_player_renders={"owner": "The selection opens."},
-            beat_ended_reason="cat_ii_pending",
+            pause_reason="cat_ii_pending",
         )
         engine.run_one_star_synthesis_command = AsyncMock(return_value=response)
         deliver = AsyncMock()
@@ -1391,7 +1484,7 @@ class TestTurnResponseDelivery:
             turn_index=3,
             output_text="The answer lands as narrator prose.",
             per_player_renders={"alice": "The answer lands as narrator prose."},
-            beat_ended_reason="query_response",
+            pause_reason="query_response",
         )
 
         engine = MagicMock()
@@ -1464,7 +1557,7 @@ class TestTurnResponseDelivery:
             turn_index=3,
             output_text="Secret actor-only result.",
             per_player_renders={"alice": "Secret actor-only result."},
-            beat_ended_reason="query_response",
+            pause_reason="query_response",
         )
         engine = MagicMock()
         engine.load_latest.return_value = SimpleNamespace(
@@ -1531,7 +1624,7 @@ class TestTurnResponseDelivery:
             turn_index=1,
             output_text="Alice's private opening.",
             per_player_renders={"alice": "Alice's private opening."},
-            beat_ended_reason="state_change",
+            pause_reason="state_change",
         )
         engine = MagicMock()
         engine.get_user_binding.return_value = "alice"
@@ -1586,7 +1679,7 @@ class TestTurnResponseDelivery:
             output_text="The answer lands as narrator prose.",
             per_player_renders={"alice": "The answer lands as narrator prose."},
             per_player_asset_reveals={"alice": [_asset_payload()]},
-            beat_ended_reason="query_response",
+            pause_reason="query_response",
         )
 
         engine = MagicMock()
@@ -1677,7 +1770,7 @@ class TestTurnResponseDelivery:
             turn_index=6,
             output_text="Alice's strike lands.",
             per_player_renders={"alice": "Alice's strike lands."},
-            beat_ended_reason="ruleset_resolution",
+            pause_reason="ruleset_resolution",
             dice_rolls=[roll],
         )
 
@@ -1748,7 +1841,7 @@ class TestTurnResponseDelivery:
             turn_index=4,
             output_text="Bob can react.",
             per_player_renders={"bob": "Bob can react."},
-            beat_ended_reason="combat_reaction_pending",
+            pause_reason="combat_reaction_pending",
             reaction_prompts={"bob": "evt_react"},
         )
 
@@ -1810,7 +1903,7 @@ class TestTurnResponseDelivery:
             turn_index=5,
             output_text="The room changes around Alice.",
             per_player_renders={"alice": "The room changes around Alice."},
-            beat_ended_reason="state_change",
+            pause_reason="state_change",
             commitment_revision_prompts={"alice": ["commit_watch"]},
         )
 
@@ -1880,7 +1973,12 @@ class TestEngineBridgeSweepHook:
         from datetime import datetime, timedelta, timezone
 
         from app.schemas.checkpoint import CheckpointFile
-        from app.schemas.state import OpenCatIIEvent, SessionState, WorldState
+        from app.schemas.state import (
+            ActionObligation,
+            OpenCatIIEvent,
+            SessionState,
+            WorldState,
+        )
 
         session_id = "swtest"
         ckpt = CheckpointFile(
@@ -1900,6 +1998,11 @@ class TestEngineBridgeSweepHook:
         )
         evt.opened_at = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
         ckpt.session.open_cat_ii_events.append(evt)
+        ckpt.session.action_obligations["alice"] = ActionObligation(
+            kind="cat_ii_response",
+            source_event_id="evt_a",
+            claimed_at=evt.opened_at,
+        )
 
         mock_bridge.checkpoint_mgr.save(ckpt)
 
@@ -1928,17 +2031,16 @@ class TestEngineBridgeSweepHook:
 
 
 class TestPurgeOnUnbind:
-    """unbind_user must call purge_character_state so a /leave mid-beat
-    doesn't strand slot pins, responder entries, or render buffers."""
+    """Unbinding clears POV-only work without deleting semantic NPC work."""
 
     async def test_unbind_user_calls_purge(self, mock_bridge):
         from app.schemas.characters import CharacterRecord, PublicSheet
         from app.schemas.checkpoint import CheckpointFile
+        from app.schemas.delivery import NarratorEventRef, NarratorRenderJob
         from app.schemas.state import (
+            ActionObligation,
             OpenCatIIEvent,
-            RenderBufferEntry,
             SessionState,
-            SlotEntry,
             WorldState,
         )
 
@@ -1966,14 +2068,32 @@ class TestPurgeOnUnbind:
             required_responders=["bob"],
         )
         ckpt.session.open_cat_ii_events.append(evt)
-        ckpt.session.active_act_slots["bob"] = SlotEntry(
-            reason="cat_ii_responder",
-            cat_ii_event_id="evt_b",
-            claimed_at="",
+        ckpt.session.action_obligations["bob"] = ActionObligation(
+            kind="cat_ii_response",
+            source_event_id="evt_b",
+            claimed_at="2026-01-01T00:00:00+00:00",
         )
-        ckpt.session.render_buffers["bob"] = [
-            RenderBufferEntry(event_id="evt_prior", observation_level="direct"),
-        ]
+        ckpt.session.narrator_render_jobs = [NarratorRenderJob(
+            job_id="narrator_bob",
+            lane_id="lane_bob",
+            pov_character_id="bob",
+            source_event_ids=["evt_prior"],
+            event_refs=[NarratorEventRef(
+                event_id="evt_prior",
+                observation_level="direct",
+                visible_at_s=0,
+                event_sequence=0,
+                sprite_variant_keys_by_character_id={},
+            )],
+            highest_event_sequence=0,
+            created_revision=0,
+            user_input="",
+            partial_mode=False,
+            narration_mode="event_aligned",
+            status="pending",
+            attempts=0,
+            last_error="",
+        )]
         mock_bridge.checkpoint_mgr.save(ckpt)
 
         freed = await mock_bridge.unbind_user(session_id, 77)
@@ -1982,14 +2102,13 @@ class TestPurgeOnUnbind:
         reloaded = mock_bridge.load_latest(session_id)
         # Binding gone.
         assert "bob" not in reloaded.session.character_bindings
-        # Slot pin gone.
-        assert "bob" not in reloaded.session.active_act_slots
-        # Bob removed from the open event's required_responders.
-        assert not any(
+        assert "bob" not in reloaded.session.action_obligations
+        # The ordinary authored character becomes autonomous, so its semantic
+        # contest responsibility remains live.
+        assert any(
             "bob" in e.required_responders for e in reloaded.session.open_cat_ii_events
         )
-        # Render buffer swept.
-        assert "bob" not in reloaded.session.render_buffers
+        assert not reloaded.session.narrator_render_jobs
 
 
 class TestApplyRosterUpdatesPurgesCulled:
@@ -1999,7 +2118,7 @@ class TestApplyRosterUpdatesPurgesCulled:
         from app.engine.character_manager import CharacterManager
         from app.schemas.characters import CharacterRecord, PublicSheet
         from app.schemas.checkpoint import CheckpointFile
-        from tests.support.factories import router_output
+        from tests.support.factories import canonical_event
         from app.schemas.state import OpenCatIIEvent, SessionState, WorldState
 
         ckpt = CheckpointFile(
@@ -2024,7 +2143,11 @@ class TestApplyRosterUpdatesPurgesCulled:
             )
         )
 
-        routed = router_output(facts=[], cull=["villain"])
+        routed = canonical_event(
+            observer_ids=[],
+            facts=[],
+            cull=["villain"],
+        )
         mgr = CharacterManager()
         mgr.apply_roster_updates(ckpt, routed)
         # Event initiated by the culled character is abandoned.
@@ -2058,13 +2181,13 @@ class TestSweepDrivesReadjudication:
         mock_bridge.orchestrator.resolve_cat_ii = AsyncMock(
             return_value=TurnResponse(
                 session_id="session",
-                beat_ended_reason="cat_ii_resolution",
+                pause_reason="cat_ii_resolution",
             )
         )
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
                 session_id="session",
-                beat_ended_reason="response_requested",
+                pause_reason="response_requested",
             )
         )
 
@@ -2086,7 +2209,7 @@ class TestSweepDrivesReadjudication:
         # the caller's /act should never be silently dropped.
         assert mock_bridge.orchestrator.process_turn.await_count == 1
         # run_turn returns the process_turn result, not resolve_cat_ii's.
-        assert result.beat_ended_reason == "response_requested"
+        assert result.pause_reason == "response_requested"
 
     def test_resolve_cat_ii_failure_does_not_block_current_act(
         self,
@@ -2103,7 +2226,7 @@ class TestSweepDrivesReadjudication:
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
                 session_id="session",
-                beat_ended_reason="response_requested",
+                pause_reason="response_requested",
             )
         )
 
@@ -2117,7 +2240,7 @@ class TestSweepDrivesReadjudication:
         result = asyncio.run(run())
         mock_bridge.orchestrator.resolve_cat_ii.assert_awaited_once()
         assert mock_bridge.orchestrator.process_turn.await_count == 1
-        assert result.beat_ended_reason == "response_requested"
+        assert result.pause_reason == "response_requested"
 
     def test_process_turn_pre_resolutions_are_preserved(
         self,
@@ -2134,12 +2257,12 @@ class TestSweepDrivesReadjudication:
             turn_index=5,
             output_text="The rat lunges.",
             per_player_renders={"alice": "The rat lunges."},
-            beat_ended_reason="response_requested",
+            pause_reason="response_requested",
         )
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
                 session_id="session",
-                beat_ended_reason="response_requested",
+                pause_reason="response_requested",
                 pre_turn_resolutions=[npc_response],
             )
         )
@@ -2187,7 +2310,7 @@ class TestRunArrivalTurnDirective:
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
                 session_id="session",
-                beat_ended_reason="response_requested",
+                pause_reason="response_requested",
             )
         )
 
@@ -2211,7 +2334,7 @@ class TestRunArrivalTurnDirective:
         call_kwargs = mock_bridge.orchestrator.process_turn.call_args.args[0]
         assert call_kwargs.user_input == "(arrive)"
         assert call_kwargs.acting_character_id == "alice"
-        assert response.beat_ended_reason == "response_requested"
+        assert response.pause_reason == "response_requested"
 
     def test_session_with_prior_narrator_history_fires_arrive(
         self,
@@ -2269,7 +2392,7 @@ class TestRunArrivalTurnDirective:
             recorded_directives.append(req.user_input)
             return TurnResponse(
                 session_id="session",
-                beat_ended_reason="response_requested",
+                pause_reason="response_requested",
             )
 
         mock_bridge.orchestrator.process_turn = AsyncMock(
@@ -2326,7 +2449,7 @@ class TestRunBeginTurn:
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
                 session_id="session",
-                beat_ended_reason="state_change",
+                pause_reason="state_change",
             )
         )
 
@@ -2369,7 +2492,7 @@ class TestRunBeginTurn:
         call_args = mock_bridge.orchestrator.process_turn.call_args.args[0]
         assert call_args.user_input == "(begin)"
         assert call_args.acting_character_id == "alice"
-        assert response.beat_ended_reason == "state_change"
+        assert response.pause_reason == "state_change"
 
     def test_one_star_duo_newcomer_trigger_uses_bound_owner_authority(
         self,
@@ -2536,7 +2659,7 @@ class TestRunBeginTurn:
             ]
             return TurnResponse(
                 session_id="session",
-                beat_ended_reason="state_change",
+                pause_reason="state_change",
             )
 
         mock_bridge.orchestrator.process_turn = AsyncMock(
@@ -3228,7 +3351,7 @@ class TestVisualNovelDiscordDeck:
             per_player_renders={
                 "the_master": "The summoning room opens around you."
             },
-            beat_ended_reason="state_change",
+            pause_reason="state_change",
         ))
         engine.load_visual_novel_deck.return_value = deck
         monkeypatch.setattr(

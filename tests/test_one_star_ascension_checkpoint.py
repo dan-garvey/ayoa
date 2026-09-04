@@ -118,11 +118,14 @@ def _may_act_offstage(character: object) -> bool:
 def test_checkpoint_loads_as_typed_one_star_story() -> None:
     checkpoint = _load_checkpoint()
 
-    assert checkpoint.schema_version == "6.0"
+    assert checkpoint.schema_version == "7.0"
     assert checkpoint.session.story_id == "one_star_ascension_s1"
     assert checkpoint.session.session_id == "one_star_ascension_s1"
     assert checkpoint.session.config.settings.ruleset_id == ONE_STAR_RULESET_ID
-    assert checkpoint.session.config.settings.max_agent_cascades_per_beat == 5
+    assert (
+        checkpoint.session.config.settings.max_router_batches_without_player_input
+        == 12
+    )
     assert checkpoint.world_state.physics_ruleset.magic_enabled is True
     assert checkpoint.session.active_combat is None
     owners = [
@@ -444,7 +447,7 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     }
     assert set(config.floor_scenarios) == {1, 2, 3, 4, 5}
     floor_one = config.floor_scenarios[1]
-    assert floor_one.model_dump(exclude={"pressure_beats"}) == {
+    assert floor_one.model_dump(exclude={"pressures"}) == {
         "mission_id": "floor_1_goblin_ambush",
         "destination": "tower_floor_1_goblin_ambush",
         "premise": "Survive the goblin ambush.",
@@ -458,8 +461,8 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
             {"counter_id": "ambush_survived", "current": 0, "target": 1},
         ],
     }
-    assert len(floor_one.pressure_beats) == 2
-    opening_pressure, edren_pressure = floor_one.pressure_beats
+    assert len(floor_one.pressures) == 2
+    opening_pressure, edren_pressure = floor_one.pressures
     assert "armed goblins already rushing to kill them" in opening_pressure
     assert "no safe briefing" in opening_pressure.lower()
     assert "puzzle mechanism" in opening_pressure
@@ -471,13 +474,13 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert "kill him horribly" in edren_pressure
     assert config.floor_scenarios[2].counters[0].current == 0
     assert config.floor_scenarios[2].counters[0].target == 1
-    assert "trapped scavenger" in config.floor_scenarios[2].pressure_beats[0]
+    assert "trapped scavenger" in config.floor_scenarios[2].pressures[0]
     assert config.floor_scenarios[3].counters[0].target == 3
-    assert "Echoes copy" in config.floor_scenarios[3].pressure_beats[0]
+    assert "Echoes copy" in config.floor_scenarios[3].pressures[0]
     assert config.floor_scenarios[4].counters[0].target == 2
-    assert "safe exit" in config.floor_scenarios[4].pressure_beats[0]
+    assert "safe exit" in config.floor_scenarios[4].pressures[0]
     assert config.floor_scenarios[5].counters[0].target == 300
-    floor_five_pressure = config.floor_scenarios[5].pressure_beats[0]
+    floor_five_pressure = config.floor_scenarios[5].pressures[0]
     assert "optional to the System" in floor_five_pressure
     assert "survival condition" in floor_five_pressure
     assert config.repeat_gold_numerator == 1

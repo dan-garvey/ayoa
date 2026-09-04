@@ -12,7 +12,7 @@ from app.schemas.dnd_inventory import (
     DndLootOfferItem,
     DndLootOfferSignal,
 )
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.event_router import CanonicalEventRecord
 
 
 _COIN_KEYS = ("cp", "sp", "ep", "gp", "pp")
@@ -34,7 +34,7 @@ def inventory_view(character: CharacterRecord) -> dict[str, Any]:
 
 def apply_loot_offers_from_events(
     ckpt: CheckpointFile,
-    events: Iterable[EventRouterOutput],
+    events: Iterable[CanonicalEventRecord],
 ) -> dict[str, list[str]]:
     """Copy router-authored D&D loot signals into pending checkpoint offers.
 
@@ -376,7 +376,7 @@ def _currency_dict(raw: dict[str, Any]) -> dict[str, int]:
 
 def _eligible_ids_for_signal(
     ckpt: CheckpointFile,
-    event: EventRouterOutput,
+    event: CanonicalEventRecord,
     signal: DndLootOfferSignal,
 ) -> list[str]:
     active_ids = {char.character_id for char in ckpt.characters}
@@ -388,7 +388,7 @@ def _eligible_ids_for_signal(
     ]
     if eligible:
         return list(dict.fromkeys(eligible))
-    observer_ids = [obs.character_id for obs in event.observers]
+    observer_ids = event.observer_ids
     return [
         cid
         for cid in dict.fromkeys(observer_ids)

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from dataclasses import dataclass, field
 from collections.abc import Iterable, Mapping
 
@@ -36,12 +35,7 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
-from app.schemas.event_router import (
-    EventRouterOutput,
-    ObserverEntry,
-    SpawnRequest,
-    WakeSignal,
-)
+from app.schemas.event_router import SpawnRequest, WakeSignal
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
     ONE_STAR_COMBATANT_KEY,
@@ -170,907 +164,6 @@ class OneStarSummonDraw:
 def is_one_star_checkpoint(checkpoint: CheckpointFile) -> bool:
     return checkpoint.session.config.settings.ruleset_id == ONE_STAR_RULESET_ID
 
-
-def one_star_active_mission_has_bound_party_member(
-    checkpoint: CheckpointFile,
-) -> bool:
-    """Return whether a live One-Star mission includes a human-held Hero."""
-
-    if not is_one_star_checkpoint(checkpoint):
-        return False
-    try:
-        _owner, account = load_one_star_account(checkpoint)
-    except (OneStarTransactionError, ValidationError):
-        return False
-    mission = account.state.active_mission
-    return bool(
-        mission is not None
-        and set(mission.party_ids) & set(checkpoint.session.character_bindings)
-    )
-
-
-def one_star_master_has_human_led_mission(
-    checkpoint: CheckpointFile,
-    *,
-    actor_id: str,
-) -> bool:
-    """Return whether this Master turn must stay off a human-led floor."""
-
-    if not is_one_star_checkpoint(checkpoint):
-        return False
-    try:
-        owner, account = load_one_star_account(checkpoint)
-    except (OneStarTransactionError, ValidationError):
-        return False
-    mission = account.state.active_mission
-    return bool(
-        mission is not None
-        and actor_id.strip() == owner.character_id
-        and set(mission.party_ids) & set(checkpoint.session.character_bindings)
-    )
-
-
-def one_star_master_may_act_while_mission_responder_pinned(
-    checkpoint: CheckpointFile,
-    *,
-    actor_id: str,
-) -> bool:
-    """Admit the Master beside only live human mission-response pins."""
-
-    if not one_star_master_has_human_led_mission(
-        checkpoint,
-        actor_id=actor_id,
-    ):
-        return False
-    try:
-        _owner, account = load_one_star_account(checkpoint)
-    except (OneStarTransactionError, ValidationError):
-        return False
-    mission = account.state.active_mission
-    if mission is None:  # Guarded above; retain a narrow type-safe boundary.
-        return False
-    conflicting_ids = set(checkpoint.session.active_act_slots) - {actor_id}
-    if not conflicting_ids:
-        return False
-    bindings = checkpoint.session.character_bindings
-    open_events = {
-        event.event_id: event for event in checkpoint.session.open_cat_ii_events
-    }
-    for character_id in conflicting_ids:
-        slot = checkpoint.session.active_act_slots[character_id]
-        open_event = open_events.get(slot.cat_ii_event_id or "")
-        if (
-            character_id not in mission.party_ids
-            or character_id not in bindings
-            or slot.reason != "cat_ii_responder"
-            or open_event is None
-            or character_id not in open_event.required_responders
-            or character_id in open_event.collected_intentions
-        ):
-            return False
-    return True
-
-
-def _one_star_lobby_safe_locations(
-    config: OneStarRulesConfig,
-) -> set[str]:
-    return {
-        config.lobby_location_label,
-        *(
-            requirement.required_location
-            for kind, requirement in config.operation_requirements.items()
-            if kind != "deployment" and requirement.required_location
-        ),
-    }
-
-
-def _one_star_mission_watch_requested(user_input: str) -> bool:
-    normalized = " ".join((user_input or "").lower().split())
-    if normalized in {"(defer)", "/defer", "defer"}:
-        return True
-    words = set(re.findall(r"[a-z]+", normalized))
-    return bool(
-        words
-        & {
-            "mission",
-            "tower",
-            "floor",
-            "deployed",
-            "deployment",
-            "party",
-        }
-        and words & {"watch", "observe", "monitor", "view", "status", "check"}
-    )
-
-
-def _one_star_human_led_lobby_hero_is_safe(
-    checkpoint: CheckpointFile,
-    *,
-    character_id: str,
-    account: OneStarAccountEnvelope,
-    allowed_locations: set[str],
-) -> bool:
-    mission = account.state.active_mission
-    if mission is None or character_id in mission.party_ids:
-        return False
-    character = next(
-        (
-            candidate
-            for candidate in checkpoint.characters
-            if candidate.character_id == character_id
-        ),
-        None,
-    )
-    hero = load_one_star_hero(character) if character is not None else None
-    return bool(
-        character is not None
-        and character.status == CharacterStatus.active
-        and hero is not None
-        and hero.owner_lobby_id == account.config.lobby_id
-        and character.location in allowed_locations
-    )
-
-
-def _one_star_human_led_lobby_guide_is_safe(
-    checkpoint: CheckpointFile,
-    *,
-    character_id: str,
-    account: OneStarAccountEnvelope,
-    allowed_locations: set[str],
-) -> bool:
-    mission = account.state.active_mission
-    if (
-        mission is None
-        or character_id in mission.party_ids
-        or character_id not in account.state.guide_character_ids
-    ):
-        return False
-    character = next(
-        (
-            candidate
-            for candidate in checkpoint.characters
-            if candidate.character_id == character_id
-        ),
-        None,
-    )
-    return bool(
-        character is not None
-        and character.status == CharacterStatus.active
-        and character.location in allowed_locations
-    )
-
-
-def _one_star_human_led_lobby_recipient_is_safe(
-    checkpoint: CheckpointFile,
-    *,
-    character_id: str,
-    account: OneStarAccountEnvelope,
-    allowed_locations: set[str],
-) -> bool:
-    mission = account.state.active_mission
-    if mission is None or character_id in mission.party_ids:
-        return False
-    character = next(
-        (
-            candidate
-            for candidate in checkpoint.characters
-            if candidate.character_id == character_id
-        ),
-        None,
-    )
-    return bool(
-        character is not None
-        and character.status == CharacterStatus.active
-        and character.location in allowed_locations
-    )
-
-
-def _one_star_human_led_watch_query_is_safe(
-    result: EventRouterOutput,
-    *,
-    actor_id: str,
-    owner_id: str,
-) -> bool:
-    """Allow a zero-time Master view without creating floor-side fiction."""
-
-    owner_observer_only = bool(
-        len(result.observers) == 1
-        and result.observers[0].character_id == owner_id
-        and result.observers[0].routing_role == "observe_only"
-    )
-    owner_facts_only = all(
-        fact.audience == "only"
-        and fact.visible_to == [owner_id]
-        for fact in result.canonical_event.observable_facts
-    )
-
-    return bool(
-        actor_id == owner_id
-        and result.event_kind == "query_response"
-        and result.duration_s == 0
-        and owner_observer_only
-        and owner_facts_only
-        and not getattr(result, "state_updates", ())
-        and not result.requires_responders
-        and not result.required_responders
-        and not result.next_output_character_ids
-        and not result.perception_enrichment_character_ids
-        and not result.spawn
-        and not result.activate
-        and not result.dormant
-        and not result.cull
-        and not result.commitment_open.present
-        and not result.commitment_resolutions
-        and not result.commitment_interrupts
-        and not result.location_updates
-    )
-
-
-def validate_one_star_human_led_mission_result(
-    checkpoint: CheckpointFile,
-    *,
-    actor_id: str,
-    result: EventRouterOutput,
-) -> None:
-    """Keep every event in a Master-started beat off a human-led floor.
-
-    The guard lasts for the whole active mission, not only while a remote player
-    owns a Cat II responder slot. ``actor_id`` is the actual producer of this
-    event, so a routed guide may deliver a lobby tutorial without acquiring the
-    Master's broader management authority. Ordinary transaction preparation
-    still owns detailed costs and operation semantics; this helper proves that
-    every event in the beat remains on the disjoint lobby side. A zero-duration
-    Master query is the sole exception: it may observe or depict the party but
-    cannot route it or author any fictional or durable change.
-    """
-
-    if not is_one_star_checkpoint(checkpoint):
-        return
-    owner, account = load_one_star_account(checkpoint)
-    mission = account.state.active_mission
-    if (
-        mission is None
-        or not set(mission.party_ids) & set(checkpoint.session.character_bindings)
-    ):
-        raise OneStarTransactionError(
-            "human-led mission guard requires an active bound mission party"
-        )
-    party_ids = set(mission.party_ids)
-    safe_locations = _one_star_lobby_safe_locations(account.config)
-    clean_actor_id = actor_id.strip()
-    actor_is_owner = clean_actor_id == owner.character_id
-    actor_is_guide = _one_star_human_led_lobby_guide_is_safe(
-        checkpoint,
-        character_id=clean_actor_id,
-        account=account,
-        allowed_locations=safe_locations,
-    )
-    actor_is_lobby_hero = _one_star_human_led_lobby_hero_is_safe(
-        checkpoint,
-        character_id=clean_actor_id,
-        account=account,
-        allowed_locations=safe_locations,
-    )
-    if not (actor_is_owner or actor_is_guide or actor_is_lobby_hero):
-        raise OneStarTransactionError(
-            "human-led mission beat produced an event from a mission-party or "
-            "non-lobby actor"
-        )
-
-    if result.event_kind == "query_response":
-        if _one_star_human_led_watch_query_is_safe(
-            result,
-            actor_id=clean_actor_id,
-            owner_id=owner.character_id,
-        ):
-            return
-        raise OneStarTransactionError(
-            "human-led mission watch queries must be zero-duration, Master-only, "
-            "and free of routing, lifecycle, commitment, location, and state changes"
-        )
-
-    def require_safe_hero(character_id: str) -> None:
-        if not _one_star_human_led_lobby_hero_is_safe(
-            checkpoint,
-            character_id=character_id,
-            account=account,
-            allowed_locations=safe_locations,
-        ):
-            raise OneStarTransactionError(
-                "human-led mission lobby event targets a mission-party or "
-                "non-lobby Hero"
-            )
-
-    structured_character_ids = {
-        *result.required_responders,
-        *(observer.character_id for observer in result.observers),
-        *(
-            character_id
-            for fact in result.canonical_event.observable_facts
-            for character_id in (
-                *fact.visible_to,
-                *fact.visual_subject_ids,
-            )
-        ),
-    }
-    if party_ids & structured_character_ids:
-        raise OneStarTransactionError(
-            "human-led mission lobby event cannot observe, route, or depict "
-            "mission-party Heroes"
-        )
-    for character_id in result.required_responders:
-        require_safe_hero(character_id)
-    for character_id in result.next_output_character_ids:
-        if _one_star_human_led_lobby_guide_is_safe(
-            checkpoint,
-            character_id=character_id,
-            account=account,
-            allowed_locations=safe_locations,
-        ):
-            continue
-        require_safe_hero(character_id)
-
-    if (
-        result.spawn
-        or result.activate
-        or result.dormant
-        or result.cull
-        or result.commitment_open.present
-        or result.commitment_resolutions
-        or result.commitment_interrupts
-    ):
-        raise OneStarTransactionError(
-            "human-led mission lobby event cannot author generic lifecycle or "
-            "commitment changes"
-        )
-    for location_update in result.location_updates:
-        require_safe_hero(location_update.character_id)
-        if (
-            location_update.location_label not in safe_locations
-            or location_update.location_label == mission.destination
-        ):
-            raise OneStarTransactionError(
-                "human-led mission lobby movement must remain inside configured "
-                "lobby facilities"
-            )
-
-    for update in getattr(result, "state_updates", ()):
-        if update.kind == "tutorial_delivery":
-            if not actor_is_guide:
-                raise OneStarTransactionError(
-                    "human-led mission tutorial delivery must be authored by an "
-                    "active configured lobby guide"
-                )
-            details = _state_update_details(update)
-            recipient_ids = details.get("recipient", [])
-            if not recipient_ids or any(
-                not _one_star_human_led_lobby_recipient_is_safe(
-                    checkpoint,
-                    character_id=character_id,
-                    account=account,
-                    allowed_locations=safe_locations,
-                )
-                for character_id in recipient_ids
-            ):
-                raise OneStarTransactionError(
-                    "human-led mission tutorial recipients must be active "
-                    "non-party characters in configured lobby facilities"
-                )
-            continue
-        if not actor_is_owner:
-            raise OneStarTransactionError(
-                "human-led mission autonomous lobby followers cannot author "
-                "account or mission state changes"
-            )
-        if update.kind in {"catalogue_apply", "gem_purchase"}:
-            continue
-        if update.kind == "summon":
-            pool = account.config.summon_pools.get(update.target_id.strip())
-            if not isinstance(pool, OneStarStandardSummonPool):
-                raise OneStarTransactionError(
-                    "human-led mission lobby turns may use only standard summon pools"
-                )
-            continue
-        if update.kind == "equipment_move":
-            destination = update.value.strip()
-            if destination != "account":
-                require_safe_hero(destination)
-            holders = []
-            for character in checkpoint.characters:
-                hero = load_one_star_hero(character)
-                if hero is not None and any(
-                    item.item_id == update.target_id.strip()
-                    for item in hero.equipment
-                ):
-                    holders.append(character.character_id)
-            for holder_id in holders:
-                require_safe_hero(holder_id)
-            continue
-        if update.kind == "pending_open":
-            if update.value.strip() not in {"synthesis", "promotion"}:
-                raise OneStarTransactionError(
-                    "human-led mission lobby turns cannot open a deployment"
-                )
-            details = _state_update_details(update)
-            affected = {
-                *details.get("participant", []),
-                *details.get("target_id", []),
-            }
-            if not affected:
-                raise OneStarTransactionError(
-                    "human-led mission lobby operation must identify its affected Heroes"
-                )
-            for character_id in affected:
-                require_safe_hero(character_id)
-            continue
-        if update.kind in {"pending_resolve", "pending_cancel"}:
-            pending = account.state.pending_operation
-            if (
-                pending is None
-                or pending.operation_id != update.target_id.strip()
-                or pending.kind not in {"synthesis", "promotion"}
-            ):
-                raise OneStarTransactionError(
-                    "human-led mission lobby resolution must target the open "
-                    "lobby operation"
-                )
-            for character_id in {
-                *pending.participant_ids,
-                *([pending.target_id] if pending.target_id else []),
-            }:
-                require_safe_hero(character_id)
-            continue
-        raise OneStarTransactionError(
-            f"One-Star {update.kind} cannot commit during a human-led mission "
-            "Master beat"
-        )
-
-
-def _one_star_mission_floor_character_ids(
-    checkpoint: CheckpointFile,
-    *,
-    owner_character_id: str,
-    party_ids: set[str],
-    destination: str,
-) -> set[str]:
-    return {
-        character.character_id
-        for character in checkpoint.characters
-        if (
-            character.status == CharacterStatus.active
-            and character.character_id != owner_character_id
-            and (
-                character.character_id in party_ids
-                or character.location == destination
-            )
-        )
-    }
-
-
-def _active_one_star_system_observer_ids(
-    checkpoint: CheckpointFile,
-    state: OneStarAccountState,
-) -> tuple[str, ...]:
-    characters = {
-        character.character_id: character
-        for character in checkpoint.characters
-        if character.character_id
-    }
-    return tuple(
-        character_id
-        for character_id in dict.fromkeys(
-            getattr(state, "system_observer_ids", ())
-        )
-        if (
-            character_id in characters
-            and characters[character_id].status == CharacterStatus.active
-        )
-    )
-
-
-def prepare_one_star_live_mission_observers(
-    checkpoint: CheckpointFile,
-    *,
-    actor_id: str,
-    result: EventRouterOutput,
-) -> tuple[str, ...]:
-    """Materialize configured live System mission observers.
-
-    The established event observer list is the sole delivery path.  A clear
-    System feed is direct perception even when its recipient remains in the
-    lobby, so broad mission facts may flow through ordinary event broadcast.
-    The feed grants knowledge only: before the terminal event it never grants
-    response ownership, physical presence, or authority over the floor.
-
-    The configured feed is engine authority, not a routing choice the model
-    can weaken or turn into physical presence. Normalize its observation and
-    presentation metadata deterministically: remote viewers receive direct
-    observation, remain passive before mission end, and never enter a floor
-    sprite roster merely because the router repeated their id in
-    ``visual_subject_ids``. Genuine responder or perception targeting remains
-    invalid below because that changes event semantics rather than metadata.
-
-    Returns the active remote System observer ids when ``result`` is a live
-    mission-floor event, otherwise an empty tuple.  Repeated calls are
-    idempotent so router validation and commit-time validation share the same
-    normalization.
-    """
-
-    if not is_one_star_checkpoint(checkpoint):
-        return ()
-    try:
-        owner, account = load_one_star_account(checkpoint)
-    except (OneStarTransactionError, ValidationError):
-        # Schema-only router fixtures can select the ruleset without carrying
-        # an account. The ordinary One-Star transaction path remains
-        # responsible for rejecting a malformed real checkpoint.
-        return ()
-    mission = getattr(account.state, "active_mission", None)
-    if mission is None:
-        return ()
-
-    party_ids = set(mission.party_ids)
-    floor_character_ids = _one_star_mission_floor_character_ids(
-        checkpoint,
-        owner_character_id=owner.character_id,
-        party_ids=party_ids,
-        destination=mission.destination,
-    )
-    clean_actor_id = actor_id.strip()
-    if clean_actor_id:
-        if clean_actor_id not in floor_character_ids:
-            return ()
-    elif one_star_active_mission_has_bound_party_member(checkpoint):
-        # Router-owned autonomous continuations exist only for NPC-only
-        # missions. Human-led continuations retain their floor actor id.
-        return ()
-
-    remote_system_observer_ids = tuple(
-        character_id
-        for character_id in _active_one_star_system_observer_ids(
-            checkpoint,
-            account.state,
-        )
-        if (
-            character_id != owner.character_id
-            and character_id not in floor_character_ids
-        )
-    )
-    if not remote_system_observer_ids:
-        return ()
-
-    observers_by_id = {
-        observer.character_id: observer
-        for observer in result.observers
-        if observer.character_id
-    }
-    for character_id in remote_system_observer_ids:
-        if character_id not in observers_by_id:
-            observer = ObserverEntry(
-                character_id=character_id,
-                observation_level="d",
-                routing_role="observe_only",
-            )
-            result.observers.append(observer)
-            observers_by_id[character_id] = observer
-
-    updates = tuple(getattr(result, "state_updates", ()))
-    terminal_result = any(
-        update.kind == "mission_end"
-        and update.target_id.strip() == mission.mission_id
-        for update in updates
-    )
-    terminal_guide_ids = (
-        set(remote_system_observer_ids)
-        & set(getattr(account.state, "guide_character_ids", ()))
-        if terminal_result
-        else set()
-    )
-    remote_ids = set(remote_system_observer_ids)
-    for character_id in remote_system_observer_ids:
-        observer = observers_by_id[character_id]
-        if (
-            terminal_result
-            and observer.routing_role == "next_output"
-            and character_id not in terminal_guide_ids
-        ):
-            raise OneStarTransactionError(
-                "live One-Star System observers must remain observe_only unless "
-                "selected as an eligible guide at mission end: "
-                f"{character_id}"
-            )
-        observer.observation_level = "d"
-        if not (
-            observer.routing_role == "next_output"
-            and character_id in terminal_guide_ids
-        ):
-            observer.routing_role = "observe_only"
-
-    for fact in result.canonical_event.observable_facts:
-        fact.visual_subject_ids = [
-            character_id
-            for character_id in fact.visual_subject_ids
-            if character_id not in remote_ids
-        ]
-
-    forbidden_routed_ids = remote_ids & {
-        *result.required_responders,
-        *result.perception_enrichment_character_ids,
-    }
-    if forbidden_routed_ids:
-        raise OneStarTransactionError(
-            "live One-Star System observers cannot become responders or "
-            "perception targets: "
-            + ", ".join(sorted(forbidden_routed_ids))
-        )
-    remote_next_output_ids = remote_ids & set(result.next_output_character_ids)
-    if remote_next_output_ids - terminal_guide_ids:
-        raise OneStarTransactionError(
-            "live One-Star System observers cannot receive midmission output: "
-            + ", ".join(sorted(remote_next_output_ids - terminal_guide_ids))
-        )
-    if len(remote_next_output_ids) > 1:
-        raise OneStarTransactionError(
-            "mission end may hand off to at most one live System guide"
-        )
-
-    return remote_system_observer_ids
-
-
-def validate_one_star_autonomous_mission_batch_result(
-    checkpoint: CheckpointFile,
-    *,
-    actor_id: str,
-    result: EventRouterOutput,
-) -> None:
-    """Keep a post-admission NPC mission batch on its active floor.
-
-    The initiating owner event is validated and committed before the batch is
-    admitted, so this guard applies only to subsequent agent turns and
-    router-owned continuations.  The owner and configured System observers may
-    keep watching without becoming fictional floor actors or account-operation
-    authorities. System observers remain ``observe_only`` before mission end;
-    a terminal event may hand off once to a configured guide. Adapter-authored
-    terminal System notices may add other scoped recipients without widening
-    the router-authored floor event.
-    """
-
-    if not is_one_star_checkpoint(checkpoint):
-        return
-    owner, account = load_one_star_account(checkpoint)
-    mission = account.state.active_mission
-    if (
-        mission is None
-        or set(mission.party_ids) & set(checkpoint.session.character_bindings)
-    ):
-        raise OneStarTransactionError(
-            "autonomous mission batch requires an active NPC-only party"
-        )
-
-    party_ids = set(mission.party_ids)
-    floor_character_ids = _one_star_mission_floor_character_ids(
-        checkpoint,
-        owner_character_id=owner.character_id,
-        party_ids=party_ids,
-        destination=mission.destination,
-    )
-    known_character_ids = {
-        character.character_id
-        for character in checkpoint.characters
-        if character.character_id
-    }
-    clean_actor_id = actor_id.strip()
-    if clean_actor_id and clean_actor_id not in floor_character_ids:
-        raise OneStarTransactionError(
-            "autonomous mission batch event actor must be router-owned or an "
-            "active floor character"
-        )
-
-    system_remote_ids = set(prepare_one_star_live_mission_observers(
-        checkpoint,
-        actor_id=clean_actor_id,
-        result=result,
-    ))
-    updates = tuple(getattr(result, "state_updates", ()))
-    terminal_result = any(
-        update.kind == "mission_end"
-        and update.target_id.strip() == mission.mission_id
-        for update in updates
-    )
-    terminal_system_guide_ids = (
-        system_remote_ids & set(account.state.guide_character_ids)
-        if terminal_result
-        else set()
-    )
-    passive_remote_ids = {owner.character_id, *system_remote_ids}
-    if terminal_result:
-        passive_remote_ids.update(
-            one_star_terminal_system_recipient_ids(checkpoint)
-        )
-    allowed_observer_ids = floor_character_ids | passive_remote_ids
-    observer_ids = {
-        observer.character_id
-        for observer in result.observers
-        if observer.character_id
-    }
-    unrelated_observers = observer_ids - allowed_observer_ids
-    if unrelated_observers:
-        raise OneStarTransactionError(
-            "autonomous mission batch event names non-floor observers: "
-            + ", ".join(sorted(unrelated_observers))
-        )
-    for observer in result.observers:
-        if (
-            observer.character_id in passive_remote_ids - floor_character_ids
-            and not (
-                observer.routing_role == "observe_only"
-                or (
-                    observer.character_id in terminal_system_guide_ids
-                    and observer.routing_role == "next_output"
-                )
-            )
-        ):
-            raise OneStarTransactionError(
-                "autonomous mission batch remote viewers must remain "
-                "observe_only until an eligible terminal guide handoff"
-            )
-
-    always_floor_routed_ids = {
-        *result.required_responders,
-        *result.perception_enrichment_character_ids,
-    }
-    non_floor_routing = always_floor_routed_ids - floor_character_ids
-    non_floor_routing.update(
-        set(result.next_output_character_ids)
-        - floor_character_ids
-        - terminal_system_guide_ids
-    )
-    if non_floor_routing:
-        raise OneStarTransactionError(
-            "autonomous mission batch cannot route non-floor characters: "
-            + ", ".join(sorted(non_floor_routing))
-        )
-
-    remote_system_result_ids = (
-        passive_remote_ids
-        - floor_character_ids
-        - {owner.character_id}
-        - system_remote_ids
-    )
-    for fact in result.canonical_event.observable_facts:
-        if fact.audience == "only":
-            unrelated_recipients = set(fact.visible_to) - allowed_observer_ids
-            if unrelated_recipients:
-                raise OneStarTransactionError(
-                    "autonomous mission batch fact names non-floor recipients: "
-                    + ", ".join(sorted(unrelated_recipients))
-                )
-        elif remote_system_result_ids:
-            result_observers = observer_ids & remote_system_result_ids
-            if result_observers:
-                raise OneStarTransactionError(
-                    "autonomous mission batch terminal System recipients cannot "
-                    "inherit broad floor facts"
-                )
-        non_floor_subjects = (
-            set(fact.visual_subject_ids) - floor_character_ids
-        )
-        if non_floor_subjects:
-            labels = sorted(
-                character_id
-                for character_id in non_floor_subjects
-                if character_id in known_character_ids
-            ) or sorted(non_floor_subjects)
-            raise OneStarTransactionError(
-                "autonomous mission batch cannot depict non-floor characters: "
-                + ", ".join(labels)
-            )
-
-    if (
-        result.spawn
-        or result.activate
-        or result.dormant
-        or result.cull
-        or result.commitment_open.present
-        or result.commitment_resolutions
-        or result.commitment_interrupts
-        or result.location_updates
-    ):
-        raise OneStarTransactionError(
-            "autonomous mission batch cannot author generic lifecycle, "
-            "commitment, or location changes"
-        )
-
-    for update in updates:
-        target_id = update.target_id.strip()
-        if update.kind in {"mission_update", "mission_end"}:
-            if target_id != mission.mission_id:
-                raise OneStarTransactionError(
-                    "autonomous mission batch update targets another mission"
-                )
-            continue
-        if update.kind == "hero_delta":
-            if target_id not in party_ids:
-                raise OneStarTransactionError(
-                    "autonomous mission batch Hero update targets a non-party "
-                    "character"
-                )
-            continue
-        raise OneStarTransactionError(
-            f"One-Star {update.kind} cannot commit during an autonomous "
-            "mission batch"
-        )
-
-
-def one_star_should_autonomous_mission_batch_after_result(
-    checkpoint: CheckpointFile,
-    *,
-    actor_id: str,
-    result: EventRouterOutput,
-    user_input: str = "",
-) -> bool:
-    """Start one NPC mission cascade after an owner mutation or watch."""
-
-    if not is_one_star_checkpoint(checkpoint):
-        return False
-    try:
-        owner, account = load_one_star_account(checkpoint)
-    except (OneStarTransactionError, ValidationError):
-        return False
-    mission = account.state.active_mission
-    if (
-        mission is None
-        or actor_id.strip() != owner.character_id
-        or one_star_active_mission_has_bound_party_member(checkpoint)
-    ):
-        return False
-
-    # An ordinary nonparty handoff keeps ownership of the current cascade.
-    # Do not turn that same event into a floor batch as well.
-    if set(result.next_output_character_ids) - set(mission.party_ids):
-        return False
-    if getattr(result, "state_updates", ()):
-        return True
-    if set(result.next_output_character_ids) & set(mission.party_ids):
-        return True
-
-    return _one_star_mission_watch_requested(user_input)
-
-
-def one_star_standard_summon_guide_handoff_authority(
-    checkpoint: CheckpointFile,
-    *,
-    result: EventRouterOutput,
-) -> tuple[str, str] | None:
-    """Return owner and guide ids for an ordinary-summon handoff.
-
-    ``None`` means this event is outside the ordinary-summon contract.  Guide
-    availability is validated before commit; returning the configured target
-    rather than re-reading its post-event status lets beat pacing fail loudly
-    if that accepted target somehow becomes undispatchable.  Routing,
-    induction validation, and pacing therefore share one One-Star authority.
-    """
-
-    if not is_one_star_checkpoint(checkpoint):
-        return None
-    summon_pool_ids = [
-        str(getattr(update, "target_id", "") or "")
-        for update in getattr(result, "state_updates", ())
-        if getattr(update, "kind", "") == "summon"
-    ]
-    if not summon_pool_ids:
-        return None
-
-    owner, account = load_one_star_account(checkpoint)
-    if not any(
-        getattr(account.config.summon_pools.get(pool_id), "usage", "")
-        == "standard"
-        for pool_id in summon_pool_ids
-    ):
-        return None
-    if not account.state.guide_character_ids:
-        return None
-    return owner.character_id, account.state.guide_character_ids[0]
 
 
 def one_star_opening_account_owner_actor_id(
@@ -2380,6 +1473,24 @@ def _system_recipients(*character_ids: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(character_id for character_id in character_ids if character_id))
 
 
+def _active_one_star_system_observer_ids(
+    checkpoint: CheckpointFile,
+    state: OneStarAccountState,
+) -> tuple[str, ...]:
+    """Return configured System observers that still own an active character."""
+
+    active_ids = {
+        character.character_id
+        for character in checkpoint.characters
+        if character.status == CharacterStatus.active
+    }
+    return tuple(
+        character_id
+        for character_id in state.system_observer_ids
+        if character_id in active_ids
+    )
+
+
 def _system_window_recipients(
     checkpoint: CheckpointFile,
     state: OneStarAccountState,
@@ -3207,7 +2318,7 @@ def _apply_summon(
     spawned_ids: set[str],
     activated_ids: set[str],
     activated_locations: Mapping[str, str],
-    initiating_actor_id: str,
+    initiating_actor_ids: set[str],
     configured_arrival_location: str,
 ) -> None:
     pool = config.summon_pools.get(operation.pool_id)
@@ -3246,10 +2357,10 @@ def _apply_summon(
         authorized_actor = (
             (
                 account_owner is not None
-                and initiating_actor_id == account_owner.character_id
+                and account_owner.character_id in initiating_actor_ids
             )
             if has_authored_non_bound_slot
-            else initiating_actor_id in bound_actor_ids
+            else bool(initiating_actor_ids & bound_actor_ids)
         )
         if (
             set(operation.hero_ids) != set(expected_summon_ids)
@@ -4426,7 +3537,7 @@ def _transaction_lifecycle_fingerprint(
     dormant_character_ids: Iterable[str],
     generic_culled_character_ids: Iterable[str],
     location_updates: Mapping[str, str],
-    initiating_actor_id: str,
+    initiating_actor_ids: Iterable[str],
 ) -> str:
     return one_star_event_fingerprint(
         {
@@ -4437,7 +3548,7 @@ def _transaction_lifecycle_fingerprint(
             "dormant": sorted(dormant_character_ids),
             "generic_cull": sorted(generic_culled_character_ids),
             "locations": dict(sorted(location_updates.items())),
-            "initiating_actor_id": initiating_actor_id,
+            "initiating_actor_ids": sorted(initiating_actor_ids),
         }
     )
 
@@ -4474,7 +3585,7 @@ def prepare_one_star_transaction(
     location_updates: Mapping[str, str] | None = None,
     canonical_at_s: int | None = None,
     event_fingerprint: str = "",
-    initiating_actor_id: str = "",
+    initiating_actor_ids: Iterable[str] = (),
     authoritative_system_result: bool = False,
 ) -> OneStarPreparedMutation:
     """Validate a One-Star transaction against a deep copy and prepare apply.
@@ -4529,6 +3640,11 @@ def prepare_one_star_transaction(
         character_id.strip(): location.strip()
         for character_id, location in (location_updates or {}).items()
     }
+    actor_ids = {
+        character_id.strip()
+        for character_id in initiating_actor_ids
+        if character_id.strip()
+    }
     pending_open_operations = [
         operation
         for operation in transaction.operations
@@ -4556,9 +3672,19 @@ def prepare_one_star_transaction(
                 "synthesis pending_open followed by its pending_resolve"
             )
     if pending_open_operations:
-        if len(transaction.operations) != 1 and not authoritative_synthesis_pair:
+        pending_open_with_only_tutorials = (
+            len(pending_open_operations) == 1
+            and all(
+                isinstance(
+                    operation,
+                    (OneStarPendingOpenOperation, OneStarTutorialDeliveryOperation),
+                )
+                for operation in transaction.operations
+            )
+        )
+        if not pending_open_with_only_tutorials and not authoritative_synthesis_pair:
             raise OneStarTransactionError(
-                "pending_open must be the only One-Star operation in its event"
+                "pending_open may share an event only with tutorial delivery"
             )
         pending = pending_open_operations[0].pending
         affected_ids = {
@@ -4602,7 +3728,7 @@ def prepare_one_star_transaction(
         dormant_character_ids=dormant_ids,
         generic_culled_character_ids=generic_cull_ids,
         location_updates=normalized_locations,
-        initiating_actor_id=initiating_actor_id.strip(),
+        initiating_actor_ids=actor_ids,
     )
     if one_star_event_already_applied(
         checkpoint,
@@ -4805,7 +3931,7 @@ def prepare_one_star_transaction(
             raise OneStarTransactionError(
                 "local One-Star Hero culls belong only in One-Star state updates"
             )
-    pinned_ids = set(after.session.active_act_slots)
+    pinned_ids = set(after.session.action_obligations)
     for open_event in after.session.open_cat_ii_events:
         pinned_ids.add(open_event.initiator_id)
         pinned_ids.update(open_event.required_responders)
@@ -4900,10 +4026,8 @@ def prepare_one_star_transaction(
     summon_ids: set[str] = set()
     resolved_deployments: dict[str, object] = {}
     started_deployment_ids: set[str] = set()
-    actor_id = initiating_actor_id.strip()
-
     def require_account_owner(operation_name: str) -> None:
-        if actor_id != owner.character_id:
+        if owner.character_id not in actor_ids:
             raise OneStarTransactionError(
                 f"only the account owner may initiate {operation_name}"
             )
@@ -4934,7 +4058,7 @@ def prepare_one_star_transaction(
                 spawned_ids,
                 activated_ids,
                 normalized_activation_locations,
-                initiating_actor_id.strip(),
+                actor_ids,
                 (
                     direct_opening[1].mission.destination
                     if direct_opening is not None
@@ -5041,7 +4165,7 @@ def prepare_one_star_transaction(
             require_account_owner("an equipment move")
             _apply_equipment_move(operation, state, after, config)
         elif isinstance(operation, OneStarTutorialDeliveryOperation):
-            if actor_id not in state.guide_character_ids:
+            if not actor_ids.intersection(state.guide_character_ids):
                 raise OneStarTransactionError(
                     "tutorial delivery must originate from a configured guide"
                 )

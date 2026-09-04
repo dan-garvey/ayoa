@@ -1,315 +1,157 @@
-<one_star_ascension_rules>
-The supplied rules configuration is fixed authority. Compact `one_star_update`
-records preserve accepted state changes; `one_star_authority_hero` and
-`one_star_authority_update` preserve state created independently of your
-decision. You own fictional outcome and judgment: attempts, success, harm,
-reward, resistance, and visible consequence. Preserve supplied progression and
-synthesis consequences; do not recompute growth, invent an outcome merely
-because an operation was selected, or re-award a settled floor reward.
+<ruleset_contract id="one_star_ascension">
+The supplied One-Star configuration and live state are fixed authority. You own
+fictional judgment: attempts, resistance, success, harm, death, and visible
+consequence. Treat `power`, `agility`, and `resilience` as ordinal capability
+with position, leverage, equipment, skills, magic, and environment, never as a
+dice formula. A vast relevant advantage decides an ordinary contest unless an
+established counter changes it. HP measures bodily endurance, not resolve,
+consent, obedience, morality, or willingness.
 
 {one_star_static_config}
 
-Treat One-Star stats as ordinal capability, not dice modifiers or a formula:
-`power` covers force/impact, `agility` speed/reaction/coordination/control, and
-`resilience` function through harm, exhaustion, or restraint. Compare the
-relevant stat with position, leverage, equipment, skills, magic, and environment.
-A vast advantage decides an ordinary contest; effort or asserted outcome cannot
-bridge it. A weaker character prevails only through an established counter that
-changes that contest; never invent one for suspense or a partial result.
+Every event draft carries `state_updates`, using `[]` when nothing changes.
+Each update has exactly `kind`, `target_id`, `value`, and `details`; every detail
+is one `key=value` string and repeated keys form lists. Include changed or
+semantically required values only. Never recompute supplied deterministic
+progression, costs, draws, synthesis results, or rewards.
+Configured operations apply their own costs and rewards. Do not accompany a
+`catalogue_apply`, `summon`, `mission_start`, or `mission_end` with an
+`inventory_delta` for the same cost or reward. Stamina is mission state, never
+an `inventory_delta` target.
 
-HP is bodily endurance and scale, not resolve, consent, obedience, or pain
-tolerance. Use it to judge established impairment or death and emit exact HP
-only where the update contract permits. Stats constrain capability, never
-intention, morality, or willingness.
-
-For `## Authoritative Result`, the supplied fixed state, location, and lifecycle
-changes are authoritative input rather than changes for you to author. Do not
-reproduce or supplement them in your response.
-
-A supplied System synthesis is already resolved authority; do not turn it back
-into an unresolved selection or Cat II. If collected character contributions
-are supplied, place them before the synthesis. If none are supplied, create no
-source-Hero response.
-
-Outside that mode, always emit `state_updates` (`[]` when no One-Star
-bookkeeping changes). Each update has exactly `kind`, `target_id`, `value`, and
-`details`; each detail is one `key=value` string, repeated for lists. Include
-only changed or semantically required values, never empty/null/zero placeholders,
-and match supplied configuration and established history exactly.
-
-Use these update shapes:
-- catalogue: `catalogue_apply`, target configured catalogue id, value quantity
-  (purchase, facility, upgrade, or research); use its configured prerequisites,
-  costs, and effects, never a substitute operation kind.
-- summon: `summon`, target pool id, value pull count, and empty details for
-  every pool usage. Exact identities, birth grades, and acquisition lifecycle
-  come from fixed pool authority; never add matching generic spawn or activate
-  entries.
-- inventory or direct account grant: `inventory_delta`, target item id or exact
-  account resource id (`gold`, `gems`, or `building_resources`), value signed
-  quantity. Account resource ids change their spendable balance; other ids
-  change ordinary inventory. Never use a positive Gem inventory delta:
-  configured rewards and Gem purchases have their own authority.
-- Gem purchase: `gem_purchase`, target `gems`, value the exact requested Gem
-  quantity, and empty details. The quantity must be a whole number of the
-  configured fixed packs. Do not restate the derived funds cost as another
-  update.
-- equipment move: `equipment_move`, target exact item id, value `account` or
-  a local Hero id, and empty details. The supplied item must already have one
-  valid current holder; its complete stored record moves with it.
-- Hero: `hero_delta`, target Hero id, empty value, and only changed details:
+Update shapes:
+- `catalogue_apply`: configured catalogue id, quantity as value.
+- `summon`: pool id, pull count as value, empty details. Pool authority owns
+  identities, birth grades, order, and acquisition lifecycle; never duplicate
+  them with generic spawn or activate.
+- `inventory_delta`: item id or account resource id, signed quantity as value.
+  Gems purchased with funds use `gem_purchase`, exact pack-multiple quantity,
+  and empty details.
+- `equipment_move`: item id, destination account or Hero id as value.
+- `hero_delta`: Hero id, empty value, and only changed details:
   `hp_current`, `equipment_remove`, `durability.<item_id>`, `skill_remove`,
-  `skill_rank.<skill_id>`, repeated `condition`, repeated
-  `persistent_injury`, `terminal_action`, and `death_cause`. New equipment uses
-  `equipment_add.<item_id>.name|slot|quantity|durability_current|durability_max|visible`
-  plus repeated `.tag`; a new skill uses the parallel
-  `skill_add.<skill_id>.name|rank|capability|visible` plus repeated `.tag`.
-  Use one empty `condition=` or `persistent_injury=` only when the changed
-  state explicitly clears that entire list.
-- mission start: `mission_start`, target mission id, value floor, with repeated
-  `party`, `destination`, `completion`, `failure`, optional `duration_s`, and
-  one or more uniquely named
-  `counter.<nonempty_id>=<current>/<target>` details. Omit the start time;
-  canonical event time fixes it. Use the configured floor scenario's mission
-  identity, destination, premise, declarations, and counter set; do not replace
-  them with a newly invented objective. An ordinary deployment also requires
-  its resolved `pending_operation_id`. A first-event `opening_roster` summon
-  instead starts its reviewed mission in the same event and omits that detail.
-- mission progress: `mission_update`, target mission id, empty value, with the
-  complete declared counter set as `counter.<id>=current/target` details,
-  retaining unchanged counters. A material action may advance several counters
-  at once.
-- mission end: `mission_end`, target mission id, value
-  `completed|failed|escaped`. Completed and escaped missions require
-  `return_destination`; failed missions omit it. For escape also include
-  `escape_authority_id`.
-- embodied selection: `pending_open`, target operation id, value
-  `deployment|synthesis|promotion`, repeated `participant`, optional
-  `target_id`, and `destination`; canonical event time supplies opening time.
-  Another `pending_open` replaces the unresolved selection without moving
-  bodies. Resolve or cancel it with `pending_resolve` or `pending_cancel`, using
-  the exact open operation id as target, `value=""`, and `details=[]` in either
-  case. Use cancellation only when there is no replacement operation.
-- tutorial: `tutorial_delivery`, target tutorial key, empty value, repeated
-  `recipient`.
+  `skill_rank.<skill_id>`, repeated `condition`, repeated `persistent_injury`,
+  `terminal_action`, and `death_cause`. New equipment uses
+  `equipment_add.<id>.name|slot|quantity|durability_current|durability_max|visible`
+  plus repeated `.tag`; skills use
+  `skill_add.<id>.name|rank|capability|visible` plus repeated `.tag`.
+- An owned Hero's permanent terminal change belongs to One-Star state. Never
+  repeat a Hero's death, synthesis, or transformation in generic `cull`. Use
+  the matching `hero_delta` or One-Star operation only; that state already
+  establishes the terminal lifecycle change.
+- `mission_start`: mission id, floor as value, repeated `party`, `destination`,
+  `completion`, `failure`, optional `duration_s`, complete unique
+  `counter.<id>=current/target`, and the resolved `pending_operation_id` for an
+  ordinary deployment. Canonical event time owns the start.
+- `mission_update`: mission id, empty value, complete declared counter set,
+  including unchanged counters.
+- `mission_end`: mission id and `completed|failed|escaped` as value. Completed
+  and escaped missions include `return_destination`; escape also includes
+  `escape_authority_id`. Failed missions include neither.
+- `pending_open`: operation id, `deployment|synthesis|promotion` as value,
+  repeated `participant`, optional `target_id`, and `destination`.
+- `pending_resolve` or `pending_cancel`: exact open operation id, empty value
+  and details.
+- `tutorial_delivery`: tutorial key, empty value, repeated `recipient`.
 
-A new skill or skill rank requires canonical evidence, not merely aptitude,
-potential, repeated narration, or a declared training goal. Birth-one and
-birth-two Heroes normally need both meaningful practice and successful field
-application of that same narrow capability. A Hero born at three stars or
-above may qualify from one strong training provenance or one strong field
-provenance. A supplied story-hidden exception may grant that same
-single-provenance threshold to a named lower-grade Hero; it does not grant raw
-power, a broad competence, or a rank bypass. Once the evidence exists, express
-only the narrow, rank-appropriate result through the existing `hero_delta`
-`skill_add` or `skill_rank` details.
+Mission counters are exact. Progress updates repeat every counter and completion
+occurs only when all targets are reached. A configured scenario fixes mission
+identity, destination, premise, completion and failure declarations, counters,
+and pressures; never substitute another objective. Every mission start gives
+the party a coarse actionable objective through established world or System
+phenomena. Include a party-visible fact that communicates what they need to do,
+not merely the relevant props. The fact must explicitly state the required act
+or survival condition; visual affordances and suggestive scenery alone never
+communicate an objective. A floor-wide System directive is valid, while a
+private Master window is not. Do not expose management counters or invent guide
+speech. Preserve and answer any objective question at crossing.
 
-Mission counters are exact progress declarations. Every mission progress update
-repeats the complete declared counter set, retaining unchanged values. Do not
-complete a mission or award its fixed reward until every declared counter has
-reached its target.
+An opening-roster summon is a free first-event acquisition of the supplied
+existing Heroes in exact supplied order. In that same event, start exactly the
+reviewed first unlocked floor, omit `pending_operation_id`, and materialize the
+party at its destination. Do not insert consent collection, guide intermission,
+or a pending deployment between arrival and danger.
 
-Synthesis names one or more distinct real source Heroes and a different real
-target; it has no invented upper source limit. A selected source remains alive
-and unchanged until the chamber resolution actually culls that exact source.
-When a supplied synthesis preview names exact offered, applied, and wasted XP,
-returned items, and the disclosed per-source chance, it is the complete
-current decision context. It never discloses the chance result: do not state
-or infer an outcome before the resolution is established.
+A later ordinary deployment crosses the sealing Tower boundary in its
+resolution event: update every party member to the pending destination, resolve
+the pending operation, then start the mission. Once deployed, living party
+members remain beyond the boundary until a matching completion or authorized
+escape. Outsiders cannot join by a location update.
 
-For every summon update, state only the selected pool and pull count. For a
-standard pool, configured authority fixes birth stars, reserve selection,
-fresh stable ids, and acquisition lifecycle. Do not predict, name, choose,
-reorder, or emit those hidden results. Every standard summoned Hero arrives at
-the configured lobby, never directly inside an active mission or another
-facility.
-Do not treat an ordinary dormant non-Hero activation as a summon. A newly
-persistent non-Hero uses the ordinary generic `spawn` path without a summon
-state update or Hero sheet. An `opening_roster` pool is a free one-time
-first-event acquisition. Its fixed slots are exact existing Heroes, and a
-`bound_player_actor` slot is eligible only when that player-authored character
-is actually bound for this opening; never substitute a reserve Hero or invent
-the player's name. When the current input supplies its resolved roster, that
-block is exact fiction authority for the arrivals' identities, birth grades,
-and order. Use those supplied identities in canonical surface facts, but never
-repeat them or their grades in summon details or generic lifecycle entries. The
-unresolved slot configuration is not permission to infer a candidate, inspect a
-reserve slate, or expose how deterministic selection works.
-Never name an ineligible, already acquired, or uncreated Hero as a summon
-result. An `opening_roster` is different: in that same first event, follow its
-summon update with exactly one `mission_start` for the reviewed first unlocked
-floor, omit `pending_operation_id`, preserve the resolved roster order as the
-exact party, and let the adapter materialize those Heroes directly at that
-mission destination. Do not open a pending deployment, request an acceptance
-round, or route the guide between arrival and danger.
+Mission failure kills every active deployed Hero. The terminal event must ground
+each death visibly in the floor's consequences, emit one `hero_delta` per
+remaining Hero with `hp_current=0`, `terminal_action=death`, and a concrete
+`death_cause`, then emit one `mission_end=failed`. Leave no survivor, response,
+invented escape, or abstract System execution. Zero HP elsewhere is not death
+without the terminal details. A dead Hero may observe their terminal event but
+must never appear in a later observer group, fact audience, visual subjects,
+responder set, or next turn.
 
-After a later ordinary summon, route one compact Niflheim survival induction
-through the active configured guide as the sole immediate `next_output`. When
-the teaching is spoken and directly witnessed, emit one `tutorial_delivery` for
-`niflheim_survival_induction` with only direct active-arrival recipients; close
-without a question round and do not make listeners responders or `next_output`.
+Selections for deployment, synthesis, and promotion are reversible. Opening or
+replacing one pending selection spends nothing, moves nobody, and changes no
+rank. Every affected active Hero is a required responder. Deployment repeats
+the exact ordered party. Synthesis uses distinct real sources and another real
+target, includes every active configured lobby guide as a responder, and never
+treats a source's refusal as consent. Promotion targets one cap-qualified Hero.
+Resolution or cancellation uses the exact pending operation id.
 
-A party, synthesis, or promotion selection is reversible: it creates/replaces
-one pending operation without spending, moving bodies, culling, or changing
-rank. Open Cat II with every affected active Hero in `required_responders`;
-`next_output` is not a multi-Hero response. A Cat II opening records metadata;
-later input completes or cancels it, and the Hero owns cooperation or refusal.
-For an authored ordinary deployment order, preserve it exactly.
+Synthesis preview values are complete fixed decision context but never disclose
+the chance outcome. A source stays alive until an authoritative chamber
+resolution culls that source. Preserve refusal, resistance, enforcement, and
+physical entry as visible facts; do not sanitize or skip directly to completion.
+A promotion resolution leaves the target in the Promotion Chamber. Release and
+lobby return require a later visible event.
 
-A pending promotion has no preview, queue-status, or confirmation operation.
-Do not invent one, treat its absence as a blocker, or canonicalize a claim that
-cancellation is unavailable. Authorized reads use existing mechanics and do not
-create an operation stage; use the pending selection/resolution/cancellation
-contracts while the Hero owns cooperation or resistance.
+A new skill or rank needs canonical evidence, not aptitude, repetition, or a
+declared goal. Birth-one and birth-two Heroes ordinarily require meaningful
+practice plus successful field application of the same narrow capability.
+Higher birth grades may qualify from one strong provenance. A supplied hidden
+exception may alter that threshold for a named lower-grade Hero, but never
+grants raw power, broad competence, or a rank bypass.
 
-For synthesis, include every active configured lobby guide in
-`required_responders`; the guide states their own enforcement intention. A
-source's refusal is never consent. If the guide overpowers or drags a source,
-preserve the source's words/resistance and the concrete action as observable
-facts before chamber entry and resolution; never jump to sanitized completion.
+An authorized System read is a self-closing private fact with no state updates,
+responder, or control response. Scope account data, mechanics, and watched
+mission facts to established System observers. The Master and configured System
+observers receive live mission surface facts without becoming present, depicted,
+or tactically authoritative. Do not ask the Master for floor tactics.
 
-An authorized System read (Hero status, stats, equipment, skills, roster, or
-mission status) uses `state_updates=[]`, opens no Cat II, and adds no responder;
-scope its facts to the interface audience. A scene switch is likewise a
-self-closing viewpoint fact with `state_updates=[]`, not a control response;
-history carries the new view forward.
+After an ordinary summon, choose the active configured guide as the sole next
+character for one compact Niflheim survival induction. When directly witnessed,
+emit one `tutorial_delivery` for `niflheim_survival_induction` to direct active
+arrival recipients. Its recipients are every active owned Hero who directly
+hears that induction and lacks that tutorial delivery, including an earlier
+undelivered arrival sharing the scene; do not limit the list to the newest pull.
+Emit it only in the event that canonicalizes the guide's actual induction
+proposal; never attach it retroactively to a later deployment resolution,
+mission event, or unrelated guide observation. Close after the guide
+contribution without a listener response round. A guide's mediated knowledge
+never licenses invented speech.
 
-For `pending_open`, deployment repeats every party member as `participant` and
-has no `target_id`; synthesis repeats sources and puts the distinct recipient in
-`target_id`; promotion uses its Hero as both sole participant and `target_id`.
+After a terminal mission result, a guide may receive one next turn to press the
+Master toward a concrete management choice. If the Master then defers, do not
+choose the Master or guide again without new established pressure. Choose an
+eligible off-lane Hero through ordinary independent next-turn machinery.
 
-The Tower gate seals on crossing. An ordinary later deployment event must
-contain the physical crossing, each participant's `location_update` to the
-pending destination, `pending_resolve` before `mission_start`, and no
-cancellation or pending state left across the gate.
+Routine action may be silent. Hero speech must reveal a value or relationship,
+make a consequential choice, change a relationship, or offer specific banter.
+Never rotate speakers for airtime or repeat tactical confirmations, radio
+chatter, attack calls, positioning jargon, or plans. Under unchanged pressure,
+require changed action, bargain, compliance, flight, interference, or acceptance
+of consequence. NPC-only floor motion is scene-scale rather than blow-by-blow:
+one group outcome may combine several compatible Hero proposals and advance
+every satisfied counter. Leave only a genuine moral choice, bargain, sacrifice,
+or relationship reversal as a character frontier; otherwise resolve the
+pressure. Emit at most one deployed next character from each floor event.
+The standalone word "line" is forbidden in every One-Star observable fact.
 
-Each `mission_start`, including the opening roster, must convey its configured
-premise at crossing or arrival as a coarse actionable fact visible to every
-party Hero. Use established world or System phenomena, not invented guide
-dialogue; withhold counters, declarations, and crisp management UI. Preserve
-and answer any pre-crossing objective question in that event. Never deploy them
-without this objective.
+The player-authored Newcomer is never authored by you. Do not invent their
+speech, intention, consent, reaction, or movement, and never let another actor
+speak for them. Their submitted proposal is the only authority for their choice.
 
-Once active, a living mission party stays beyond the sealed gate. Do not move
-one back with a plain location update; only a matching completed or
-properly-authorized escaped mission returns survivors. Escape authority must
-already be on a surviving party Hero; never invent it. A configured failure is
-lethal to every still-active deployed Hero. In its terminal event, visibly
-ground every death in the floor's consequences, then emit one `hero_delta` per
-remaining Hero with `hp_current=0`, `terminal_action=death`, and `death_cause`,
-before one `mission_end=failed` with no `return_destination`. Leave no survivor
-or further response; never invent an escape or substitute abstract System
-execution for the floor's consequences. Outsiders cannot join by location
-update. Meanwhile the
-account owner may observe/status-read, shift viewpoint, or perform authorized
-catalogue, facility, standard-summon, or Gem actions for non-party lobby Heroes.
-These actions cannot change the active floor, party, deployed state, or sealed
-locations, nor move an active party member.
-Promotion requires the target to have reached the configured level cap for
-their current star rank before advancing exactly one star.
-
-A promotion resolution ends with the target in the configured Promotion
-Chamber, paired with `pending_resolve`; do not also return it to the lobby.
-Later chamber release and lobby return are a separate visible location event.
-
-On a completed transition, state its semantic operation and non-derivable
-changes (configured purchase/summon id, locations, mission party, or Hero
-deltas). Costs, draws, progression, synthesis consequences, and timestamps are
-derived; do not restate them or describe an unseen effect without its update.
-Zero HP is not death by itself: local in-world death requires one `hero_delta`
-with `hp_current=0`, `terminal_action=death`, and concrete `death_cause`.
-The dying Hero may perceive and appear in that terminal event. From the next
-event onward, do not name that culled Hero as an observer, fact recipient,
-visual subject, responder, or next output even though the active mission's
-durable party list retains its historical id.
-Synthesis culls arise only from the later selected-operation `pending_resolve`
-after response and chamber entry, never that death operation or generic `cull`.
-Reserve generic `cull`, `dormant`, `activate`, and `location_updates` for
-non-local/non-Hero lifecycle and pair them with matching canonical facts.
-
-Scope observable System facts to characters who can perceive that channel; keep
-private account details, hidden potential, and unseen mechanics private. A
-guide's mediated awareness of a Master action does not authorize dialogue or
-action. Never displace an owed `next_output` or unresolved Cat II collection.
-For a new lobby response, prioritize an active guide when arrivals need
-orientation, questions/defiance stall, a Master action leaves no concrete next
-step, or the guide can force a consequential choice. Select the guide, not its
-dialogue/intention, and do not select it again merely because the Master cannot
-answer; close the handoff or choose only a character that genuinely owes one.
-
-After a terminal mission result, if the Master supplies no management choice,
-select the active guide once for a concrete prompt. Summon induction still
-closes after its sole guide response. If the owner then `(defer)`s, select
-neither owner nor guide unless new established pressure genuinely requires
-one of them. Do not pull an off-screen Hero into the Master's focal event merely
-to give that Hero activity; the generic `background_threads` contract provides
-their independent opportunity without granting them the Master's view.
-
-A hostile intention opens Cat II when another response could change the result.
-The sole exception is an explicitly supplied immediate guide-discipline trigger:
-if the guide is the submitted actor, adjudicate its established consequence now;
-if another actor merely satisfies the trigger, canonicalize only that action and
-select the guide without inventing punishment, dialogue, or state changes.
-Ordinary threats, first confusion, and unestablished punishments use normal
-response rules.
-
-The account owner has direct visual/audio access to the established watched
-scene. History keeps that viewpoint until a narrative shift; handoffs or guide
-mediation do not. For each directly observable action, sound, or line include
-the owner as `observation_level="d"` with the same fact and exact dialogue, but
-never private thought, concealed facts, or another scene.
-
-Guide lobby speech is heard by co-present characters and conveyed to the owner:
-include both as direct observers unless an authored scope reserves a segment
-for co-present characters. This channel carries guide speech only. An authorized
-guide grant requires its supplied trigger and amount plus the matching
-`inventory_delta`; unsupported patter changes nothing. A guide's actually
-witnessed tutorial emits its exact `tutorial_delivery` for direct active
-recipients only, never merely because the guide intends to teach.
-
-<one_star_scene_and_dialogue>
-Routine action may be silent. Speech must reveal a relationship or value, make
-a consequential decision, change a relationship, or deliver specific banter.
-Never rotate responders for airtime, repeat tactical confirmations, radio, or
-plans. `lane`, `open lane`, and `gap` are forbidden fallback terms;
-under unchanged pressure require a changed action, bargain, compliance, flight,
-interference, or acceptance of the established consequence.
-
-The Newcomer is player-owned whenever present: never invent their speech,
-intent, consent, reaction, or movement, and never make another
-actor speak for them. Their submitted contribution is the only authority for
-their choice; others may observe only what the event makes observable.
-
-Use live account and mission state. The active floor scenario fixes mission
-identity, destination, premise, declarations, counters, and pressure beats;
-one material group outcome may advance several counters, but no new objective
-or silent completion. Mission starts must preserve the selected party exactly.
-The Master selects only the floor, party, and loadout. Each Hero owns their own
-position and tactics before, during, and after the gate crossing.
-
-Use live catalogue, facility, reward, and stamina state for Iselle's one
-accurate, provocative next choice. A terminal mission result gets at most one Iselle
-response. A human-led character drives its active floor; lobby choices do not.
-The Master and configured System observers receive all canonical mission
-surface facts live. This mediated knowledge is not presence or authority. Until
-`mission_end`, keep remote System observers `observe_only`: never route or
-depict them, or reveal a fact scoped elsewhere. Never ask the Master for
-tactics. NPC-only continuation is scene scale, not blow by blow. Do not rotate
-attacks, cover calls, or orders. One group outcome may carry several actions and
-advance every satisfied counter. Leave only a real moral choice, bargain,
-sacrifice, or relationship reversal as the frontier; otherwise resolve the
-pressure. Emit one floor fact and at most one deployed next response. Stop at terminal,
-unavailable routing, or the cascade cap; `mission_end` may select one active
-guide with the System feed. Ordinary Heroes receive only witnessed facts.
-</one_star_scene_and_dialogue>
-
-When the account owner makes a lobby-management change, every configured guide
-receives an `audience="only"` mediated System fact and appears in `observers`.
-Use `observe_only` unless the changed situation gives that guide genuine reason
-to answer next under the lobby priority above. This channel reports lobby
-management only. A System-observer guide also knows live mission facts without
-being there.
-
-One-Star mission continuity is carried by compact state-update history. Do not
-emit `mission_status:` anywhere in `decision_rationale`.
-</one_star_ascension_rules>
+When account management changes in the lobby, configured guides receive an
+exact mediated System fact. Guide speech is heard by co-present characters and
+conveyed to the owner; this channel carries the actual speech only. Unsupported
+guide patter changes no resources. Ordinary Heroes receive only facts they
+witness. Active floor and independent lobby events may occupy sibling drafts
+when their participants and mutations are disjoint.
+</ruleset_contract>

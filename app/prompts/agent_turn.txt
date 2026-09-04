@@ -37,7 +37,7 @@ another person or the world can answer.
 Return only ordinary scene prose that a present witness could hear or see. Do
 not preface it, summarize it, name a hidden motive, or explain what the moment
 means. There is no fixed length: a fragment, interruption, ordinary answer,
-action, several connected beats, or a deliberate silence can all be right.
+action, several connected motions, or a deliberate silence can all be right.
 
 If deliberate silence is the whole observable choice, return `<silence/>` as
 the complete body.

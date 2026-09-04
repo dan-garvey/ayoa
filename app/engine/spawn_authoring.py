@@ -8,7 +8,7 @@ from app.engine.character_manager import CharacterManager
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
-from app.schemas.event_router import EventRouterOutput, SpawnRequest
+from app.schemas.event_router import CanonicalEventRecord, SpawnRequest
 
 
 @dataclass(frozen=True)
@@ -52,7 +52,7 @@ class SpawnAuthoringCoordinator:
         self,
         *,
         checkpoint: CheckpointFile,
-        event: EventRouterOutput,
+        event: CanonicalEventRecord,
         transaction_id: str,
         event_fingerprint: str,
         acting_actor_location: str = "",

@@ -138,7 +138,7 @@ def by_id(checkpoint: CheckpointFile) -> dict:
 
 
 def test_checkpoint_loads_at_current_schema(checkpoint: CheckpointFile) -> None:
-    assert checkpoint.schema_version == "6.0"
+    assert checkpoint.schema_version == "7.0"
     assert checkpoint.session.story_id == "the_unblessed_summon"
     assert checkpoint.session.session_id == "the_unblessed_summon"
 
@@ -156,12 +156,14 @@ def test_runtime_defaults_match_current_policy(checkpoint: CheckpointFile) -> No
         "agent_default": "openai:gpt-5.6-luna",
         "agent_standard": "openai:gpt-5.6-luna",
         "agent_convenience": "openai:gpt-5.6-luna",
-        "character_manager": "anthropic:claude-sonnet-5",
+        "character_manager": "gpt-5.6-luna",
         "image_director": "gpt-5-mini",
     }
     assert checkpoint.session.config.models.model_dump() == expected_models
-    assert checkpoint.session.config.settings.max_events_per_beat == 40
-    assert checkpoint.session.config.settings.max_agent_cascades_per_beat == 35
+    assert (
+        checkpoint.session.config.settings.max_router_batches_without_player_input
+        == 12
+    )
     assert not hasattr(checkpoint, "config")
 
 

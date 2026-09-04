@@ -1032,7 +1032,7 @@ class LLMClient:
                 #     transient.
                 #   - "Schema is too complex" — when the schema is
                 #     borderline (around the AuthoredCharacter ceiling
-                #     or EventRouterOutput's many list fields), the
+                #     or CanonicalEventRecord's many list fields), the
                 #     compiler sometimes fails non-deterministically.
                 #     Retry here is mostly free; the structural fix
                 #     (strip Pydantic defaults to collapse the grammar)

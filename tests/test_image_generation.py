@@ -66,13 +66,8 @@ from app.schemas.visual_references import (
     ReviewedVisualNovelSpriteSet,
     ReviewedVisualReference,
 )
-from app.schemas.state import (
-    RenderBufferEntry,
-    SessionState,
-    StorySetting,
-    WorldState,
-)
-from tests.support.factories import router_output
+from app.schemas.state import SessionState, StorySetting, WorldState
+from tests.support.factories import canonical_event, narrator_event_ref
 
 
 ONE_STAR_RULESET_ID = "one_star_ascension"
@@ -723,7 +718,7 @@ async def test_exhausted_custom_sprite_retries_once_on_later_restart(tmp_path):
 
 def test_projection_groups_equivalent_viewers_and_respects_fact_visibility():
     ckpt = _checkpoint()
-    shared = router_output(
+    shared = canonical_event(
         event_id="evt_shared",
         observer_ids=["alice", "bob"],
         facts=[ObservableFact.all("Rain sweeps across the empty courtyard.")],
@@ -738,7 +733,7 @@ def test_projection_groups_equivalent_viewers_and_respects_fact_visibility():
     assert len(grouped) == 1
     assert grouped[0].viewer_character_ids == ("alice", "bob")
 
-    split = router_output(
+    split = canonical_event(
         event_id="evt_split",
         observer_ids=["alice", "bob"],
         facts=[
@@ -763,12 +758,12 @@ def test_projection_groups_equivalent_viewers_and_respects_fact_visibility():
 def test_render_batch_keeps_one_stage_projection_per_visible_event():
     ckpt = _checkpoint()
     ckpt.session.config.settings.presentation_mode = "visual_novel"
-    shared = router_output(
+    shared = canonical_event(
         event_id="evt_shared",
         observer_ids=["alice", "bob"],
         facts=[ObservableFact.all("Rain sweeps across the courtyard.")],
     )
-    private = router_output(
+    private = canonical_event(
         event_id="evt_private",
         observer_ids=["alice"],
         facts=[ObservableFact.only("Alice spots a hidden key.", ["alice"])],
@@ -779,18 +774,18 @@ def test_render_batch_keeps_one_stage_projection_per_visible_event():
         checkpoint=ckpt,
         buffered_events_by_pov={
             "alice": [
-                RenderBufferEntry(
+                narrator_event_ref(
                     event_id="evt_shared",
                     visible_at_s=0,
                     event_sequence=17,
                 ),
-                RenderBufferEntry(
+                narrator_event_ref(
                     event_id="evt_private",
                     visible_at_s=1,
                     event_sequence=18,
                 ),
             ],
-            "bob": [RenderBufferEntry(
+            "bob": [narrator_event_ref(
                 event_id="evt_shared",
                 visible_at_s=0,
                 event_sequence=17,
@@ -835,7 +830,7 @@ def test_visual_novel_action_staging_keeps_reviewed_location_available():
     ckpt.location_visual_reference_ids = {
         "station": ["authored.station.open"],
     }
-    event = router_output(
+    event = canonical_event(
         event_id="evt_action_and_dialogue",
         observer_ids=["alice"],
         facts=[ObservableFact.all(
@@ -862,8 +857,8 @@ def test_visual_novel_action_staging_keeps_reviewed_location_available():
 
 def test_projection_snapshot_contains_no_private_story_or_character_state():
     source = _checkpoint()
-    kept = router_output(event_id="evt_kept", observer_ids=["alice"])
-    omitted = router_output(event_id="evt_omitted", observer_ids=["alice"])
+    kept = canonical_event(event_id="evt_kept", observer_ids=["alice"])
+    omitted = canonical_event(event_id="evt_omitted", observer_ids=["alice"])
     source.canonical_events.extend((kept, omitted))
     source.characters[0].visuals.identity_reference_id = (
         "imgref_PRIVATE_FILE_ID"
@@ -925,7 +920,7 @@ async def test_one_star_image_projection_uses_only_current_visible_equipment():
     assert image_loadout_for_character(ckpt, ckpt.characters[0]) == (
         "Live Blade worn or carried in the hand slot"
     )
-    event = router_output(
+    event = canonical_event(
         event_id="evt_live_equipment",
         observer_ids=["alice"],
         facts=[ObservableFact.all("Alice steps into the rain.")],
@@ -1078,7 +1073,7 @@ def test_projection_groups_omit_unclaimed_player_authored_slot_directly():
         player_slot_kind=PlayerSlotKind.player_authored,
         public_sheet=PublicSheet(appearance="UNCLAIMED APPEARANCE"),
     ))
-    event = router_output(
+    event = canonical_event(
         event_id="evt_unclaimed_mention",
         observer_ids=["alice"],
         facts=[
@@ -1105,7 +1100,7 @@ def test_projection_groups_omit_unclaimed_player_authored_slot_directly():
 
 def test_projection_does_not_disclose_engine_known_actor_to_other_viewers():
     ckpt = _checkpoint()
-    event = router_output(
+    event = canonical_event(
         event_id="evt_anonymous_actor",
         observer_ids=["alice", "bob"],
         facts=[ObservableFact.all("Footsteps sound behind the closed door.")],
@@ -1138,7 +1133,7 @@ def test_projection_does_not_disclose_engine_known_actor_to_other_viewers():
 @pytest.mark.asyncio
 async def test_director_receives_only_text_projection_and_can_return_zero():
     ckpt = _checkpoint()
-    event = router_output(
+    event = canonical_event(
         event_id="evt_director",
         observer_ids=["alice"],
         facts=[ObservableFact.all("Alice waits beneath the station awning.")],
@@ -1321,7 +1316,7 @@ def test_projection_includes_creator_player_without_binding():
     ckpt = _checkpoint()
     ckpt.session.character_bindings = {"bob": "22"}
     ckpt.session.player_character_id = "alice"
-    event = router_output(
+    event = canonical_event(
         event_id="evt_creator",
         observer_ids=["alice"],
         facts=[ObservableFact.all("Alice raises her camera.")],
@@ -3102,7 +3097,7 @@ async def test_failed_preflight_still_discovers_reviewed_vn_stage(tmp_path):
     checkpoint.location_visual_reference_ids = {
         "station": [reference.reference_id]
     }
-    event = router_output(
+    event = canonical_event(
         event_id="evt_reviewed_without_worker",
         observer_ids=["alice"],
         facts=[ObservableFact.all("Alice waits in the open station courtyard.")],
@@ -3121,7 +3116,7 @@ async def test_failed_preflight_still_discovers_reviewed_vn_stage(tmp_path):
         transaction_id = await sidecar.start_render_candidate(
             checkpoint=checkpoint,
             buffered_events_by_pov={
-                "alice": [RenderBufferEntry(
+                "alice": [narrator_event_ref(
                     event_id=event.event_id,
                     event_sequence=1,
                 )]
@@ -4830,7 +4825,7 @@ async def test_restart_commits_speculative_work_when_target_checkpoint_exists(
         config=config,
         worker=FakeImageWorker(),
     )
-    event = router_output(event_id="evt_recovered", observer_ids=["alice"])
+    event = canonical_event(event_id="evt_recovered", observer_ids=["alice"])
     projection = VisibleEventProjection(
         **{
             **_projection(

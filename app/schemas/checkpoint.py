@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     SerializationInfo,
     field_serializer,
@@ -13,8 +14,8 @@ from pydantic import (
 from app.schemas.characters import CharacterRecord
 from app.schemas.conversation import ConversationMessage
 from app.schemas.content_privacy import should_include_private_runtime_metadata
-from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
-from app.schemas.one_star import OneStarEventRouterOutput
+from app.schemas.event_router import CanonicalEventRecord, DndCanonicalEventRecord
+from app.schemas.one_star import OneStarCanonicalEventRecord
 from app.schemas.onboarding import VisualNovelOnboarding
 from app.schemas.state import SessionState, WorldState
 from app.schemas.narrator import (
@@ -27,12 +28,15 @@ from app.schemas.visual_references import (
 )
 
 
-CURRENT_SCHEMA_VERSION = "6.0"
+CURRENT_SCHEMA_VERSION = "7.0"
 
 
 class CheckpointFile(BaseModel):
-    # Schema 6.0 records exact CharacterAgent identity revisions. Player-visible
-    # history is reconstructed from the per-POV narrator conversations below.
+    model_config = ConfigDict(extra="forbid")
+
+    # Schema 7.0 stores the unified router frontier, narrator jobs, and delivery
+    # outbox. Player-visible history is reconstructed from per-POV narrator
+    # conversations below.
     # Older checkpoints hard-break on load: checkpoint_manager raises with a
     # message pointing the user at /story start. No migration shim.
     schema_version: str = CURRENT_SCHEMA_VERSION
@@ -78,7 +82,9 @@ class CheckpointFile(BaseModel):
     # v11: the canonical event log. Every closed canonical event appended
     # here. Source of truth for rendering, replay, and debug.
     canonical_events: list[
-        DndEventRouterOutput | OneStarEventRouterOutput | EventRouterOutput
+        DndCanonicalEventRecord
+        | OneStarCanonicalEventRecord
+        | CanonicalEventRecord
     ] = Field(
         default_factory=list
     )

@@ -1,5 +1,5 @@
 {
-  "schema_version": "6.0",
+  "schema_version": "7.0",
   "session": {
     "session_id": "the_unblessed_summon",
     "story_id": "the_unblessed_summon",
@@ -17,26 +17,23 @@
         "agent_default": "openai:gpt-5.6-luna",
         "agent_standard": "openai:gpt-5.6-luna",
         "agent_convenience": "openai:gpt-5.6-luna",
-        "character_manager": "anthropic:claude-sonnet-5"
+        "character_manager": "gpt-5.6-luna"
       },
       "narrative_rules": "Mature adult work. Atrocities are rendered specifically rather than implied; the Crown Prince's cruelty, the redemption-labor system's machinery, and the slow physical disintegration of certain characters are present on the page with literary craft (pacing, restraint inside a scene, refusal of pornography of suffering) — not euphemized. Romance phrasing hygiene: avoid winking-permission patterns such as 'something flickers in her eyes', 'her mask slips', 'despite her words', 'a smile tugging at her lips' that soften scenes meant to remain hard or ambiguous. Antagonists are pleasant, articulate, internally coherent — no monologuing villains; institutional horror, not theatrical. Private Sensuality and combat both belong on the page when the scene calls for them. Character voices are distinct (each major NPC has Voice And Cadence specifications); honor those rather than flattening to a generic register.",
       "settings": {
-        "max_events_per_beat": 40,
-        "max_agent_cascades_per_beat": 35,
+        "max_router_batches_without_player_input": 12,
         "cat_ii_human_timeout_seconds": 86400,
         "ruleset_id": "dnd5e_basic",
         "player_roll_mode": "auto"
       }
     },
-    "active_act_slots": {},
+    "action_obligations": {},
     "open_cat_ii_events": [],
     "cat_ii_roll_transactions": [],
     "active_combat": null,
     "dnd_inventory_offers": [],
     "open_commitments": [],
-    "pending_commitment_revisions": {},
-    "render_buffers": {},
-    "pending_intentions": []
+    "pending_commitment_revisions": {}
   },
   "player_primer": "Three days ago the Rite of Veylan pulled you through. The life that ended to make that possible — when in history, in what world, where, who you were, doing what when the call reached you — is yours to set. The next thing you remember is the sensation of a voice in a language you had never heard speaking a word your bones understood as COME.\n\nYou arrived barefoot on cold black stone inside a circular chamber under the Mother Cathedral of Veylan. Twelve other strangers stood stunned beside you. Eleven of them looked very alike — modern Japanese in modern clothes, evidently killed in the same instant by trucks they did not see on a Tokyo street, dropped into the cathedral by the same Rite that pulled you. The twelfth was different in ways you could not immediately place, and was standing close enough that you could feel them there.\n\nRobed clergy, armed guards, a thin old mage, a round-faced priestess in red and white, a polished minor noble with a ledger, and a young prince in formal blue watched from beyond the chalk lines. Of the thirteen candles burning around the ring, eleven flared with cheat-skill grants — blue, gold, white, earth-brown, silver, stranger colors — and lit the chamber. Yours guttered first. The candle beside yours, in front of the one stranger who did not match the cohort's pattern, went next.\n\nThe room saw both failures before anyone explained the world. The Crown Prince smiled the way a man smiles at a play he has paid to see. The Cardinal stepped forward to manage the moment. The Sage stared at the two of you as if confirming something he had quietly predicted for years. The eleven properly summoned Heroes — the truck-killed Japanese cohort — were escorted out for processing. You and the other unblessed were left standing in the casting circle while the cathedral decided what to do with you.\n\nWhat followed was three days of administrative work that you were on the wrong side of. The cohort was placed in Hero training at the Royal Academy compound. You and the second unblessed were given plain civilian clothes, fed twice, asked questions you could not answer, and excluded from every ceremony the cohort attended. Yesterday the Cardinal's office issued a quiet finding: the two of you were \"constitutional anomalies unsuited to formal court duty\" and were to be remanded to the Adventurers' Guild for \"appropriate disposition.\"\n\nThis morning you and the other unblessed walked through the high doors of the Caer Veylan Adventurers' Guild Hall. The Guild Master — an old broad-shouldered fighter with a limp in the left leg — glanced at the Cathedral's hand-off letter, signed something, and walked away. You are standing on the main floor in plain civilian-issue, holding nothing, told to wait. The hall is busy — runners crossing with envelopes, adventurers at the contract board, a knot of fighters in working leather laughing near the bar. The Crown has, on purpose, sent nobody with you.\n\nAt the far end of the hall a tall woman with deep burgundy hair and a worn S-rank medallion at her throat has noticed you. She is already crossing the floor.",
   "world_state": {

@@ -1,13 +1,5 @@
-import re
-
 from app.engine.prompt_manager import PromptManager
 from app.schemas.conversation import ConversationMessage
-
-
-_CONTRACT_RE = re.compile(
-    r"<assistant_history_records>(.*?)</assistant_history_records>",
-    re.DOTALL,
-)
 
 
 def _render_router_conversation(
@@ -33,33 +25,13 @@ def _render_router_conversation(
     )
 
 
-def _contract_section(system_content: str) -> str:
-    match = _CONTRACT_RE.search(system_content)
-    assert match is not None
-    return match.group(1)
-
-
-def test_event_router_defines_content_history_record_contract():
+def test_event_router_does_not_restore_retired_content_history_scaffolding():
     messages = _render_router_conversation()
 
-    contract = _contract_section(messages[0]["content"])
-
-    for record_kind in (
-        "content_known",
-        "location_card",
-        "front_signal",
-        "turn_hint",
-    ):
-        assert record_kind in contract
-    assert "visibility=hidden" in contract
-    assert "scope=router" in contract
-    assert "analysis/adjudication context only" in contract
-    assert "canonical_event.observable_facts" in contract
-    assert "visible consequence" in contract
-    assert "existing visibility rules" in contract
-    assert "non-binding attention hint" in contract
-    assert "spawn authority" in contract
-    assert "Never route or spawn" in contract
+    contract = messages[0]["content"]
+    assert "<assistant_history_records>" not in contract
+    assert "canonical_event.observable_facts" not in contract
+    assert "turn_hint" not in contract
 
 
 def test_content_history_records_stay_assistant_side_not_current_turn_packet():

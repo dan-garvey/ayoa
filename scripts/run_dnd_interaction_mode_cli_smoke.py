@@ -382,17 +382,17 @@ async def _run_cli_line(state: CLIState, line: str) -> str:
     return output.getvalue()
 
 
-def _active_slot_reasons(ckpt: CheckpointFile) -> dict[str, str]:
+def _obligation_kinds(ckpt: CheckpointFile) -> dict[str, str]:
     return {
-        cid: slot.reason
-        for cid, slot in (ckpt.session.active_act_slots or {}).items()
+        character_id: obligation.kind
+        for character_id, obligation in ckpt.session.action_obligations.items()
     }
 
 
 def _event_facts(ckpt: CheckpointFile) -> list[str]:
     facts: list[str] = []
     for event in ckpt.canonical_events:
-        facts.extend(fact.text for fact in event.canonical_event.observable_facts)
+        facts.extend(fact.text for fact in event.observable_facts)
     return facts
 
 
@@ -430,13 +430,13 @@ def _case_checks(
 ) -> list[dict[str, Any]]:
     active_combat = ckpt.session.active_combat is not None
     open_cat_ii = list(ckpt.session.open_cat_ii_events or [])
-    slot_reasons = _active_slot_reasons(ckpt)
+    obligation_kinds = _obligation_kinds(ckpt)
     facts = _event_facts(ckpt)
     latest_cli = transcript[-1]["output"] if transcript else ""
     if "error:" in latest_cli.lower():
         return [_check("turn_completed_without_cli_error", False, latest_cli)]
     dnd_schema_used = any(
-        call.get("response_model") == "DndEventRouterOutput"
+        call.get("response_model") == "DndRouterBatchOutput"
         for call in role_calls
     )
 
@@ -446,9 +446,9 @@ def _case_checks(
             _check("no_active_combat", not active_combat, _combat_dump(ckpt)),
             _check("ordinary_cat_ii_opened", bool(open_cat_ii), _open_events(open_cat_ii)),
             _check(
-                "expected_responder_pinned",
-                slot_reasons.get(case.responder_id) == "cat_ii_responder",
-                slot_reasons,
+                "expected_responder_obligated",
+                obligation_kinds.get(case.responder_id) == "cat_ii_response",
+                obligation_kinds,
             ),
             _check("cli_showed_pause", "beat paused" in latest_cli.lower(), latest_cli),
         ]
@@ -511,8 +511,8 @@ def _case_checks(
         _check("no_cat_ii_opened", not open_cat_ii, _open_events(open_cat_ii)),
         _check(
             "no_cat_ii_slots",
-            "cat_ii_responder" not in set(slot_reasons.values()),
-            slot_reasons,
+            "cat_ii_response" not in set(obligation_kinds.values()),
+            obligation_kinds,
         ),
         _check(
             "continuity_fact_recorded",
@@ -623,7 +623,7 @@ async def _run_case(
         "role_calls": calls_for_case,
         "active_combat": _combat_dump(ckpt),
         "open_cat_ii_events": _open_events(list(ckpt.session.open_cat_ii_events)),
-        "active_slot_reasons": _active_slot_reasons(ckpt),
+        "action_obligation_kinds": _obligation_kinds(ckpt),
         "canonical_facts": _event_facts(ckpt),
         "checks": checks,
         "error": "",

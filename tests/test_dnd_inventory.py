@@ -8,9 +8,9 @@ from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_inventory import DndLootOfferItem
 from app.schemas.events import ObservableFact
-from app.schemas.event_router import DndEventRouterOutput
+from app.schemas.event_router import DndCanonicalEventRecord
 from app.schemas.state import SessionState
-from tests.support.factories import dnd_router_output
+from tests.support.factories import dnd_canonical_event
 
 
 def _ckpt() -> CheckpointFile:
@@ -48,8 +48,8 @@ def _ckpt() -> CheckpointFile:
     )
 
 
-def _loot_event() -> DndEventRouterOutput:
-    return dnd_router_output(
+def _loot_event() -> DndCanonicalEventRecord:
+    return dnd_canonical_event(
         event_id="evt_loot",
         facts=[ObservableFact.all("Alice opens the chest.")],
         observer_ids=["alice"],
@@ -79,9 +79,6 @@ def _loot_event() -> DndEventRouterOutput:
             "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 12, "pp": 0},
             "notes": "",
         },
-        requires_responders=False,
-        required_responders=[],
-        event_kind="state_change",
     )
 
 
@@ -102,7 +99,7 @@ def test_visible_prose_without_structured_signal_does_not_create_loot_offer():
     ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
     data = _loot_event().model_dump()
     data["event_id"] = "evt_gear_handoff"
-    data["canonical_event"]["observable_facts"] = [
+    data["observable_facts"] = [
         {
             "text": (
                 "Korva returns from the ledger counter carrying a small bundle "
@@ -128,7 +125,7 @@ def test_visible_prose_without_structured_signal_does_not_create_loot_offer():
 
     prompts = dnd_inventory.apply_loot_offers_from_events(
         ckpt,
-        [DndEventRouterOutput(**data)],
+        [DndCanonicalEventRecord(**data)],
     )
 
     assert prompts == {}
@@ -255,7 +252,7 @@ def test_take_all_computes_remaining_items_at_claim_time():
     })
     dnd_inventory.apply_loot_offers_from_events(
         ckpt,
-        [DndEventRouterOutput(**data)],
+        [DndCanonicalEventRecord(**data)],
     )
     dnd_inventory.claim_loot(
         ckpt,
@@ -286,7 +283,7 @@ def test_offer_eligibility_filters_to_bound_player_characters():
 
     prompts = dnd_inventory.apply_loot_offers_from_events(
         ckpt,
-        [DndEventRouterOutput(**data)],
+        [DndCanonicalEventRecord(**data)],
     )
 
     offer = ckpt.session.dnd_inventory_offers[0]
@@ -301,7 +298,7 @@ def test_departed_character_closes_orphaned_offer():
     data["loot_offer"]["eligible_character_ids"] = ["alice"]
     dnd_inventory.apply_loot_offers_from_events(
         ckpt,
-        [DndEventRouterOutput(**data)],
+        [DndCanonicalEventRecord(**data)],
     )
 
     del ckpt.session.character_bindings["alice"]
@@ -319,7 +316,7 @@ def test_prune_inventory_offers_keeps_bounded_closed_tail():
         data["event_id"] = f"evt_loot_{idx}"
         dnd_inventory.apply_loot_offers_from_events(
             ckpt,
-            [DndEventRouterOutput(**data)],
+            [DndCanonicalEventRecord(**data)],
         )
         ckpt.session.dnd_inventory_offers[-1].status = "closed"
 

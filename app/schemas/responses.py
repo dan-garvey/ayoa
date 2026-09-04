@@ -2,18 +2,27 @@ from __future__ import annotations
 
 import re
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.content_privacy import (
     redact_imported_asset_text,
     sanitize_player_safe_text,
 )
 from app.schemas.content_pack import SafeAssetRevealPayload
-from app.schemas.narrator import (
-    VisualNovelPage,
-    visual_novel_pages_contain_source_identifiers,
+from app.schemas.delivery import (
+    DeliveryOutboxEntry,
+    DeliveryVisualNovelRender as VisualNovelRender,
+    DeliveryVisualNovelSegment as VisualNovelRenderSegment,
 )
 from app.schemas.state import DndExperienceAwardDisplay
+
+
+__all__ = [
+    "DiceRollDisplay",
+    "TurnResponse",
+    "VisualNovelRender",
+    "VisualNovelRenderSegment",
+]
 
 
 _ASSET_DELIVERY_REF_RE = re.compile(
@@ -67,81 +76,20 @@ class DiceRollDisplay(BaseModel):
     automatic: bool = True
 
 
-class VisualNovelRenderSegment(BaseModel):
-    """One accepted POV passage and its canonical stage provenance."""
-
-    pages: list[VisualNovelPage] = Field(min_length=1)
-    rendered_event_ids: list[str] = Field(min_length=1)
-    sprite_variant_keys_by_label: dict[str, str] = Field(default_factory=dict)
-
-    @field_validator("rendered_event_ids")
-    @classmethod
-    def _require_nonempty_event_ids(cls, value: list[str]) -> list[str]:
-        cleaned = [event_id.strip() for event_id in value]
-        if any(not event_id for event_id in cleaned):
-            raise ValueError("rendered_event_ids cannot contain blanks")
-        if len(cleaned) != len(set(cleaned)):
-            raise ValueError("rendered_event_ids cannot contain duplicates")
-        return cleaned
-
-    @field_validator("sprite_variant_keys_by_label")
-    @classmethod
-    def _clean_variant_snapshot(cls, value: dict[str, str]) -> dict[str, str]:
-        cleaned: dict[str, str] = {}
-        for raw_label, raw_key in value.items():
-            label = " ".join(raw_label.split()).strip()
-            key = raw_key.strip().lower()
-            if not label or not key:
-                raise ValueError("sprite variant snapshots cannot contain blanks")
-            if re.fullmatch(r"[a-z0-9][a-z0-9_.-]{0,79}", key) is None:
-                raise ValueError("sprite variant snapshot key is invalid")
-            if label in cleaned:
-                raise ValueError("sprite variant snapshot labels must be unique")
-            cleaned[label] = key
-        return cleaned
-
-    @model_validator(mode="after")
-    def _reject_source_shaped_page_fields(self) -> "VisualNovelRenderSegment":
-        if visual_novel_pages_contain_source_identifiers(self.pages):
-            raise ValueError(
-                "visual-novel response pages cannot expose source-shaped ids"
-            )
-        page_labels = {
-            label
-            for page in self.pages
-            for label in page.sprites
-        }
-        if set(self.sprite_variant_keys_by_label) - page_labels:
-            raise ValueError(
-                "sprite variant snapshots may name only depicted page labels"
-            )
-        return self
-
-
-class VisualNovelRender(BaseModel):
-    """Ordered player-safe beat segments before card composition."""
-
-    segments: list[VisualNovelRenderSegment] = Field(min_length=1)
-
-
 class TurnResponse(BaseModel):
     session_id: str
     checkpoint_id: str = ""
     turn_index: int = 0
-    # Back-compat single-POV render. For v11 beats this mirrors
+    # Compatibility single-POV render. This mirrors
     # `per_player_renders[acting_character_id]` so legacy callers (the
     # Discord bot's default-channel post, the CLI REPL) keep working
     # unchanged. New multi-POV callers should walk `per_player_renders`
     # directly to deliver each player their own prose.
     output_text: str = ""
-    # v11: per-POV beat renders, keyed by character_id. Populated by
-    # `run_beat`'s fan-out through `Dispatcher.narrator_compose`; one
-    # entry per human POV with at least one observed event this beat,
-    # whether local or connected by explicit live perception. Empty when
-    # the beat paused mid-Cat-II (see
-    # `beat_ended_reason`) or nobody was present to observe.
+    # Per-POV renders keyed by character_id, projected from acknowledged
+    # outbox deliveries. Empty when no delivery is currently claimed.
     per_player_renders: dict[str, str] = Field(default_factory=dict)
-    # Structured ADV beat segments for POVs rendered while the session is in
+    # Structured ADV segments for POVs rendered while the session is in
     # visual_novel mode. Each segment carries the canonical event ids used to
     # resolve its own stage plate. ``per_player_renders`` remains the
     # deterministic accessibility/transcript projection of the same pages.
@@ -160,12 +108,12 @@ class TurnResponse(BaseModel):
     per_player_asset_reveals: dict[str, list[SafeAssetRevealPayload]] = Field(
         default_factory=dict
     )
-    # v11: why the beat stopped. Values come from `BeatResult.ended_reason`
-    # (e.g. "awaiting_player_turn", "cat_ii_resolution", "cat_ii_pending",
-    # "max_events_cap", "cascade_exhausted"). Callers can detect the
-    # Cat II pending state with `not per_player_renders` +
-    # `beat_ended_reason == "cat_ii_pending"`.
-    beat_ended_reason: str = ""
+    # Why canonical advancement paused for this request. Independent causal
+    # lanes may continue asynchronously even when this value is non-empty.
+    pause_reason: str = ""
+    # Lease-bearing durable deliveries represented by the compatibility maps
+    # above. Frontends acknowledge these ids only after successful transport.
+    deliveries: list[DeliveryOutboxEntry] = Field(default_factory=list)
     # Runtime-only UI affordances keyed by character_id. A value is the
     # canonical event id that opened that character's possible combat reaction
     # window. The event itself stays in checkpoint state; this map tells
@@ -184,10 +132,7 @@ class TurnResponse(BaseModel):
     # Runtime-only D&D XP notices for automatic combat awards. These are
     # frontend display data, not prompt context.
     experience_awards: list[DndExperienceAwardDisplay] = Field(default_factory=list)
-    # v11-r7a+: pre-turn resolutions. Stale Cat II closure and resumed
-    # automated combat can each produce TurnResponse objects that should be
-    # delivered before the actor's own /act result so display order matches
-    # story time. Empty in the common case.
+    # Earlier claimed deliveries which must be shown before this response.
     pre_turn_resolutions: list["TurnResponse"] = Field(default_factory=list)
     # NOTE: a `debug: DebugPayload | None` field lived here through
     # v11-r7i. The orchestrator never wrote it, every consumer
@@ -195,8 +140,7 @@ class TurnResponse(BaseModel):
     # by `if response.debug is not None:` and silently no-op'd. v11-r7j
     # murdered the field per the vestigial-field destruction policy
     # in DESIGN.md §19.1. Per-turn diagnostics live in the engine
-    # logger (`turn_loop.router[route]` lines) and per-turn checkpoint
-    # files.
+    # logger and per-turn checkpoint files.
 
     @model_validator(mode="after")
     def _sanitize_player_output_surfaces(self) -> "TurnResponse":

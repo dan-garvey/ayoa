@@ -19,8 +19,8 @@ from app.schemas.dnd_cat_ii import (
     RollPlan,
     RulesAdjudication,
 )
-from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
-from app.schemas.events import CanonicalEvent, ObservableFact
+from app.schemas.event_router import DndRouterBatchOutput, RouterBatchOutput
+from tests.support.factories import router_batch_output
 
 
 def _install_stream_mock(client, *responses):
@@ -626,25 +626,19 @@ class TestLLMClientComplete:
     @pytest.mark.asyncio
     async def test_structured_output_passes_output_format(self, client):
         """When response_model is set, we hand the Pydantic class to the SDK via output_format."""
-        event = CanonicalEvent.model_validate({
-            "world_adjudication": {
-                "feasible": True,
-            },
-            "observable_facts": [ObservableFact.all("The door swings open.")],
-        })
-        mock = _install_stream_mock(client, _make_mock_response("{}", parsed=event))
+        batch = router_batch_output()
+        mock = _install_stream_mock(client, _make_mock_response("{}", parsed=batch))
 
         result = await client.complete(
             role="narrator",
             messages=[{"role": "user", "content": "open door"}],
-            response_model=CanonicalEvent,
+            response_model=RouterBatchOutput,
             temperature=0.5,
             max_tokens=100,
         )
 
-        assert mock.call_args.kwargs["output_format"] is CanonicalEvent
-        assert isinstance(result.parsed, CanonicalEvent)
-        assert result.parsed.world_adjudication.feasible is True
+        assert mock.call_args.kwargs["output_format"] is RouterBatchOutput
+        assert isinstance(result.parsed, RouterBatchOutput)
 
     @pytest.mark.asyncio
     async def test_structured_output_missing_parsed_raises(self, client):
@@ -655,7 +649,7 @@ class TestLLMClientComplete:
             await client.complete(
                 role="narrator",
                 messages=[{"role": "user", "content": "x"}],
-                response_model=CanonicalEvent,
+                response_model=RouterBatchOutput,
                 temperature=0.5,
                 max_tokens=100,
             )
@@ -863,12 +857,7 @@ class TestLLMClientComplete:
 
     @pytest.mark.asyncio
     async def test_openai_structured_output_passes_json_schema(self):
-        event = CanonicalEvent.model_validate({
-            "world_adjudication": {
-                "feasible": True,
-            },
-            "observable_facts": [ObservableFact.all("The door swings open.")],
-        })
+        batch = router_batch_output()
         config = LLMConfig(
             openai_api_key="fake-openai-key",
             role_models={"event_router": "openai:gpt-5.4"},
@@ -877,14 +866,14 @@ class TestLLMClientComplete:
         client = LLMClient(config=config)
         openai_client = MagicMock()
         openai_client.responses.create = AsyncMock(
-            return_value=_make_openai_response(event.model_dump_json(), model="gpt-5.4")
+            return_value=_make_openai_response(batch.model_dump_json(), model="gpt-5.4")
         )
         client._openai_clients["event_router"] = openai_client
 
         result = await client.complete(
             role="event_router",
             messages=[{"role": "user", "content": "open door"}],
-            response_model=CanonicalEvent,
+            response_model=RouterBatchOutput,
             temperature=0.5,
             max_tokens=100,
         )
@@ -892,18 +881,18 @@ class TestLLMClientComplete:
         text_format = openai_client.responses.create.call_args.kwargs["text"]["format"]
         reasoning = openai_client.responses.create.call_args.kwargs["reasoning"]
         assert text_format["type"] == "json_schema"
-        assert text_format["name"] == "CanonicalEvent"
+        assert text_format["name"] == "RouterBatchOutput"
         assert text_format["strict"] is True
         assert reasoning == {"effort": "medium", "summary": "auto"}
-        assert isinstance(result.parsed, CanonicalEvent)
-        assert result.parsed.world_adjudication.feasible is True
+        assert isinstance(result.parsed, RouterBatchOutput)
+        assert result.parsed.events[0].feasible_input_indexes == [0]
 
     def test_openai_structured_schema_requires_every_object_property(self):
         """OpenAI strict JSON Schema rejects Pydantic default fields unless
         they are still listed as required in the provider-facing schema."""
         for model in (
-            EventRouterOutput,
-            DndEventRouterOutput,
+            RouterBatchOutput,
+            DndRouterBatchOutput,
             RollPlan,
             DndCombatTurnPlan,
             RulesAdjudication,
@@ -1115,7 +1104,7 @@ class TestLLMClientComplete:
             await client.complete(
                 role="narrator",
                 messages=[{"role": "user", "content": "extract a huge world"}],
-                response_model=CanonicalEvent,
+                response_model=RouterBatchOutput,
                 temperature=0.3,
                 max_tokens=100,
             )
@@ -1272,10 +1261,8 @@ class TestLLMClientIntegration:
             {
                 "role": "system",
                 "content": (
-                    "You are a world-state engine. Respond ONLY with valid JSON, no markdown.\n"
-                    'Schema: {"event_id": string, "user_intent": string, '
-                    '"world_adjudication": {"feasible": bool}, '
-                    '"observable_facts": [string]}'
+                    "Resolve whether the attempted action is feasible and return "
+                    "the requested structured adjudication."
                 ),
             },
             {"role": "user", "content": "The player tries to fly by flapping their arms."},
@@ -1286,8 +1273,8 @@ class TestLLMClientIntegration:
             messages=messages,
             temperature=0.5,
             max_tokens=1024,
-            response_model=CanonicalEvent,
+            response_model=RulesAdjudication,
         )
 
-        assert isinstance(result.parsed, CanonicalEvent)
-        assert result.parsed.world_adjudication.feasible is False
+        assert isinstance(result.parsed, RulesAdjudication)
+        assert result.parsed.feasible is False

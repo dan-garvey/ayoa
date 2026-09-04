@@ -8,7 +8,7 @@ from app.bot.engine_bridge import EngineBridge
 from app.engine import dnd_combat
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.state import SessionState, SlotEntry, WorldState
+from app.schemas.state import ActionObligation, SessionState, WorldState
 
 
 SESSION_ID = "combat_session"
@@ -248,9 +248,10 @@ def test_manual_combat_end_broadcasts_observable_event(bridge: EngineBridge):
     _seed(bridge)
     bridge.begin_combat(SESSION_ID, ["alice", "guard"])
     ckpt = bridge.load_latest(SESSION_ID)
-    ckpt.session.active_act_slots["distant"] = SlotEntry(
-        reason="combat_blocked",
-        trigger_event_id="evt_blocked",
+    ckpt.session.action_obligations["distant"] = ActionObligation(
+        kind="combat_start_blocked",
+        source_event_id="evt_blocked",
+        claimed_at="2026-01-01T00:00:00+00:00",
     )
     bridge.checkpoint_mgr.save(ckpt)
 
@@ -259,18 +260,21 @@ def test_manual_combat_end_broadcasts_observable_event(bridge: EngineBridge):
     assert ended.active is False
     reloaded = bridge.load_latest(SESSION_ID)
     assert reloaded.session.active_combat is None
-    assert reloaded.session.active_act_slots == {}
+    assert reloaded.session.action_obligations == {}
     assert reloaded.canonical_events
     event = reloaded.canonical_events[-1]
-    assert "distant" not in {observer.character_id for observer in event.observers}
-    facts = [
-        fact.text
-        for fact in event.canonical_event.observable_facts
-    ]
+    assert "distant" not in event.observer_ids
+    facts = [fact.text for fact in event.observable_facts]
     assert "D&D combat ends." in facts
     assert all("You may act again" not in fact for fact in facts)
-    assert reloaded.session.render_buffers["alice"]
-    assert "distant" not in reloaded.session.render_buffers
+    assert [
+        job.pov_character_id
+        for job in reloaded.session.narrator_render_jobs
+    ] == ["alice"]
+    assert reloaded.session.narrator_render_jobs[0].source_event_ids == [
+        event.event_id
+    ]
+    assert reloaded.session.delivery_outbox == []
     guard = next(c for c in reloaded.characters if c.character_id == "guard")
     assert "D&D combat ends." in guard.pending_observations
 

@@ -35,7 +35,7 @@ from app.schemas.state import (
     SessionState,
     WorldState,
 )
-from tests.support.factories import router_output
+from tests.support.factories import canonical_event
 
 
 SESSION_ID = "rewind_test"
@@ -68,11 +68,9 @@ def _make_ckpt(
     events = []
     for i in range(canonical_event_count):
         events.append(
-            router_output(
+            canonical_event(
                 event_id=f"evt_t{turn_index}_{i}",
                 observer_ids=[actor_id],
-                facts=[],
-                event_kind="cascade_exhausted",
             )
         )
 

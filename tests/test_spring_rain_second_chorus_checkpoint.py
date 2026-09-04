@@ -27,7 +27,7 @@ def _load_checkpoint() -> CheckpointFile:
 def test_checkpoint_loads_as_rules_neutral_story() -> None:
     checkpoint = _load_checkpoint()
 
-    assert checkpoint.schema_version == "6.0"
+    assert checkpoint.schema_version == "7.0"
     assert checkpoint.session.story_id == "spring_rain_second_chorus"
     assert checkpoint.session.session_id == "spring_rain_second_chorus"
     assert checkpoint.session.config.settings.ruleset_id == "narrative"

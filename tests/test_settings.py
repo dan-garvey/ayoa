@@ -12,7 +12,6 @@ from app.engine.settings import (
     SETTINGS,
     SETTINGS_BY_KEY,
     UnknownSettingError,
-    _parse_bool,
     get_setting,
     list_settings_view,
     set_setting,
@@ -76,22 +75,12 @@ def bridge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EngineBridge:
 
 
 class TestSettingsRegistry:
-    def test_parse_bool_accepts_common_spellings(self):
-        for raw in ("true", "True", "TRUE", "yes", "on", "1", "enabled"):
-            assert _parse_bool(raw) is True
-        for raw in ("false", "no", "off", "0", "disabled"):
-            assert _parse_bool(raw) is False
-
-    def test_parse_bool_rejects_garbage(self):
-        with pytest.raises(ValueError, match="boolean"):
-            _parse_bool("maybe")
-
     def test_registry_is_non_empty(self):
         # If this breaks the /settings surface is empty — likely a refactor
         # removed the only setting without replacing it. Add one or remove
         # the UI.
         assert SETTINGS, "no settings registered"
-        assert "max_events_per_beat" in SETTINGS_BY_KEY
+        assert "max_router_batches_without_player_input" in SETTINGS_BY_KEY
 
     def test_every_spec_round_trips_its_default(self):
         """Every setting's default value should render cleanly back through
@@ -108,8 +97,10 @@ class TestSettingsRegistry:
 class TestSettingsHelpers:
     def test_get_setting_returns_default_on_fresh_ckpt(self):
         ckpt = _ckpt()
-        assert get_setting(ckpt, "max_events_per_beat") == 40
-        assert get_setting(ckpt, "max_agent_cascades_per_beat") == 35
+        assert get_setting(
+            ckpt,
+            "max_router_batches_without_player_input",
+        ) == 12
 
     def test_get_unknown_raises(self):
         ckpt = _ckpt()
@@ -118,9 +109,16 @@ class TestSettingsHelpers:
 
     def test_set_setting_applies_parsed_value(self):
         ckpt = _ckpt()
-        new = set_setting(ckpt, "max_events_per_beat", "12")
-        assert new == 12
-        assert ckpt.session.config.settings.max_events_per_beat == 12
+        new = set_setting(
+            ckpt,
+            "max_router_batches_without_player_input",
+            "7",
+        )
+        assert new == 7
+        assert (
+            ckpt.session.config.settings.max_router_batches_without_player_input
+            == 7
+        )
 
     def test_set_player_roll_mode(self):
         ckpt = _ckpt()
@@ -151,16 +149,14 @@ class TestSettingsHelpers:
         with pytest.raises(UnknownSettingError):
             get_setting(ckpt, retired_key)
 
-    def test_set_beat_caps(self):
+    def test_autonomous_batch_cap_must_be_positive(self):
         ckpt = _ckpt()
-        events = set_setting(ckpt, "max_events_per_beat", "40")
-        cascades = set_setting(ckpt, "max_agent_cascades_per_beat", "35")
-        assert events == 40
-        assert cascades == 35
-        assert ckpt.session.config.settings.max_events_per_beat == 40
-        assert (
-            ckpt.session.config.settings.max_agent_cascades_per_beat == 35
-        )
+        with pytest.raises(ValueError, match="at least 1"):
+            set_setting(
+                ckpt,
+                "max_router_batches_without_player_input",
+                "0",
+            )
 
     def test_set_setting_unknown_raises(self):
         ckpt = _ckpt()
@@ -170,15 +166,23 @@ class TestSettingsHelpers:
     def test_set_setting_bad_value_raises(self):
         ckpt = _ckpt()
         with pytest.raises(ValueError):
-            set_setting(ckpt, "max_events_per_beat", "zero")
+            set_setting(
+                ckpt,
+                "max_router_batches_without_player_input",
+                "zero",
+            )
 
     def test_list_view_shape(self):
         ckpt = _ckpt()
         view = list_settings_view(ckpt)
         assert len(view) == len(SETTINGS)
         keys = {row["key"] for row in view}
-        assert "max_events_per_beat" in keys
-        row = next(r for r in view if r["key"] == "max_events_per_beat")
+        assert "max_router_batches_without_player_input" in keys
+        row = next(
+            r
+            for r in view
+            if r["key"] == "max_router_batches_without_player_input"
+        )
         for field in (
             "key", "value", "rendered_value",
             "default", "rendered_default", "description",
@@ -191,14 +195,24 @@ class TestSettingsHelpers:
 
 class TestEngineBridgeSettings:
     def test_get_returns_default(self, bridge: EngineBridge):
-        assert bridge.get_setting(SESSION_ID, "max_events_per_beat") == 40
+        assert bridge.get_setting(
+            SESSION_ID,
+            "max_router_batches_without_player_input",
+        ) == 12
 
     def test_set_persists_across_reloads(self, bridge: EngineBridge):
         asyncio.run(
-            bridge.set_setting(SESSION_ID, "max_events_per_beat", "12")
+            bridge.set_setting(
+                SESSION_ID,
+                "max_router_batches_without_player_input",
+                "9",
+            )
         )
         # New handle, fresh disk read.
-        assert bridge.get_setting(SESSION_ID, "max_events_per_beat") == 12
+        assert bridge.get_setting(
+            SESSION_ID,
+            "max_router_batches_without_player_input",
+        ) == 9
 
     def test_set_waits_for_running_turn_then_persists(
         self,
@@ -261,7 +275,7 @@ class TestEngineBridgeSettings:
         ckpt = _ckpt()
         ckpt.session.session_id = story_id
         ckpt.session.story_id = story_id
-        ckpt.session.config.settings.max_events_per_beat = 12
+        ckpt.session.config.settings.max_router_batches_without_player_input = 8
         (story_dir / "ckpt_0000.json").write_text(
             ckpt.model_dump_json(indent=2)
         )
@@ -271,7 +285,10 @@ class TestEngineBridgeSettings:
             "loaded_ticks_default", story_id,
         )
 
-        assert loaded.session.config.settings.max_events_per_beat == 12
+        assert (
+            loaded.session.config.settings.max_router_batches_without_player_input
+            == 8
+        )
         assert not hasattr(loaded, "config")
 
     def test_list_has_rows(self, bridge: EngineBridge):
@@ -283,8 +300,7 @@ class TestEngineBridgeSettings:
         keys = bridge.known_setting_keys()
         assert keys == [spec.key for spec in SETTINGS]
         assert {
-            "max_events_per_beat",
-            "max_agent_cascades_per_beat",
+            "max_router_batches_without_player_input",
             "ruleset_id",
             "player_roll_mode",
             "presentation_mode",

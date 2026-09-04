@@ -11,7 +11,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.schemas.event_router import ClosedEventRouterOutput, EventRouterOutput
+from app.schemas.event_router import (
+    CanonicalEventRecord,
+    RouterBatchOutput,
+    RouterEventDraft,
+)
 
 
 ONE_STAR_RULESET_ID = "one_star_ascension"
@@ -246,7 +250,7 @@ class OneStarFloorScenario(BaseModel):
     completion_declaration: str
     failure_declaration: str
     counters: list["OneStarMissionCounter"] = Field(min_length=1)
-    pressure_beats: list[str] = Field(min_length=1)
+    pressures: list[str] = Field(min_length=1)
 
     @model_validator(mode="after")
     def _clean(self) -> "OneStarFloorScenario":
@@ -255,7 +259,7 @@ class OneStarFloorScenario(BaseModel):
         self.premise = self.premise.strip()
         self.completion_declaration = self.completion_declaration.strip()
         self.failure_declaration = self.failure_declaration.strip()
-        self.pressure_beats = [beat.strip() for beat in self.pressure_beats]
+        self.pressures = [pressure.strip() for pressure in self.pressures]
         if not all((
             self.mission_id,
             self.destination,
@@ -264,10 +268,10 @@ class OneStarFloorScenario(BaseModel):
             self.failure_declaration,
         )):
             raise ValueError("floor scenarios require every authored declaration")
-        if any(not beat for beat in self.pressure_beats):
-            raise ValueError("floor scenario pressure beats cannot be blank")
-        if len(set(self.pressure_beats)) != len(self.pressure_beats):
-            raise ValueError("floor scenario pressure beats must be distinct")
+        if any(not pressure for pressure in self.pressures):
+            raise ValueError("floor scenario pressures cannot be blank")
+        if len(set(self.pressures)) != len(self.pressures):
+            raise ValueError("floor scenario pressures must be distinct")
         counter_ids = [counter.counter_id for counter in self.counters]
         if len(counter_ids) != len(set(counter_ids)):
             raise ValueError("floor scenario counter ids must be unique")
@@ -1173,13 +1177,19 @@ class OneStarStateUpdateList(BaseModel):
     state_updates: list[OneStarStateUpdate]
 
 
-class OneStarEventRouterOutput(EventRouterOutput):
-    """One-Star router response; imported by the ruleset router dispatcher."""
+class OneStarRouterEventDraft(RouterEventDraft):
+    """One-Star semantic mutation attached to one event draft."""
 
     state_updates: list[OneStarStateUpdate]
 
 
-class ClosedOneStarEventRouterOutput(ClosedEventRouterOutput):
-    """Closed continuation response carrying the same compact update list."""
+class OneStarRouterBatchOutput(RouterBatchOutput):
+    """Fixed One-Star response model for a complete router batch."""
+
+    events: list[OneStarRouterEventDraft]
+
+
+class OneStarCanonicalEventRecord(CanonicalEventRecord):
+    """Durable One-Star event with adapter updates but no scheduling fields."""
 
     state_updates: list[OneStarStateUpdate]

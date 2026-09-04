@@ -34,11 +34,10 @@ from app.llm.client import LLMResponse
 from app.schemas.characters import CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import (
-    EventRouterOutput,
-    ObserverEntry,
-    empty_commitment_open_signal,
+    CanonicalEventRecord,
+    ObserverGroups,
 )
-from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
+from app.schemas.events import ObservableFact
 
 
 SEED_CHECKPOINT_PATH = (
@@ -204,32 +203,29 @@ def _load_seed_checkpoint() -> CheckpointFile:
     return CheckpointFile.model_validate_json(SEED_CHECKPOINT_PATH.read_text())
 
 
-def _fixture_event(case: DialogueCase) -> EventRouterOutput:
+def _fixture_event(case: DialogueCase) -> CanonicalEventRecord:
     """Create one canonical surface event for the pending-observation fixture."""
     fact = case.canonical_fact.strip() or case.prompt.strip()
-    return EventRouterOutput(
+    submission_id = f"submission_dialogue_{case.case_id}"
+    return CanonicalEventRecord(
         event_id=f"evt_dialogue_{case.case_id}",
+        causal_lane_id=f"lane_dialogue_{case.actor_id}",
         effective_at_s=45,
         duration_s=1,
-        decision_rationale="Offline dialogue harness canonical context fixture.",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(feasible=True),
-            observable_facts=[ObservableFact.all(fact)],
+        actor_ids=[],
+        source_submission_ids=[submission_id],
+        feasible_submission_ids=[submission_id],
+        infeasible_submission_ids=[],
+        observable_facts=[ObservableFact.all(fact)],
+        observers=ObserverGroups(
+            direct=[case.actor_id],
+            indirect=[],
+            inferred=[],
         ),
-        event_kind="public_fact",
-        requires_responders=False,
-        required_responders=[],
-        observers=[
-            ObserverEntry(
-                character_id=case.actor_id,
-                observation_level="d",
-                routing_role="observe_only",
-            )
-        ],
         spawn=[],
         dormant=[],
         cull=[],
-        commitment_open=empty_commitment_open_signal(),
+        commitment_opens=[],
         commitment_resolutions=[],
         commitment_interrupts=[],
         location_updates=[],

@@ -391,13 +391,12 @@ def test_hidden_observer_who_beats_stealth_gets_next_output_regardless_binding()
 
     routed = cat._compile_event_router_output(ckpt, evt, transaction, adjudication)
 
-    assert routed.event_kind == "beat_continues"
-    assert routed.next_output_character_ids == ["dace"]
-    dace_observer = next(
-        observer for observer in routed.observers
-        if observer.character_id == "dace"
-    )
-    assert dace_observer.routing_role == "next_output"
+    assert routed.observation_level_for("dace") == "direct"
+    assert cat._stealth_recon_followup_responder_ids(
+        ckpt,
+        evt,
+        transaction,
+    ) == ["dace"]
 
 
 def test_dnd_combat_turn_plan_accepts_nested_no_roll_action():
@@ -602,15 +601,13 @@ def test_dnd_cat_ii_executes_roll_plan_and_compiles_router_output(monkeypatch):
         "event_router",
         "event_router",
     ]
-    assert routed.requires_responders is False
-    assert routed.event_kind == "cat_ii_resolution"
-    assert routed.next_output_character_ids == []
-    assert [o.character_id for o in routed.observers] == ["alice", "pip"]
-    assert routed.canonical_event.observable_facts[0].text == (
+    assert routed.next_turn_actor_ids == ()
+    assert routed.event.observers.direct == ["alice", "pip"]
+    assert routed.event.observable_facts[0].text == (
         "Alice drives Pip back from the doorway."
     )
-    assert "roll_alice" not in routed.decision_rationale
-    assert "roll_pip" not in routed.decision_rationale
+    assert "roll_alice" not in routed.event.model_dump_json()
+    assert "roll_pip" not in routed.event.model_dump_json()
 
     transaction = ckpt.session.cat_ii_roll_transactions[0]
     assert transaction.status == "finalized"
@@ -667,7 +664,7 @@ def test_dnd_cat_ii_scopes_private_outcome_facts(monkeypatch):
         )
     )
 
-    public, private = routed.canonical_event.observable_facts
+    public, private = routed.event.observable_facts
     assert public.audience == "all_observers"
     assert public.text == (
         "Alice says, 'Step away from the door before this gets worse.'"
@@ -678,17 +675,8 @@ def test_dnd_cat_ii_scopes_private_outcome_facts(monkeypatch):
         "Alice's threat feels immediate enough that staying in place feels "
         "dangerous."
     )
-    assert routed.requires_responders is False
-    assert routed.required_responders == []
-    assert routed.event_kind == "beat_continues"
-    assert routed.next_output_character_ids == ["pip"]
-    assert {
-        observer.character_id: observer.routing_role
-        for observer in routed.observers
-    } == {
-        "alice": "observe_only",
-        "pip": "next_output",
-    }
+    assert routed.next_turn_actor_ids == ("pip",)
+    assert routed.event.observers.direct == ["alice", "pip"]
 
 
 def test_dnd_cat_ii_interactive_player_roll_pauses_until_roll_submitted(
@@ -735,7 +723,7 @@ def test_dnd_cat_ii_interactive_player_roll_pauses_until_roll_submitted(
     assert transaction.status == "awaiting_player_rolls"
     assert transaction.rolls[0].status == "pending"
     assert transaction.rolls[1].status == "completed"
-    assert ckpt.session.active_act_slots["alice"].reason == "cat_ii_roll"
+    assert ckpt.session.action_obligations["alice"].kind == "cat_ii_roll"
     assert client.complete.await_count == 1
 
     complete_pending_player_roll(
@@ -746,11 +734,11 @@ def test_dnd_cat_ii_interactive_player_roll_pauses_until_roll_submitted(
     )
     routed = asyncio.run(resolver.resolve_cat_ii(ckpt=ckpt, cat_ii_event=evt))
 
-    assert routed.canonical_event.observable_facts[0].text == (
+    assert routed.event.observable_facts[0].text == (
         "Alice fails to move Pip from the doorway."
     )
     assert transaction.status == "finalized"
-    assert ckpt.session.active_act_slots == {}
+    assert ckpt.session.action_obligations == {}
     assert [call.kwargs["role"] for call in client.complete.await_args_list] == [
         "event_router",
         "event_router",

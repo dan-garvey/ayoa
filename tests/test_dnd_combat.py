@@ -19,13 +19,13 @@ from app.engine.dnd_combat import (
 )
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.state import (
+    ActionObligation,
     CatIIRollTransaction,
     DndCombatantState,
     DndCombatState,
     DndEffectRecurringSave,
     DndRuntimeEffect,
     SessionState,
-    SlotEntry,
 )
 
 
@@ -1031,17 +1031,20 @@ def test_lifecycle_and_roster_validation(monkeypatch):
     with pytest.raises(ValueError, match="already active"):
         start_combat(session, [_character("bob", "Bob")])
     combat.pending_advance_actor_id = "alice"
-    session.active_act_slots["alice"] = SlotEntry(
-        reason="combat_reaction",
-        trigger_event_id="evt_react",
+    session.action_obligations["alice"] = ActionObligation(
+        kind="combat_reaction",
+        source_event_id="evt_react",
+        claimed_at="2026-01-01T00:00:00+00:00",
     )
-    session.active_act_slots["bob"] = SlotEntry(
-        reason="combat_blocked",
-        trigger_event_id="evt_blocked",
+    session.action_obligations["bob"] = ActionObligation(
+        kind="combat_start_blocked",
+        source_event_id="evt_blocked",
+        claimed_at="2026-01-01T00:00:00+00:00",
     )
-    session.active_act_slots["pip"] = SlotEntry(
-        reason="cat_ii_roll",
-        cat_ii_event_id="cmb_1",
+    session.action_obligations["pip"] = ActionObligation(
+        kind="cat_ii_roll",
+        source_event_id="cmb_1",
+        claimed_at="2026-01-01T00:00:00+00:00",
     )
     session.cat_ii_roll_transactions.append(CatIIRollTransaction(
         transaction_id="rolltxn_1",
@@ -1056,7 +1059,7 @@ def test_lifecycle_and_roster_validation(monkeypatch):
     assert ended.status == "ended"
     assert ended.pending_advance_actor_id == ""
     assert session.active_combat is None
-    assert session.active_act_slots == {}
+    assert session.action_obligations == {}
     assert session.cat_ii_roll_transactions[0].status == "cancelled"
     with pytest.raises(ValueError, match="not active"):
         current_combatant(session)

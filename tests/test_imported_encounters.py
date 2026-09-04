@@ -9,11 +9,11 @@ from app.engine.imported_encounters import (
 )
 from app.engine.imported_statblocks import ImportedStatBlockNotFoundError
 from app.schemas.content import ContentPackState
-from tests.support.factories import dnd_router_output
+from tests.support.factories import dnd_router_event_draft
 
 
 def test_resolves_location_encounter_to_spawns_map_and_refs() -> None:
-    result = dnd_router_output(
+    result = dnd_router_event_draft(
         interaction_mode="dnd_combat_start",
         combatant_ids=["alice"],
         combatant_spawns=[],
@@ -37,15 +37,15 @@ def test_resolves_location_encounter_to_spawns_map_and_refs() -> None:
     ]
     assert resolved.battle_map is not None
     assert resolved.battle_map.source_template_ref == "map.entry"
-    assert result.combatant_ids == ["alice", "guardian_1", "guardian_2"]
+    assert result.combatant_ids == ["alice"]
     assert result.combatant_spawns[0].statblock_ref == "stat.guardian"
     assert result.battle_map_seed.present is True
 
 
 def test_imported_encounter_replaces_router_authored_monster_spawns() -> None:
-    result = dnd_router_output(
+    result = dnd_router_event_draft(
         interaction_mode="dnd_combat_start",
-        combatant_ids=["alice", "rat_1"],
+        combatant_ids=["alice"],
         combatant_spawns=[
             {
                 "character_id": "rat_1",
@@ -66,7 +66,7 @@ def test_imported_encounter_replaces_router_authored_monster_spawns() -> None:
         "guardian_1",
         "guardian_2",
     ]
-    assert result.combatant_ids == ["alice", "guardian_1", "guardian_2"]
+    assert result.combatant_ids == ["alice"]
 
 
 def test_missing_statblock_ref_blocks_encounter_resolution() -> None:

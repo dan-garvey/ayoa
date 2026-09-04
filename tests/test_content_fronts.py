@@ -7,16 +7,13 @@ from app.engine.content_fronts import (
     queue_front_signal_from_consequence,
 )
 from app.engine.content_resolver import append_pending_router_content_records
-from app.engine.orchestrator import (
-    _automated_turn_snapshot,
-    _rollback_automated_turn_snapshot,
-)
+from app.engine.event_runtime import commit_event_batch
+from app.engine.story_coordinator import immutable_checkpoint, replace_checkpoint_state
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content import ContentPackState
 from app.schemas.content_pack import FrontDossierRecord
 from app.schemas.events import ObservableFact
-from app.engine.turn_loop import broadcast_event
-from tests.support.factories import checkpoint, router_output
+from tests.support.factories import canonical_event, character_record, checkpoint
 
 
 def test_public_consequence_updates_front_state_and_queues_router_signal():
@@ -161,7 +158,7 @@ def test_front_runtime_state_round_trips_and_rolls_back_with_content_state():
         "dispatch a servant observer"
     )
 
-    snapshot = _automated_turn_snapshot(ckpt)
+    snapshot = immutable_checkpoint(ckpt)
     runtime = (
         ckpt.session.content_state["curse"]
         .metadata[FRONT_RUNTIME_METADATA_KEY]["fronts"]["abbot"]
@@ -170,7 +167,7 @@ def test_front_runtime_state_round_trips_and_rolls_back_with_content_state():
     runtime["active_plans"][0]["plan"] = "corrupted plan"
     ckpt.session.content_state["curse"].pending_signals.clear()
 
-    _rollback_automated_turn_snapshot(ckpt, snapshot)
+    replace_checkpoint_state(ckpt, snapshot)
 
     restored_runtime = (
         ckpt.session.content_state["curse"]
@@ -186,7 +183,7 @@ def test_front_runtime_state_round_trips_and_rolls_back_with_content_state():
 
 
 def test_public_fact_broadcast_wires_imported_front_dossier_signal():
-    ckpt = checkpoint()
+    ckpt = checkpoint(characters=[character_record("alice"), character_record("pip")])
     ckpt.session.content_state = {
         "curse": ContentPackState(
             pack_id="curse",
@@ -200,14 +197,13 @@ def test_public_fact_broadcast_wires_imported_front_dossier_signal():
             },
         )
     }
-    event = router_output(
-        event_kind="public_fact",
+    event = canonical_event(
         observer_ids=["alice", "pip"],
         facts=[ObservableFact.all("The tavern publicly shelters Ireena.")],
         effective_at_s=30,
     )
 
-    broadcast_event(ckpt, event, actor_id="alice")
+    commit_event_batch(ckpt, [event])
 
     pack = ckpt.session.content_state["curse"]
     front_runtime = pack.metadata[FRONT_RUNTIME_METADATA_KEY]["fronts"][
@@ -235,7 +231,7 @@ def test_public_fact_broadcast_wires_imported_front_dossier_signal():
 
 
 def test_public_fact_front_signal_respects_runtime_cooldown_but_records_knowledge():
-    ckpt = checkpoint()
+    ckpt = checkpoint(characters=[character_record("alice")])
     ckpt.session.content_state = {
         "curse": ContentPackState(
             pack_id="curse",
@@ -248,19 +244,19 @@ def test_public_fact_front_signal_respects_runtime_cooldown_but_records_knowledg
             },
         )
     }
-    first = router_output(
-        event_kind="public_fact",
+    first = canonical_event(
+        event_id="evt_first",
         facts=[ObservableFact.all("The tavern publicly shelters Ireena.")],
         effective_at_s=10,
     )
-    second = router_output(
-        event_kind="public_fact",
+    second = canonical_event(
+        event_id="evt_second",
         facts=[ObservableFact.all("The burgomaster publicly praises the party.")],
         effective_at_s=20,
     )
 
-    broadcast_event(ckpt, first, actor_id="alice")
-    broadcast_event(ckpt, second, actor_id="alice")
+    commit_event_batch(ckpt, [first])
+    commit_event_batch(ckpt, [second])
 
     pack = ckpt.session.content_state["curse"]
     front_runtime = pack.metadata[FRONT_RUNTIME_METADATA_KEY]["fronts"][

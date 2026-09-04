@@ -1492,6 +1492,10 @@ class CLIState:
         self._next_user_id = 1
         self.running = True
         self.one_shot_mode = False
+        self._delivery_print_lock = asyncio.Lock()
+        self._delivery_consumer_id = (
+            f"cli:{os.getpid()}:{session_id}:{id(self)}"
+        )
         self.engine.image_generation.register_delivery_handler(
             ImageDeliveryKind.cli,
             self._deliver_cli_image,
@@ -3017,7 +3021,7 @@ class CLIState:
                 response,
                 actor_id=result.actor_id,
             )
-            if response.beat_ended_reason == "cat_ii_pending_rolls":
+            if response.pause_reason == "cat_ii_pending_rolls":
                 printed_pending_from_response = True
 
         if not printed_pending_from_response:
@@ -3295,7 +3299,47 @@ class CLIState:
             return {self.pov_filter} if self.pov_filter in self.claims else set()
         return set(self.claims or {})
 
+    async def _acknowledge_printed_deliveries(self, response) -> None:
+        """Acknowledge only durable outbox entries this response leased."""
+
+        if not getattr(response, "deliveries", None):
+            return
+        await self.engine.acknowledge_turn_deliveries(
+            session_id=self.session_id,
+            response=response,
+            pov_character_ids=self._pov_claims(),
+        )
+
+    async def print_pending_deliveries(self) -> bool:
+        """Claim and print narrator work completed outside a player command."""
+
+        if not self.story_id or not self._pov_claims():
+            return False
+        response = await self.engine.claim_pending_turn_deliveries(
+            session_id=self.session_id,
+            consumer_id=self._delivery_consumer_id,
+            pov_character_ids=self._pov_claims(),
+            expected_bindings={
+                character_id: str(self.claims[character_id])
+                for character_id in self._pov_claims()
+            },
+        )
+        if not response.deliveries:
+            return False
+        actor_id = response.deliveries[0].pov_character_id
+        await self._print_turn_response(response, actor_id=actor_id)
+        return True
+
     async def _print_turn_response(
+        self,
+        response,
+        *,
+        actor_id: str,
+    ) -> None:
+        async with self._delivery_print_lock:
+            await self._print_turn_response_unlocked(response, actor_id=actor_id)
+
+    async def _print_turn_response_unlocked(
         self,
         response,
         *,
@@ -3303,14 +3347,14 @@ class CLIState:
     ) -> None:
         actor_name = self._character_name(actor_id) if actor_id else "player"
         # v11-r6b/r7a: mirror the Discord bot's /act branching so the
-        # CLI playtest path surfaces paused beats and slot rejections
+        # CLI playtest path surfaces paused events and slot rejections
         # with targeted messages, AND prints the PARTIAL cliffhanger
         # render when one is available (cat_ii_pending).
-        if response.beat_ended_reason == "slot_rejected":
+        if response.pause_reason == "slot_rejected":
             print(response.output_text)
             self._sync_current_actor_to_active_combat()
             return
-        if response.beat_ended_reason == "combat_start_blocked_deferred":
+        if response.pause_reason == "combat_start_blocked_deferred":
             print(response.output_text)
             self._sync_current_actor_to_active_combat()
             return
@@ -3333,17 +3377,18 @@ class CLIState:
             self._print_asset_reveals(pre_resp)
             self._print_loot_prompts(pre_resp)
             self._print_commitment_revision_prompts(pre_resp)
+            await self._acknowledge_printed_deliveries(pre_resp)
 
         per_player = response.per_player_renders or {}
         _print_dice_roll_displays(getattr(response, "dice_rolls", []) or [])
         _print_experience_awards(getattr(response, "experience_awards", []) or [])
 
-        if response.beat_ended_reason == "pre_turn_resolution":
+        if response.pause_reason == "pre_turn_resolution":
             print(response.output_text)
             self._sync_current_actor_to_active_combat()
             return
 
-        if response.beat_ended_reason == "cat_ii_pending":
+        if response.pause_reason == "cat_ii_pending":
             actor_render = per_player.get(actor_id) or ""
             print()
             self._print_cat_ii_pending_notice()
@@ -3359,7 +3404,7 @@ class CLIState:
                     actor_render,
                 )
             print()
-        elif response.beat_ended_reason == "combat_start_blocked":
+        elif response.pause_reason == "combat_start_blocked":
             print()
             print(
                 "(that hostile action could not start a second D&D combat "
@@ -3403,13 +3448,14 @@ class CLIState:
 
         self._print_asset_reveals(response)
 
-        if response.beat_ended_reason == "cat_ii_pending_rolls":
+        if response.pause_reason == "cat_ii_pending_rolls":
             prompts = self._joined_pending_roll_prompts()
             _print_roll_prompts(prompts)
 
         self._print_reaction_prompts(response)
         self._print_loot_prompts(response)
         self._print_commitment_revision_prompts(response)
+        await self._acknowledge_printed_deliveries(response)
         self._sync_current_actor_to_active_combat()
 
     async def _print_story_render(
@@ -3581,8 +3627,8 @@ class CLIState:
 
         pending: list[str] = []
         for cid in self.claims:
-            slot = ckpt.session.active_act_slots.get(cid)
-            if slot is None or slot.reason != "cat_ii_responder":
+            obligation = ckpt.session.action_obligations.get(cid)
+            if obligation is None or obligation.kind != "cat_ii_response":
                 continue
             pending.append(cid)
 
@@ -3615,7 +3661,7 @@ class CLIState:
         )
 
     def _print_combat_started_notice(self, response) -> None:
-        if response.beat_ended_reason != "combat_started":
+        if response.pause_reason != "combat_started":
             return
         try:
             view = self.engine.combat_status(self.session_id, private=True)
@@ -3721,10 +3767,10 @@ class CLIState:
         ckpt = self.engine.load_latest(self.session_id)
         open_slots: list[tuple[str, str]] = []
         for cid in self.claims:
-            slot = ckpt.session.active_act_slots.get(cid)
-            if slot is None or slot.reason != "combat_reaction":
+            obligation = ckpt.session.action_obligations.get(cid)
+            if obligation is None or obligation.kind != "combat_reaction":
                 continue
-            open_slots.append((cid, slot.trigger_event_id or slot.cat_ii_event_id))
+            open_slots.append((cid, obligation.source_event_id))
         if not open_slots:
             return
         print("reactions:")
@@ -4001,6 +4047,20 @@ def _prepare_session_story(
         return story_id, resumed_existing
 
 
+async def _poll_story_deliveries(state: CLIState) -> None:
+    """Keep the interactive terminal subscribed to durable narrator output."""
+
+    while state.running:
+        try:
+            delivered = await state.print_pending_deliveries()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("background story delivery failed")
+            delivered = False
+        await asyncio.sleep(0.15 if delivered else 0.5)
+
+
 async def main_async(args: argparse.Namespace) -> int:
     _configure_cli_logging(verbose=args.verbose)
 
@@ -4025,6 +4085,7 @@ async def main_async(args: argparse.Namespace) -> int:
 
     engine = EngineBridge(llm_config=llm_config)
 
+    delivery_task: asyncio.Task[None] | None = None
     try:
         try:
             story_id, resumed_existing = _prepare_session_story(
@@ -4049,6 +4110,7 @@ async def main_async(args: argparse.Namespace) -> int:
             asset_image_renderer=image_renderer,
         )
         await engine.start()
+        engine.resume_autonomous_sessions([session_id])
 
         if args.commands is not None:
             # Non-interactive one-shot: run the given command(s) against this
@@ -4090,6 +4152,10 @@ async def main_async(args: argparse.Namespace) -> int:
             print(HELP_TEXT)
         print()
 
+        delivery_task = asyncio.create_task(
+            _poll_story_deliveries(state),
+            name=f"cli-story-delivery:{session_id}",
+        )
         while state.running:
             actor = state.current_actor or "-"
             try:
@@ -4118,6 +4184,9 @@ async def main_async(args: argparse.Namespace) -> int:
             except KeyboardInterrupt:
                 print("\n(interrupted)")
     finally:
+        if delivery_task is not None:
+            delivery_task.cancel()
+            await asyncio.gather(delivery_task, return_exceptions=True)
         await engine.close()
     return 0
 

@@ -17,7 +17,7 @@ import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
 from app.engine.character_agent import sanitize_character_public_text
 from app.engine.character_manager import CharacterManager, _normalize_router_summary
@@ -94,7 +94,10 @@ from app.engine.settings import (
     list_settings_view,
     set_setting,
 )
-from app.engine.turn_loop import broadcast_event, flush_combat_visible_facts
+from app.engine.event_runtime import commit_event_batch, purge_character_state
+from app.engine.delivery_outbox import acknowledge_delivery, claim_deliveries
+from app.engine.delivery_response import response_from_deliveries
+from app.engine.story_dispatcher import append_router_history
 from app.engine.visual_context import forget_visual_introductions_for_character
 from app.engine.visual_novel_presentation import (
     VisualNovelCardRenderer,
@@ -122,11 +125,10 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.event_router import (
-    EventRouterOutput,
-    ObserverEntry,
-    empty_commitment_open_signal,
+    CanonicalEventRecord,
+    ObserverGroups,
 )
-from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
+from app.schemas.events import ObservableFact
 from app.schemas.image_generation import ImageDeliveryKind
 from app.schemas.narrator import (
     TranscriptEntry,
@@ -135,7 +137,62 @@ from app.schemas.narrator import (
 )
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse, VisualNovelRender
-from app.schemas.state import SlotEntry
+from app.schemas.state import ActionObligation
+
+
+def _commit_manual_combat_facts(
+    checkpoint: CheckpointFile,
+    facts: Iterable[str],
+    *,
+    observer_ids: Iterable[str] | None = None,
+) -> CanonicalEventRecord | None:
+    """Persist adapter-visible facts through the normal canonical path."""
+
+    clean_facts = [str(value).strip() for value in facts if str(value).strip()]
+    if not clean_facts:
+        return None
+    combat = checkpoint_active_combat(checkpoint)
+    ids = list(dict.fromkeys(
+        value
+        for value in (observer_ids or (
+            str(getattr(item, "character_id", "") or getattr(item, "combatant_id", ""))
+            for item in (getattr(combat, "combatants", ()) if combat is not None else ())
+        ))
+        if value
+    ))
+    known = {item.character_id for item in checkpoint.characters}
+    ids = [value for value in ids if value in known]
+    if not ids:
+        return None
+    revision = checkpoint.session.turn_index + 1
+    source_id = f"manual_combat_{revision}_{len(checkpoint.canonical_events)}"
+    event_id = "evt_" + hashlib.sha256(
+        f"{checkpoint.session.session_id}\x1f{source_id}".encode("utf-8")
+    ).hexdigest()[:12]
+    event = CanonicalEventRecord(
+        event_id=event_id,
+        causal_lane_id=f"lane_combat_{getattr(combat, 'combat_id', 'recent')}",
+        effective_at_s=max(0, checkpoint.session.leading_at_s),
+        duration_s=0,
+        actor_ids=[],
+        source_submission_ids=[source_id],
+        feasible_submission_ids=[source_id],
+        infeasible_submission_ids=[],
+        observable_facts=[ObservableFact.all(value) for value in clean_facts],
+        observers=ObserverGroups(direct=ids, indirect=[], inferred=[]),
+        spawn=[],
+        dormant=[],
+        cull=[],
+        commitment_opens=[],
+        commitment_resolutions=[],
+        commitment_interrupts=[],
+        location_updates=[],
+        activate=[],
+    )
+    commit_event_batch(checkpoint, [event])
+    append_router_history(checkpoint, [event])
+    checkpoint.session.turn_index += 1
+    return event
 
 
 def _visual_novel_character_variant_key(
@@ -364,15 +421,35 @@ class EngineBridge:
             image_generation=self.image_generation,
             spawn_authoring=self.spawn_authoring,
         )
-        # One lock per session_id; created lazily.
-        self._session_locks: dict[str, asyncio.Lock] = {}
-        self._locks_mutex = asyncio.Lock()
 
     async def start(self) -> None:
         await self.image_generation.start()
         await self.image_sidecar.start()
 
+    def resume_autonomous_sessions(self, session_ids: Iterable[str]) -> int:
+        """Resume durable story work only for frontend-active sessions."""
+
+        resumed = 0
+        for session_id in dict.fromkeys(session_ids):
+            try:
+                checkpoint = self.checkpoint_mgr.load_latest(session_id)
+            except (FileNotFoundError, ValueError):
+                logger.warning(
+                    "Skipping autonomous resume for unreadable session %s",
+                    session_id,
+                )
+                continue
+            if (
+                checkpoint.session.router_frontier
+                or checkpoint.session.open_cat_ii_events
+                or checkpoint.session.active_combat is not None
+            ):
+                self.orchestrator.schedule_autonomous(session_id)
+                resumed += 1
+        return resumed
+
     async def close(self) -> None:
+        await self.orchestrator.shutdown()
         await self.image_sidecar.close()
         await self.image_generation.close()
         await self.client.close()
@@ -1287,8 +1364,8 @@ class EngineBridge:
         replay needed — checkpoints are atomic per-turn snapshots
         capturing canonical_events, all rolling conversations,
         world_state, every CharacterRecord (with its pending_observations
-        queue), render_buffers, slot/Cat-II state, content_state overlays,
-        recap, and bindings.
+        queue), causal frontier, narrator jobs, delivery outbox, typed action
+        obligations, Cat-II state, content overlays, and bindings.
 
         What this does NOT touch:
 
@@ -1337,6 +1414,7 @@ class EngineBridge:
 
         lock = await self._lock_for(session_id)
         async with lock:
+            self.orchestrator.cancel_autonomous(session_id)
             # Re-check inside the lock — a concurrent /act may have
             # advanced past our snapshot's `latest` between read and cull.
             # Re-validating against the current latest catches the
@@ -1661,18 +1739,18 @@ class EngineBridge:
             and not is_unbound_player_authored_slot(ckpt, character)
         )
 
-        requested_ids: list[str] = []
-        if ckpt.canonical_events:
-            requested_ids = list(
-                ckpt.canonical_events[-1].next_output_character_ids or []
-            )
+        requested_ids = [
+            item.actor_id
+            for item in ckpt.session.router_frontier
+            if item.actor_id
+        ]
         requested_names = tuple(
             characters[character_id].name
             for character_id in requested_ids
             if character_id in characters and character_id in bindings
         )
 
-        if ckpt.session.pending_narrator_render is not None:
+        if ckpt.session.narrator_render_jobs:
             state = "A story update is waiting to finish rendering."
         else:
             combat = checkpoint_active_combat(ckpt)
@@ -1682,8 +1760,8 @@ class EngineBridge:
             else:
                 waiting_names = tuple(
                     characters[character_id].name
-                    for character_id, entry in ckpt.session.active_act_slots.items()
-                    if entry.reason != "initiator" and character_id in characters
+                    for character_id in ckpt.session.action_obligations
+                    if character_id in characters
                 )
                 if waiting_names:
                     state = "Waiting on " + ", ".join(waiting_names) + "."
@@ -2298,9 +2376,9 @@ class EngineBridge:
             )
             remaining = pending_player_rolls(ckpt, event_id=event_id)
             if not remaining:
-                ckpt.session.active_act_slots[actor_id] = SlotEntry(
-                    reason="cat_ii_roll",
-                    cat_ii_event_id=event_id,
+                ckpt.session.action_obligations[actor_id] = ActionObligation(
+                    kind="cat_ii_roll",
+                    source_event_id=event_id,
                     claimed_at=datetime.now(timezone.utc).isoformat(),
                 )
             self.checkpoint_mgr.save(ckpt)
@@ -2456,6 +2534,7 @@ class EngineBridge:
         command can never leave a half-authored bound character behind.
         """
         async with await self._lock_for(session_id):
+            self.orchestrator.cancel_autonomous(session_id)
             ckpt = self.checkpoint_mgr.load_latest(session_id)
             target = next(
                 (
@@ -2496,6 +2575,11 @@ class EngineBridge:
                     )
 
             self._bind_user_in_checkpoint(ckpt, user_id, character_id)
+            ckpt.session.router_frontier = [
+                turn
+                for turn in ckpt.session.router_frontier
+                if turn.actor_id != character_id
+            ]
             if chosen_name:
                 target.name = chosen_name
             if chosen_appearance:
@@ -2550,13 +2634,11 @@ class EngineBridge:
         """Remove this user's binding. Returns the freed character_id, or None
         if they had no binding. Assumes the caller holds the per-session lock.
 
-        v11-A5: purges any v11 state (active_act_slots entries, open Cat II
-        event responder lists/collected intentions, render buffers) the
-        character held before removing the binding. Prevents stranded pins
-        from freezing the beat when a player /leave's mid-beat.
+        Purges typed obligations, open Cat II responder state, causal-frontier
+        participation, narrator jobs, and delivery claims the character held
+        before removing the binding. This prevents abandoned player work from
+        gating its causal lane after `/leave`.
         """
-        from app.engine.turn_loop import purge_character_state
-
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         uid = str(user_id)
         freed = None
@@ -2568,9 +2650,6 @@ class EngineBridge:
             # reader can observe an unbound character with a stale pin.
             # Purge is a pure in-memory mutation; del + save follow
             # atomically on the same checkpoint write.
-            purge_character_state(ckpt, freed)
-            del ckpt.session.character_bindings[freed]
-            dnd_inventory.remove_character_from_loot_offers(ckpt, freed)
             target = next(
                 (
                     character
@@ -2579,7 +2658,20 @@ class EngineBridge:
                 ),
                 None,
             )
-            if is_player_authored_slot(target):
+            player_authored = is_player_authored_slot(target)
+            purge_character_state(
+                ckpt,
+                freed,
+                retire_character=player_authored,
+            )
+            del ckpt.session.character_bindings[freed]
+            dnd_inventory.remove_character_from_loot_offers(ckpt, freed)
+            from app.engine.dnd_story_adapter import (
+                advance_pending_combat_if_unblocked,
+            )
+
+            advance_pending_combat_if_unblocked(ckpt)
+            if player_authored:
                 target.status = CharacterStatus.dormant
                 target.location = "outside_active_fiction"
                 ckpt.session.pending_engine_state_updates.append(
@@ -2591,6 +2683,7 @@ class EngineBridge:
             if ckpt.session.player_character_id == freed:
                 ckpt.session.player_character_id = ""
             self.checkpoint_mgr.save(ckpt)
+            self.orchestrator.schedule_autonomous(session_id)
         return freed
 
     # ---- takeover -----------------------------------------------------------
@@ -3609,7 +3702,11 @@ class EngineBridge:
             ckpt.session.active_combat,
             ckpt.characters,
         )
-        flush_combat_visible_facts(ckpt)
+        combat = checkpoint_active_combat(ckpt)
+        _commit_manual_combat_facts(
+            ckpt,
+            module.drain_pending_visible_facts(combat) if combat is not None else [],
+        )
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
 
@@ -3618,7 +3715,7 @@ class EngineBridge:
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         combat = getattr(ckpt.session, "active_combat", None)
         combatants = list(getattr(combat, "combatants", []) or []) if combat else []
-        observers = []
+        observer_ids = []
         seen: set[str] = set()
         for combatant in combatants:
             cid = str(
@@ -3628,47 +3725,18 @@ class EngineBridge:
             )
             if not cid or cid in seen:
                 continue
-            observers.append(
-                ObserverEntry(
-                    character_id=cid,
-                    observation_level="d",
-                    routing_role="observe_only",
-                )
-            )
+            observer_ids.append(cid)
             seen.add(cid)
         pending_facts = []
         if combat is not None:
             pending_facts = list(module.drain_pending_visible_facts(combat))
             module.queue_router_observed_fact_updates(ckpt.session, combat)
         module.end_combat(ckpt.session, characters=ckpt.characters)
-        if observers:
-            observable_facts = [
-                ObservableFact.all(fact) for fact in pending_facts if str(fact).strip()
-            ]
-            observable_facts.append(ObservableFact.all("D&D combat ends."))
-            broadcast_event(
+        if observer_ids:
+            _commit_manual_combat_facts(
                 ckpt,
-                EventRouterOutput(
-                    event_id="",
-                    effective_at_s=0,
-                    duration_s=0,
-                    decision_rationale="manual combat end",
-                    canonical_event=CanonicalEvent(
-                        world_adjudication=WorldAdjudication(feasible=True),
-                        observable_facts=observable_facts,
-                    ),
-                    event_kind="state_change",
-                    requires_responders=False,
-                    required_responders=[],
-                    observers=observers,
-                    spawn=[],
-                    dormant=[],
-                    cull=[],
-                    commitment_open=empty_commitment_open_signal(),
-                    commitment_resolutions=[],
-                    commitment_interrupts=[],
-                    location_updates=[],
-                ),
+                [*pending_facts, "D&D combat ends."],
+                observer_ids=observer_ids,
             )
         self.checkpoint_mgr.save(ckpt)
         return DndCombatView(
@@ -3722,7 +3790,11 @@ class EngineBridge:
             amount,
             characters=ckpt.characters,
         )
-        flush_combat_visible_facts(ckpt)
+        combat = checkpoint_active_combat(ckpt)
+        _commit_manual_combat_facts(
+            ckpt,
+            module.drain_pending_visible_facts(combat) if combat is not None else [],
+        )
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
 
@@ -3742,7 +3814,11 @@ class EngineBridge:
             amount,
             characters=ckpt.characters,
         )
-        flush_combat_visible_facts(ckpt)
+        combat = checkpoint_active_combat(ckpt)
+        _commit_manual_combat_facts(
+            ckpt,
+            module.drain_pending_visible_facts(combat) if combat is not None else [],
+        )
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
 
@@ -3829,10 +3905,10 @@ class EngineBridge:
         character_id: str,
     ) -> str:
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        slot = ckpt.session.active_act_slots.get(character_id)
-        if slot is None or slot.reason != "combat_reaction":
+        obligation = ckpt.session.action_obligations.get(character_id)
+        if obligation is None or obligation.kind != "combat_reaction":
             return ""
-        return slot.trigger_event_id or slot.cat_ii_event_id or ""
+        return obligation.source_event_id
 
     async def defer_combat_reaction(
         self,
@@ -3856,13 +3932,8 @@ class EngineBridge:
 
     # ---- turn execution ------------------------------------------------------
 
-    async def _lock_for(self, session_id: str) -> asyncio.Lock:
-        async with self._locks_mutex:
-            lock = self._session_locks.get(session_id)
-            if lock is None:
-                lock = asyncio.Lock()
-                self._session_locks[session_id] = lock
-            return lock
+    async def _lock_for(self, session_id: str) -> Any:
+        return await self.orchestrator.session_locks.for_session(session_id)
 
     # v11-A5 lazy sweep hook.
     # Invoked from the /act hot path (run_turn) so stale Cat II pins are
@@ -3871,26 +3942,41 @@ class EngineBridge:
     # event IDs and delivers any pre-turn resolutions before the actor's own
     # turn response.
     def sweep_stale_pins(self, session_id: str) -> list[str]:
-        """Sweep stale Cat II and combat-reaction pins, saving iff state changed.
-
-        Returns Cat II event IDs that now need re-adjudication. Released combat
-        reactions may advance combat immediately but do not return event IDs.
-        Safe to call with no open events (returns []).
-        """
-        from app.engine.orchestrator import advance_pending_combat_if_unblocked
-        from app.engine.turn_loop import (
-            sweep_stale_cat_ii_pins,
-            sweep_stale_combat_reaction_pins,
-        )
-
+        """Resolve timed-out typed obligations without a global turn slot."""
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        swept = sweep_stale_cat_ii_pins(ckpt)
-        released = sweep_stale_combat_reaction_pins(ckpt)
-        if released:
-            # A released reaction pin may unblock delayed initiative; the
-            # whole sweep runs inside the per-session lock so this advance
-            # cannot race a concurrent turn.
-            advance_pending_combat_if_unblocked(ckpt)
+        timeout = ckpt.session.config.settings.cat_ii_human_timeout_seconds
+        if timeout <= 0:
+            return []
+        now = datetime.now(timezone.utc)
+        swept: list[str] = []
+        released: list[str] = []
+        open_by_id = {
+            item.event_id: item for item in ckpt.session.open_cat_ii_events
+        }
+        for character_id, obligation in list(
+            ckpt.session.action_obligations.items()
+        ):
+            try:
+                claimed_at = datetime.fromisoformat(obligation.claimed_at)
+                if claimed_at.tzinfo is None:
+                    claimed_at = claimed_at.replace(tzinfo=timezone.utc)
+            except ValueError:
+                claimed_at = now
+            if (now - claimed_at).total_seconds() < timeout:
+                continue
+            if obligation.kind == "cat_ii_response":
+                opened = open_by_id.get(obligation.source_event_id)
+                if opened is not None and character_id not in opened.collected_intentions:
+                    opened.collected_intentions[character_id] = "(defer)"
+                    if character_id not in opened.swept_responders:
+                        opened.swept_responders.append(character_id)
+                    if set(opened.required_responders).issubset(
+                        opened.collected_intentions
+                    ):
+                        swept.append(opened.event_id)
+            elif obligation.kind == "combat_reaction":
+                released.append(character_id)
+            ckpt.session.action_obligations.pop(character_id, None)
         if swept or released:
             self.checkpoint_mgr.save(ckpt)
         if swept:
@@ -3936,6 +4022,88 @@ class EngineBridge:
                 display_key=display_key,
             )
 
+    async def acknowledge_turn_deliveries(
+        self,
+        *,
+        session_id: str,
+        response: TurnResponse,
+        pov_character_ids: Iterable[str] | None = None,
+    ) -> int:
+        """Acknowledge only lease claims a frontend actually transported."""
+
+        selected = set(pov_character_ids or ())
+        lock = await self._lock_for(session_id)
+        async with lock:
+            checkpoint = self.checkpoint_mgr.load_latest(session_id)
+            count = 0
+            for claim in response.deliveries:
+                if selected and claim.pov_character_id not in selected:
+                    continue
+                acknowledge_delivery(
+                    checkpoint,
+                    delivery_id=claim.delivery_id,
+                    claim_token=claim.claim_token,
+                    consumer_id=claim.claimed_by,
+                )
+                count += 1
+            if count:
+                self.checkpoint_mgr.save(checkpoint)
+            return count
+
+    async def claim_pending_turn_deliveries(
+        self,
+        *,
+        session_id: str,
+        consumer_id: str,
+        pov_character_ids: Iterable[str] | None = None,
+        expected_bindings: Mapping[str, str] | None = None,
+    ) -> TurnResponse:
+        """Lease queued renders for characters bound at claim time."""
+
+        if not consumer_id.strip():
+            raise ValueError("delivery consumer id must not be blank")
+        lock = await self._lock_for(session_id)
+        async with lock:
+            checkpoint = self.checkpoint_mgr.load_latest(session_id)
+            bound_ids = set(checkpoint.session.character_bindings)
+            requested = (
+                bound_ids
+                if pov_character_ids is None
+                else bound_ids.intersection(pov_character_ids)
+            )
+            if expected_bindings is not None:
+                requested = {
+                    pov_id
+                    for pov_id in requested
+                    if checkpoint.session.character_bindings.get(pov_id)
+                    == str(expected_bindings.get(pov_id, ""))
+                }
+            deliveries = [
+                entry
+                for pov_id in sorted(requested)
+                for entry in claim_deliveries(
+                    checkpoint,
+                    pov_character_id=pov_id,
+                    consumer_id=consumer_id,
+                )
+            ]
+            if deliveries:
+                checkpoint_id = self.checkpoint_mgr.save(checkpoint)
+            else:
+                checkpoint_id = f"ckpt_{checkpoint.session.turn_index:04d}"
+            acting_character_id = (
+                deliveries[0].pov_character_id
+                if deliveries
+                else checkpoint.session.player_character_id
+            )
+            return response_from_deliveries(
+                session_id=session_id,
+                checkpoint_id=checkpoint_id,
+                turn_index=checkpoint.session.turn_index,
+                acting_character_id=acting_character_id,
+                deliveries=deliveries,
+            )
+
     async def retry_failed_render(
         self,
         *,
@@ -3945,8 +4113,8 @@ class EngineBridge:
         lock = await self._lock_for(session_id)
         async with lock:
             ckpt = self.checkpoint_mgr.load_latest(session_id)
-            pending = ckpt.session.pending_narrator_render
-            if pending is None:
+            pending_jobs = list(ckpt.session.narrator_render_jobs)
+            if not pending_jobs:
                 return RetryRenderResult(
                     response=TurnResponse(
                         session_id=session_id,
@@ -3956,11 +4124,11 @@ class EngineBridge:
                             "No failed narrator render is pending for this session."
                         ),
                         per_player_renders={},
-                        beat_ended_reason="no_pending_render",
+                        pause_reason="no_pending_render",
                     )
                 )
 
-            actor_id = pending.acting_player_id
+            actor_id = pending_jobs[0].pov_character_id
             actor_user_id = str(
                 (ckpt.session.character_bindings or {}).get(actor_id, "")
             )
@@ -4013,10 +4181,10 @@ class EngineBridge:
 
         Driven by `/begin` after one or more players have `/join`'d
         into the lobby (pre-play). The router sees `(begin)` and
-        composes the opening beat from `world_state` + the
+        composes the opening event from `world_state` + the
         `## Initial Roster`, placing EVERY bound player at the chosen
         starting location so each gets their own POV render through the
-        normal `_end_beat` per-POV fan-out.
+        normal durable per-POV delivery path.
 
         Args:
             session_id: the session to open.
@@ -4104,7 +4272,7 @@ class EngineBridge:
             event_ids = []
 
         # v11-r6b: drive adjudication of any events the sweep filled.
-        # Without this, a beat pinned on an AFK human sits open
+        # Without this, an event pinned on an absent human sits open
         # indefinitely — the next /act would bounce off the pin. By
         # closing the sweep-populated events first, the hot path
         # clears their state before the player's /act runs.
@@ -4112,7 +4280,7 @@ class EngineBridge:
         # v11-r7a: capture each resolution's TurnResponse so the
         # frontend can fan its per-POV renders out. Previously the
         # responses were dropped and pinned humans never saw their
-        # AFK-resolved beats.
+        # timeout-resolved events.
         pre_turn: list[TurnResponse] = []
         for event_id in event_ids:
             try:
@@ -4173,7 +4341,7 @@ class EngineBridge:
         the normal turn loop as a fully parenthesized OOC directive, so
         the router emits a private observable fact and the narrator
         renders it from the querying character's POV. This mutates the
-        checkpoint like any other private beat.
+        checkpoint like any other private event.
         """
         return await self.run_turn(
             session_id=session_id,

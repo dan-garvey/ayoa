@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable, Sequence
 
-from app.engine.turn_loop_contracts import (
+from app.engine.story_contracts import (
     AuthoritativeContributionRequest,
     AuthoritativeResultPlan,
 )

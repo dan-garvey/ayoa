@@ -7,14 +7,18 @@ from app.llm.client import LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import (
-    DndEventRouterOutput,
-    EventRouterOutput,
-    ObserverEntry,
-    SpawnRequest,
-    empty_commitment_open_signal,
+    CanonicalEventRecord,
+    DndCanonicalEventRecord,
+    DndRouterEventDraft,
+    ObserverGroups,
+    RouterBatchOutput,
+    RouterEventDraft,
 )
-from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.dnd_inventory import DndCurrency, DndLootOfferSignal
+from app.schemas.dnd_spatial import DndBattleMapSeed
+from app.schemas.delivery import NarratorEventRef
+from app.schemas.events import ObservableFact
+from app.schemas.narrator import NarratorFinalOutput
 from app.schemas.state import SessionState, StorySetting, WorldState
 
 
@@ -81,6 +85,22 @@ def narrator_llm_response(
         content=raw_text,
         model=model,
         raw_text=raw_text,
+    )
+
+
+def narrator_event_ref(
+    *,
+    event_id: str,
+    observation_level: str = "direct",
+    visible_at_s: int = 0,
+    event_sequence: int = 0,
+) -> NarratorEventRef:
+    return NarratorEventRef(
+        event_id=event_id,
+        observation_level=observation_level,
+        visible_at_s=visible_at_s,
+        event_sequence=event_sequence,
+        sprite_variant_keys_by_character_id={},
     )
 
 
@@ -169,92 +189,170 @@ def gatehouse_checkpoint(
     )
 
 
-def router_output(
+def router_event_draft(
     *,
-    event_id: str = "",
-    requires_responders: bool = False,
-    required_responders: list[str] | None = None,
-    agent_ids: list[str] | None = None,
+    feasible_input_indexes: list[int] | None = None,
+    infeasible_input_indexes: list[int] | None = None,
     observer_ids: list[str] | None = None,
-    event_kind: str | None = None,
     facts: list[ObservableFact] | None = None,
+    duration_s: int = 0,
+    required_responders: list[str] | None = None,
+    **overrides: Any,
+) -> RouterEventDraft:
+    observers = ["alice"] if observer_ids is None else observer_ids
+    data: dict[str, Any] = {
+        "feasible_input_indexes": (
+            [0] if feasible_input_indexes is None else feasible_input_indexes
+        ),
+        "infeasible_input_indexes": (
+            [] if infeasible_input_indexes is None else infeasible_input_indexes
+        ),
+        "duration_s": duration_s,
+        "observable_facts": (
+            [ObservableFact.all("Something happens.")] if facts is None else facts
+        ),
+        "observers": ObserverGroups(direct=observers, indirect=[], inferred=[]),
+        "required_responders": (
+            [] if required_responders is None else required_responders
+        ),
+        "appearance_target_ids": [],
+        "spawn": [],
+        "dormant": [],
+        "cull": [],
+        "commitment_opens": [],
+        "commitment_resolutions": [],
+        "commitment_interrupts": [],
+        "location_updates": [],
+        "activate": [],
+    }
+    data.update(overrides)
+    return RouterEventDraft.model_validate(data)
+
+
+def router_batch_output(
+    *,
+    events: list[RouterEventDraft] | None = None,
+    next_turns: list[dict[str, Any]] | None = None,
+) -> RouterBatchOutput:
+    return RouterBatchOutput(
+        events=events or [router_event_draft()],
+        next_turns=next_turns or [],
+    )
+
+
+def dnd_router_event_draft(**overrides: Any) -> DndRouterEventDraft:
+    data = router_event_draft().model_dump()
+    data.update({
+        "interaction_mode": "narrative",
+        "combatant_ids": [],
+        "combatant_spawns": [],
+        "loot_offer": DndLootOfferSignal(
+            present=False,
+            source_kind="other",
+            source_label="",
+            visibility="table",
+            eligible_character_ids=[],
+            items=[],
+            currency=DndCurrency(cp=0, sp=0, ep=0, gp=0, pp=0),
+            notes="",
+        ),
+        "battle_map_seed": DndBattleMapSeed.model_validate({}),
+        "dnd_reaction_ids": [],
+    })
+    data.update(overrides)
+    return DndRouterEventDraft.model_validate(data)
+
+
+def canonical_event(
+    *,
+    event_id: str = "evt_test",
+    lane_id: str = "lane_test",
+    actor_ids: list[str] | None = None,
+    observer_ids: list[str] | None = None,
+    facts: list[ObservableFact | dict[str, Any]] | None = None,
     effective_at_s: int = 0,
     duration_s: int = 0,
-    location_updates: list[dict] | None = None,
-    spawn: list[SpawnRequest] | None = None,
-    dormant: list[str] | None = None,
-    cull: list[str] | None = None,
-    activate: list[dict] | None = None,
-    background_threads: list[dict] | None = None,
-) -> EventRouterOutput:
-    picks = agent_ids or []
-    required = required_responders or []
-    observer_ids = observer_ids if observer_ids is not None else [
-        "alice", *picks, *required
-    ]
-    observers: list[ObserverEntry] = []
-    seen: set[str] = set()
-    for cid in observer_ids:
-        if cid in seen:
-            continue
-        seen.add(cid)
-        observers.append(
-            ObserverEntry(
-                character_id=cid,
-                observation_level="d",
-                routing_role="next_output" if cid in picks else "observe_only",
+    **overrides: Any,
+) -> CanonicalEventRecord:
+    observers = ["alice"] if observer_ids is None else observer_ids
+    normalized_facts = (
+        [ObservableFact.all("Something happens.")]
+        if facts is None
+        else [
+            fact
+            if isinstance(fact, ObservableFact)
+            else ObservableFact.all(
+                str(fact.get("text", "")),
+                visual_subject_ids=fact.get("visual_subject_ids", ()),
+                at_offset_s=int(fact.get("at_offset_s", 0)),
+                duration_s=int(fact.get("duration_s", 0)),
             )
-        )
-
-    resolved_event_kind = event_kind or (
-        "cat_ii_open" if requires_responders else "cascade_exhausted"
+            for fact in facts
+        ]
     )
-    data: dict[str, Any] = dict(
+    data: dict[str, Any] = {
+        "event_id": event_id,
+        "causal_lane_id": lane_id,
+        "effective_at_s": effective_at_s,
+        "duration_s": duration_s,
+        "actor_ids": [] if actor_ids is None else actor_ids,
+        "source_submission_ids": ["submission_test"],
+        "feasible_submission_ids": ["submission_test"],
+        "infeasible_submission_ids": [],
+        "observable_facts": normalized_facts,
+        "observers": ObserverGroups(direct=observers, indirect=[], inferred=[]),
+        "spawn": [],
+        "dormant": [],
+        "cull": [],
+        "commitment_opens": [],
+        "commitment_resolutions": [],
+        "commitment_interrupts": [],
+        "location_updates": [],
+        "activate": [],
+    }
+    data.update(overrides)
+    return CanonicalEventRecord.model_validate(data)
+
+
+def dnd_canonical_event(
+    *,
+    event_id: str = "evt_test",
+    lane_id: str = "lane_test",
+    actor_ids: list[str] | None = None,
+    observer_ids: list[str] | None = None,
+    facts: list[ObservableFact | dict[str, Any]] | None = None,
+    effective_at_s: int = 0,
+    duration_s: int = 0,
+    **overrides: Any,
+) -> DndCanonicalEventRecord:
+    data = canonical_event(
         event_id=event_id,
+        lane_id=lane_id,
+        actor_ids=actor_ids,
+        observer_ids=observer_ids,
+        facts=facts,
         effective_at_s=effective_at_s,
         duration_s=duration_s,
-        decision_rationale="test fixture",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(feasible=True),
-            observable_facts=facts if facts is not None else [
-                ObservableFact.all("Something happens.")
-            ],
+    ).model_dump()
+    data.update({
+        "interaction_mode": "narrative",
+        "combatant_ids": [],
+        "combatant_spawns": [],
+        "loot_offer": DndLootOfferSignal(
+            present=False,
+            source_kind="other",
+            source_label="",
+            visibility="table",
+            eligible_character_ids=[],
+            items=[],
+            currency=DndCurrency(cp=0, sp=0, ep=0, gp=0, pp=0),
+            notes="",
         ),
-        event_kind=resolved_event_kind,
-        observers=observers,
-        background_threads=background_threads or [],
-        requires_responders=requires_responders,
-        required_responders=required,
-        spawn=spawn or [],
-        dormant=dormant or [],
-        cull=cull or [],
-        activate=activate or [],
-        commitment_open=empty_commitment_open_signal(),
-        commitment_resolutions=[],
-        commitment_interrupts=[],
-        location_updates=location_updates or [],
-    )
-    return EventRouterOutput(**data)
+        "battle_map_seed": DndBattleMapSeed.model_validate({}),
+    })
+    data.update(overrides)
+    return DndCanonicalEventRecord.model_validate(data)
 
-
-def dnd_router_output(
-    *,
-    interaction_mode: str = "narrative",
-    combatant_ids: list[str] | None = None,
-    combatant_spawns: list[dict] | None = None,
-    loot_offer: dict | None = None,
-    battle_map_seed: dict | None = None,
-    **kwargs: Any,
-) -> DndEventRouterOutput:
-    data = router_output(**kwargs).model_dump()
-    data["interaction_mode"] = interaction_mode
-    data["combatant_ids"] = combatant_ids or []
-    data["combatant_spawns"] = combatant_spawns or []
-    if loot_offer is not None:
-        data["loot_offer"] = loot_offer
-    if battle_map_seed is not None:
-        data["battle_map_seed"] = battle_map_seed
-    return DndEventRouterOutput(**data)
 
 
 def dnd5e_mechanics(
@@ -297,218 +395,3 @@ def dnd5e_mechanics(
     if skill_proficiencies is not None:
         mechanics["skill_proficiencies"] = skill_proficiencies
     return mechanics
-
-
-class InstanceFakeDispatcher:
-    def __init__(self):
-        self.route_calls: list[dict] = []
-        self.continuation_calls: list[dict] = []
-        self.agent_calls: list[dict] = []
-        self.agent_character_exists: list[bool] = []
-        self.narrator_calls: list[dict] = []
-        self.harvest_calls: list[dict] = []
-        self.combat_calls: list[dict] = []
-        self.materialize_calls: list[dict] = []
-        self._route_responses: list[EventRouterOutput] = []
-        self._combat_responses: list[EventRouterOutput] = []
-        self._agent_responses: list[str] = []
-        self._harvest_responses: list[list[str]] = []
-        self._narrator_response = "RENDER"
-        self._narrator_handoff = "render"
-        self._narrator_handoff_reason = "The visible sequence is ready."
-        self._narrator_responses: list[tuple[str, str, str]] = []
-
-    def queue_route(self, response: EventRouterOutput) -> None:
-        self._route_responses.append(response)
-
-    def queue_combat(self, response: EventRouterOutput) -> None:
-        self._combat_responses.append(response)
-
-    def queue_agent(self, intention: str) -> None:
-        self._agent_responses.append(intention)
-
-    def queue_harvest(self, fragments: list[str]) -> None:
-        self._harvest_responses.append(fragments)
-
-    def queue_narrator(
-        self,
-        *,
-        handoff: str,
-        reason: str,
-        text: str,
-    ) -> None:
-        self._narrator_responses.append((handoff, reason, text))
-
-    async def route_intention(self, **kw) -> EventRouterOutput:
-        self.route_calls.append(kw)
-        return self._route_responses.pop(0)
-
-    async def route_continuation(self, **kw) -> EventRouterOutput:
-        self.continuation_calls.append(kw)
-        return self._route_responses.pop(0)
-
-    async def route_combat_action(self, **kw) -> EventRouterOutput:
-        self.combat_calls.append(kw)
-        return self._combat_responses.pop(0)
-
-    async def continue_combat_transaction(self, **kw) -> EventRouterOutput:
-        self.combat_calls.append(kw)
-        return self._combat_responses.pop(0)
-
-    async def agent_intend(self, **kw) -> str:
-        self.agent_calls.append(kw)
-        character_id = kw.get("character_id", "")
-        ckpt = kw.get("ckpt")
-        self.agent_character_exists.append(
-            any(
-                char.character_id == character_id
-                for char in getattr(ckpt, "characters", [])
-            )
-        )
-        return self._agent_responses.pop(0)
-
-    async def materialize_spawns(self, **kw) -> list[str]:
-        self.materialize_calls.append(kw)
-        ckpt = kw["ckpt"]
-        result = kw["result"]
-        target_ids = set(kw.get("character_ids", []))
-        spawned_ids: list[str] = []
-        remaining: list[SpawnRequest] = []
-        for spawn in result.spawn:
-            if spawn.character_id not in target_ids:
-                remaining.append(spawn)
-                continue
-            ckpt.characters.append(
-                character_record(
-                    spawn.character_id,
-                    name=spawn.seed.role or spawn.character_id,
-                    role=spawn.seed.role,
-                    location=spawn.seed.location or "gatehouse",
-                )
-            )
-            spawned_ids.append(spawn.character_id)
-        result.spawn = remaining
-        return spawned_ids
-
-    async def harvest_perceptions(self, **kw) -> list[str]:
-        self.harvest_calls.append(kw)
-        if self._harvest_responses:
-            return self._harvest_responses.pop(0)
-        return ["" for _ in kw.get("character_ids", [])]
-
-    async def narrator_compose(self, **kw):
-        self.narrator_calls.append(kw)
-        handoff, reason, response = (
-            self._narrator_responses.pop(0)
-            if self._narrator_responses
-            else (
-                self._narrator_handoff,
-                self._narrator_handoff_reason,
-                self._narrator_response,
-            )
-        )
-        envelope = NarratorFinalOutput(
-            handoff=handoff,
-            handoff_reason=reason,
-            final_text=response,
-        )
-        entry = TranscriptEntry(
-            user=kw.get("user_input", ""),
-            assistant=response,
-        )
-        return envelope, entry
-
-
-class ClassFakeDispatcher:
-    _route_responses: list[EventRouterOutput] = []
-    _agent_responses: list[str] = []
-    _narrator_errors: list[Exception] = []
-    _narrator_text: str = "POV_RENDER"
-    _narrator_handoff: str = "render"
-    _narrator_handoff_reason: str = "The visible sequence is ready."
-    _narrator_responses: list[tuple[str, str, str]] = []
-    route_calls: list[dict] = []
-    agent_calls: list[dict] = []
-    narrator_calls: list[dict] = []
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    @classmethod
-    def reset(cls) -> None:
-        cls._route_responses = []
-        cls._agent_responses = []
-        cls._narrator_errors = []
-        cls._narrator_text = "POV_RENDER"
-        cls._narrator_handoff = "render"
-        cls._narrator_handoff_reason = "The visible sequence is ready."
-        cls._narrator_responses = []
-        cls.route_calls = []
-        cls.agent_calls = []
-        cls.narrator_calls = []
-
-    @classmethod
-    def queue_route(cls, response: EventRouterOutput) -> None:
-        cls._route_responses.append(response)
-
-    @classmethod
-    def queue_agent(cls, intention: str) -> None:
-        cls._agent_responses.append(intention)
-
-    @classmethod
-    def queue_narrator_error(cls, error: Exception) -> None:
-        cls._narrator_errors.append(error)
-
-    @classmethod
-    def queue_narrator(
-        cls,
-        *,
-        handoff: str,
-        reason: str,
-        text: str,
-    ) -> None:
-        cls._narrator_responses.append((handoff, reason, text))
-
-    async def route_intention(self, **kw) -> EventRouterOutput:
-        type(self).route_calls.append(kw)
-        return type(self)._route_responses.pop(0)
-
-    async def route_continuation(self, **kw) -> EventRouterOutput:
-        type(self).route_calls.append(kw)
-        return type(self)._route_responses.pop(0)
-
-    async def route_combat_action(self, **kw) -> EventRouterOutput:
-        type(self).route_calls.append(kw)
-        return type(self)._route_responses.pop(0)
-
-    async def continue_combat_transaction(self, **kw) -> EventRouterOutput:
-        type(self).route_calls.append(kw)
-        return type(self)._route_responses.pop(0)
-
-    async def agent_intend(self, **kw) -> str:
-        type(self).agent_calls.append(kw)
-        return type(self)._agent_responses.pop(0)
-
-    async def narrator_compose(self, **kw):
-        type(self).narrator_calls.append(kw)
-        if type(self)._narrator_errors:
-            raise type(self)._narrator_errors.pop(0)
-        handoff, reason, text = (
-            type(self)._narrator_responses.pop(0)
-            if type(self)._narrator_responses
-            else (
-                type(self)._narrator_handoff,
-                type(self)._narrator_handoff_reason,
-                type(self)._narrator_text,
-            )
-        )
-        envelope = NarratorFinalOutput(
-            handoff=handoff,
-            handoff_reason=reason,
-            final_text=text,
-        )
-        entry = TranscriptEntry(
-            user=kw.get("user_input", ""),
-            assistant=text,
-        )
-        return envelope, entry

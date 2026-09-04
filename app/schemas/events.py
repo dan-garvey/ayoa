@@ -6,12 +6,6 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
-class WorldAdjudication(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    feasible: bool
-
-
 class ObservableFact(BaseModel):
     """One surface fact plus its fact-level visibility.
 
@@ -144,20 +138,3 @@ def visible_fact_texts(
         if text:
             visible.append(text)
     return visible
-
-
-class CanonicalEvent(BaseModel):
-    """Produced by the event router's adjudication pass. LLM output target.
-
-    `user_intent` and `event_id` were dropped; the canonical event now
-    carries only feasibility and observable facts. The orchestrator tags
-    visibility logs directly from turn_index so there's no need for the
-    router to emit an event id inside this nested object.
-
-    All fields REQUIRED — see EventRouterOutput docstring for the
-    "Schema is too complex" rationale."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    world_adjudication: WorldAdjudication
-    observable_facts: list[ObservableFact]

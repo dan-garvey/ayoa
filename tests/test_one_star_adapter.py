@@ -92,7 +92,7 @@ def _config() -> dict:
                 "completion_declaration": "the floor is cleared",
                 "failure_declaration": "the party is broken",
                 "counters": [{"counter_id": "clear", "current": 0, "target": 1}],
-                "pressure_beats": ["The floor presses the party forward."],
+                "pressures": ["The floor presses the party forward."],
             }
         },
         "repeat_gold_numerator": 1,
@@ -198,7 +198,7 @@ def test_floor_scenario_requires_a_matching_reward() -> None:
         "completion_declaration": "the second floor is cleared",
         "failure_declaration": "the party is broken",
         "counters": [{"counter_id": "clear", "current": 0, "target": 1}],
-        "pressure_beats": ["The second floor presses the party forward."],
+        "pressures": ["The second floor presses the party forward."],
     }
 
     with pytest.raises(ValueError, match="must have a configured floor reward"):
@@ -311,7 +311,7 @@ def test_existing_reserve_keeps_authored_mechanics_and_acquires_atomically() -> 
         transaction=transaction,
         activated_character_ids=["reserve"],
         activated_character_locations={"reserve": "lobby"},
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
     )
 
     reserve = next(c for c in prepared.after_checkpoint.characters if c.character_id == "reserve")
@@ -359,7 +359,7 @@ def test_inventory_delta_routes_account_currencies_to_resources() -> None:
         checkpoint,
         event_id="evt_resource_grant",
         transaction=transaction,
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
     )
     _owner, account = load_one_star_account(prepared.after_checkpoint)
 
@@ -390,7 +390,7 @@ def test_positive_gem_inventory_delta_is_not_an_acquisition_path() -> None:
             checkpoint,
             event_id="evt_unbacked_gems",
             transaction=transaction,
-            initiating_actor_id="account_owner",
+            initiating_actor_ids=["account_owner"],
         )
 
 
@@ -411,7 +411,7 @@ def test_gem_purchase_and_weekly_funds_accrual_are_exact_and_idempotent() -> Non
         event_id="evt_gem_purchase",
         transaction=purchase,
         canonical_at_s=0,
-        initiating_actor_id="account_owner",
+        initiating_actor_ids=["account_owner"],
     )
     _owner, purchased = load_one_star_account(
         prepared_purchase.after_checkpoint
@@ -471,7 +471,7 @@ def test_inventory_delta_rejects_account_currency_underflow(
             checkpoint,
             event_id=f"evt_underflow_{resource_id}",
             transaction=transaction,
-            initiating_actor_id="account_owner",
+            initiating_actor_ids=["account_owner"],
         )
 
 
@@ -524,5 +524,5 @@ def test_summon_rejects_batch_larger_than_seed_limit() -> None:
             event_id="evt_too_many",
             transaction=transaction,
             spawned_character_ids=["a", "b", "c", "d", "e", "f"],
-            initiating_actor_id="account_owner",
+            initiating_actor_ids=["account_owner"],
         )

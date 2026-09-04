@@ -129,6 +129,17 @@ class SessionMap:
             row = cursor.fetchone()
         return SessionRow(*row) if row is not None else None
 
+    async def list_sessions(self) -> list[SessionRow]:
+        """Return every active channel-to-session subscription."""
+
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.execute(
+                "SELECT channel_id, guild_id, session_id, owner_user_id, "
+                "story_id, created_at FROM sessions ORDER BY created_at, channel_id"
+            )
+            rows = cursor.fetchall()
+        return [SessionRow(*row) for row in rows]
+
     async def upsert(
         self,
         *,

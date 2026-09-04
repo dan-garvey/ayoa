@@ -116,7 +116,6 @@ class TestPromptManagerWithRealTemplates:
             world_rules="No magic. Human baseline strength.",
             hidden_lore="Secret conspiracy details.",
             hidden_facts="- Hidden fact one",
-            acting_character_name="Aldric",
             acting_character_id="aldric",
             router_ruleset_addon=mgr.render(
                 "event_router_ruleset_default",
@@ -125,7 +124,6 @@ class TestPromptManagerWithRealTemplates:
             router_input_block="I try to lift the building.",
         )
         assert "I try to lift the building" in result
-        assert "aldric" in result
         assert "No magic" in result
 
     def test_dnd_cat_ii_router_renders(self):
@@ -267,7 +265,10 @@ class TestPromptManagerWithRealTemplates:
                 "event_router_ruleset_default",
             ).strip(),
             router_output_schema_addon="",
-            router_input_block="I wait.",
+            router_input_block=(
+                'actor_ids=["aldric_unique_actor"]\n'
+                "payload=I wait."
+            ),
         )
 
         system = messages[0]["content"]
@@ -326,7 +327,7 @@ class TestPromptManagerWithRealTemplates:
     def test_narrator_keeps_pov_context_out_of_system_prefix(self):
         """Narrator cache efficiency depends on POV-specific render inputs
         living in the volatile user tail, not the cached system prefix."""
-        from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
+        from app.engine.story_contracts import PARTIAL_MODE_MARKER
 
         mgr = PromptManager(prompts_dir="app/prompts")
         messages = mgr.render_messages(

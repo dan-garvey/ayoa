@@ -30,8 +30,8 @@ class CharacterAgentTier(str, Enum):
     # current runtime they use the Luna-backed standard-agent role.
     standard = "standard"
     # Utility or supporting characters that need continuity but should not
-    # consume the expensive plot-agent model. In the current runtime they
-    # use the Sonnet-backed convenience role.
+    # consume the plot-agent role. The model remains independently configurable
+    # even though current defaults use Luna for every character tier.
     utility = "utility"
 
 
@@ -293,8 +293,8 @@ class CharacterRecord(BaseModel):
     # `observable_facts` and the recipient is added to that event's
     # `observers`).
     #
-    # Population path: `broadcast_event` in `app/engine/turn_loop.py`
-    # appends visible `observable_facts` for local NPC observers and for
+    # Population path: canonical event commit appends visible
+    # `observable_facts` for local NPC observers and for
     # mediated/remote NPC observers explicitly named in fact-level
     # `visible_to`. Broad room facts do not cross a location boundary
     # unless the router scopes them through a concrete perception

@@ -15,7 +15,6 @@ from app.engine.content_lookup import (
     MissingContentError,
     append_router_content_lookup_records,
     append_router_content_lookup_records_with_llm,
-    plan_llm_router_content_lookup_requests,
 )
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
@@ -179,7 +178,8 @@ def test_lookup_preflight_uses_sqlite_alias_index(tmp_path):
     assert [message.content for message in ckpt.session_conversation] == records
     assert ckpt.canonical_events == []
     assert not hasattr(ckpt, "transcript")
-    assert ckpt.session.render_buffers == {}
+    assert ckpt.session.narrator_render_jobs == []
+    assert ckpt.session.delivery_outbox == []
 
 
 def test_lookup_preflight_raises_auditable_missing_content_error(tmp_path):

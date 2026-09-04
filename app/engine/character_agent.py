@@ -6,7 +6,7 @@ response keeps only its observable prose (or the explicit `<silence/>` marker)
 in that character's own assistant history. Presentation metadata is stripped
 before the response is persisted or forwarded to any other role.
 
-Foreground and private/background calls share the turn contract while their
+Player-requested and autonomous calls share the turn contract while their
 frame and witnessed input remain in the user tail. Character identity and
 sparse actor-owned facts are seeded once into that actor's private history.
 Each character keeps its own rolling history; character calls do not request
@@ -47,7 +47,7 @@ from app.engine.character_presentation import (
     parse_character_presentation_footer,
 )
 from app.engine.prompt_manager import PromptManager
-from app.engine.turn_loop_contracts import (
+from app.engine.story_contracts import (
     format_character_moment,
 )
 from app.llm.client import LLMClient
@@ -90,6 +90,15 @@ class CharacterAgentTurnDraft:
     user_message: ConversationMessage
     assistant_message: ConversationMessage
     identity_seed_sha256: str = ""
+
+
+@dataclass(frozen=True)
+class CharacterPerceptionDraft:
+    """A current self-presentation whose memory effects are not committed."""
+
+    output: CharacterPerceptionOutput
+    user_message: ConversationMessage
+    assistant_message: ConversationMessage
 
 
 _SILENCE_MARKER = "<silence/>"
@@ -416,10 +425,9 @@ class CharacterAgent:
         """Observer-agnostic perception beat — return this character's
         current visual loadout as plain prose (1-3 sentences).
 
-        Used by the observation-harvest fork in `turn_loop.run_beat`
-        when a player's action is purely observational
-        (`event_kind="observation_harvest"`), and reachable
-        later from `/query` for "what does X look like?" questions.
+        Used when a router event requests an `appearance_target_id` for a
+        purely observational action, and reachable later from `/query` for
+        "what does X look like?" questions.
 
         Distinct from committed agent turns in two load-bearing ways:
 
@@ -439,6 +447,23 @@ class CharacterAgent:
         and accepts only exterior prose plus its presentation footer.
 
         """
+        if is_non_social_hazard(character):
+            raise ValueError(
+                "Non-social hazards have no character-agent perception turn: "
+                f"{character.character_id}"
+            )
+
+        draft = await self.draft_perception(character, checkpoint)
+        self.commit_perception(character, checkpoint, draft)
+        return draft.output
+
+    async def draft_perception(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+    ) -> CharacterPerceptionDraft:
+        """Prepare appearance prose without mutating the checkpoint."""
+
         if is_non_social_hazard(character):
             raise ValueError(
                 "Non-social hazards have no character-agent perception turn: "
@@ -512,9 +537,6 @@ class CharacterAgent:
             prompt_render_ms=render_ms,
         )
 
-        conv = checkpoint.character_conversations.setdefault(
-            character.character_id, [],
-        )
         conversation_user_content = user_content
         if presentation_catalog:
             conversation_user_content = conversation_user_content.replace(
@@ -522,24 +544,36 @@ class CharacterAgent:
                 "",
                 1,
             )
-        conv.extend((
-            ConversationMessage(
-                role="user",
-                content=conversation_user_content,
-            ),
-            _assistant_history_message(response, text),
-        ))
-        apply_character_presentation_choice(
-            checkpoint,
-            character,
-            result.presentation,
-        )
-
         logger.info(
             "Agent %s perceive: %d chars",
             character.name, len(text),
         )
-        return result
+        return CharacterPerceptionDraft(
+            output=result,
+            user_message=ConversationMessage(
+                role="user",
+                content=conversation_user_content,
+            ),
+            assistant_message=_assistant_history_message(response, text),
+        )
+
+    def commit_perception(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+        draft: CharacterPerceptionDraft,
+    ) -> None:
+        """Commit a successful appearance harvest after its event is accepted."""
+
+        checkpoint.character_conversations.setdefault(
+            character.character_id,
+            [],
+        ).extend((draft.user_message, draft.assistant_message))
+        apply_character_presentation_choice(
+            checkpoint,
+            character,
+            draft.output.presentation,
+        )
 
     async def draft_turn(
         self,
@@ -556,7 +590,7 @@ class CharacterAgent:
                 f"{character.character_id}"
             )
         frame = (frame or "foreground").strip().lower()
-        if frame not in {"foreground", "private", "background"}:
+        if frame not in {"foreground", "private", "autonomous"}:
             frame = "foreground"
         location_label = (
             format_character_location_for_agent(
@@ -598,11 +632,15 @@ class CharacterAgent:
         character: CharacterRecord,
         checkpoint: CheckpointFile,
         draft: CharacterAgentTurnDraft,
+        *,
+        committed_at_s: int | None = None,
     ) -> None:
         clear_character_inbox(character)
         current_at_s = max(
-            int(checkpoint.session.leading_at_s),
             int(character.clock_at_s),
+            int(committed_at_s)
+            if committed_at_s is not None
+            else int(checkpoint.session.leading_at_s),
         )
         previous = character.last_agent_turn_at_s
         character.last_agent_turn_at_s = max(
@@ -626,10 +664,17 @@ class CharacterAgent:
         character: CharacterRecord,
         checkpoint: CheckpointFile,
         draft: CharacterAgentTurnDraft,
+        *,
+        committed_at_s: int | None = None,
     ) -> None:
         """Commit a previously completed draft after its event is accepted."""
 
-        self._commit_draft(character, checkpoint, draft)
+        self._commit_draft(
+            character,
+            checkpoint,
+            draft,
+            committed_at_s=committed_at_s,
+        )
 
     async def _draft_beat(
         self,

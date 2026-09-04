@@ -23,7 +23,7 @@ class DndCurrency(BaseModel):
     """D&D coin pouch.
 
     Defaults are fine for checkpoint/runtime state; the LLM-facing loot signal
-    still requires the object itself to be present on `DndEventRouterOutput`.
+    still requires the object itself to be present on `DndCanonicalEventRecord`.
     """
 
     model_config = ConfigDict(extra="forbid")
