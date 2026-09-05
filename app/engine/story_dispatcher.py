@@ -50,7 +50,7 @@ from app.engine.router_batch import (
     materialize_router_batch,
     router_batch_correlation,
 )
-from app.llm.client import LLMClient
+from app.llm.client import LLMClient, StructuredOutputValidationError
 from app.schemas.characters import CharacterStatus, is_non_social_hazard
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
@@ -610,13 +610,22 @@ class StoryDispatcher:
             return materialized
         except Exception as exc:
             _restore_router_snapshot(ckpt, snapshot)
-            if raw_output is not None:
+            rejected_output = (
+                exc.raw_output
+                if isinstance(exc, StructuredOutputValidationError)
+                else raw_output
+            )
+            if rejected_output is not None:
                 log_rejected_router_batch(
                     session_id=ckpt.session.session_id,
                     correlation_id=correlation,
-                    stage="materialization",
+                    stage=(
+                        "structured_validation"
+                        if isinstance(exc, StructuredOutputValidationError)
+                        else "materialization"
+                    ),
                     error=exc,
-                    raw_output=raw_output,
+                    raw_output=rejected_output,
                 )
             logger.exception("router batch %s failed", correlation)
             raise

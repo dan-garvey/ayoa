@@ -9,6 +9,7 @@ import pytest
 from app.llm.client import (
     LLMClient,
     LLMResponse,
+    StructuredOutputValidationError,
     _openai_strict_json_schema,
     extract_json,
 )
@@ -643,9 +644,13 @@ class TestLLMClientComplete:
     @pytest.mark.asyncio
     async def test_structured_output_missing_parsed_raises(self, client):
         """If output_format was set but SDK returned no parsed_output, fail loudly."""
-        _install_stream_mock(client, _make_mock_response("not valid", parsed=None))
+        raw_output = "not valid " + ("x" * 600) + " retained tail"
+        _install_stream_mock(client, _make_mock_response(raw_output, parsed=None))
 
-        with pytest.raises(ValueError, match="no parsed output"):
+        with pytest.raises(
+            StructuredOutputValidationError,
+            match="no parsed output",
+        ) as exc_info:
             await client.complete(
                 role="narrator",
                 messages=[{"role": "user", "content": "x"}],
@@ -653,6 +658,40 @@ class TestLLMClientComplete:
                 temperature=0.5,
                 max_tokens=100,
             )
+        assert exc_info.value.raw_output == raw_output
+        assert exc_info.value.response_model == "RouterBatchOutput"
+
+    @pytest.mark.asyncio
+    async def test_openai_schema_failure_preserves_complete_raw_output(self):
+        config = LLMConfig(
+            openai_api_key="fake-openai-key",
+            role_models={"event_router": "gpt-5.2"},
+            role_providers={"event_router": "openai"},
+            max_retries=0,
+        )
+        client = LLMClient(config=config)
+        raw_output = (
+            '{"events":[],"padding":"'
+            + ("x" * 600)
+            + '","unexpected":"complete tail"}'
+        )
+        openai_client = MagicMock()
+        openai_client.responses.create = AsyncMock(
+            return_value=_make_openai_response(raw_output, model="gpt-5.2")
+        )
+        client._openai_clients["event_router"] = openai_client
+
+        with pytest.raises(StructuredOutputValidationError) as exc_info:
+            await client.complete(
+                role="event_router",
+                messages=[{"role": "user", "content": "Route this."}],
+                response_model=RouterBatchOutput,
+                temperature=0.5,
+                max_tokens=100,
+            )
+
+        assert exc_info.value.raw_output == raw_output
+        assert exc_info.value.response_model == "RouterBatchOutput"
 
     @pytest.mark.asyncio
     async def test_openai_provider_uses_responses_api(self):

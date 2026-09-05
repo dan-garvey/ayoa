@@ -37,6 +37,18 @@ class TransientLLMError(RuntimeError):
         self.attempts = attempts
         self.last_error = last_error
 
+
+class StructuredOutputValidationError(ValueError):
+    """A provider returned complete text that failed the requested schema."""
+
+    def __init__(self, response_model: str, raw_output: str):
+        super().__init__(
+            f"Model returned no parsed output for {response_model}. "
+            f"Raw text: {raw_output[:500]}"
+        )
+        self.response_model = response_model
+        self.raw_output = raw_output
+
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -583,9 +595,9 @@ class LLMClient:
 
         parsed = _extract_parsed(raw_response) if response_model is not None else None
         if response_model is not None and parsed is None:
-            raise ValueError(
-                f"Model returned no parsed output for {response_model.__name__}. "
-                f"Raw text: {content[:500]}"
+            raise StructuredOutputValidationError(
+                response_model.__name__,
+                content,
             )
 
         model = raw_response.model or model_name
@@ -659,9 +671,9 @@ class LLMClient:
             try:
                 parsed = response_model.model_validate_json(content)
             except Exception as e:
-                raise ValueError(
-                    f"Model returned no parsed output for {response_model.__name__}. "
-                    f"Raw text: {content[:500]}"
+                raise StructuredOutputValidationError(
+                    response_model.__name__,
+                    content,
                 ) from e
 
         usage = _normalise_openai_usage(getattr(raw_response, "usage", None))

@@ -24,7 +24,11 @@ from app.engine.story_dispatcher import (
     _router_input_block,
     eligible_autonomous_character_ids,
 )
-from app.llm.client import LLMClient, LLMResponse
+from app.llm.client import (
+    LLMClient,
+    LLMResponse,
+    StructuredOutputValidationError,
+)
 from app.schemas.event_router import (
     LocationUpdateSignal,
     ObserverGroups,
@@ -98,6 +102,42 @@ def _draft(
         location_updates=[],
         activate=[],
     )
+
+
+@pytest.mark.asyncio
+async def test_structured_validation_rejection_logs_complete_raw_router_output(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    ckpt = checkpoint(characters=[character_record("alice")])
+    inputs = [_input(0, "alice")]
+    raw_output = (
+        '{"events":[],"padding":"'
+        + ("x" * 600)
+        + '","malformed_tail":"still retained"}'
+    )
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(side_effect=StructuredOutputValidationError(
+        "RouterBatchOutput",
+        raw_output,
+    ))
+    dispatcher = StoryDispatcher(client, PromptManager("app/prompts"))
+
+    with (
+        caplog.at_level(logging.ERROR, logger="app.engine.router_batch"),
+        pytest.raises(StructuredOutputValidationError),
+    ):
+        await dispatcher.route_batch(ckpt=ckpt, inputs=inputs)
+
+    rejection = next(
+        record.message.removeprefix("rejected router batch ")
+        for record in caplog.records
+        if record.message.startswith("rejected router batch ")
+    )
+    payload = json.loads(rejection)
+    assert payload["session_id"] == ckpt.session.session_id
+    assert payload["correlation_id"] == router_batch_correlation(inputs)
+    assert payload["stage"] == "structured_validation"
+    assert payload["raw_output"] == raw_output
 
 
 @pytest.mark.asyncio
