@@ -27,7 +27,13 @@ Update shapes:
 - `inventory_delta`: item id or account resource id, signed quantity as value.
   Gems purchased with funds use `gem_purchase`, exact pack-multiple quantity,
   and empty details.
-- `equipment_move`: item id, destination account or Hero id as value.
+- `equipment_move`: only for an explicit account-owner action moving one
+  existing durable item between account storage and lobby Heroes. Use the item
+  id and destination `account` or Hero id as value. Never use it for floor
+  actions or momentary fictional handling such as drawing, dropping, catching,
+  picking up, passing, or disarming equipment. Those remain observable fiction
+  unless the item is permanently destroyed or lost, which uses the owning
+  Hero's `hero_delta` with `equipment_remove`.
 - `hero_delta`: Hero id, empty value, and only changed details:
   `hp_current`, `equipment_remove`, `durability.<item_id>`, `skill_remove`,
   `skill_rank.<skill_id>`, repeated `condition`, repeated `persistent_injury`,

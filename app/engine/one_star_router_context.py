@@ -98,10 +98,12 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
     if not is_one_star_checkpoint(checkpoint):
         return ""
 
-    _owner, account = load_one_star_account(checkpoint)
+    owner, account = load_one_star_account(checkpoint)
     config = account.config
     lines = [
         "<one_star_rules_config>",
+        f"account_owner_id={owner.character_id}; "
+        f"lobby_location={config.lobby_location_label}",
         f"summon_batch_max={config.max_summon_batch}",
         "summon_pools:",
     ]

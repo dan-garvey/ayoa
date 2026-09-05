@@ -472,7 +472,6 @@ class EngineBridge:
         )
         card_events = one_star_hero_card_events_for_render(
             checkpoint=checkpoint,
-            previous_checkpoint=previous_checkpoint,
             viewer_character_id=pov_character_id,
             render=render,
         )
@@ -852,14 +851,25 @@ class EngineBridge:
             return
         owner_id, _config = configured
         render = response.per_player_visual_novel_renders.get(owner_id)
-        if render is None:
+        rendered_card_ids: set[str] = set()
+        if render is not None:
+            rendered_card_ids = {
+                event.event_id
+                for event in one_star_hero_card_events_for_render(
+                    checkpoint=checkpoint,
+                    viewer_character_id=owner_id,
+                    render=render,
+                )
+            }
+        buffered_event_ids = {
+            ref.event_id
+            for job in checkpoint.session.narrator_render_jobs
+            if job.pov_character_id == owner_id
+            for ref in job.event_refs
+        }
+        required_ids = {event.event_id for event in required}
+        if required_ids - rendered_card_ids - buffered_event_ids:
             raise OneStarHeroCardError("master_render_missing_card_event")
-        one_star_hero_card_events_for_render(
-            checkpoint=checkpoint,
-            previous_checkpoint=previous,
-            viewer_character_id=owner_id,
-            render=render,
-        )
 
     async def wait_for_visual_novel_stage_work(
         self,

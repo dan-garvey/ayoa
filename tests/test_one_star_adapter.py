@@ -17,6 +17,8 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import (
+    ONE_STAR_HERO_KEY,
+    OneStarEquipmentEntry,
     OneStarRulesConfig,
     OneStarStateUpdate,
     OneStarTransaction,
@@ -370,6 +372,78 @@ def test_inventory_delta_routes_account_currencies_to_resources() -> None:
         "materials": {},
     }
     assert account.state.inventory == {"healing_draught": 4}
+
+
+def test_equipment_move_is_owner_only_lobby_management_and_failure_is_atomic() -> None:
+    checkpoint = _checkpoint()
+    reserve = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == "reserve"
+    )
+    reserve.status = CharacterStatus.active
+    reserve.location = "lobby"
+    hero = load_one_star_hero(reserve)
+    assert hero is not None
+    hero.owner_lobby_id = "lobby_a"
+    hero.acquisition_event_id = "evt_acquired"
+    hero.equipment = [OneStarEquipmentEntry(
+        item_id="hooked_pole",
+        name="Hooked Pole",
+        slot="hands",
+        quantity=1,
+        durability_current=0,
+        durability_max=0,
+        tags=["weapon"],
+        visible=True,
+    )]
+    reserve.mechanics[ONE_STAR_HERO_KEY] = hero.model_dump(mode="json")
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        [OneStarStateUpdate(
+            kind="equipment_move",
+            target_id="hooked_pole",
+            value="account",
+            details=[],
+        )],
+        canonical_at_s=0,
+    )
+
+    with pytest.raises(
+        OneStarTransactionError,
+        match="only the account owner may initiate an equipment move",
+    ):
+        prepare_one_star_transaction(
+            checkpoint,
+            event_id="evt_hero_drops_pole",
+            transaction=transaction,
+            initiating_actor_ids=["reserve"],
+        )
+
+    unchanged = load_one_star_hero(reserve)
+    assert unchanged is not None
+    assert [item.item_id for item in unchanged.equipment] == ["hooked_pole"]
+    _owner, unchanged_account = load_one_star_account(checkpoint)
+    assert unchanged_account.state.stored_equipment == []
+
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="evt_owner_stores_pole",
+        transaction=transaction,
+        initiating_actor_ids=["account_owner"],
+    )
+    prepared_reserve = next(
+        character
+        for character in prepared.after_checkpoint.characters
+        if character.character_id == "reserve"
+    )
+    prepared_hero = load_one_star_hero(prepared_reserve)
+    assert prepared_hero is not None
+    assert prepared_hero.equipment == []
+    _owner, prepared_account = load_one_star_account(prepared.after_checkpoint)
+    assert [
+        item.item_id for item in prepared_account.state.stored_equipment
+    ] == ["hooked_pole"]
 
 
 def test_positive_gem_inventory_delta_is_not_an_acquisition_path() -> None:

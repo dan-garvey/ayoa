@@ -295,11 +295,10 @@ def new_one_star_hero_card_events(
 def one_star_hero_card_events_for_render(
     *,
     checkpoint: CheckpointFile,
-    previous_checkpoint: CheckpointFile | None,
     viewer_character_id: str,
     render: VisualNovelRender,
 ) -> tuple[OneStarHeroCardEvent, ...]:
-    """Require and order the Master's new cards by rendered segment."""
+    """Select committed Master cards in their rendered segment order."""
 
     configured = one_star_visual_novel_config(checkpoint)
     if configured is None:
@@ -307,26 +306,19 @@ def one_star_hero_card_events_for_render(
     owner_id, _config = configured
     if viewer_character_id != owner_id:
         return ()
-    required = {
-        event.event_id: event
-        for event in new_one_star_hero_card_events(
-            checkpoint,
-            previous_checkpoint,
-        )
-    }
     rendered_ids = [
         event_id
         for segment in render.segments
         for event_id in segment.rendered_event_ids
     ]
-    missing = set(required) - set(rendered_ids)
-    if missing:
-        raise OneStarHeroCardError("master_render_missing_card_event")
     ordered: list[OneStarHeroCardEvent] = []
     seen: set[str] = set()
     for event_id in rendered_ids:
-        if event_id in required and event_id not in seen:
-            ordered.append(required[event_id])
+        if event_id in seen:
+            continue
+        event = committed_one_star_hero_card_event(checkpoint, event_id)
+        if event is not None:
+            ordered.append(event)
             seen.add(event_id)
     return tuple(ordered)
 

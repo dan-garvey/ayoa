@@ -37,6 +37,7 @@ from app.engine.reviewed_visual_references import validate_story_visual_referenc
 from app.engine.visual_novel_presentation import VisualNovelDeckSection
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.delivery import NarratorEventRef, NarratorRenderJob
 from app.schemas.event_router import SpawnRequest
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
@@ -285,27 +286,20 @@ def test_summon_events_require_commit_and_master_render_and_deduplicate() -> Non
     )] == ["evt_summon_cards"]
     selected = one_star_hero_card_events_for_render(
         checkpoint=checkpoint,
-        previous_checkpoint=previous,
         viewer_character_id="the_master",
         render=_render("evt_summon_cards", "evt_summon_cards"),
     )
     assert [item.event_id for item in selected] == ["evt_summon_cards"]
     assert one_star_hero_card_events_for_render(
         checkpoint=checkpoint,
-        previous_checkpoint=previous,
         viewer_character_id="renna_holt",
         render=_render("evt_summon_cards"),
     ) == ()
-    with pytest.raises(
-        OneStarHeroCardError,
-        match="master_render_missing_card_event",
-    ):
-        one_star_hero_card_events_for_render(
-            checkpoint=checkpoint,
-            previous_checkpoint=previous,
-            viewer_character_id="the_master",
-            render=_render("evt_unrelated"),
-        )
+    assert one_star_hero_card_events_for_render(
+        checkpoint=checkpoint,
+        viewer_character_id="the_master",
+        render=_render("evt_unrelated"),
+    ) == ()
 
     assert new_one_star_hero_card_events(
         checkpoint,
@@ -1274,3 +1268,59 @@ def test_bridge_fails_loudly_when_master_card_segment_is_omitted() -> None:
         "evt_required_master_card"
     )
     bridge._validate_one_star_hero_card_routing(response)
+
+
+def test_bridge_allows_master_card_event_buffered_for_later_render() -> None:
+    previous = _seed()
+    checkpoint = previous.model_copy(deep=True)
+    checkpoint.session.session_id = "session"
+    previous.session.session_id = "session"
+    _commit_summon(
+        checkpoint,
+        event_id="evt_buffered_master_card",
+        character_ids=["renna_holt"],
+    )
+    checkpoint.session.narrator_render_jobs = [NarratorRenderJob(
+        job_id="narrator_master",
+        lane_id="lane_floor_one",
+        pov_character_id="the_master",
+        source_event_ids=["evt_buffered_master_card"],
+        event_refs=[NarratorEventRef(
+            event_id="evt_buffered_master_card",
+            observation_level="direct",
+            visible_at_s=0,
+            event_sequence=0,
+            sprite_variant_keys_by_character_id={},
+        )],
+        highest_event_sequence=0,
+        created_revision=1,
+        user_input="(begin)",
+        partial_mode=False,
+        narration_mode="event_aligned",
+        status="pending",
+        attempts=1,
+        last_error="",
+    )]
+    bridge = EngineBridge.__new__(EngineBridge)
+    bridge.load_checkpoint = MagicMock(return_value=checkpoint)  # type: ignore[method-assign]
+    bridge._previous_visual_novel_checkpoint = MagicMock(  # type: ignore[method-assign]
+        return_value=previous
+    )
+    response = TurnResponse(
+        session_id="session",
+        checkpoint_id="ckpt_0001",
+        per_player_visual_novel_renders={},
+    )
+
+    bridge._validate_one_star_hero_card_routing(response)
+
+    later = checkpoint.model_copy(deep=True)
+    assert new_one_star_hero_card_events(later, checkpoint) == ()
+    selected = one_star_hero_card_events_for_render(
+        checkpoint=later,
+        viewer_character_id="the_master",
+        render=_render("evt_buffered_master_card"),
+    )
+    assert [event.event_id for event in selected] == [
+        "evt_buffered_master_card"
+    ]
