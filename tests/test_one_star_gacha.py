@@ -370,6 +370,23 @@ def test_compact_standard_summon_update_derives_hidden_draw_and_lifecycle() -> N
     assert operation.hero_ids[2] == "lobby_a_basic_0003"
     assert {wake.character_id for wake in wakes} == {"reserve_a", "reserve_b"}
     assert [spawn.character_id for spawn in spawns] == ["lobby_a_basic_0003"]
+    final_transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        [update],
+        canonical_at_s=0,
+        fresh_summon_character_ids=["mara_venn"],
+    )
+    final_spawns, final_wakes = one_star_summon_lifecycle(
+        checkpoint,
+        [update],
+        fresh_summon_character_ids=["mara_venn"],
+    )
+    assert final_transaction.operations[0].hero_ids == [
+        *operation.hero_ids[:2],
+        "mara_venn",
+    ]
+    assert [spawn.character_id for spawn in final_spawns] == ["mara_venn"]
+    assert final_wakes == wakes
     assert update.model_dump() == {
         "kind": "summon",
         "target_id": "basic",
@@ -905,9 +922,10 @@ def test_exhausted_reserve_grade_falls_back_to_fresh_generated_hero() -> None:
         checkpoint,
         [update],
         canonical_at_s=0,
+        fresh_summon_character_ids=["mara_venn"],
     )
     fresh_id = transaction.operations[0].hero_ids[0]
-    assert fresh_id == "lobby_a_basic_0003"
+    assert fresh_id == "mara_venn"
     checkpoint.characters.append(_hero(
         fresh_id,
         status=CharacterStatus.active,

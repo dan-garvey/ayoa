@@ -1,16 +1,27 @@
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
+from app.engine.one_star_adapter import (
+    load_one_star_account,
+    load_one_star_hero,
+    one_star_event_fingerprint,
+)
+from app.engine.prompt_manager import PromptManager
 from app.engine.router_batch import (
     RouterBatchContractError,
     materialize_router_batch,
 )
+from app.engine.spawn_authoring import SpawnAuthoringCoordinator
 from app.engine.story_dispatcher import (
     StoryDispatcher,
     _materialize_adapter_lifecycle,
     _router_input_block,
+    eligible_autonomous_character_ids,
 )
+from app.llm.client import LLMClient, LLMResponse
 from app.schemas.event_router import (
     LocationUpdateSignal,
     ObserverGroups,
@@ -24,10 +35,12 @@ from app.schemas.event_router import (
 )
 from app.schemas.events import ObservableFact
 from app.schemas.one_star import (
+    ONE_STAR_ACCOUNT_KEY,
     OneStarRouterBatchOutput,
     OneStarRouterEventDraft,
     OneStarStateUpdate,
 )
+from app.schemas.one_star_character_gen import AuthoredOneStarCharacter
 from tests.support.factories import character_record, checkpoint
 from tests.support.one_star_factories import one_star_checkpoint, one_star_hero
 
@@ -506,3 +519,152 @@ async def test_one_star_preparation_applies_projected_activation_to_roster() -> 
     assert load_one_star_hero(activated).acquisition_event_id == (
         batch.events[0].record.event_id
     )
+
+
+@pytest.mark.asyncio
+async def test_fresh_one_star_preparation_commits_authored_name_as_hero_id() -> None:
+    ckpt = one_star_checkpoint()
+    owner = ckpt.characters[0]
+    pool = owner.mechanics[ONE_STAR_ACCOUNT_KEY]["config"]["summon_pools"][
+        "basic"
+    ]
+    pool["eligible_existing_ids"] = []
+    pool["fresh_generation_allowed"] = True
+    generic = _draft(
+        feasible=[0],
+        observers=["account_owner"],
+    )
+    output = OneStarRouterBatchOutput(
+        events=[OneStarRouterEventDraft.model_validate({
+            **generic.model_dump(),
+            "state_updates": [OneStarStateUpdate(
+                kind="summon",
+                target_id="basic",
+                value="1",
+                details=[],
+            )],
+        })],
+        next_turns=[],
+    )
+    inputs = [_input(0, "account_owner")]
+    _materialize_adapter_lifecycle(ckpt, output)
+    transient_id = output.events[0].spawn[0].character_id
+    assert transient_id == "lobby_a_basic_0001"
+    batch = materialize_router_batch(
+        checkpoint=ckpt,
+        inputs=inputs,
+        output=output,
+    )
+    authored = AuthoredOneStarCharacter.model_validate({
+        "name": "Mara Venn",
+        "location": "lobby",
+        "role": "newly summoned Hero",
+        "appearance": "A weathered baker holding a walking staff.",
+        "public_context": "",
+        "default_loadout": "A worn walking staff.",
+        "faction": "",
+        "actor": {"may_act_offstage": False, "facts": []},
+        "router_summary": "",
+        "one_star_hero": {
+            "strong_stat_id": "power",
+            "weak_stat_id": "spirit",
+            "equipment": [],
+            "skills": [],
+            "conditions": [],
+            "persistent_injuries": [],
+            "innate_system_sight": False,
+            "hidden_capabilities": [],
+        },
+    })
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(return_value=LLMResponse(
+        parsed=authored,
+        content=authored.model_dump_json(),
+        model="offline-fixture",
+    ))
+    dispatcher = StoryDispatcher(client, PromptManager("app/prompts"))
+
+    await dispatcher.prepare_batch(
+        ckpt=ckpt,
+        batch=batch,
+        inputs=inputs,
+        player_actor_ids={"account_owner"},
+    )
+
+    event = batch.events[0].record
+    assert [request.character_id for request in event.spawn] == ["mara_venn"]
+    assert transient_id not in {
+        character.character_id for character in ckpt.characters
+    }
+    hero_record = next(
+        character
+        for character in ckpt.characters
+        if character.character_id == "mara_venn"
+    )
+    hero = load_one_star_hero(hero_record)
+    assert hero is not None
+    assert hero.owner_lobby_id == "lobby_a"
+    assert hero.acquisition_event_id == event.event_id
+    account = load_one_star_account(ckpt)[1]
+    assert account.state.summon_draw_counters == {
+        "basic": 1,
+    }
+    assert account.state.applied_event_fingerprints[event.event_id] == (
+        one_star_event_fingerprint(event.model_dump(mode="json"))
+    )
+    eligible_ids = eligible_autonomous_character_ids(ckpt)
+    assert "mara_venn" in eligible_ids
+    assert transient_id not in eligible_ids
+
+
+@pytest.mark.asyncio
+async def test_one_star_reauthoring_preserves_canonical_name_derived_id() -> None:
+    ckpt = one_star_checkpoint()
+    pool = ckpt.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"][
+        "summon_pools"
+    ]["basic"]
+    pool["eligible_existing_ids"] = []
+    pool["fresh_generation_allowed"] = True
+    generic = _draft(feasible=[0], observers=["account_owner"])
+    output = OneStarRouterBatchOutput(
+        events=[OneStarRouterEventDraft.model_validate({
+            **generic.model_dump(),
+            "state_updates": [OneStarStateUpdate(
+                kind="summon",
+                target_id="basic",
+                value="1",
+                details=[],
+            )],
+        })],
+        next_turns=[],
+    )
+    _materialize_adapter_lifecycle(ckpt, output)
+    batch = materialize_router_batch(
+        checkpoint=ckpt,
+        inputs=[_input(0, "account_owner")],
+        output=output,
+    )
+    event = batch.events[0].record
+    event.spawn = [
+        event.spawn[0].model_copy(update={"character_id": "mara_venn"})
+    ]
+    generated = character_record("mara_venn").model_copy(
+        update={"name": "Mara Venn"}
+    )
+    character_manager = MagicMock()
+    character_manager.spawn_characters = AsyncMock(return_value=[generated])
+    coordinator = SpawnAuthoringCoordinator(character_manager)
+
+    key = coordinator.start(
+        checkpoint=ckpt,
+        event=event,
+        transaction_id="tx_replay",
+        event_fingerprint="fingerprint",
+    )
+    records = await coordinator.result(key)
+
+    assert [record.character_id for record in records] == ["mara_venn"]
+    call = character_manager.spawn_characters.await_args
+    assert [request.character_id for request in call.args[1]] == ["mara_venn"]
+    assert call.kwargs["one_star_hero_ids"] == {"mara_venn"}
+    assert "name_derived_character_ids" not in call.kwargs

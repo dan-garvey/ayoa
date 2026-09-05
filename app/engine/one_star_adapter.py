@@ -17,6 +17,7 @@ from collections.abc import Iterable, Mapping
 from pydantic import ValidationError
 
 from app.engine.action_rejection import PlayerActionRejected
+from app.engine.character_identity import pick_unused_character_id
 from app.engine.one_star_progression import (
     apply_experience,
     apply_promotion_banked_experience,
@@ -835,16 +836,68 @@ def _counter_from_detail(key: str, value: str) -> OneStarMissionCounter:
     )
 
 
-def _fresh_summon_character_id(
+def _fresh_summon_slot_id(
     *,
     lobby_id: str,
     pool_id: str,
     draw_index: int,
 ) -> str:
+    """Return a transient pre-authoring handle for one fresh summon draw."""
+
     safe_pool = "".join(
         character if character.isalnum() else "_" for character in pool_id.lower()
     ).strip("_") or "summon"
     return f"{lobby_id}_{safe_pool}_{draw_index + 1:04d}"
+
+
+def _summon_character_ids(
+    draws: Iterable[OneStarSummonDraw],
+    *,
+    lobby_id: str,
+    pool_id: str,
+    start_index: int,
+    fresh_summon_character_ids: Iterable[str] | None,
+) -> list[str]:
+    """Resolve authored reserves plus optional post-authoring fresh ids."""
+
+    supplied = (
+        None
+        if fresh_summon_character_ids is None
+        else list(fresh_summon_character_ids)
+    )
+    if supplied is not None and (
+        any(not value or value != value.strip() for value in supplied)
+        or len(set(supplied)) != len(supplied)
+    ):
+        raise OneStarTransactionError(
+            "fresh summon character ids must be non-blank and unique"
+        )
+    supplied_index = 0
+    resolved: list[str] = []
+    for offset, draw in enumerate(draws):
+        if draw.existing_character_id:
+            resolved.append(draw.existing_character_id)
+            continue
+        if supplied is None:
+            resolved.append(_fresh_summon_slot_id(
+                lobby_id=lobby_id,
+                pool_id=pool_id,
+                draw_index=start_index + offset,
+            ))
+            continue
+        if supplied_index >= len(supplied):
+            raise OneStarTransactionError(
+                "fresh summon character ids do not cover every generated draw"
+            )
+        resolved.append(supplied[supplied_index])
+        supplied_index += 1
+    if supplied is not None and supplied_index != len(supplied):
+        raise OneStarTransactionError(
+            "fresh summon character ids exceed the generated draw count"
+        )
+    if len(set(resolved)) != len(resolved):
+        raise OneStarTransactionError("summon character ids must be unique")
+    return resolved
 
 
 def one_star_state_updates_to_transaction(
@@ -852,6 +905,7 @@ def one_star_state_updates_to_transaction(
     state_updates: Iterable[OneStarStateUpdate],
     *,
     canonical_at_s: int,
+    fresh_summon_character_ids: Iterable[str] | None = None,
 ) -> OneStarTransaction:
     """Translate the router's one compact update list into private typed work.
 
@@ -861,6 +915,11 @@ def one_star_state_updates_to_transaction(
     """
 
     updates = list(state_updates)
+    supplied_fresh_ids = (
+        None
+        if fresh_summon_character_ids is None
+        else list(fresh_summon_character_ids)
+    )
     if sum(update.kind == "summon" for update in updates) > 1:
         raise OneStarTransactionError(
             "a compact One-Star update list may contain only one summon"
@@ -902,15 +961,13 @@ def one_star_state_updates_to_transaction(
                 count=count,
             )
             start_index = account.state.summon_draw_counters.get(target_id, 0)
-            hero_ids = [
-                draw.existing_character_id
-                or _fresh_summon_character_id(
-                    lobby_id=account.config.lobby_id,
-                    pool_id=target_id,
-                    draw_index=start_index + offset,
-                )
-                for offset, draw in enumerate(draws)
-            ]
+            hero_ids = _summon_character_ids(
+                draws,
+                lobby_id=account.config.lobby_id,
+                pool_id=target_id,
+                start_index=start_index,
+                fresh_summon_character_ids=supplied_fresh_ids,
+            )
             birth_stars = [draw.birth_stars for draw in draws]
             operations.append(OneStarSummonOperation(
                 operation=kind,
@@ -1168,6 +1225,13 @@ def one_star_state_updates_to_transaction(
             f"unsupported One-Star state update kind {kind!r}"
         )
 
+    if supplied_fresh_ids is not None and not any(
+        update.kind == "summon" for update in updates
+    ) and supplied_fresh_ids:
+        raise OneStarTransactionError(
+            "fresh summon character ids require a summon state update"
+        )
+
     return OneStarTransaction(
         present=bool(operations),
         operations=operations,
@@ -1177,12 +1241,23 @@ def one_star_state_updates_to_transaction(
 def one_star_summon_lifecycle(
     checkpoint: CheckpointFile,
     state_updates: Iterable[OneStarStateUpdate],
+    *,
+    fresh_summon_character_ids: Iterable[str] | None = None,
 ) -> tuple[tuple[SpawnRequest, ...], tuple[WakeSignal, ...]]:
-    """Materialize every configured summon without router-authored identities."""
+    """Project configured wakes and fresh spawns into the shared lifecycle."""
 
     all_updates = list(state_updates)
+    supplied_fresh_ids = (
+        None
+        if fresh_summon_character_ids is None
+        else list(fresh_summon_character_ids)
+    )
     updates = [update for update in all_updates if update.kind == "summon"]
     if not updates:
+        if supplied_fresh_ids:
+            raise OneStarTransactionError(
+                "fresh summon character ids require a summon state update"
+            )
         return (), ()
     if len(updates) > 1:
         raise OneStarTransactionError(
@@ -1215,6 +1290,7 @@ def one_star_summon_lifecycle(
                 checkpoint,
                 all_updates,
                 canonical_at_s=checkpoint.session.leading_at_s,
+                fresh_summon_character_ids=supplied_fresh_ids,
             )
             if (
                 len(transaction.operations) != 2
@@ -1242,8 +1318,14 @@ def one_star_summon_lifecycle(
                     "and preserve the opening-roster order as its exact party"
                 )
             arrival_location = mission_start.mission.destination
-        start_index = account.state.summon_draw_counters.get(pool_id, 0)
-        for offset, draw in enumerate(draws):
+        summon_ids = _summon_character_ids(
+            draws,
+            lobby_id=account.config.lobby_id,
+            pool_id=pool_id,
+            start_index=account.state.summon_draw_counters.get(pool_id, 0),
+            fresh_summon_character_ids=supplied_fresh_ids,
+        )
+        for draw, character_id in zip(draws, summon_ids, strict=True):
             if draw.existing_character_id:
                 wake_signals.append(WakeSignal(
                     character_id=draw.existing_character_id,
@@ -1254,11 +1336,6 @@ def one_star_summon_lifecycle(
                 raise OneStarTransactionError(
                     "authored opening summons cannot create fresh identities"
                 )
-            character_id = _fresh_summon_character_id(
-                lobby_id=account.config.lobby_id,
-                pool_id=pool_id,
-                draw_index=start_index + offset,
-            )
             spawn_requests.append(SpawnRequest.model_validate({
                 "character_id": character_id,
                 "seed": {
@@ -2383,24 +2460,42 @@ def _apply_summon(
                 "opening-roster summon requires an account with no acquired Heroes"
             )
 
-    expected_ids = [
-        draw.existing_character_id
-        or _fresh_summon_character_id(
-            lobby_id=config.lobby_id,
-            pool_id=operation.pool_id,
-            draw_index=(
-                state.summon_draw_counters.get(operation.pool_id, 0) + offset
-            ),
-        )
-        for offset, draw in enumerate(expected_draws)
-    ]
     expected_birth_stars = [draw.birth_stars for draw in expected_draws]
     if (
-        operation.hero_ids != expected_ids
+        len(operation.hero_ids) != len(expected_draws)
         or operation.birth_stars != expected_birth_stars
     ):
         raise OneStarTransactionError(
             "summon identities and birth stars must match the exact adapter preview"
+        )
+    fresh_operation_ids = {
+        hero_id
+        for hero_id, draw in zip(
+            operation.hero_ids,
+            expected_draws,
+            strict=True,
+        )
+        if not draw.existing_character_id
+    }
+    taken_ids = {
+        character.character_id
+        for character in checkpoint.characters
+        if character.character_id not in fresh_operation_ids
+    }
+    expected_ids: list[str] = []
+    for hero_id, draw in zip(operation.hero_ids, expected_draws, strict=True):
+        if draw.existing_character_id:
+            expected_ids.append(draw.existing_character_id)
+            continue
+        character = _require_character(checkpoint, hero_id)
+        expected_id = pick_unused_character_id(character.name, taken_ids)
+        expected_ids.append(expected_id)
+        taken_ids.add(expected_id)
+    if operation.hero_ids != expected_ids:
+        raise OneStarTransactionError(
+            "summon identities must match the exact adapter preview; fresh "
+            "summon ids are collision-safe slugs of the authored Hero names "
+            "in draw order"
         )
     for hero_id, draw in zip(operation.hero_ids, expected_draws, strict=True):
         if draw.existing_character_id:

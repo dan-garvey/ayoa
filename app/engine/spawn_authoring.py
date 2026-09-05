@@ -99,25 +99,25 @@ class SpawnAuthoringCoordinator:
             checkpoint.session.config.settings.ruleset_id
             == "one_star_ascension"
         ):
-            spawned_ids = {
-                request.character_id for request in immutable_requests
-            }
-            from app.engine.one_star_adapter import (
-                one_star_state_updates_to_transaction,
-            )
+            state_updates = list(getattr(event, "state_updates", ()))
+            if any(update.kind == "summon" for update in state_updates):
+                from app.engine.one_star_adapter import one_star_summon_lifecycle
 
-            transaction = one_star_state_updates_to_transaction(
-                immutable_checkpoint,
-                getattr(event, "state_updates", ()),
-                canonical_at_s=event.effective_at_s + event.duration_s,
-            )
-            one_star_hero_ids = {
-                hero_id
-                for operation in getattr(transaction, "operations", ())
-                if getattr(operation, "operation", "") == "summon"
-                for hero_id in getattr(operation, "hero_ids", ())
-                if hero_id in spawned_ids
-            }
+                spawns, _wakes = one_star_summon_lifecycle(
+                    immutable_checkpoint,
+                    state_updates,
+                    fresh_summon_character_ids=[
+                        request.character_id for request in immutable_requests
+                    ],
+                )
+                if list(spawns) != immutable_requests:
+                    raise RuntimeError(
+                        "canonical One-Star summon spawns diverged during "
+                        "character authoring"
+                    )
+                one_star_hero_ids = {
+                    request.character_id for request in spawns
+                }
         task = asyncio.create_task(
             self._author(
                 immutable_checkpoint,

@@ -11,6 +11,7 @@ import logging
 
 from pydantic import BaseModel, ConfigDict
 
+from app.engine.character_identity import pick_unused_character_id
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.characters import (
@@ -574,6 +575,7 @@ class CharacterManager:
         *,
         acting_actor_location: str = "",
         one_star_hero_ids: set[str] | None = None,
+        name_derived_character_ids: set[str] | None = None,
     ) -> list[CharacterRecord]:
         """Generate new characters from router spawn requests via LLM.
 
@@ -588,6 +590,11 @@ class CharacterManager:
         `one_star_hero_ids` is the exact subset paired with a typed summon in
         the source event. Other spawns in that ruleset remain ordinary
         persistent characters and receive no Hero sheet.
+
+        `name_derived_character_ids` identifies transient summon-slot ids whose
+        generated records must receive collision-safe ids derived from their
+        authored names. It is used only for first-time One-Star generation;
+        replayed canonical spawns already carry their durable ids.
 
         Returns the list of newly created and registered characters.
 
@@ -616,12 +623,25 @@ class CharacterManager:
             )
 
         hero_spawn_ids = set(one_star_hero_ids or ())
+        name_derived_ids = set(name_derived_character_ids or ())
         request_ids = {request.character_id for request in spawn_requests}
         unknown_hero_ids = hero_spawn_ids - request_ids
         if unknown_hero_ids:
             raise ValueError(
                 "One-Star Hero generation targets absent spawn ids: "
                 + ", ".join(sorted(unknown_hero_ids))
+            )
+        unknown_name_derived_ids = name_derived_ids - request_ids
+        if unknown_name_derived_ids:
+            raise ValueError(
+                "Name-derived character generation targets absent spawn ids: "
+                + ", ".join(sorted(unknown_name_derived_ids))
+            )
+        non_hero_name_derived_ids = name_derived_ids - hero_spawn_ids
+        if non_hero_name_derived_ids:
+            raise ValueError(
+                "Name-derived ids are reserved for fresh One-Star Heroes: "
+                + ", ".join(sorted(non_hero_name_derived_ids))
             )
         if hero_spawn_ids and not _one_star_ruleset_enabled(checkpoint):
             raise ValueError(
@@ -680,7 +700,7 @@ class CharacterManager:
 
         async def generate_one(
             request: SpawnRequest,
-        ) -> tuple[CharacterRecord, str]:
+        ) -> tuple[CharacterRecord, str, object]:
             branch = _immutable_checkpoint_copy(generation_snapshot)
             return await self._spawn_one(
                 branch,
@@ -701,7 +721,37 @@ class CharacterManager:
             # left running against a supposedly accepted wave.
             raise failures[0]
 
-        spawned = [result[0] for result in results]
+        successful_results = [
+            result for result in results if not isinstance(result, BaseException)
+        ]
+        taken_ids = {character.character_id for character in checkpoint.characters}
+        taken_ids.update(
+            result[0].character_id
+            for request, result in zip(
+                spawn_requests,
+                successful_results,
+                strict=True,
+            )
+            if request.character_id not in name_derived_ids
+        )
+        for request, result in zip(
+            spawn_requests,
+            successful_results,
+            strict=True,
+        ):
+            char = result[0]
+            if request.character_id in name_derived_ids:
+                char.character_id = pick_unused_character_id(char.name, taken_ids)
+                taken_ids.add(char.character_id)
+            if request.character_id in hero_spawn_ids:
+                self._attach_one_star_spawn_mechanics(
+                    checkpoint,
+                    char,
+                    result[2],
+                    birth_stars=request.seed.knowledge_tier,
+                )
+
+        spawned = [result[0] for result in successful_results]
         for char in spawned:
             checkpoint.characters.append(char)
             logger.info(
@@ -716,15 +766,15 @@ class CharacterManager:
         default_location: str = "",
         one_star_hero: bool = False,
         casting_plan_block: str = "",
-    ) -> tuple[CharacterRecord, str]:
+    ) -> tuple[CharacterRecord, str, object]:
         """Generate a single character via LLM.
 
-        Returns the freshly-built CharacterRecord plus the LLM-authored
-        `router_summary`. Router-authored spawns are already present in compact
-        router history, so the summary is not queued into the next router
-        input. The materialized display name is retained separately on that
-        compact spawn record because it did not exist when the router authored
-        the request.
+        Returns the freshly-built CharacterRecord, the LLM-authored
+        `router_summary`, and the typed authored result. The caller retains the
+        latter until any name-derived durable id is allocated, then constructs
+        One-Star mechanics with that final identity. Router-authored spawns are
+        already present in compact router history, so the summary is not queued
+        into the next router input.
 
         Spawn-location resolution chain:
           1. router-supplied `req.seed.location`
@@ -865,13 +915,6 @@ class CharacterManager:
         char.knowledge_tier = req.seed.knowledge_tier
         if dnd_enabled:
             self._attach_dnd_spawn_mechanics(char, authored, req=req)
-        elif one_star_hero:
-            self._attach_one_star_spawn_mechanics(
-                checkpoint,
-                char,
-                authored,
-                birth_stars=req.seed.knowledge_tier,
-            )
         # Override the LLM's authored.location only when the router or
         # caller supplied a concrete location label. When neither is set,
         # trust the LLM.
@@ -893,7 +936,7 @@ class CharacterManager:
                 f"[your own action] {char.name} at {char.location}."
             )
 
-        return char, authored.router_summary
+        return char, authored.router_summary, authored
 
     @staticmethod
     def _attach_one_star_spawn_mechanics(

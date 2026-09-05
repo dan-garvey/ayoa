@@ -683,11 +683,10 @@ class StoryDispatcher:
                         "One-Star summon lifecycle diverged before preparation"
                     )
                 one_star_hero_ids.update(item.character_id for item in spawns)
-                one_star_hero_ids.update(item.character_id for item in wakes)
 
         spawn_requests = [request for record in records for request in record.spawn]
         if spawn_requests:
-            await self.character_manager.spawn_characters(
+            spawned_characters = await self.character_manager.spawn_characters(
                 ckpt,
                 spawn_requests,
                 acting_actor_location="",
@@ -696,7 +695,33 @@ class StoryDispatcher:
                     if _ruleset_id(ckpt) == ONE_STAR_RULESET_ID
                     else None
                 ),
+                name_derived_character_ids=(
+                    one_star_hero_ids
+                    if _ruleset_id(ckpt) == ONE_STAR_RULESET_ID
+                    else None
+                ),
             )
+            if len(spawned_characters) != len(spawn_requests):
+                raise RuntimeError(
+                    "character generation did not return every requested spawn"
+                )
+            final_id_by_requested_id = {
+                request.character_id: character.character_id
+                for request, character in zip(
+                    spawn_requests,
+                    spawned_characters,
+                    strict=True,
+                )
+            }
+            for record in records:
+                record.spawn = [
+                    request.model_copy(update={
+                        "character_id": final_id_by_requested_id[
+                            request.character_id
+                        ],
+                    })
+                    for request in record.spawn
+                ]
 
         for record in records:
             if isinstance(record, OneStarCanonicalEventRecord):
@@ -810,10 +835,16 @@ class StoryDispatcher:
                 canonical_at_s=event.effective_at_s + event.duration_s,
             )
         try:
+            fresh_summon_character_ids = (
+                [request.character_id for request in event.spawn]
+                if any(update.kind == "summon" for update in event.state_updates)
+                else None
+            )
             transaction = one_star_state_updates_to_transaction(
                 checkpoint,
                 event.state_updates,
                 canonical_at_s=event.effective_at_s + event.duration_s,
+                fresh_summon_character_ids=fresh_summon_character_ids,
             )
         except ValidationError as exc:
             raise OneStarTransactionError(

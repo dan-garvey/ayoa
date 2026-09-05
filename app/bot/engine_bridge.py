@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
 from app.engine.character_agent import sanitize_character_public_text
+from app.engine.character_identity import pick_unused_character_id
 from app.engine.character_manager import CharacterManager, _normalize_router_summary
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.context_builder import (
@@ -2775,7 +2776,10 @@ class EngineBridge:
             description=description,
             invoking_user_id=str(user_id),
         )
-        new_id = _pick_unused_character_id(ckpt, out.character.name)
+        new_id = pick_unused_character_id(
+            out.character.name,
+            (character.character_id for character in ckpt.characters),
+        )
         new_char = out.character.to_record(character_id=new_id)
         new_char.is_playable = True
         ckpt.characters.append(new_char)
@@ -2873,7 +2877,10 @@ class EngineBridge:
             raise ValueError("Character appearance cannot be empty.")
 
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        new_id = _pick_unused_character_id(ckpt, name)
+        new_id = pick_unused_character_id(
+            name,
+            (character.character_id for character in ckpt.characters),
+        )
         new_char = CharacterRecord(
             character_id=new_id,
             name=name,
@@ -4359,25 +4366,6 @@ class EngineBridge:
 #
 # * `build_character_dossier` / `_summaries_from_checkpoint` — bindings-
 #   driven; used by takeover prompts and roster summaries.
-# * `_pick_unused_character_id` — pure slug helper.
-
-
-def _pick_unused_character_id(
-    ckpt: CheckpointFile,
-    name: str,
-) -> str:
-    """Slugify `name` into a snake_case character_id; disambiguate with
-    a numeric suffix if the slug is already in use."""
-    base = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "character"
-    taken = {c.character_id for c in ckpt.characters}
-    if base not in taken:
-        return base
-    i = 2
-    while f"{base}_{i}" in taken:
-        i += 1
-    return f"{base}_{i}"
-
-
 def _participant_ref_slug(value: object) -> str:
     return re.sub(r"[^a-z0-9]+", "_", str(value or "").lower()).strip("_")
 

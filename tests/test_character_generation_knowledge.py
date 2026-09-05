@@ -13,6 +13,7 @@ from app.engine.character_manager import (
     CastingPlan,
     CharacterManager,
 )
+from app.engine.one_star_progression import derive_progression_seed
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.characters import (
@@ -62,7 +63,7 @@ def _authored(
     return AuthoredCharacter.model_validate(fields)
 
 
-def _response(authored: AuthoredCharacter) -> LLMResponse:
+def _response(authored: AuthoredCharacter | CastingPlan) -> LLMResponse:
     content = authored.model_dump_json()
     raw = MagicMock()
     block = MagicMock()
@@ -79,7 +80,7 @@ def _response(authored: AuthoredCharacter) -> LLMResponse:
     )
 
 
-def _client(*responses: AuthoredCharacter) -> MagicMock:
+def _client(*responses: AuthoredCharacter | CastingPlan) -> MagicMock:
     client = MagicMock(spec=LLMClient)
     client.complete = AsyncMock(side_effect=[_response(item) for item in responses])
     return client
@@ -461,7 +462,16 @@ async def test_one_star_summon_membership_selects_hero_generation_overlay() -> N
     authored_data["one_star_hero"] = {
         "strong_stat_id": "power",
         "weak_stat_id": "resilience",
-        "equipment": [],
+        "equipment": [{
+            "item_id": "walking_staff",
+            "name": "Walking Staff",
+            "slot": "hands",
+            "quantity": 1,
+            "durability_current": 0,
+            "durability_max": 0,
+            "tags": ["improvised"],
+            "visible": True,
+        }],
         "skills": [],
         "conditions": [],
         "persistent_injuries": [],
@@ -487,8 +497,10 @@ async def test_one_star_summon_membership_selects_hero_generation_overlay() -> N
         checkpoint,
         [request],
         one_star_hero_ids={request.character_id},
+        name_derived_character_ids={request.character_id},
     )
 
+    assert spawned[0].character_id == "mara_venn"
     assert ONE_STAR_HERO_KEY in spawned[0].mechanics
     assert client.complete.await_args.kwargs["response_model"] is AuthoredOneStarCharacter
     assert client.complete.await_args.kwargs["role"] == "character_manager"
@@ -499,3 +511,79 @@ async def test_one_star_summon_membership_selects_hero_generation_overlay() -> N
     assert spawned[0].mechanics[ONE_STAR_HERO_KEY]["stats"]
     assert spawned[0].mechanics[ONE_STAR_HERO_KEY]["hp_max"] > 0
     assert "potential_grade" in spawned[0].mechanics[ONE_STAR_HERO_KEY]
+    assert spawned[0].mechanics[ONE_STAR_HERO_KEY]["progression_seed"] == (
+        derive_progression_seed(character_id="mara_venn", birth_stars=1)
+    )
+    assert spawned[0].mechanics[ONE_STAR_HERO_KEY]["equipment"][0][
+        "item_id"
+    ] == "mara_venn_walking_staff"
+
+
+@pytest.mark.asyncio
+async def test_name_derived_hero_ids_resolve_roster_and_sibling_collisions() -> None:
+    checkpoint_path = Path("app/storage/stories/one_star_ascension_s1/ckpt_0000.json")
+    checkpoint = CheckpointFile.model_validate_json(checkpoint_path.read_text())
+    checkpoint.characters.append(CharacterRecord(
+        character_id="mara_venn",
+        name="An Earlier Mara Venn",
+        status=CharacterStatus.culled,
+        location="",
+    ))
+    authored_data = _authored().model_dump(mode="json")
+    authored_data["one_star_hero"] = {
+        "strong_stat_id": "power",
+        "weak_stat_id": "resilience",
+        "equipment": [],
+        "skills": [],
+        "conditions": [],
+        "persistent_injuries": [],
+        "innate_system_sight": False,
+        "hidden_capabilities": [],
+    }
+    authored = AuthoredOneStarCharacter.model_validate(authored_data)
+    requests = [
+        SpawnRequest(
+            character_id=f"niflheim_basic_{index:04d}",
+            seed={
+                "role": "newly summoned Hero",
+                "reason": "configured basic summon result",
+                "location": "niflheim_lobby",
+                "objectives": [],
+                "knowledge_tier": 1,
+            },
+        )
+        for index in (1, 2)
+    ]
+    plan = CastingPlan(briefs=[
+        CastingBrief(
+            character_id=request.character_id,
+            brief="Keep this arrival distinct from their sibling.",
+        )
+        for request in requests
+    ])
+    client = _client(plan, authored, authored)
+
+    spawned = await CharacterManager(
+        client, PromptManager("app/prompts"),
+    ).spawn_characters(
+        checkpoint,
+        requests,
+        one_star_hero_ids={request.character_id for request in requests},
+        name_derived_character_ids={request.character_id for request in requests},
+    )
+
+    assert [character.character_id for character in spawned] == [
+        "mara_venn_2",
+        "mara_venn_3",
+    ]
+    assert {
+        character.character_id for character in checkpoint.characters
+    }.isdisjoint({request.character_id for request in requests})
+    assert all(
+        character.mechanics[ONE_STAR_HERO_KEY]["progression_seed"]
+        == derive_progression_seed(
+            character_id=character.character_id,
+            birth_stars=1,
+        )
+        for character in spawned
+    )

@@ -5616,7 +5616,7 @@ def register(
 
     # Sentinel value used in the /join SelectMenu for the
     # "Create your own character" row. Real character_ids are
-    # snake_case slugs (`_pick_unused_character_id`), so this
+    # snake_case name slugs, so this
     # double-underscore form is unambiguous.
     JOIN_CUSTOM_SENTINEL = "__custom__"
 
