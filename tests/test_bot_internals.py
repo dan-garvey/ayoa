@@ -1477,6 +1477,58 @@ class TestOneStarMasterCommands:
 
 
 class TestTurnResponseDelivery:
+    def test_empty_success_clears_defer_without_posting_placeholder(
+        self,
+        monkeypatch,
+    ):
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0003",
+            turn_index=3,
+            output_text="",
+            per_player_renders={},
+            pause_reason="state_change",
+        )
+
+        engine = MagicMock()
+        engine.acknowledge_turn_deliveries = AsyncMock()
+        engine.load_latest.return_value = SimpleNamespace(
+            session=SimpleNamespace(character_bindings={"alice": "42"}),
+            characters=[SimpleNamespace(character_id="alice", name="Alice")],
+        )
+
+        inter = MagicMock()
+        inter.user = MagicMock(id=42)
+        inter.client = MagicMock()
+        inter.followup.send = AsyncMock()
+
+        post_actor_render = AsyncMock()
+        clear = AsyncMock()
+        monkeypatch.setattr(
+            bot_commands,
+            "_post_actor_render",
+            post_actor_render,
+        )
+        monkeypatch.setattr(bot_commands, "_clear_interaction_response", clear)
+
+        asyncio.run(
+            bot_commands._deliver_turn_response_to_povs(
+                inter=inter,
+                smap=MagicMock(),
+                engine=engine,
+                session_id="s",
+                story_id="story",
+                actor_character_id="alice",
+                actor_user=inter.user,
+                response=response,
+            )
+        )
+
+        post_actor_render.assert_not_awaited()
+        inter.followup.send.assert_not_awaited()
+        engine.acknowledge_turn_deliveries.assert_not_awaited()
+        clear.assert_awaited_once_with(inter)
+
     def test_actor_render_goes_through_embed_thread_delivery(self, monkeypatch):
         response = TurnResponse(
             session_id="s",

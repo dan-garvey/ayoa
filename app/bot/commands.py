@@ -3298,33 +3298,40 @@ async def _deliver_turn_response_to_povs(
         actor_render = (
             response.output_text
             or per_player.get(actor_character_id, "")
-            or "(no response)"
         )
-        venue, thread = await _post_actor_story_render(
-            actor_render,
-            intro_content=actor_revision_note or None,
-        )
-        if venue == "thread" and thread is not None:
-            await _acknowledge_transported_deliveries(engine,
-                session_id=session_id,
-                response=response,
-                pov_character_ids=[actor_character_id],
+        if actor_render.strip():
+            venue, thread = await _post_actor_story_render(
+                actor_render,
+                intro_content=actor_revision_note or None,
             )
-            if clear_interaction_response:
-                await _clear_interaction_response(inter)
-        elif venue == "dm":
-            await _acknowledge_transported_deliveries(engine,
-                session_id=session_id,
-                response=response,
-                pov_character_ids=[actor_character_id],
-            )
-            if clear_interaction_response:
-                await _clear_interaction_response(inter)
+            if venue == "thread" and thread is not None:
+                await _acknowledge_transported_deliveries(engine,
+                    session_id=session_id,
+                    response=response,
+                    pov_character_ids=[actor_character_id],
+                )
+                if clear_interaction_response:
+                    await _clear_interaction_response(inter)
+            elif venue == "dm":
+                await _acknowledge_transported_deliveries(engine,
+                    session_id=session_id,
+                    response=response,
+                    pov_character_ids=[actor_character_id],
+                )
+                if clear_interaction_response:
+                    await _clear_interaction_response(inter)
+            else:
+                await _report_private_delivery_failure(
+                    inter,
+                    subject="turn update",
+                )
         else:
-            await _report_private_delivery_failure(
-                inter,
-                subject="turn update",
-            )
+            # A narrator continue handoff intentionally carries no
+            # player-facing prose. Remove the slash command's temporary
+            # thinking state without manufacturing a story message; later
+            # visible events remain buffered for the next real render.
+            if clear_interaction_response:
+                await _clear_interaction_response(inter)
 
     if per_player:
         await _deliver_rolls_to_povs(
