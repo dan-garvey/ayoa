@@ -201,7 +201,6 @@ class CommitmentOpenDirective(BaseModel):
 class CommitmentResolutionSignal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    commitment_id: str
     actor_ids: list[str]
     reason: Literal["resolved", "cancelled", "superseded", "impossible"]
     resolved_at_offset_s: int
@@ -209,8 +208,8 @@ class CommitmentResolutionSignal(BaseModel):
     @model_validator(mode="after")
     def _validate_resolution(self) -> "CommitmentResolutionSignal":
         _validate_unique_ids("commitment resolution actor ids", self.actor_ids)
-        if bool(self.commitment_id.strip()) == bool(self.actor_ids):
-            raise ValueError("identify a commitment by id or actors, not both/neither")
+        if not self.actor_ids:
+            raise ValueError("commitment resolution requires actors")
         if self.resolved_at_offset_s < 0:
             raise ValueError("commitment resolution offset cannot be negative")
         return self
@@ -219,7 +218,6 @@ class CommitmentResolutionSignal(BaseModel):
 class CommitmentInterruptSignal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    commitment_id: str
     actor_ids: list[str]
     observed_at_offset_s: int
     reason: str
@@ -227,8 +225,8 @@ class CommitmentInterruptSignal(BaseModel):
     @model_validator(mode="after")
     def _validate_interrupt(self) -> "CommitmentInterruptSignal":
         _validate_unique_ids("commitment interrupt actor ids", self.actor_ids)
-        if bool(self.commitment_id.strip()) == bool(self.actor_ids):
-            raise ValueError("identify a commitment by id or actors, not both/neither")
+        if not self.actor_ids:
+            raise ValueError("commitment interrupt requires actors")
         if self.observed_at_offset_s < 0 or not self.reason.strip():
             raise ValueError("commitment interrupt needs non-negative time and reason")
         return self

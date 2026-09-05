@@ -85,7 +85,7 @@ def test_front_dossier_signal_drains_to_router_history_without_default_leakage()
     )
     assert 'knows=["The party insulted a public servant"]' in record
     assert "visibility=hidden" in record
-    assert "hash=hash-front-strahd" in record
+    assert "hash-front-strahd" not in record
     assert "pack=curse" in record
     assert 'goals=["Isolate Ireena"]' in record
     assert 'constraints=["must preserve plausible deniability"]' in record

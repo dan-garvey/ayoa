@@ -97,15 +97,8 @@ def _advance_character_clock(
 def _matching_commitments(
     checkpoint: CheckpointFile,
     *,
-    commitment_id: str,
     actor_ids: list[str],
 ) -> list[OpenCommitment]:
-    if commitment_id:
-        return [
-            item
-            for item in checkpoint.session.open_commitments
-            if item.commitment_id == commitment_id
-        ]
     actors = set(actor_ids)
     return [
         item
@@ -174,7 +167,6 @@ def _apply_event_state(
     for resolution in event.commitment_resolutions:
         matches = _matching_commitments(
             checkpoint,
-            commitment_id=resolution.commitment_id,
             actor_ids=resolution.actor_ids,
         )
         if not matches:
@@ -190,7 +182,6 @@ def _apply_event_state(
     for directive in event.commitment_opens:
         overlaps = _matching_commitments(
             checkpoint,
-            commitment_id="",
             actor_ids=directive.actor_ids,
         )
         _drop_commitments(checkpoint, overlaps)
@@ -211,7 +202,6 @@ def _apply_event_state(
     for interrupt in event.commitment_interrupts:
         matches = _matching_commitments(
             checkpoint,
-            commitment_id=interrupt.commitment_id,
             actor_ids=interrupt.actor_ids,
         )
         if not matches:

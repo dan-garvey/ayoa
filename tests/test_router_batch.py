@@ -22,6 +22,7 @@ from app.engine.story_dispatcher import (
     StoryDispatcher,
     _materialize_adapter_lifecycle,
     _router_input_block,
+    _router_prompt_history,
     eligible_autonomous_character_ids,
 )
 from app.llm.client import (
@@ -30,6 +31,8 @@ from app.llm.client import (
     StructuredOutputValidationError,
 )
 from app.schemas.event_router import (
+    CommitmentInterruptSignal,
+    CommitmentResolutionSignal,
     LocationUpdateSignal,
     ObserverGroups,
     RouterBatchOutput,
@@ -40,6 +43,7 @@ from app.schemas.event_router import (
     SpawnSeed,
     WakeSignal,
 )
+from app.schemas.conversation import ConversationMessage
 from app.schemas.events import ObservableFact
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
@@ -48,7 +52,7 @@ from app.schemas.one_star import (
     OneStarStateUpdate,
 )
 from app.schemas.one_star_character_gen import AuthoredOneStarCharacter
-from tests.support.factories import character_record, checkpoint
+from tests.support.factories import canonical_event, character_record, checkpoint
 from tests.support.one_star_factories import one_star_checkpoint, one_star_hero
 
 
@@ -232,6 +236,90 @@ def test_router_input_exposes_one_agent_ownership_list() -> None:
     assert "<autonomous_character_ids>\nbob\n</autonomous_character_ids>" in rendered
     assert "eligible_autonomous_character_ids" not in rendered
     assert "agent_owned_appearance_target_ids" not in rendered
+
+
+def test_router_projection_replaces_durable_hashes_with_local_coordinates() -> None:
+    event_id = "evt_0123456789ab"
+    lane_id = "lane_abcdef012345"
+    event = canonical_event(
+        event_id=event_id,
+        lane_id=lane_id,
+        actor_ids=["alice"],
+        observer_ids=["alice", "bob"],
+    )
+    event.source_submission_ids = ["submission_0123456789abcdef"]
+    event.feasible_submission_ids = ["submission_0123456789abcdef"]
+    ckpt = checkpoint(
+        characters=[character_record("alice"), character_record("bob")],
+        canonical_events=[event],
+    )
+    ckpt.session_conversation = [ConversationMessage(
+        role="assistant",
+        content=(
+            f"prior_event {event_id} lane={lane_id} @0+0 actors=alice\n"
+            "outcomes feasible=submission_0123456789abcdef infeasible=-"
+        ),
+    )]
+    sourced = _input(0, "alice", source_event_ids=[event_id]).model_copy(
+        update={
+            "submission_id": "turn_0123456789ab",
+            "lane_id": lane_id,
+        },
+    )
+    independent = _input(1, "bob").model_copy(update={
+        "submission_id": "turn_fedcba987654",
+        "lane_id": "lane_1234567890ab",
+    })
+
+    history = _router_prompt_history(ckpt)
+    rendered = "\n".join(
+        [str(message.content) for message in history]
+        + [_router_input_block(ckpt, [sourced, independent])]
+    )
+
+    for durable_id in (
+        event_id,
+        lane_id,
+        "submission_0123456789abcdef",
+        "turn_0123456789ab",
+        "turn_fedcba987654",
+        "lane_1234567890ab",
+    ):
+        assert durable_id not in rendered
+    assert "prior_event sequence=0 causal_group=0" in rendered
+    assert '"input_index":0,"causal_group":0' in rendered
+    assert '"source_event_sequences":[0]' in rendered
+    assert '"input_index":1,"causal_group":1' in rendered
+    assert '"source_event_sequences":[]' in rendered
+
+
+def test_router_commitment_signals_are_actor_addressed_only() -> None:
+    resolution = CommitmentResolutionSignal(
+        actor_ids=["liora_fen"],
+        reason="resolved",
+        resolved_at_offset_s=2,
+    )
+    interrupt = CommitmentInterruptSignal(
+        actor_ids=["liora_fen"],
+        observed_at_offset_s=1,
+        reason="The footing gives way.",
+    )
+
+    assert set(resolution.model_json_schema()["properties"]) == {
+        "actor_ids",
+        "reason",
+        "resolved_at_offset_s",
+    }
+    assert set(interrupt.model_json_schema()["properties"]) == {
+        "actor_ids",
+        "observed_at_offset_s",
+        "reason",
+    }
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+        CommitmentResolutionSignal.model_validate({
+            **resolution.model_dump(),
+            "commitment_id": "evt_dc4b0a3b83fa",
+        })
 
 
 def test_overlapping_inputs_are_legal_when_merged_for_arbitration() -> None:

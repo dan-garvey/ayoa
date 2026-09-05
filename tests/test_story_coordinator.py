@@ -23,6 +23,7 @@ from app.engine.story_dispatcher import (
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
+    CommitmentResolutionSignal,
     FrontierTurn,
     ObserverGroups,
     RouterBatchOutput,
@@ -31,6 +32,7 @@ from app.schemas.event_router import (
 )
 from app.schemas.events import ObservableFact
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.state import OpenCommitment
 from tests.support.factories import character_record, checkpoint
 
 
@@ -735,3 +737,45 @@ async def test_successful_batch_does_not_log_a_rejection(
         record.message.startswith("rejected router batch ")
         for record in caplog.records
     )
+
+
+@pytest.mark.asyncio
+async def test_actor_addressed_commitment_resolution_closes_open_work() -> None:
+    ckpt = checkpoint(
+        bindings={"alice": "1"},
+        characters=[character_record("alice"), character_record("bob")],
+    )
+    ckpt.session.open_commitments = [OpenCommitment(
+        commitment_id="commit_evt_0123456789ab_bob",
+        actor_ids=["bob"],
+        description="Bob checks each flooded step.",
+        trigger_event_id="evt_0123456789ab",
+        started_at_s=0,
+        expected_end_s=2,
+        max_end_s=4,
+        location_label="flooded_stair",
+    )]
+    draft = _event(
+        0,
+        observers=["alice", "bob"],
+        fact="Bob finishes checking the flooded steps.",
+    ).model_copy(update={
+        "duration_s": 2,
+        "commitment_resolutions": [CommitmentResolutionSignal(
+            actor_ids=["bob"],
+            reason="resolved",
+            resolved_at_offset_s=2,
+        )],
+    })
+    dispatcher = FakeDispatcher([
+        RouterBatchOutput(events=[draft], next_turns=[]),
+    ])
+
+    result = await advance_story(
+        ckpt,
+        dispatcher,
+        [player_input(ckpt, character_id="alice", payload="Watch Bob finish.")],
+    )
+
+    assert result.events_committed == 1
+    assert ckpt.session.open_commitments == []

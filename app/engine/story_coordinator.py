@@ -361,10 +361,7 @@ async def prepare_frontier_inputs(
             kind = "character"
             actors = [turn.actor_id]
         else:
-            payload = (
-                "Continue only the already-established motion sourced by: "
-                + ", ".join(turn.source_event_ids)
-            )
+            payload = "Continue only the motion in the listed source events."
             kind = "world"
             actors = []
         return PreparedRouterInput(
@@ -953,7 +950,6 @@ async def advance_story(
 def _contest_payload(opened: OpenCatIIEvent) -> str:
     return json.dumps(
         {
-            "opening_event_id": opened.opening_event_id,
             "initiator": {
                 "character_id": opened.initiator_id,
                 "intention": opened.initiator_intention,

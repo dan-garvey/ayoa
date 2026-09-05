@@ -41,7 +41,7 @@ def test_pending_content_signals_drain_once_and_only_changed_refs_repeat():
         (
             'location_card ref=area.entry exits=["north door"] '
             'hazards=["loose floor"] clues=["old crest"] visibility=hidden '
-            "hash=hash-1 pack=curse-test summary=\"Entry chamber.\""
+            'pack=curse-test summary="Entry chamber."'
         )
     ]
     assert state.pending_signals == []
@@ -78,7 +78,7 @@ def test_pending_content_signals_drain_once_and_only_changed_refs_repeat():
     changed = drain_pending_content_signals(state)
 
     assert len(changed) == 1
-    assert "hash=hash-2" in changed[0]
+    assert "hash-2" not in changed[0]
     assert "Entry chamber after the door opens." in changed[0]
     assert content_ref_needs_introduction(
         state,
@@ -107,7 +107,7 @@ def test_front_signal_record_uses_allowlisted_router_fields_only():
     assert record == (
         "front_signal ref=front.villain actor=strahd "
         'knows="the party made a public enemy" pressure="send spies" '
-        "visibility=hidden hash=front-hash-1 pack=curse-test "
+        "visibility=hidden pack=curse-test "
         'summary="A public consequence may reach the front."'
     )
     assert "narrator" not in record
@@ -137,7 +137,7 @@ def test_dict_backed_content_state_uses_ref_id_keys_and_clears_pending_map():
     assert records == [
         (
             "content_known ref=room/1 scope=router visibility=hidden "
-            'hash=hash-a kind=content_known pack=pack summary="Private room key."'
+            'kind=content_known pack=pack summary="Private room key."'
         )
     ]
     assert state["pending_signals"] == {}
@@ -185,7 +185,7 @@ def test_drain_prunes_non_pending_signals_without_introducing_refs():
     assert records == [
         (
             "content_known ref=room/pending scope=router visibility=hidden "
-            "hash=hash-pending kind=content_known pack=pack "
+            "kind=content_known pack=pack "
             'summary="Pending room key."'
         )
     ]
@@ -353,7 +353,7 @@ def test_append_pending_router_content_records_adds_assistant_history_once():
         (
             "front_signal ref=front/villain actor=villain "
             'knows="the party caused public trouble" pressure="send spies" '
-            "visibility=hidden hash=hash-front pack=pack "
+            "visibility=hidden pack=pack "
             'summary="The front may now react."'
         )
     ]

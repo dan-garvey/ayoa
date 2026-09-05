@@ -18,8 +18,9 @@ from app.engine.content_lookup import (
 )
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
+from app.schemas.conversation import ConversationMessage
 from app.schemas.content import ContentPackState, IntroducedContentRef
-from tests.support.factories import checkpoint, llm_response
+from tests.support.factories import canonical_event, checkpoint, llm_response
 
 
 PACK_VERSION = "1.0.0"
@@ -130,7 +131,7 @@ def test_lookup_preflight_fetches_alias_match_once_as_assistant_history(tmp_path
 
     assert first == [
         (
-            "location_card ref=room/entry visibility=hidden hash=hash-entry "
+            "location_card ref=room/entry visibility=hidden "
             'pack=pack summary="Entry chamber context."'
         )
     ]
@@ -171,7 +172,7 @@ def test_lookup_preflight_uses_sqlite_alias_index(tmp_path):
     assert records == [
         (
             "front_signal ref=front/vampire visibility=hidden "
-            "hash=hash-front pack=pack "
+            "pack=pack "
             'summary="The vampire notices public trouble."'
         )
     ]
@@ -451,7 +452,7 @@ def test_lookup_preflight_reintroduces_known_ref_when_hash_changes(tmp_path):
 
     assert records == [
         (
-            "location_card ref=room/entry visibility=hidden hash=hash-new "
+            "location_card ref=room/entry visibility=hidden "
             'pack=pack summary="Updated entry chamber context."'
         )
     ]
@@ -571,7 +572,7 @@ def test_llm_lookup_preflight_fetches_reviewed_hidden_ref(tmp_path):
 
     assert records == [
         (
-            "location_card ref=room/secret visibility=hidden hash=hash-secret "
+            "location_card ref=room/secret visibility=hidden "
             'pack=pack summary="A reviewed secret door latch record."'
         )
     ]
@@ -584,6 +585,59 @@ def test_llm_lookup_preflight_fetches_reviewed_hidden_ref(tmp_path):
     assert "room/secret" in lookup_text
     assert str(db_path) not in lookup_text
     assert "source_fingerprint" not in lookup_text
+
+
+def test_llm_lookup_preflight_rebuilds_legacy_hashed_router_history(tmp_path):
+    db_path = _pack_db(
+        tmp_path,
+        [
+            (
+                "pack",
+                "room/entry",
+                "hash-entry",
+                "location_card",
+                "hidden",
+                "Entry chamber context.",
+            )
+        ],
+    )
+    ckpt = checkpoint()
+    event = canonical_event()
+    event.event_id = "evt_deadbeefcafe"
+    event.causal_lane_id = "lane_0123456789abcdef"
+    ckpt.canonical_events = [event]
+    ckpt.session_conversation = [ConversationMessage(
+        role="assistant",
+        content=(
+            "prior_event evt_deadbeefcafe lane=lane_0123456789abcdef "
+            "submissions=submission_cafebabefeed"
+        ),
+    )]
+    ckpt.session.content_state = {"pack": _pack_state(db_path)}
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(return_value=llm_response(
+        EventRouterContentLookupOutput(
+            requests=[],
+            no_lookup_reason="No reviewed content is needed.",
+        )
+    ))
+
+    asyncio_run(
+        append_router_content_lookup_records_with_llm(
+            ckpt,
+            actor_id="alice",
+            current_input="I wait.",
+            client=client,
+            prompt_mgr=PromptManager("app/prompts"),
+        )
+    )
+
+    lookup_messages = client.complete.await_args.kwargs["messages"]
+    lookup_text = "\n".join(message["content"] for message in lookup_messages)
+    assert "prior_event sequence=0 causal_group=0" in lookup_text
+    assert "evt_deadbeefcafe" not in lookup_text
+    assert "lane_0123456789abcdef" not in lookup_text
+    assert "submission_cafebabefeed" not in lookup_text
 
 
 def test_llm_lookup_preflight_fails_loudly_on_unresolved_required_ref(tmp_path):

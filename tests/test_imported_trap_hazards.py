@@ -45,6 +45,7 @@ def test_reviewed_trap_hazard_context_reaches_router_and_combat_only():
         "trap_hazard_context audience=dnd_combat_resolver"
     )
     assert payload["ref"] == "trap.needle"
+    assert "content_hash" not in payload
     assert payload["kind"] == "trap"
     assert payload["state"]["status"] == "hidden"
     assert payload["trigger"] == "A creature opens the reliquary latch."

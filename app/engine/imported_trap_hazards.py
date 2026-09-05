@@ -370,6 +370,8 @@ def format_trap_hazard_context_record(
     if audience not in ADJUDICATION_AUDIENCES:
         raise ValueError(f"Unsupported trap/hazard context audience: {audience}")
     payload = trap_hazard_adjudication_payload(record, overlay=overlay)
+    if audience == "router":
+        payload.pop("content_hash", None)
     encoded = json.dumps(
         payload,
         ensure_ascii=True,
@@ -519,7 +521,6 @@ def _has_runtime_resolution(trap_hazard: TrapHazardRecord) -> bool:
 
 
 def _unsafe_text_problems(trap_hazard: TrapHazardRecord) -> list[str]:
-    problems: list[str] = []
     text_fields: list[tuple[str, str]] = [
         ("ref", trap_hazard.ref),
         ("title", trap_hazard.title),

@@ -17,6 +17,56 @@ from app.llm.config import LLMConfig
 
 logger = logging.getLogger(__name__)
 
+_ENGINE_HASHED_ID_RE = re.compile(
+    r"\b(?:evt(?:_dnd)?|lane|turn|submission|resolution|contest|commit|cmb|"
+    r"combat|rolltxn|narrator|offer|job)_"
+    r"[A-Za-z0-9_]*[0-9a-f]{12,}[A-Za-z0-9_]*\b",
+    re.IGNORECASE,
+)
+_ENGINE_BARE_HASH_RE = re.compile(
+    r"(?<![A-Za-z0-9])[0-9a-f]{16,64}(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+
+
+def remove_engine_hashes_from_messages(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Replace hash-shaped engine identity at the event-router boundary.
+
+    Router producers should project durable ids into semantic, prompt-local
+    coordinates first.  This last boundary guard also covers future router-role
+    call sites and nested content blocks without exposing the original token.
+    Repeated tokens retain one request-local alias so accidental references do
+    not lose their equality relationship.
+    """
+
+    aliases: dict[str, str] = {}
+
+    def alias(match: re.Match[str]) -> str:
+        value = match.group(0)
+        if value not in aliases:
+            aliases[value] = f"local_reference_{len(aliases)}"
+        return aliases[value]
+
+    def project(value: Any) -> Any:
+        if isinstance(value, str):
+            value = _ENGINE_HASHED_ID_RE.sub(alias, value)
+            return _ENGINE_BARE_HASH_RE.sub(alias, value)
+        if isinstance(value, list):
+            return [project(item) for item in value]
+        if isinstance(value, dict):
+            return {key: project(item) for key, item in value.items()}
+        return value
+
+    projected = [project(message) for message in messages]
+    if aliases:
+        logger.warning(
+            "redacted %d engine hash token(s) from event-router model input",
+            len(aliases),
+        )
+    return projected
+
 
 class TransientLLMError(RuntimeError):
     """Surfaced when every retry attempt for a transient API failure has
@@ -506,6 +556,8 @@ class LLMClient:
             LLMResponse with content and optionally parsed model.
         """
         del stream
+        if role == "event_router":
+            messages = remove_engine_hashes_from_messages(messages)
         provider = self.config.provider_for_role(role)
         if provider == "anthropic":
             return await self._complete_anthropic(

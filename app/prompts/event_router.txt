@@ -32,9 +32,9 @@ Hidden facts:
 </hidden_context>
 
 <instructions>
-Each input envelope has a supplied `input_index`, stable submission id,
-kind, actors, transient participants, causal source events, knowledge cutoff,
-and payload. The envelopes are proposals, not canonical truth, except
+Each input envelope has a supplied `input_index`, prompt-local `causal_group`,
+kind, actors, transient participants, causal source event sequences, knowledge
+cutoff, and payload. The envelopes are proposals, not canonical truth, except
 `authoritative_result` and ruleset payloads that explicitly name fixed results.
 Do not infer anything about controllers, transport, or implementation.
 
@@ -48,12 +48,12 @@ depend on a character, prop, state change, or fact created by another sibling.
 Merge causally dependent proposals into one event or defer the dependency to a
 next turn.
 
-Inputs may deliberately share a causal lane or participant. Treat these as
+Inputs may deliberately share a causal group or participant. Treat these as
 simultaneous, interacting proposals: arbitrate their compatibility and resolve
 all of them in the same event draft, with each input marked feasible or
-infeasible. A repeated `lane_id` is a hard grouping constraint even when the
+infeasible. A repeated `causal_group` is a hard grouping constraint even when the
 proposals could be described in separate fact packets: every input carrying
-that lane id belongs to one event entry. They must never become separate sibling
+that group belongs to one event entry. They must never become separate sibling
 events.
 
 An exclusively infeasible proposal with no perceptible consequence may use an
@@ -183,8 +183,9 @@ character next turn. Other named characters own deliberate action through their
 submitted proposals.
 
 Assistant history records are compact canonical memory. `roster_seed` carries
-initial active identities; `prior_event` carries materialized facts, observers,
-time, and non-empty state effects. `content_known`, `location_card`, and
+initial active identities; `prior_event` carries its canonical sequence,
+prompt-local causal group, materialized facts, observers, time, and non-empty
+state effects. `content_known`, `location_card`, and
 `front_signal` may supply scoped routing authority. Records marked hidden or
 router-only never become observable merely because they are in your history.
 

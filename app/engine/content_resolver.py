@@ -95,7 +95,7 @@ def format_content_known_record(
     return _format_record(
         "content_known",
         fields,
-        ("ref", "scope", "visibility", "hash", "kind", "pack", "summary"),
+        ("ref", "scope", "visibility", "kind", "pack", "summary"),
     )
 
 
@@ -136,7 +136,6 @@ def format_front_signal_record(
             "knows",
             "pressure",
             "visibility",
-            "hash",
             "pack",
             "summary",
             "goals",
@@ -172,7 +171,6 @@ def format_location_card_record(
             "hazards",
             "clues",
             "visibility",
-            "hash",
             "pack",
             "summary",
         ),

@@ -9,6 +9,7 @@ from typing import Any, Iterable, Literal, Mapping
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.engine.prompt_manager import PromptManager
+from app.engine.router_prompt_projection import router_prompt_history
 from app.engine.content_resolver import (
     append_pending_router_content_records,
     content_ref_needs_introduction,
@@ -549,7 +550,7 @@ def _aliases_by_ref(pack_state: Any) -> dict[str, list[str]]:
 
 def _router_memory_block(ckpt: Any, *, limit: int = 18) -> str:
     rows: list[str] = []
-    for message in getattr(ckpt, "session_conversation", []) or []:
+    for message in router_prompt_history(ckpt):
         if getattr(message, "role", "") != "assistant":
             continue
         content = _safe_catalog_text(getattr(message, "content", ""))

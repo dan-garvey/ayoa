@@ -257,14 +257,14 @@ def _loot_offer_by_id(
     return None
 
 
-def _loot_source_text(offer: DndLootOffer | None, offer_id: str) -> str:
+def _loot_source_text(offer: DndLootOffer | None) -> str:
     if offer is None:
-        return f"loot offer {offer_id}"
+        return "the available loot"
     if offer.source_label:
         return offer.source_label
     if offer.source_kind:
-        return f"{offer.source_kind} loot offer {offer.offer_id}"
-    return f"loot offer {offer.offer_id}"
+        return f"the {offer.source_kind} loot"
+    return "the available loot"
 
 
 def _loot_item_claim_text(item: dict[str, Any]) -> str:
@@ -290,7 +290,6 @@ def _loot_claim_router_update(
     *,
     character_id: str,
     offer: DndLootOffer | None,
-    offer_id: str,
     result: dict[str, Any],
 ) -> str:
     claimed: list[str] = []
@@ -302,7 +301,7 @@ def _loot_claim_router_update(
         claimed.append(currency)
     if not claimed:
         return ""
-    source = _loot_source_text(offer, offer_id)
+    source = _loot_source_text(offer)
     return (
         "Inventory update before the next action: "
         f"{character_id} took {_join_claim_parts(claimed)} from {source}. "
@@ -315,7 +314,6 @@ def _loot_split_router_update(
     *,
     character_id: str,
     offer: DndLootOffer | None,
-    offer_id: str,
     result: dict[str, Any],
 ) -> str:
     shares = result.get("shares") or {}
@@ -326,7 +324,7 @@ def _loot_split_router_update(
             share_bits.append(f"{cid} received {text}")
     if not share_bits:
         return ""
-    source = _loot_source_text(offer, offer_id)
+    source = _loot_source_text(offer)
     return (
         "Inventory update before the next action: "
         f"{character_id} split currency from {source}; "
@@ -2069,7 +2067,6 @@ class EngineBridge:
                 router_update = _loot_claim_router_update(
                     character_id=target_id,
                     offer=offer,
-                    offer_id=offer_id,
                     result=result,
                 )
                 if router_update:
@@ -2114,7 +2111,6 @@ class EngineBridge:
                 router_update = _loot_split_router_update(
                     character_id=target_id,
                     offer=offer,
-                    offer_id=offer_id,
                     result=result,
                 )
                 if router_update:

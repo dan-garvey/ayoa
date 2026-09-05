@@ -470,6 +470,40 @@ class TestLLMClientComplete:
         assert result.parsed is None
 
     @pytest.mark.asyncio
+    async def test_event_router_boundary_redacts_engine_hashes_in_nested_content(
+        self,
+        client,
+    ):
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+        event_id = "evt_deadbeefcafe"
+        lane_id = "lane_0123456789abcdef"
+        digest = "0123456789abcdef0123456789abcdef"
+
+        await client.complete(
+            role="event_router",
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"event={event_id} lane={lane_id} sha256:{digest}",
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": f"repeat {event_id}"}],
+                },
+            ],
+            cache=False,
+            temperature=0.5,
+            max_tokens=100,
+        )
+
+        sent = json.dumps(mock.call_args.kwargs)
+        assert event_id not in sent
+        assert lane_id not in sent
+        assert digest not in sent
+        assert sent.count("local_reference_0") == 2
+
+
+    @pytest.mark.asyncio
     async def test_system_message_peeled_to_top_level(self, client):
         mock = _install_stream_mock(client, _make_mock_response("ok"))
 

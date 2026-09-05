@@ -845,7 +845,7 @@ def test_append_content_manager_router_records_projects_only_router_deltas(tmp_p
 
     assert records == [
         (
-            "location_card ref=room/entry visibility=hidden hash=hash-entry "
+            "location_card ref=room/entry visibility=hidden "
             "pack=pack summary=\"Entry chamber context.\""
         )
     ]

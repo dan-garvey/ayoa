@@ -50,6 +50,12 @@ from app.engine.router_batch import (
     materialize_router_batch,
     router_batch_correlation,
 )
+from app.engine.router_prompt_projection import (
+    causal_groups as _causal_groups,
+    event_sequences as _event_sequences,
+    router_history_record,
+    router_prompt_history as _router_prompt_history,
+)
 from app.llm.client import LLMClient, StructuredOutputValidationError
 from app.schemas.characters import CharacterStatus, is_non_social_hazard
 from app.schemas.checkpoint import CheckpointFile
@@ -339,6 +345,40 @@ def _ruleset_prompt(
     return prompt_manager.render("event_router_ruleset_default").strip()
 
 
+def _router_input_projection(
+    checkpoint: CheckpointFile,
+    inputs: list[RouterInputEnvelope],
+) -> list[dict[str, object]]:
+    event_sequences = _event_sequences(checkpoint)
+    causal_groups = _causal_groups(checkpoint, inputs)
+    projected: list[dict[str, object]] = []
+    for envelope in inputs:
+        try:
+            source_sequences = [
+                event_sequences[event_id]
+                for event_id in envelope.source_event_ids
+            ]
+        except KeyError as exc:
+            raise RuntimeError(
+                f"router input references missing source event {exc.args[0]!r}"
+            ) from exc
+        projected.append({
+            "input_index": envelope.input_index,
+            "causal_group": causal_groups[envelope.lane_id],
+            "kind": envelope.kind,
+            "actor_ids": list(envelope.actor_ids),
+            "participant_ids": list(envelope.participant_ids),
+            "source_event_sequences": source_sequences,
+            "chosen_at_s": envelope.chosen_at_s,
+            "observed_through_event_sequence": (
+                envelope.observed_through_event_sequence
+            ),
+            "observed_through_s": envelope.observed_through_s,
+            "payload": envelope.payload,
+        })
+    return projected
+
+
 def _router_input_block(
     checkpoint: CheckpointFile,
     inputs: list[RouterInputEnvelope],
@@ -362,7 +402,7 @@ def _router_input_block(
         _drain_engine_updates(checkpoint),
         "<inputs>\n"
         + json.dumps(
-            [envelope.model_dump(mode="json") for envelope in inputs],
+            _router_input_projection(checkpoint, inputs),
             ensure_ascii=False,
             separators=(",", ":"),
         )
@@ -403,78 +443,6 @@ def _restore_router_snapshot(
         snapshot["content_manager_last_run_cycle"]
     )
     del checkpoint.session_conversation[int(snapshot["history_length"]):]
-
-
-def _compact(value: str, limit: int = 900) -> str:
-    return " ".join(value.split())[:limit]
-
-
-def router_history_record(
-    checkpoint: CheckpointFile,
-    event: CanonicalEventRecord,
-) -> str:
-    groups = event.observers
-    lines = [
-        f"prior_event {event.event_id} lane={event.causal_lane_id} "
-        f"@{event.effective_at_s}+{event.duration_s} "
-        f"actors={','.join(event.actor_ids) or '-'}",
-        "outcomes "
-        f"feasible={','.join(event.feasible_submission_ids) or '-'} "
-        f"infeasible={','.join(event.infeasible_submission_ids) or '-'}",
-        "observers "
-        f"direct={','.join(groups.direct) or '-'} "
-        f"indirect={','.join(groups.indirect) or '-'} "
-        f"inferred={','.join(groups.inferred) or '-'}",
-    ]
-    for fact in event.observable_facts:
-        audience = (
-            "all" if fact.audience == "all_observers" else ",".join(fact.visible_to)
-        )
-        lines.append(
-            f"fact +{fact.at_offset_s}/{fact.duration_s} to={audience}: "
-            + _compact(fact.text)
-        )
-    roster = {item.character_id: item for item in checkpoint.characters}
-    for request in event.spawn:
-        character = roster.get(request.character_id)
-        lines.append(
-            f"spawn {request.character_id}"
-            + (f" name={character.name}" if character is not None else "")
-            + f" role={_compact(request.seed.role, 160)}"
-        )
-    for signal in event.activate:
-        lines.append(f"activate {signal.character_id} at={signal.location_label}")
-    if event.dormant:
-        lines.append("dormant=" + ",".join(event.dormant))
-    if event.cull:
-        lines.append("cull=" + ",".join(event.cull))
-    for update in event.location_updates:
-        lines.append(f"location {update.character_id}={update.location_label}")
-    for directive in event.commitment_opens:
-        lines.append(
-            "commitment_open actors="
-            + ",".join(directive.actor_ids)
-            + " description="
-            + _compact(directive.description)
-        )
-    for signal in event.commitment_resolutions:
-        target = signal.commitment_id or ",".join(signal.actor_ids)
-        lines.append(f"commitment_{signal.reason} target={target}")
-    for signal in event.commitment_interrupts:
-        target = signal.commitment_id or ",".join(signal.actor_ids)
-        lines.append(
-            f"commitment_interrupted target={target} reason={_compact(signal.reason)}"
-        )
-    for update in getattr(event, "state_updates", ()):
-        details = ",".join(update.details)
-        lines.append(
-            f"one_star_update {update.kind} {update.target_id}={update.value}"
-            + (f" [{details}]" if details else "")
-        )
-    mode = getattr(event, "interaction_mode", "narrative")
-    if mode != "narrative":
-        lines.append(f"dnd_interaction={mode}")
-    return "\n".join(lines)
 
 
 class StoryDispatcher:
@@ -567,7 +535,7 @@ class StoryDispatcher:
                 )
             messages = self.prompt_manager.render_conversation(
                 "event_router",
-                history=ckpt.session_conversation,
+                history=_router_prompt_history(ckpt),
                 setting_summary=build_setting_summary(ckpt),
                 world_lore=_router_world_lore(ckpt),
                 world_rules=build_world_rules(ckpt),
