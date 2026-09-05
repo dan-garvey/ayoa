@@ -556,7 +556,8 @@ def materialize_router_batch(
             *source_ids,
             turn.actor_id,
         ))
-        turn_id = "turn_" + hashlib.sha256(basis.encode("utf-8")).hexdigest()[:12]
+        frontier_digest = hashlib.sha256(basis.encode("utf-8")).hexdigest()[:12]
+        turn_id = "turn_" + frontier_digest
         gating = (
             [
                 character_id
@@ -571,13 +572,10 @@ def materialize_router_batch(
             lane_id=(
                 source.causal_lane_id
                 if source is not None
-                else "lane_" + hashlib.sha256(
-                    "\x1f".join((
-                        checkpoint.session.session_id,
-                        "autonomous",
-                        turn.actor_id,
-                    )).encode("utf-8")
-                ).hexdigest()[:12]
+                # An unsourced turn begins a new lane at this frontier revision.
+                # Reusing one actor-wide id can alias a lane that an older turn
+                # already seeded and a later event chain inherited.
+                else "lane_" + frontier_digest
             ),
             turn_kind=turn.turn_kind,
             actor_id=turn.actor_id,

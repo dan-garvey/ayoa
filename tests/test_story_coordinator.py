@@ -631,6 +631,87 @@ async def test_frontier_rejection_logs_exact_raw_router_batch(
 
 
 @pytest.mark.asyncio
+async def test_fresh_actor_turn_does_not_reuse_an_active_sourced_lane() -> None:
+    ckpt = checkpoint(
+        session_id="lane-alias-regression",
+        bindings={"alice": "1"},
+        characters=[
+            character_record("alice"),
+            character_record("bob"),
+            character_record("cara"),
+        ],
+    )
+    first_input = player_input(ckpt, character_id="alice", payload="Begin.")
+    first_output = RouterBatchOutput(
+        events=[_event(0, observers=["alice"], fact="Alice begins.")],
+        next_turns=[RouterNextTurn(
+            turn_kind="character",
+            actor_id="bob",
+            participant_ids=["bob"],
+            source_event_index=-1,
+        )],
+    )
+    first_batch = materialize_router_batch(
+        checkpoint=ckpt,
+        inputs=[first_input.envelope],
+        output=first_output,
+    )
+    inherited_lane = first_batch.next_turns[0].lane_id
+
+    # Model the later chain that inherited Bob's old independent lane. Bob must
+    # still be able to begin genuinely separate work without aliasing it.
+    ckpt.session.turn_index = 1
+    active_input = player_input(ckpt, character_id="alice", payload="Continue.")
+    active_input = type(active_input)(envelope=active_input.envelope.model_copy(
+        update={"lane_id": inherited_lane},
+    ))
+    next_output = RouterBatchOutput(
+        events=[_event(
+            0,
+            observers=["alice", "cara"],
+            fact="The active chain continues around Cara.",
+        )],
+        next_turns=[
+            RouterNextTurn(
+                turn_kind="character",
+                actor_id="cara",
+                participant_ids=["cara"],
+                source_event_index=0,
+            ),
+            RouterNextTurn(
+                turn_kind="character",
+                actor_id="bob",
+                participant_ids=["bob"],
+                source_event_index=-1,
+            ),
+        ],
+    )
+
+    first_materialization = materialize_router_batch(
+        checkpoint=ckpt,
+        inputs=[active_input.envelope],
+        output=next_output,
+    )
+    replayed_materialization = materialize_router_batch(
+        checkpoint=ckpt,
+        inputs=[active_input.envelope],
+        output=next_output,
+    )
+    assert first_materialization.next_turns == replayed_materialization.next_turns
+
+    dispatcher = FakeDispatcher([next_output])
+    result = await advance_story(ckpt, dispatcher, [active_input])
+
+    lanes_by_actor = {
+        item.actor_id: item.lane_id for item in ckpt.session.router_frontier
+    }
+    assert result.events_committed == 1
+    assert lanes_by_actor["cara"] == inherited_lane
+    assert lanes_by_actor["bob"] != inherited_lane
+    assert len(lanes_by_actor) == 2
+
+
+@pytest.mark.asyncio
 async def test_successful_batch_does_not_log_a_rejection(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
