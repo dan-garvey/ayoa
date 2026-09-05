@@ -725,12 +725,26 @@ class StoryDispatcher:
 
         for record in records:
             if isinstance(record, OneStarCanonicalEventRecord):
-                await self._prepare_one_star_event(
+                consumed_activation_ids = await self._prepare_one_star_event(
                     ckpt,
                     record,
                     player_actor_ids=player_actor_ids,
                 )
-                self.character_manager.apply_roster_updates(ckpt, record)
+                lifecycle_record = (
+                    record.model_copy(update={
+                        "activate": [
+                            signal
+                            for signal in record.activate
+                            if signal.character_id not in consumed_activation_ids
+                        ],
+                    })
+                    if consumed_activation_ids
+                    else record
+                )
+                self.character_manager.apply_roster_updates(
+                    ckpt,
+                    lifecycle_record,
+                )
             else:
                 self.character_manager.apply_roster_updates(ckpt, record)
         if _ruleset_id(ckpt) == DND5E_BASIC_RULESET_ID:
@@ -817,7 +831,7 @@ class StoryDispatcher:
         event: OneStarCanonicalEventRecord,
         *,
         player_actor_ids: set[str],
-    ) -> None:
+    ) -> set[str]:
         from app.engine.one_star_adapter import (
             OneStarTransactionError,
             apply_one_star_prepared_mutation,
@@ -875,6 +889,7 @@ class StoryDispatcher:
             raise OneStarTransactionError("One-Star event was already applied")
         self._append_one_star_consequences(checkpoint, event, prepared.system_consequences)
         apply_one_star_prepared_mutation(checkpoint, prepared)
+        return set(prepared.consumed_activation_ids)
 
     @staticmethod
     def _append_one_star_consequences(

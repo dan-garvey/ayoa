@@ -763,9 +763,13 @@ and rendered through the normal narrator path. A seed may optionally provide
 default that `(begin)` cannot create characters.
 
 Opening dialogue and action use the ordinary router, character-agent, and
-narrator contracts. Stories do not carry a second authored-dialogue schema or
-post-render opening commit path; `world_state.opening.context` is the one
-story-specific opening instruction surface.
+narrator contracts. An opening context may instead authorize one compressed
+canonical event for a reviewed span that predates live play, including its
+ordinary adapter updates; the router commits that history and the narrator
+summarizes it without manufacturing character turns. Stories do not carry a
+second authored-dialogue schema or post-render opening commit path;
+`world_state.opening.context` remains the one story-specific opening
+instruction surface.
 
 ### 5.10 Context Builder And Prompt Manager
 
@@ -1830,11 +1834,14 @@ characters, deterministic existing Heroes of an authored grade, or an exact
 `bound_player_actor`; the last kind is valid only when that actor is currently
 bound. The live player composition selects one complete pool, and the adapter
 resolves that ordered roster without a random draw. Its first event contains
-only that summon followed by the reviewed first-floor `mission_start`, with no
-pending deployment. The adapter materializes every selected Hero directly at
-the mission destination and commits acquisition, stamina, and active-mission
-state atomically. Dialogue then follows the ordinary routed character path;
-there is no branch-specific guide bridge, response-collection round, or exact
+that summon followed immediately by the reviewed first-floor `mission_start`,
+with no pending deployment. A story may authorize later operations in the same
+event to commit reviewed opening consequences or a complete historical mission
+span. The adapter materializes every selected Hero directly at the mission
+destination and commits the entire ordered transaction atomically. Any branch
+containing a live player remains unresolved at that player's first meaningful
+choice. Otherwise dialogue follows the ordinary routed character path; there
+is no branch-specific guide bridge, response-collection round, or exact
 post-render briefing path.
 
 The cached router addon receives compact immutable operation authority:

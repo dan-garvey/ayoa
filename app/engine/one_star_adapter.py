@@ -129,8 +129,10 @@ class OneStarPreparedMutation:
     """A fully validated after-checkpoint ready for one deterministic apply.
 
     ``hero_initializations`` reports the exact mechanics attached to generic
-    spawn/activation records.  Generic records must be staged before prepare;
-    the prepared checkpoint already carries these mechanics directly.
+    spawn/activation records. Direct-opening activations are consumed by the
+    same atomic transaction so later operations may affect those Heroes;
+    ``consumed_activation_ids`` prevents the shared lifecycle from replaying
+    those transitions afterward.
     """
 
     event_id: str
@@ -140,6 +142,7 @@ class OneStarPreparedMutation:
     culled_character_ids: tuple[str, ...] = ()
     newly_acquired_hero_ids: tuple[str, ...] = ()
     touched_hero_ids: tuple[str, ...] = ()
+    consumed_activation_ids: tuple[str, ...] = ()
     engine_history_updates: tuple[str, ...] = ()
     system_consequences: tuple["OneStarSystemConsequence", ...] = ()
     already_applied: bool = False
@@ -1292,22 +1295,16 @@ def one_star_summon_lifecycle(
                 canonical_at_s=checkpoint.session.leading_at_s,
                 fresh_summon_character_ids=supplied_fresh_ids,
             )
-            if (
-                len(transaction.operations) != 2
-                or not isinstance(
-                    transaction.operations[0],
-                    OneStarSummonOperation,
-                )
-                or not isinstance(
-                    transaction.operations[1],
-                    OneStarMissionStartOperation,
-                )
-            ):
+            direct_opening = _direct_opening_operations(
+                transaction,
+                account.config,
+            )
+            if direct_opening is None or direct_opening[0].pool_id != pool_id:
                 raise OneStarTransactionError(
-                    "an opening-roster summon must be followed by exactly one "
-                    "direct mission start in the same event"
+                    "an opening-roster summon must be immediately followed by "
+                    "its direct mission start in the same event"
                 )
-            mission_start = transaction.operations[1]
+            mission_start = direct_opening[1]
             expected_ids = [draw.existing_character_id for draw in draws]
             if (
                 mission_start.pending_operation_id
@@ -2624,7 +2621,7 @@ def _direct_opening_operations(
     if not opening_summons and not direct_mission_starts:
         return None
     if (
-        len(transaction.operations) != 2
+        len(transaction.operations) < 2
         or len(opening_summons) != 1
         or len(direct_mission_starts) != 1
         or transaction.operations[0] is not opening_summons[0]
@@ -2632,7 +2629,7 @@ def _direct_opening_operations(
     ):
         raise OneStarTransactionError(
             "an opening-roster summon and direct mission start must be the "
-            "only operations in their event, in that order"
+            "first two operations in their event, in that order"
         )
     summon = opening_summons[0]
     mission_start = direct_mission_starts[0]
@@ -4161,6 +4158,14 @@ def prepare_one_star_transaction(
                     else config.lobby_location_label
                 ),
             )
+            if (
+                direct_opening is not None
+                and operation is direct_opening[0]
+            ):
+                for hero_id in direct_opening[0].hero_ids:
+                    character = _require_character(after, hero_id)
+                    character.status = CharacterStatus.active
+                    character.location = normalized_activation_locations[hero_id]
         elif isinstance(operation, OneStarInventoryDeltaOperation):
             _apply_inventory_delta(operation, state)
         elif isinstance(operation, OneStarGemPurchaseOperation):
@@ -4312,6 +4317,11 @@ def prepare_one_star_transaction(
         culled_character_ids=culled_character_ids,
         newly_acquired_hero_ids=tuple(hero_initializations),
         touched_hero_ids=touched_hero_ids,
+        consumed_activation_ids=(
+            tuple(direct_opening[0].hero_ids)
+            if direct_opening is not None
+            else ()
+        ),
         engine_history_updates=tuple(engine_history_updates),
         system_consequences=tuple(system_consequences),
     )

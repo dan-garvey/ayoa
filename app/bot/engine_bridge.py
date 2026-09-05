@@ -73,6 +73,7 @@ from app.engine.spawn_authoring import SpawnAuthoringCoordinator
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.orchestrator import Orchestrator
 from app.engine.one_star_hero_cards import (
+    OneStarHeroCardEvent,
     OneStarHeroCardError,
     generated_portrait_prewarm_character_ids,
     new_one_star_hero_card_events,
@@ -531,6 +532,53 @@ class EngineBridge:
         sections: list[VisualNovelDeckSection] = []
         card_events_by_id = {event.event_id: event for event in card_events}
         inserted_card_event_ids: set[str] = set()
+
+        def append_card_event_sections(card_event: OneStarHeroCardEvent) -> None:
+            if card_event.event_id in inserted_card_event_ids:
+                return
+            reveals = render_one_star_summon_reveals(
+                checkpoint=checkpoint,
+                viewer_character_id=pov_character_id,
+                event=card_event,
+                generation=self.image_generation,
+            )
+            if reveals:
+                summon_boards = render_one_star_summon_card_boards(
+                    checkpoint=checkpoint,
+                    viewer_character_id=pov_character_id,
+                    event=card_event,
+                    generation=self.image_generation,
+                )
+                if len(reveals) != len(summon_boards.individual_boards):
+                    raise OneStarHeroCardError(
+                        "summon_reveal_card_count_mismatch"
+                    )
+                ordered_panels = []
+                for reveal, board in zip(
+                    reveals,
+                    summon_boards.individual_boards,
+                    strict=True,
+                ):
+                    ordered_panels.extend((reveal, board))
+                ordered_panels.extend(summon_boards.group_boards)
+            else:
+                ordered_panels = render_one_star_hero_card_boards(
+                    checkpoint=checkpoint,
+                    viewer_character_id=pov_character_id,
+                    event=card_event,
+                    generation=self.image_generation,
+                )
+            for panel in ordered_panels:
+                sections.append(VisualNovelDeckSection(
+                    pages=(VisualNovelPage(
+                        kind="narration",
+                        text=panel.accessible_text,
+                    ),),
+                    stage_media=panel.media,
+                    card_style="system_panel",
+                ))
+            inserted_card_event_ids.add(card_event.event_id)
+
         final_stage_media = None
         for segment_index, segment in enumerate(render.segments, start=1):
             resolution, stage_media = self.image_generation.resolve_visual_novel_stage(
@@ -547,6 +595,13 @@ class EngineBridge:
                     resolution.fallback_reason,
                 )
             final_stage_media = stage_media
+            # A summon reveal is the audience's first sight of an acquired
+            # Hero. Keep that committed boundary ahead of prose that may also
+            # summarize later consequences from the same canonical event.
+            for rendered_event_id in segment.rendered_event_ids:
+                card_event = card_events_by_id.get(rendered_event_id)
+                if card_event is not None and card_event.kind == "summon":
+                    append_card_event_sections(card_event)
             for page in segment.pages:
                 sections.append(
                     VisualNovelDeckSection(
@@ -570,52 +625,9 @@ class EngineBridge:
                 card_event = card_events_by_id.get(rendered_event_id)
                 if (
                     card_event is not None
-                    and card_event.event_id not in inserted_card_event_ids
+                    and card_event.kind != "summon"
                 ):
-                    reveals = render_one_star_summon_reveals(
-                        checkpoint=checkpoint,
-                        viewer_character_id=pov_character_id,
-                        event=card_event,
-                        generation=self.image_generation,
-                    )
-                    if reveals:
-                        summon_boards = render_one_star_summon_card_boards(
-                            checkpoint=checkpoint,
-                            viewer_character_id=pov_character_id,
-                            event=card_event,
-                            generation=self.image_generation,
-                        )
-                        if len(reveals) != len(
-                            summon_boards.individual_boards
-                        ):
-                            raise OneStarHeroCardError(
-                                "summon_reveal_card_count_mismatch"
-                            )
-                        ordered_panels = []
-                        for reveal, board in zip(
-                            reveals,
-                            summon_boards.individual_boards,
-                            strict=True,
-                        ):
-                            ordered_panels.extend((reveal, board))
-                        ordered_panels.extend(summon_boards.group_boards)
-                    else:
-                        ordered_panels = render_one_star_hero_card_boards(
-                            checkpoint=checkpoint,
-                            viewer_character_id=pov_character_id,
-                            event=card_event,
-                            generation=self.image_generation,
-                        )
-                    for panel in ordered_panels:
-                        sections.append(VisualNovelDeckSection(
-                            pages=(VisualNovelPage(
-                                kind="narration",
-                                text=panel.accessible_text,
-                            ),),
-                            stage_media=panel.media,
-                            card_style="system_panel",
-                        ))
-                    inserted_card_event_ids.add(card_event.event_id)
+                    append_card_event_sections(card_event)
 
         if previous_checkpoint is not None:
             for transition in identity_transitions:

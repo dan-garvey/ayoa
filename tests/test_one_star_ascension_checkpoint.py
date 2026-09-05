@@ -470,7 +470,7 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert "mission ends as soon as" in opening_pressure
     assert "Edren Marr" in edren_pressure
     assert "action already taken by another Hero" in edren_pressure
-    assert "His own desperate intention" in edren_pressure
+    assert "His own desperate use of the laundry hook" in edren_pressure
     assert "kill him horribly" in edren_pressure
     assert config.floor_scenarios[2].counters[0].current == 0
     assert config.floor_scenarios[2].counters[0].target == 1
@@ -1295,6 +1295,13 @@ def test_direct_opening_master_and_later_lobby_framing() -> None:
     assert "lobby vs. tower" in rules_lower
     assert "summoned directly into floor 1" in rules_lower
     assert "no lobby briefing" in rules_lower
+    assert "master floor 1 delivery:" not in rules_lower
+    assert "sole immediate autonomous next output" not in (
+        checkpoint.world_state.opening.context.lower()
+    )
+    assert "make the newcomer the sole next turn" not in (
+        checkpoint.world_state.opening.context.lower()
+    )
 
     iselle = by_id["iselle_the_guide"]
     # The public role is reused as visible local-cast context during character

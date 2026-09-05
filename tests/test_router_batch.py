@@ -522,6 +522,109 @@ async def test_one_star_preparation_applies_projected_activation_to_roster() -> 
 
 
 @pytest.mark.asyncio
+async def test_one_star_preparation_keeps_atomic_opening_history_activations() -> None:
+    from app.schemas.characters import CharacterStatus
+
+    renna = one_star_hero(
+        status=CharacterStatus.dormant,
+        owner="",
+    ).model_copy(update={"character_id": "renna", "name": "Renna"})
+    edren = one_star_hero(
+        status=CharacterStatus.dormant,
+        owner="",
+    ).model_copy(update={"character_id": "edren", "name": "Edren"})
+    ckpt = one_star_checkpoint(heroes=[renna, edren])
+    owner = ckpt.characters[0]
+    owner.mechanics[ONE_STAR_ACCOUNT_KEY]["config"]["summon_pools"]["opening"] = {
+        "usage": "opening_roster",
+        "slots": [
+            {"kind": "fixed", "character_id": "renna"},
+            {"kind": "fixed", "character_id": "edren"},
+        ],
+    }
+    generic = _draft(
+        feasible=[0],
+        observers=["account_owner", "renna", "edren"],
+    )
+    output = OneStarRouterBatchOutput(
+        events=[OneStarRouterEventDraft.model_validate({
+            **generic.model_dump(),
+            "state_updates": [
+                OneStarStateUpdate(
+                    kind="summon",
+                    target_id="opening",
+                    value="2",
+                    details=[],
+                ),
+                OneStarStateUpdate(
+                    kind="mission_start",
+                    target_id="mission_1",
+                    value="1",
+                    details=[
+                        "party=renna",
+                        "party=edren",
+                        "destination=tower_floor_1",
+                        "completion=the floor is cleared",
+                        "failure=the party is broken",
+                        "counter.clear=0/1",
+                    ],
+                ),
+                OneStarStateUpdate(
+                    kind="hero_delta",
+                    target_id="edren",
+                    value="",
+                    details=[
+                        "hp_current=0",
+                        "terminal_action=death",
+                        "death_cause=A goblin pinned him against the wall.",
+                    ],
+                ),
+                OneStarStateUpdate(
+                    kind="mission_update",
+                    target_id="mission_1",
+                    value="",
+                    details=["counter.clear=1/1"],
+                ),
+                OneStarStateUpdate(
+                    kind="mission_end",
+                    target_id="mission_1",
+                    value="completed",
+                    details=["return_destination=lobby"],
+                ),
+            ],
+        })],
+        next_turns=[],
+    )
+    inputs = [_input(0, "account_owner")]
+    _materialize_adapter_lifecycle(ckpt, output)
+    batch = materialize_router_batch(
+        checkpoint=ckpt,
+        inputs=inputs,
+        output=output,
+    )
+    dispatcher = StoryDispatcher(None, None)  # type: ignore[arg-type]
+
+    await dispatcher.prepare_batch(
+        ckpt=ckpt,
+        batch=batch,
+        inputs=inputs,
+        player_actor_ids={"account_owner"},
+    )
+
+    event = batch.events[0].record
+    characters = {item.character_id: item for item in ckpt.characters}
+    assert [signal.character_id for signal in event.activate] == [
+        "renna",
+        "edren",
+    ]
+    assert characters["renna"].status == CharacterStatus.active
+    assert characters["renna"].location == "lobby"
+    assert characters["edren"].status == CharacterStatus.culled
+    assert characters["edren"].location == "tower_floor_1"
+    assert load_one_star_account(ckpt)[1].state.active_mission is None
+
+
+@pytest.mark.asyncio
 async def test_fresh_one_star_preparation_commits_authored_name_as_hero_id() -> None:
     ckpt = one_star_checkpoint()
     owner = ckpt.characters[0]

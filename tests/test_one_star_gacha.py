@@ -544,7 +544,7 @@ def test_opening_roster_cannot_stop_before_the_direct_first_mission() -> None:
 
     with pytest.raises(
         OneStarTransactionError,
-        match="must be followed by exactly one direct mission start",
+        match="must be the first two operations",
     ):
         one_star_summon_lifecycle(checkpoint, [update])
 
@@ -635,6 +635,81 @@ def test_direct_opening_atomically_acquires_roster_and_starts_floor_one() -> Non
         assert hero.mechanics[ONE_STAR_HERO_KEY]["acquisition_event_id"] == (
             "direct_opening"
         )
+
+
+def test_direct_opening_can_commit_a_reviewed_terminal_history_suffix() -> None:
+    checkpoint = _checkpoint()
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["opening"] = {
+        "usage": "opening_roster",
+        "slots": [
+            {"kind": "fixed", "character_id": "renna"},
+            {"kind": "fixed", "character_id": "edren"},
+        ],
+    }
+    checkpoint.characters.extend([_hero("renna"), _hero("edren")])
+    updates = [
+        *_direct_opening_updates(
+            checkpoint,
+            pool_id="opening",
+            party_ids=["renna", "edren"],
+        ),
+        OneStarStateUpdate(
+            kind="hero_delta",
+            target_id="edren",
+            value="",
+            details=[
+                "hp_current=0",
+                "terminal_action=death",
+                "death_cause=A goblin pinned him against the ruin wall.",
+            ],
+        ),
+        OneStarStateUpdate(
+            kind="mission_update",
+            target_id="floor_1_goblin_ambush",
+            value="",
+            details=["counter.ambush_survived=1/1"],
+        ),
+        OneStarStateUpdate(
+            kind="mission_end",
+            target_id="floor_1_goblin_ambush",
+            value="completed",
+            details=["return_destination=lobby"],
+        ),
+    ]
+    transaction = one_star_state_updates_to_transaction(
+        checkpoint,
+        updates,
+        canonical_at_s=30,
+    )
+    _spawns, wakes = one_star_summon_lifecycle(checkpoint, updates)
+    activation_locations = {
+        wake.character_id: wake.location_label for wake in wakes
+    }
+
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="resolved_opening",
+        transaction=transaction,
+        activated_character_ids=list(activation_locations),
+        activated_character_locations=activation_locations,
+        canonical_at_s=30,
+        initiating_actor_ids=["account_owner"],
+    )
+    prepared_account = load_one_star_account(prepared.after_checkpoint)[1]
+    characters = {
+        character.character_id: character
+        for character in prepared.after_checkpoint.characters
+    }
+
+    assert prepared_account.state.active_mission is None
+    assert prepared_account.state.highest_cleared_floor == 1
+    assert characters["renna"].status == CharacterStatus.active
+    assert characters["renna"].location == "lobby"
+    assert characters["edren"].status == CharacterStatus.culled
+    assert characters["edren"].location == "tower_floor_1_goblin_ambush"
+    assert prepared.culled_character_ids == ("edren",)
+    assert prepared.consumed_activation_ids == ("renna", "edren")
 
 
 @pytest.mark.parametrize(

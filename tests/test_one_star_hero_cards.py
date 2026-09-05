@@ -1024,7 +1024,7 @@ def test_board_uses_current_rank_after_promotion(
 
 
 @pytest.mark.asyncio
-async def test_bridge_interleaves_each_reveal_and_card_then_group_board(
+async def test_bridge_places_summon_sequence_before_same_event_prose(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     checkpoint = _seed()
@@ -1165,24 +1165,24 @@ async def test_bridge_interleaves_each_reveal_and_card_then_group_board(
     assert isinstance(sections, tuple)
     assert all(isinstance(section, VisualNovelDeckSection) for section in sections)
     assert [section.pages[0].text for section in sections] == [
-        "The summons arrive.",
         reveals[0].accessible_text,
         individual_boards[0].accessible_text,
         reveals[1].accessible_text,
         individual_boards[1].accessible_text,
         group_board.accessible_text,
+        "The summons arrive.",
         "The light settles.",
     ]
     assert [section.card_style for section in sections] == [
+        "system_panel",
+        "system_panel",
+        "system_panel",
+        "system_panel",
+        "system_panel",
         "adv",
-        "system_panel",
-        "system_panel",
-        "system_panel",
-        "system_panel",
-        "system_panel",
         "adv",
     ]
-    assert [section.stage_media for section in sections[1:6]] == [
+    assert [section.stage_media for section in sections[:5]] == [
         reveal_media[0],
         individual_media[0],
         reveal_media[1],
