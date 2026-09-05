@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,17 @@ RETIRED_CONTROL_MARKERS = (
     "response opportunity is already spent",
     "the engine should render",
     "the protagonist's ethical project",
+)
+PROSE_WRITING_RECIPE_PATTERNS = (
+    r"\b(?:your|his|her|their) sentences?\b",
+    r"\b(?:you|he|she|they) speaks? only\b",
+    r"\bspeak about the concrete\b",
+    r"\bstates? first and embellish",
+    r"\bfull names? when\b",
+    r"\bclipped surnames?\b",
+    r"\b(?:your|his|her|their) voice is\b",
+    r"\bspeaks? in (?:short|conditional|a low|an? [^.!?]{0,40} cadence)\b",
+    r"\bplay the contradiction\b",
 )
 
 
@@ -82,6 +94,25 @@ def test_seeded_actor_material_reaches_only_its_owner_packet() -> None:
             assert all(
                 marker not in owner_packet.casefold()
                 for marker in RETIRED_CONTROL_MARKERS
+            )
+
+
+@pytest.mark.parametrize(
+    "path",
+    (SOURCE_CHECKPOINT_PATH, PROMOTION_CHECKPOINT_PATH),
+)
+def test_one_star_actor_facts_exclude_prose_writing_recipes(path: Path) -> None:
+    """Actor-owned experience must not prescribe sentence construction."""
+    checkpoint = _load(path)
+
+    for character in _tracked_actors(checkpoint):
+        assert character.actor is not None
+        actor_text = "\n".join(fact.text for fact in character.actor.facts)
+        for pattern in PROSE_WRITING_RECIPE_PATTERNS:
+            assert re.search(pattern, actor_text, flags=re.IGNORECASE) is None, (
+                path,
+                character.character_id,
+                pattern,
             )
 
 
