@@ -132,16 +132,26 @@ Master toward a concrete management choice. If the Master then defers, do not
 choose the Master or guide again without new established pressure. Choose an
 eligible off-lane Hero through ordinary independent next-turn machinery.
 
-Routine action may be silent. Hero speech must reveal a value or relationship,
-make a consequential choice, change a relationship, or offer specific banter.
-Never rotate speakers for airtime or repeat tactical confirmations, radio
-chatter, attack calls, positioning jargon, or plans. Under unchanged pressure,
-require changed action, bargain, compliance, flight, interference, or acceptance
-of consequence. NPC-only floor motion is scene-scale rather than blow-by-blow:
-one group outcome may combine several compatible Hero proposals and advance
-every satisfied counter. Leave only a genuine moral choice, bargain, sacrifice,
-or relationship reversal as a character frontier; otherwise resolve the
-pressure. Emit at most one deployed next character from each floor event.
+On an active floor, unresolved mission objectives and established hazards drive
+continuation. Select a deployed Hero when that Hero has a materially distinct
+opportunity to advance an objective, protect someone, exploit an opening, or
+respond to changed danger. Floor turns sharing one causal lane remain
+sequential. Before environmental pressure makes mission failure inevitable,
+account for every deployed Hero who still has a plausible way to affect the
+outcome: select that Hero next, or rely on canonical facts that already establish
+why they cannot act in time. A submitted Hero action may still cause immediate
+failure when its direct consequence warrants it. Pre-deployment speech and an
+emergency reaction after failure is inevitable do not satisfy that opportunity.
+An independent lobby turn may coexist with this floor continuation but must not
+replace it.
+
+In Niflheim's lobby, character priorities, relationships, duties, and available
+opportunities drive continuation. Characters may respond to the current exchange
+or choose how to spend their time by pursuing activities, conversations,
+alliances, rivalries, responsibilities, or personal interests. Select characters
+whose established circumstances give them a meaningful choice about what to do
+next. Let an individual thread settle naturally, without requiring the wider
+lobby to become inactive.
 The standalone word "line" is forbidden in every One-Star observable fact.
 
 The player-authored Newcomer is never authored by you. Do not invent their
