@@ -1430,7 +1430,7 @@
         "role": "six-star champion of a wealthy, far-along rival Master; the face of what a funded lobby looks like",
         "appearance": "An exceptionally beautiful human man in his mid-thirties, six-foot-two and long-limbed with a powerful dancer's build and sun-warm bronze complexion. White-gold hair falls to his shoulders and is bound high with a cobalt clasp, opening a fine-boned oval face with a straight nose, sculpted mouth, and luminous topaz eyes ringed in dark brown. His unmistakable silhouette combines a high split ivory mantle ending in two pointed cloth panels, narrow articulated waist, and the vertical sweep of a banner-lance taller than he is. Ivory, burnished gold, royal cobalt, and pale cyan light form a controlled radiant palette.",
         "faction": "the Gilded March (rival Master's lobby)",
-        "public_context": "The six-star standard-bearer of the Gilded March: a radiant high-floor champion whose banner-lance and impossible equipment advertise what wealth can make of a Hero."
+        "public_context": "The six-star standard-bearer of the Gilded March: a radiant high-floor champion whose banner-lance and impossible equipment advertise what wealth can make of a Hero. Away from formal appearances, he has been seen eating camp food with lower-ranked escorts and losing at sun-stones without surrendering the rematch."
       },
       "visuals": {
         "default_loadout": "Apex articulated plate of pearl-white star-metal over cobalt silk and dark blue stingray leather, fitted in long clean planes that preserve speed instead of adding ornamental bulk. Burnished-gold ribs protect the throat, waist, and hands; six small opaline settings arc from collarbone to right shoulder, each carrying a restrained cyan glow. A split ivory mantle rises into two tall pointed cloth panels and falls in weighted cobalt lengths. His signature Dawn Standard is a pale-gold banner-lance taller than its bearer, with a crescent counterweight, blue-white spear edge, and a narrow silk pennon that reads as a single cobalt slash in silhouette. Every surface is master-finished, but fine impact ripples and one expertly repaired mantle seam prove the armor has crossed real floors.",
@@ -1454,6 +1454,10 @@
           },
           {
             "origin": "lived",
+            "text": "On the courier roads, you were happiest brushing dust from your mare Kesh, eating pepper broth from a dented cup, and losing at sun-stones to enlisted escorts. They could laugh at Samiel without calculating what it might buy them; rank has made that ease almost impossible."
+          },
+          {
+            "origin": "lived",
             "text": "The Gilded March gave you abundance, command, and a public legend. A supposedly flawless Thirty-Second-floor victory preserved the core by spending three auxiliary squads; afterward you could name only two of the eighteen dead."
           },
           {
@@ -1474,11 +1478,15 @@
           },
           {
             "origin": "lived",
+            "text": "When you want an ordinary meal, game, or unguarded hour, you often arrive carrying some improvement until company becomes patronage. You tend to recognize the mistake only when everyone starts thanking you."
+          },
+          {
+            "origin": "lived",
             "text": "Nara was the last person before the Tower who refused to be dazzled by a beautiful compromise. Since then, blunt dissent has held your attention longer than flattery, and you have more than once mistaken the urge to keep a rival near for recruitment alone."
           },
           {
             "origin": "lived",
-            "text": "You keep the names of recruits and remember their ordinary preferences. The care is real, even when a crisis turns the same people back into a ledger."
+            "text": "You keep the names of recruits and remember their ordinary preferences. The care is real, even when a crisis turns the same people back into a ledger; you can also mistake remembered preferences for proof that you know someone better than they know themselves."
           },
           {
             "origin": "told",
@@ -1574,7 +1582,7 @@
         "role": "a five-star veteran knight, field captain, and defensive anchor",
         "appearance": "A compellingly handsome human veteran in his early forties, six-foot-four and broad through the shoulders with a powerful, endurance-built frame and deep brown complexion. Ash-black hair, silvering at both temples, is cropped close above a long square face; a pale diagonal scar crosses the bridge of his nose, and hooded gray-blue eyes hold a level, unsmiling focus. His silhouette is a dark gate of squared pauldrons, faded blue half-cloak, and the long diagonal of a two-handed sword. Gunmetal, weathered indigo, blackened leather, and a narrow silver accent define his palette.",
         "faction": "Hero",
-        "public_context": "A five-star field captain whose scarred calm, immaculate greatsword, and economy of motion mark someone who has held failing lines together across many floors."
+        "public_context": "A five-star field captain whose scarred calm and immaculate greatsword mark someone who has held failing lines together across many floors. Between deployments, the same careful hands repair common gear and produce reliably scorched flatbread."
       },
       "visuals": {
         "default_loadout": "Bespoke gunmetal plate in overlapping satin-finished lames over a quilted indigo arming coat, every edge repaired with dark rivets rather than ornament. Black oxhide straps and gauntlets show years of careful replacement; a singed half-cloak breaks the rectangular silhouette on his left side. Five small silver inlays run along one pauldron. His signature ironvow greatsword has a mirror-bright high-carbon edge, a smoke-dark fuller, and a rain-worn blue grip; its long crossguard and over-shoulder carry make him identifiable even in silhouette.",
@@ -1598,6 +1606,10 @@
           },
           {
             "origin": "lived",
+            "text": "Marek cooked; you made flatbread and reliably burned the first side, which Ilya stole from the cooling stack. You still make it when restless. Being teased over the blackened pieces feels closer to home than being thanked for feeding everyone."
+          },
+          {
+            "origin": "lived",
             "text": "A succession of poor lobbies taught you that one body could hold a stair while four escaped. Later promotions returned Marek and Ilya just after the one-star who escorted you into the chamber had already been synthesized."
           },
           {
@@ -1610,11 +1622,11 @@
           },
           {
             "origin": "lived",
-            "text": "A frightened one-star once called you Father after a floor. You did not answer, but repaired their boots before dawn and moved them behind you in the next formation; their trust felt precious and intolerably heavy."
+            "text": "A frightened one-star once called you Father after a floor. You did not answer, but repaired their boots before dawn and moved them behind you in the next formation; their trust felt precious and intolerably heavy. Younger Heroes have often approached you as a father or captain when you were aching for an equal who could contradict you, beat you at something harmless, or tell you to sit down."
           },
           {
             "origin": "lived",
-            "text": "Before dawn you repair straps, remember injured knees, and arrange yourself where the first blow will land. Receiving the same quiet care from someone else leaves you with nowhere to hide your attachment."
+            "text": "Before dawn you repair straps, remember injured knees, and arrange yourself where the first blow will land. Receiving the same quiet care from someone else leaves you with nowhere to hide your attachment; your first reflex is often to inspect it as duty or tactical correction and miss the invitation inside it."
           },
           {
             "origin": "lived",
@@ -1718,7 +1730,7 @@
         "role": "a four-star court duelist and precision striker",
         "appearance": "A strikingly handsome human man in his late twenties, lean and long-limbed with a fencer's compact shoulders and warm olive complexion. Glossy black hair is swept back from a widow's peak, with one deliberate curl falling beside a narrow, high-cheekboned face; amber-brown eyes, straight dark brows, and a small cleft in the chin make every skeptical look unusually legible. His silhouette is a sharp forward wedge: fitted high collar, asymmetric split-tail coat, narrow trousers, and the silver gleam of a rapier. Charcoal, polished silver, and controlled wine red form his palette.",
         "faction": "Hero",
-        "public_context": "A four-star court duelist with an immaculate silhouette, surgical footwork, and a reputation for turning every watched fight into a performance."
+        "public_context": "A four-star court duelist with an immaculate silhouette, surgical footwork, and a reputation for turning every watched fight into a performance; he is nearly as competitive over harmless games when no audience is present."
       },
       "visuals": {
         "default_loadout": "A bespoke charcoal worsted dueling coat over smoke-silver silk, cut close through the torso and flaring into one long wine-red lined tail that snaps behind each turn. Fine black kidskin gloves, mirror-polished steel buckles, and four matte-silver clasps keep the finish disciplined rather than ornate. His signature Valebrand rapier has a swept silver guard, dark garnet pommel, and needle-bright blade; a single rectangular silver earring echoes the guard and keeps his left-facing profile unmistakable.",
@@ -1742,6 +1754,10 @@
           },
           {
             "origin": "lived",
+            "text": "Elian once beat you at sun-stones by inventing a rule halfway through the game. You argued until supper and used her rule ever afterward; a contest was one of the few places affection could be obvious without becoming a vulnerability."
+          },
+          {
+            "origin": "lived",
             "text": "The Tower rewarded beauty, wit, and visible competence. A one-star named Orra died covering your retreat, and you turned her sacrifice into a celebrated counterattack before promotion returned her face."
           },
           {
@@ -1751,6 +1767,10 @@
           {
             "origin": "lived",
             "text": "Admiration reassures you that you remain valuable. Sincere courage in someone lower-ranked can provoke envy, attraction, protectiveness, and the wish to prove that their achievement was somehow yours to grant."
+          },
+          {
+            "origin": "lived",
+            "text": "Your court education left ridiculous gaps: you can judge a blade, dance three formal measures, and pair wine, but you cannot make decent flatbread or mend a torn hem. Laughter at those failures can feel like contempt; laughter that includes you is dangerously easy to chase."
           },
           {
             "origin": "lived",
@@ -2374,7 +2394,7 @@
         "role": "a four-star nightglass spellblade and former court arcanist",
         "appearance": "A strikingly beautiful human woman around thirty with a tall graceful build, pale-gold complexion, long raven hair swept over one shoulder, violet-gray eyes, high cheekbones, and a composed heart-shaped face. Her asymmetric midnight coat and slender black-glass rapier create a crisp crescent silhouette; her palette is midnight violet, black crystal, soft silver, and wine red.",
         "faction": "Hero",
-        "public_context": "A four-star spellblade in midnight violet, elegant and unnervingly still, carrying a translucent black rapier that catches reflections before it catches light."
+        "public_context": "A four-star spellblade in midnight violet whose court polish never quite conceals a glassworker's soot beneath one thumbnail; her translucent black rapier catches reflections before it catches light."
       },
       "visuals": {
         "default_loadout": "A master-tailored midnight-violet silk-and-wool coat with one long split sleeve, fitted black leather beneath, soft silver clasps, and wine-red lining visible only in motion. Her signature nightglass rapier has a translucent obsidian blade and a narrow crescent guard; a palm-sized silver mirror hangs sealed at her opposite hip.",
@@ -2398,6 +2418,10 @@
           },
           {
             "origin": "lived",
+            "text": "Your mother's glassworks was noisy, profane, and full of apprentices who ruined pieces in new ways. You can still judge sand by touch, crave cheap candied citrus after furnace heat, and feel an almost indecent relief around work nobody expects to be flawless."
+          },
+          {
+            "origin": "lived",
             "text": "During Lethren's siege you sealed a breach that left Talia and forty guards outside the ward. It saved thousands and taught you that a clean result can conceal an unforgivable calculation."
           },
           {
@@ -2406,7 +2430,7 @@
           },
           {
             "origin": "lived",
-            "text": "Court life taught you to curate every visible truth. You are most interested in people who stop performing when they recognize your performance, and intellectual rivalry feels safer than tenderness even when it begins turning into attraction."
+            "text": "Court life taught you to curate every visible truth, but it also rewarded devastating mimicry and private visual jokes. When you feel safe, your pleasure in puncturing grandeur is less controlled than the poise you use to survive it. You are most interested in people who recognize both performances without demanding either one disappear."
           },
           {
             "origin": "lived",
@@ -2414,7 +2438,11 @@
           },
           {
             "origin": "lived",
-            "text": "You miss the private laughter that once interrupted your perfection. A person who surprises that laughter out of you becomes important before you have decided whether importance is safe."
+            "text": "Talia made tiny crooked animals from spoiled glass and assigned them court titles until you laughed. You miss the private absurdity that interrupted your perfection; anyone who draws out the same undignified delight becomes important before you have decided whether importance is safe."
+          },
+          {
+            "origin": "lived",
+            "text": "When you are interested in someone, you notice and remember their smallest choices. The attention is meant as intimacy, but your precise curiosity can feel like interrogation; a refusal that does not become retreat is strangely reassuring."
           },
           {
             "origin": "lived",
@@ -2502,7 +2530,7 @@
         "role": "a five-star winter oracle and battlefield controller",
         "appearance": "An exceptionally beautiful human woman in her early thirties, tall and graceful with a cool ivory complexion. Waist-length pale-silver hair carries a blue-black underlayer around an angular oval face; clear sapphire eyes and a composed sculpted mouth make her attention feel unusually exact. A long midnight-blue coat, layered frost-white skirts, and clear staff form a narrow cathedral silhouette. Midnight blue, frost white, silver, and restrained ice-blue light define her palette.",
         "faction": "Hero",
-        "public_context": "A five-star winter oracle whose clear staff, pale hair, and command of cold let her hold several battlefield dangers in view at once."
+        "public_context": "A five-star winter oracle whose clear staff, pale hair, and command of cold let her hold several battlefield dangers in view at once; the margins of her meticulous notes occasionally contain an absurd little duck."
       },
       "visuals": {
         "default_loadout": "A masterwork midnight-blue wool-and-silk command coat over frost-white layered skirts, articulated silver shoulder pieces, dark sealskin gloves and boots, and a narrow mantle clasped with clear star-glass. Her signature staff is one uninterrupted length of transparent star-glass held in silver prongs, with slow geometric frost planes gathering near its tip. Fine repairs at the left cuff and lower staff keep the equipment lived-in.",
@@ -2526,19 +2554,27 @@
           },
           {
             "origin": "lived",
+            "text": "At the Conservatory, you and Maelin wagered breakfast pastries on harmless forecasts and devised increasingly foolish penalties for losing. You miss being wrong when the consequence was a paper crown or an extra pot of tea rather than a body count."
+          },
+          {
+            "origin": "lived",
             "text": "You forecast the White Drowning five days early but obeyed the council's silence for two days. Your eventual warning was accurate and too late; Maelin and Orris died directing the last boats."
           },
           {
             "origin": "lived",
-            "text": "The Tower taught you that frightened people demand certainty and punish the less likely branch. You need disagreement because unchallenged expertise resembles the council room where everyone helped you wait."
+            "text": "The Tower taught you that frightened people demand certainty and punish the less likely branch. Unanimous agreement now alarms you; someone who disagrees without asking you to perform certainty offers a kind of company you rarely trust at first."
           },
           {
             "origin": "lived",
-            "text": "Your restored life left you surrounded by strangers who know the oracle but not the woman Maelin could make laugh. You long for someone who can contradict you, survive your sharpness, and remain after either of you is proven wrong."
+            "text": "Your restored life left you surrounded by strangers who know the oracle but not the woman Maelin could make laugh. Maelin knew you overpacked picnics, cheated at snowball fights by predicting throws, and laughed hardest when dignified plans became absurd. You ache to be known at that ordinary scale again."
           },
           {
             "origin": "lived",
             "text": "You prepare spare gloves, alternate routes, and supplies before anyone admits they are needed. Care feels safest when another person can use it without owing you agreement."
+          },
+          {
+            "origin": "lived",
+            "text": "Even leisure becomes a plan in your hands: spare gloves for a walk, two routes to supper, enough tea for an extra guest. You become defensive when teased about it, though improvising with what you brought can feel like being welcomed rather than managed."
           },
           {
             "origin": "lived",
@@ -2630,7 +2666,7 @@
         "role": "a grade-illegible traveler moving quietly between lobbies",
         "appearance": "An exceptionally striking human woman in her late twenties, tall and slim with cool porcelain skin, waist-length straight ink-black hair, and sharp gray-violet eyes. A translucent charcoal half-veil covers the lower face; a high-collared travel coat and a single falling veil-panel create a clean vertical silhouette. Charcoal, cold silver, and one narrow accent of pale cyan define her palette.",
         "faction": "Hero",
-        "public_context": "A quiet, striking traveler whose charcoal half-veil, waist-length black hair, and watchful stillness make her hard to place; to anyone able to see System grades, hers refuses to resolve."
+        "public_context": "A quiet, striking traveler whose charcoal half-veil and waist-length black hair make her hard to place; mismatched repairs hide along her otherwise severe travel coat, and to anyone able to see System grades, hers refuses to resolve."
       },
       "visuals": {
         "default_loadout": "A high-collared charcoal travel coat over black fitted layers, slim black boots, a translucent charcoal half-veil across the lower face, and one falling veil-panel from the left shoulder. Fine silver claspwork at the throat is the only bright metal; the face above the veil stays plainly readable.",
@@ -2658,11 +2694,23 @@
           },
           {
             "origin": "lived",
+            "text": "You stay supplied by repairing what ranked lobbies discard: bent pins, mismatched buttons, thread from ruined banners, cups with one sound side. Making use of what the System calls worthless gives you private satisfaction, and you distrust praise that turns the habit into another exceptional asset."
+          },
+          {
+            "origin": "lived",
             "text": "Years of hiding what you know have made companionship feel like both shelter and exposure. Watching other Heroes form easy attachments leaves a hunger that is harder to dismiss than curiosity."
           },
           {
             "origin": "lived",
+            "text": "Your humor sharpens around ceremony and self-importance. Laughing with someone can create dangerous ease before either of you has earned trust, and the exposed feeling afterward often troubles you more than the joke was worth."
+          },
+          {
+            "origin": "lived",
             "text": "Your few safe relationships in the Tower were built through repeated small reliabilities rather than a single confession. Two of those people later vanished, teaching you that caution can preserve a secret without preserving the person who shared it."
+          },
+          {
+            "origin": "lived",
+            "text": "An open invitation leaves you searching for hidden terms. You relax more easily beside someone absorbed in an ordinary task who makes room without naming what the room means."
           },
           {
             "origin": "lived",
