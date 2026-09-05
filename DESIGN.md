@@ -2048,6 +2048,8 @@ The system exposes:
 * per-character rolling conversations
 * per-POV narrator conversations
 * tracked Discord turn-message refs
+* exact raw router output for rejected batches, with correlation, rejection stage,
+  and materialized event/frontier identities when materialization had completed
 
 The router `decision_rationale` field is temporary diagnostic overhead.
 When router behavior is stable enough, remove the schema field, prompt

@@ -9,6 +9,8 @@ clocks into one global timeline.
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,6 +40,9 @@ class RouterBatchContractError(ValueError):
     """A complete provider response violates the batch routing contract."""
 
 
+logger = logging.getLogger(__name__)
+
+
 @dataclass(frozen=True, slots=True)
 class MaterializedEvent:
     draft_index: int
@@ -53,6 +58,53 @@ class MaterializedRouterBatch:
     next_turns: tuple[FrontierTurn, ...]
     feasible_submission_ids: tuple[str, ...]
     infeasible_submission_ids: tuple[str, ...]
+    correlation_id: str
+    raw_output: str
+
+
+def router_batch_correlation(inputs: list[RouterInputEnvelope]) -> str:
+    """Return the stable identifier used to connect one router call to its logs."""
+
+    return hashlib.sha256(
+        "\x1f".join(item.submission_id for item in inputs).encode("utf-8")
+    ).hexdigest()[:12]
+
+
+def log_rejected_router_batch(
+    *,
+    session_id: str,
+    correlation_id: str,
+    stage: str,
+    error: Exception,
+    raw_output: str,
+    materialized: MaterializedRouterBatch | None = None,
+) -> None:
+    """Log a rejected provider response without exposing it to story participants."""
+
+    payload: dict[str, Any] = {
+        "session_id": session_id,
+        "correlation_id": correlation_id,
+        "stage": stage,
+        "error_type": type(error).__name__,
+        "error": str(error),
+        "raw_output": raw_output,
+    }
+    if materialized is not None:
+        payload["materialized_events"] = [
+            {
+                "draft_index": item.draft_index,
+                "event_id": item.record.event_id,
+                "causal_lane_id": item.record.causal_lane_id,
+            }
+            for item in materialized.events
+        ]
+        payload["materialized_next_turns"] = [
+            item.model_dump(mode="json") for item in materialized.next_turns
+        ]
+    logger.error(
+        "rejected router batch %s",
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+    )
 
 
 def _event_end_by_id(checkpoint: CheckpointFile) -> dict[str, int]:
@@ -335,6 +387,8 @@ def materialize_router_batch(
     checkpoint: CheckpointFile,
     inputs: list[RouterInputEnvelope],
     output: RouterBatchOutput,
+    correlation_id: str = "",
+    raw_output: str | None = None,
 ) -> MaterializedRouterBatch:
     """Validate a whole response, then assign canonical ids, time, and frontier.
 
@@ -542,4 +596,6 @@ def materialize_router_batch(
         next_turns=tuple(next_turns),
         feasible_submission_ids=tuple(feasible_ids),
         infeasible_submission_ids=tuple(infeasible_ids),
+        correlation_id=correlation_id or router_batch_correlation(inputs),
+        raw_output=output.model_dump_json() if raw_output is None else raw_output,
     )

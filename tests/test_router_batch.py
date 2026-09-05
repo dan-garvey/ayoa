@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -13,6 +15,7 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.router_batch import (
     RouterBatchContractError,
     materialize_router_batch,
+    router_batch_correlation,
 )
 from app.engine.spawn_authoring import SpawnAuthoringCoordinator
 from app.engine.story_dispatcher import (
@@ -95,6 +98,55 @@ def _draft(
         location_updates=[],
         activate=[],
     )
+
+
+@pytest.mark.asyncio
+async def test_materialization_rejection_logs_exact_raw_router_output(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    ckpt = checkpoint(characters=[character_record("alice")])
+    inputs = [_input(0, "alice")]
+    output = RouterBatchOutput(
+        events=[_draft(feasible=[0], observers=["alice"])],
+        next_turns=[RouterNextTurn(
+            turn_kind="character",
+            actor_id="unknown_actor",
+            participant_ids=["unknown_actor"],
+            source_event_index=-1,
+        )],
+    )
+    raw_output = output.model_dump_json(indent=2)
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(return_value=LLMResponse(
+        parsed=output,
+        content=raw_output,
+        model="offline-fixture",
+    ))
+    dispatcher = StoryDispatcher(client, PromptManager("app/prompts"))
+
+    with (
+        caplog.at_level(logging.ERROR, logger="app.engine.router_batch"),
+        pytest.raises(
+            RouterBatchContractError,
+            match="unknown participants: unknown_actor",
+        ),
+    ):
+        await dispatcher.route_batch(ckpt=ckpt, inputs=inputs)
+
+    rejection = next(
+        record.message.removeprefix("rejected router batch ")
+        for record in caplog.records
+        if record.message.startswith("rejected router batch ")
+    )
+    payload = json.loads(rejection)
+    assert payload == {
+        "session_id": ckpt.session.session_id,
+        "correlation_id": router_batch_correlation(inputs),
+        "stage": "materialization",
+        "error_type": "RouterBatchContractError",
+        "error": "next turn references unknown participants: unknown_actor",
+        "raw_output": raw_output,
+    }
 
 
 def test_mixed_feasibility_is_preserved_per_submission() -> None:

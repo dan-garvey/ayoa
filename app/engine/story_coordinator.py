@@ -31,7 +31,11 @@ from app.engine.narrator_delivery import (
     NarratorLaneOutcome,
     process_narrator_lanes,
 )
-from app.engine.router_batch import MaterializedEvent, MaterializedRouterBatch
+from app.engine.router_batch import (
+    MaterializedEvent,
+    MaterializedRouterBatch,
+    log_rejected_router_batch,
+)
 from app.engine.story_dispatcher import StoryDispatcher, append_router_history
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.characters import CharacterStatus, is_player_authored_slot
@@ -871,44 +875,55 @@ async def advance_story(
         if item.envelope.kind == "player"
         for actor_id in item.envelope.actor_ids
     }
-    await dispatcher.prepare_batch(
-        ckpt=working,
-        batch=batch,
-        inputs=[item.envelope for item in normalized],
-        player_actor_ids=player_actor_ids,
-    )
-    bound = set(working.session.character_bindings)
-    partial_pov_ids = {
-        character_id
-        for event in batch.events
-        for character_id in (
-            *event.required_responder_ids,
-            *event.dnd_reaction_ids,
+    try:
+        await dispatcher.prepare_batch(
+            ckpt=working,
+            batch=batch,
+            inputs=[item.envelope for item in normalized],
+            player_actor_ids=player_actor_ids,
         )
-        if character_id in bound
-    }
-    commit_event_batch(
-        working,
-        [item.record for item in batch.events],
-        user_input_by_pov=user_input_by_pov,
-        partial_pov_ids=partial_pov_ids,
-    )
-    _install_contests(working, normalized, batch)
-    if working.session.config.settings.ruleset_id == "dnd5e_basic":
-        from app.engine.dnd_story_adapter import install_dnd_reactions
+        bound = set(working.session.character_bindings)
+        partial_pov_ids = {
+            character_id
+            for event in batch.events
+            for character_id in (
+                *event.required_responder_ids,
+                *event.dnd_reaction_ids,
+            )
+            if character_id in bound
+        }
+        commit_event_batch(
+            working,
+            [item.record for item in batch.events],
+            user_input_by_pov=user_input_by_pov,
+            partial_pov_ids=partial_pov_ids,
+        )
+        _install_contests(working, normalized, batch)
+        if working.session.config.settings.ruleset_id == "dnd5e_basic":
+            from app.engine.dnd_story_adapter import install_dnd_reactions
 
-        install_dnd_reactions(working, batch)
-    _commit_prepared_character_drafts(working, dispatcher, normalized, batch)
-    _consume_and_extend_frontier(working, normalized, batch)
-    _close_resolved_contests(working, normalized, batch)
-    append_router_history(working, [item.record for item in batch.events])
-    if any(
-        item.envelope.kind in {"player", "authoritative_result"}
-        for item in normalized
-    ):
-        working.session.autonomous_router_batches_since_player = 0
-    else:
-        working.session.autonomous_router_batches_since_player += 1
+            install_dnd_reactions(working, batch)
+        _commit_prepared_character_drafts(working, dispatcher, normalized, batch)
+        _consume_and_extend_frontier(working, normalized, batch)
+        _close_resolved_contests(working, normalized, batch)
+        append_router_history(working, [item.record for item in batch.events])
+        if any(
+            item.envelope.kind in {"player", "authoritative_result"}
+            for item in normalized
+        ):
+            working.session.autonomous_router_batches_since_player = 0
+        else:
+            working.session.autonomous_router_batches_since_player += 1
+    except Exception as exc:
+        log_rejected_router_batch(
+            session_id=working.session.session_id,
+            correlation_id=batch.correlation_id,
+            stage="atomic_apply",
+            error=exc,
+            raw_output=batch.raw_output,
+            materialized=batch,
+        )
+        raise
 
     replace_checkpoint_state(checkpoint, working)
     lane_ids = [item.record.causal_lane_id for item in batch.events]

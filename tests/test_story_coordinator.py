@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 
 import pytest
 
@@ -72,8 +74,10 @@ class FakeDispatcher:
         outputs: list[RouterBatchOutput],
         *,
         parallel_draft_count: int = 1,
+        raw_outputs: list[str] | None = None,
     ):
         self.outputs = list(outputs)
+        self.raw_outputs = list(raw_outputs or [])
         self.route_inputs: list[list[object]] = []
         self.prepared_batches = 0
         self.committed_drafts: list[tuple[str, int]] = []
@@ -84,10 +88,16 @@ class FakeDispatcher:
 
     async def route_batch(self, *, ckpt, inputs):
         self.route_inputs.append(list(inputs))
+        output = self.outputs.pop(0)
         return materialize_router_batch(
             checkpoint=ckpt,
             inputs=inputs,
-            output=self.outputs.pop(0),
+            output=output,
+            raw_output=(
+                self.raw_outputs.pop(0)
+                if self.raw_outputs
+                else output.model_dump_json()
+            ),
         )
 
     async def prepare_batch(self, *, ckpt, batch, inputs, player_actor_ids):
@@ -554,3 +564,93 @@ async def test_adapter_failure_rolls_back_every_staged_batch_change() -> None:
             [player_input(ckpt, character_id="alice", payload="Try.")],
         )
     assert ckpt.model_dump() == before
+
+
+@pytest.mark.asyncio
+async def test_frontier_rejection_logs_exact_raw_router_batch(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    ckpt = checkpoint(
+        bindings={"alice": "1"},
+        characters=[
+            character_record("alice"),
+            character_record("bob"),
+            character_record("cara"),
+        ],
+    )
+    output = RouterBatchOutput(
+        events=[_event(
+            0,
+            observers=["alice", "bob", "cara"],
+            fact="One event leaves two possible responders under pressure.",
+        )],
+        next_turns=[
+            RouterNextTurn(
+                turn_kind="character",
+                actor_id="bob",
+                participant_ids=["bob"],
+                source_event_index=0,
+            ),
+            RouterNextTurn(
+                turn_kind="character",
+                actor_id="cara",
+                participant_ids=["cara"],
+                source_event_index=0,
+            ),
+        ],
+    )
+    raw_output = output.model_dump_json(indent=2)
+    dispatcher = FakeDispatcher([output], raw_outputs=[raw_output])
+    before = ckpt.model_dump()
+
+    with (
+        caplog.at_level(logging.ERROR, logger="app.engine.router_batch"),
+        pytest.raises(RuntimeError, match="concurrent work in one causal lane"),
+    ):
+        await advance_story(
+            ckpt,
+            dispatcher,
+            [player_input(ckpt, character_id="alice", payload="Ask them both.")],
+        )
+
+    rejection = next(
+        record.message.removeprefix("rejected router batch ")
+        for record in caplog.records
+        if record.message.startswith("rejected router batch ")
+    )
+    payload = json.loads(rejection)
+    assert payload["stage"] == "atomic_apply"
+    assert payload["raw_output"] == raw_output
+    assert [
+        item["actor_id"] for item in payload["materialized_next_turns"]
+    ] == ["bob", "cara"]
+    assert len({
+        item["lane_id"] for item in payload["materialized_next_turns"]
+    }) == 1
+    assert ckpt.model_dump() == before
+
+
+@pytest.mark.asyncio
+async def test_successful_batch_does_not_log_a_rejection(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    ckpt = checkpoint(
+        bindings={"alice": "1"},
+        characters=[character_record("alice")],
+    )
+    dispatcher = FakeDispatcher([RouterBatchOutput(
+        events=[_event(0, observers=["alice"], fact="Alice proceeds.")],
+        next_turns=[],
+    )])
+
+    with caplog.at_level(logging.ERROR, logger="app.engine.router_batch"):
+        await advance_story(
+            ckpt,
+            dispatcher,
+            [player_input(ckpt, character_id="alice", payload="Proceed.")],
+        )
+
+    assert not any(
+        record.message.startswith("rejected router batch ")
+        for record in caplog.records
+    )

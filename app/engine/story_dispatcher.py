@@ -9,7 +9,6 @@ this module.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
 import re
@@ -45,7 +44,12 @@ from app.engine.context_builder import (
     is_unbound_player_authored_slot,
 )
 from app.engine.prompt_manager import PromptManager
-from app.engine.router_batch import MaterializedRouterBatch, materialize_router_batch
+from app.engine.router_batch import (
+    MaterializedRouterBatch,
+    log_rejected_router_batch,
+    materialize_router_batch,
+    router_batch_correlation,
+)
 from app.llm.client import LLMClient
 from app.schemas.characters import CharacterStatus, is_non_social_hazard
 from app.schemas.checkpoint import CheckpointFile
@@ -527,9 +531,8 @@ class StoryDispatcher:
         if not inputs:
             raise ValueError("router batch cannot be empty")
         snapshot = _router_snapshot(ckpt)
-        correlation = hashlib.sha256(
-            "\x1f".join(item.submission_id for item in inputs).encode("utf-8")
-        ).hexdigest()[:12]
+        correlation = router_batch_correlation(inputs)
+        raw_output: str | None = None
         try:
             current_input = "\n".join(item.payload for item in inputs)
             actor_id = next(
@@ -595,15 +598,26 @@ class StoryDispatcher:
                 cache=True,
                 compact=True,
             )
+            raw_output = response.content
             _materialize_adapter_lifecycle(ckpt, response.parsed)
             materialized = materialize_router_batch(
                 checkpoint=ckpt,
                 inputs=inputs,
                 output=response.parsed,
+                correlation_id=correlation,
+                raw_output=raw_output,
             )
             return materialized
-        except Exception:
+        except Exception as exc:
             _restore_router_snapshot(ckpt, snapshot)
+            if raw_output is not None:
+                log_rejected_router_batch(
+                    session_id=ckpt.session.session_id,
+                    correlation_id=correlation,
+                    stage="materialization",
+                    error=exc,
+                    raw_output=raw_output,
+                )
             logger.exception("router batch %s failed", correlation)
             raise
 
