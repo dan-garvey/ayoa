@@ -2971,7 +2971,7 @@ class TestPostActorRenderCascade:
         monkeypatch,
         tmp_path: Path,
     ):
-        """thread.send raising → cached id is cleared and DM is tried."""
+        """A transient send failure can use DMs without invalidating the thread."""
         from app.bot.commands import _post_actor_render
 
         inter, user, smap, embeds, captured, _ = self._make_env(
@@ -2995,6 +2995,136 @@ class TestPostActorRenderCascade:
         assert venue == "dm"
         assert returned_thread is None
         assert len(captured["dm_sends"]) == 1
+        smap.clear_pov_thread.assert_not_awaited()
+
+    def test_invalid_payload_does_not_retry_dm_or_invalidate_thread(self, monkeypatch, tmp_path):
+        import discord
+        from app.bot.commands import _post_actor_render
+
+        inter, user, smap, embeds, captured, thread = self._make_env(
+            monkeypatch, tmp_path, thread_send_behavior="ok", dm_succeeds=True,
+        )
+        thread.send.side_effect = discord.HTTPException(
+            SimpleNamespace(status=400, reason="Bad Request"),
+            {"code": 50035, "message": "Invalid Form Body"},
+        )
+        result = asyncio.run(_post_actor_render(
+            inter=inter, smap=smap, user=user, character_id="alice", char_name="Alice",
+            embeds=embeds,
+        ))
+        assert result == ("none", None)
+        thread.send.assert_awaited_once()
+        user.send.assert_not_awaited()
+        smap.clear_pov_thread.assert_not_awaited()
+        smap.record_turn_message.assert_not_awaited()
+
+    @pytest.mark.parametrize("status", [404, 403])
+    def test_unavailable_thread_still_invalidates_cache_and_uses_dm(
+        self, monkeypatch, tmp_path, status,
+    ):
+        import discord
+        from app.bot.commands import _post_actor_render
+
+        inter, user, smap, embeds, captured, thread = self._make_env(
+            monkeypatch, tmp_path, thread_send_behavior="ok", dm_succeeds=True,
+        )
+        error_class = discord.NotFound if status == 404 else discord.Forbidden
+        thread.send.side_effect = error_class(
+            SimpleNamespace(status=status, reason="Unavailable"), "Unavailable",
+        )
+        result = asyncio.run(_post_actor_render(
+            inter=inter, smap=smap, user=user, character_id="alice", char_name="Alice",
+            embeds=embeds,
+        ))
+        assert result == ("dm", None)
+        smap.clear_pov_thread.assert_awaited_once_with(777, 42)
+        user.send.assert_awaited_once()
+
+    def test_non_payload_bad_request_can_still_use_dm(self, monkeypatch, tmp_path):
+        import discord
+        from app.bot.commands import _post_actor_render
+
+        inter, user, smap, embeds, _captured, thread = self._make_env(
+            monkeypatch, tmp_path, thread_send_behavior="ok", dm_succeeds=True,
+        )
+        thread.send.side_effect = discord.HTTPException(
+            SimpleNamespace(status=400, reason="Bad Request"),
+            {"code": 50083, "message": "Thread is archived"},
+        )
+        result = asyncio.run(_post_actor_render(
+            inter=inter, smap=smap, user=user, character_id="alice", char_name="Alice",
+            embeds=embeds,
+        ))
+        assert result == ("dm", None)
+        user.send.assert_awaited_once()
+        smap.clear_pov_thread.assert_not_awaited()
+
+    def test_saved_long_render_is_deliverable_after_payload_failure_and_reload(
+        self, monkeypatch, tmp_path,
+    ):
+        from datetime import datetime, timedelta, timezone
+        import discord
+        from app.bot.commands import _post_actor_render
+        from app.bot.embed import render_turn
+        from app.engine.checkpoint_manager import CheckpointManager
+        from app.engine.delivery_outbox import acknowledge_delivery, claim_deliveries
+        from app.engine.delivery_response import response_from_deliveries
+        from tests.support.factories import checkpoint
+
+        inter, user, smap, _embeds, _captured, thread = self._make_env(
+            monkeypatch, tmp_path, thread_send_behavior="ok", dm_succeeds=True,
+        )
+        ckpt = checkpoint(bindings={"alice": "42"})
+        prose = "x" * 8048
+        enqueue_delivery(
+            ckpt, pov_character_id="alice", source_event_ids=[], highest_event_sequence=-1,
+            payload=DeliveryPayload(
+                prose=prose, visual_novel=None, asset_reveals=[], reaction_prompt_event_id="",
+                loot_offer_ids=[], commitment_revision_ids=[], dice_rolls=[],
+                experience_awards=[], owner_error="",
+            ),
+        )
+        now = datetime.now(timezone.utc)
+        first = claim_deliveries(
+            ckpt, pov_character_id="alice", consumer_id="discord:42", now=now,
+        )[0]
+        manager = CheckpointManager(str(tmp_path / "sessions"))
+        checkpoint_id = manager.save(ckpt)
+        thread.send.side_effect = discord.HTTPException(
+            SimpleNamespace(status=400, reason="Bad Request"), {"code": 50035},
+        )
+
+        def deliver(state, entry):
+            response = response_from_deliveries(
+                session_id=state.session.session_id, checkpoint_id=checkpoint_id,
+                turn_index=state.session.turn_index, acting_character_id="alice",
+                deliveries=[entry],
+            )
+            return asyncio.run(_post_actor_render(
+                inter=inter, smap=smap, user=user, character_id="alice", char_name="Alice",
+                embeds=render_turn(output_text=response.output_text, turn_index=0, story_id="story"),
+            ))
+
+        assert deliver(ckpt, first) == ("none", None)
+        restored = manager.load_latest(ckpt.session.session_id)
+        assert restored.session.delivery_outbox[0].status == "claimed"
+        retry = claim_deliveries(
+            restored, pov_character_id="alice", consumer_id="discord:42",
+            now=now + timedelta(seconds=121),
+        )[0]
+        assert retry.delivery_id == first.delivery_id
+        assert retry.claim_token != first.claim_token
+        assert retry.payload.prose == prose
+        thread.send.side_effect = None
+        assert deliver(restored, retry) == ("thread", thread)
+        acknowledge_delivery(
+            restored, delivery_id=retry.delivery_id, claim_token=retry.claim_token,
+            consumer_id="discord:42",
+        )
+        manager.save(restored)
+        assert manager.load_latest(ckpt.session.session_id).session.delivery_outbox[0].status == "acknowledged"
+        user.send.assert_not_awaited()
+        smap.clear_pov_thread.assert_not_awaited()
 
     def test_no_thread_available_uses_dm(
         self,

@@ -1475,15 +1475,25 @@ async def _post_actor_render(
                 recipient_user_id=user.id,
             )
             return ("thread", thread)
-        except Exception:
+        except Exception as exc:
+            if (
+                isinstance(exc, discord.HTTPException)
+                and exc.status == 400
+                and exc.code == 50035
+            ):
+                # Invalid message data cannot be repaired by changing venues.
+                # Leave the delivery unacknowledged and the healthy thread cached.
+                logger.exception("post_actor_render: Discord rejected the message payload")
+                return ("none", None)
             logger.exception(
                 "post_actor_render: thread.send to %s failed; falling back to DM",
                 thread.id,
             )
-            await smap.clear_pov_thread(
-                _session_channel_id(inter),
-                user.id,
-            )
+            if isinstance(exc, (discord.NotFound, discord.Forbidden)):
+                await smap.clear_pov_thread(
+                    _session_channel_id(inter),
+                    user.id,
+                )
 
     try:
         msg = await user.send(

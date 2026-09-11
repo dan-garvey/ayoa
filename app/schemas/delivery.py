@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.narrator import (
+    PlayerProse,
     VisualNovelPage,
     visual_novel_pages_contain_source_identifiers,
 )
@@ -87,7 +88,7 @@ class DeliveryPayload(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    prose: str
+    prose: PlayerProse
     visual_novel: DeliveryVisualNovelRender | None
     asset_reveals: list[SafeAssetRevealPayload]
     reaction_prompt_event_id: str

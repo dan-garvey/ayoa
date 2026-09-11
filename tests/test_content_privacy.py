@@ -7,7 +7,33 @@ from app.schemas.content_privacy import (
     redact_imported_asset_text,
     redact_imported_content_metadata_text,
     sanitize_module_metadata,
+    sanitize_player_prose,
 )
+
+
+@pytest.mark.parametrize("redactor", [
+    redact_imported_asset_text, redact_imported_content_metadata_text, sanitize_player_prose,
+])
+def test_prose_redaction_preserves_authored_layout_and_is_idempotent(redactor):
+    prose = "First  sentence.\nA second line.\r\n\r\n\tA new paragraph."
+    assert redactor(prose) == prose
+    private = prose + "\n\nSee source_ref=\n\nactor.secret.\n\nThe door shuts."
+    safe = redactor(private)
+    assert "source_ref" not in safe
+    assert "actor.secret" not in safe
+    assert safe.startswith(prose)
+    assert safe.count("\n") == private.count("\n")
+    assert safe.endswith("\n\nThe door shuts.")
+    assert redactor(safe) == safe
+
+
+def test_multiline_private_term_redaction_preserves_paragraph_boundaries():
+    secret = "private first line\n\nprivate second line"
+    source = f"Visible.\n\n{secret}\n\nStill visible."
+    safe = redact_imported_content_metadata_text(source, protected_terms=[secret])
+    assert "private first" not in safe and "private second" not in safe
+    assert safe.count("\n\n") == 3
+    assert safe.startswith("Visible.\n\n") and safe.endswith("\n\nStill visible.")
 
 
 @pytest.mark.parametrize(

@@ -423,7 +423,6 @@ def _format_visible_events_block(
                 visible_facts,
                 key=lambda item: (
                     item[1].at_offset_s,
-                    item[1].duration_s,
                     item[0],
                 ),
             )

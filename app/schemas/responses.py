@@ -5,7 +5,7 @@ import re
 from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.content_privacy import (
-    redact_imported_asset_text,
+    sanitize_player_prose,
     sanitize_player_safe_text,
 )
 from app.schemas.content_pack import SafeAssetRevealPayload
@@ -144,16 +144,16 @@ class TurnResponse(BaseModel):
 
     @model_validator(mode="after")
     def _sanitize_player_output_surfaces(self) -> "TurnResponse":
-        self.output_text = redact_imported_asset_text(self.output_text)
+        self.output_text = sanitize_player_prose(self.output_text)
         self.per_player_renders = {
-            str(cid): redact_imported_asset_text(text)
+            str(cid): sanitize_player_prose(text)
             for cid, text in (self.per_player_renders or {}).items()
         }
         for render in (self.per_player_visual_novel_renders or {}).values():
             for segment in render.segments:
                 for page in segment.pages:
                     page.speaker = sanitize_player_safe_text(page.speaker)
-                    page.text = redact_imported_asset_text(page.text)
+                    page.text = sanitize_player_prose(page.text)
         self.asset_reveals = _safe_asset_payloads(self.asset_reveals)
         self.per_player_asset_reveals = {
             str(cid): _safe_asset_payloads(payloads)

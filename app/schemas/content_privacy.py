@@ -8,6 +8,12 @@ from urllib.parse import urlsplit
 
 REDACTED_IMPORT_SENTINEL = "[redacted private module material]"
 PRIVATE_RUNTIME_METADATA_CONTEXT = "include_private_runtime_metadata"
+_TRUNCATED_PUNCTUATION = str.maketrans({
+    "\x19": "’",
+    "\x1c": "“",
+    "\x1d": "”",
+})
+_FORBIDDEN_PROSE_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 FORBIDDEN_MODULE_METADATA_KEYS = {
     "action_palette",
@@ -245,14 +251,24 @@ def contains_imported_asset_sentinel(value: str) -> bool:
     return any(pattern.search(text) for pattern in _UNSAFE_TEXT_PATTERNS)
 
 
+def _redact_match(match: re.Match[str]) -> str:
+    """Mask private spans without consuming their line/paragraph boundaries."""
+
+    return re.sub(r"[^\r\n]+", REDACTED_IMPORT_SENTINEL, match.group())
+
+
+def _remove_metadata_sentence(match: re.Match[str]) -> str:
+    return re.sub(r"[^\r\n]+", " ", match.group())
+
+
 def redact_imported_asset_text(value: str) -> str:
     text = str(value or "")
     if not text:
         return ""
     text, protected_urls = _protect_http_urls(text)
     for pattern in _UNSAFE_TEXT_PATTERNS:
-        text = pattern.sub(REDACTED_IMPORT_SENTINEL, text)
-    return _restore_http_urls(" ".join(text.split()), protected_urls)
+        text = pattern.sub(_redact_match, text)
+    return _restore_http_urls(text.strip(), protected_urls)
 
 
 def redact_imported_content_metadata_text(
@@ -270,13 +286,29 @@ def redact_imported_content_metadata_text(
     for term in sorted(protected, key=len, reverse=True):
         if len(term) < 8:
             continue
-        text = re.sub(re.escape(term), REDACTED_IMPORT_SENTINEL, text)
+        text = re.sub(re.escape(term), _redact_match, text)
     for pattern in _UNSAFE_TEXT_PATTERNS:
-        text = pattern.sub(REDACTED_IMPORT_SENTINEL, text)
-    text = _CONTENT_METADATA_SENTENCE_RE.sub(" ", text)
+        text = pattern.sub(_redact_match, text)
+    text = _CONTENT_METADATA_SENTENCE_RE.sub(_remove_metadata_sentence, text)
     for pattern in _UNSAFE_CONTENT_METADATA_PATTERNS:
-        text = pattern.sub(REDACTED_IMPORT_SENTINEL, text)
-    return _restore_http_urls(" ".join(text.split()), protected_urls)
+        text = pattern.sub(_redact_match, text)
+    return _restore_http_urls(text.strip(), protected_urls)
+
+
+def sanitize_player_prose(value: str) -> str:
+    """Validate one prose surface before history, persistence, or transport.
+
+    The three observed low-byte curly-punctuation corruptions have an exact
+    repair. Other forbidden controls are not prose and must fail, not vanish.
+    Newlines, tabs, and authored paragraph layout survive privacy redaction.
+    """
+
+    text = value.translate(_TRUNCATED_PUNCTUATION)
+    if match := _FORBIDDEN_PROSE_CONTROL_RE.search(text):
+        raise ValueError(
+            f"player prose contains forbidden control U+{ord(match.group()):04X}"
+        )
+    return redact_imported_content_metadata_text(text)
 
 
 def sanitize_player_safe_text(

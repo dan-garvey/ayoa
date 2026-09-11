@@ -2,13 +2,23 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Sequence
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
+
+from app.schemas.content_privacy import sanitize_player_prose
+
+
+def _validate_prose_before_stripping(value: object) -> object:
+    return sanitize_player_prose(value) if isinstance(value, str) else value
+
+
+PlayerProse = Annotated[str, BeforeValidator(_validate_prose_before_stripping)]
+
 
 class TranscriptEntry(BaseModel):
     user: str
-    assistant: str
+    assistant: PlayerProse
 
 
 class NarratorFinalOutput(BaseModel):
@@ -23,7 +33,7 @@ class NarratorFinalOutput(BaseModel):
 
     handoff: Literal["render", "continue"]
     handoff_reason: str = Field(min_length=1, max_length=500)
-    final_text: str
+    final_text: PlayerProse
 
     @model_validator(mode="after")
     def _require_accepted_render_text(self) -> "NarratorFinalOutput":
@@ -42,8 +52,8 @@ class VisualNovelPage(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     kind: Literal["narration", "dialogue"]
-    speaker: str = Field(default="", max_length=80)
-    text: str = Field(min_length=1, max_length=4_000)
+    speaker: PlayerProse = Field(default="", max_length=80)
+    text: PlayerProse = Field(min_length=1, max_length=4_000)
     sprites: list[str] = Field(default_factory=list, max_length=2)
 
     @model_validator(mode="after")

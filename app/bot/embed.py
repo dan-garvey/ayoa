@@ -14,6 +14,8 @@ from app.schemas.checkpoint import CheckpointFile
 MAX_DESCRIPTION = 4096
 MAX_TITLE = 256
 MAX_TOTAL = 6000
+MAX_FOOTER = 2048
+_TRUNCATION_MARKER = "\n\n…"
 _FIELD_VALUE_MAX = 1024  # Discord's per-field value limit
 EMBED_COLOR_STORY = 0x5865F2  # Discord blurple
 EMBED_COLOR_ERROR = 0xED4245  # Discord red
@@ -45,20 +47,28 @@ def render_turn(
     """Render a narrator turn output to one or two embeds."""
     embeds: list[discord.Embed] = []
 
-    first, rest = _split_at_paragraph(output_text, MAX_DESCRIPTION)
+    footer = f"Turn {turn_index} · {story_id}"[:MAX_FOOTER]
+    first_limit = min(MAX_DESCRIPTION, MAX_TOTAL - len(footer))
+    first, rest = _split_at_paragraph(output_text, first_limit)
     primary = discord.Embed(description=first, color=EMBED_COLOR_STORY)
-    primary.set_footer(text=f"Turn {turn_index} · {story_id}")
+    primary.set_footer(text=footer)
     embeds.append(primary)
 
     if rest:
-        # Keep the second embed's description under the remaining budget.
-        remaining_budget = MAX_TOTAL - len(first) - len(primary.footer.text or "")
-        if remaining_budget <= 0:
-            remaining_budget = MAX_DESCRIPTION // 2  # sanity fallback
-        second_text, leftover = _split_at_paragraph(rest, min(MAX_DESCRIPTION, remaining_budget))
-        if leftover:
-            second_text = second_text.rstrip() + "\n\n…"
-        embeds.append(discord.Embed(description=second_text, color=EMBED_COLOR_STORY))
+        remaining_budget = min(MAX_DESCRIPTION, MAX_TOTAL - len(primary))
+        if remaining_budget < len(_TRUNCATION_MARKER):
+            primary.description = (
+                first[:first_limit - len(_TRUNCATION_MARKER)].rstrip()
+                + _TRUNCATION_MARKER
+            )
+        else:
+            second_text = rest
+            if len(rest) > remaining_budget:
+                second_text, _ = _split_at_paragraph(
+                    rest, remaining_budget - len(_TRUNCATION_MARKER),
+                )
+                second_text += _TRUNCATION_MARKER
+            embeds.append(discord.Embed(description=second_text, color=EMBED_COLOR_STORY))
 
     return embeds
 
