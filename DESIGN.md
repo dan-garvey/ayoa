@@ -945,85 +945,46 @@ After `run_beat()` returns, the orchestrator applies each closed event's:
 Movement is expressed in `observable_facts`. There is no separate router
 movement side-effect.
 
-### 6.7 Router-Selected Agent Turns
+### 6.7 Router-Selected Narrative Turns
 
-The router owns the fictional decision about who should produce the next
-in-world output. On any semantic event kind, observers with
-`routing_role="next_output"` form an ordered target list. The turn loop resolves
-that list against live bindings: the first bound human yields a player turn,
-while an autonomous target is prepared in parallel with the narrator's pacing
-judgment. The speculative branch uses isolated checkpoint state. If the
-narrator renders, the prepared branch and its agent/router memories are
-discarded. A substantive next player action supersedes that semantic frontier;
-`(defer)` instead resumes the latest still-dispatchable autonomous
-`next_output` without routing the deferral as a new fictional action. The
-deferral remains the submitted player input for the next narrator judgment, so
-its pacing history records that the previous handoff was declined. If the
-narrator chooses `continue`, the engine commits the prepared agent turn, strips
-presentation metadata, routes the public result back through the router, and
-lets the router decide whether another target is still needed.
-Additional `next_output` observers are ordered backlog or fallback candidates,
-not a simultaneous response group.
+The router's `next_turns` list selects whose contribution is narratively next,
+without choosing that character's words or actions. Each entry names a
+`turn_kind`, `actor_id`, `participant_ids`, and prompt-local `causal_group`.
+A group refers to a supplied input or canonical prior event, not an output-array
+index. When inputs merge, either input group resolves to their combined result;
+without a new event, the group's latest canonical event remains the anchor.
+A null group starts an independent character interaction. World continuations
+require an established source. Durable event, lane, and submission identities
+remain engine-owned and absent from model context.
 
-The same surface covers foreground responses, private branches, and background
-turns. Human-bound characters do not dispatch as agents. Visible facts
-accumulate in per-POV render buffers, and the narrator receives a pacing
-decision after each eligible event rather than only after target exhaustion.
-When no valid next-output target remains, `continue` may request one grounded
-router continuation for established motion or a submitted wait condition.
-Cat II, rules-adapter resolutions, queries, observation harvests, and safety
-caps force an immediate render. The router therefore does not need to know
-which character is controlled by a human.
+The single durable frontier preserves selection order. Overlapping lanes or
+participants run serially, including when a human or narrator gate blocks their
+head. Only disjoint heads prepare concurrently from the same immutable snapshot.
+An agent drafts an intention, one batched router call canonicalizes the prepared
+inputs, and one writer commits the result. A queued successor then drafts from
+the updated state and source; newer router selections supersede older conflicting
+selections. Adapters use this same frontier instead of a separate responder queue.
 
-The engine determines the agent frame from visibility, event kind, location
-updates, and player bindings, then enforces hard safety filters: no
-human-bound characters, no unknown or inactive characters, no pinned Cat II
-responders, no active combatants, and no actors blocked by pending D&D reaction
-or roll state. `public_fact` targets and targets whose location changes in the
-source event dispatch as background turns. The first such background ping gets
-a transient local-context block with current location and same-location active
-characters; that block is not persisted in the agent's rolling conversation.
+Live bindings determine dispatch, not selection validity. A bound human at the
+head forces visible narration to hand off; it never invokes a character agent.
+The request is advisory: any joined player may act, and it does not create a
+contested-action obligation. A matching reply or explicit defer consumes the
+selection. Claiming an autonomous character preserves its selection while
+changing its dispatch to human-owned. Unclaimed player-authored seats remain
+unavailable; historical spawn or activation facts cannot reactivate a character.
 
-Dormancy is explicit story state, not an inference from "has never appeared
-on-stage." An unseen autonomous person with `status=active`, an actor record,
-and `actor.may_act_offstage=true` may be picked by the router; a dormant
-character does not act until a router/spawn/authored state change activates
-them.
+Scheduling time and knowledge are separate. A character can act next after an
+unseen event, motivated by earlier information, but receives only witnessed
+facts. Agent observation cutoffs derive from their actual visible history;
+human cutoffs derive from acknowledged delivery. Causal source time orders
+work without granting its actor perception.
 
-Independent background threads are a second use of router actor authority, not
-another story scheduler. On a fresh accepted player turn, runtime supplies only
-the safe active autonomous initiator ids. The router's truthful focal observers,
-actor, responders, and depicted characters define who is engaged in the current
-event. If any eligible initiator remains semantically outside that event, the
-router must emit at least one `background_threads` selection. As foreground
-events reveal newly separate threads, the contract remains active; participants
-already selected in that player beat are withheld so each independent thread
-runs at most once, with four total selections as the safety cap. Each selection
-names one actor and the exact autonomous participants available in that separate
-thread. Runtime candidate discovery and grouping do not consult
-`CharacterRecord.location`; the existing generic router roster may still carry
-that field for ordinary movement contracts, but it is not scheduling authority.
-No scene map, fairness ledger, or background clock is persisted.
-
-Each concurrently selected set forks one common post-event checkpoint. Its
-character agent receives its own rolling history, witnessed inbox, and the router-selected
-participant set, then chooses one concrete action. The router canonicalizes one
-closed, zero-duration event. Different threads run concurrently with each other
-and with foreground narration or next-output preparation. A lasting task may
-open the ordinary commitment without a location label, but a background event
-cannot move characters, open another response frontier, schedule nested
-background work, change lifecycle or rules state, or observe or depict anyone
-outside its participants.
-
-Branches may change only the selected actor's record and conversation plus
-their appended compact router record. All results are validated against their
-selection-time source, then merged by the single live checkpoint writer in
-stable source-and-request order, regardless of completion order. A conflict,
-invalid result, or failed branch rejects the whole thread set loudly and restores the pre-merge
-checkpoint. The resulting canonical facts and actor memory persist for future
-turns, but no human render receives a scene with no human observer. This is a
-player-beat liveness boundary, not a wall-clock, faction-clock, or periodic
-simulation loop.
+Per-POV narration buffers retain only that viewpoint's facts, including across
+causal-lane merges. Frontier changes and exhausted continuations wake pending
+narration even when a batch adds no event. Restart can deliver pending handoffs
+without another player action or fabricated world motion. Failed narrator jobs
+retain their explicit retry path. Observer membership and per-fact recipients
+remain strict privacy contracts.
 
 ### 6.8 Begin, Arrive, Defer, And Query
 

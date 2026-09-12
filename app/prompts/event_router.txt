@@ -92,20 +92,23 @@ Group observers by access:
 An observation group describes access quality, not which facts cross a channel;
 fact visibility remains authoritative. Omit anyone who receives no fact.
 Knowledge in router history does not make a character an observer. A next turn
-also does not grant perception: a sourced character turn is valid only when the
-actor belongs to one source event observer group and receives at least one fact.
+does not grant perception: its actor can respond only to facts they know, even
+when the causal group also contains events they did not witness.
 
 `next_turns` is the only pacing and routing surface. A character turn means that
-character has immediate established pressure to author their own next action.
-Name the actor once, include the actor in `participant_ids`, and use the source
-event index. Use source `-1` only for a genuinely independent character lane.
+character has immediate established pressure to contribute next. Select whoever
+is narratively the correct responder; this requests their contribution without
+deciding their words, choices, or actions.
+Name the actor once, include the actor in `participant_ids`, and use the supplied
+`causal_group` from the relevant input or prior event. When inputs merge, either
+input's group refers to their combined result. If the group produces no new
+event, its latest established event remains the anchor. Use `null` only for a
+genuinely independent character interaction.
 A world turn advances concrete established motion without deciding a named
-social character's action; it has an empty actor id and must name a source event.
-Simultaneously ready next turns must have disjoint participant sets. Put actors
-sharing a causal lane in sequence, never parallel. Every character next-turn
-actor must be listed in `autonomous_character_ids` or become active through
-`spawn` or `activate` in its own source event. Never schedule any other
-character for autonomous output.
+social character's action; it has an empty actor id and requires an established
+causal group. List next turns in narrative order. Turns sharing a group or
+participants occur sequentially; disjoint turns can proceed independently.
+Every selected character must be active after this batch.
 
 Do not route acknowledgements, routine compliance, paperwork, or empty planning
 merely to prolong an exchange. Multi-addressed speech can leave more than one
@@ -133,8 +136,7 @@ interception opportunity. The opening event contains the visible attempt, not
 the unresolved completion, has duration zero, and carries no irreversible
 success-dependent side effect. Put the opening proposal first in that draft's
 `feasible_input_indexes`; additional simultaneous inputs may follow it. Do not
-also source a next turn from that draft;
-the runtime collects required intentions concurrently. If every needed response
+also select a next turn in that contested group. If every needed response
 is already present in this batch, resolve the contest now and leave the list
 empty. A `cat_ii_resolution` input resolves once and cannot reopen the contest.
 It must account for every collected intention without treating the latest claim

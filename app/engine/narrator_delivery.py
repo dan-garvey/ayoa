@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Protocol
 
 from app.engine.delivery_outbox import enqueue_delivery
+from app.engine.event_runtime import frontier_head_turns
 from app.engine.narrator import (
     commit_pov_render,
     resolve_buffered_events_for_render,
@@ -196,13 +197,11 @@ def _handoff_for_job(
             "The visible event has reached a consequential choice owned by "
             "this viewpoint character.",
         )
-    turns = [
-        turn
-        for turn in checkpoint.session.router_frontier
-        if turn.lane_id == job.lane_id
-    ]
+    turns = frontier_head_turns(checkpoint, lane_id=job.lane_id)
     if not turns:
         return "forced", "No established motion remains before player control."
+    if any(turn.actor_id in checkpoint.session.character_bindings for turn in turns):
+        return "forced", "The next contribution belongs to a player."
     roster = {item.character_id: item.name for item in checkpoint.characters}
     descriptions = [
         (
@@ -214,6 +213,63 @@ def _handoff_for_job(
         for turn in turns
     ]
     return "candidate", "; ".join(descriptions) + "."
+
+
+def pending_handoff_lanes(
+    checkpoint: CheckpointFile, *, force: bool = False,
+) -> list[str]:
+    """Wake undelivered narration without inventing another story event.
+
+    Failed jobs require the explicit retry path; pending jobs can either expose
+    a human/empty frontier or release work still waiting for narrator timing.
+    """
+
+    return list(dict.fromkeys(
+        job.lane_id for job in checkpoint.session.narrator_render_jobs
+        if job.status == "pending" and (
+            force or _handoff_for_job(checkpoint, job)[0] == "forced"
+            or any(
+                job.pov_character_id in turn.gating_pov_ids
+                for turn in frontier_head_turns(checkpoint, lane_id=job.lane_id)
+                if turn.lane_id == job.lane_id
+            )
+        )
+    ))
+
+
+def merge_narrator_lanes(
+    checkpoint: CheckpointFile,
+    aliases: dict[str, str],
+) -> None:
+    """Carry each POV's own buffered refs into a newly combined causal lane."""
+
+    jobs: dict[tuple[str, str], NarratorRenderJob] = {}
+    for job in checkpoint.session.narrator_render_jobs:
+        job.lane_id = aliases.get(job.lane_id, job.lane_id)
+        key = (job.lane_id, job.pov_character_id)
+        existing = jobs.get(key)
+        if existing is None:
+            jobs[key] = job
+            continue
+        refs = {ref.event_id: ref for ref in [*existing.event_refs, *job.event_refs]}
+        existing.event_refs = sorted(
+            refs.values(), key=lambda ref: (ref.visible_at_s, ref.event_sequence),
+        )
+        existing.source_event_ids = [ref.event_id for ref in existing.event_refs]
+        existing.highest_event_sequence = max(ref.event_sequence for ref in existing.event_refs)
+        if job.user_input:
+            existing.user_input = job.user_input
+        existing.partial_mode |= job.partial_mode
+        if job.narration_mode == "compressed_sequence":
+            existing.narration_mode = job.narration_mode
+        for field_name in ("dice_rolls", "experience_awards"):
+            values = getattr(existing, field_name)
+            values.extend(value for value in getattr(job, field_name) if value not in values)
+        existing.attempts += job.attempts
+        if job.status == "failed":
+            existing.status = "failed"
+            existing.last_error = job.last_error
+    checkpoint.session.narrator_render_jobs = list(jobs.values())
 
 
 async def process_narrator_lane(
@@ -348,6 +404,7 @@ async def process_narrator_lanes(
     dispatcher: NarratorDispatcher,
     *,
     lane_ids: Iterable[str],
+    force_handoff: bool = False,
 ) -> list[NarratorLaneOutcome]:
     """Process independent lanes concurrently from one immutable event state."""
 
@@ -372,6 +429,7 @@ async def process_narrator_lanes(
         handoff_policy, handoff_context = _handoff_for_job(checkpoint, job)
         if force:
             handoff_policy = "forced"
+            handoff_context = "Pause here for the next player contribution."
         result, transcript = await dispatcher.narrator_compose(
             ckpt=checkpoint,
             character_id=job.pov_character_id,
@@ -386,7 +444,7 @@ async def process_narrator_lanes(
 
     flattened = [job for lane_id in ordered for job in jobs_by_lane[lane_id]]
     raw = list(await asyncio.gather(
-        *(_one(job) for job in flattened),
+        *(_one(job, force=force_handoff) for job in flattened),
         return_exceptions=True,
     ))
     lane_cursor = 0

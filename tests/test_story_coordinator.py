@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 
 import pytest
@@ -264,7 +263,7 @@ async def test_successful_render_gates_frontier_until_a_pov_acts() -> None:
             turn_kind="character",
             actor_id="bob",
             participant_ids=["bob"],
-            source_event_index=0,
+            causal_group=0,
         )],
     )])
     result = await advance_story(
@@ -306,7 +305,7 @@ async def test_newer_frontier_supersedes_an_overlapping_gated_turn() -> None:
             turn_kind="character",
             actor_id="bob",
             participant_ids=["bob", "cara"],
-            source_event_index=0,
+            causal_group=0,
         )],
     )])
 
@@ -342,13 +341,13 @@ async def test_narrator_failure_gates_only_its_causal_lane() -> None:
                 turn_kind="character",
                 actor_id="bob",
                 participant_ids=["bob"],
-                source_event_index=0,
+                causal_group=0,
             ),
             RouterNextTurn(
                 turn_kind="character",
                 actor_id="cara",
                 participant_ids=["cara"],
-                source_event_index=1,
+                causal_group=1,
             ),
         ],
     )])
@@ -460,7 +459,7 @@ async def test_followup_drafting_overlaps_narrator_rendering() -> None:
             turn_kind="character",
             actor_id="bob",
             participant_ids=["bob"],
-            source_event_index=-1,
+            causal_group=None,
         )],
     )])
 
@@ -569,7 +568,7 @@ async def test_adapter_failure_rolls_back_every_staged_batch_change() -> None:
 
 
 @pytest.mark.asyncio
-async def test_frontier_rejection_logs_exact_raw_router_batch(
+async def test_same_lane_next_turns_are_serialized_without_rejecting_batch(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     ckpt = checkpoint(
@@ -591,45 +590,29 @@ async def test_frontier_rejection_logs_exact_raw_router_batch(
                 turn_kind="character",
                 actor_id="bob",
                 participant_ids=["bob"],
-                source_event_index=0,
+                causal_group=0,
             ),
             RouterNextTurn(
                 turn_kind="character",
                 actor_id="cara",
                 participant_ids=["cara"],
-                source_event_index=0,
+                causal_group=0,
             ),
         ],
     )
     raw_output = output.model_dump_json(indent=2)
     dispatcher = FakeDispatcher([output], raw_outputs=[raw_output])
-    before = ckpt.model_dump()
-
-    with (
-        caplog.at_level(logging.ERROR, logger="app.engine.router_batch"),
-        pytest.raises(RuntimeError, match="concurrent work in one causal lane"),
-    ):
+    with caplog.at_level(logging.ERROR, logger="app.engine.router_batch"):
         await advance_story(
             ckpt,
             dispatcher,
             [player_input(ckpt, character_id="alice", payload="Ask them both.")],
         )
 
-    rejection = next(
-        record.message.removeprefix("rejected router batch ")
-        for record in caplog.records
-        if record.message.startswith("rejected router batch ")
-    )
-    payload = json.loads(rejection)
-    assert payload["stage"] == "atomic_apply"
-    assert payload["raw_output"] == raw_output
-    assert [
-        item["actor_id"] for item in payload["materialized_next_turns"]
-    ] == ["bob", "cara"]
-    assert len({
-        item["lane_id"] for item in payload["materialized_next_turns"]
-    }) == 1
-    assert ckpt.model_dump() == before
+    assert not caplog.records
+    assert [turn.actor_id for turn in ckpt.session.router_frontier] == ["bob", "cara"]
+    release_frontier_gates_for_pov_action(ckpt, "alice")
+    assert [turn.actor_id for turn in ready_frontier_turns(ckpt)] == ["bob"]
 
 
 @pytest.mark.asyncio
@@ -650,7 +633,7 @@ async def test_fresh_actor_turn_does_not_reuse_an_active_sourced_lane() -> None:
             turn_kind="character",
             actor_id="bob",
             participant_ids=["bob"],
-            source_event_index=-1,
+            causal_group=None,
         )],
     )
     first_batch = materialize_router_batch(
@@ -678,13 +661,13 @@ async def test_fresh_actor_turn_does_not_reuse_an_active_sourced_lane() -> None:
                 turn_kind="character",
                 actor_id="cara",
                 participant_ids=["cara"],
-                source_event_index=0,
+                causal_group=0,
             ),
             RouterNextTurn(
                 turn_kind="character",
                 actor_id="bob",
                 participant_ids=["bob"],
-                source_event_index=-1,
+                causal_group=None,
             ),
         ],
     )

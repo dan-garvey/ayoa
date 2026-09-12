@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Iterable
 
 from app.engine.character_agent import CharacterAgentTurnDraft
+from app.engine.context_builder import is_unbound_player_authored_slot
 from app.engine.event_runtime import (
     autonomous_character_is_eligible,
     autonomous_character_is_ready,
@@ -23,12 +24,14 @@ from app.engine.event_runtime import (
     close_cat_ii,
     collect_cat_ii_intention,
     commit_event_batch,
+    frontier_head_turns,
     open_cat_ii,
     set_action_obligation,
     visible_facts_for,
 )
 from app.engine.narrator_delivery import (
     NarratorLaneOutcome,
+    merge_narrator_lanes,
     process_narrator_lanes,
 )
 from app.engine.router_batch import (
@@ -38,7 +41,7 @@ from app.engine.router_batch import (
 )
 from app.engine.story_dispatcher import StoryDispatcher, append_router_history
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.characters import CharacterStatus, is_player_authored_slot
+from app.schemas.characters import CharacterStatus
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.event_router import (
     MAX_ROUTER_BATCH_INPUTS,
@@ -185,6 +188,19 @@ def player_input(
         checkpoint,
         character_id,
     )
+    selected = next((
+        turn for turn in checkpoint.session.router_frontier
+        if kind == "player" and turn.turn_kind == "character"
+        and turn.actor_id == character_id
+    ), None)
+    # A human reply consumes the same selection as an agent reply. Its causal
+    # anchor orders the action, but only acknowledged facts describe knowledge.
+    causal_ids = list(selected.source_event_ids) if selected else source_ids
+    causal_at_s = max((
+        _event_by_id(checkpoint, event_id).effective_at_s
+        + _event_by_id(checkpoint, event_id).duration_s
+        for event_id in causal_ids
+    ), default=0)
     revision = checkpoint.session.turn_index + 1
     envelope = RouterInputEnvelope(
         submission_id=_stable_id(
@@ -195,17 +211,20 @@ def player_input(
             payload,
         ),
         input_index=0,
-        lane_id=_player_lane(checkpoint, character_id, source_ids),
+        lane_id=selected.lane_id if selected else _player_lane(checkpoint, character_id, source_ids),
         kind=kind,
         actor_ids=[character_id],
-        participant_ids=[character_id],
-        source_event_ids=source_ids,
-        chosen_at_s=max(_character_clock(checkpoint, character_id), observed_at_s),
+        participant_ids=list(selected.participant_ids) if selected else [character_id],
+        source_event_ids=causal_ids,
+        chosen_at_s=max(_character_clock(checkpoint, character_id), observed_at_s, causal_at_s),
         observed_through_event_sequence=observed_sequence,
         observed_through_s=observed_at_s,
         payload=payload.strip(),
     )
-    return PreparedRouterInput(envelope=envelope)
+    return PreparedRouterInput(
+        envelope=envelope,
+        frontier_turn_id=selected.turn_id if selected else "",
+    )
 
 
 def release_frontier_gates_for_pov_action(
@@ -228,10 +247,6 @@ def release_frontier_gates_for_pov_action(
     return released
 
 
-def _frontier_sort_key(turn: FrontierTurn) -> tuple[int, str]:
-    return turn.created_event_sequence, turn.turn_id
-
-
 def ready_frontier_turns(
     checkpoint: CheckpointFile,
     *,
@@ -245,25 +260,26 @@ def ready_frontier_turns(
     preferred_lanes = set(preferred_lane_ids or ())
     preferred_participants = set(preferred_participant_ids or ())
     excluded = set(excluded_turn_ids or ())
-    lanes: set[str] = set()
-    participants: set[str] = set()
+    contested_sources = {event.opening_event_id for event in checkpoint.session.open_cat_ii_events}
+    contested_lanes = {
+        event.causal_lane_id for event in checkpoint.canonical_events
+        if event.event_id in contested_sources
+    }
     selected: list[FrontierTurn] = []
     candidates = sorted(
-        checkpoint.session.router_frontier,
-        key=lambda turn: (
+        frontier_head_turns(checkpoint),
+        key=lambda turn:
             0
             if turn.lane_id in preferred_lanes
             or bool(preferred_participants.intersection(turn.participant_ids))
             else 1,
-            *_frontier_sort_key(turn),
-        ),
     )
     for turn in candidates:
         if len(selected) >= max(0, limit):
             break
-        if turn.turn_id in excluded or turn.gating_pov_ids or turn.lane_id in lanes:
+        if turn.turn_id in excluded or turn.gating_pov_ids:
             continue
-        if participants.intersection(turn.participant_ids):
+        if turn.lane_id in contested_lanes or contested_sources.intersection(turn.source_event_ids):
             continue
         if turn.turn_kind == "character":
             if not autonomous_character_is_ready(checkpoint, turn.actor_id):
@@ -274,8 +290,6 @@ def ready_frontier_turns(
         ):
             continue
         selected.append(turn)
-        lanes.add(turn.lane_id)
-        participants.update(turn.participant_ids)
     return selected
 
 
@@ -318,8 +332,6 @@ def _source_context(
     for event_id in turn.source_event_ids:
         event = _event_by_id(checkpoint, event_id)
         facts = visible_facts_for(event, turn.actor_id) if turn.actor_id else []
-        if turn.actor_id and not facts:
-            raise RuntimeError("frontier actor did not observe its causal source")
         lines.extend(fact.text for fact in facts)
     return "\n".join(line.strip() for line in lines if line.strip())
 
@@ -337,11 +349,7 @@ async def prepare_frontier_inputs(
     )
 
     async def _prepare(turn: FrontierTurn) -> PreparedRouterInput:
-        observed_sequence = max(
-            (_event_sequence(checkpoint, item) for item in turn.source_event_ids),
-            default=-1,
-        )
-        observed_at_s = max(
+        causal_at_s = max(
             (
                 _event_by_id(checkpoint, item).effective_at_s
                 + _event_by_id(checkpoint, item).duration_s
@@ -350,7 +358,16 @@ async def prepare_frontier_inputs(
             default=0,
         )
         draft: CharacterAgentTurnDraft | None = None
+        observed_sequence, observed_at_s = -1, 0
         if turn.turn_kind == "character":
+            for sequence, event in enumerate(checkpoint.canonical_events):
+                facts = visible_facts_for(event, turn.actor_id)
+                if facts:
+                    observed_sequence = sequence
+                    observed_at_s = max(observed_at_s, *(
+                        event.effective_at_s + fact.at_offset_s + fact.duration_s
+                        for fact in facts
+                    ))
             snapshot = CheckpointFile.model_validate_json(frozen)
             draft = await dispatcher.draft_character_turn(
                 ckpt=snapshot,
@@ -374,6 +391,7 @@ async def prepare_frontier_inputs(
                 participant_ids=list(turn.participant_ids),
                 source_event_ids=list(turn.source_event_ids),
                 chosen_at_s=max(
+                    causal_at_s,
                     observed_at_s,
                     _character_clock(checkpoint, turn.actor_id)
                     if turn.actor_id
@@ -567,18 +585,62 @@ def _consume_and_extend_frontier(
     prepared: list[PreparedRouterInput],
     batch: MaterializedRouterBatch,
 ) -> None:
-    consumed = {
-        item.frontier_turn_id for item in prepared if item.frontier_turn_id
-    }
+    _advance_frontier(
+        checkpoint,
+        consumed={item.frontier_turn_id for item in prepared if item.frontier_turn_id},
+        consequences=[
+            (proposal.envelope.lane_id, set(proposal.envelope.participant_ids), item.record)
+            for item in batch.events for proposal in prepared
+            if proposal.envelope.submission_id in item.record.source_submission_ids
+        ],
+        next_turns=batch.next_turns,
+    )
+
+
+def _advance_frontier(
+    checkpoint: CheckpointFile,
+    *,
+    consumed: set[str],
+    consequences: list[tuple[str, set[str], CanonicalEventRecord]],
+    next_turns: Iterable[FrontierTurn] = (),
+) -> None:
     checkpoint.session.router_frontier = [
         item
         for item in checkpoint.session.router_frontier
         if item.turn_id not in consumed
     ]
-    newly_occupied_lanes = {item.lane_id for item in batch.next_turns}
+    # Serial followers must draft after their predecessors' actual results,
+    # not from the snapshot that originally selected the whole sequence.
+    for turn in checkpoint.session.router_frontier:
+        sources = list({
+            event.event_id: event for lane, participants, event in consequences
+            if lane == turn.lane_id or participants.intersection(turn.participant_ids)
+        }.values())
+        if sources:
+            turn.source_event_ids = [source.event_id for source in sources]
+            if len(sources) == 1:
+                turn.lane_id = sources[0].causal_lane_id
+            turn.created_event_sequence = max(
+                _event_sequence(checkpoint, source.event_id) for source in sources
+            )
+            turn.gating_pov_ids = list(dict.fromkeys(
+                pov for source in sources for pov in source.observer_ids
+                if pov in checkpoint.session.character_bindings
+            ))
+    _extend_frontier(checkpoint, next_turns)
+
+
+def _extend_frontier(
+    checkpoint: CheckpointFile,
+    turns: Iterable[FrontierTurn],
+) -> None:
+    """Replace superseded selections, preserving new narrative list order."""
+
+    selected = list(turns)
+    newly_occupied_lanes = {item.lane_id for item in selected}
     newly_occupied_participants = {
         character_id
-        for item in batch.next_turns
+        for item in selected
         for character_id in item.participant_ids
     }
     superseded = [
@@ -599,29 +661,11 @@ def _consume_and_extend_frontier(
             if item.turn_id not in superseded_ids
         ]
     existing = {item.turn_id for item in checkpoint.session.router_frontier}
-    occupied_lanes = {
-        item.lane_id for item in checkpoint.session.router_frontier
-    }
-    occupied_participants = {
-        character_id
-        for item in checkpoint.session.router_frontier
-        for character_id in item.participant_ids
-    }
-    for turn in batch.next_turns:
+    for turn in selected:
         if turn.turn_id in existing:
             raise RuntimeError("router frontier contains a duplicate turn id")
-        if turn.lane_id in occupied_lanes:
-            raise RuntimeError("router produced concurrent work in one causal lane")
-        overlap = occupied_participants.intersection(turn.participant_ids)
-        if overlap:
-            raise RuntimeError(
-                "router frontier contains concurrent shared participants: "
-                + ", ".join(sorted(overlap))
-            )
         checkpoint.session.router_frontier.append(turn)
         existing.add(turn.turn_id)
-        occupied_lanes.add(turn.lane_id)
-        occupied_participants.update(turn.participant_ids)
 
 
 def _append_adapter_frontier(
@@ -634,22 +678,13 @@ def _append_adapter_frontier(
     roster = {item.character_id: item for item in checkpoint.characters}
     bound = set(checkpoint.session.character_bindings)
     candidates = list(dict.fromkeys(actor_ids))
-    autonomous = [character_id for character_id in candidates if character_id not in bound]
-    if len(autonomous) > 1:
-        raise RuntimeError("adapter returned ambiguous simultaneous follow-up actors")
+    turns: list[FrontierTurn] = []
     for character_id in candidates:
         character = roster.get(character_id)
         if character is None or character.status != CharacterStatus.active:
             raise RuntimeError("adapter follow-up actor is not active")
-        if character_id not in event.observer_ids or not visible_facts_for(
-            event,
-            character_id,
-        ):
-            raise RuntimeError("adapter follow-up actor did not observe its source")
-        if character_id in bound:
-            continue
-        if is_player_authored_slot(character):
-            raise RuntimeError("adapter cannot automate a player-authored character")
+        if is_unbound_player_authored_slot(checkpoint, character):
+            raise RuntimeError("adapter cannot select an unclaimed player-authored character")
         participants = list(dict.fromkeys([character_id, *event.actor_ids]))
         turn = FrontierTurn(
             turn_id=_stable_id(
@@ -670,13 +705,8 @@ def _append_adapter_frontier(
                 if observer_id in bound
             ],
         )
-        if any(
-            existing.lane_id == turn.lane_id
-            or set(existing.participant_ids).intersection(turn.participant_ids)
-            for existing in checkpoint.session.router_frontier
-        ):
-            raise RuntimeError("adapter follow-up conflicts with the live frontier")
-        checkpoint.session.router_frontier.append(turn)
+        turns.append(turn)
+    _extend_frontier(checkpoint, turns)
 
 
 async def commit_adapter_resolution(
@@ -699,6 +729,13 @@ async def commit_adapter_resolution(
 
     event = resolution.event
     type(event).model_validate(event.model_dump())
+    selected_by_actor: dict[str, FrontierTurn] = {}
+    for turn in working.session.router_frontier:
+        if turn.actor_id in event.actor_ids:
+            selected_by_actor.setdefault(turn.actor_id, turn)
+    merge_narrator_lanes(working, {
+        turn.lane_id: event.causal_lane_id for turn in selected_by_actor.values()
+    })
     commit_event_batch(
         working,
         [event],
@@ -710,6 +747,14 @@ async def commit_adapter_resolution(
                 award.model_dump() for award in resolution.experience_awards
             ],
         },
+    )
+    _advance_frontier(
+        working,
+        consumed={turn.turn_id for turn in selected_by_actor.values()},
+        consequences=[
+            (event.causal_lane_id, set(event.actor_ids), event),
+            *((turn.lane_id, set(turn.participant_ids), event) for turn in selected_by_actor.values()),
+        ],
     )
     _append_adapter_frontier(
         working,
@@ -862,6 +907,9 @@ async def advance_story(
             user_input_by_pov=user_input_by_pov,
         )
     working = immutable_checkpoint(checkpoint)
+    previous_frontier = {
+        turn.turn_id: turn.model_dump() for turn in working.session.router_frontier
+    }
     batch = await dispatcher.route_batch(
         ckpt=working,
         inputs=[item.envelope for item in normalized],
@@ -889,6 +937,11 @@ async def advance_story(
             )
             if character_id in bound
         }
+        merge_narrator_lanes(working, {
+            proposal.envelope.lane_id: event.record.causal_lane_id
+            for event in batch.events for proposal in normalized
+            if proposal.envelope.submission_id in event.record.source_submission_ids
+        })
         commit_event_batch(
             working,
             [item.record for item in batch.events],
@@ -923,7 +976,18 @@ async def advance_story(
         raise
 
     replace_checkpoint_state(checkpoint, working)
-    lane_ids = [item.record.causal_lane_id for item in batch.events]
+    current_frontier = {
+        turn.turn_id: turn.model_dump() for turn in checkpoint.session.router_frontier
+    }
+    changed_turn_ids = {
+        turn_id for turn_id in previous_frontier.keys() | current_frontier.keys()
+        if previous_frontier.get(turn_id) != current_frontier.get(turn_id)
+    }
+    lane_ids = [
+        *(value["lane_id"] for turn_id, value in previous_frontier.items() if turn_id in changed_turn_ids),
+        *(value["lane_id"] for turn_id, value in current_frontier.items() if turn_id in changed_turn_ids),
+        *(item.record.causal_lane_id for item in batch.events),
+    ]
     lane_outcomes, prepared_followups = await _narrate_and_prepare_followups(
         checkpoint,
         dispatcher,

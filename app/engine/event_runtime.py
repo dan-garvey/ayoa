@@ -29,7 +29,7 @@ from app.engine.visual_context import (
 from app.schemas.characters import CharacterStatus, is_non_social_hazard
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.delivery import NarratorEventRef, NarratorRenderJob
-from app.schemas.event_router import CanonicalEventRecord
+from app.schemas.event_router import CanonicalEventRecord, FrontierTurn
 from app.schemas.events import ObservableFact
 from app.schemas.state import (
     ActionObligation,
@@ -46,10 +46,41 @@ def utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def frontier_head_turns(
+    checkpoint: CheckpointFile,
+    *,
+    lane_id: str | None = None,
+) -> list[FrontierTurn]:
+    """Find independent heads of the ordered frontier, including human waits.
+
+    A blocked turn still reserves its lane and participants. Later intersecting
+    work cannot jump it, including transitive conflicts across merged lanes.
+    """
+
+    roots_by_lane: dict[str, set[str]] = {}
+    roots_by_participant: dict[str, set[str]] = {}
+    heads: list[FrontierTurn] = []
+    for turn in checkpoint.session.router_frontier:
+        roots = set(roots_by_lane.get(turn.lane_id, ()))
+        for participant in turn.participant_ids:
+            roots.update(roots_by_participant.get(participant, ()))
+        if not roots:
+            heads.append(turn)
+            roots.add(turn.turn_id)
+        roots_by_lane[turn.lane_id] = roots
+        for participant in turn.participant_ids:
+            roots_by_participant[participant] = roots
+    if lane_id is None:
+        return heads
+    return [turn for turn in heads if turn.turn_id in roots_by_lane.get(lane_id, ())]
+
+
 def visible_facts_for(
     event: CanonicalEventRecord,
     character_id: str,
 ) -> list[ObservableFact]:
+    if character_id not in event.observer_ids:
+        return []
     return [
         fact
         for fact in event.observable_facts

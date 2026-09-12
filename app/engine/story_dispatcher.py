@@ -611,6 +611,8 @@ class StoryDispatcher:
         )
         if character is None:
             raise ValueError(f"unknown character turn actor {character_id!r}")
+        if character_id in ckpt.session.character_bindings:
+            raise RuntimeError("a player-owned character cannot be drafted by an agent")
         if is_unbound_player_authored_slot(ckpt, character):
             raise RuntimeError("an unclaimed player-authored character cannot act")
         return await self.character_agent.draft_turn(

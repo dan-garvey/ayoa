@@ -14,6 +14,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from app.engine.context_builder import is_unbound_player_authored_slot
+from app.engine.router_prompt_projection import causal_groups
 from app.schemas.characters import (
     CharacterStatus,
     is_non_social_hazard,
@@ -415,8 +417,28 @@ def materialize_router_batch(
     }
     revision = checkpoint.session.turn_index + 1
     records: list[MaterializedEvent] = []
-    records_by_draft: dict[int, CanonicalEventRecord] = {}
-    sequence_by_draft: dict[int, int] = {}
+    groups_by_lane = causal_groups(checkpoint, inputs)
+    sources_by_group = {
+        groups_by_lane[event.causal_lane_id]: event
+        for event in checkpoint.canonical_events
+    }
+    sequences = {
+        event.event_id: sequence
+        for sequence, event in enumerate(checkpoint.canonical_events)
+    }
+    resolving_sources = {
+        event_id
+        for envelope in inputs
+        if envelope.kind == "cat_ii_resolution"
+        for event_id in envelope.source_event_ids
+    }
+    contested_groups = {
+        groups_by_lane[event.causal_lane_id]
+        for event in checkpoint.canonical_events
+        for contest in checkpoint.session.open_cat_ii_events
+        if event.event_id == contest.opening_event_id
+        and event.event_id not in resolving_sources
+    }
     feasible_ids: list[str] = []
     infeasible_ids: list[str] = []
 
@@ -474,8 +496,15 @@ def materialize_router_batch(
             "activate": list(draft.activate),
             **_adapter_record_fields(draft),
         })
-        records_by_draft[draft_index] = record
-        sequence_by_draft[draft_index] = len(checkpoint.canonical_events) + len(records)
+        # All input-group aliases of a merge select the combined result, not
+        # an older event that happened to have one of its input lane ids.
+        selected_groups = {groups_by_lane[envelope.lane_id] for envelope in selected}
+        if draft.required_responders or selected_groups.intersection(contested_groups):
+            contested_groups.update(selected_groups)
+        for envelope in selected:
+            group = groups_by_lane[envelope.lane_id]
+            sources_by_group[group] = record
+        sequences[record.event_id] = len(checkpoint.canonical_events) + len(records)
         records.append(MaterializedEvent(
             draft_index=draft_index,
             record=record,
@@ -494,32 +523,30 @@ def materialize_router_batch(
         for character in checkpoint.characters
         if character.status == CharacterStatus.active
     }
+    newly_spawned: set[str] = set()
+    for item in records:
+        newly_spawned.update(request.character_id for request in item.record.spawn)
+        known_active.update(request.character_id for request in item.record.spawn)
+        known_active.update(signal.character_id for signal in item.record.activate)
+        known_active.difference_update([*item.record.dormant, *item.record.cull])
     for turn_index, turn in enumerate(output.next_turns):
-        source = records_by_draft.get(turn.source_event_index)
-        sourced_spawns = (
-            {request.character_id for request in source.spawn}
-            if source is not None
-            else set()
-        )
-        sourced_activations = (
-            {signal.character_id for signal in source.activate}
-            if source is not None
-            else set()
-        )
+        source = sources_by_group.get(turn.causal_group)
+        if turn.causal_group is not None:
+            if turn.causal_group not in groups_by_lane.values():
+                raise RouterBatchContractError("next turn references an unknown causal group")
+            if source is None:
+                raise RouterBatchContractError("next turn causal group has no established event")
+            if turn.causal_group in contested_groups:
+                raise RouterBatchContractError("an unresolved contest cannot source a next turn")
         unknown_participants = (
-            set(turn.participant_ids) - set(roster) - sourced_spawns
+            set(turn.participant_ids) - set(roster) - newly_spawned
         )
         if unknown_participants:
             raise RouterBatchContractError(
                 "next turn references unknown participants: "
                 + ", ".join(sorted(unknown_participants))
             )
-        if turn.source_event_index >= 0 and source is None:
-            raise RouterBatchContractError(
-                "next turn source did not materialize a canonical event"
-            )
-        active_for_turn = known_active | sourced_spawns | sourced_activations
-        inactive_participants = set(turn.participant_ids) - active_for_turn
+        inactive_participants = set(turn.participant_ids) - known_active
         if inactive_participants:
             raise RouterBatchContractError(
                 "next turn references inactive participants: "
@@ -527,25 +554,11 @@ def materialize_router_batch(
             )
         if (
             turn.turn_kind == "character"
-            and turn.actor_id in checkpoint.session.character_bindings
-        ):
-            raise RouterBatchContractError(
-                "router cannot choose a player-owned character's next action"
-            )
-        if (
-            turn.turn_kind == "character"
             and turn.actor_id in roster
-            and is_player_authored_slot(roster[turn.actor_id])
+            and is_unbound_player_authored_slot(checkpoint, roster[turn.actor_id])
         ):
             raise RouterBatchContractError(
-                "router cannot choose a player-authored character's next action"
-            )
-        if source is not None and set(turn.participant_ids).intersection({
-            *source.dormant,
-            *source.cull,
-        }):
-            raise RouterBatchContractError(
-                "a sourced next turn cannot include newly dormant or culled characters"
+                "router cannot select an unclaimed player-authored character"
             )
         source_ids = [source.event_id] if source is not None else []
         basis = "\x1f".join((
@@ -563,6 +576,14 @@ def materialize_router_batch(
                 character_id
                 for character_id in source.observer_ids
                 if character_id in checkpoint.session.character_bindings
+                and (
+                    sequences[source.event_id] >= len(checkpoint.canonical_events)
+                    or any(
+                        job.pov_character_id == character_id
+                        and source.event_id in job.source_event_ids
+                        for job in checkpoint.session.narrator_render_jobs
+                    )
+                )
             ]
             if source is not None
             else []
@@ -582,7 +603,7 @@ def materialize_router_batch(
             participant_ids=list(turn.participant_ids),
             source_event_ids=source_ids,
             created_event_sequence=(
-                sequence_by_draft[turn.source_event_index]
+                sequences[source.event_id]
                 if source is not None
                 else len(checkpoint.canonical_events) + len(records)
             ),

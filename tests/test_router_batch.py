@@ -156,7 +156,7 @@ async def test_materialization_rejection_logs_exact_raw_router_output(
             turn_kind="character",
             actor_id="unknown_actor",
             participant_ids=["unknown_actor"],
-            source_event_index=-1,
+            causal_group=None,
         )],
     )
     raw_output = output.model_dump_json(indent=2)
@@ -400,7 +400,7 @@ def test_next_turn_directness_derives_from_source_observers() -> None:
                 turn_kind="character",
                 actor_id="bob",
                 participant_ids=["bob"],
-                source_event_index=0,
+                causal_group=0,
             )
         ],
     )
@@ -436,7 +436,7 @@ def test_sibling_events_cannot_share_mutation_targets() -> None:
         )
 
 
-def test_parallel_next_turns_require_disjoint_participants() -> None:
+def test_overlapping_next_turns_are_valid_ordered_selections() -> None:
     output = RouterBatchOutput(
         events=[_draft(feasible=[0], observers=["alice", "bob"])],
         next_turns=[
@@ -444,18 +444,17 @@ def test_parallel_next_turns_require_disjoint_participants() -> None:
                 turn_kind="character",
                 actor_id="alice",
                 participant_ids=["alice", "bob"],
-                source_event_index=0,
+                causal_group=0,
             ),
             RouterNextTurn(
                 turn_kind="character",
                 actor_id="bob",
                 participant_ids=["bob"],
-                source_event_index=0,
+                causal_group=0,
             ),
         ],
     )
-    with pytest.raises(ValueError, match="share participants"):
-        output.validate_for_inputs([_input(0, "alice")])
+    assert output.validate_for_inputs([_input(0, "alice")]) is output
 
 
 def _contested_draft(
@@ -546,7 +545,7 @@ def test_next_turn_rejects_inactive_participant() -> None:
                     turn_kind="character",
                     actor_id="alice",
                     participant_ids=["alice", "bob"],
-                    source_event_index=0,
+                    causal_group=0,
                 )],
             ),
         )
@@ -592,7 +591,7 @@ def test_sourced_newly_active_character_can_take_next_turn(lifecycle: str) -> No
             turn_kind="character",
             actor_id="bob",
             participant_ids=["bob"],
-            source_event_index=0,
+            causal_group=0,
         )],
     )
 
@@ -631,7 +630,7 @@ def test_adapter_owned_activation_precedes_common_next_turn_validation() -> None
             turn_kind="character",
             actor_id="reserve",
             participant_ids=["reserve"],
-            source_event_index=0,
+            causal_group=0,
         )],
     )
 

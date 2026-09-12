@@ -135,18 +135,18 @@ class RouterNextTurn(BaseModel):
     turn_kind: Literal["character", "world"]
     actor_id: str
     participant_ids: list[str]
-    source_event_index: int
+    causal_group: int | None
 
     @model_validator(mode="after")
     def _validate_turn(self) -> "RouterNextTurn":
         _validate_unique_ids("next-turn participants", self.participant_ids)
-        if self.source_event_index < -1:
-            raise ValueError("next-turn source_event_index cannot be less than -1")
+        if self.causal_group is not None and self.causal_group < 0:
+            raise ValueError("next-turn causal_group cannot be negative")
         if self.turn_kind == "world":
             if self.actor_id:
                 raise ValueError("world next turns cannot name an actor")
-            if self.source_event_index < 0:
-                raise ValueError("world next turns require a source event")
+            if self.causal_group is None:
+                raise ValueError("world next turns require a causal group")
         elif not self.actor_id.strip() or self.actor_id not in self.participant_ids:
             raise ValueError("next-turn actor must be one of its participants")
         return self
@@ -407,31 +407,6 @@ class RouterBatchOutput(BaseModel):
                         "a contested-action resolution must close as one event"
                     )
 
-        used_participants: set[str] = set()
-        for turn in self.next_turns:
-            if turn.source_event_index >= len(self.events):
-                raise ValueError("next turn references a missing event draft")
-            if turn.source_event_index >= 0:
-                source = self.events[turn.source_event_index]
-                if source.is_no_event_resolution:
-                    raise ValueError("next turn cannot source a no-event resolution")
-                if source.required_responders:
-                    raise ValueError("an unresolved contest cannot source a next turn")
-                if turn.turn_kind == "character":
-                    if turn.actor_id not in source.observers.all_ids:
-                        raise ValueError("sourced next-turn actor must observe its event")
-                    if not any(
-                        fact.is_visible_to(turn.actor_id)
-                        for fact in source.observable_facts
-                    ):
-                        raise ValueError("sourced next-turn actor must receive a fact")
-            overlap = set(turn.participant_ids) & used_participants
-            if overlap:
-                raise ValueError(
-                    "simultaneously ready next turns share participants: "
-                    + ", ".join(sorted(overlap))
-                )
-            used_participants.update(turn.participant_ids)
         return self
 
 

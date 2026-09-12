@@ -443,6 +443,7 @@ class EngineBridge:
                 checkpoint.session.router_frontier
                 or checkpoint.session.open_cat_ii_events
                 or checkpoint.session.active_combat is not None
+                or any(job.status == "pending" for job in checkpoint.session.narrator_render_jobs)
             ):
                 self.orchestrator.schedule_autonomous(session_id)
                 resumed += 1
@@ -2594,11 +2595,6 @@ class EngineBridge:
                     )
 
             self._bind_user_in_checkpoint(ckpt, user_id, character_id)
-            ckpt.session.router_frontier = [
-                turn
-                for turn in ckpt.session.router_frontier
-                if turn.actor_id != character_id
-            ]
             if chosen_name:
                 target.name = chosen_name
             if chosen_appearance:

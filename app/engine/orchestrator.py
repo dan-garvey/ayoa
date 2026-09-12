@@ -15,7 +15,7 @@ from app.engine.delivery_outbox import claim_deliveries
 from app.engine.delivery_response import response_from_deliveries
 from app.engine.event_runtime import release_action_obligation
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
-from app.engine.narrator_delivery import process_narrator_lanes
+from app.engine.narrator_delivery import pending_handoff_lanes, process_narrator_lanes
 from app.engine.prompt_manager import PromptManager
 from app.engine.session_writer import SessionWriterLocks
 from app.engine.story_contracts import AuthoritativeResultPlan
@@ -876,13 +876,16 @@ class Orchestrator:
                         1,
                         live.session.config.settings.max_router_batches_without_player_input,
                     )
-                    if live.session.autonomous_router_batches_since_player >= limit:
+                    at_limit = live.session.autonomous_router_batches_since_player >= limit
+                    handoff_lanes = pending_handoff_lanes(live, force=at_limit)
+                    if at_limit and not handoff_lanes:
                         return
                     combat_candidate = self._autonomous_combat_candidate(live)
                     if (
                         combat_candidate is None
                         and not live.session.open_cat_ii_events
                         and not ready_frontier_turns(live)
+                        and not handoff_lanes
                     ):
                         return
                     cached_prepared = self._cached_prepared(live)
@@ -890,6 +893,20 @@ class Orchestrator:
                     fingerprint = _checkpoint_fingerprint(live)
 
                 self._autonomous_phase[session_id] = "preparing"
+                if handoff_lanes:
+                    outcomes = await process_narrator_lanes(
+                        snapshot, self.dispatcher, lane_ids=handoff_lanes,
+                        force_handoff=at_limit,
+                    )
+                    async with lock:
+                        live = self.checkpoint_mgr.load_latest(session_id)
+                        if _checkpoint_fingerprint(live) != fingerprint:
+                            continue
+                        snapshot.session.turn_index += 1
+                        self.checkpoint_mgr.save(snapshot)
+                    if any(outcome.failed_pov_ids for outcome in outcomes):
+                        return
+                    continue
                 if combat_candidate is not None:
                     actor_id, intention = combat_candidate
                     draft = None

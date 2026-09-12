@@ -307,12 +307,19 @@ def _events_for_input(output: RouterBatchOutput, index: int) -> list[Any]:
     ]
 
 
-def _next_actors(output: RouterBatchOutput, *, source: int | None = None) -> list[str]:
+def _next_actors(output: RouterBatchOutput, batch: Any, *, input_index: int | None = None) -> list[str]:
+    source_ids = None
+    if input_index is not None:
+        draft = _events_for_input(output, input_index)[0]
+        source_ids = {
+            item.record.event_id for item in batch.events
+            if item.draft_index == output.events.index(draft)
+        }
     return [
         turn.actor_id
-        for turn in output.next_turns
+        for turn in batch.next_turns
         if turn.turn_kind == "character"
-        and (source is None or turn.source_event_index == source)
+        and (source_ids is None or source_ids.intersection(turn.source_event_ids))
     ]
 
 
@@ -341,10 +348,9 @@ def _accounting_checks(
     ]
 
 
-def _evaluate_multi(output: RouterBatchOutput, _batch: Any) -> list[dict[str, Any]]:
+def _evaluate_multi(output: RouterBatchOutput, batch: Any) -> list[dict[str, Any]]:
     event = _events_for_input(output, 0)[0]
-    event_index = output.events.index(event)
-    source_actors = _next_actors(output, source=event_index)
+    source_actors = _next_actors(output, batch, input_index=0)
     addressed = set(source_actors) & {"ashara", "rashid"}
     text = _fact_text(output)
     return [
@@ -366,10 +372,9 @@ def _evaluate_multi(output: RouterBatchOutput, _batch: Any) -> list[dict[str, An
 
 def _evaluate_npc_pressure(
     output: RouterBatchOutput,
-    _batch: Any,
+    batch: Any,
 ) -> list[dict[str, Any]]:
-    event = _events_for_input(output, 0)[0]
-    actors = _next_actors(output, source=output.events.index(event))
+    actors = _next_actors(output, batch, input_index=0)
     return [
         *_accounting_checks(output, 1),
         _check("routes_to_addressed_npc", actors == ["ashara"], actors),
@@ -382,7 +387,7 @@ def _evaluate_defer(output: RouterBatchOutput, _batch: Any) -> list[dict[str, An
     independent = [
         turn.actor_id
         for turn in output.next_turns
-        if turn.turn_kind == "character" and turn.source_event_index == -1
+        if turn.turn_kind == "character" and turn.causal_group is None
     ]
     return [
         *_accounting_checks(output, 1),
@@ -404,9 +409,32 @@ def _evaluate_defer(output: RouterBatchOutput, _batch: Any) -> list[dict[str, An
     ]
 
 
-def _evaluate_cat_open(output: RouterBatchOutput, _batch: Any) -> list[dict[str, Any]]:
+def _evaluate_human_reply(output: RouterBatchOutput, batch: Any) -> list[dict[str, Any]]:
+    actors = _next_actors(output, batch, input_index=0)
+    return [
+        *_accounting_checks(output, 1),
+        _check("player_selected_for_own_reply", actors == ["dan"], actors),
+        _check("ordinary_question_is_not_a_contest", not any(event.required_responders for event in output.events)),
+    ]
+
+
+def _evaluate_history_followup(output: RouterBatchOutput, batch: Any) -> list[dict[str, Any]]:
+    turns = [turn for turn in batch.next_turns if turn.actor_id == "rashid"]
+    return [
+        *_accounting_checks(output, 1),
+        _check("earlier_invitation_remains_actionable", bool(turns), [turn.model_dump() for turn in turns]),
+        _check("private_preparation_not_published", all(
+            not fact.is_visible_to("rashid") or "green ribbon" not in fact.text.casefold()
+            for event in batch.events if "rashid" in event.record.observer_ids
+            for fact in event.record.observable_facts
+        )),
+    ]
+
+
+def _evaluate_cat_open(output: RouterBatchOutput, batch: Any) -> list[dict[str, Any]]:
     event = _events_for_input(output, 0)[0]
     event_index = output.events.index(event)
+    opening_ids = {item.record.event_id for item in batch.events if item.draft_index == event_index}
     return [
         *_accounting_checks(output, 1),
         _check(
@@ -423,8 +451,8 @@ def _evaluate_cat_open(output: RouterBatchOutput, _batch: Any) -> list[dict[str,
         _check(
             "opening_does_not_also_route",
             not any(
-                turn.source_event_index == event_index
-                for turn in output.next_turns
+                opening_ids.intersection(turn.source_event_ids)
+                for turn in batch.next_turns
             ),
             [turn.model_dump() for turn in output.next_turns],
         ),
@@ -485,7 +513,7 @@ def _evaluate_cat_resolution(
 
 def _evaluate_mediated(
     output: RouterBatchOutput,
-    _batch: Any,
+    batch: Any,
 ) -> list[dict[str, Any]]:
     event = _events_for_input(output, 0)[0]
     britney_facts = [
@@ -506,15 +534,15 @@ def _evaluate_mediated(
         _check("audio_does_not_grant_sight", not sight_leaks, sight_leaks),
         _check(
             "britney_can_answer",
-            "britney" in _next_actors(output),
-            _next_actors(output),
+            "britney" in _next_actors(output, batch),
+            _next_actors(output, batch),
         ),
     ]
 
 
-def _evaluate_arrival(output: RouterBatchOutput, _batch: Any) -> list[dict[str, Any]]:
+def _evaluate_arrival(output: RouterBatchOutput, batch: Any) -> list[dict[str, Any]]:
     text = _fact_text(output)
-    next_actors = _next_actors(output)
+    next_actors = _next_actors(output, batch)
     forbidden = ("router", "schema", "dispatcher", "api", "engine")
     return [
         *_accounting_checks(output, 1),
@@ -752,7 +780,53 @@ def _build_fan_in() -> tuple[CheckpointFile, list[RouterInputEnvelope]]:
     ]
 
 
+def _build_history_followup() -> tuple[CheckpointFile, list[RouterInputEnvelope]]:
+    checkpoint = _checkpoint("historical_invitation_followup")
+    template = _build_resolution()[0].canonical_events[0]
+    invite = template.model_copy(update={
+        "event_id": "evt_invitation", "causal_lane_id": "lane_invitation",
+        "effective_at_s": 10,
+        "observable_facts": [ObservableFact.all(
+            'Dan tells Rashid, "Meet me in the garden after dinner." Rashid agrees.'
+        )],
+        "observers": ObserverGroups(direct=["dan", "rashid"], indirect=[], inferred=[]),
+    })
+    private = invite.model_copy(update={
+        "event_id": "evt_private_preparation", "effective_at_s": 30,
+        "observable_facts": [ObservableFact.all(
+            "Alone in his room, Dan ties a green ribbon to his wrist, then waits in the garden. "
+            "Rashid has not seen the ribbon. Dinner has ended; their agreed meeting is due."
+        )],
+        "observers": ObserverGroups(direct=["dan"], indirect=[], inferred=[]),
+    })
+    checkpoint.canonical_events = [invite, private]
+    append_router_history(checkpoint, [invite, private])
+    checkpoint.world_state.facts.append(
+        "Dinner is over. Dan waits in the garden. Rashid is free to leave the hall for their agreed meeting."
+    )
+    return checkpoint, [_input(
+        index=0, lane="lane_security", kind="character", actor_ids=["pip"],
+        participant_ids=["pip"], payload="(defer)", chosen_at_s=30,
+    )]
+
+
 CASES = (
+    CaseSpec(
+        "npc_to_player_pressure",
+        "A direct NPC question can select the bound player without choosing their answer.",
+        lambda: _simple_case(
+            "npc_to_player_pressure", kind="character", actor_ids=["rashid"],
+            participant_ids=["rashid", "dan"],
+            payload='Rashid asks Dan, "Will you meet me in the garden after dinner? I want your answer."',
+        ),
+        _evaluate_human_reply,
+    ),
+    CaseSpec(
+        "historical_invitation_followup",
+        "Earlier shared knowledge can motivate a reply after an unseen private preparation.",
+        _build_history_followup,
+        _evaluate_history_followup,
+    ),
     CaseSpec(
         "multi_recipient_address",
         "One addressed exchange selects one strongest same-lane respondent.",
