@@ -1,0 +1,15 @@
+{
+  "candidate": "candidate_17",
+  "labels": {
+    "Fern": "session_a",
+    "Loam": "session_b",
+    "Flint": "continuation_c",
+    "Twill": "supper_replay"
+  },
+  "packet_sha256": "34084003ad4d3b6c491624b22b3161fc73a1921fbbb5cd39aa28d8722513815e",
+  "locked_pilot_sha256": "57231e6abcaee92084486754c6dca799d76fc26a54398fdc60e7b03a00ba6e44",
+  "pilot_review_not_in_packet": true,
+  "story_prompt_not_in_packet": true,
+  "raw_passages_unedited": true,
+  "player_driver_limit": "Loam uses a separate adaptive driver for01-20, with incidental other-session snippets exposed once by agent status; root supplies21. See session_b/player_driver.json. Review packet excludes driver and pilot notes."
+}
