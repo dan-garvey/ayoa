@@ -1,0 +1,18 @@
+{
+  "created_at": "2026-09-13T20:36:46.546051+00:00",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "source_commit": "7fb46be",
+  "instruction_order": [
+    "covenant.txt",
+    "system.txt"
+  ],
+  "prompt_sha256": {
+    "system.txt": "3674f6da924ad31306c753636d95e60a3081120f6ef0e4383079eab17e5689c6",
+    "covenant.txt": "a67f39c4c9fa4d47a3e787864b1a8fd0d30efb87ce99327786cc747ae342b68c",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "wrapper_file": "proxy_wrapper.txt",
+  "wrapper_sha256": "90f75e90843083ee2daa2b2f889d6d5ad4ce524d71812dc7f46aca6991153eb7",
+  "change": "C13 contribution-selection system with explicit short conversational reply contract (1-2 short paragraphs, at most 3 spoken sentences), broader requested activities/explanations exempt, and NPC announced activity should actually start when Rowan comes to watch/listen. Addresses C13 overlong Cael screen and C12 A3 repeated offer instead of song. Covenant unchanged. Several linked pacing edits; do not attribute a result to one isolated clause."
+}

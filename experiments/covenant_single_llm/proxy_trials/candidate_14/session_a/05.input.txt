@@ -1,0 +1,1 @@
+"You'll have to tell me the card values. Let's play three hands, one copper apiece. For now, I'll exchange my largest card if my total is over twenty-one, and keep the hand otherwise."
