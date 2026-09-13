@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from . import play
 from .play import (
     init_run,
     load_run,
@@ -11,6 +12,32 @@ from .play import (
     play_turn,
     read_json,
 )
+
+
+def test_instruction_order_is_frozen_and_player_submission_stays_in_user_tail(tmp_path, monkeypatch):
+    run = tmp_path / "run"
+    init_run(run, "offline", "max", 12000)
+    manifest, turns = load_run(run)
+    assert manifest["instruction_order"] == ["covenant.txt", "system.txt"]
+    expected = "\n\n".join(
+        (run / name).read_text().strip() for name in manifest["instruction_order"]
+    )
+    monkeypatch.setattr(play, "INSTRUCTION_ORDER", ("system.txt", "covenant.txt"))
+    submission = "I privately decide to use the pen name Moss Underhill."
+    request = make_request(run, manifest, turns, submission)
+    assert request["instructions"] == expected
+    assert submission not in request["instructions"]
+    assert request["input"] == [{"role": "user", "content": submission}]
+
+
+@pytest.mark.parametrize("order", [None, ["system.txt", "system.txt"], ["player.json", "system.txt"]])
+def test_missing_or_invalid_instruction_order_fails_before_call(tmp_path, order):
+    run = tmp_path / "run"
+    init_run(run, "offline", "max", 12000)
+    manifest, turns = load_run(run)
+    manifest["instruction_order"] = order
+    with pytest.raises(ValueError, match="frozen instruction order"):
+        make_request(run, manifest, turns, "Begin.")
 
 
 def response(text="The dinner begins.", status="completed"):

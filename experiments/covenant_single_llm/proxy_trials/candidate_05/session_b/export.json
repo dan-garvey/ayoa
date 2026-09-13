@@ -1,0 +1,106 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+      "story_sha256": "3d25d88042f9204b7905bf619261cebf641fe8b3d101fef6544be8142e2c4182",
+      "story_words": 204
+    },
+    {
+      "turn": 1,
+      "input_sha256": "4b48cb1eecd0bb12c39ca10c5fe73b049cdf69b229ee92d4249ca1abc09f68d1",
+      "story_sha256": "82f112d90bd037bc3defeed3da72886208ea582871f8caaf7f05c58ee89b6eb6",
+      "story_words": 231
+    },
+    {
+      "turn": 2,
+      "input_sha256": "a6b71162015afc68957d1cd7146417384b13b7f303cb48ae0f5ec7ea3b2859bd",
+      "story_sha256": "eb41ef398a666ec8660e7620a45bc27dd01f80b0f8f189a46a2957df39079cb9",
+      "story_words": 239
+    },
+    {
+      "turn": 3,
+      "input_sha256": "13f22e10e4fa71fc5a4339de12cd20da97b12b055666a47f50154c1dac53804d",
+      "story_sha256": "49fbe76bb0b28fc5dcb441f6d8fafd4eee4f53c822c9f10ee13d0164bc8acd22",
+      "story_words": 225
+    },
+    {
+      "turn": 4,
+      "input_sha256": "99bf66848c31d79414287194e73dc61261744fd59cc54056188cf3cfa84a9e5a",
+      "story_sha256": "ad89eb179700538b84900ea2915cd604ee7be3da79204bd7a5e05370115124fd",
+      "story_words": 200
+    },
+    {
+      "turn": 5,
+      "input_sha256": "f81c2602627b1df0bb8b8bc94f74d91fbd2c7635933a4444d12d8583292e9c57",
+      "story_sha256": "79c1f21d706980c65789388ad20f85dd2adb4ec7bfd65bad090740327d6bb6c7",
+      "story_words": 146
+    },
+    {
+      "turn": 6,
+      "input_sha256": "64d4187ca9f14206c7fe4e7a6351b3803f1c2762ec4b8d08f43a27df8fa6ca1d",
+      "story_sha256": "d17d357bf247df0c6776eb1fb2a215fb4b252ad2c46f266650f3cff7df74756c",
+      "story_words": 147
+    },
+    {
+      "turn": 7,
+      "input_sha256": "ab6739b52b45c78cd67d56285460b325d49307e24355c4f17200e0e8e5e5014f",
+      "story_sha256": "d5ac4dd99493e30a1c5a9eb78ea4529d4001850b0b33b7e5a7361ee7c325600b",
+      "story_words": 109
+    },
+    {
+      "turn": 8,
+      "input_sha256": "fcc9161b6594ac5d6a7363b9adb60a26d1e72db91387c6bf30f8d7d3e35a4ad0",
+      "story_sha256": "86d4133136b620087162dadad483f2a633d86441fad0a070af204ed563618847",
+      "story_words": 37
+    },
+    {
+      "turn": 9,
+      "input_sha256": "13ebacbe3be586491bf41cec9ccfdac170497b244b62a32bf7901364ed378120",
+      "story_sha256": "8022334443e12bb58bc44970935ae8b2387d825dca219c5d54bf3a6aea9997dd",
+      "story_words": 229
+    },
+    {
+      "turn": 10,
+      "input_sha256": "444d6a473fa1c0343530d66a3b44be9111e2dac34b3f649fd3364d9e36b5ba75",
+      "story_sha256": "61eac85bb950109bb4618ded0e790936da4b4fe58cf2a00fe32f8b4f5d0c7956",
+      "story_words": 192
+    },
+    {
+      "turn": 11,
+      "input_sha256": "b43e6486da3063846498a668bb609845af96a44dd8535efad323bcb1c359cecd",
+      "story_sha256": "2cf93ad5d8a6ec037d60af2eaf203258d4d57be0c2834ab29c9afdbca98a128a",
+      "story_words": 149
+    },
+    {
+      "turn": 12,
+      "input_sha256": "bee8064a4a0752c87760a22109866bae8d6ba4659d0c11377edd742e70791058",
+      "story_sha256": "1bf0cfc241a37b1ed5663595fcc7298410cbbe2bdd13eae1d098ce33aca5040b",
+      "story_words": 162
+    },
+    {
+      "turn": 13,
+      "input_sha256": "dca38fef5f901fbc642b7925a47d20e68b3aec06c98a269fec4adc96045ce3fc",
+      "story_sha256": "5668b6fc5b164d9cdd0b626cf1b0cfda4b209eba229abb8a9500811f10f6c769",
+      "story_words": 102
+    },
+    {
+      "turn": 14,
+      "input_sha256": "152dc888f54937add047a0db6e2eca609f45b0a0332ee83768b39dc92e76b9e3",
+      "story_sha256": "df77b201da1cb4b0c790920cf4b1ef1c769a547d23d4264886c131bbfdb37c1d",
+      "story_words": 57
+    },
+    {
+      "turn": 15,
+      "input_sha256": "76cb7a270dfa870ef121fbaf7e9945d2c19a030efccaff52acb0bc2d273fa47c",
+      "story_sha256": "4bd8b1486f5cbbb73b0dde3b7870110398dae6dbee6c27f080bed9809de3a3f6",
+      "story_words": 39
+    }
+  ],
+  "player_turns": 15,
+  "session_kind": "fresh interactive session",
+  "story_words": 2468
+}

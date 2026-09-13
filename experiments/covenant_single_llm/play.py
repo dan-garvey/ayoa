@@ -20,6 +20,7 @@ from openai import OpenAI
 
 HERE = Path(__file__).resolve().parent
 PROMPTS = ("system.txt", "covenant.txt", "player.json")
+INSTRUCTION_ORDER = ("covenant.txt", "system.txt")
 
 
 def utc_now() -> str:
@@ -51,6 +52,7 @@ def init_run(run: Path, model: str, effort: str, max_tokens: int) -> None:
         "model": model,
         "reasoning_effort": effort,
         "max_output_tokens": max_tokens,
+        "instruction_order": list(INSTRUCTION_ORDER),
         "prompt_sha256": {name: sha256(run / name) for name in PROMPTS},
         "architecture": "one full-context model; one response per submission",
         "memory": "complete user/assistant prose history; no private state or summaries",
@@ -75,6 +77,9 @@ def load_run(run: Path) -> tuple[dict, list[dict]]:
 def make_request(run: Path, manifest: dict, turns: list[dict], text: str) -> dict:
     if not text.strip():
         raise ValueError("A player submission cannot be empty")
+    order = manifest.get("instruction_order")
+    if not isinstance(order, list) or sorted(order) != sorted(INSTRUCTION_ORDER):
+        raise ValueError("Run needs a frozen instruction order; initialize a new run")
     messages = []
     for turn in turns:
         messages.extend([
@@ -87,7 +92,7 @@ def make_request(run: Path, manifest: dict, turns: list[dict], text: str) -> dic
         "reasoning": {"effort": manifest["reasoning_effort"]},
         "instructions": "\n\n".join(
             (run / name).read_text(encoding="utf-8").strip()
-            for name in ("system.txt", "covenant.txt")
+            for name in order
         ),
         "input": messages,
         "max_output_tokens": manifest["max_output_tokens"],

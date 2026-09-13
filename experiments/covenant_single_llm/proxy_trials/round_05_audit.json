@@ -1,0 +1,48 @@
+{
+  "recorded_at": "2026-09-13T19:21:47.111522+00:00",
+  "candidate": "candidate_05",
+  "decision": "Not selected: pilot and independent review both rate prose/dialogue and character distinction 3/5.",
+  "review": "reviews/round05_review.md",
+  "full_fresh_sessions": {
+    "session_a": {
+      "responses": 16,
+      "player_turns": 15,
+      "transcript_sha256": "d62c79eb0c1151107cc0e7bde27904b231344b64eb0f1d72d389f92c5845ed43"
+    },
+    "session_b": {
+      "responses": 16,
+      "player_turns": 15,
+      "transcript_sha256": "39505a5154e2d48f76f91baeddc62a148a3c4b6a0ed2f68995c0dc04fe565d48"
+    }
+  },
+  "independent_scores": {
+    "session_a": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "session_b": [
+      3,
+      3,
+      4,
+      4,
+      3
+    ]
+  },
+  "score_order": [
+    "prose_dialogue",
+    "distinct_characters",
+    "independent_interests",
+    "narrative_direction",
+    "adaptive_initiative"
+  ],
+  "assessment_notes": [
+    "Consistent invented history permitted under user clarification; raw older prompt restriction retained only as frozen historical input.",
+    "Both reviewers found no demonstrated material authorship or inaccessible-knowledge violation.",
+    "Independent review calls B12-13 a local dissemination chronology error. Pilot called it prospective-phrasing ambiguity. Both record it as a quality problem without erasing achieved court access.",
+    "Aldric promises a written inquiry at A14, but A15 proves repairs/reopening, not completion of that inquiry. Do not count promised accountability as an achieved result.",
+    "C6 and C7 received short screens only; neither has long-session validation."
+  ]
+}

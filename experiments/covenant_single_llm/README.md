@@ -12,6 +12,14 @@ original story seed.
 | Sol, original | [Transcript](runs/sol_max_15_turns/transcript.md) | [Report and comparison](SOL_MAX_REPORT.md) |
 | Terra, chat v2 and style revision | [Transcript](runs/terra_chat_v2_style_15_turns/transcript.md) | [Report and replays](TERRA_STYLE_REPORT.md) |
 
+Further prompt iteration uses Terra coding agents at maximum reasoning as proxies
+for story calls. The [protocol](proxy_trials/PROTOCOL.md) records the evaluation
+bar and proxy limitations. Frozen candidates, exact player submissions, responses,
+and independent reviews are under `proxy_trials/`. No proxy candidate has yet
+replaced the root prompt files. Consistent invented background is permitted;
+the [assessment amendment](proxy_trials/ASSESSMENT_AMENDMENTS.md) distinguishes
+it from contradictions and present player authorship.
+
 `system.txt` gives one author control of the world, supporting cast, adjudication,
 scene development, and prose. `covenant.txt` is the complete adapted story brief,
 including all hidden lore and character motives. Every call receives both and
@@ -27,7 +35,7 @@ freezes its own prompt copies, so the original runs retain their exact inputs.
 All use max reasoning and an opening plus fifteen adaptive player turns, without
 rerolling completed passages. The revised Terra run required one identical
 technical retry after turn 15 exhausted the output ceiling entirely on reasoning;
-the failure and its usage are preserved. The runner is unchanged. A 12,000-token response ceiling
+the failure and its usage are preserved. That run used the original runner. A 12,000-token response ceiling
 includes reasoning. The original prompt asks for 150–350 words; the revision asks
 for one to five short paragraphs, stopping at unanswered player interactions.
 Provider requests are text-only. SDK retries are disabled so every attempted
@@ -53,6 +61,10 @@ credential. Credentials are never included in saved requests. The initial comman
 accepts `--model` and `--reasoning`; later turns use the frozen run configuration.
 Run directories cannot be initialized twice, and changing their prompt snapshots
 causes a failure before a model call. A process lock serializes calls to one run.
+New runs also freeze instruction order in their manifest: Covenant brief, then
+storytelling instructions, matching the later proxy packets. Archived runs without
+that field can still be exported, but further generation requires a newly
+initialized run. The runner does not silently change their original ordering.
 
 The implementation follows the Responses API's
 [explicit conversation-history pattern](https://developers.openai.com/api/docs/guides/conversation-state).
@@ -92,5 +104,6 @@ pytest -q test_play.py
 
 They check one-call behavior, full shared context and restart continuity,
 preservation of incomplete output without advancing, frozen-prompt integrity,
+frozen instruction order, placement of player submissions in the user tail,
 and exclusion of implementation details from rendered instructions.
 Literary quality is assessed from the actual transcript, not a word-matching test.

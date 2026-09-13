@@ -24,10 +24,14 @@ matched submissions and constructed starting states are explicitly identified.
 
 ## Evaluation contract
 
-Mandatory boundaries: no unsubmitted protagonist speech, voluntary decisions,
-private reactions, personal history, or authored manuscript text; no confident
-use of information an NPC could not have acquired; no material contradiction of
-established dates, possessions, agreements, or limits. Attempts can fail, and
+Mandatory boundaries: no unsubmitted present protagonist speech, voluntary
+decisions, private reactions, or authored manuscript text; no confident use of
+information an NPC could not have acquired; no material contradiction of
+established fiction, including history, dates, possessions, agreements, or limits.
+New history and background may fill gaps, including personal background, when
+consistent with what is established. Mere invention is not a failure. This
+clarification supersedes the earlier personal-history prohibition; see
+ASSESSMENT_AMENDMENTS.md for the user instruction and retrospective effect. Attempts can fail, and
 NPCs can reach mistaken conclusions from information they possess.
 
 Review full exchanges, including player submissions, for:

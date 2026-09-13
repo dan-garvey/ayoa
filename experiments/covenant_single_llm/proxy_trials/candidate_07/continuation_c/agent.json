@@ -1,0 +1,12 @@
+{
+  "agent": "/root/terra_c7_continuation_c",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "read_scope": "packet.txt only",
+  "write_scope": "numbered story files only",
+  "review_feedback_supplied": false,
+  "case_type": "Matched constructed continuity probe, not a fresh opening",
+  "source_history": "Same pilot-authored fixture as candidates 04, 05, 06",
+  "planned_scope": "Screen, then knowledge and refusal continuations if prose merits extension"
+}

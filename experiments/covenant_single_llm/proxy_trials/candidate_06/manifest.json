@@ -1,0 +1,16 @@
+{
+  "created_at": "2026-09-13T18:59:56.957993+00:00",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "source_commit": "98d36de",
+  "instruction_order": [
+    "covenant.txt",
+    "system.txt"
+  ],
+  "prompt_sha256": {
+    "system.txt": "8fffaac2fb4858e110a6b1d910bf209753c61ac4c1c1b4e9b934baf4fcb83de0",
+    "covenant.txt": "9453e9d17243f7c63b5a504274ca64ea4e0462acddeeeb5fb8207d9bc6539a0e",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "change": "Apply user clarification: allow invented world/personal history when logically consistent; protect present player acts/thoughts/words. Scope unprovided consequential-detail ownership specifically to authored work. Have readers express particular personal taste instead of a comprehensive writing lesson. Covenant/player identical to candidate 05."
+}
