@@ -1,0 +1,14 @@
+{
+  "model": "gpt-5.6-sol",
+  "reasoning_effort": "max",
+  "accepted_calls": 16,
+  "player_turns": 15,
+  "attempted_calls": 16,
+  "total_call_seconds": 819.937,
+  "visible_words": 4806,
+  "visible_output_tokens": 6627,
+  "input_tokens": 135527,
+  "output_tokens": 36423,
+  "cached_tokens": 123215,
+  "reasoning_tokens": 29796
+}

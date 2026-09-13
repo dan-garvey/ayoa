@@ -6,8 +6,10 @@ use its router, character agents, narrator, checkpoint schema, rules adapters,
 delivery system, or bot. This experiment does not modify the main runtime or
 original story seed.
 
-[Read the 15-turn transcript](runs/first_15_turns/transcript.md) and
-[the assessment](REPORT.md).
+| Model, max reasoning | 15-turn transcript | Assessment |
+| --- | --- | --- |
+| Terra | [Transcript](runs/first_15_turns/transcript.md) | [Report](REPORT.md) |
+| Sol | [Transcript](runs/sol_max_15_turns/transcript.md) | [Report and comparison](SOL_MAX_REPORT.md) |
 
 `system.txt` gives one author control of the world, supporting cast, adjudication,
 scene development, and prose. `covenant.txt` is the complete adapted story brief,
@@ -17,8 +19,9 @@ choices; character knowledge limits are prompt instructions, with no structural
 information isolation or semantic validator. There are no model tools, private
 character histories, continuity summaries, director passes, or evaluation calls.
 
-The run uses `gpt-5.6-terra`, max reasoning, an opening plus fifteen adaptive
-player turns, and one candidate per submission. A 12,000-token response ceiling
+The first run uses `gpt-5.6-terra`; the repeat uses `gpt-5.6-sol`. Both use max
+reasoning, an opening plus fifteen adaptive player turns, and one candidate per
+submission. The prompts and runner are identical. A 12,000-token response ceiling
 includes reasoning; the prompt generally asks for 150–350 words of prose.
 Provider requests are text-only. SDK retries are disabled so every attempted
 call has a local request record. Incomplete, empty, or refused output is preserved
@@ -34,6 +37,9 @@ python play.py turn --run-dir runs/my_session --env-file /path/to/credentials.en
   --text 'I enter the dining hall and introduce myself.'
 python play.py export --run-dir runs/my_session
 ```
+
+For Sol, add `--model gpt-5.6-sol --reasoning max` to the initial command and
+choose a fresh run directory. Later turns retain that run's model selection.
 
 The credential file supplies `OPENAI_API_KEY` or the existing `OPEN_AI_ROUTER`
 credential. Credentials are never included in saved requests. The initial command

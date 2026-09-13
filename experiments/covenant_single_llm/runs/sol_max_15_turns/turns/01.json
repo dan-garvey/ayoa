@@ -1,0 +1,23 @@
+{
+  "turn": 1,
+  "input": "I open the door. \"I was hoping dinner might be the part I understood. Rowan, by the way.\" I give my visitors a small, embarrassed smile and follow them downstairs, taking a moment at the dining-room doorway to see who is already there.",
+  "output": "The golden woman dips in a rustle of small white wings.\n\n“Seraphel Dawnquill, pleased we meet.  \nMay dinner prove both plain and sweet.”\n\n“Thessaly Morrow,” says her green-tinted companion. Her black eyes give nothing back to the corridor lamps. “Dinner is seldom plain. Sweetness depends upon the course.”\n\nSeraphel’s wings sag theatrically.\n\nThey lead you down through a common room crowded with dead Garveys. Several portraits bear your signet on painted hands; none look as though they ever mended a cuff. Warm food smells drift through the open dining-room doors—pepper, browned butter, some unfamiliar sharp herb.\n\nSeventeen places gleam beneath the candles, though only eight bear cards. Five occupants have already arranged themselves around them, or failed to.\n\nA golden-haired angel stands with his card pinched between two fingers. Beside him, a dark-haired man with amber eyes and fine fur over his hands rests one hip against a chair.\n\n“Put it back, Aldric,” the latter says. “Moving it a third time becomes policy.”\n\n“It was incorrectly placed.”\n\nThe silver-haired elf examining her wine smiles without drinking. “Only in the sense that it revealed your preferences.”\n\nNear the head of the table, a tall demon woman folds ember-red arms. The tip of her tail makes one satisfied tap against the floor. Across from her, a snow-pale woman sits so motionless that mist gathers untouched upon her water glass.\n\nTheir cards supply what courtesy has not: **Aldric Verantus. Rashid vel Amara. Caelindra Vaeyn. Ashara vel Kothren. Ysolde Thornmantle.**\n\nRashid notices you first and straightens. “Garvey. Welcome. We were preserving an ancient Conclave tradition: disputing procedure before learning it.”\n\nYour own card waits at the head, beneath a silver handbell.\n\nA liveried server draws out the chair. “The heir of the house traditionally welcomes the table and rings once for the first course, Master Garvey.” After the smallest merciful pause, she adds, “There is no prescribed wording.”\n\nAshara looks from the bell to you. “And if there were, someone here would already have objected to it.”",
+  "model": "gpt-5.6-sol",
+  "response_id": "resp_06eaaa39e4e0007a016aa60d6b2df087d1a70dfee2841f71d6",
+  "started_at": "2026-09-13T02:41:46.339549+00:00",
+  "finished_at": "2026-09-13T02:42:39.210565+00:00",
+  "duration_s": 52.87,
+  "usage": {
+    "input_tokens": 5108,
+    "input_tokens_details": {
+      "cached_tokens": 4658,
+      "cache_write_tokens": 447
+    },
+    "output_tokens": 2504,
+    "output_tokens_details": {
+      "reasoning_tokens": 2033
+    },
+    "total_tokens": 7612
+  },
+  "attempt": "attempts/20260913T024146338900Z"
+}
