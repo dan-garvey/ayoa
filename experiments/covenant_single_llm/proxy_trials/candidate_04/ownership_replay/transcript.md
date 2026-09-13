@@ -1,0 +1,25 @@
+# Terra coding-agent proxy transcript
+
+Exact player submissions and saved story passages.
+
+## Continuation 0: Matched replay, not an opening
+
+**Player**
+
+I greet the people at breakfast and eat, then attend orientation and the scheduled classes. Afterward I go to the pressroom to find the steward. "I put my name on the board last night. Could we check when the booking is, and whether I've allowed enough setting time?"
+
+**Story**
+
+Breakfast proceeds in the plain morning rhythm of covered dishes and coffee. Rashid answers your greeting with a brief nod before sorting two pages into a separate pile; Aldric closes his prayer book and offers a formal good morning. Ysolde remains by the window with her tea, watching the low storm beyond the gardens. By the time the room begins to empty, Rashid has tucked his papers into the folder and gone out toward the quadrangle.
+
+Professor Windwhisper presides over orientation from the head of the oval table in the seminar room. Her voice carries without rising as she goes through course placements, the rules for requesting bridge travel, and the narrow authority the Conclave students hold before they graduate. The framed Accords catch the light behind the other first-years. The scheduled classes that follow give the day a shape of bells, unfamiliar corridors, and names entered beside room numbers.
+
+In the afternoon, the Commerce wing smells of drying ink and warmed metal. The pressroom is open now. A student in a dark blue apron is lifting a chase from a workbench when you find her; she braces it against her hip and looks toward the booking board.
+
+“I put my name on the board last night. Could we check when the booking is, and whether I've allowed enough setting time?”
+
+She washes the ink from her fingertips in a shallow basin, then takes down the blue-ruled sheet. “Rowan Garvey. First open afternoon block after your courses, tomorrow. Sixth bell to ninth.” Her finger follows your notes. “Twelve copies will not take long once the forme is locked. Setting and proofing are the real work.”
+
+She glances toward the shuttered type cases along the wall. “Two pages normally means two formes if you want both sides of a sheet. The whole block is yours, provided you bring the manuscript before noon tomorrow. I need to see its length and margins before I say whether a proofing table is enough or whether you need a second booking.”
+
+With a pencil, she draws a thin green line beside your entry and writes approval pending in the last column. The sheet remains beneath the brass clip, open between you and the pressroom.

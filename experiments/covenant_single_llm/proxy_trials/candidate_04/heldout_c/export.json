@@ -1,0 +1,28 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "5be74de0f21ad8a1af1e3067fba0b0aa83f749655f469ade589c92ed002ea39f",
+      "story_sha256": "0676e02d89beba8432aa0247cdd4f1fc1571a1c1457e9bc137403ee9bf61e924",
+      "story_words": 166
+    },
+    {
+      "turn": 1,
+      "input_sha256": "9cc75c1d4edb01f8e61118ee1ecb45a50deacf7c61855e83b58e0d1a6ed45fde",
+      "story_sha256": "58d2105ad891b2c767db5d930c511d917d7cfc4eb24edd1a1164227620b638dc",
+      "story_words": 122
+    },
+    {
+      "turn": 2,
+      "input_sha256": "3f14101a53c0732ab81c36773b2b04a92bc0e762f84aca8885bf93415740d240",
+      "story_sha256": "f54248e4d50a2ada086bf949161f0cba820a3baa4b58e54697bea8d57f3fb892",
+      "story_words": 126
+    }
+  ],
+  "player_turns": 3,
+  "session_kind": "Constructed held-out continuation, not a fresh opening",
+  "story_words": 414
+}

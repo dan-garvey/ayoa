@@ -29,5 +29,6 @@
     }
   ],
   "player_turns": 3,
+  "session_kind": "fresh interactive session",
   "story_words": 2339
 }

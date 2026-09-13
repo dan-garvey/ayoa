@@ -1,0 +1,12 @@
+{
+  "agent": "/root/terra_c4_session_c",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "Constructed held-out continuation, not a fresh opening",
+  "source_history": "Pilot-authored fixture, not model-generated prior turns",
+  "review_feedback_supplied": false,
+  "delivery_notes": [
+    "Follow-up 01 initially specified a path missing experiments/covenant_single_llm; a tool message immediately corrected the artifact path without changing the player input or requesting a new passage."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "agent": "/root/terra_c4_ownership_replay",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "read_scope": "packet.txt only",
+  "write_scope": "numbered story files only",
+  "review_feedback_supplied": false,
+  "case_type": "Matched replay, not an opening",
+  "source_history": "candidate_03/active turns 00-04",
+  "source_submission": "candidate_03/active turn 05",
+  "changes": "Prompt wording and instruction order; same story brief, prior prose, and player submission."
+}
