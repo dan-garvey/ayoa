@@ -1,0 +1,24 @@
+{
+  "reviewer": "Primary coding agent; unblinded manual comparison",
+  "cases": [
+    {
+      "turn": 4,
+      "unsubmitted_player_replies_before": 1,
+      "unsubmitted_player_replies_after": 0,
+      "observation": "No reply supplied for Rowan. Rashid does not disclose his sister, but still gives an abstract answer about usefulness."
+    },
+    {
+      "turn": 6,
+      "unsubmitted_player_replies_before": 1,
+      "unsubmitted_player_replies_after": 0,
+      "observation": "Authorized travel completes, then the passage stops at Ysolde's question. Caelindra declines without a narratorial warmth cue."
+    },
+    {
+      "turn": 15,
+      "unsubmitted_player_replies_before": 2,
+      "unsubmitted_player_replies_after": 0,
+      "observation": "No invented answers to questions about the courier. The later library visit is reached, but Caelindra again treats five pages as a quota and challenges three."
+    }
+  ],
+  "limit": "One new sample per context. Both system instructions and characterization changed; historical exchanges retain the prior version's characterization. No blanket semantic pass score."
+}

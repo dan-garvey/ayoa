@@ -1,0 +1,37 @@
+{
+  "bead": "ayoa-ngp6",
+  "source_revision": "4ba9af97cb97b73953f3e5863ad345535e0da82a plus the revised system and Covenant prompts",
+  "sources": [
+    "sources/chat_v2_provenance.json",
+    "sources/covenant_prompt_v2_excerpt.md",
+    "sources/interactive_style_guide.txt"
+  ],
+  "comparison_run": "../first_15_turns",
+  "probe_directory": "probes/terra_chat_v2_style",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "changed": [
+    "system prompt: ownership, subtext, resistance, interaction stopping, requested time scope, response length cue",
+    "Covenant brief: concrete initial objections and slower intimacy from chat v2"
+  ],
+  "unchanged": [
+    "player identity and opening",
+    "story secrets and adult cast",
+    "one full-context call per response",
+    "runner",
+    "12000-token response ceiling",
+    "model and reasoning effort versus first Terra run"
+  ],
+  "planned_calls": "One opening plus 15 adaptive player turns; one candidate per submission, no quality rerolls.",
+  "pilot": "Primary coding agent; aware of the source material and prior runs, not blinded.",
+  "player_policy": "Begin with the same newcomer, dinner, and everyday-interests approach. Adapt to actual NPC responses, respect refusals, seek concrete shared activity, and test a later appointment or overnight wait when the fiction permits.",
+  "comparison_limit": "Combined prompt and characterization revision; adaptive actions and scene length differ. Replays hold old request history and all non-instruction parameters fixed, but use one sample per context.",
+  "actual_calls": {
+    "accepted": 16,
+    "attempted": 17,
+    "technical_retries": 1,
+    "quality_rerolls": 0
+  },
+  "recovery_record": "recovery.json",
+  "all_attempt_accounting": "attempt_summary.json"
+}

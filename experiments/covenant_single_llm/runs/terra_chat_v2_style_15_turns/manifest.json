@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-09-13T04:18:13.409041+00:00",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "max_output_tokens": 12000,
+  "prompt_sha256": {
+    "system.txt": "c715818f9487e027c2e0bf4e1679bb8aa9eb2aa9e850c953003ee8bb809dd450",
+    "covenant.txt": "47ffbec9678a8cda446b6513afebd9ce20363916045580dfb19373ba149553d6",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "architecture": "one full-context model; one response per submission",
+  "memory": "complete user/assistant prose history; no private state or summaries",
+  "transport_retries": 0
+}

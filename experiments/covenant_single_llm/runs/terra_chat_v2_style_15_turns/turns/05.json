@@ -1,0 +1,23 @@
+{
+  "turn": 5,
+  "input": "\"Usually people making poor decisions and finding excellent reasons for them afterward. One is about a courier who loses his boots trying to avoid a penny toll.\" I turn a little toward Caelindra. \"It's three pages. You're welcome to read it tomorrow if you'd like.\" Then to Rashid and Ashara: \"I'm planning to write in the common room tomorrow afternoon. You're welcome to bring work of your own, or just have tea. An invitation, not a request to abandon your training.\"",
+  "output": "Caelindra’s pointed ears shift beneath her silver hair. “Three pages is a tolerable imposition,” she says. “Bring it tomorrow, if you wish. I will determine whether your courier deserves the inconvenience he suffers.”\n\nAshara breaks another piece of bread. The nearest candle flame narrows in the warmth around her wrist. “Tomorrow afternoon is training. I will not be at tea.” Across the table, Rashid folds one furred hand over the other. “I have correspondence and reading. If they are finished, I may come through. Do not set a place for me.”\n\nCaelindra turns her spoon once in the cooling broth. “Was the toll actually unjust,” she asks, “or did your courier simply mistake thrift for principle?”",
+  "model": "gpt-5.6-terra",
+  "response_id": "resp_0c9834e2d1209eed016aa62698d01087d188c8c9f1ac17a118",
+  "started_at": "2026-09-13T04:29:11.560896+00:00",
+  "finished_at": "2026-09-13T04:29:52.745155+00:00",
+  "duration_s": 41.184,
+  "usage": {
+    "input_tokens": 6895,
+    "input_tokens_details": {
+      "cached_tokens": 6591,
+      "cache_write_tokens": 301
+    },
+    "output_tokens": 3523,
+    "output_tokens_details": {
+      "reasoning_tokens": 3364
+    },
+    "total_tokens": 10418
+  },
+  "attempt": "attempts/20260913T042911559931Z"
+}

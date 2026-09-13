@@ -1,0 +1,19 @@
+{
+  "turn": 4,
+  "output": "Ysolde’s grey gaze shifts briefly toward the storm beyond the windows. “The anemometer on the western terrace has taken lightning often enough that it points toward the last strike instead of into the wind,” she says. “It is a poor instrument for weather and an excellent record of the storm.”\n\nAshara’s tail goes still beside her chair. “Rashid has not accounted for my afternoon,” she says. “I train because I choose to.”\n\nRashid inclines his head once toward her. “Of course.” Then his amber eyes settle on you across the candles. “As for an afternoon entirely my own, I could name useful things to do with it. I cannot honestly tell you what I would choose once usefulness stopped being the measure.” His thumb turns the stem of his glass a fraction. “That is not an answer I make a habit of giving.”",
+  "duration_s": 93.372,
+  "model": "gpt-5.6-terra",
+  "response_id": "resp_094b0a7485035a14016aa6234c520487d182dbb1a59b36722d",
+  "usage": {
+    "input_tokens": 7430,
+    "input_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 7427
+    },
+    "output_tokens": 8307,
+    "output_tokens_details": {
+      "reasoning_tokens": 8123
+    },
+    "total_tokens": 15737
+  }
+}

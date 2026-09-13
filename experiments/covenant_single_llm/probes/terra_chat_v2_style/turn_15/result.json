@@ -1,0 +1,19 @@
+{
+  "turn": 15,
+  "output": "Ashara considers the courier with the gravity due a tactical report. Then a short laugh escapes her.\n\n“He had a bridge, a coin, and a parcel. Yes. That is worse.” Her tail loosens from the chair leg. “The run-up is not his problem.”\n\nRashid’s pen resumes across his sheltered page. The rest of the hour passes with the fire, the scratch of writing, and no further accounting demanded from anyone. Supper follows beneath the dining hall lamps, then Garvey House settles into its evening creaks and closing doors.\n\nThe upper library smells of lamp oil and old paper. At the south window, Caelindra sits beneath a green-shaded lamp, a second chair empty across from her. Her violet eyes move from you to the thin stack in your hand. She does not reach for it.\n\n“Three,” she says. “I said five. Why have you brought three?”",
+  "duration_s": 83.025,
+  "model": "gpt-5.6-terra",
+  "response_id": "resp_02cfe3eb771bd247016aa6234c861887d1a69ff7edf80559c1",
+  "usage": {
+    "input_tokens": 12743,
+    "input_tokens_details": {
+      "cached_tokens": 7427,
+      "cache_write_tokens": 5313
+    },
+    "output_tokens": 7524,
+    "output_tokens_details": {
+      "reasoning_tokens": 7332
+    },
+    "total_tokens": 20267
+  }
+}

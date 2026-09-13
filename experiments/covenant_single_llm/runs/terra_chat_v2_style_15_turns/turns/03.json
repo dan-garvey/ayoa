@@ -1,0 +1,23 @@
+{
+  "turn": 3,
+  "input": "\"The inheritance explains why I was sent. It doesn't prove I'd be good at governing anyone.\" I set my spoon down. \"I think being here obliges me to learn before I claim that authority. If you're asking what I've earned so far, very little. I won't dress that up as an achievement.\"",
+  "output": "For a moment, only spoons touch porcelain. Ysolde watches across the rim of her water glass, still as carved ice. Caelindra lowers her eyes to her broth; near the far end of the table, Seraphel’s folded wings whisper against the back of her chair as a server passes with a covered platter.\n\nAshara gives a single, contained nod. “Then we agree on the central fact. Your inheritance explains your arrival; it does not establish your judgment. Admitting that does not close the gap.” Her gold eyes remain on you. “I earned my designation before witnesses. I will not call the two things equal.”\n\nRashid’s gaze dips briefly to the ink on your fingers, then returns to your face. “Before the verification, Rowan—what filled your days?”",
+  "model": "gpt-5.6-terra",
+  "response_id": "resp_0e55add8df69b624016aa6255ff9c087d1af96d4a3d2cc3a7f",
+  "started_at": "2026-09-13T04:23:58.821473+00:00",
+  "finished_at": "2026-09-13T04:25:03.405610+00:00",
+  "duration_s": 64.583,
+  "usage": {
+    "input_tokens": 6343,
+    "input_tokens_details": {
+      "cached_tokens": 6140,
+      "cache_write_tokens": 200
+    },
+    "output_tokens": 5865,
+    "output_tokens_details": {
+      "reasoning_tokens": 5696
+    },
+    "total_tokens": 12208
+  },
+  "attempt": "attempts/20260913T042358820752Z"
+}

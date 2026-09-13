@@ -1,0 +1,23 @@
+{
+  "turn": 2,
+  "input": "\"Rowan, please.\" I take the place marked for me between Ysolde and Caelindra. \"And thank you for putting my name down. I was worried choosing a chair would be my first examination.\" I settle my napkin and make room for the servers.",
+  "output": "“Rowan, then,” Rashid says. “The Academy staff arranged the cards. They deserve the credit, if credit is due.”\n\nA server in dark livery places a shallow bowl before you, fragrant with herbs and pepper. Across the candlelit table, Ashara sets her spoon aside. Heat shimmers faintly above the back of her hand.\n\n“A seating card is not an examination,” she says. “It is an administrative courtesy.” Her gold eyes rest on you from farther down the table. “Your claim to a Conclave place is another matter. What, Rowan Garvey, do you think qualifies you to hold it?”",
+  "model": "gpt-5.6-terra",
+  "response_id": "resp_0c01f7453306237f016aa624f10cc087d19c9a96ba639d7902",
+  "started_at": "2026-09-13T04:22:07.549181+00:00",
+  "finished_at": "2026-09-13T04:23:03.361465+00:00",
+  "duration_s": 55.812,
+  "usage": {
+    "input_tokens": 6143,
+    "input_tokens_details": {
+      "cached_tokens": 5820,
+      "cache_write_tokens": 320
+    },
+    "output_tokens": 4795,
+    "output_tokens_details": {
+      "reasoning_tokens": 4660
+    },
+    "total_tokens": 10938
+  },
+  "attempt": "attempts/20260913T042207548462Z"
+}

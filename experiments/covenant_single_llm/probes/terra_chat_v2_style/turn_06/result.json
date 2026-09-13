@@ -1,0 +1,19 @@
+{
+  "turn": 6,
+  "output": "Caelindra’s fingers pause against the stem of her glass. “Your promise is unnecessary,” she says quietly. “I have correspondence to answer. Tomorrow will be sufficient.” She turns back to the remains of her dessert.\n\nYsolde waits in the vestibule with her weather-cloak clasped at the throat. The spare cloak smells of cedar, old wool, and the faint mineral damp of the storm. Together, you leave Garvey House by the garden path, where winter-blooming flowers nod behind pale walls. Beyond them, the western terrace opens onto the black drop of the plateau.\n\nAn old brass anemometer stands under a squat iron hood near the parapet. Its copper cups are perfectly still. Behind clouded glass, however, a needle has climbed into the red portion of a faded dial. The terrace lamps burn straight and quiet for several minutes.\n\nThen wind rises out of the storm and strikes the terrace hard enough to wrench at cloak hems and send the cups spinning. Ysolde watches the needle settle with the gust.\n\n“You write stories,” she says over the rushing air. “If a thing tells the truth in a way no one intended, is it defective?”",
+  "duration_s": 63.473,
+  "model": "gpt-5.6-terra",
+  "response_id": "resp_0ffd0121d917106a016aa6234c7b9087d19770ada0b1243304",
+  "usage": {
+    "input_tokens": 8523,
+    "input_tokens_details": {
+      "cached_tokens": 7427,
+      "cache_write_tokens": 1093
+    },
+    "output_tokens": 5424,
+    "output_tokens_details": {
+      "reasoning_tokens": 5178
+    },
+    "total_tokens": 13947
+  }
+}

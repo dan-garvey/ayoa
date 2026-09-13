@@ -1,0 +1,66 @@
+{
+  "verified_at": "2026-09-13T04:51:57.083999+00:00",
+  "cases": [
+    {
+      "turn": 4,
+      "duration_s": 93.372,
+      "usage": {
+        "input_tokens": 7430,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 7427
+        },
+        "output_tokens": 8307,
+        "output_tokens_details": {
+          "reasoning_tokens": 8123
+        },
+        "total_tokens": 15737
+      },
+      "changed_fields": [
+        "instructions"
+      ]
+    },
+    {
+      "turn": 6,
+      "duration_s": 63.473,
+      "usage": {
+        "input_tokens": 8523,
+        "input_tokens_details": {
+          "cached_tokens": 7427,
+          "cache_write_tokens": 1093
+        },
+        "output_tokens": 5424,
+        "output_tokens_details": {
+          "reasoning_tokens": 5178
+        },
+        "total_tokens": 13947
+      },
+      "changed_fields": [
+        "instructions"
+      ]
+    },
+    {
+      "turn": 15,
+      "duration_s": 83.025,
+      "usage": {
+        "input_tokens": 12743,
+        "input_tokens_details": {
+          "cached_tokens": 7427,
+          "cache_write_tokens": 5313
+        },
+        "output_tokens": 7524,
+        "output_tokens_details": {
+          "reasoning_tokens": 7332
+        },
+        "total_tokens": 20267
+      },
+      "changed_fields": [
+        "instructions"
+      ]
+    }
+  ],
+  "only_instructions_changed_from_each_original_request": true,
+  "raw_output_and_usage_match_saved_results": true,
+  "same_prompt_as_fresh_terra_run": true,
+  "sampling": "One recorded sample per context; no quality rerolls."
+}

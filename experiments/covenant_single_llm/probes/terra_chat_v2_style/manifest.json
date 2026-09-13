@@ -1,0 +1,16 @@
+{
+  "bead": "ayoa-ngp6",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "cases": [
+    4,
+    6,
+    15
+  ],
+  "created_at": "2026-09-13T04:15:06.375884+00:00",
+  "prompt_sha256": {
+    "system.txt": "c715818f9487e027c2e0bf4e1679bb8aa9eb2aa9e850c953003ee8bb809dd450",
+    "covenant.txt": "47ffbec9678a8cda446b6513afebd9ce20363916045580dfb19373ba149553d6"
+  },
+  "method": "One independent call per old Terra request, changing only instructions. Exact old visible histories retained; no quality rerolls."
+}

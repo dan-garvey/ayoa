@@ -6,10 +6,11 @@ use its router, character agents, narrator, checkpoint schema, rules adapters,
 delivery system, or bot. This experiment does not modify the main runtime or
 original story seed.
 
-| Model, max reasoning | 15-turn transcript | Assessment |
+| Model and prompt, max reasoning | 15-turn transcript | Assessment |
 | --- | --- | --- |
-| Terra | [Transcript](runs/first_15_turns/transcript.md) | [Report](REPORT.md) |
-| Sol | [Transcript](runs/sol_max_15_turns/transcript.md) | [Report and comparison](SOL_MAX_REPORT.md) |
+| Terra, original | [Transcript](runs/first_15_turns/transcript.md) | [Report](REPORT.md) |
+| Sol, original | [Transcript](runs/sol_max_15_turns/transcript.md) | [Report and comparison](SOL_MAX_REPORT.md) |
+| Terra, chat v2 and style revision | [Transcript](runs/terra_chat_v2_style_15_turns/transcript.md) | [Report and replays](TERRA_STYLE_REPORT.md) |
 
 `system.txt` gives one author control of the world, supporting cast, adjudication,
 scene development, and prose. `covenant.txt` is the complete adapted story brief,
@@ -19,10 +20,16 @@ choices; character knowledge limits are prompt instructions, with no structural
 information isolation or semantic validator. There are no model tools, private
 character histories, continuity summaries, director passes, or evaluation calls.
 
-The first run uses `gpt-5.6-terra`; the repeat uses `gpt-5.6-sol`. Both use max
-reasoning, an opening plus fifteen adaptive player turns, and one candidate per
-submission. The prompts and runner are identical. A 12,000-token response ceiling
-includes reasoning; the prompt generally asks for 150–350 words of prose.
+The initial Terra and Sol runs use identical original prompts. The current
+`system.txt` and `covenant.txt` incorporate the user's chat-era Covenant and
+interactive style guide; the third run tests this revision with Terra. Each run
+freezes its own prompt copies, so the original runs retain their exact inputs.
+All use max reasoning and an opening plus fifteen adaptive player turns, without
+rerolling completed passages. The revised Terra run required one identical
+technical retry after turn 15 exhausted the output ceiling entirely on reasoning;
+the failure and its usage are preserved. The runner is unchanged. A 12,000-token response ceiling
+includes reasoning. The original prompt asks for 150–350 words; the revision asks
+for one to five short paragraphs, stopping at unanswered player interactions.
 Provider requests are text-only. SDK retries are disabled so every attempted
 call has a local request record. Incomplete, empty, or refused output is preserved
 without advancing the conversation. Accepted output is never rewritten.
@@ -55,9 +62,16 @@ conversation without additional generation.
 
 ## Evidence
 
-`provenance.json` records the source hash, adaptation choices, and pilot method.
+`provenance.json` records the initial adaptation. Later runs have their own
+provenance files. `sources/` preserves the supplied style guide, relevant chat-v2
+excerpts, source hash, and adaptation decisions. The original Windows document
+is not modified. The revised prompt also has three recorded same-context replays
+under `probes/terra_chat_v2_style/`.
+
 Each run contains frozen prompts, a manifest, exact request/response files under
 `attempts/`, accepted turn records, `transcript.md`, and aggregate `summary.json`.
+The runner's usage and latency totals cover accepted responses. The revised
+Terra run also has `attempt_summary.json`, which includes the incomplete request.
 The request logs contain omniscient fictional spoilers. The transcript contains
 only the opening/player submissions and delivered prose.
 
@@ -77,5 +91,6 @@ pytest -q test_play.py
 ```
 
 They check one-call behavior, full shared context and restart continuity,
-preservation of incomplete output without advancing, and frozen-prompt integrity.
+preservation of incomplete output without advancing, frozen-prompt integrity,
+and exclusion of implementation details from rendered instructions.
 Literary quality is assessed from the actual transcript, not a word-matching test.

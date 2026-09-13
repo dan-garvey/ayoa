@@ -1,0 +1,61 @@
+{
+  "bead": "ayoa-ngp6",
+  "base_commit": "4ba9af97cb97b73953f3e5863ad345535e0da82a",
+  "windows_source": "C:\\Users\\danim\\Pictures\\Ayoa\\covenant_prompt_v2.md",
+  "local_source": "/mnt/c/Users/danim/Pictures/Ayoa/covenant_prompt_v2.md",
+  "source_sha256": "8c2f6d90d7cb356df2aeeacf620a22c4efb3630679de442c5cf7611aaf7971f5",
+  "source_bytes": 93564,
+  "excerpt_line_ranges": [
+    [
+      1,
+      14
+    ],
+    [
+      299,
+      306
+    ],
+    [
+      332,
+      337
+    ],
+    [
+      346,
+      367
+    ],
+    [
+      427,
+      452
+    ],
+    [
+      475,
+      479
+    ],
+    [
+      527,
+      541
+    ],
+    [
+      881,
+      917
+    ],
+    [
+      1002,
+      1077
+    ]
+  ],
+  "style_guide_source": "User message in this conversation; copied to interactive_style_guide.txt",
+  "dialogue_rule_interpretation": "NPC dialogue serves their own goals rather than acting as a narrator mouthpiece. Dialogue may cause consequences. Optional clarification was requested; this interpretation was stated before proceeding.",
+  "adaptation_choices": [
+    "Explicit ownership covers small replies, decisions, personal memories, and exact authored text.",
+    "Stop at an unanswered player interaction; preserve NPC-to-NPC activity before that boundary.",
+    "Restore concrete political and interpersonal resistance for Ashara, Rashid, Caelindra, and Ysolde.",
+    "Keep lore, adult cast, hidden plot, and player identity otherwise from the compact Covenant adaptation.",
+    "Replace the 150-350-word cue with usually one to five short paragraphs and less text during direct dialogue.",
+    "Require subtext to remain unconfirmed; avoid compensating warmth, automatic vulnerability, flattery, and unfalsifiable mind-reading disputes.",
+    "Maximum reasoning remains the request setting, with one concise private-planning instruction.",
+    "Retain real outcomes and scene endings rather than making permanent romantic deferral a success metric.",
+    "Keep the existing Rowan persona rather than asking for real identifying details.",
+    "Do not copy the entire long chat prompt, explicit sensuality profiles, or repeated instructions into runtime input."
+  ],
+  "evaluation_plan": "Three known Terra authorship failures replayed once with identical old request parameters/history except instructions, followed by a fresh opening plus 15 adaptive Terra max turns. No quality rerolls. The combined system/cast revision is not a style-only ablation."
+}

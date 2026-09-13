@@ -1,0 +1,23 @@
+{
+  "turn": 1,
+  "input": "I check my coat and signet, then head downstairs for the welcome dinner. I pause just inside the dining-room doorway to see who is already there and how the places are arranged. \"Good evening. Rowan Garvey.\" I give the table a small, slightly embarrassed smile.",
+  "output": "The repaired seams hold as you reach the ground floor, and the signet remains firm on your hand. The dining room beyond is all varnished wood and dark paneling, its steady lamps bright among low candles. Beeswax, hot bread, and something peppery hang in the air above the long table.\n\nSeventeen settings run its length. Your card waits halfway along the garden side, between YSOLDE THORNMANTLE and CAELINDRA VAEYN; RASHID VEL AMARA is placed directly opposite. ASHARA VEL KOTHREN sits farther down beneath a candle whose flame bends faintly in her heat. Seraphel Dawnquill’s small white wings rest folded close beside Thessaly Morrow’s slowly stirring blue-black hair, while Aldric Verantus occupies a place nearer the far end. A few chairs remain open.\n\nYour greeting stills the low talk. Ysolde lifts grey eyes from her water glass. Caelindra turns from the card at her place. Rashid gives a measured inclination, one furred hand beside his untouched glass. “Good evening, Rowan Garvey.” His amber gaze touches the signet once before returning to you. “What would you have us call you at table?”",
+  "model": "gpt-5.6-terra",
+  "response_id": "resp_051f70f1564405bd016aa62453cb6887d194b5d35cc67e769a",
+  "started_at": "2026-09-13T04:19:30.683277+00:00",
+  "finished_at": "2026-09-13T04:21:29.215306+00:00",
+  "duration_s": 118.531,
+  "usage": {
+    "input_tokens": 5823,
+    "input_tokens_details": {
+      "cached_tokens": 5519,
+      "cache_write_tokens": 301
+    },
+    "output_tokens": 11136,
+    "output_tokens_details": {
+      "reasoning_tokens": 10876
+    },
+    "total_tokens": 16959
+  },
+  "attempt": "attempts/20260913T041930682363Z"
+}

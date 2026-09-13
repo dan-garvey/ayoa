@@ -1,3 +1,4 @@
+import re
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -6,6 +7,7 @@ import pytest
 from .play import (
     init_run,
     load_run,
+    make_request,
     play_turn,
     read_json,
 )
@@ -66,3 +68,16 @@ def test_existing_run_and_prompt_mutation_fail_before_model_call(tmp_path):
     with pytest.raises(ValueError, match="Frozen prompt changed"):
         play_turn(run, client, "Begin.")
     client.responses.create.assert_not_called()
+
+
+def test_rendered_instructions_exclude_implementation_details(tmp_path):
+    run = tmp_path / "run"
+    init_run(run, "offline", "max", 12000)
+    manifest, turns = load_run(run)
+    instructions = make_request(run, manifest, turns, "I arrive.")["instructions"]
+    forbidden = re.compile(
+        r"\b(?:openai|anthropic|claude|sdk|api[_ -]?key|EngineBridge|"
+        r"checkpoint|dispatcher|test harness)\b|/home/|/mnt/",
+        re.IGNORECASE,
+    )
+    assert forbidden.search(instructions) is None

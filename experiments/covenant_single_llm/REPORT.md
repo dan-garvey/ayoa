@@ -7,7 +7,8 @@ separate character agents have not been shown necessary by this experiment,
 and reliable long-term coherence has not been demonstrated by either result.
 
 [Exact transcript](runs/first_15_turns/transcript.md) ·
-[Unified prompt](system.txt) · [Adapted Covenant](covenant.txt) ·
+[Unified prompt](runs/first_15_turns/system.txt) ·
+[Adapted Covenant](runs/first_15_turns/covenant.txt) ·
 [Usage](runs/first_15_turns/summary.json) ·
 [Artifact verification](runs/first_15_turns/verification.json)
 
