@@ -1,0 +1,10 @@
+{
+  "agent": "/root/terra_c12_session_a",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "proxy_wrapper": "../proxy_wrapper.txt",
+  "review_feedback_supplied": false,
+  "player_policy": "Active social interest, shared activities and rivalry, test resistance and later quiet/redirection",
+  "planned_scope": "Fresh opening plus at least 12 adaptive turns; extend to outcomes unless material early failure."
+}

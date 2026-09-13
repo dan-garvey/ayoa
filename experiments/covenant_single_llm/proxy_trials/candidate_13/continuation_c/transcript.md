@@ -1,0 +1,23 @@
+# Terra coding-agent proxy transcript
+
+Exact player submissions and saved story passages.
+
+## Continuation 0: matched constructed private reservation and unwritten story situation from C12
+
+**Player**
+
+I give Caelindra the two pages. "Is there anything here you'd want to read more of?"
+
+**Story**
+
+Caelindra takes the pages by their upper corners and begins reading. Her violet eyes travel down the first paragraph. When she reaches the bottom of the first page, she turns it without comment and starts the second.
+
+The library has plenty of quiet to lend her. A pair of students on the gallery murmurs, then falls silent; the iron stair gives a small complaint under someone's weight. Caelindra reaches the end and holds the pages flat against the table rather than returning them.
+
+"The ferrywoman is not naive," she says. "That helps. She knows a warning costs money, and she knows precisely whose money. Most writers give a person like that either virtue or a receipt. You have given her a job."
+
+Her fingertip rests beside the deputy's refusal. "This man is better when he is frightened of a consequence than if he is simply corrupt. Do not rescue him by making him secretly reasonable in the next page. Let him be wrong in the way people often are: convinced that delay is the same thing as caution."
+
+She lifts her gaze. "I would read more of what the missing bell does to the harbor. The theft itself may matter; at present it matters because it leaves everyone deciding what they owe strangers they will not meet. That is a fair question for a story."
+
+A bell sounds once in the corridor, low and official. Caelindra aligns the pages' corners and offers them back. "Bring me the next two when you have them. Do not make the choice easy merely because you have reached the end of a page."

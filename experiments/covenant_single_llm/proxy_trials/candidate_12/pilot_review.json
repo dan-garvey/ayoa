@@ -1,0 +1,16 @@
+{
+  "status": "Short screens; superseded for pacing revision, not selected",
+  "scope": {
+    "session_a": "opening+3",
+    "session_b": "opening+4",
+    "continuation_c": "4 constructed responses"
+  },
+  "findings": [
+    "A1-2 and B2 repeatedly give whole-cast comment rounds even when a specific person is addressed.",
+    "A3 preserves player speech but offers the already announced song again instead of actually performing it when Rowan comes to listen.",
+    "B4 improves Stone with a specific parody-reading memory. A generalizing coda remains. B3 unnecessarily removes old letter from frame to read it, with no damage or consequential action; avoidable staging choice.",
+    "C0 gives a 247-word editorial report instead of a conversational reader response; critique is coherent, no definite invented ending or private comparison leak.",
+    "C1 holds original Saturday west-terrace expectation until told; C2 updates Sunday east-gardens only after disclosure, supplies company without inventing a question for Rowan. C3 respects declined help, quiet work, and sleep-until-morning endpoint."
+  ],
+  "independent_full_review": false
+}
