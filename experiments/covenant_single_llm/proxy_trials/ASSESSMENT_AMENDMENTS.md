@@ -16,6 +16,13 @@ fiction remain assessable, with incidental staging distinguished from material
 contradiction. Candidate 03's invented present question to a steward remains a
 player-dialogue violation.
 
+The earlier `TERRA_STYLE_REPORT.md` also predates this clarification. Its finding
+that the opening invents something about the orderliness of Rowan's former life
+is not an authorship failure merely because that history was unprovided. Its
+separate viewpoint concern about unseen downstairs staging remains assessable.
+The report is preserved as the original assessment, with this amendment supplying
+the current interpretation.
+
 Candidate 05's ongoing sessions retain their frozen original prompts. They are
 being evaluated under the clarified history criterion. The next prompt revision
 will remove the blanket prohibition; no stored passage or old prompt snapshot

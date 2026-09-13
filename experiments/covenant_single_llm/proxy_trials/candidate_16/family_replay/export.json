@@ -1,0 +1,22 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "2cbc571ccefa4f912b47321620882bf91082d7a3e09ba8ea80c34fa8d4d01aab",
+      "story_sha256": "2eda325a22b91d606a1f37e96da99670d17c028f2b7ecf2270d3240b62135615",
+      "story_words": 132
+    },
+    {
+      "turn": 1,
+      "input_sha256": "23f9300f71cbdf51ee1d0c9267f7d1694a8db93499b5ce6fa28b9e3091286d8f",
+      "story_sha256": "4d11369bad7c8dbc9189e0884d599c1116f284140b5414d200b72e1da45d5991",
+      "story_words": 84
+    }
+  ],
+  "player_turns": 2,
+  "session_kind": "matched visible-history family question after C15 letter",
+  "story_words": 216
+}

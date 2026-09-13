@@ -1,0 +1,10 @@
+{
+  "agent": "/root/terra_c16_session_b",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "proxy_wrapper": "../proxy_wrapper.txt",
+  "review_feedback_supplied": false,
+  "player_policy": "Family curiosity, then an independently driven route based only on visible fiction; ordinary company and observation with willingness to change plans.",
+  "planned_scope": "Fresh opening plus at least12 adaptive turns, aim15 or a substantial outcome; preserve any extension and no rerolls."
+}

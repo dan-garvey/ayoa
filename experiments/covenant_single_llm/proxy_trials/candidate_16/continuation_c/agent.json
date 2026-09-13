@@ -1,0 +1,9 @@
+{
+  "agent": "/root/terra_c16_continuation_c",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "new constructed private reschedule and partial report",
+  "review_feedback_supplied": false,
+  "planned_scope": "Old schedule and partial relay before disclosure; explicit update afterward; possible short follow-up only for a concrete unresolved issue."
+}

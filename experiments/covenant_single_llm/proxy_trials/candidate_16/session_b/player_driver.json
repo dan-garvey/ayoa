@@ -1,0 +1,12 @@
+{
+  "agent": "/root/terra_c16_player_b",
+  "role": "Player-side test driver, not an additional story/NPC model",
+  "begins_at_player_turn": 1,
+  "ends_at_player_turn": 20,
+  "context": "Visible B opening and subsequent inputs/stories, plus player.json. No Covenant, system, other sessions, review rubric or feedback.",
+  "policy": "Pursue family curiosity to a personal outcome, then ordinary company or another interest; make natural adaptive choices and allow NPC activities time to develop.",
+  "story_author": "/root/terra_c16_session_b remains sole author of world, narrator and all NPCs",
+  "model": "Inherited parent model, not the Terra story proxy",
+  "reasoning_effort": "max",
+  "scope_extension_after_turn_15": "Continue through20 to finish current supper and keep the already booked Arcana assessment. Preserve first15 turns and driver_notes_15.md. No particular assessment result requested."
+}

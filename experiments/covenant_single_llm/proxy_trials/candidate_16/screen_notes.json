@@ -1,0 +1,14 @@
+{
+  "status": "Promising short conversational screen; fresh substantial tests started, no selection",
+  "scope": "Same visible pre-response context and Iona question as C15 family_replay01, then a player follow-up about the letter debt",
+  "response_words": {
+    "00.story.md": 132,
+    "01.story.md": 84
+  },
+  "observations": [
+    "The first answer chooses one specific map wager and remains two paragraphs, instead of a long anecdote followed by a character appraisal. The concluding warning belongs to the event being told.",
+    "When told the letter says six silver is still owed, Stone maintains that he paid and interprets Iona as teasing; he offers six silver again without narrating Rowan taking it. The letter date is not fixed relative to payment. Human testimony can be playful or mistaken; no new inaccessible source is needed for Stone to remember his own wager.",
+    "There are still polished phrasing and a concluding lesson line; the revision has reduced their volume in this local case, not proven their absence. Turn01 exceeds the three-spoken-sentence guide while remaining short."
+  ],
+  "limits": "Visible-history proxy comparison, not identical hidden reasoning or a controlled causal estimate. Full fresh sessions and boundary/independent review still required."
+}
