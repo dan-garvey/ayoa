@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-13T17:54:51.482683+00:00",
+  "revisions": [
+    "baseline",
+    "candidate_01",
+    "candidate_02"
+  ],
+  "saved_passages_hashed": 21,
+  "staged_files_scanned_for_credential_values": 81,
+  "prompt_snapshots_verified": true,
+  "direct_story_api_calls": 0,
+  "scope": "Artifact integrity only; literary acceptance has not been reached."
+}

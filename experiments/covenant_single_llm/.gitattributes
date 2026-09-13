@@ -1,3 +1,5 @@
 # Preserve Markdown hard line breaks in the exact delivered prose.
 runs/*/transcript.md whitespace=-blank-at-eol
 probes/*/transcript.md whitespace=-blank-at-eol
+proxy_trials/**/transcript.md whitespace=-blank-at-eol
+proxy_trials/**/*.story.md whitespace=-blank-at-eol
