@@ -1,0 +1,23 @@
+{
+  "turn": 14,
+  "input": "\"Then you're allowed to be bad company. I didn't set an entrance examination.\" I keep the honey on my side of the table and leave her cup alone. \"There's a chair well clear of the window if I say something idiotic.\" I let the joke stand or fail without explaining it, then settle back and give her room to talk about the match or leave it entirely aside.",
+  "output": "Ashara eyes the window, then drags the offered chair another inch away from it.\n\n“Good,” she says. “I prefer my exits intentional.”\n\nShe takes the tea without looking toward the honey. Heat gathers faintly around her knuckles as she cups the porcelain.\n\n“And I am not bad company. I am company temporarily opposed to arithmetic.”\n\nRashid lowers his gaze to his letter, but not quickly enough to hide the edge of a smile. “A grave affliction.”\n\n“Do not diagnose me.”\n\nHe obediently returns to his page.\n\nFor a few breaths Ashara says nothing. Her thumb passes once over the split in her knuckle. Then, with the bluntness of someone reporting a tactical error rather than asking comfort for one, she says, “My challenger weakened her left guard on purpose. I saw it was bait. I also saw that I could break through before her counterspell settled.”\n\nThe fire pops. Seraphel closes the salve tin with exaggerated care.\n\n“I chose to prove it,” Ashara continues. “Her counter landed first. One point.” Her tail curls tightly around the chair leg. “That is all.”\n\nNo one offers the word *close*. Rashid folds his letter along an existing crease. Thessaly, at the garden doors, adjusts the rosemary pot half an inch toward the light.\n\nAshara drinks her tea. Some of the rigidness goes out of her shoulders—not gone, merely no longer being held up for inspection. Her eyes settle on the pages in your lap.\n\n“This is the story for Vaeyn?” she asks. “The technically competent, possibly sentimental one?”\n\nAt Seraphel’s quiet snort, Ashara glances toward her. “Do not rhyme.”\n\nSeraphel raises both hands in surrender.\n\nAshara looks back to you. “Tell me about one of your imaginary people instead. Preferably one making a worse decision than I did.”",
+  "model": "gpt-5.6-terra",
+  "response_id": "resp_09be9468ade1476d016aa5f69d2da487d1a244313882aa50e3",
+  "started_at": "2026-09-13T01:04:28.684815+00:00",
+  "finished_at": "2026-09-13T01:05:02.458006+00:00",
+  "duration_s": 33.773,
+  "usage": {
+    "input_tokens": 11376,
+    "input_tokens_details": {
+      "cached_tokens": 10867,
+      "cache_write_tokens": 506
+    },
+    "output_tokens": 2771,
+    "output_tokens_details": {
+      "reasoning_tokens": 2377
+    },
+    "total_tokens": 14147
+  },
+  "attempt": "attempts/20260913T010428683393Z"
+}

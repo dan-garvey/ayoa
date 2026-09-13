@@ -1,0 +1,14 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "accepted_calls": 16,
+  "player_turns": 15,
+  "attempted_calls": 16,
+  "total_call_seconds": 655.973,
+  "visible_words": 4875,
+  "visible_output_tokens": 6427,
+  "input_tokens": 132797,
+  "output_tokens": 52562,
+  "cached_tokens": 120870,
+  "reasoning_tokens": 46135
+}

@@ -1,0 +1,23 @@
+{
+  "turn": 11,
+  "input": "I return the borrowed cloak to the vestibule peg, then wash up and get ready for bed. I leave the framed letter where it is. I go to sleep, intending to wake in the morning with time for breakfast and the day's ordinary Academy obligations before the fifth-bell visit.",
+  "output": "You sleep deeply enough that the storm never enters your dreams.\n\nAt dawn, a folded timetable waits beneath the door: breakfast; Covenant Procedure in the oval seminar room; Practical Rhetoric after noon; a free hour before fifth bell. The Academy’s ordinary machinery proves less mystical than its bridges and more relentless. You learn which stair descends rather than deposits you in an archive, how far a dragon-carved arch is from a doorway, and that every Conclave student has been given a seat but not necessarily a map.\n\nBreakfast is oats, eggs, and sharp tea. Ysolde, her notebook tucked under one arm, tells you the anemometer was two minutes early at dawn.\n\n“It is becoming polite,” she says.\n\nCaelindra, half concealed behind a slim book, adds without looking up, “Tomorrow. Five pages.”\n\nProfessor Windwhisper spends the morning turning a river dispute into seven defensible interpretations of treaty law, all inconvenient. In the afternoon, Professor Kira has a roomful of students argue positions assigned against their will; her corrections land like thrown pebbles—small, accurate, impossible to ignore. By the fifth bell, your head holds more procedures than food.\n\nThe common room has a low fire and the soft scrape of Thessaly repotting a rosemary cutting near the garden doors. Seraphel sits nearest the lamp with one small wing spread over a towel, working salve carefully into a bent feather. Neither appears to have arranged their evening around your invitation.\n\nRashid waits in a leather chair with his formal coat shed and an unsealed letter held beneath his hand. Ashara has not yet returned from the dueling grounds.\n\n“I brought it,” he says, looking from the letter to you. “That is not the same as granting it an audience.”",
+  "model": "gpt-5.6-terra",
+  "response_id": "resp_009790f220cd1816016aa5f55e881c87d1be06bfc2ea8ea559",
+  "started_at": "2026-09-13T00:59:09.897259+00:00",
+  "finished_at": "2026-09-13T01:00:37.167913+00:00",
+  "duration_s": 87.27,
+  "usage": {
+    "input_tokens": 9964,
+    "input_tokens_details": {
+      "cached_tokens": 9510,
+      "cache_write_tokens": 451
+    },
+    "output_tokens": 7620,
+    "output_tokens_details": {
+      "reasoning_tokens": 7250
+    },
+    "total_tokens": 17584
+  },
+  "attempt": "attempts/20260913T005909896451Z"
+}

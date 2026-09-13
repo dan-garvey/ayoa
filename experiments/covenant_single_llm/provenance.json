@@ -1,0 +1,20 @@
+{
+  "bead": "ayoa-v5sn",
+  "base_commit": "780c661",
+  "source": "app/storage/playtest_reports/covenant_15turn_20260911t185207z/source_seed.json",
+  "source_sha256": "8ea42185fd3592dd107869d0a06f1d293e38a07c61ff3e09a41c887d41242b23",
+  "adaptation": "Manually authored from public/hidden world lore, locations, character records, and the archived narrative rules.",
+  "changes": [
+    "All world and character information enters one shared prompt.",
+    "Condensed duplicate lore and character facts into complete third-person descriptions.",
+    "Restored Rashid-Ashara courtship from narrative rules and hidden facts.",
+    "Omitted orphaned sonnet/read-it/no-answer fragments whose referents are unspecified.",
+    "Condensed sexualized physical descriptions for this social playtest; retained attraction and political stakes.",
+    "Article Nineteen targets procreation, as in world lore; intimacy alone does not trigger its sentence.",
+    "Removed runtime role instructions and deterministic D&D mechanics; fictional racial capabilities remain.",
+    "Author may introduce consistent scene details and develop the ensemble.",
+    "Softened Ashara's prescriptive sexual attraction into possible attraction without a guaranteed response to Rowan; this is an additional characterization confound."
+  ],
+  "pilot": "Primary coding agent, using delivered prose and the previous social-route objectives. Not blinded to story lore.",
+  "planned_calls": "One opening plus fifteen adaptive player turns; one candidate per turn, no quality rerolls."
+}
