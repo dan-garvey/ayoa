@@ -1,0 +1,34 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+      "story_sha256": "a3cfa5b117269be340ad7eb3f2b6a9a34b66b02b291f38154e3b528b4a9d16c3",
+      "story_words": 210
+    },
+    {
+      "turn": 1,
+      "input_sha256": "8532a28cadb624e78b81ee627759dde710d940849e4f4929ea516276c6323f64",
+      "story_sha256": "12da089b559f707b50ad55b40789b734a0bd42c7993578bf70be9fbed326b056",
+      "story_words": 199
+    },
+    {
+      "turn": 2,
+      "input_sha256": "45cfdbc2bee72c6f011813dbc50e13d40d859128116c9978d06edb04b12891eb",
+      "story_sha256": "1f30cc77f9ea4c1e5e9bd3f78030c6042cfd11f252b503b79c7db9dcef447925",
+      "story_words": 184
+    },
+    {
+      "turn": 3,
+      "input_sha256": "0f796c7ead5a7fa271e1944fc4ec10ec089f25629062c8974f05e2ba231a3725",
+      "story_sha256": "92ff70c998adc153d637fb690dc4274df44d1419f79ce4dfc4ec2e0ba8a38990",
+      "story_words": 147
+    }
+  ],
+  "player_turns": 3,
+  "session_kind": "fresh interactive session",
+  "story_words": 740
+}

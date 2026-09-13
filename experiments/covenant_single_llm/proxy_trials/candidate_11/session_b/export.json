@@ -1,0 +1,28 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+      "story_sha256": "914f737d8ea33c4edd3e83cf654c72d2648ebbc02e60b0a574df70703dc4ef73",
+      "story_words": 243
+    },
+    {
+      "turn": 1,
+      "input_sha256": "1ae90422af8ccf5e6df2282f6c3a76d3bf38a53837982b220e1adee25c2126be",
+      "story_sha256": "4caf6009b9c99402e73a79f38a37b77e7dbcd142d0c76ff238d91b1c79c47d57",
+      "story_words": 312
+    },
+    {
+      "turn": 2,
+      "input_sha256": "b5434615db1f1b9863076047c0128936a4d34ce97e2a105e26250ee58a7f92e4",
+      "story_sha256": "9a1e8d677db73f606e92d51465b203014bc585273b744966367f96dca2fe603e",
+      "story_words": 302
+    }
+  ],
+  "player_turns": 2,
+  "session_kind": "fresh interactive session",
+  "story_words": 857
+}

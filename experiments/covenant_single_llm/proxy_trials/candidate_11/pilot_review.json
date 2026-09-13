@@ -1,0 +1,15 @@
+{
+  "status": "short screen; superseded by C12, not a successful long-session candidate",
+  "scope": {
+    "session_a": "opening plus 3 player turns",
+    "session_b": "opening plus 2 player turns",
+    "stone_replay": "one matched visible-history replay of C10 A6"
+  },
+  "observations": [
+    "A0-1 still stage a round of detached one-line observations from the whole table. A2-3 contain more particular peer teasing, though the bread-basket sample action recurs.",
+    "B2 offers a shared game and livelier Seraphel/Thessaly banter; introduces when you ask about staying up although the player expressed an out-of-character wish for company, not an explicit question. This is a small but avoidable authorship slippage, rather than a major plot decision.",
+    "Stone replay now supplies a particular library visit and an independent past experience of the poem. New history is allowed. His may-have-lost inference is speculative; no definite impossible knowledge established. Some polished generalization, gesture scaffolding and unsolicited interpretation remain."
+  ],
+  "next_revision": "Keep improved concrete-memory register, make wish/action distinction explicit, encourage coherent incidents, restore tighter conversational focus. Judge whole exchanges rather than require every line to be unpolished.",
+  "independent_full_review": false
+}

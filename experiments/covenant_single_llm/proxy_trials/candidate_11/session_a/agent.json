@@ -1,0 +1,10 @@
+{
+  "agent": "/root/terra_c11_session_a",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "proxy_wrapper": "../proxy_wrapper.txt",
+  "review_feedback_supplied": false,
+  "player_policy": "Socially active, playful, pursues a shared activity and a personal interest, allows refusal and later redirection",
+  "planned_scope": "Fresh screen then at least 12 adaptive turns if worth retaining; extend for outcomes."
+}
