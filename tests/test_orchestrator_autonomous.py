@@ -48,7 +48,6 @@ def _checkpoint_with_ready_work():
         actor_id="bob",
         participant_ids=["bob"],
         source_event_ids=[],
-        created_event_sequence=0,
         gating_pov_ids=[],
     ))
     return value

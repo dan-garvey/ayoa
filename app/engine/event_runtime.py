@@ -79,8 +79,6 @@ def visible_facts_for(
     event: CanonicalEventRecord,
     character_id: str,
 ) -> list[ObservableFact]:
-    if character_id not in event.observer_ids:
-        return []
     return [
         fact
         for fact in event.observable_facts
@@ -292,14 +290,9 @@ def _fan_out_event(
             continue
         seen_at = visible_at_s(event, facts)
         _advance_character_clock(checkpoint, character_id, seen_at)
-        directness = event.observation_level_for(character_id)
-        if not directness:
-            raise RuntimeError("canonical observer has no directness group")
-
         if character_id in bound_ids:
             narrator_refs[character_id] = NarratorEventRef(
                 event_id=event.event_id,
-                observation_level=directness,
                 visible_at_s=seen_at,
                 event_sequence=event_sequence,
                 sprite_variant_keys_by_character_id=variants,
@@ -324,7 +317,6 @@ def _fan_out_event(
             checkpoint,
             viewer_id=character_id,
             event=event,
-            observation_level=directness,
             priority_target_ids=event.actor_ids,
             max_loadouts=AGENT_FIRST_MEETING_CAP,
         )
@@ -394,9 +386,9 @@ def commit_event_batch(
                 [],
             ).append(ref)
 
-        from app.engine.content_fronts import queue_front_signals_from_public_event
+        from app.engine.content_fronts import queue_front_signals_from_event
 
-        queue_front_signals_from_public_event(
+        queue_front_signals_from_event(
             checkpoint,
             event,
             actor_id=event.actor_ids[0] if event.actor_ids else "",
@@ -432,11 +424,6 @@ def commit_event_batch(
             known = set(existing.source_event_ids)
             additions = [ref for ref in refs if ref.event_id not in known]
             existing.event_refs.extend(additions)
-            existing.source_event_ids.extend(ref.event_id for ref in additions)
-            existing.highest_event_sequence = max(
-                existing.highest_event_sequence,
-                *(ref.event_sequence for ref in additions),
-            )
             if (user_input_by_pov or {}).get(pov_id):
                 existing.user_input = (user_input_by_pov or {})[pov_id]
             existing.partial_mode = (
@@ -458,9 +445,7 @@ def commit_event_batch(
             job_id=job_id,
             lane_id=lane_id,
             pov_character_id=pov_id,
-            source_event_ids=event_ids,
             event_refs=refs,
-            highest_event_sequence=max(item.event_sequence for item in refs),
             created_revision=checkpoint.session.turn_index + 1,
             user_input=(user_input_by_pov or {}).get(pov_id, ""),
             partial_mode=pov_id in (partial_pov_ids or set()),

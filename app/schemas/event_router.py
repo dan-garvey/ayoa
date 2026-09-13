@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 from app.schemas.dnd_inventory import DndLootOfferSignal
 from app.schemas.dnd_monsters import DndCombatantSpawn
 from app.schemas.dnd_spatial import DndBattleMapSeed
-from app.schemas.events import ObservableFact
+from app.schemas.events import ObservableFact, fact_recipient_ids
 
 
 MAX_ROUTER_BATCH_INPUTS = 5
@@ -89,42 +89,6 @@ class RouterInputEnvelope(BaseModel):
         if not self.payload.strip():
             raise ValueError("router input payload must not be blank")
         return self
-
-
-class ObserverGroups(BaseModel):
-    """Event observers grouped once by perceptual directness."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    direct: list[str]
-    indirect: list[str]
-    inferred: list[str]
-
-    @model_validator(mode="after")
-    def _validate_groups(self) -> "ObserverGroups":
-        for label, values in (
-            ("direct", self.direct),
-            ("indirect", self.indirect),
-            ("inferred", self.inferred),
-        ):
-            _validate_unique_ids(f"observer {label}", values)
-        flattened = self.all_ids
-        if len(flattened) != len(set(flattened)):
-            raise ValueError("an observer must appear in exactly one directness group")
-        return self
-
-    @property
-    def all_ids(self) -> list[str]:
-        return [*self.direct, *self.indirect, *self.inferred]
-
-    def level_for(self, character_id: str) -> str:
-        if character_id in self.direct:
-            return "direct"
-        if character_id in self.indirect:
-            return "indirect"
-        if character_id in self.inferred:
-            return "inferred"
-        return ""
 
 
 class RouterNextTurn(BaseModel):
@@ -267,7 +231,6 @@ class RouterEventDraft(BaseModel):
     infeasible_input_indexes: list[int]
     duration_s: int
     observable_facts: list[ObservableFact]
-    observers: ObserverGroups
     required_responders: list[str]
     appearance_target_ids: list[str]
     spawn: list[SpawnRequest]
@@ -318,21 +281,7 @@ class RouterEventDraft(BaseModel):
             _validate_unique_ids(label, values)
         if len(self.commitment_opens) > 1:
             raise ValueError("an event can open at most one commitment")
-        observer_ids = set(self.observers.all_ids)
-        recipients = {
-            character_id
-            for fact in self.observable_facts
-            for character_id in (
-                self.observers.all_ids
-                if fact.audience == "all_observers"
-                else fact.visible_to
-            )
-        }
-        if observer_ids - recipients:
-            raise ValueError("every observer must receive at least one fact")
         for fact in self.observable_facts:
-            if fact.audience == "only" and set(fact.visible_to) - observer_ids:
-                raise ValueError("fact recipients must be members of observer groups")
             if fact.at_offset_s + fact.duration_s > self.duration_s:
                 raise ValueError("fact timing exceeds its event duration")
         if any(
@@ -347,10 +296,13 @@ class RouterEventDraft(BaseModel):
             raise ValueError("commitment interrupt exceeds event duration")
         if self.required_responders and self.duration_s != 0:
             raise ValueError("an unresolved contested event must have zero duration")
-        if set(self.required_responders) - set(self.observers.direct):
-            raise ValueError("contested responders require direct observation")
-        if self.appearance_target_ids and not self.observers.all_ids:
-            raise ValueError("appearance enrichment requires at least one observer")
+        if set(self.required_responders) - set(self.observer_ids):
+            raise ValueError("contested responders must receive the attempt")
+        visual_subjects = {
+            cid for fact in self.observable_facts for cid in fact.visual_subject_ids
+        }
+        if set(self.appearance_target_ids) - visual_subjects:
+            raise ValueError("appearance targets require visual recipients")
         if not self._has_effect() and (
             self.feasible_input_indexes or not self.infeasible_input_indexes
         ):
@@ -360,6 +312,10 @@ class RouterEventDraft(BaseModel):
     @property
     def is_no_event_resolution(self) -> bool:
         return not self._has_effect()
+
+    @property
+    def observer_ids(self) -> list[str]:
+        return fact_recipient_ids(self.observable_facts)
 
 
 class RouterBatchOutput(BaseModel):
@@ -421,8 +377,8 @@ class DndRouterEventDraft(RouterEventDraft):
     @model_validator(mode="after")
     def _validate_dnd_draft(self) -> "DndRouterEventDraft":
         _validate_unique_ids("D&D reaction ids", self.dnd_reaction_ids)
-        if set(self.dnd_reaction_ids) - set(self.observers.direct):
-            raise ValueError("D&D reactions require direct observation")
+        if set(self.dnd_reaction_ids) - set(self.observer_ids):
+            raise ValueError("D&D reactions require a perceived trigger")
         if self.interaction_mode == "narrative":
             if self.combatant_ids or self.combatant_spawns or self.battle_map_seed.present:
                 raise ValueError("narrative events cannot carry combat start fields")
@@ -460,11 +416,7 @@ class CanonicalEventRecord(BaseModel):
     effective_at_s: int
     duration_s: int
     actor_ids: list[str]
-    source_submission_ids: list[str]
-    feasible_submission_ids: list[str]
-    infeasible_submission_ids: list[str]
     observable_facts: list[ObservableFact]
-    observers: ObserverGroups
     spawn: list[SpawnRequest]
     dormant: list[str]
     cull: list[str]
@@ -480,44 +432,15 @@ class CanonicalEventRecord(BaseModel):
             raise ValueError("canonical event and causal lane ids must not be blank")
         if self.effective_at_s < 0 or self.duration_s < 0:
             raise ValueError("canonical event time cannot be negative")
-        for label, values in (
-            ("actor ids", self.actor_ids),
-            ("source submission ids", self.source_submission_ids),
-            ("feasible submission ids", self.feasible_submission_ids),
-            ("infeasible submission ids", self.infeasible_submission_ids),
-        ):
-            _validate_unique_ids(label, values)
-        if set(self.feasible_submission_ids) & set(self.infeasible_submission_ids):
-            raise ValueError("a submission cannot be both feasible and infeasible")
-        if set(self.source_submission_ids) != (
-            set(self.feasible_submission_ids) | set(self.infeasible_submission_ids)
-        ):
-            raise ValueError("source submissions must match their outcome ids")
-        observer_ids = set(self.observers.all_ids)
-        recipients = {
-            character_id
-            for fact in self.observable_facts
-            for character_id in (
-                self.observers.all_ids
-                if fact.audience == "all_observers"
-                else fact.visible_to
-            )
-        }
-        if observer_ids - recipients:
-            raise ValueError("every canonical observer must receive at least one fact")
+        _validate_unique_ids("actor ids", self.actor_ids)
         for fact in self.observable_facts:
-            if fact.audience == "only" and set(fact.visible_to) - observer_ids:
-                raise ValueError("fact recipients must be canonical observers")
             if fact.at_offset_s + fact.duration_s > self.duration_s:
                 raise ValueError("canonical fact timing exceeds event duration")
         return self
 
     @property
     def observer_ids(self) -> list[str]:
-        return self.observers.all_ids
-
-    def observation_level_for(self, character_id: str) -> str:
-        return self.observers.level_for(character_id)
+        return fact_recipient_ids(self.observable_facts)
 
 
 class DndCanonicalEventRecord(CanonicalEventRecord):
@@ -539,7 +462,6 @@ class FrontierTurn(BaseModel):
     actor_id: str
     participant_ids: list[str]
     source_event_ids: list[str]
-    created_event_sequence: int
     gating_pov_ids: list[str]
 
     @model_validator(mode="after")
@@ -552,8 +474,6 @@ class FrontierTurn(BaseModel):
             ("frontier POV gates", self.gating_pov_ids),
         ):
             _validate_unique_ids(label, values)
-        if self.created_event_sequence < 0:
-            raise ValueError("frontier creation sequence cannot be negative")
         if self.turn_kind == "world":
             if self.actor_id or not self.source_event_ids:
                 raise ValueError("world frontier needs sources and no actor")

@@ -274,7 +274,6 @@ def build_checkpoint() -> CheckpointFile:
     checkpoint.narrator_conversations = {}
     checkpoint.character_conversations = {}
     checkpoint.canonical_events = []
-    checkpoint.visibility_log = []
 
     setting = checkpoint.world_state.setting
     setting.title = "One-Star Ascension — Promotion Sprite Playtest"

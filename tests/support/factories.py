@@ -10,7 +10,6 @@ from app.schemas.event_router import (
     CanonicalEventRecord,
     DndCanonicalEventRecord,
     DndRouterEventDraft,
-    ObserverGroups,
     RouterBatchOutput,
     RouterEventDraft,
 )
@@ -91,13 +90,11 @@ def narrator_llm_response(
 def narrator_event_ref(
     *,
     event_id: str,
-    observation_level: str = "direct",
     visible_at_s: int = 0,
     event_sequence: int = 0,
 ) -> NarratorEventRef:
     return NarratorEventRef(
         event_id=event_id,
-        observation_level=observation_level,
         visible_at_s=visible_at_s,
         event_sequence=event_sequence,
         sprite_variant_keys_by_character_id={},
@@ -189,6 +186,20 @@ def gatehouse_checkpoint(
     )
 
 
+def _scoped_facts(facts, recipients: list[str]) -> list[ObservableFact]:
+    """Author explicit fixture recipients; production never accepts bare facts."""
+    return [
+        fact if isinstance(fact, ObservableFact) else ObservableFact.only(
+            fact if isinstance(fact, str) else str(fact.get("text", "")),
+            recipients if isinstance(fact, str) else fact.get("visible_to", recipients),
+            visual_subject_ids=[] if isinstance(fact, str) else fact.get("visual_subject_ids", []),
+            at_offset_s=0 if isinstance(fact, str) else int(fact.get("at_offset_s", 0)),
+            duration_s=0 if isinstance(fact, str) else int(fact.get("duration_s", 0)),
+        )
+        for fact in facts
+    ]
+
+
 def router_event_draft(
     *,
     feasible_input_indexes: list[int] | None = None,
@@ -208,10 +219,10 @@ def router_event_draft(
             [] if infeasible_input_indexes is None else infeasible_input_indexes
         ),
         "duration_s": duration_s,
-        "observable_facts": (
-            [ObservableFact.all("Something happens.")] if facts is None else facts
+        "observable_facts": _scoped_facts(
+            (["Something happens."] if observers else []) if facts is None else facts,
+            observers,
         ),
-        "observers": ObserverGroups(direct=observers, indirect=[], inferred=[]),
         "required_responders": (
             [] if required_responders is None else required_responders
         ),
@@ -275,20 +286,9 @@ def canonical_event(
     **overrides: Any,
 ) -> CanonicalEventRecord:
     observers = ["alice"] if observer_ids is None else observer_ids
-    normalized_facts = (
-        [ObservableFact.all("Something happens.")]
-        if facts is None
-        else [
-            fact
-            if isinstance(fact, ObservableFact)
-            else ObservableFact.all(
-                str(fact.get("text", "")),
-                visual_subject_ids=fact.get("visual_subject_ids", ()),
-                at_offset_s=int(fact.get("at_offset_s", 0)),
-                duration_s=int(fact.get("duration_s", 0)),
-            )
-            for fact in facts
-        ]
+    normalized_facts = _scoped_facts(
+        (["Something happens."] if observers else []) if facts is None else facts,
+        observers,
     )
     data: dict[str, Any] = {
         "event_id": event_id,
@@ -296,11 +296,7 @@ def canonical_event(
         "effective_at_s": effective_at_s,
         "duration_s": duration_s,
         "actor_ids": [] if actor_ids is None else actor_ids,
-        "source_submission_ids": ["submission_test"],
-        "feasible_submission_ids": ["submission_test"],
-        "infeasible_submission_ids": [],
         "observable_facts": normalized_facts,
-        "observers": ObserverGroups(direct=observers, indirect=[], inferred=[]),
         "spawn": [],
         "dormant": [],
         "cull": [],

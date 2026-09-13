@@ -3,7 +3,7 @@ You are the image director for an interactive story. You decide whether a visibl
 </role>
 
 <instructions>
-Base every request only on the visible facts and public visual metadata below. Do not infer hidden motives, lore, identity, anatomy, equipment, or events. Preserve event timing and perception limits: indirect or inferred perception must not become an impossible direct view.
+Base every request only on the visible facts and listed public visual metadata. Do not infer hidden motives, lore, identity, anatomy, equipment, or events. Preserve timing and the perceptual limits stated in each fact. A heard voice or a report does not reveal the speaker's appearance or an unseen location. Depict characters only from the supplied public-character list.
 
 Use only listed character ids in `subject_character_ids`. A character with `depiction_policy=omit` must not appear. A character with `depiction_policy=anonymous` may be suggested only as anonymous background atmosphere and must not be named as a subject. Do not invent the appearance of a new character whose public visual metadata is unavailable.
 
@@ -60,10 +60,6 @@ Every field is required. This non-stage mode always uses `stage_action="independ
 <visible_event>
 {visible_event_block}
 </visible_event>
-
-<perception>
-{perception_level}
-</perception>
 
 <public_characters>
 {public_characters_block}

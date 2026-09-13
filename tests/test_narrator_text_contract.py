@@ -133,7 +133,7 @@ async def test_stored_kills_keep_source_ties_and_chronological_pov_batch(
     assert positions == sorted(positions)
     for source in stored_sample["events"]:
         for fact in source["observable_facts"]:
-            if fact["audience"] == "only" and pov_id not in fact["visible_to"]:
+            if pov_id not in fact["visible_to"]:
                 assert fact["text"] not in rendered_input
 
 

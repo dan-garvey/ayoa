@@ -587,7 +587,7 @@ def test_llm_lookup_preflight_fetches_reviewed_hidden_ref(tmp_path):
     assert "source_fingerprint" not in lookup_text
 
 
-def test_llm_lookup_preflight_rebuilds_legacy_hashed_router_history(tmp_path):
+def test_llm_lookup_preflight_projects_canonical_history_without_hashes(tmp_path):
     db_path = _pack_db(
         tmp_path,
         [
@@ -608,10 +608,7 @@ def test_llm_lookup_preflight_rebuilds_legacy_hashed_router_history(tmp_path):
     ckpt.canonical_events = [event]
     ckpt.session_conversation = [ConversationMessage(
         role="assistant",
-        content=(
-            "prior_event evt_deadbeefcafe lane=lane_0123456789abcdef "
-            "submissions=submission_cafebabefeed"
-        ),
+        content="prior_event sequence=0",
     )]
     ckpt.session.content_state = {"pack": _pack_state(db_path)}
     client = MagicMock(spec=LLMClient)

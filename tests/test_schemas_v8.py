@@ -1,4 +1,4 @@
-"""Current schema-boundary contracts for checkpoint format 7."""
+"""Current schema-boundary contracts for checkpoint format 8."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from pydantic import ValidationError
 from app.schemas.checkpoint import CheckpointFile, CURRENT_SCHEMA_VERSION
 from app.schemas.delivery import NarratorEventRef, NarratorRenderJob
 from app.schemas.event_router import (
-    ObserverGroups,
     RouterBatchOutput,
     RouterEventDraft,
     RouterInputEnvelope,
@@ -18,22 +17,19 @@ from app.schemas.state import SessionSettings
 from tests.support.factories import canonical_event, checkpoint
 
 
-def test_checkpoint_v7_round_trip_preserves_unified_runtime_state() -> None:
-    original = checkpoint(session_id="schema-v7")
+def test_checkpoint_v8_round_trip_preserves_unified_runtime_state() -> None:
+    original = checkpoint(session_id="schema-v8")
     original.canonical_events = [canonical_event(observer_ids=[])]
     original.session.narrator_render_jobs = [NarratorRenderJob(
         job_id="job_1",
         lane_id="lane_test",
         pov_character_id="alice",
-        source_event_ids=["evt_test"],
         event_refs=[NarratorEventRef(
             event_id="evt_test",
-            observation_level="direct",
             visible_at_s=0,
             event_sequence=0,
             sprite_variant_keys_by_character_id={},
         )],
-        highest_event_sequence=0,
         created_revision=1,
         user_input="",
         partial_mode=False,
@@ -45,16 +41,27 @@ def test_checkpoint_v7_round_trip_preserves_unified_runtime_state() -> None:
 
     rebuilt = CheckpointFile.model_validate_json(original.model_dump_json())
 
-    assert rebuilt.schema_version == CURRENT_SCHEMA_VERSION == "7.0"
+    assert rebuilt.schema_version == CURRENT_SCHEMA_VERSION == "8.0"
     assert rebuilt.canonical_events[0].causal_lane_id == "lane_test"
     assert rebuilt.session.narrator_render_jobs[0].job_id == "job_1"
+    job = rebuilt.session.narrator_render_jobs[0]
+    assert job.source_event_ids == ["evt_test"]
+    assert job.highest_event_sequence == 0
+    assert "source_event_ids" not in job.model_dump()
+    assert "highest_event_sequence" not in job.model_dump()
+    job.event_refs.append(NarratorEventRef(
+        event_id="later", visible_at_s=4, event_sequence=3,
+        sprite_variant_keys_by_character_id={},
+    ))
+    assert job.source_event_ids == ["evt_test", "later"]
+    assert job.highest_event_sequence == 3
 
 
 @pytest.mark.parametrize(
     ("model", "payload"),
     [
         (SessionSettings, {"retired_beat_cap": 4}),
-        (ObserverGroups, {"direct": [], "indirect": [], "inferred": [], "x": 1}),
+        (ObservableFact, {"text": "A sound.", "visible_to": ["alice"], "audience": "only"}),
     ],
 )
 def test_runtime_schemas_reject_retired_or_unknown_fields(model, payload) -> None:
@@ -87,18 +94,14 @@ def test_router_input_is_one_compact_lane_envelope() -> None:
     assert "background" not in item.model_dump_json()
 
 
-def test_observer_groups_require_each_observer_to_receive_a_fact() -> None:
-    with pytest.raises(ValidationError, match="every observer"):
+def test_observer_groups_are_retired() -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         RouterEventDraft(
             feasible_input_indexes=[0],
             infeasible_input_indexes=[],
             duration_s=0,
             observable_facts=[ObservableFact.only("Alice sees it.", ["alice"])],
-            observers=ObserverGroups(
-                direct=["alice", "bob"],
-                indirect=[],
-                inferred=[],
-            ),
+            observers={"direct": ["alice", "bob"], "indirect": [], "inferred": []},
             required_responders=[],
             appearance_target_ids=[],
             spawn=[],
@@ -110,3 +113,9 @@ def test_observer_groups_require_each_observer_to_receive_a_fact() -> None:
             location_updates=[],
             activate=[],
         )
+
+
+@pytest.mark.parametrize("recipients", [[], ["", "  "]])
+def test_fact_requires_explicit_nonempty_recipients(recipients):
+    with pytest.raises(ValidationError, match="explicit visible_to"):
+        ObservableFact.only("A whisper.", recipients)

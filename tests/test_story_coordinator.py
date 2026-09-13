@@ -24,7 +24,6 @@ from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
     CommitmentResolutionSignal,
     FrontierTurn,
-    ObserverGroups,
     RouterBatchOutput,
     RouterEventDraft,
     RouterNextTurn,
@@ -46,8 +45,7 @@ def _event(
         feasible_input_indexes=[index],
         infeasible_input_indexes=[],
         duration_s=0,
-        observable_facts=[ObservableFact.all(fact)],
-        observers=ObserverGroups(direct=observers, indirect=[], inferred=[]),
+        observable_facts=[ObservableFact.only(fact, observers)],
         required_responders=responders or [],
         appearance_target_ids=[],
         spawn=[],
@@ -83,6 +81,7 @@ class FakeDispatcher:
         self.prepared_batches = 0
         self.committed_drafts: list[tuple[str, int]] = []
         self.draft_started: set[str] = set()
+        self.draft_contexts: dict[str, str] = {}
         self.parallel_draft_count = parallel_draft_count
         self.all_drafts_started = asyncio.Event()
         self.failed_narrator_ids: set[str] = set()
@@ -106,6 +105,7 @@ class FakeDispatcher:
         self.prepared_batches += 1
 
     async def draft_character_turn(self, *, ckpt, character_id, local_context):
+        self.draft_contexts[character_id] = local_context
         self.draft_started.add(character_id)
         if len(self.draft_started) >= self.parallel_draft_count:
             self.all_drafts_started.set()
@@ -166,7 +166,6 @@ async def test_player_and_independent_frontier_route_in_one_batch() -> None:
         actor_id="bob",
         participant_ids=["bob"],
         source_event_ids=[],
-        created_event_sequence=0,
         gating_pov_ids=[],
     ))
     dispatcher = FakeDispatcher([RouterBatchOutput(
@@ -222,7 +221,6 @@ async def test_merged_contest_uses_first_feasible_proposal_as_initiator() -> Non
         actor_id="cara",
         participant_ids=["cara"],
         source_event_ids=[],
-        created_event_sequence=0,
         gating_pov_ids=[],
     ))
     merged = _event(
@@ -296,7 +294,6 @@ async def test_newer_frontier_supersedes_an_overlapping_gated_turn() -> None:
         actor_id="cara",
         participant_ids=["cara"],
         source_event_ids=[],
-        created_event_sequence=0,
         gating_pov_ids=["alice"],
     ))
     dispatcher = FakeDispatcher([RouterBatchOutput(
@@ -384,7 +381,6 @@ def test_first_named_pov_action_releases_the_whole_lane_gate() -> None:
         actor_id="bob",
         participant_ids=["bob"],
         source_event_ids=[],
-        created_event_sequence=0,
         gating_pov_ids=["alice", "bea"],
     ))
 
@@ -407,7 +403,6 @@ async def test_player_input_joins_overlapping_frontier_for_router_arbitration() 
         actor_id="bob",
         participant_ids=["alice", "bob"],
         source_event_ids=[],
-        created_event_sequence=0,
         gating_pov_ids=[],
     ))
     merged = _event(0, observers=["alice", "bob"], fact="They collide.")
@@ -519,7 +514,6 @@ async def test_cat_ii_agent_responses_are_parallel_and_resolve_as_one_input() ->
         actor_id="bob",
         participant_ids=["bob"],
         source_event_ids=[],
-        created_event_sequence=1,
         gating_pov_ids=[],
     ))
     assert ready_frontier_turns(ckpt) == []

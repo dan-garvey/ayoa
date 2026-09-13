@@ -44,7 +44,6 @@ from app.schemas.characters import (
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import (
     CanonicalEventRecord,
-    ObserverGroups,
     RouterBatchOutput,
     RouterInputEnvelope,
 )
@@ -59,7 +58,7 @@ from app.schemas.state import (
 
 
 REPORT_DIR = REPO_ROOT / "app/storage/playtest_reports"
-BASELINE_PATH = REPORT_DIR / "router_prompt_targeted_20260901T163651Z.json"
+BASELINE_PATH = REPORT_DIR / "router_prompt_targeted_20260912T203443Z.json"
 TARGETED_FACTS = (
     "The venue is a live immersive show inside an old estate. Its dinner hall, "
     "sound-isolated dating pods, production control room, and security annex "
@@ -444,9 +443,9 @@ def _evaluate_cat_open(output: RouterBatchOutput, batch: Any) -> list[dict[str, 
         ),
         _check("opening_is_instantaneous", event.duration_s == 0, event.duration_s),
         _check(
-            "responder_has_direct_access",
-            "pip" in event.observers.direct,
-            event.observers.model_dump(),
+            "responder_receives_attempt",
+            "pip" in event.observer_ids,
+            event.observer_ids,
         ),
         _check(
             "opening_does_not_also_route",
@@ -576,8 +575,8 @@ def _evaluate_arrival(output: RouterBatchOutput, batch: Any) -> list[dict[str, A
 def _evaluate_fan_in(output: RouterBatchOutput, batch: Any) -> list[dict[str, Any]]:
     first = _events_for_input(output, 0)
     second = _events_for_input(output, 1)
-    first_observers = set(first[0].observers.all_ids) if first else set()
-    second_observers = set(second[0].observers.all_ids) if second else set()
+    first_observers = set(first[0].observer_ids) if first else set()
+    second_observers = set(second[0].observer_ids) if second else set()
     return [
         *_accounting_checks(output, 2),
         _check(
@@ -630,21 +629,14 @@ def _build_resolution() -> tuple[CheckpointFile, list[RouterInputEnvelope]]:
         effective_at_s=12,
         duration_s=0,
         actor_ids=["dan"],
-        source_submission_ids=["submission_opening"],
-        feasible_submission_ids=["submission_opening"],
-        infeasible_submission_ids=[],
         observable_facts=[
-            ObservableFact.all(
+            ObservableFact.only(
                 "Dan reaches toward the badge on Pip's belt; the grab has not "
                 "resolved.",
+                ["dan", "pip"],
                 visual_subject_ids=["dan", "pip"],
             )
         ],
-        observers=ObserverGroups(
-            direct=["dan", "pip"],
-            indirect=[],
-            inferred=[],
-        ),
         spawn=[],
         dormant=[],
         cull=[],
@@ -786,18 +778,18 @@ def _build_history_followup() -> tuple[CheckpointFile, list[RouterInputEnvelope]
     invite = template.model_copy(update={
         "event_id": "evt_invitation", "causal_lane_id": "lane_invitation",
         "effective_at_s": 10,
-        "observable_facts": [ObservableFact.all(
-            'Dan tells Rashid, "Meet me in the garden after dinner." Rashid agrees.'
+        "observable_facts": [ObservableFact.only(
+            'Dan tells Rashid, "Meet me in the garden after dinner." Rashid agrees.',
+            ["dan", "rashid"],
         )],
-        "observers": ObserverGroups(direct=["dan", "rashid"], indirect=[], inferred=[]),
     })
     private = invite.model_copy(update={
         "event_id": "evt_private_preparation", "effective_at_s": 30,
-        "observable_facts": [ObservableFact.all(
+        "observable_facts": [ObservableFact.only(
             "Alone in his room, Dan ties a green ribbon to his wrist, then waits in the garden. "
-            "Rashid has not seen the ribbon. Dinner has ended; their agreed meeting is due."
+            "Rashid has not seen the ribbon. Dinner has ended; their agreed meeting is due.",
+            ["dan"],
         )],
-        "observers": ObserverGroups(direct=["dan"], indirect=[], inferred=[]),
     })
     checkpoint.canonical_events = [invite, private]
     append_router_history(checkpoint, [invite, private])
@@ -810,7 +802,52 @@ def _build_history_followup() -> tuple[CheckpointFile, list[RouterInputEnvelope]
     )]
 
 
+def _build_whisper() -> tuple[CheckpointFile, list[RouterInputEnvelope]]:
+    checkpoint = _checkpoint("whisper_split", player_id="rowan")
+    ids = ["rowan", "caelindra", *[f"guest_{i}" for i in range(6)]]
+    checkpoint.characters = [
+        _char(cid, cid.title(), "banquet guest", location="dinner hall", playable=cid == "rowan")
+        for cid in ids
+    ]
+    checkpoint.world_state.facts = [
+        "Rowan, Caelindra, and six guests sit at the same banquet table. "
+        "The guests can see Rowan whisper to Caelindra but cannot hear any words. "
+        "There are no recording devices or supernatural listeners."
+    ]
+    checkpoint.world_state.lore = "A private banquet among rival heirs."
+    return checkpoint, [_input(
+        index=0, lane="lane_banquet", kind="player", actor_ids=["rowan"],
+        participant_ids=ids,
+        payload='I lean toward Caelindra and whisper for her alone, "Meet me in the west garden at midnight. The password is silver-fern."',
+    )]
+
+
+def _evaluate_whisper(output: RouterBatchOutput, batch: Any) -> list[dict[str, Any]]:
+    facts = [fact for event in output.events for fact in event.observable_facts]
+    private = [fact for fact in facts if "silver-fern" in fact.text.casefold()]
+    bystanders = [f"guest_{i}" for i in range(6)]
+    return [
+        *_accounting_checks(output, 1),
+        _check("invitation_preserved", bool(private)),
+        _check("speaker_and_recipient_know_words", {"rowan", "caelindra"}.issubset(
+            {cid for fact in private for cid in fact.visible_to}
+        )),
+        _check("bystanders_do_not_receive_words", all(
+            not (set(fact.visible_to) & set(bystanders)) for fact in private
+        )),
+        _check("bystanders_see_whisper", all(
+            any(fact.is_visible_to(cid) and "whisper" in fact.text.casefold() for fact in facts)
+            for cid in bystanders
+        )),
+        _check("caelindra_can_answer", "caelindra" in _next_actors(output, batch)),
+    ]
+
+
 CASES = (
+    CaseSpec(
+        "whisper_split", "Six guests see a whisper without receiving its private invitation.",
+        _build_whisper, _evaluate_whisper,
+    ),
     CaseSpec(
         "npc_to_player_pressure",
         "A direct NPC question can select the bound player without choosing their answer.",

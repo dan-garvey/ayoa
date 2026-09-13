@@ -172,6 +172,7 @@ class DndCombatResolver:
             ),
             transaction_event_id=transaction.event_id,
             experience_awards=experience_awards,
+            feasible=adjudication.feasible,
         )
 
     async def _plan_turn(self, packet: str) -> DndCombatTurnPlan:

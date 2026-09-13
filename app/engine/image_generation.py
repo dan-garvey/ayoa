@@ -2740,7 +2740,6 @@ def _authored_identity_reroll_input(
             )
             if item
         ),
-        perception_level="direct",
         effective_at_s=max(0, checkpoint.session.leading_at_s),
         duration_s=0,
         visible_facts=((scene, 0, 0),),
@@ -2800,7 +2799,6 @@ def _projection_from_request(
         event_sequence=request.source_event_sequence,
         event_fingerprint=request.source_event_fingerprint,
         viewer_character_ids=(),
-        perception_level="direct",
         effective_at_s=0,
         duration_s=0,
         visible_facts=(),

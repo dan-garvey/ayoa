@@ -39,7 +39,6 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
-from app.schemas.events import ObservableFact
 from app.schemas.image_director import ImageDirection, ImageDirectorOutput
 from app.schemas.image_generation import (
     IdentityReferenceStatus,
@@ -187,7 +186,7 @@ async def test_fixed_visual_novel_stage_bypasses_the_image_director(tmp_path):
     event = canonical_event(
         event_id="evt_fixed_chamber",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("Alice waits inside the chamber.")],
+        facts=[dict(text="Alice waits inside the chamber.")],
     )
     projection = build_projection_groups(
         checkpoint=checkpoint,
@@ -259,8 +258,9 @@ async def test_live_feed_location_update_selects_fixed_stage_without_director(
         event_id="evt_selected",
         observer_ids=["alice"],
         facts=[
-            ObservableFact.all(
-                "The live feed shows pale light settle over Renna."
+            dict(text=
+                "The live feed shows pale light settle over Renna.",
+                visual_subject_ids=["renna"],
             )
         ],
     )
@@ -268,9 +268,10 @@ async def test_live_feed_location_update_selects_fixed_stage_without_director(
         event_id="evt_resolved",
         observer_ids=["alice"],
         facts=[
-            ObservableFact.all(
+            dict(text=
                 "Alice's live feed shows Renna speak beneath the pale light, "
-                "enter the Promotion Chamber, and vanish behind its door."
+                "enter the Promotion Chamber, and vanish behind its door.",
+                visual_subject_ids=["renna"],
             )
         ],
     )
@@ -423,7 +424,6 @@ def _projection(
         event_sequence=0,
         event_fingerprint=hashlib.sha256(b"evt_reviewed").hexdigest(),
         viewer_character_ids=("alice",),
-        perception_level="direct",
         effective_at_s=2,
         duration_s=1,
         visible_facts=(("Rain passes across the platform.", 0, 1),),
@@ -663,7 +663,7 @@ async def test_llm_projection_exposes_only_authored_selection_metadata(tmp_path)
     event = canonical_event(
         event_id="evt_location",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("Rain passes across the platform.")],
+        facts=[dict(text="Alice stands on the rain-swept platform.", visual_subject_ids=["alice"])],
     )
     projection = build_projection_groups(
         checkpoint=public_snapshot,
@@ -688,10 +688,8 @@ async def test_llm_projection_exposes_only_authored_selection_metadata(tmp_path)
     mediated = canonical_event(
         event_id="evt_mediated",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("A distant impact echoes through a speaker.")],
+        facts=[dict(text="A distant impact echoes through a speaker.")],
     )
-    mediated.observers.direct = []
-    mediated.observers.indirect = ["alice"]
     mediated_projection = build_projection_groups(
         checkpoint=checkpoint,
         event=mediated,
@@ -758,7 +756,7 @@ def test_direct_visual_scene_uses_embodied_cast_location_not_omit_viewer_screen(
     visible = canonical_event(
         event_id="evt_remote_view",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("Bob steps into the rain at the station.")],
+        facts=[dict(text="Bob steps into the rain at the station.", visual_subject_ids=["bob"])],
     )
     projection = build_projection_groups(
         checkpoint=checkpoint,
@@ -782,8 +780,9 @@ def test_direct_visual_scene_uses_embodied_cast_location_not_omit_viewer_screen(
         event_id="evt_split_scene",
         observer_ids=["alice"],
         facts=[
-            ObservableFact.all(
-                "Bob enters the laboratory while Carol waits at the station."
+            dict(text=
+                "Bob enters the laboratory while Carol waits at the station.",
+                visual_subject_ids=["bob", "carol"],
             )
         ],
     )
@@ -810,7 +809,7 @@ def test_direct_visual_scene_uses_embodied_cast_location_not_omit_viewer_screen(
     reported = canonical_event(
         event_id="evt_remote_report",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("A message reports Bob waits at the station.")],
+        facts=[dict(text="A message reports Bob waits at the station.")],
     )
     report_projection = build_projection_groups(
         checkpoint=checkpoint,
@@ -846,12 +845,12 @@ def test_render_batch_offers_only_final_scene_location_references(tmp_path):
     platform_event = canonical_event(
         event_id="evt_platform",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("Alice waits on the station platform.")],
+        facts=[dict(text="Alice waits on the station platform.")],
     )
     laboratory_event = canonical_event(
         event_id="evt_laboratory",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("Alice enters the laboratory.")],
+        facts=[dict(text="Alice enters the laboratory.")],
     )
     laboratory_event.location_updates = [
         LocationUpdateSignal(
@@ -957,7 +956,7 @@ async def test_subject_then_location_references_forward_to_worker(tmp_path):
                 event=canonical_event(
                     event_id="evt_edit",
                     observer_ids=["alice"],
-                    facts=[ObservableFact.all("Alice turns into the rain.")],
+                    facts=[dict(text="Alice turns into the rain.", visual_subject_ids=["alice"])],
                 ),
                 event_sequence=1,
                 transaction_id="tx_edit",

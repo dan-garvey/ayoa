@@ -11,7 +11,7 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_content_metadata_text
 from app.schemas.delivery import NarratorEventRef
 from app.schemas.event_router import CanonicalEventRecord
-from app.schemas.events import visible_fact_texts
+from app.schemas.events import visible_fact_texts, visible_visual_subject_ids
 
 AGENT_FIRST_MEETING_CAP = 4
 NARRATOR_FIRST_MEETING_CAP = 6
@@ -849,7 +849,7 @@ def _plan_visual_introductions(
     *,
     viewer_id: str,
     visible_texts: Iterable[str],
-    candidate_ids: Iterable[str] | None = None,
+    candidate_ids: Iterable[str],
     priority_target_ids: Iterable[str] = (),
     max_loadouts: int,
     include_public_context: bool = True,
@@ -863,11 +863,7 @@ def _plan_visual_introductions(
     tagged_ids = _loadout_tag_character_ids(ckpt, texts)
     priority_ids = [cid for cid in priority_target_ids if cid]
     priority_index = {cid: index for index, cid in enumerate(priority_ids)}
-    candidate_set = (
-        set(candidate_ids)
-        if candidate_ids is not None
-        else _physically_present_character_ids(ckpt, texts)
-    ) | tagged_ids
+    candidate_set = set(candidate_ids)
     candidate_set.discard(viewer_id)
 
     mark_ids: list[str] = []
@@ -930,22 +926,21 @@ def plan_event_visual_introductions(
     *,
     viewer_id: str,
     event: CanonicalEventRecord,
-    observation_level: str,
     priority_target_ids: Iterable[str] = (),
     max_loadouts: int = AGENT_FIRST_MEETING_CAP,
 ) -> VisualIntroductionPlan:
-    if observation_level != "direct":
+    subjects = visible_visual_subject_ids(event.observable_facts, viewer_id)
+    if not subjects:
         return VisualIntroductionPlan(loadouts=[], mark_character_ids=[])
     texts = visible_fact_texts(
         event.observable_facts,
         viewer_id,
-        include_all_observers=True,
     )
     return _plan_visual_introductions(
         ckpt,
         viewer_id=viewer_id,
         visible_texts=texts,
-        candidate_ids=_physically_present_character_ids(ckpt, texts),
+        candidate_ids=subjects,
         priority_target_ids=priority_target_ids,
         max_loadouts=max_loadouts,
     )
@@ -959,20 +954,20 @@ def plan_render_visual_introductions(
     max_loadouts: int = NARRATOR_FIRST_MEETING_CAP,
 ) -> VisualIntroductionPlan:
     visible_texts: list[str] = []
-    for entry, event in resolved:
-        if entry.observation_level != "direct":
-            continue
+    subjects: set[str] = set()
+    for _entry, event in resolved:
+        subjects.update(visible_visual_subject_ids(event.observable_facts, viewer_id))
         visible_texts.extend(
             visible_fact_texts(
                 event.observable_facts,
                 viewer_id,
-                include_all_observers=True,
             )
         )
     return _plan_visual_introductions(
         ckpt,
         viewer_id=viewer_id,
         visible_texts=visible_texts,
+        candidate_ids=subjects,
         max_loadouts=max_loadouts,
         include_public_context=False,
     )

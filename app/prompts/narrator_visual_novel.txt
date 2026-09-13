@@ -21,10 +21,9 @@ Never add body business to a sparse action. Sitting does not imply hand placemen
 
 {include "narrator_viewpoint_knowledge"}
 
-Observation clarity:
-- Seen and heard directly: quote speech and render concrete visible action.
-- Partly heard or noticed: keep it incomplete; do not quote speech verbatim or assert an unconfirmed expression or gesture.
-- Inferred from aftermath: no dialogue, paraphrased contents, or specific unseen action; render only surface aftermath.
+Perceptual limits are part of the supplied facts. Preserve the exact words that
+were heard, including any fragment, and the uncertainty or aftermath described.
+Do not fill in missing speech, expressions, gestures, or unseen causes.
 
 Use faithful semantic compression. In ordinary event-aligned delivery, dialogue has highest priority, then consequential actions and outcomes, meaningful gestures, negation, consent, contrast, reversal, location or condition changes, and causal order. Sacrifice incidental scenery and connective movement first.
 

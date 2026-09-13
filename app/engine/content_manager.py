@@ -1133,22 +1133,12 @@ def _fact_text(fact: Any) -> str:
 
 
 def _fact_audience(fact: Any) -> str:
-    audience = ""
-    visible_to: Sequence[Any] = ()
     if isinstance(fact, Mapping):
-        audience = _safe_token(fact.get("audience")) or "all_observers"
         visible_to = fact.get("visible_to") or ()
     else:
-        audience = _safe_token(getattr(fact, "audience", "")) or "all_observers"
         visible_to = getattr(fact, "visible_to", ()) or ()
-    if audience == "only":
-        viewers = [
-            viewer
-            for raw in visible_to
-            if (viewer := _safe_token(raw))
-        ]
-        return "only:" + ",".join(viewers) if viewers else "only"
-    return "all"
+    viewers = [viewer for raw in visible_to if (viewer := _safe_token(raw))]
+    return ",".join(viewers) or "none"
 
 
 def _format_value(value: Any) -> str:

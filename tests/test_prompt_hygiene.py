@@ -42,6 +42,10 @@ FORBIDDEN_PROMPT_PATTERNS = [
     (re.compile(r"\bapp/[A-Za-z0-9_./-]+"), "repo-internal file path"),
     (re.compile(r"\btests/[A-Za-z0-9_./-]+"), "repo-internal file path"),
     (re.compile(r"\.py\b"), "Python filename"),
+    (
+        re.compile(r"\b(?:ObserverGroups|observation_level|perception_level|visibility_log|created_event_sequence|source_submission_ids|feasible_submission_ids|infeasible_submission_ids)\b"),
+        "retired perception or durable bookkeeping field",
+    ),
 ]
 
 

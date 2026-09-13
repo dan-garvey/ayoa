@@ -18,7 +18,6 @@ from app.engine.one_star_adapter import (
 )
 from app.schemas.characters import CharacterStatus, CharacterVisuals
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.events import ObservableFact
 from app.schemas.narrator import VisualNovelPage
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
@@ -214,7 +213,7 @@ async def test_vn_deck_uses_only_narrator_result_despite_raw_canonical_id(
     payload = canonical_event(
         event_id="evt_floor_complete",
         observer_ids=["account_owner", "hero"],
-        facts=[ObservableFact.all(
+        facts=[dict(text=
             "The survivors return to niflheim_lobby after the floor clears."
         )],
     ).model_dump(mode="json")

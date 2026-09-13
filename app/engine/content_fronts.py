@@ -227,16 +227,15 @@ def queue_front_signal_from_consequence(
     return FrontSignalUpdate(queued_signal=signal)
 
 
-def queue_front_signals_from_public_event(
+def queue_front_signals_from_event(
     ckpt: Any,
     event: Any,
     *,
     actor_id: str = "",
 ) -> list[FrontSignalUpdate]:
-    """Wire a canonical public consequence into imported front runtime state."""
+    """Update each imported front only from its actor's received facts."""
 
-    facts = _public_consequence_facts(event)
-    if not facts:
+    if not getattr(event, "observable_facts", []):
         return []
     session = getattr(ckpt, "session", None)
     content_state = getattr(session, "content_state", None) if session else None
@@ -245,15 +244,7 @@ def queue_front_signals_from_public_event(
 
     from app.engine.imported_fronts import catalog_from_pack_state
 
-    visibility = _public_consequence_visibility(event)
-    source_event_id = _clean_text(getattr(event, "event_id", "")) or _signal_hash(
-        source_event_id="public_fact",
-        ref_id="event",
-        actor=actor_id,
-        known=facts,
-        pressure="",
-        summary="",
-    )
+    source_event_id = _clean_text(getattr(event, "event_id", ""))
     now_s = max(
         0,
         int(getattr(event, "effective_at_s", 0) or 0)
@@ -271,13 +262,16 @@ def queue_front_signals_from_public_event(
                 front = catalog.get(front_ref)
             except Exception:
                 continue
-            action = _front_action_for_consequence(front, facts)
             villain_id = _first_item(getattr(front, "villain_refs", []))
             front_actor = (
                 villain_id
                 or _first_item(getattr(front, "minion_refs", []))
                 or actor_id
             )
+            facts = _front_known_facts(event, front_actor)
+            if not facts:
+                continue
+            action = _front_action_for_consequence(front, facts)
             cooldown_s = _front_cooldown_seconds(metadata, front.ref)
             cooldown_until_s = (now_s + cooldown_s) if cooldown_s else None
             update = queue_front_signal_from_consequence(
@@ -290,7 +284,7 @@ def queue_front_signals_from_public_event(
                 known=facts,
                 pressure=_front_pressure(front, action),
                 summary=_front_summary(front, facts),
-                consequence_visibility=visibility,
+                consequence_visibility="semi_public",
                 now_s=now_s,
                 cooldown_until_s=cooldown_until_s,
                 restraint=_front_restraint(front, action),
@@ -478,25 +472,15 @@ def _clean_nonnegative_int(value: Any) -> int | None:
     return max(0, parsed)
 
 
-def _public_consequence_facts(event: Any) -> list[str]:
+def _front_known_facts(event: Any, character_id: str) -> list[str]:
     facts: list[str] = []
     for fact in getattr(event, "observable_facts", []) or []:
         text = _clean_text(getattr(fact, "text", ""))
         if not text:
             continue
-        if getattr(fact, "audience", "") == "all_observers":
-            facts.append(text)
-            continue
-        if getattr(fact, "visible_to", []):
+        if character_id in getattr(fact, "visible_to", []):
             facts.append(text)
     return list(dict.fromkeys(facts))
-
-
-def _public_consequence_visibility(event: Any) -> str:
-    facts = list(getattr(event, "observable_facts", []) or [])
-    if any(getattr(fact, "audience", "") == "all_observers" for fact in facts):
-        return "public"
-    return "semi_public"
 
 
 def _active_front_refs(metadata: Mapping[str, Any], catalog_refs: Sequence[str]) -> list[str]:
@@ -578,8 +562,8 @@ def _front_summary(front: Any, facts: Sequence[str]) -> str:
     title = _clean_text(getattr(front, "title", "")) or _clean_text(getattr(front, "ref", "front"))
     fact = _clean_text(facts[0]) if facts else ""
     if fact:
-        return f"{title} learns a public consequence: {fact}"
-    return f"{title} learns a public consequence."
+        return f"{title} learns: {fact}"
+    return f"{title} learns a consequence."
 
 
 def _front_restraint(front: Any, action: Any | None) -> str:

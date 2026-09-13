@@ -128,7 +128,6 @@ from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.event_router import (
     CanonicalEventRecord,
-    ObserverGroups,
 )
 from app.schemas.events import ObservableFact
 from app.schemas.image_generation import ImageDeliveryKind
@@ -177,11 +176,7 @@ def _commit_manual_combat_facts(
         effective_at_s=max(0, checkpoint.session.leading_at_s),
         duration_s=0,
         actor_ids=[],
-        source_submission_ids=[source_id],
-        feasible_submission_ids=[source_id],
-        infeasible_submission_ids=[],
-        observable_facts=[ObservableFact.all(value) for value in clean_facts],
-        observers=ObserverGroups(direct=ids, indirect=[], inferred=[]),
+        observable_facts=[ObservableFact.only(value, ids) for value in clean_facts],
         spawn=[],
         dormant=[],
         cull=[],

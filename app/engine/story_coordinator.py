@@ -426,7 +426,7 @@ def _contest_for_materialized_event(
     prepared: list[PreparedRouterInput],
     materialized: MaterializedEvent,
 ) -> tuple[str, str]:
-    source_id = materialized.record.feasible_submission_ids[0]
+    source_id = materialized.feasible_submission_ids[0]
     candidate = next(
         (
             item
@@ -479,7 +479,7 @@ def _commit_prepared_character_drafts(
     event_end_by_submission = {
         submission_id: event.record.effective_at_s + event.record.duration_s
         for event in batch.events
-        for submission_id in event.record.source_submission_ids
+        for submission_id in event.source_submission_ids
     }
     for item in prepared:
         if item.character_draft is not None:
@@ -591,7 +591,7 @@ def _consume_and_extend_frontier(
         consequences=[
             (proposal.envelope.lane_id, set(proposal.envelope.participant_ids), item.record)
             for item in batch.events for proposal in prepared
-            if proposal.envelope.submission_id in item.record.source_submission_ids
+            if proposal.envelope.submission_id in item.source_submission_ids
         ],
         next_turns=batch.next_turns,
     )
@@ -620,9 +620,6 @@ def _advance_frontier(
             turn.source_event_ids = [source.event_id for source in sources]
             if len(sources) == 1:
                 turn.lane_id = sources[0].causal_lane_id
-            turn.created_event_sequence = max(
-                _event_sequence(checkpoint, source.event_id) for source in sources
-            )
             turn.gating_pov_ids = list(dict.fromkeys(
                 pov for source in sources for pov in source.observer_ids
                 if pov in checkpoint.session.character_bindings
@@ -698,7 +695,6 @@ def _append_adapter_frontier(
             actor_id=character_id,
             participant_ids=participants,
             source_event_ids=[event.event_id],
-            created_event_sequence=len(checkpoint.canonical_events) - 1,
             gating_pov_ids=[
                 observer_id
                 for observer_id in event.observer_ids
@@ -786,8 +782,6 @@ async def commit_adapter_resolution(
     return AdvanceResult(
         events_committed=1,
         event_ids=[event.event_id],
-        feasible_submission_ids=list(event.feasible_submission_ids),
-        infeasible_submission_ids=list(event.infeasible_submission_ids),
         lane_outcomes=lane_outcomes,
         prepared_followups=prepared_followups,
         pause_reason=(
@@ -838,13 +832,8 @@ async def _advance_dnd_contest(
         return AdvanceResult(pause_reason="cat_ii_pending_rolls")
 
     submission_id = item.envelope.submission_id
-    event = resolution.event
-    feasible = bool(event.feasible_submission_ids)
-    event.source_submission_ids = [submission_id]
-    event.feasible_submission_ids = [submission_id] if feasible else []
-    event.infeasible_submission_ids = [] if feasible else [submission_id]
     _commit_staged_contest_drafts(working, dispatcher, prepared)
-    return await commit_adapter_resolution(
+    result = await commit_adapter_resolution(
         checkpoint,
         dispatcher,
         working=working,
@@ -857,6 +846,11 @@ async def _advance_dnd_contest(
             for display in dice_roll_displays_since(working, roll_keys_before)
         ],
     )
+    if resolution.feasible:
+        result.feasible_submission_ids = [submission_id]
+    else:
+        result.infeasible_submission_ids = [submission_id]
+    return result
 
 
 def _close_resolved_contests(
@@ -940,7 +934,7 @@ async def advance_story(
         merge_narrator_lanes(working, {
             proposal.envelope.lane_id: event.record.causal_lane_id
             for event in batch.events for proposal in normalized
-            if proposal.envelope.submission_id in event.record.source_submission_ids
+            if proposal.envelope.submission_id in event.source_submission_ids
         })
         commit_event_batch(
             working,
@@ -1117,7 +1111,10 @@ async def prepare_autonomous_contest_resolutions(
 
     async def _draft(opened: OpenCatIIEvent, responder_id: str):
         snapshot = CheckpointFile.model_validate_json(frozen)
-        context = "\n".join(opened.opening_observable_facts)
+        source = _event_by_id(snapshot, opened.opening_event_id)
+        context = "\n".join(
+            fact.text for fact in visible_facts_for(source, responder_id)
+        )
         return responder_id, await dispatcher.draft_character_turn(
             ckpt=snapshot,
             character_id=responder_id,

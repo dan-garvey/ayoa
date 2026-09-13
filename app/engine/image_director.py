@@ -7,10 +7,6 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from app.engine.text_safety import strip_terminal_control
-from app.engine.visual_context import (
-    physically_present_character_ids,
-    visually_staged_character_ids,
-)
 from app.llm.client import LLMClient
 from app.schemas.characters import (
     CharacterRecord,
@@ -23,6 +19,7 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_content_metadata_text
 from app.schemas.delivery import NarratorEventRef
 from app.schemas.event_router import CanonicalEventRecord
+from app.schemas.events import visible_visual_subject_ids
 from app.schemas.image_director import ImageDirectorOutput, ImageGenerationMode
 from app.schemas.image_generation import FrozenReferenceInput
 from app.schemas.state import (
@@ -38,11 +35,6 @@ _ONE_STAR_RULESET_ID = "one_star_ascension"
 _ONE_STAR_HERO_KEY = "one_star_hero"
 
 
-_OBSERVATION_LEVELS = {
-    "d": "direct",
-    "i": "indirect",
-    "f": "inferred",
-}
 _FORBIDDEN_RENDERED_TEXT_RE = re.compile(
     r"\b(?:caption|lettering|logo|watermark|speech bubble|text line|"
     r"readable text|written words?|visible words?|"
@@ -124,7 +116,6 @@ class VisibleEventProjection:
     event_sequence: int
     event_fingerprint: str
     viewer_character_ids: tuple[str, ...]
-    perception_level: str
     effective_at_s: int
     duration_s: int
     visible_facts: tuple[tuple[str, int, int], ...]
@@ -149,7 +140,6 @@ class VisibleEventProjection:
         """Identity of model and diffusion input, excluding audiences."""
 
         payload = {
-            "perception_level": self.perception_level,
             "effective_at_s": self.effective_at_s,
             "duration_s": self.duration_s,
             "visible_facts": self.visible_facts,
@@ -185,7 +175,6 @@ class VisibleEventProjection:
             "event_sequence": self.event_sequence,
             "event_fingerprint": self.event_fingerprint,
             "viewer_character_ids": list(self.viewer_character_ids),
-            "perception_level": self.perception_level,
             "effective_at_s": self.effective_at_s,
             "duration_s": self.duration_s,
             "visible_facts": [list(item) for item in self.visible_facts],
@@ -221,7 +210,6 @@ class VisibleEventProjection:
             viewer_character_ids=tuple(
                 str(item) for item in value["viewer_character_ids"]  # type: ignore[index]
             ),
-            perception_level=str(value["perception_level"]),
             effective_at_s=int(value["effective_at_s"]),
             duration_s=int(value["duration_s"]),
             visible_facts=tuple(
@@ -465,34 +453,13 @@ def build_projection_groups(
         )
         if not facts:
             continue
+        directly_present_ids = visible_visual_subject_ids(event.observable_facts, viewer_id)
         public_characters = _public_character_projection(
             checkpoint=checkpoint,
-            facts=facts,
-            actor_id=actor_id,
-            viewer_character_id=viewer_id,
+            visual_subject_ids=directly_present_ids,
             by_id=by_id,
             new_ids=new_ids,
             active_identity_character_ids=active_references,
-        )
-        presence_classifier = (
-            visually_staged_character_ids
-            if checkpoint.session.config.settings.presentation_mode
-            == "visual_novel"
-            else physically_present_character_ids
-        )
-        directly_present_ids = presence_classifier(
-            checkpoint,
-            (text for text, _offset, _duration in facts),
-        )
-        directly_present_ids.update(
-            request.character_id
-            for request in event.spawn
-            if request.character_id
-        )
-        directly_present_ids.update(
-            wake.character_id
-            for wake in event.activate
-            if wake.character_id
         )
         location_label = _visible_location_label(
             checkpoint=checkpoint,
@@ -513,10 +480,6 @@ def build_projection_groups(
                 active_location_labels=active_locations,
             ),
             viewer_character_ids=(viewer_id,),
-            perception_level=_OBSERVATION_LEVELS.get(
-                event.observation_level_for(viewer_id),
-                "direct",
-            ),
             effective_at_s=max(0, int(event.effective_at_s)),
             duration_s=max(0, int(event.duration_s)),
             visible_facts=facts,
@@ -640,7 +603,6 @@ def build_render_batch_projection_groups(
     # Prose has one illustration for the complete pending passage. Anchor it
     # to the final scene while retaining all visible facts and characters.
     grouped_prose: dict[str, VisibleEventProjection] = {}
-    perception_rank = {"direct": 0, "indirect": 1, "inferred": 2}
     for viewer_id, entries in buffered_events_by_pov.items():
         if viewer_id not in eligible_viewer_ids:
             continue
@@ -673,15 +635,10 @@ def build_render_batch_projection_groups(
             for character in part.characters
         }
         anchor = parts[-1]
-        perception_level = max(
-            (part.perception_level for part in parts),
-            key=lambda level: perception_rank.get(level, 2),
-        )
         projection = VisibleEventProjection(
             **{
                 **anchor.__dict__,
                 "viewer_character_ids": (viewer_id,),
-                "perception_level": perception_level,
                 "effective_at_s": start_s,
                 "duration_s": max(0, end_s - start_s),
                 "visible_facts": facts,
@@ -763,7 +720,6 @@ class ImageDirector:
             "image_director_visual_novel" if visual_novel else "image_director",
             story_block=_story_block(projection),
             visible_event_block=_visible_event_block(projection),
-            perception_level=projection.perception_level,
             public_characters_block=(
                 "\n".join(
                     character.prompt_line()
@@ -1154,27 +1110,15 @@ def _selectable_reference_options(
 def _public_character_projection(
     *,
     checkpoint: CheckpointFile,
-    facts: Sequence[tuple[str, int, int]],
-    actor_id: str,
-    viewer_character_id: str,
+    visual_subject_ids: set[str],
     by_id: dict[str, CharacterRecord],
     new_ids: set[str],
     active_identity_character_ids: set[str],
 ) -> tuple[PublicCharacterVisual, ...]:
-    visible_text = " ".join(text for text, _, _ in facts)
-    # The acting character is safe implicit context only for their own POV.
-    # Other observers get that identity only when their visible facts name it;
-    # an indirect or anonymous fact must not disclose the engine-known actor.
-    relevant_ids = (
-        [actor_id]
-        if actor_id and actor_id == viewer_character_id
-        else []
-    )
-    for character in by_id.values():
-        if _text_names_character(visible_text, character):
-            relevant_ids.append(character.character_id)
     result: list[PublicCharacterVisual] = []
-    for character_id in dict.fromkeys(relevant_ids):
+    for character_id in by_id:
+        if character_id not in visual_subject_ids:
+            continue
         character = by_id.get(character_id)
         if character is None:
             continue
@@ -1223,18 +1167,6 @@ def image_loadout_for_character(
 
         return _safe_text(visible_equipped_item_description(character), 700)
     return _safe_text(character.visuals.default_loadout, 700)
-
-
-def _text_names_character(text: str, character: CharacterRecord) -> bool:
-    for value in (character.character_id, character.name):
-        cleaned = str(value or "").strip()
-        if cleaned and re.search(
-            rf"(?<!\w){re.escape(cleaned)}(?!\w)",
-            text,
-            flags=re.IGNORECASE,
-        ):
-            return True
-    return False
 
 
 def text_names_public_character(
@@ -1308,9 +1240,6 @@ def _visible_location_label(
     viewer_location = (
         _safe_identifier(character.location) if character is not None else ""
     )
-    if event.observation_level_for(viewer_character_id) != "direct":
-        return viewer_location
-
     depicted_location_by_character = {
         character_id: location
         for character_id in directly_present_character_ids

@@ -33,7 +33,6 @@ from app.schemas.content import (
     IntroducedContentRef,
 )
 from app.schemas.content_manager import ContentManagerOutput
-from app.schemas.events import ObservableFact
 from app.schemas.state import DndCombatantState, DndCombatState
 from tests.support.factories import (
     canonical_event,
@@ -286,14 +285,14 @@ def test_content_manager_prompt_receives_compact_router_knowledge_state(tmp_path
     ckpt.canonical_events = [
         canonical_event(
             event_id=f"evt_{index}",
-            facts=[ObservableFact.all(f"public fact {index}")],
+            facts=[dict(text=f"public fact {index}")],
         )
         for index in range(14)
     ]
     ckpt.canonical_events.append(
         canonical_event(
             event_id="evt_unsafe",
-            facts=[ObservableFact.all("unsafe /private/module.pdf fact")],
+            facts=[dict(text="unsafe /private/module.pdf fact")],
         )
     )
     candidates = {
@@ -474,7 +473,7 @@ def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_pa
         )
     }
     ckpt.canonical_events = [
-        canonical_event(facts=[ObservableFact.all("The party lights the beacon.")])
+        canonical_event(facts=[dict(text="The party lights the beacon.")])
     ]
     client = MagicMock(spec=LLMClient)
     client.complete = AsyncMock(return_value=llm_response(
@@ -808,7 +807,7 @@ def test_append_content_manager_router_records_projects_only_router_deltas(tmp_p
         )
     }
     ckpt.canonical_events = [
-        canonical_event(facts=[ObservableFact.all("The party reaches the entry.")])
+        canonical_event(facts=[dict(text="The party reaches the entry.")])
     ]
     client = MagicMock(spec=LLMClient)
     client.complete = AsyncMock(return_value=llm_response(

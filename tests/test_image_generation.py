@@ -220,7 +220,6 @@ def _projection(
         event_sequence=event_sequence,
         event_fingerprint=hashlib.sha256(event_id.encode()).hexdigest(),
         viewer_character_ids=viewers,
-        perception_level="direct",
         effective_at_s=12,
         duration_s=3,
         visible_facts=(("Alice steps into the rain.", 0, 3),),
@@ -721,7 +720,7 @@ def test_projection_groups_equivalent_viewers_and_respects_fact_visibility():
     shared = canonical_event(
         event_id="evt_shared",
         observer_ids=["alice", "bob"],
-        facts=[ObservableFact.all("Rain sweeps across the empty courtyard.")],
+        facts=[dict(text="Rain sweeps across the empty courtyard.")],
     )
     grouped = build_projection_groups(
         checkpoint=ckpt,
@@ -737,7 +736,7 @@ def test_projection_groups_equivalent_viewers_and_respects_fact_visibility():
         event_id="evt_split",
         observer_ids=["alice", "bob"],
         facts=[
-            ObservableFact.all("Rain sweeps across the courtyard."),
+            dict(text="Rain sweeps across the courtyard."),
             ObservableFact.only("Alice spots a hidden key.", ["alice"]),
         ],
     )
@@ -761,7 +760,7 @@ def test_render_batch_keeps_one_stage_projection_per_visible_event():
     shared = canonical_event(
         event_id="evt_shared",
         observer_ids=["alice", "bob"],
-        facts=[ObservableFact.all("Rain sweeps across the courtyard.")],
+        facts=[dict(text="Rain sweeps across the courtyard.")],
     )
     private = canonical_event(
         event_id="evt_private",
@@ -833,7 +832,7 @@ def test_visual_novel_action_staging_keeps_reviewed_location_available():
     event = canonical_event(
         event_id="evt_action_and_dialogue",
         observer_ids=["alice"],
-        facts=[ObservableFact.all(
+        facts=[dict(text=
             "Alice lifts her camera and says, 'Wait here.'"
         )],
     )
@@ -923,7 +922,7 @@ async def test_one_star_image_projection_uses_only_current_visible_equipment():
     event = canonical_event(
         event_id="evt_live_equipment",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("Alice steps into the rain.")],
+        facts=[dict(text="Alice steps into the rain.", visual_subject_ids=["alice"])],
     )
     projection = build_projection_groups(
         checkpoint=ckpt,
@@ -1077,8 +1076,9 @@ def test_projection_groups_omit_unclaimed_player_authored_slot_directly():
         event_id="evt_unclaimed_mention",
         observer_ids=["alice"],
         facts=[
-            ObservableFact.all(
-                "Alice waits with the Newcomer in the rainy courtyard."
+            dict(text=
+                "Alice waits with the Newcomer in the rainy courtyard.",
+                visual_subject_ids=["alice", "blank_arrival"],
             )
         ],
     )
@@ -1103,7 +1103,10 @@ def test_projection_does_not_disclose_engine_known_actor_to_other_viewers():
     event = canonical_event(
         event_id="evt_anonymous_actor",
         observer_ids=["alice", "bob"],
-        facts=[ObservableFact.all("Footsteps sound behind the closed door.")],
+        facts=[
+            ObservableFact.only("Footsteps sound behind the closed door.", ["alice"]),
+            ObservableFact.only("Bob walks behind the closed door.", ["bob"], visual_subject_ids=["bob"]),
+        ],
     )
 
     projections = build_projection_groups(
@@ -1136,7 +1139,7 @@ async def test_director_receives_only_text_projection_and_can_return_zero():
     event = canonical_event(
         event_id="evt_director",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("Alice waits beneath the station awning.")],
+        facts=[dict(text="Alice waits beneath the station awning.", visual_subject_ids=["alice"])],
     )
     projection = build_projection_groups(
         checkpoint=ckpt,
@@ -1319,7 +1322,7 @@ def test_projection_includes_creator_player_without_binding():
     event = canonical_event(
         event_id="evt_creator",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("Alice raises her camera.")],
+        facts=[dict(text="Alice raises her camera.", visual_subject_ids=["alice"])],
     )
 
     projections = build_projection_groups(
@@ -3100,7 +3103,7 @@ async def test_failed_preflight_still_discovers_reviewed_vn_stage(tmp_path):
     event = canonical_event(
         event_id="evt_reviewed_without_worker",
         observer_ids=["alice"],
-        facts=[ObservableFact.all("Alice waits in the open station courtyard.")],
+        facts=[dict(text="Alice waits in the open station courtyard.")],
     )
     checkpoint.canonical_events = [event]
     sidecar = EventImageSidecar(

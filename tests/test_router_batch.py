@@ -34,7 +34,6 @@ from app.schemas.event_router import (
     CommitmentInterruptSignal,
     CommitmentResolutionSignal,
     LocationUpdateSignal,
-    ObserverGroups,
     RouterBatchOutput,
     RouterEventDraft,
     RouterInputEnvelope,
@@ -89,12 +88,7 @@ def _draft(
         feasible_input_indexes=feasible,
         infeasible_input_indexes=infeasible or [],
         duration_s=1,
-        observable_facts=[ObservableFact.all(fact, duration_s=1)],
-        observers=ObserverGroups(
-            direct=observers,
-            indirect=[],
-            inferred=[],
-        ),
+        observable_facts=[ObservableFact.only(fact, observers, duration_s=1)] if observers else [],
         required_responders=[],
         appearance_target_ids=[],
         spawn=[],
@@ -220,7 +214,8 @@ def test_mixed_feasibility_is_preserved_per_submission() -> None:
     assert result.feasible_submission_ids == ("sub_0",)
     assert result.infeasible_submission_ids == ("sub_1",)
     event = result.events[0].record
-    assert event.source_submission_ids == ["sub_0", "sub_1"]
+    assert result.events[0].source_submission_ids == ("sub_0", "sub_1")
+    assert "source_submission_ids" not in event.model_dump()
     assert event.effective_at_s == 9
     assert event.event_id.startswith("evt_")
 
@@ -247,18 +242,13 @@ def test_router_projection_replaces_durable_hashes_with_local_coordinates() -> N
         actor_ids=["alice"],
         observer_ids=["alice", "bob"],
     )
-    event.source_submission_ids = ["submission_0123456789abcdef"]
-    event.feasible_submission_ids = ["submission_0123456789abcdef"]
     ckpt = checkpoint(
         characters=[character_record("alice"), character_record("bob")],
         canonical_events=[event],
     )
     ckpt.session_conversation = [ConversationMessage(
         role="assistant",
-        content=(
-            f"prior_event {event_id} lane={lane_id} @0+0 actors=alice\n"
-            "outcomes feasible=submission_0123456789abcdef infeasible=-"
-        ),
+        content="prior_event sequence=0",
     )]
     sourced = _input(0, "alice", source_event_ids=[event_id]).model_copy(
         update={
@@ -388,7 +378,7 @@ def test_batch_rejects_missing_or_duplicate_input_accounting() -> None:
         output.validate_for_inputs(inputs)
 
 
-def test_next_turn_directness_derives_from_source_observers() -> None:
+def test_next_turn_does_not_change_source_fact_recipients() -> None:
     ckpt = checkpoint(
         bindings={"alice": "1"},
         characters=[character_record("alice"), character_record("bob")],
@@ -409,7 +399,7 @@ def test_next_turn_directness_derives_from_source_observers() -> None:
         inputs=[_input(0, "alice")],
         output=output,
     )
-    assert result.events[0].record.observation_level_for("bob") == "direct"
+    assert "bob" in result.events[0].record.observer_ids
     assert result.next_turns[0].source_event_ids == [
         result.events[0].record.event_id
     ]
@@ -468,7 +458,9 @@ def _contested_draft(
             observers=list(dict.fromkeys(["alice", *responder_ids])),
         ).model_dump(),
         "duration_s": 0,
-        "observable_facts": [ObservableFact.all("Alice reaches for the key.")],
+        "observable_facts": [ObservableFact.only(
+            "Alice reaches for the key.", list(dict.fromkeys(["alice", *responder_ids])),
+        )],
         "required_responders": responder_ids,
     })
 
@@ -490,7 +482,7 @@ def test_contested_opening_can_merge_after_its_feasible_actor_proposal() -> None
         ),
     )
 
-    assert result.events[0].record.feasible_submission_ids == ["sub_0", "sub_1"]
+    assert result.events[0].feasible_submission_ids == ("sub_0", "sub_1")
 
 
 def test_contested_opening_rejects_initiator_as_responder() -> None:

@@ -72,7 +72,6 @@ def _turn(event, actor="alice", *, turn_id="selected", participants=None):
         actor_id=actor,
         participant_ids=participants or [actor],
         source_event_ids=[event.event_id],
-        created_event_sequence=0,
         gating_pov_ids=[],
     )
 
@@ -230,7 +229,7 @@ async def test_unseen_scheduling_source_orders_time_without_granting_knowledge()
         event_id="private",
         observer_ids=["alice"],
         effective_at_s=100,
-        facts=[ObservableFact.all("A private preparation Bob cannot see.")],
+        facts=[dict(text="A private preparation Bob cannot see.")],
     )
     commit_event_batch(ckpt, [invite, private])
     assert visible_facts_for(private, "bob") == []
@@ -455,12 +454,12 @@ def test_narrator_merge_preserves_each_povs_private_refs_and_retry_state():
     assert all(job.lane_id == "merged" for job in jobs.values())
 
 
-def test_observer_only_without_a_fact_remains_rejected():
-    with pytest.raises(ValidationError, match="every observer"):
-        router_event_draft(
-            observer_ids=["alice", "bob", "cara"],
-            facts=[ObservableFact.only("Alice quietly invites Bob.", ["bob"])],
-        )
+def test_fact_recipients_alone_determine_event_observers():
+    event = router_event_draft(
+        facts=[ObservableFact.only("Alice quietly invites Bob.", ["bob"])],
+    )
+    assert event.observer_ids == ["bob"]
+    assert not event.observable_facts[0].is_visible_to("alice")
 
 
 def test_unclaimed_authored_selection_is_still_forbidden():
@@ -537,7 +536,7 @@ async def test_adapter_resolution_consumes_human_selection_and_rebases_serial_fo
         ckpt,
         dispatcher,
         working=immutable_checkpoint(ckpt),
-        resolution=DndResolvedCanonicalEvent(event=resolved),
+        resolution=DndResolvedCanonicalEvent(event=resolved, feasible=True),
     )
     assert [turn.actor_id for turn in ckpt.session.router_frontier] == ["bob"]
     assert ckpt.session.router_frontier[0].source_event_ids == ["resolved"]
@@ -604,8 +603,8 @@ async def test_failed_restart_render_is_saved_once_and_does_not_spin():
 
 @pytest.mark.asyncio
 async def test_covenant_rejected_player_garvey_batch_now_delivers_human_handoff():
-    # Exact first rejected playtest output, with only its retired source-index
-    # coordinate adapted to the new group contract. No fictional facts edited.
+    # Original rejected fiction, with coordinates and recipients authored in
+    # the current schema. The raw historical report remains unchanged.
     output = DndRouterBatchOutput.model_validate_json(
         (
             Path(__file__).parent / "fixtures" / "covenant_player_handoff.json"
@@ -616,7 +615,7 @@ async def test_covenant_rejected_player_garvey_batch_now_delivers_human_handoff(
         bindings={"player_garvey": "1"},
         player_character_id="player_garvey",
         characters=[
-            character_record(actor) for actor in output.events[0].observers.all_ids
+            character_record(actor) for actor in output.events[0].observer_ids
         ],
     )
     ckpt.session.config.settings.ruleset_id = "dnd5e_basic"

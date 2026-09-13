@@ -78,22 +78,23 @@ submitted dialogue; never fabricate dialogue or deliberate action for a named
 character whose proposal is absent. Do not include motives, intentions, private
 thought, hidden causes, summaries of schema state, or thematic prose.
 
-Each fact uses `audience="all_observers"` only when every listed observer gets
-that packet through the same unrestricted frame. Otherwise use `audience="only"`
-and exact `visible_to` ids. Every `visible_to` id must be in exactly one observer
-group. `visual_subject_ids` names only embodied subjects directly pictured by
-that packet, not people merely named, remembered, listed, or known to be absent.
+Every fact names its exact `visible_to` recipients. Each recipient knows the
+entire packet; split facts whenever their information or perceptual access
+differs. Include a speaker or actor among the recipients of their own perceived
+contribution. Bystanders may see Rowan whisper to Caelindra without hearing his
+invitation: give them the visible exchange and give Rowan and Caelindra the words.
+For muffled speech, reports, or aftermath, write only the details actually
+perceived, not the full hidden occurrence with an instruction to conceal it.
 
-Group observers by access:
-- `direct`: clear live access through presence or an established mediated channel
-- `indirect`: partial, degraded, muffled, adjacent, or spillover access
-- `inferred`: aftermath or ambient inference
+`visual_subject_ids` names only embodied subjects pictured in that fact for
+every recipient. It grants visual appearance and foreground depiction. Hearing
+someone, reading about them, remembering them, or knowing their location grants
+no visual subject. Separate a room's sight of a speaker from a remote listener's
+audio packet; the latter has no visual subjects.
 
-An observation group describes access quality, not which facts cross a channel;
-fact visibility remains authoritative. Omit anyone who receives no fact.
-Knowledge in router history does not make a character an observer. A next turn
+Knowledge in router history does not grant character knowledge. A next turn
 does not grant perception: its actor can respond only to facts they know, even
-when the causal group also contains events they did not witness.
+when the causal group also contains facts they did not witness.
 
 `next_turns` is the only pacing and routing surface. A character turn means that
 character has immediate established pressure to contribute next. Select whoever
@@ -186,7 +187,7 @@ submitted proposals.
 
 Assistant history records are compact canonical memory. `roster_seed` carries
 initial active identities; `prior_event` carries its canonical sequence,
-prompt-local causal group, materialized facts, observers, time, and non-empty
+prompt-local causal group, materialized facts and their recipients, time, and non-empty
 state effects. `content_known`, `location_card`, and
 `front_signal` may supply scoped routing authority. Records marked hidden or
 router-only never become observable merely because they are in your history.

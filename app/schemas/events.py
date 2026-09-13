@@ -1,26 +1,21 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class ObservableFact(BaseModel):
-    """One surface fact plus its fact-level visibility.
+    """Exactly the information available to the explicitly named recipients.
 
-    `observation_level` on an observer answers how a character perceived
-    the event as a whole (direct / indirect / inferred). This object
-    answers a different question: which concrete facts in that event
-    were available to that character at all.
-
-    Schema fields are all required for structured-output stability.
+    Visual subjects are embodied characters pictured in this fact, not merely
+    mentioned or heard. Every recipient receives the same text and visual scope.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     text: str
-    audience: Literal["all_observers", "only"]
     visible_to: list[str]
     visual_subject_ids: list[str]
     at_offset_s: int
@@ -38,24 +33,6 @@ class ObservableFact(BaseModel):
         return value
 
     @classmethod
-    def all(
-        cls,
-        text: str,
-        *,
-        visual_subject_ids: Iterable[str] = (),
-        at_offset_s: int = 0,
-        duration_s: int = 0,
-    ) -> "ObservableFact":
-        return cls(
-            text=text,
-            audience="all_observers",
-            visible_to=[],
-            visual_subject_ids=list(visual_subject_ids),
-            at_offset_s=at_offset_s,
-            duration_s=duration_s,
-        )
-
-    @classmethod
     def only(
         cls,
         text: str,
@@ -68,7 +45,6 @@ class ObservableFact(BaseModel):
         ids = [cid for cid in visible_to if cid]
         return cls(
             text=text,
-            audience="only",
             visible_to=ids,
             visual_subject_ids=list(visual_subject_ids),
             at_offset_s=at_offset_s,
@@ -78,7 +54,9 @@ class ObservableFact(BaseModel):
     @model_validator(mode="after")
     def _validate_visibility(self) -> "ObservableFact":
         self.text = (self.text or "").strip()
-        self.visible_to = [cid.strip() for cid in self.visible_to if cid.strip()]
+        self.visible_to = list(dict.fromkeys(
+            cid.strip() for cid in self.visible_to if cid.strip()
+        ))
         self.visual_subject_ids = list(
             dict.fromkeys(cid.strip() for cid in self.visual_subject_ids if cid.strip())
         )
@@ -86,14 +64,12 @@ class ObservableFact(BaseModel):
             self.at_offset_s = 0
         if self.duration_s < 0:
             self.duration_s = 0
-        if self.audience == "all_observers":
-            self.visible_to = []
-        elif not self.visible_to:
-            raise ValueError("ObservableFact audience='only' requires visible_to")
+        if not self.visible_to:
+            raise ValueError("ObservableFact requires explicit visible_to recipients")
         return self
 
     def is_visible_to(self, character_id: str) -> bool:
-        return self.audience == "all_observers" or character_id in self.visible_to
+        return character_id in self.visible_to
 
     def __str__(self) -> str:
         return self.text
@@ -105,36 +81,26 @@ class ObservableFact(BaseModel):
         return self.text.strip()
 
 
+def fact_recipient_ids(facts: Iterable[ObservableFact]) -> list[str]:
+    """Derive the recipients in first-fact order; never widen any fact."""
+    return list(dict.fromkeys(cid for fact in facts for cid in fact.visible_to))
+
+
 def visible_fact_texts(
-    facts: Iterable[ObservableFact | str],
-    character_id: str = "",
-    *,
-    include_all_observers: bool = True,
+    facts: Iterable[ObservableFact],
+    character_id: str,
 ) -> list[str]:
-    """Return fact text visible to `character_id`.
+    return [
+        fact.text.strip() for fact in facts
+        if fact.is_visible_to(character_id) and fact.text.strip()
+    ]
 
-    Empty `character_id` is used by legacy/debug formatting paths and
-    returns only facts addressed to all observers.
 
-    `include_all_observers=False` is for mediated observers who are not
-    physically in the event location: they receive only facts explicitly
-    scoped to them by `visible_to`, not broad room facts.
-    """
-    visible: list[str] = []
-    for fact in facts:
-        if isinstance(fact, str):
-            if not include_all_observers:
-                continue
-            text = fact.strip()
-            if text:
-                visible.append(text)
-            continue
-        if fact.audience == "all_observers":
-            if not include_all_observers:
-                continue
-        elif not (character_id and fact.is_visible_to(character_id)):
-            continue
-        text = fact.text.strip()
-        if text:
-            visible.append(text)
-    return visible
+def visible_visual_subject_ids(
+    facts: Iterable[ObservableFact],
+    character_id: str,
+) -> set[str]:
+    return {
+        subject for fact in facts if fact.is_visible_to(character_id)
+        for subject in fact.visual_subject_ids
+    }

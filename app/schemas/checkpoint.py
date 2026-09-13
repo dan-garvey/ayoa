@@ -1,7 +1,4 @@
 from __future__ import annotations
-
-from typing import Any
-
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -28,15 +25,14 @@ from app.schemas.visual_references import (
 )
 
 
-CURRENT_SCHEMA_VERSION = "7.0"
+CURRENT_SCHEMA_VERSION = "8.0"
 
 
 class CheckpointFile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Schema 7.0 stores the unified router frontier, narrator jobs, and delivery
-    # outbox. Player-visible history is reconstructed from per-POV narrator
-    # conversations below.
+    # Schema 8.0 uses explicit fact recipients and stores canonical fiction once.
+    # Submission outcomes are transient; narrator jobs retain only event refs.
     # Older checkpoints hard-break on load: checkpoint_manager raises with a
     # message pointing the user at /story start. No migration shim.
     schema_version: str = CURRENT_SCHEMA_VERSION
@@ -70,8 +66,8 @@ class CheckpointFile(BaseModel):
     location_visual_reference_ids: dict[str, list[str]] = Field(
         default_factory=dict
     )
-    # Rolling conversation histories: each role sees the full prior exchange
-    # on every call, so continuity and caching both work.
+    # Router chronology holds event sequence references and external context.
+    # Canonical prose is projected from canonical_events only at prompt time.
     session_conversation: list[ConversationMessage] = Field(default_factory=list)
     # v11: per-character narrator rolling history. Each human (by their
     # bound character_id) has their own stream; the narrator_phase2 call
@@ -88,7 +84,6 @@ class CheckpointFile(BaseModel):
     ] = Field(
         default_factory=list
     )
-    visibility_log: list[dict[str, Any]] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_reviewed_visual_bindings(self) -> "CheckpointFile":

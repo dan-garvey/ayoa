@@ -27,14 +27,13 @@ from app.engine.visual_context import (
     format_narrator_visual_introductions,
     mark_visual_introductions,
     plan_render_visual_introductions,
-    visually_staged_character_ids,
 )
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.delivery import NarratorEventRef
 from app.schemas.event_router import CanonicalEventRecord
-from app.schemas.events import visible_fact_texts
+from app.schemas.events import visible_visual_subject_ids
 from app.schemas.narrator import (
     NarratorFinalOutput,
     NarratorOutput,
@@ -84,22 +83,9 @@ def _visual_novel_sprite_roster(
     viewer_id: str,
     resolved: list[tuple[NarratorEventRef, CanonicalEventRecord]],
 ) -> tuple[str, ...]:
-    texts: list[str] = []
     present_ids: set[str] = set()
-    for entry, event in resolved:
-        if entry.observation_level != "direct":
-            continue
-        for fact in event.observable_facts:
-            if fact.is_visible_to(viewer_id):
-                present_ids.update(fact.visual_subject_ids)
-        texts.extend(
-            visible_fact_texts(
-                event.observable_facts,
-                viewer_id,
-                include_all_observers=True,
-            )
-        )
-    present_ids.update(visually_staged_character_ids(ckpt, texts))
+    for _entry, event in resolved:
+        present_ids.update(visible_visual_subject_ids(event.observable_facts, viewer_id))
     labels: list[str] = []
     for character in ckpt.characters:
         if (
@@ -380,15 +366,6 @@ def resolve_buffered_events_for_render(
     )
 
 
-_OBS_LEVEL_HEADERS = {
-    "d": "Seen directly:",
-    "i": "Partly perceived:",
-    "f": "Aftermath only:",
-    "direct": "Seen directly:",
-    "indirect": "Partly perceived:",
-    "inferred": "Aftermath only:",
-}
-
 _LOADOUT_TAG_RE = re.compile(r"^\[loadout\s+[—–-]\s*[^\]]+\]\s*")
 
 
@@ -410,12 +387,9 @@ def _format_visible_events_block(
         raise ValueError("sprite roster count must match visible event count")
     sections: list[str] = []
     for beat_index, (entry, ev) in enumerate(resolved, start=1):
-        header = _OBS_LEVEL_HEADERS.get(entry.observation_level, "Perceived:")
         visible_facts = []
         for index, fact in enumerate(ev.observable_facts):
-            if fact.audience == "all_observers" or (
-                pov_character_id and fact.is_visible_to(pov_character_id)
-            ):
+            if fact.is_visible_to(pov_character_id):
                 visible_facts.append((index, fact))
         facts = [
             cleaned
@@ -439,7 +413,7 @@ def _format_visible_events_block(
                 "Narrator render buffer contains an event with no visible "
                 f"facts for {pov_character_id}: {entry.event_id}"
             )
-        lines = [f'<visible_beat index="{beat_index}">', header]
+        lines = [f'<visible_beat index="{beat_index}">']
         if facts:
             for fact in facts:
                 lines.append(f"- {fact}")

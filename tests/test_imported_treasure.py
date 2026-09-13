@@ -12,7 +12,6 @@ from app.schemas.content import (
     ContentPackState,
     ContentTreasureOverlayState,
 )
-from app.schemas.events import ObservableFact
 from app.schemas.event_router import DndCanonicalEventRecord
 from app.schemas.state import SessionState
 from tests.support.factories import dnd_canonical_event
@@ -89,7 +88,7 @@ def _revealed_overlay(**overrides: object) -> ContentTreasureOverlayState:
 def _no_loot_event() -> DndCanonicalEventRecord:
     event = dnd_canonical_event(
         event_id="evt_search",
-        facts=[ObservableFact.all("Alice opens the chest and sees a key.")],
+        facts=[dict(text="Alice opens the chest and sees a key.")],
         observer_ids=["alice"],
         interaction_mode="narrative",
         combatant_ids=[],

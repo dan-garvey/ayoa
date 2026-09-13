@@ -255,8 +255,6 @@ def merge_narrator_lanes(
         existing.event_refs = sorted(
             refs.values(), key=lambda ref: (ref.visible_at_s, ref.event_sequence),
         )
-        existing.source_event_ids = [ref.event_id for ref in existing.event_refs]
-        existing.highest_event_sequence = max(ref.event_sequence for ref in existing.event_refs)
         if job.user_input:
             existing.user_input = job.user_input
         existing.partial_mode |= job.partial_mode

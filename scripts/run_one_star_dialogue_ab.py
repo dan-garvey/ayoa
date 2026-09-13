@@ -35,7 +35,6 @@ from app.schemas.characters import CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import (
     CanonicalEventRecord,
-    ObserverGroups,
 )
 from app.schemas.events import ObservableFact
 
@@ -206,22 +205,13 @@ def _load_seed_checkpoint() -> CheckpointFile:
 def _fixture_event(case: DialogueCase) -> CanonicalEventRecord:
     """Create one canonical surface event for the pending-observation fixture."""
     fact = case.canonical_fact.strip() or case.prompt.strip()
-    submission_id = f"submission_dialogue_{case.case_id}"
     return CanonicalEventRecord(
         event_id=f"evt_dialogue_{case.case_id}",
         causal_lane_id=f"lane_dialogue_{case.actor_id}",
         effective_at_s=45,
         duration_s=1,
         actor_ids=[],
-        source_submission_ids=[submission_id],
-        feasible_submission_ids=[submission_id],
-        infeasible_submission_ids=[],
-        observable_facts=[ObservableFact.all(fact)],
-        observers=ObserverGroups(
-            direct=[case.actor_id],
-            indirect=[],
-            inferred=[],
-        ),
+        observable_facts=[ObservableFact.only(fact, [case.actor_id])],
         spawn=[],
         dormant=[],
         cull=[],

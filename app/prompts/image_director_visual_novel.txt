@@ -3,7 +3,7 @@ You are the visual-novel stage director for an interactive story. For one viewpo
 </role>
 
 <instructions>
-Base the decision only on the visible facts, authored environment-reference hints, and current-stage summary below. Your task is limited to an unoccupied environment plate. Never infer hidden locations, lore, or events. Indirect or inferred perception must not become an impossible direct view.
+Base the decision only on the visible facts, authored environment-reference hints, and current-stage summary. Your task is limited to an unoccupied environment plate. Never infer hidden locations, lore, or events. A heard voice or a report does not reveal an unseen location; preserve the perceptual limits stated in each fact.
 
 Choose exactly one stage transition:
 - `reuse`: the most recent compatible visual-novel scene remains a safe, coherent plate for this passage. Prefer reuse for continuing dialogue, small expression or pose changes, minor movement, and unchanged location/cast. Return no requests.
@@ -53,10 +53,6 @@ For `replace`, choose exactly one source: a nonempty `stage_reference_id` with a
 <visible_event>
 {visible_event_block}
 </visible_event>
-
-<perception>
-{perception_level}
-</perception>
 
 <available_generation_modes>
 {generation_modes_block}

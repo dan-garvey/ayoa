@@ -182,8 +182,8 @@ def test_front_runtime_state_round_trips_and_rolls_back_with_content_state():
     ]
 
 
-def test_public_fact_broadcast_wires_imported_front_dossier_signal():
-    ckpt = checkpoint(characters=[character_record("alice"), character_record("pip")])
+def test_received_fact_wires_imported_front_dossier_signal():
+    ckpt = checkpoint(characters=[character_record(cid) for cid in ["alice", "pip", "npc.strahd"]])
     ckpt.session.content_state = {
         "curse": ContentPackState(
             pack_id="curse",
@@ -198,8 +198,8 @@ def test_public_fact_broadcast_wires_imported_front_dossier_signal():
         )
     }
     event = canonical_event(
-        observer_ids=["alice", "pip"],
-        facts=[ObservableFact.all("The tavern publicly shelters Ireena.")],
+        observer_ids=["alice", "pip", "npc.strahd"],
+        facts=[dict(text="The tavern publicly shelters Ireena.")],
         effective_at_s=30,
     )
 
@@ -212,7 +212,7 @@ def test_public_fact_broadcast_wires_imported_front_dossier_signal():
     assert front_runtime["known_facts"] == [
         "The tavern publicly shelters Ireena."
     ]
-    assert front_runtime["last_visibility"] == "public"
+    assert front_runtime["last_visibility"] == "semi_public"
     assert front_runtime["cooldown_until_s"] == 90
     assert front_runtime["restraint"] == {
         "reason": "avoid direct violence before dinner",
@@ -230,8 +230,8 @@ def test_public_fact_broadcast_wires_imported_front_dossier_signal():
     assert "avoid direct violence before dinner" not in records[0]
 
 
-def test_public_fact_front_signal_respects_runtime_cooldown_but_records_knowledge():
-    ckpt = checkpoint(characters=[character_record("alice")])
+def test_received_fact_front_signal_respects_runtime_cooldown_but_records_knowledge():
+    ckpt = checkpoint(characters=[character_record("alice"), character_record("npc.strahd")])
     ckpt.session.content_state = {
         "curse": ContentPackState(
             pack_id="curse",
@@ -246,12 +246,14 @@ def test_public_fact_front_signal_respects_runtime_cooldown_but_records_knowledg
     }
     first = canonical_event(
         event_id="evt_first",
-        facts=[ObservableFact.all("The tavern publicly shelters Ireena.")],
+        observer_ids=["alice", "npc.strahd"],
+        facts=[dict(text="The tavern publicly shelters Ireena.")],
         effective_at_s=10,
     )
     second = canonical_event(
         event_id="evt_second",
-        facts=[ObservableFact.all("The burgomaster publicly praises the party.")],
+        observer_ids=["alice", "npc.strahd"],
+        facts=[dict(text="The burgomaster publicly praises the party.")],
         effective_at_s=20,
     )
 
@@ -268,6 +270,35 @@ def test_public_fact_front_signal_respects_runtime_cooldown_but_records_knowledg
     ]
     assert front_runtime["suppressed_source_event_ids"] == [second.event_id]
     assert len(pack.pending_signals) == 1
+
+
+def test_front_does_not_learn_a_private_fact_from_someone_elses_event():
+    ckpt = checkpoint(characters=[character_record("caelindra"), character_record("npc.strahd")])
+    ckpt.session.content_state = {"curse": ContentPackState(
+        pack_id="curse", metadata={"domain_catalog": {
+            "pack_id": "curse", "front_dossiers": [_front_dossier().model_dump(mode="json")],
+        }},
+    )}
+    secret = "The invitation contains the private password silver-fern."
+    commit_event_batch(ckpt, [canonical_event(
+        event_id="private", facts=[ObservableFact.only(secret, ["caelindra"])],
+    )])
+    pack = ckpt.session.content_state["curse"]
+    assert FRONT_RUNTIME_METADATA_KEY not in pack.metadata
+    assert append_pending_router_content_records(ckpt) == []
+
+    # A later shared fact may update the front; earlier private text must not
+    # ride along just because both facts belong to the same event.
+    shared = "The tavern shelters Ireena."
+    commit_event_batch(ckpt, [canonical_event(event_id="mixed", facts=[
+        ObservableFact.only(shared, ["caelindra", "npc.strahd"]),
+        ObservableFact.only(secret, ["caelindra"]),
+    ])])
+    records = append_pending_router_content_records(ckpt)
+    assert len(records) == 1
+    assert shared in records[0]
+    assert secret not in records[0]
+    assert pack.metadata[FRONT_RUNTIME_METADATA_KEY]["fronts"]["front.strahd"]["known_facts"] == [shared]
 
 
 def _front_dossier() -> FrontDossierRecord:

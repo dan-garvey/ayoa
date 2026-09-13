@@ -24,8 +24,14 @@ from app.schemas.checkpoint import CheckpointFile
 
 ROOT = Path(__file__).resolve().parent.parent
 STORY_CHECKPOINT_PATHS = tuple(
-    sorted(ROOT.glob("app/storage/stories/*/ckpt_0000.json"))
+    ROOT / "app/storage/stories" / story_id / "ckpt_0000.json"
+    for story_id in (
+        "dating_villa_s1", "one_star_ascension_s1",
+        "one_star_ascension_s1_promotion_playtest", "spring_rain_second_chorus",
+        "the_unblessed_summon",
+    )
 )
+# Only shipped seeds are fixtures; private imported stories may use old schemas.
 SOURCE_CHECKPOINT_PATH = (
     ROOT / "app/storage/stories/one_star_ascension_s1/ckpt_0000.json"
 )

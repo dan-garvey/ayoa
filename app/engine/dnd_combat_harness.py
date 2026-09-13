@@ -148,18 +148,13 @@ class CapturingDndCombatResolver(DndCombatResolver):
 
 def _event_summary(
     event: Any,
-    *,
-    include_observers: bool = False,
 ) -> dict[str, Any]:
     if event is None:
         return {}
     record = getattr(event, "event", event)
     fact_details: list[dict[str, Any]] = []
-    public_facts: list[str] = []
-    private_facts: list[dict[str, Any]] = []
     for fact in getattr(record, "observable_facts", []):
         text = str(getattr(fact, "text", "") or "")
-        audience = str(getattr(fact, "audience", "") or "all_observers")
         visible_to = [
             str(value)
             for value in getattr(fact, "visible_to", []) or []
@@ -167,28 +162,15 @@ def _event_summary(
         ]
         detail = {
             "text": text,
-            "audience": audience,
             "visible_to": visible_to,
         }
         fact_details.append(detail)
-        if audience == "only":
-            private_facts.append({"text": text, "visible_to": visible_to})
-        else:
-            public_facts.append(text)
     summary = {
         "event_id": getattr(record, "event_id", ""),
         "interaction_mode": getattr(record, "interaction_mode", "narrative"),
-        "facts": public_facts,
-        "private_facts": private_facts,
+        "facts": [fact["text"] for fact in fact_details],
         "fact_details": fact_details,
     }
-    if include_observers:
-        groups = getattr(record, "observers", None)
-        summary["observers"] = [
-            {"character_id": character_id, "observation_level": level}
-            for level in ("direct", "indirect", "inferred")
-            for character_id in getattr(groups, level, ())
-        ]
     return summary
 
 
@@ -746,14 +728,9 @@ def live_report_markdown(report: dict[str, Any]) -> str:
             "",
             "Facts:",
         ])
-        for fact in (turn.get("result") or {}).get("facts") or []:
-            lines.append(f"- {fact}")
-        private_facts = (turn.get("result") or {}).get("private_facts") or []
-        if private_facts:
-            lines.extend(["", "Private facts:"])
-            for fact in private_facts:
-                visible_to = ", ".join(fact.get("visible_to") or [])
-                lines.append(f"- [{visible_to}] {fact.get('text')}")
+        for fact in (turn.get("result") or {}).get("fact_details") or []:
+            visible_to = ", ".join(fact["visible_to"])
+            lines.append(f"- [{visible_to}] {fact['text']}")
         adjudication = (turn.get("capture") or {}).get("adjudication") or {}
         observed = adjudication.get("router_observed_facts") or []
         if observed:
@@ -877,14 +854,9 @@ def stress_report_markdown(report: dict[str, Any]) -> str:
         else:
             lines.append("- None.")
         lines.extend(["", "Facts:"])
-        for fact in ((scenario.get("event") or {}).get("facts") or []):
-            lines.append(f"- {fact}")
-        private_facts = (scenario.get("event") or {}).get("private_facts") or []
-        if private_facts:
-            lines.extend(["", "Private facts:"])
-            for fact in private_facts:
-                visible_to = ", ".join(fact.get("visible_to") or [])
-                lines.append(f"- [{visible_to}] {fact.get('text')}")
+        for fact in ((scenario.get("event") or {}).get("fact_details") or []):
+            visible_to = ", ".join(fact["visible_to"])
+            lines.append(f"- [{visible_to}] {fact['text']}")
         lines.extend(["", "Turn plan:"])
         turn_plan = (scenario.get("capture") or {}).get("turn_plan") or {}
         lines.extend([

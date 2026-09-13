@@ -33,10 +33,9 @@ Avoid these patterns:
 
 {include "narrator_viewpoint_knowledge"}
 
-Observation clarity:
-- Seen and heard directly: quote speech and render concrete visible action.
-- Partly heard or noticed: keep it muted and incomplete. Do not quote speech verbatim. Do not describe facial expressions or gestures the viewpoint could not confirm.
-- Inferred from aftermath: no dialogue, no paraphrased contents, no specific unseen action. Render only surface aftermath.
+Perceptual limits are part of the supplied facts. Preserve the exact words that
+were heard, including any fragment, and the uncertainty or aftermath described.
+Do not fill in missing speech, expressions, gestures, or unseen causes.
 
 When appearance details are available for people the viewpoint is looking over, weave at most one short visible phrase into the passage. Do not copy source tags or turn the phrase into exposition.
 

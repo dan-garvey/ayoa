@@ -391,7 +391,7 @@ def test_hidden_observer_who_beats_stealth_gets_next_output_regardless_binding()
 
     routed = cat._compile_event_router_output(ckpt, evt, transaction, adjudication)
 
-    assert routed.observation_level_for("dace") == "direct"
+    assert "dace" in routed.observer_ids
     assert cat._stealth_recon_followup_responder_ids(
         ckpt,
         evt,
@@ -602,7 +602,7 @@ def test_dnd_cat_ii_executes_roll_plan_and_compiles_router_output(monkeypatch):
         "event_router",
     ]
     assert routed.next_turn_actor_ids == ()
-    assert routed.event.observers.direct == ["alice", "pip"]
+    assert routed.event.observer_ids == ["alice", "pip"]
     assert routed.event.observable_facts[0].text == (
         "Alice drives Pip back from the doorway."
     )
@@ -665,18 +665,17 @@ def test_dnd_cat_ii_scopes_private_outcome_facts(monkeypatch):
     )
 
     public, private = routed.event.observable_facts
-    assert public.audience == "all_observers"
+    assert public.visible_to == ["alice", "pip"]
     assert public.text == (
         "Alice says, 'Step away from the door before this gets worse.'"
     )
-    assert private.audience == "only"
     assert private.visible_to == ["pip"]
     assert private.text == (
         "Alice's threat feels immediate enough that staying in place feels "
         "dangerous."
     )
     assert routed.next_turn_actor_ids == ("pip",)
-    assert routed.event.observers.direct == ["alice", "pip"]
+    assert routed.event.observer_ids == ["alice", "pip"]
 
 
 def test_dnd_cat_ii_interactive_player_roll_pauses_until_roll_submitted(

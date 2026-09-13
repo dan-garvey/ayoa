@@ -23,7 +23,6 @@ from app.schemas.content_privacy import redact_imported_asset_text
 from app.schemas.event_router import (
     DndCanonicalEventRecord,
     CanonicalEventRecord,
-    ObserverGroups,
 )
 from app.schemas.events import ObservableFact
 from app.schemas.dnd_inventory import DndCurrency, DndLootOfferSignal
@@ -60,10 +59,13 @@ class DndResolvedCanonicalEvent:
     """Adapter result kept outside the durable canonical event schema."""
 
     event: CanonicalEventRecord
+    feasible: bool
     next_turn_actor_ids: tuple[str, ...] = ()
     reaction_candidate_ids: tuple[str, ...] = ()
     transaction_event_id: str = ""
     experience_awards: tuple[DndExperienceAwardDisplay, ...] = ()
+
+
 DND5E_BASIC_RULESET_ID = "dnd5e_basic"
 _DAMAGE_TYPES = {
     "acid",
@@ -358,6 +360,7 @@ class DndCatIIResolver:
             event=result,
             next_turn_actor_ids=tuple(followup_ids),
             transaction_event_id=transaction.event_id,
+            feasible=adjudication.feasible,
         )
 
     async def _plan_rolls(self, packet: str) -> RollPlan:
@@ -409,15 +412,15 @@ def _end_combat_after_adjudication(
     if combat is None:
         return
     for fact in dnd_combat.drain_pending_visible_facts(combat):
-        result.observable_facts.append(ObservableFact.all(fact))
+        result.observable_facts.append(ObservableFact.only(fact, result.observer_ids))
     dnd_combat.append_audit_line(
         combat,
         f"Combat ended from D&D combat adjudication: {result.event_id}.",
     )
     dnd_combat.queue_router_observed_fact_updates(ckpt.session, combat)
     dnd_combat.end_combat(ckpt.session, characters=ckpt.characters)
-    result.observable_facts.append(ObservableFact.all(
-        "D&D combat ends."
+    result.observable_facts.append(ObservableFact.only(
+        "D&D combat ends.", result.observer_ids,
     ))
 
 
@@ -3974,20 +3977,8 @@ def _compile_event_router_output(
     transaction: CatIIRollTransaction,
     adjudication: RulesAdjudication,
 ) -> CanonicalEventRecord:
-    observer_ids = _observer_ids(cat_ii_event)
-    outcome_facts = _outcome_observable_facts(adjudication)
-    fact_recipient_ids = {
-        value for fact in outcome_facts for value in fact.visible_to
-    }
-    direct_observer_ids = [
-        cid
-        for cid in observer_ids
-        if _character_exists(ckpt, cid)
-        and (
-            any(fact.audience == "all_observers" for fact in outcome_facts)
-            or cid in fact_recipient_ids
-        )
-    ]
+    observer_ids = [cid for cid in _observer_ids(cat_ii_event) if _character_exists(ckpt, cid)]
+    outcome_facts = _outcome_observable_facts(ckpt, adjudication, observer_ids)
     source = next(
         (
             event
@@ -3996,7 +3987,6 @@ def _compile_event_router_output(
         ),
         None,
     )
-    source_submission_id = f"resolution_{cat_ii_event.event_id}"
     event_id = "evt_dnd_" + hashlib.sha256(
         f"{ckpt.session.session_id}\x1f{cat_ii_event.event_id}".encode("utf-8")
     ).hexdigest()[:12]
@@ -4013,19 +4003,7 @@ def _compile_event_router_output(
             cat_ii_event.initiator_id,
             *cat_ii_event.required_responders,
         ]),
-        source_submission_ids=[source_submission_id],
-        feasible_submission_ids=(
-            [source_submission_id] if adjudication.feasible else []
-        ),
-        infeasible_submission_ids=(
-            [] if adjudication.feasible else [source_submission_id]
-        ),
         observable_facts=outcome_facts,
-        observers=ObserverGroups(
-            direct=direct_observer_ids,
-            indirect=[],
-            inferred=[],
-        ),
         spawn=[],
         dormant=[],
         cull=[],
@@ -4208,23 +4186,11 @@ def _compile_combat_router_output(
         manager_facts=adjudication.visible_outcome_facts,
         adjudication=adjudication,
     )
+    observer_ids = [cid for cid in observer_ids if _character_exists(ckpt, cid)]
     outcome_facts = [
-        ObservableFact.all(fact)
+        _visible_outcome_fact(ckpt, fact, observer_ids)
         for fact in visible_facts
     ] + _private_outcome_observable_facts(adjudication)
-    fact_recipient_ids = {
-        value for fact in outcome_facts for value in fact.visible_to
-    }
-    direct_observer_ids = [
-        cid
-        for cid in observer_ids
-        if _character_exists(ckpt, cid)
-        and (
-            any(fact.audience == "all_observers" for fact in outcome_facts)
-            or cid in fact_recipient_ids
-        )
-    ]
-    source_submission_id = f"combat_{transaction.event_id}"
     event_id = "evt_dnd_" + hashlib.sha256(
         f"{ckpt.session.session_id}\x1f{transaction.event_id}".encode("utf-8")
     ).hexdigest()[:12]
@@ -4234,19 +4200,7 @@ def _compile_combat_router_output(
         effective_at_s=max(0, int(ckpt.session.leading_at_s)),
         duration_s=0,
         actor_ids=[transaction.actor_id] if transaction.actor_id else [],
-        source_submission_ids=[source_submission_id],
-        feasible_submission_ids=(
-            [source_submission_id] if adjudication.feasible else []
-        ),
-        infeasible_submission_ids=(
-            [] if adjudication.feasible else [source_submission_id]
-        ),
         observable_facts=outcome_facts,
-        observers=ObserverGroups(
-            direct=direct_observer_ids,
-            indirect=[],
-            inferred=[],
-        ),
         spawn=[],
         dormant=[],
         cull=[],
@@ -4283,12 +4237,25 @@ def _compile_combat_router_output(
 
 
 def _outcome_observable_facts(
+    ckpt: CheckpointFile,
     adjudication: RulesAdjudication,
+    recipients: list[str],
 ) -> list[ObservableFact]:
     return [
-        ObservableFact.all(fact)
+        _visible_outcome_fact(ckpt, fact, recipients)
         for fact in adjudication.visible_outcome_facts
     ] + _private_outcome_observable_facts(adjudication)
+
+
+def _visible_outcome_fact(
+    ckpt: CheckpointFile, text: str, recipients: list[str],
+) -> ObservableFact:
+    from app.engine.visual_context import physically_present_character_ids
+
+    return ObservableFact.only(
+        text, recipients,
+        visual_subject_ids=sorted(physically_present_character_ids(ckpt, [text])),
+    )
 
 
 def _private_outcome_observable_facts(

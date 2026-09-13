@@ -9,28 +9,33 @@
       "observable_facts": [
         {
           "text": "With the goblin still jolted against the corridor wall, niflheim_first_summon_01 yanks niflheim_first_summon_01's rusted starter blade fully free of its sheath and drives it forward in one short, direct thrust toward the goblin's exposed throat. The point punches into the soft flesh just above the jagged collar of its armor with a wet, choking sound.",
-          "audience": "all_observers",
-          "visible_to": [],
+          "visible_to": [
+            "the_master",
+            "davan"
+          ],
           "at_offset_s": 0,
           "duration_s": 2
         },
         {
           "text": "The goblin's snarl breaks off in a gurgle as dark blood spills over the blade and down its chest. Its weapon hand spasms once against the stone, fingers briefly clenching around the crude jagged blade before the strength leaves its arm and the weapon clatters to the floor. niflheim_first_summon_01 jerks the starter sword back, and the small green body slumps sideways down the wall to the corridor floor, twitching once more before going still.",
-          "audience": "all_observers",
-          "visible_to": [],
+          "visible_to": [
+            "the_master",
+            "davan"
+          ],
           "at_offset_s": 2,
           "duration_s": 2
         },
         {
           "text": "niflheim_first_summon_01 takes a short step back from the cooling body, blade held ready, and stands in the dim corridor just outside the side-room doorway. In the brief quiet that follows, faint guttural chatter and hurried, uneven footfalls echo from farther down the corridor ahead, clearer now than before and suggesting more than one goblin on the move in niflheim_first_summon_01's direction.",
-          "audience": "all_observers",
-          "visible_to": [],
+          "visible_to": [
+            "the_master",
+            "davan"
+          ],
           "at_offset_s": 4,
           "duration_s": 1
         },
         {
           "text": "[Goblin defeated. Party gains a small amount of EXP.]",
-          "audience": "only",
           "visible_to": [
             "the_master"
           ],
@@ -46,21 +51,24 @@
       "observable_facts": [
         {
           "text": "Still gripping the spear haft, Davan suddenly heaves hard, driving the dazed spear-goblin backward. The smaller creature stumbles and slams into the shield-bearing goblin behind it, wooden shield thudding against bone as both of them jolt and stagger together in the tight corridor, their limbs and weapons momentarily tangled.",
-          "audience": "all_observers",
-          "visible_to": [],
+          "visible_to": [
+            "the_master",
+            "davan"
+          ],
           "at_offset_s": 0,
           "duration_s": 2
         },
         {
           "text": "As the two goblins reel in a knot, Davan lets one hand slip from the spear, yanks Davan's rusted starter sword from its sheath, and steps in. Davan drives the blade in a short, brutal thrust into the exposed back of the spear-goblin between its shoulders. The point punches through worn leather and out the creature's chest; it jerks, lets out a wet, choking gasp, and then goes limp, sliding off the sword to collapse on the stone at the shield-bearer's feet. The shield-bearing goblin grunts as the dead weight hits, shuffling a step back and shoving the corpse off with its splintered shield, regaining its footing a pace down the corridor with weapon still in hand.",
-          "audience": "all_observers",
-          "visible_to": [],
+          "visible_to": [
+            "the_master",
+            "davan"
+          ],
           "at_offset_s": 2,
           "duration_s": 2
         },
         {
           "text": "On the_masters_screen, the spear-goblin's HP bar empties as Davan's strike lands, and a small bracketed notice pops up: '[Goblin defeated. Party gains a small amount of EXP.]' The shield-bearing goblin's icon remains, its health bar intact as it pulls back behind its shield.",
-          "audience": "only",
           "visible_to": [
             "the_master"
           ],

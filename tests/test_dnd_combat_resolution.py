@@ -33,7 +33,6 @@ from app.schemas.dnd_spatial import (
     DndBattleMapState,
     DndBattleMapToken,
 )
-from app.schemas.events import ObservableFact
 from app.schemas.state import (
     ActionObligation,
     CatIIRollTransaction,
@@ -2702,8 +2701,8 @@ def test_stale_withdrawal_facts_do_not_end_current_party_combat_action():
         lane_id="lane_stale",
         effective_at_s=0,
         duration_s=0,
-        observer_ids=[],
-        facts=[ObservableFact.all(
+        observer_ids=["alice"],
+        facts=[dict(text=
             "Alice held fire and did not pursue while the remaining "
             "bandits withdrew toward the tree line."
         )],

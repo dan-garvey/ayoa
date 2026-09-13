@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.engine.checkpoint_manager import CheckpointManager
-from app.schemas.checkpoint import CheckpointFile
+from app.schemas.checkpoint import CheckpointFile, CURRENT_SCHEMA_VERSION
 from app.schemas.characters import CharacterRecord
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.event_router import DndCanonicalEventRecord
@@ -36,7 +36,7 @@ def test_current_schema_seed_sources_do_not_carry_retired_transcript():
 
     for path in seed_paths:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        if str(payload.get("schema_version")) == "7.0":
+        if str(payload.get("schema_version")) == CURRENT_SCHEMA_VERSION:
             assert "transcript" not in payload, path
 
 

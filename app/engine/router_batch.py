@@ -52,6 +52,12 @@ class MaterializedEvent:
     required_responder_ids: tuple[str, ...]
     appearance_target_ids: tuple[str, ...]
     dnd_reaction_ids: tuple[str, ...]
+    feasible_submission_ids: tuple[str, ...]
+    infeasible_submission_ids: tuple[str, ...]
+
+    @property
+    def source_submission_ids(self) -> tuple[str, ...]:
+        return (*self.feasible_submission_ids, *self.infeasible_submission_ids)
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +146,7 @@ def _adapter_record_fields(draft: RouterEventDraft) -> dict[str, Any]:
 
 def _draft_structured_character_ids(draft: RouterEventDraft) -> set[str]:
     ids = {
-        *draft.observers.all_ids,
+        *draft.observer_ids,
         *draft.required_responders,
         *draft.appearance_target_ids,
         *draft.dormant,
@@ -481,11 +487,7 @@ def materialize_router_batch(
             "effective_at_s": effective_at_s,
             "duration_s": draft.duration_s,
             "actor_ids": actor_ids,
-            "source_submission_ids": submission_ids,
-            "feasible_submission_ids": draft_feasible,
-            "infeasible_submission_ids": draft_infeasible,
             "observable_facts": list(draft.observable_facts),
-            "observers": draft.observers,
             "spawn": list(draft.spawn),
             "dormant": list(draft.dormant),
             "cull": list(draft.cull),
@@ -508,6 +510,8 @@ def materialize_router_batch(
         records.append(MaterializedEvent(
             draft_index=draft_index,
             record=record,
+            feasible_submission_ids=tuple(draft_feasible),
+            infeasible_submission_ids=tuple(draft_infeasible),
             required_responder_ids=tuple(draft.required_responders),
             appearance_target_ids=tuple(draft.appearance_target_ids),
             dnd_reaction_ids=tuple(
@@ -602,11 +606,6 @@ def materialize_router_batch(
             actor_id=turn.actor_id,
             participant_ids=list(turn.participant_ids),
             source_event_ids=source_ids,
-            created_event_sequence=(
-                sequences[source.event_id]
-                if source is not None
-                else len(checkpoint.canonical_events) + len(records)
-            ),
             gating_pov_ids=gating,
         ))
 

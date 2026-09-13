@@ -19,7 +19,6 @@ from app.llm.client import LLMClient
 from app.schemas.content import ContentPackState
 from app.schemas.conversation import ConversationMessage
 from app.schemas.content_pack import FrontDossierRecord
-from app.schemas.events import ObservableFact
 from tests.support.factories import (
     canonical_event,
     character_record,
@@ -177,7 +176,7 @@ def test_front_signal_router_history_does_not_reach_narrator_prompt() -> None:
             event_id="evt_public_wolves",
             observer_ids=["alice"],
             facts=[
-                ObservableFact.all(
+                dict(text=
                     "Wolves are seen pacing the ridge above the road."
                 )
             ],
@@ -195,7 +194,6 @@ def test_front_signal_router_history_does_not_reach_narrator_prompt() -> None:
             buffered_events=[
                 narrator_event_ref(
                     event_id="evt_public_wolves",
-                    observation_level="direct",
                 )
             ],
             partial_mode=False,

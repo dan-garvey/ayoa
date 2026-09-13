@@ -53,7 +53,6 @@ from app.engine.router_batch import (
 from app.engine.router_prompt_projection import (
     causal_groups as _causal_groups,
     event_sequences as _event_sequences,
-    router_history_record,
     router_prompt_history as _router_prompt_history,
 )
 from app.llm.client import LLMClient, StructuredOutputValidationError
@@ -812,9 +811,18 @@ class StoryDispatcher:
             )
         for event in batch.events:
             for character_id in event.appearance_target_ids:
-                event.record.observable_facts.append(ObservableFact.all(
+                recipients = list(dict.fromkeys(
+                    viewer for fact in event.record.observable_facts
+                    if character_id in fact.visual_subject_ids
+                    for viewer in fact.visible_to
+                ))
+                if not recipients:
+                    raise RuntimeError("appearance harvest has no visible subject recipients")
+                event.record.observable_facts.append(ObservableFact.only(
                     f"[loadout - {roster[character_id].name}] "
                     f"{cleaned[character_id]}",
+                    recipients,
+                    visual_subject_ids=[character_id],
                     at_offset_s=event.record.duration_s,
                 ))
 
@@ -893,8 +901,6 @@ class StoryDispatcher:
         if not consequences:
             return
         known = {item.character_id for item in checkpoint.characters}
-        original_observers = list(event.observer_ids)
-        added_observers: list[str] = []
         consequence_records: list[tuple[str, list[str]]] = []
         for consequence in consequences:
             text = str(getattr(consequence, "text", "") or "").strip()
@@ -905,18 +911,7 @@ class StoryDispatcher:
             ))
             if not text or not recipients or set(recipients) - known:
                 raise RuntimeError("invalid One-Star deterministic consequence")
-            added_observers.extend(
-                value
-                for value in recipients
-                if value not in original_observers and value not in added_observers
-            )
             consequence_records.append((text, recipients))
-        if added_observers:
-            for fact in event.observable_facts:
-                if fact.audience == "all_observers":
-                    fact.audience = "only"
-                    fact.visible_to = list(original_observers)
-            event.observers.indirect.extend(added_observers)
         from app.schemas.events import ObservableFact
 
         event.observable_facts.extend(
@@ -958,10 +953,11 @@ def append_router_history(
     checkpoint: CheckpointFile,
     events: Sequence[CanonicalEventRecord],
 ) -> None:
+    sequences = _event_sequences(checkpoint)
     checkpoint.session_conversation.extend(
         ConversationMessage(
             role="assistant",
-            content=router_history_record(checkpoint, event),
+            content=f"prior_event sequence={sequences[event.event_id]}",
         )
         for event in events
     )

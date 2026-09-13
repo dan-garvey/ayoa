@@ -9,8 +9,16 @@
       "observable_facts": [
         {
           "text": "Ashara vel Kothren's gaze moves from Rowan Garvey's inherited signet to his face. She rises from her chair, keeping her hands at her sides.",
-          "audience": "all_observers",
-          "visible_to": [],
+          "visible_to": [
+            "player_garvey",
+            "ashara_vel_kothren",
+            "ysolde_thornmantle",
+            "caelindra_vaeyn",
+            "seraphel_dawnquill",
+            "thessaly_morrow",
+            "rashid_vel_amara",
+            "aldric_verantus"
+          ],
           "visual_subject_ids": [
             "ashara_vel_kothren",
             "player_garvey"
@@ -20,8 +28,16 @@
         },
         {
           "text": "“Rowan Garvey. You have my attention.”",
-          "audience": "all_observers",
-          "visible_to": [],
+          "visible_to": [
+            "player_garvey",
+            "ashara_vel_kothren",
+            "ysolde_thornmantle",
+            "caelindra_vaeyn",
+            "seraphel_dawnquill",
+            "thessaly_morrow",
+            "rashid_vel_amara",
+            "aldric_verantus"
+          ],
           "visual_subject_ids": [
             "ashara_vel_kothren"
           ],
@@ -29,20 +45,6 @@
           "duration_s": 0
         }
       ],
-      "observers": {
-        "direct": [
-          "player_garvey",
-          "ashara_vel_kothren",
-          "ysolde_thornmantle",
-          "caelindra_vaeyn",
-          "seraphel_dawnquill",
-          "thessaly_morrow",
-          "rashid_vel_amara",
-          "aldric_verantus"
-        ],
-        "indirect": [],
-        "inferred": []
-      },
       "required_responders": [],
       "appearance_target_ids": [],
       "spawn": [],

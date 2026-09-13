@@ -144,17 +144,17 @@ authority. The router decides who perceives each event from live context:
 co-presence, live audio, cameras, radio, telepathy, scrying,
 supernatural senses, spies, or any other established channel.
 
-There is no engine-side scene graph and no local/remote observer flag in the
-live event model. `broadcast_event()` trusts the router's `observers` list and
-then filters by fact-level visibility. In production today, `all_observers`
-facts are visible to every listed observer; a remote or mediated character
-should only be listed as an observer when the router intends them to receive
-the broad facts, or should receive scoped `audience="only"` facts instead.
+There is no engine-side scene graph or event-level perception classification.
+Each fact has an explicit `visible_to` recipient list. `commit_event_batch()`
+derives the event recipients from those lists, then sends each character only
+their facts. Partial perceptions are separate facts with appropriately limited
+text. `visual_subject_ids` identifies the embodied characters actually visible
+to every recipient of that fact; hearing someone does not expose their appearance.
 
 ### 4.3 The Narrator Is A POV Renderer
 
 The narrator is no longer the world adjudicator. It is a per-POV prose
-renderer. It receives visible facts, observation levels, relevant
+renderer. It receives visible facts, relevant
 context, the acting player's original input, and the POV's rolling
 narrator history. It must not invent actions, dialogue, outcomes,
 interiority, or physical business that is not in the visible facts or the
@@ -169,14 +169,14 @@ role. It decides:
 * feasibility
 * time advancement
 * observable facts and fact-level visibility
-* observers and observer routing roles
-* beat end state
+* explicit fact recipients and visible character subjects
+* semantic next turns, including bound human characters
 * spawns, dormancy, and culls
 
 The router also handles router-shaped special entries: `(begin)`, `(arrive)`,
 `(query: ...)`, narrator-requested continuation, and Cat II resolution blocks. Directly
 supplied and character-agent-authored prose share one proposed actor-submission
-framing over the same `EventRouterOutput` schema; neither source pre-commits
+framing over the same `RouterBatchOutput` schema; neither source pre-commits
 fiction.
 
 An `Authoritative Result` is the narrow exception for an outcome already fixed
@@ -548,33 +548,23 @@ router calls so a failed router completion does not silently drain them.
 
 ### 5.5 Event Router
 
-The event router prompt and `EventRouterOutput` schema replace both the
-old narrator adjudication phase and the old discriminator role. The
-router emits one structured object per actor submission or closed repair.
+The event router prompt and `RouterBatchOutput` schema replace both the
+old narrator adjudication phase and the old discriminator role. One call
+resolves up to five submitted intentions against one checkpoint snapshot.
 
 Current router call shapes:
 
-* actor submission (`submitted_actor_id` plus `submission_text`), independent
-  of how that text reached the runtime
-* Cat II final adjudication (`## Cat II Resolution`)
-* narrator-requested continuation (`## Continuation Required`)
+* indexed actor submissions, independent of who authored the intention
+* Cat II final adjudication with collected responder intentions
+* world continuation grounded in prior canonical events
 * OOC directives such as `(begin)`, `(arrive)`, `(defer)`, and
   `(query: ...)`
 
-The top-level object carries:
-
-* `event_id`
-* `decision_rationale`
-* `canonical_event`
-* Cat I / Cat II fields
-* `event_kind`
-* `observers`
-* `spawn`, `dormant`, `cull`
-
-The nested `canonical_event` deliberately carries only:
-
-* `world_adjudication.feasible`
-* `observable_facts`
+The top-level object carries `events` and `next_turns`. Each event draft
+accounts for feasible/infeasible input indexes, fact timing and recipients,
+contested responders, and non-empty lifecycle or adapter side effects.
+Materialization assigns durable event/lane identities. Submission outcome IDs
+remain on the transient materialized batch; canonical records do not store them.
 
 Outside quoted speech, non-self character references use canonical character
 ids. Quoted speech preserves the spoken pronoun and immediately follows it with
@@ -900,7 +890,7 @@ in checkpoint transactions for rewind/audit but are not appended to
 
 ### 6.4 Broadcast
 
-`broadcast_event()` appends the router output to `canonical_events` and
+`commit_event_batch()` appends canonical records to `canonical_events` and
 fans it out:
 
 * human observers with visible facts get render-buffer entries
@@ -911,18 +901,12 @@ fans it out:
   canonical event may also contain another character's response, environmental
   change, or adjudicated consequence that the actor must not miss
 
-Important current behavior: `broadcast_event()` does not know whether an
-observer is local, remote, mediated, or inferred. It passes
-`include_all_observers=True` for every listed observer. Therefore broad
-`all_observers` facts reach every observer the router lists. If only one
-remote character should receive a mediated fact, that fact must be
-`audience="only"` and the router should be careful about whether the remote
-character belongs in `observers` at all.
-
-`all_observers` does not mean "all characters in the session." It means all
-characters in the event's explicit `observers` list. An event with
-`observers=[]` is still appended to `canonical_events`, but no human render
-buffer or NPC inbox receives even broad `all_observers` facts.
+There is no implicit broadcast audience. Each fact names all its recipients,
+including its actor when they perceive their own action. Facts require at least
+one recipient; an event may have no facts if it only applies a state effect.
+Autonomous contested responders also receive only their visible opening facts.
+Imported front knowledge may be updated only from facts naming that front's
+actor as a recipient, never from another character's private perception.
 
 ### 6.5 Render
 
@@ -1025,9 +1009,11 @@ Each observable fact is an object:
 
 ```json
 {
-  "text": "Rashid says, to the table: 'Say that again.'",
-  "audience": "all_observers",
-  "visible_to": []
+  "text": "Rowan leans close and whispers to Caelindra; the words are inaudible.",
+  "visible_to": ["guest_0", "guest_1", "guest_2", "guest_3", "guest_4", "guest_5"],
+  "visual_subject_ids": ["rowan", "caelindra"],
+  "at_offset_s": 0,
+  "duration_s": 0
 }
 ```
 
@@ -1035,68 +1021,50 @@ For scoped facts:
 
 ```json
 {
-  "text": "A producer whispers in Dante's earpiece: 'A late contestant is on site.'",
-  "audience": "only",
-  "visible_to": ["dante_royale"]
+  "text": "Rowan whispers to Caelindra: 'Meet me in the west garden at midnight.'",
+  "visible_to": ["rowan", "caelindra"],
+  "visual_subject_ids": ["rowan", "caelindra"],
+  "at_offset_s": 0,
+  "duration_s": 0
 }
 ```
 
-Facts are split by audience, not by sentence. If the same exact audience
+Facts are split by perception, not by sentence. If the same exact recipients
 perceives a full exchange, one packet is usually better than many small
 packets.
 
-### 7.2 ObserverEntry
+### 7.2 Visual Access
 
-Observers carry event-level perception and routing intent:
+There are no observer groups or observation levels. The same fact text and
+visual scope apply to every listed recipient. Split audio and sight when they
+reach different people. Narration, appearance introductions, sprites, and image
+projections use that scope; a name mention is not a visual introduction.
 
-```json
-{
-  "character_id": "dante_royale",
-  "observation_level": "d",
-  "routing_role": "observe_only"
-}
-```
+### 7.3 Perception And Next Turns Are Independent
 
-Observation levels:
+`next_turns` selects narratively appropriate characters and their causal groups.
+A bound character yields to human input; eligible autonomous characters draft
+intentions. Overlapping work is serialized, independent work may draft in
+parallel, and every result returns through canonicalization. A selection can
+refer to an earlier shared event without revealing a newer private event.
 
-* `d`: direct
-* `i`: indirect
-* `f`: inferred
+`required_responders` opens a contest and requires those characters to receive
+an opening fact. `appearance_target_ids` requests authored appearance only for
+recipients whose facts show that subject. The D&D adapter's `dnd_reaction_ids`
+likewise requires a perceived trigger; it does not widen fact visibility.
 
-`observation_level` says how the observer encountered the event.
-Fact-level `audience` / `visible_to` says which facts they receive.
+### 7.4 Canonical History And Runtime References
 
-### 7.3 Observer Routing Roles
+Canonical event records retain timing, lifecycle/adapter decisions, and the
+identities needed for scheduling, narration, media, and replay. Router history
+stores only `prior_event sequence=N` references at their chronological positions
+among externally supplied context. Prompt construction projects the canonical
+fiction at those positions, without storing another copy of the prose.
 
-`routing_role` is the executable routing decision attached to each observer or
-enrichment target:
-
-* `observe_only` means the character receives visible facts and no immediate
-  output is requested.
-* `next_output` means the router wants this character to produce the next live
-  output if the narrator keeps the beat open. The runtime yields for a bound
-  character, speculatively prepares an eligible autonomous character beside
-  the narrator pacing call, and rejects inactive, pinned, disabled, or
-  combat-blocked targets.
-* `perception_enrichment` means the character is a perception-harvest target
-  for `observation_harvest` or `query_response`, not a response actor.
-
-Observer list order is routing order. Multiple `next_output` observers are an
-ordered backlog or fallback set; the runtime still dispatches one same-scene
-agent output, routes that result back through the router, and then lets the
-router decide whether another participant is still live.
-
-D&D extends this enum with `dnd_reaction`, an adapter-owned role for direct
-combat observers who should receive a reaction prompt.
-
-### 7.4 Visibility Caveat
-
-The schema has a fact-level helper that can exclude broad `all_observers`
-facts (`include_all_observers=False`), but production broadcast and narrator
-composition currently pass `include_all_observers=True`. The practical rule is:
-the router's observer list is the event boundary. Do not list a character as an
-observer unless they are meant to receive the event's broad facts; use scoped
-facts for partial private channels.
+Narrator jobs retain `event_refs`; source IDs and highest sequence are derived
+from them. Submission feasibility/provenance is live batch accounting, not
+permanent narrative state. Open commitments and all their timing fields remain
+unchanged.
 
 ## 8. Character State
 
@@ -1377,13 +1345,14 @@ resolve. See §15.
 
 ## 13. Checkpoint Schema
 
-Current checkpoints use schema version `6.0`.
+Current checkpoints use schema version `8.0`. Older saves must start a new story;
+there is no runtime compatibility shim. Shipped authored seeds use this version.
 
 Top-level shape:
 
 ```json
 {
-  "schema_version": "6.0",
+  "schema_version": "8.0",
   "session": {},
   "player_primer": "string",
   "world_state": {},
@@ -1391,15 +1360,14 @@ Top-level shape:
   "session_conversation": [],
   "narrator_conversations": {},
   "character_conversations": {},
-  "canonical_events": [],
-  "visibility_log": []
+  "canonical_events": []
 }
 ```
 
 Important notes:
 
-* `canonical_events` stores full `EventRouterOutput` objects.
-* `session_conversation` is the router's rolling history.
+* `canonical_events` stores `CanonicalEventRecord` objects or adapter extensions.
+* `session_conversation` stores canonical sequence references and external context.
 * `session.config` is the canonical config source for model labels, narrative
   rules, and live settings.
 * D&D roll transactions are checkpoint/audit state, not router, narrator, or
@@ -2023,8 +1991,6 @@ Known stale or transitional areas:
 * some code comments still reference older architecture names or call counts,
   especially around the early v11 turn-loop skeleton and hidden-context
   comments
-* `visibility_log` exists but the main v11 flow relies on
-  `canonical_events`, render buffers, and NPC inboxes
 * `/query` is implemented as a mutating router/narrator turn, not a
   read-only information endpoint
 * router-selected background threads provide bounded player-beat liveness, not a
@@ -2279,9 +2245,8 @@ The current engine is healthy when:
 3. Cat I actions close without stealing another actor's response.
 4. Cat II actions render the attempt and wait for required responders.
 5. NPC observers receive only facts visible to them.
-6. Remote or mediated observers are listed only when a concrete perceptual
-   channel makes the event available to them; private partial channels use
-   scoped `audience="only"` facts.
+6. Remote or mediated recipients receive only facts available through an
+   established channel; split partial perception into limited facts.
 7. NPC agents receive no actor-local hidden summary from another agent.
 8. The narrator renders from visible observable facts without adding
    unsupported action or attitude.

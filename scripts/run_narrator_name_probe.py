@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402 -- executable script adds the repository root to sys.path.
 """Live narrator-only probe for per-viewpoint name handling.
 
 The harness loads representative upstream facts from the long D&D CLI
@@ -167,7 +168,7 @@ def _visible_fact_lines(
     for event_id in event_ids:
         event = _event_by_id(ckpt, event_id)
         for fact in event.canonical_event.observable_facts:
-            if fact.audience == "all_observers" or fact.is_visible_to(pov_character_id):
+            if fact.is_visible_to(pov_character_id):
                 text = (fact.text or "").strip()
                 if text:
                     lines.append(text)

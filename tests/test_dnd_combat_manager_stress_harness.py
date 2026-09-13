@@ -12,9 +12,9 @@ from tests.support.factories import canonical_event
 def _event():
     return canonical_event(
         event_id="evt",
-        observer_ids=["ogre"],
+        observer_ids=["ogre", "alice"],
         facts=[
-            ObservableFact.all("Everyone sees the ogre panic."),
+            dict(text="Everyone sees the ogre panic."),
             ObservableFact.only("You see your worst fear.", ["ogre"]),
         ],
     )
@@ -34,10 +34,11 @@ def test_fact_asserts_condition_ignores_negated_condition_claims():
 def test_event_summary_keeps_private_facts_scoped():
     summary = _event_summary(_event())
 
-    assert summary["facts"] == ["Everyone sees the ogre panic."]
-    assert summary["private_facts"] == [
+    assert summary["fact_details"] == [
+        {"text": "Everyone sees the ogre panic.", "visible_to": ["ogre", "alice"]},
         {"text": "You see your worst fear.", "visible_to": ["ogre"]}
     ]
+    assert "private_facts" not in summary
 
 
 def test_forbid_hp_change_ignores_missing_after_hp_when_combat_ends():

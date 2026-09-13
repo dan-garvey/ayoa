@@ -34,7 +34,10 @@ def prepare_dnd_batch(
         if not isinstance(event, DndCanonicalEventRecord):
             raise RuntimeError("D&D router returned a non-D&D canonical record")
         if event.interaction_mode == "dnd_combat_start":
-            _prepare_combat_start(checkpoint, event, inputs_by_id)
+            _prepare_combat_start(
+                checkpoint, event,
+                [inputs_by_id[value] for value in materialized.source_submission_ids],
+            )
         elif event.interaction_mode == "dnd_combat_end":
             _prepare_combat_end(checkpoint, event)
 
@@ -231,11 +234,10 @@ def _combatant_can_react(combatant: object) -> bool:
 
 def _event_actor_and_intention(
     event: DndCanonicalEventRecord,
-    inputs_by_id: dict[str, RouterInputEnvelope],
+    inputs: Sequence[RouterInputEnvelope],
 ) -> tuple[str, str]:
-    for submission_id in event.source_submission_ids:
-        envelope = inputs_by_id.get(submission_id)
-        if envelope is not None and envelope.actor_ids:
+    for envelope in inputs:
+        if envelope.actor_ids:
             return envelope.actor_ids[0], envelope.payload
     if event.actor_ids:
         return event.actor_ids[0], ""
@@ -364,32 +366,20 @@ def _combat_participants(
     return participants
 
 
-def _ensure_direct_observers(
-    event: DndCanonicalEventRecord,
-    character_ids: Sequence[str],
+def _append_public_fact(
+    event: DndCanonicalEventRecord, text: str, participant_ids: Sequence[str],
 ) -> None:
-    promoted = {character_id for character_id in character_ids if character_id}
-    event.observers.indirect = [
-        character_id
-        for character_id in event.observers.indirect
-        if character_id not in promoted
-    ]
-    event.observers.inferred = [
-        character_id
-        for character_id in event.observers.inferred
-        if character_id not in promoted
-    ]
-    event.observers.direct = list(dict.fromkeys([
-        *event.observers.direct,
-        *character_ids,
-    ]))
-
-
-def _append_public_fact(event: DndCanonicalEventRecord, text: str) -> None:
-    if any(fact.text.strip() == text for fact in event.observable_facts):
+    recipients = list(dict.fromkeys([*event.observer_ids, *participant_ids]))
+    received = {
+        cid for fact in event.observable_facts if fact.text.strip() == text
+        for cid in fact.visible_to
+    }
+    recipients = [cid for cid in recipients if cid not in received]
+    if not recipients:
         return
-    event.observable_facts.append(ObservableFact.all(
+    event.observable_facts.append(ObservableFact.only(
         text,
+        recipients,
         at_offset_s=event.duration_s,
     ))
 
@@ -397,11 +387,11 @@ def _append_public_fact(event: DndCanonicalEventRecord, text: str) -> None:
 def _prepare_combat_start(
     checkpoint: CheckpointFile,
     event: DndCanonicalEventRecord,
-    inputs_by_id: dict[str, RouterInputEnvelope],
+    inputs: Sequence[RouterInputEnvelope],
 ) -> None:
     if checkpoint.session.active_combat is not None:
         raise RuntimeError("router attempted to start combat while combat is active")
-    actor_id, intention = _event_actor_and_intention(event, inputs_by_id)
+    actor_id, intention = _event_actor_and_intention(event, inputs)
     imported = imported_encounters.resolve_combat_start_from_content_state(
         checkpoint.session.content_state,
         location_ref=_character_location(checkpoint, actor_id),
@@ -431,8 +421,7 @@ def _prepare_combat_start(
         current.pending_initiating_action = intention.strip()
         current.pending_initiating_event_id = event.event_id
     participant_ids = [item.character_id for item in participants]
-    _ensure_direct_observers(event, participant_ids)
-    _append_public_fact(event, "D&D combat begins.")
+    _append_public_fact(event, "D&D combat begins.", participant_ids)
     order = ", ".join(
         f"{item.name or item.character_id} {item.initiative_total}"
         for item in combat.combatants
@@ -456,12 +445,11 @@ def _prepare_combat_end(
         for item in combat.combatants
         if item.character_id or item.combatant_id
     ]
-    _ensure_direct_observers(event, participant_ids)
     for fact in dnd_combat.drain_pending_visible_facts(combat):
-        _append_public_fact(event, fact)
+        _append_public_fact(event, fact, participant_ids)
     dnd_combat.queue_router_observed_fact_updates(checkpoint.session, combat)
     dnd_combat.end_combat(
         checkpoint.session,
         characters=checkpoint.characters,
     )
-    _append_public_fact(event, "D&D combat ends.")
+    _append_public_fact(event, "D&D combat ends.", participant_ids)

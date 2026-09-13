@@ -27,7 +27,6 @@ class NarratorEventRef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     event_id: str
-    observation_level: Literal["direct", "indirect", "inferred"]
     visible_at_s: int
     event_sequence: int
     sprite_variant_keys_by_character_id: dict[str, str]
@@ -155,9 +154,7 @@ class NarratorRenderJob(BaseModel):
     job_id: str
     lane_id: str
     pov_character_id: str
-    source_event_ids: list[str]
     event_refs: list[NarratorEventRef]
-    highest_event_sequence: int
     created_revision: int
     user_input: str
     partial_mode: bool
@@ -176,16 +173,20 @@ class NarratorRenderJob(BaseModel):
             or not self.pov_character_id.strip()
         ):
             raise ValueError("narrator job, lane, and POV ids must not be blank")
-        if not self.source_event_ids or any(
-            not value.strip() for value in self.source_event_ids
-        ):
-            raise ValueError("narrator job requires source event ids")
+        if not self.event_refs:
+            raise ValueError("narrator job requires event refs")
         if len(self.source_event_ids) != len(set(self.source_event_ids)):
             raise ValueError("narrator job source ids cannot be duplicated")
-        if [item.event_id for item in self.event_refs] != self.source_event_ids:
-            raise ValueError("narrator job refs must align with source event ids")
-        if self.highest_event_sequence < 0 or self.created_revision < 0:
+        if self.created_revision < 0:
             raise ValueError("narrator job sequence and revision are invalid")
         if self.attempts < 0:
             raise ValueError("narrator job attempts cannot be negative")
         return self
+
+    @property
+    def source_event_ids(self) -> list[str]:
+        return [ref.event_id for ref in self.event_refs]
+
+    @property
+    def highest_event_sequence(self) -> int:
+        return max(ref.event_sequence for ref in self.event_refs)

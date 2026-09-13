@@ -20,7 +20,6 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import CanonicalEventRecord
-from app.schemas.events import ObservableFact
 from app.schemas.state import SessionState
 from tests.support.factories import canonical_event, narrator_event_ref
 
@@ -28,11 +27,11 @@ from tests.support.factories import canonical_event, narrator_event_ref
 ONE_STAR_CHECKPOINT = Path("app/storage/stories/one_star_ascension_s1/ckpt_0000.json")
 
 
-def _event(text: str) -> CanonicalEventRecord:
+def _event(text: str, subjects=(), *, viewer="alice") -> CanonicalEventRecord:
     return canonical_event(
         event_id="evt_group",
-        facts=[ObservableFact.all(text)],
-        observer_ids=["alice"],
+        facts=[dict(text=text, visual_subject_ids=list(subjects))],
+        observer_ids=[viewer],
     )
 
 
@@ -124,7 +123,10 @@ def test_first_meeting_plan_caps_by_tier_and_leaves_overflow_unintroduced():
             _character("standard_b", "Standard B", CharacterAgentTier.standard),
         ],
     )
-    event = _event("Utility A, Standard A, Premium A, Utility B, and Standard B enter.")
+    event = _event(
+        "Utility A, Standard A, Premium A, Utility B, and Standard B enter.",
+        ["utility_a", "standard_a", "premium_a", "utility_b", "standard_b"],
+    )
     resolved = [(narrator_event_ref(event_id=event.event_id), event)]
 
     first = plan_render_visual_introductions(
@@ -172,7 +174,7 @@ def test_first_meeting_plan_uses_explicit_loadout_not_raw_appearance():
             ),
         ],
     )
-    event = _event("Korva enters the room.")
+    event = _event("Korva enters the room.", ["korva"])
 
     plan = plan_render_visual_introductions(
         ckpt,
@@ -193,7 +195,9 @@ def test_one_star_master_first_look_is_veiled_until_reveal_threshold():
         if character.character_id == "renna_holt"
     )
     renna.status = "active"
-    event = _event("Renna Holt steps into the lobby courtyard.")
+    event = _event(
+        "Renna Holt steps into the lobby courtyard.", ["renna_holt"], viewer="the_master",
+    )
     resolved = [(narrator_event_ref(event_id=event.event_id), event)]
 
     veiled = plan_render_visual_introductions(
@@ -228,7 +232,7 @@ def test_narrator_first_meeting_excludes_public_bio_without_exterior():
             ),
         ],
     )
-    event = _event("Korva enters the room.")
+    event = _event("Korva enters the room.", ["korva"])
 
     plan = plan_render_visual_introductions(
         ckpt,
@@ -251,13 +255,12 @@ def test_agent_event_plan_uses_speaker_not_quoted_mentions():
             _character("pip", "Pip", CharacterAgentTier.standard),
         ],
     )
-    event = _event("Alice says, 'Pip is coming later.'")
+    event = _event("Alice says, 'Pip is coming later.'", ["alice"], viewer="bob")
 
     plan = plan_event_visual_introductions(
         ckpt,
         viewer_id="bob",
         event=event,
-        observation_level="direct",
         max_loadouts=3,
     )
 
@@ -265,7 +268,7 @@ def test_agent_event_plan_uses_speaker_not_quoted_mentions():
     assert plan.mark_character_ids == ["alice"]
 
 
-def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
+def test_explicit_visual_subjects_scope_both_consumers():
     ckpt = CheckpointFile(
         session=SessionState(session_id="s"),
         characters=[
@@ -300,12 +303,11 @@ def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
     )
 
     for text, expected_ids in cases:
-        event = _event(text)
+        event = _event(text, sorted(expected_ids), viewer="bob")
         agent_plan = plan_event_visual_introductions(
             ckpt,
             viewer_id="bob",
             event=event,
-            observation_level="direct",
             max_loadouts=3,
         )
         narrator_plan = plan_render_visual_introductions(
@@ -315,7 +317,6 @@ def test_channel_scoping_is_per_subject_and_clause_for_both_consumers():
                 (
                     narrator_event_ref(
                         event_id=event.event_id,
-                        observation_level="direct",
                     ),
                     event,
                 )
@@ -398,13 +399,12 @@ def test_remote_references_preserve_later_physical_introduction():
                     _character("korva", "Korva", CharacterAgentTier.standard),
                 ],
             )
-            remote_event = _event(remote_text)
+            remote_event = _event(remote_text, sorted(expected_remote_ids), viewer="bob")
             if consumer == "agent":
                 remote = plan_event_visual_introductions(
                     ckpt,
                     viewer_id="bob",
                     event=remote_event,
-                    observation_level="direct",
                     max_loadouts=3,
                 )
             else:
@@ -415,7 +415,6 @@ def test_remote_references_preserve_later_physical_introduction():
                         (
                             narrator_event_ref(
                                 event_id=remote_event.event_id,
-                                observation_level="direct",
                             ),
                             remote_event,
                         )
@@ -431,13 +430,12 @@ def test_remote_references_preserve_later_physical_introduction():
             assert set(remote.mark_character_ids) == expected_remote_ids
             assert meeting_id not in remote.mark_character_ids
 
-            meeting_event = _event(meeting_text)
+            meeting_event = _event(meeting_text, [meeting_id], viewer="bob")
             if consumer == "agent":
                 meeting = plan_event_visual_introductions(
                     ckpt,
                     viewer_id="bob",
                     event=meeting_event,
-                    observation_level="direct",
                     max_loadouts=3,
                 )
             else:
@@ -448,7 +446,6 @@ def test_remote_references_preserve_later_physical_introduction():
                         (
                             narrator_event_ref(
                                 event_id=meeting_event.event_id,
-                                observation_level="direct",
                             ),
                             meeting_event,
                         )
@@ -472,8 +469,7 @@ def test_agent_remote_voice_does_not_consume_intro_before_direct_speech():
     remote = plan_event_visual_introductions(
         ckpt,
         viewer_id="bob",
-        event=_event("Pip says over the radio, 'I will arrive later.'"),
-        observation_level="direct",
+        event=_event("Pip says over the radio, 'I will arrive later.'", viewer="bob"),
         max_loadouts=3,
     )
     mark_visual_introductions(ckpt, "bob", remote.mark_character_ids)
@@ -484,8 +480,7 @@ def test_agent_remote_voice_does_not_consume_intro_before_direct_speech():
     meeting = plan_event_visual_introductions(
         ckpt,
         viewer_id="bob",
-        event=_event("Pip holds a sealed letter and says, 'I made it.'"),
-        observation_level="direct",
+        event=_event("Pip holds a sealed letter and says, 'I made it.'", ["pip"], viewer="bob"),
         max_loadouts=3,
     )
 
@@ -519,7 +514,6 @@ def test_narrator_remote_references_do_not_consume_intro_before_copresence():
                 (
                     narrator_event_ref(
                         event_id=event.event_id,
-                        observation_level="direct",
                     ),
                     event,
                 )
@@ -531,7 +525,7 @@ def test_narrator_remote_references_do_not_consume_intro_before_copresence():
 
     assert ckpt.session.visual_introductions == {}
 
-    meeting = _event("Pip is now beside Alice in the gatehouse.")
+    meeting = _event("Pip is now beside Alice in the gatehouse.", ["pip"])
     plan = plan_render_visual_introductions(
         ckpt,
         viewer_id="alice",
@@ -539,7 +533,6 @@ def test_narrator_remote_references_do_not_consume_intro_before_copresence():
             (
                 narrator_event_ref(
                     event_id=meeting.event_id,
-                    observation_level="direct",
                 ),
                 meeting,
             )
@@ -560,13 +553,12 @@ def test_agent_event_plan_ignores_plain_name_mentions():
             _character("pip", "Pip", CharacterAgentTier.standard),
         ],
     )
-    event = _event("Alice points toward Pip's empty chair.")
+    event = _event("Alice points toward Pip's empty chair.", viewer="bob")
 
     plan = plan_event_visual_introductions(
         ckpt,
         viewer_id="bob",
         event=event,
-        observation_level="direct",
         max_loadouts=3,
     )
 

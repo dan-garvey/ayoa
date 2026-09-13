@@ -37,20 +37,6 @@ def _compact(value: str, limit: int = 900) -> str:
     return " ".join(value.split())[:limit]
 
 
-def router_history_record(
-    checkpoint: CheckpointFile,
-    event: CanonicalEventRecord,
-) -> str:
-    sequences = event_sequences(checkpoint)
-    groups_by_lane = causal_groups(checkpoint)
-    return _router_history_record(
-        checkpoint,
-        event,
-        sequences=sequences,
-        groups_by_lane=groups_by_lane,
-    )
-
-
 def _router_history_record(
     checkpoint: CheckpointFile,
     event: CanonicalEventRecord,
@@ -60,24 +46,14 @@ def _router_history_record(
 ) -> str:
     if event.event_id not in sequences:
         raise RuntimeError("router history event is absent from canonical history")
-    groups = event.observers
     lines = [
         f"prior_event sequence={sequences[event.event_id]} "
         f"causal_group={groups_by_lane[event.causal_lane_id]} "
         f"@{event.effective_at_s}+{event.duration_s} "
         f"actors={','.join(event.actor_ids) or '-'}",
-        "outcomes "
-        f"feasible_inputs={len(event.feasible_submission_ids)} "
-        f"infeasible_inputs={len(event.infeasible_submission_ids)}",
-        "observers "
-        f"direct={','.join(groups.direct) or '-'} "
-        f"indirect={','.join(groups.indirect) or '-'} "
-        f"inferred={','.join(groups.inferred) or '-'}",
     ]
     for fact in event.observable_facts:
-        audience = (
-            "all" if fact.audience == "all_observers" else ",".join(fact.visible_to)
-        )
+        audience = ",".join(fact.visible_to)
         lines.append(
             f"fact +{fact.at_offset_s}/{fact.duration_s} to={audience}: "
             + _compact(fact.text)
@@ -136,11 +112,10 @@ def _strip_router_hash_metadata(content: str) -> str:
 def router_prompt_history(
     checkpoint: CheckpointFile,
 ) -> list[ConversationMessage]:
-    """Rebuild stored router memory without durable engine identity.
+    """Project canonical fiction at its position among external context records.
 
-    Older checkpoints can contain event/lane ids and content hashes in compact
-    assistant records.  Canonical history is authoritative, so rebuild each
-    event row from its canonical sequence and scrub legacy content metadata.
+    Stored event entries are references only. Fact text lives exclusively in
+    canonical records; external content keeps its original chronological slot.
     """
 
     sequences = event_sequences(checkpoint)
@@ -154,16 +129,10 @@ def router_prompt_history(
             and isinstance(content, str)
             and content.startswith("prior_event ")
         ):
-            sequence_match = re.match(r"prior_event sequence=(\d+)\b", content)
-            if sequence_match is not None:
-                sequence = int(sequence_match.group(1))
-            else:
-                event_id = content.split(maxsplit=2)[1]
-                if event_id not in sequences:
-                    raise RuntimeError(
-                        "stored router history references a missing canonical event"
-                    )
-                sequence = sequences[event_id]
+            sequence_match = re.fullmatch(r"prior_event sequence=(\d+)", content)
+            if sequence_match is None:
+                raise RuntimeError("stored router event history must be a reference")
+            sequence = int(sequence_match.group(1))
             if sequence < 0 or sequence >= len(checkpoint.canonical_events):
                 raise RuntimeError("stored router history has an invalid event sequence")
             if sequence in represented_sequences:

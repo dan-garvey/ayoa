@@ -7,7 +7,6 @@ from app.engine.dnd_constants import DND_RUNTIME_KEY
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_inventory import DndLootOfferItem
-from app.schemas.events import ObservableFact
 from app.schemas.event_router import DndCanonicalEventRecord
 from app.schemas.state import SessionState
 from tests.support.factories import dnd_canonical_event
@@ -51,7 +50,7 @@ def _ckpt() -> CheckpointFile:
 def _loot_event() -> DndCanonicalEventRecord:
     return dnd_canonical_event(
         event_id="evt_loot",
-        facts=[ObservableFact.all("Alice opens the chest.")],
+        facts=[dict(text="Alice opens the chest.")],
         observer_ids=["alice"],
         interaction_mode="narrative",
         combatant_ids=[],
@@ -108,8 +107,7 @@ def test_visible_prose_without_structured_signal_does_not_create_loot_offer():
                 "the bundle down within reach of Alice and Bob; a healer's kit "
                 "in a leather roll lands on top."
             ),
-            "audience": "all_observers",
-            "visible_to": [],
+            "visible_to": ["alice", "bob"],
         }
     ]
     data["loot_offer"] = {
