@@ -16,6 +16,16 @@ This is a proxy: coding-agent instructions and artifact-writing tools remain in
 context. It does not reproduce API token ceilings, cache behavior, hidden context,
 latency, or pricing. No direct model API calls are part of this iteration phase.
 
+Through candidate 08, the artifact wrapper also said not to "evaluate the prose"
+or "propose edits," intending to exclude reviewer output and repository work.
+Those words could conflict with private self-editing requested by the story
+instructions. Candidate 09 preserves candidate 08's story prompts byte for byte
+and tests an explicit allowance for private planning and revision while still
+requiring fiction-only delivery. Its exact wrapper is preserved. Matched replay
+screens check this hypothesis; the wording ambiguity alone does not establish
+that it caused earlier literary weaknesses. Later results must identify which
+wrapper they used.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

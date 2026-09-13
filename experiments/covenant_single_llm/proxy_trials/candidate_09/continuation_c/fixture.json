@@ -1,0 +1,29 @@
+{
+  "history": [
+    {
+      "role": "user",
+      "content": "At dinner I tell Rashid, with Ashara sitting across from us, \"I will be at the press tomorrow at sixth bell. You can find me there then.\""
+    },
+    {
+      "role": "assistant",
+      "content": "Rashid puts a small mark beside the appointment in his notebook. \"Sixth bell. I can bring the revised request then.\" Ashara continues eating; neither of them asks about the printing."
+    },
+    {
+      "role": "user",
+      "content": "Later I go alone to speak to the press steward."
+    },
+    {
+      "role": "assistant",
+      "content": "The pressroom is empty except for the steward, Sela. She shows you a crack in the platen. \"I cannot run this safely tomorrow. We will have to use the hand press in the west workshop. It is free at fourth bell, if that suits you.\" The door is shut; the workshop passage outside is quiet."
+    },
+    {
+      "role": "user",
+      "content": "\"Fourth bell in the west workshop is fine. Please leave the change to me; I will tell Rashid myself.\" I return to my room and keep the change to myself. The next morning I bring three manuscript pages to the library to show Caelindra. My unfinished story concerns a lighthouse keeper who leaves his post to obtain medicine for a sick neighbor. His replacement fails to arrive, and the lighthouse remains dark until midnight. I have not written what happens to any ships or how the story ends."
+    },
+    {
+      "role": "assistant",
+      "content": "Caelindra sits at the library window with a book propped against the inkwell. She lays it face-down when you set the pages on the table. \"I have a quarter of an hour.\" She turns the first page. Rashid is elsewhere at morning practice, and nobody else is within earshot."
+    }
+  ],
+  "provenance": "Pilot-authored held-out state for manuscript ownership, silent thoughts, and a privately changed appointment. Not counted among fresh long sessions."
+}

@@ -1,0 +1,25 @@
+# Terra coding-agent proxy transcript
+
+Exact player submissions and saved story passages.
+
+## Continuation 0: Matched constructed continuation
+
+**Player**
+
+"I am not looking for a verdict on whether he is a good person. Does the situation hold your interest so far?" I let Caelindra read the three pages. Privately, I wonder whether I have made the keeper too obviously resemble Rashid; I do not say that aloud.
+
+**Story**
+
+Caelindra reads without touching the book she set aside. Near the end of the second page, her eyes return to the beginning of a paragraph; on the third, she pauses at the mention of midnight. When she finishes, she squares the leaves on the table rather than handing them back.
+
+"It does," she says. "More than a rescue would by itself."
+
+Her fingertip rests on the last page. "You give him a sick neighbor and a light that must be kept. The replacement is what interests me. He thinks he has arranged a way to do both things, and then the arrangement fails."
+
+She looks up. Her expression remains composed, but she has stopped glancing toward the clock.
+
+"I would read further to learn whether he discovers the lamp has stayed dark before someone tells him. If every consequence waits neatly until after he returns, I shall be disappointed." A small crease forms between her brows. "And I would want some sense of who depends on it. A lighthouse is not a moral ornament. Ships use it."
+
+She slides the pages back across the table with care.
+
+"Does he know why the replacement fails to arrive?"

@@ -1,0 +1,28 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "5be74de0f21ad8a1af1e3067fba0b0aa83f749655f469ade589c92ed002ea39f",
+      "story_sha256": "05447dd70adb20cb170c7d80da1db378749e584d7a77859ba365169329db71fb",
+      "story_words": 125
+    },
+    {
+      "turn": 1,
+      "input_sha256": "9cc75c1d4edb01f8e61118ee1ecb45a50deacf7c61855e83b58e0d1a6ed45fde",
+      "story_sha256": "b531eb2aad871ea47f634e2290496f3b43faacde438f41898351e3f4e9e3ba61",
+      "story_words": 148
+    },
+    {
+      "turn": 2,
+      "input_sha256": "3f14101a53c0732ab81c36773b2b04a92bc0e762f84aca8885bf93415740d240",
+      "story_sha256": "b5a72e2dd47dcf6ecbd5b89523f7522f6328d7a230e85192bf2d38e2b7cd7be5",
+      "story_words": 147
+    }
+  ],
+  "player_turns": 3,
+  "session_kind": "Matched constructed continuity probe, not a fresh opening",
+  "story_words": 420
+}

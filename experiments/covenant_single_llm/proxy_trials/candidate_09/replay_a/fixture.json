@@ -1,0 +1,21 @@
+{
+  "history": [
+    {
+      "role": "user",
+      "content": "My character: Rowan Garvey. A twenty-three-year-old human man with brown skin, unruly dark hair, and ink-stained fingers, wearing a carefully mended charcoal coat and the inherited Garvey signet. Newly arrived and unsure of Conclave customs. He grew up unaware of his heritage, lost his parents young, and does not know whether he has any magic.\n\nBegin the story shortly before the welcome dinner, in my room at Garvey House. I play Rowan Garvey."
+    },
+    {
+      "role": "assistant",
+      "content": "The Garvey signet catches on the worn cuff of your charcoal coat when you straighten it. On the desk, beside an untouched blotter, a framed letter faces the door: dark, cramped handwriting beneath the glass, addressed to a great-nephew who never came.\n\nBelow, the house has begun to fill itself. Chairs draw over wood. Crockery touches down in careful intervals. Something warm and peppered rises through the stairwell, followed by the brief flare of laughter from a room you have not yet seen.\n\nYour window looks over the gardens, where the pale paths hold the last of the daylight. Beyond their walls, one of the hard-light bridges cuts a clean line into cloud, and lightning moves soundlessly far below it.\n\nA knock comes at the door—not hurried, but too deliberate to be accidental.\n\n“Mr. Garvey?” says a voice from the corridor. “Dinner is being laid. The first-years are taking their places in the dining hall.”\n\nWhen the door opens, a server in Academy livery stands with one hand resting on a silver tray. A small card on it bears your name in black ink.\n\n“Would you like an announcement?”"
+    },
+    {
+      "role": "user",
+      "content": "\"No announcement, thank you.\" I go downstairs to dinner and introduce myself to the table. \"I'm Rowan. Please tell me one of you is also pretending to understand how this place works.\" I take the place on my seating card."
+    },
+    {
+      "role": "assistant",
+      "content": "The server accepts that with a small bow and takes the tray away. Downstairs, the dining hall opens in lamplight and candle flame: a long varnished table, seventeen places, and a cluster of students already breaking the formality of it by talking over one another.\n\nYour card waits halfway down, between a place set with black stone cutlery and another with a napkin folded into an elaborate green knot. You give your introduction as you take the chair.\n\nThe wolf-blooded man across from you smiles first. Fine dark fur shows at the edge of his cuffs as he reaches for his water glass. “Rashid vel Amara. I know where things are, which is different from understanding them. The maps leave out the parts people argue about.”\n\n“The maps are perfectly clear,” says the white-haired woman beside him. Her grey eyes settle on you. “The people giving directions are not. Ysolde Thornmantle.”\n\n“Caelindra Vaeyn,” says the silver-haired elf at the far end of the table, with a slight inclination of her head. “If anyone directs you through the west arcade, ask whether they mean the old west arcade or the newer one. They will assume you know.”\n\n“Seraphel Dawnquill,” says the warm-gold woman nearby.\n\n“For dinner, there is one simple rule:\nwait until the steam has stopped\nbefore tasting the black salt.”\n\n“It isn't dangerous,” says the small, black-eyed woman arranging her spoon. “It is merely determined. Thessaly Morrow.”\n\nThe horned woman at Rashid's side rests an elbow on the table. “Ashara vel Kothren. Don't let them frighten you with seasoning.” Her gold eyes remain on you a moment longer. “What did you expect this place to be?”"
+    }
+  ],
+  "provenance": "Exact C8 session_a opening/turn1 replayed before player turn2; not a fresh independent story."
+}

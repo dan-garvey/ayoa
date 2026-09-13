@@ -1,0 +1,11 @@
+{
+  "agent": "/root/terra_c8_session_a",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "read_scope": "packet.txt only",
+  "write_scope": "numbered story files only",
+  "review_feedback_supplied": false,
+  "player_policy": "Active social and historical curiosity, assertive requests, refusals and changes of direction",
+  "planned_scope": "Opening and at least 12 adaptive player turns; extend toward outcomes. Preserve any early rejection."
+}
