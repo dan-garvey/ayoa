@@ -1,9 +1,27 @@
 {
-  "status": "Full sessions complete; pilot finds remaining literary revision, independent review pending",
-  "criterion_order": ["prose_dialogue", "character_distinction", "independent_interests", "direction", "adaptive_initiative"],
+  "status": "Rejected for remaining literary revision after independent full review",
+  "criterion_order": [
+    "prose_dialogue",
+    "character_distinction",
+    "independent_interests",
+    "direction",
+    "adaptive_initiative"
+  ],
   "scores": {
-    "session_a": [4, 4, 4, 4, 4],
-    "session_b": [3, 4, 4, 4, 4]
+    "session_a": [
+      4,
+      4,
+      4,
+      4,
+      4
+    ],
+    "session_b": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ]
   },
   "judgment_scope": "Subjective pilot judgment recorded before independent full review. Four means retain without material rewrite, not exceptional. Score whole exchanges rather than rejecting every polished line. Preserve disagreement if independent judgment differs.",
   "scope": {
@@ -42,5 +60,24 @@
     ]
   },
   "prompt_compliance": "The three-spoken-sentence limit is not followed exactly in every ordinary exchange, including constructed C0. It is a pacing instruction, not a schema guarantee. Several linked prompt changes and adaptive routes prevent attribution to that clause alone.",
-  "next_hypothesis": "Retain the improved turn scope and follow-through contract. Target generalized life advice and after-the-anecdote moral summaries; give letters an actual occasion and addressee. Do not ban consistent history or all wit, verse, and situational insight."
+  "next_hypothesis": "Retain the improved turn scope and follow-through contract. Target generalized life advice and after-the-anecdote moral summaries; give letters an actual occasion and addressee. Do not ban consistent history or all wit, verse, and situational insight.",
+  "independent_review": {
+    "path": "../reviews/round14_review.md",
+    "session_a": [
+      4,
+      4,
+      4,
+      4,
+      4
+    ],
+    "session_b": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "boundary_verdict": "No demonstrated unresolved material failure",
+    "agreement": "Same five quality ratings as locked pilot; recurring advisory voice in B is the decisive shortfall. Reviewer identifies documentary wording slips as local errors, not a reason to reject new family history."
+  }
 }

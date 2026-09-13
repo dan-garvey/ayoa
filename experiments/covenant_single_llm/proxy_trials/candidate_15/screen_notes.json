@@ -1,0 +1,14 @@
+{
+  "status": "Short screen insufficient improvement; not selected for long testing",
+  "scope": "Matched visible C14 B0-2 then two adaptive replies, plus one fresh opening. No full fresh C15 session.",
+  "strengths": [
+    "Letter has more specific household news and an unpaid map wager; preserves its previously visible address exactly.",
+    "Stone can legitimately remember his own participation without Rowan first reporting every detail from the letter. New aunt name Iona was unfixed in supplied history."
+  ],
+  "weaknesses": [
+    "Stone response again exceeds ten paragraphs and closes with generalized character verdicts after the anecdote. The new rule to end with what happened did not remove the advisory portrait.",
+    "The same six-silver wager is unpaid in the letter and remembered as paid by Stone. Letter and payment dates are not fixed relative to one another; not proven irreconcilable, but staging remains loose."
+  ],
+  "next_hypothesis": "The broad anecdote/explanation length exception still invites a complete retrospective portrait. Treat ordinary questions about a past as short conversational bids; reserve longer accounts for explicit requests and extended activities. Preserve new-history freedom and event follow-through.",
+  "fresh_opening_note": "One opening was generated while the family screen ran, preserved in session_a. It is not a substantive trial or evidence of selection."
+}

@@ -1,0 +1,10 @@
+{
+  "agent": "/root/terra_c15_session_a",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "proxy_wrapper": "../proxy_wrapper.txt",
+  "review_feedback_supplied": false,
+  "player_policy": "Socially active and willing to disagree; pursue a personal creative interest while other residents retain their own plans. Adapt to actual NPC choices and consequences.",
+  "planned_scope": "Fresh opening plus at least12 adaptive turns, extend to15 or meaningful outcomes unless early material failure."
+}
