@@ -6,6 +6,13 @@ met the complete selection bar across two fresh sessions. The remaining failures
 are predominantly literary: recurring polished lessons, stilted conversation,
 and, in some routes, helpful characters who leave too much initiative to the player.
 
+The latest completed generation is C40: four fresh short runs across Covenant
+and a contemporary cinema setting, with twelve publications in total. Root's
+[locked review](proxy_trials/candidate_40/pilot_review.md) gives all four connected
+dinners prose3. One cinema run develops a useful negotiation, but the familiar
+prepared repartee persists in both settings. The independent review is pending;
+no proxy candidate has been selected or promoted.
+
 The user permits new history that fills gaps consistently. Inventing a relative,
 past incident, or an unshown but plausible action is not itself a failure.
 Contradicting established events or giving an NPC inaccessible information is a
@@ -488,9 +495,19 @@ first proposal unchanged and records the unmatched variables, including the new
 source author's knowledge of prior failures. This is not a replacement campaign
 or a blind held-out source. Two fresh authors per setting each produce an opening
 and two connected dinner continuations under identical quiet-player submissions:
-twelve planned publications and zero substantial sessions. Both complete inputs
-and the review criteria/order are frozen before any author output. The first
-three authors have launched; the fourth awaits a free slot. The
+twelve completed publications,7,903 story words and zero substantial sessions.
+Both complete inputs and the review criteria/order were frozen before any author
+output. All first finals, complete initial reads, model settings and frozen
+hashes pass their scoped [validation](proxy_trials/candidate_40/validation.json).
+Follow-up provenance uses fixed root dispatch records and public receiver
+delivery metadata; encrypted receiver task bodies are not compared as plaintext.
+The [locked root review](proxy_trials/candidate_40/pilot_review.md) scores every
+connected dinner prose3 and prefers the first run within each setting.
+[Breakwater1](proxy_trials/candidate_40/breakwater_1/transcript.md) contains the
+strongest concrete interaction: existing room-booking holders and a technician
+agree to restricted shared use without recruiting Rowan to arbitrate. Its
+surrounding banter still needs material revision. The independent assessment is
+pending. The
 [manifest](proxy_trials/candidate_40/manifest.json) defines interpretations for
 different, shared or mixed results, with no automatic promotion or claim that a
 stronger second setting repairs Covenant.

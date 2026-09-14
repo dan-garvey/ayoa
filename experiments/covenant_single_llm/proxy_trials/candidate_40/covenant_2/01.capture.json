@@ -1,0 +1,29 @@
+{
+  "captured_at": "2026-09-14T12:39:51.704257+00:00",
+  "agent": "/root/terra_proxy_c40_covenant_2",
+  "session_id": "01a09fe3-cfd0-7423-8186-236b36422ed4",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T07-28-22-01a09fe3-cfd0-7423-8186-236b36422ed4.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "turn": 1,
+  "public_final_message_id": "msg_073a2ef468a8befd016aa7ea20ac5887d1a31ab63160fb4cff",
+  "final_count_at_capture": 2,
+  "root_capture_exact_unmodified": true,
+  "public_final_sha256": "e32fd662acb8c2ab1c5dbd0296e52c057268fdc4d418b7f4a0a5da8bf771438a",
+  "publication_sha256": "e32fd662acb8c2ab1c5dbd0296e52c057268fdc4d418b7f4a0a5da8bf771438a",
+  "words": 897,
+  "public_tool_calls_during_this_request": [],
+  "possible_writes_during_this_request": [],
+  "root_dispatch_record_matches_frozen_followup": true,
+  "receiver_delivery_metadata": [
+    {
+      "message_id": "amsg_01a09fe8-fe25-7340-835f-bb39ed86b7a5",
+      "author": "/root",
+      "recipient": "/root/terra_proxy_c40_covenant_2",
+      "after_final_count": 1,
+      "payload_encrypted": true
+    }
+  ],
+  "receiver_plaintext_followup_verified": false,
+  "scope": "Public final, public task/tool metadata, fixed root-dispatch records, exact artifact hashes and model/effort only. Receiver task bodies are encrypted; no plaintext receiver-body comparison or private reasoning inspection is claimed."
+}

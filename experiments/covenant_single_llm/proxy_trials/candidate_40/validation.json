@@ -1,0 +1,55 @@
+{
+  "checked_at": "2026-09-14T13:08:59.663148+00:00",
+  "frozen_files_verified": 49,
+  "fresh_authors": 4,
+  "exact_first_publications": 12,
+  "author_requests": 12,
+  "substantial_sessions": 0,
+  "story_words": 7903,
+  "all_complete_initial_reads": true,
+  "all_terra_max": true,
+  "all_publication_hashes_match_public_finals": true,
+  "author_write_candidates": 0,
+  "followup_provenance": "Exact frozen root dispatch ledger plus public receiver delivery metadata. Receiver task bodies are encrypted; plaintext equivalence is not independently verified.",
+  "capture_parser_correction": "Two first turn1 files were saved unchanged before an assertion expected plaintext user-message followups. Corrected metadata parser verified the same bytes; no reroll, repair or extra request.",
+  "private_reasoning_inspected": false,
+  "runtime_code_changed": false,
+  "cases": [
+    {
+      "case": "covenant_1",
+      "publication_words": [
+        347,
+        671,
+        596
+      ],
+      "words": 1614
+    },
+    {
+      "case": "breakwater_1",
+      "publication_words": [
+        507,
+        903,
+        743
+      ],
+      "words": 2153
+    },
+    {
+      "case": "covenant_2",
+      "publication_words": [
+        528,
+        897,
+        722
+      ],
+      "words": 2147
+    },
+    {
+      "case": "breakwater_2",
+      "publication_words": [
+        440,
+        803,
+        746
+      ],
+      "words": 1989
+    }
+  ]
+}
