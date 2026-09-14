@@ -1,0 +1,19 @@
+{
+  "created_at": "2026-09-14T01:12:09.819823+00:00",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "source_commit": "0f60c97c13e74c1a2e621349e0d9c263624c7296",
+  "derived_from": "candidate_20 frozen prompts; verbatim independent proposed system in reviews/prompt_diagnosis_20.md",
+  "instruction_order": [
+    "covenant.txt",
+    "system.txt"
+  ],
+  "prompt_sha256": {
+    "system.txt": "c1d2045b7ed9525e53e95b7014c90e9d6cc194305fca2be69499449ff3d0f72e",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "wrapper_file": "proxy_wrapper.txt",
+  "wrapper_sha256": "90f75e90843083ee2daa2b2f889d6d5ad4ce524d71812dc7f46aca6991153eb7",
+  "change": "Adopt complete independent diagnosis proposal: replace voice section with exchange-level guidance and one unrelated completed tailor-shop scene; clarify that delegated activity permits routine actions but new Rowan speech requires express speech delegation. Covenant and wrapper unchanged. Matched screens use the same C19 visible histories and submissions as C20, not C20 outputs."
+}

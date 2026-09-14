@@ -1,0 +1,17 @@
+{
+  "agent": "/root/terra_c21_player_b",
+  "role": "player",
+  "author": "/root/terra_c21_session_b",
+  "target_player_turns": 15,
+  "status": "stopped_early_by_parent",
+  "completed_player_turns": 4,
+  "completed_story_turns": [
+    "00",
+    "01",
+    "02",
+    "03",
+    "04"
+  ],
+  "in_flight_delivery": null,
+  "next_input_dispatched": false
+}

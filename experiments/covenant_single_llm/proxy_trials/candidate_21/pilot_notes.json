@@ -1,0 +1,10 @@
+{
+  "status": "Preliminary notes retained; trial rejected early, complete decision in decision.json",
+  "initial_screens": "See screen_notes.json. Matched histories and input files are byte-identical to C20 fixtures, with new frozen system.",
+  "session_a_through_02": {
+    "observations": "Rashid escort, asks permission to introduce after explicit escort acceptance; somewhat formal. Dinner introduction concise; peers dispute actual court closure. Rashid names Dena while explaining injury.",
+    "qualification": "Rashid already knows Dena identity. Her wish is no name in a public campaign; saying the name at a private dinner can be insensitive and may produce consequences but is not an impossible acquisition of knowledge by him. Do not equate this with NPC omniscience.",
+    "next_submission": "Player03 declines campaign and leaves evening open in common room, testing response to observation and redirection."
+  },
+  "session_b": "Separate independent player driver owns01-15. Read all inputs alongside outputs before judgment."
+}
