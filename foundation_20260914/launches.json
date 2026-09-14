@@ -1,0 +1,178 @@
+[
+  {
+    "task": "foundation_cov_00_author",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "covenant",
+    "turn": 0,
+    "stage": "author",
+    "request_id": "cdd3a36ce1fe48fdbf4f264609fc88bb",
+    "response_file": "covenant/00.author.txt",
+    "recorded_at": "2026-09-14T20:02:50.846406+00:00"
+  },
+  {
+    "task": "foundation_bw_00_author",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "breakwater",
+    "turn": 0,
+    "stage": "author",
+    "request_id": "ba2aad6e9274405bae0d2d3f686f3421",
+    "response_file": "breakwater/00.author.txt",
+    "recorded_at": "2026-09-14T20:02:50.887130+00:00"
+  },
+  {
+    "task": "foundation_cov_00_editor",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "covenant",
+    "turn": 0,
+    "stage": "editor",
+    "request_id": "43642675ebf149b5a2958f8502f743cc",
+    "response_file": "covenant/00.editor.final.txt",
+    "recorded_at": "2026-09-14T20:09:46.769389+00:00"
+  },
+  {
+    "task": "foundation_bw_00_editor",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "breakwater",
+    "turn": 0,
+    "stage": "editor",
+    "request_id": "88b13ce7a0ac4e1aa08bd3677703a5ab",
+    "response_file": "breakwater/00.editor.final.txt",
+    "recorded_at": "2026-09-14T20:09:46.836641+00:00"
+  },
+  {
+    "task": "foundation_cov_01_author",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "covenant",
+    "turn": 1,
+    "stage": "author",
+    "request_id": "851572a6d4c945f7a674ecac438bf942",
+    "response_file": "covenant/01.author.final.txt",
+    "recorded_at": "2026-09-14T20:13:14.514984+00:00"
+  },
+  {
+    "task": "foundation_bw_01_author",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "breakwater",
+    "turn": 1,
+    "stage": "author",
+    "request_id": "f29c43fbf31647fb8401e93f1cbfb6ba",
+    "response_file": "breakwater/01.author.final.txt",
+    "recorded_at": "2026-09-14T20:14:40.284130+00:00"
+  },
+  {
+    "task": "foundation_cov_01_editor",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "covenant",
+    "turn": 1,
+    "stage": "editor",
+    "request_id": "0ba0db117da94302918392215e9074d7",
+    "response_file": "covenant/01.editor.final.txt",
+    "recorded_at": "2026-09-14T20:16:22.859477+00:00"
+  },
+  {
+    "task": "foundation_bw_01_editor",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "breakwater",
+    "turn": 1,
+    "stage": "editor",
+    "request_id": "c081cc89343445fcbd43d2e604a24cbb",
+    "response_file": "breakwater/01.editor.final.txt",
+    "recorded_at": "2026-09-14T20:17:39.233040+00:00"
+  },
+  {
+    "task": "foundation_cov_02_author",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "covenant",
+    "turn": 2,
+    "stage": "author",
+    "request_id": "e89009a467084896a7cc0f19a5570c58",
+    "response_file": "covenant/02.author.final.txt",
+    "recorded_at": "2026-09-14T20:20:19.813317+00:00"
+  },
+  {
+    "task": "foundation_bw_02_author",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "breakwater",
+    "turn": 2,
+    "stage": "author",
+    "request_id": "e2f820ee09004acdaedaead414810877",
+    "response_file": "breakwater/02.author.final.txt",
+    "recorded_at": "2026-09-14T20:21:44.347103+00:00"
+  },
+  {
+    "task": "foundation_cov_02_editor",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "covenant",
+    "turn": 2,
+    "stage": "editor",
+    "request_id": "6105484c703b46b59bb6d91a128b0729",
+    "response_file": "covenant/02.editor.final.txt",
+    "recorded_at": "2026-09-14T20:24:39.071922+00:00"
+  },
+  {
+    "task": "foundation_bw_02_editor",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "breakwater",
+    "turn": 2,
+    "stage": "editor",
+    "request_id": "de0276a838d24f16829689b55aeea562",
+    "response_file": "breakwater/02.editor.final.txt",
+    "recorded_at": "2026-09-14T20:27:25.916039+00:00"
+  },
+  {
+    "task": "foundation_cov_03_author",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "covenant",
+    "turn": 3,
+    "stage": "author",
+    "request_id": "1f541ba1148b4a958970f88e893df256",
+    "response_file": "covenant/03.author.final.txt",
+    "recorded_at": "2026-09-14T20:27:26.101753+00:00"
+  },
+  {
+    "task": "foundation_bw_03_author",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "breakwater",
+    "turn": 3,
+    "stage": "author",
+    "request_id": "a82ba7d2e2084e188221a1f0794cc986",
+    "response_file": "breakwater/03.author.final.txt",
+    "recorded_at": "2026-09-14T20:33:39.098024+00:00"
+  },
+  {
+    "task": "foundation_cov_03_editor",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "covenant",
+    "turn": 3,
+    "stage": "editor",
+    "request_id": "6ae1790a82f54e7dac7a5451d54f5b84",
+    "response_file": "covenant/03.editor.final.txt",
+    "recorded_at": "2026-09-14T20:34:36.518980+00:00"
+  },
+  {
+    "task": "foundation_bw_03_editor",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "story": "breakwater",
+    "turn": 3,
+    "stage": "editor",
+    "request_id": "dde855c2067041f48c1829375a0507c5",
+    "response_file": "breakwater/03.editor.final.txt",
+    "recorded_at": "2026-09-14T20:37:01.124442+00:00"
+  }
+]

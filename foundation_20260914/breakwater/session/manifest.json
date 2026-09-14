@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "created_at": "2026-09-14T20:00:26.599912+00:00",
+  "story": "breakwater",
+  "transport": "proxy",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "max_output_tokens": 12000,
+  "prefix_order": [
+    "author.txt",
+    "direction.md",
+    "canon.md"
+  ],
+  "source_sha256": {
+    "author.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "revision.txt": "0e0ad0436bcf0456f3d67e6d90644ce3aa804fc0f069d2441e58edc7ac62cb68",
+    "direction.md": "094e027e48719d3b456003e7ff0c9c21d2e4ec8d31c64e254db9d96c5ee42391",
+    "canon.md": "0000b32ddc5c1cf43b7c237d6bd3ecb783c88c6d2247fe5a5e461fe0dc10c77a",
+    "player.json": "25fde4634adb1e0b67ed60df5e25b1c02b0a53583e4e25354af19fe436cb6312"
+  }
+}

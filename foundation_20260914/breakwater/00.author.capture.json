@@ -1,0 +1,34 @@
+{
+  "agent": "/root/foundation_bw_00_author",
+  "session_id": "01a0a182-4567-7ed1-9224-3c085ca8f05c",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T15-01-04-01a0a182-4567-7ed1-9224-3c085ca8f05c.jsonl",
+  "configurations": [
+    {
+      "model": "gpt-5.6-terra",
+      "effort": "max"
+    }
+  ],
+  "first_public_final_id": "msg_0db90d63d60632a0016aa852a85cb087d181fc4148bccbb92a",
+  "public_final_count": 1,
+  "first_public_final_sha256": "048b8acd0afb0ad9d634d5d1a4eea35fb7ccdf6e8b4c509d1ec6af8b70a5571c",
+  "written_response_sha256": "e1c54c3241b07f4463fcf237de3ad3dc0c262ec5e9d4f6503ecc9e8876e844eb",
+  "written_vs_final": "trailing_newline_only",
+  "request_id": "ba2aad6e9274405bae0d2d3f686f3421",
+  "request_sha256": "27c0f62d6cf4855066a4cae498c52ed05fd524bb2bfeafea58db246a65a5f5c4",
+  "request_seen_verbatim_in_public_tool_output": true,
+  "request_lines_seen_in_order": true,
+  "missing_request_lines": [],
+  "public_tool_calls": [
+    {
+      "call_id": "call_dGfWWeJnP85Fd6SVIGc5ofqp",
+      "name": "exec",
+      "source": "const r = await tools.exec_command({\"cmd\":\"cat /home/dan/ayoa-worktrees/covenant-single-llm/sessions/foundation_20260914/breakwater/attempts/ba2aad6e9274405bae0d2d3f686f3421/request.txt\",\"workdir\":\"/home/dan/ayoa\",\"yield_time_ms\":10000,\"max_output_tokens\":100000});\ntext(JSON.stringify(r));\n"
+    },
+    {
+      "call_id": "call_4ATN0zAuWULnRuKSBI2rHqnT",
+      "name": "exec",
+      "source": "const r = await tools.apply_patch(\"*** Begin Patch\\n*** Add File: /home/dan/ayoa-worktrees/covenant-prompt-archive/foundation_20260914/breakwater/00.author.txt\\n+The room has been made ready with the plain practicality of somewhere meant for a person to stay, rather than settle. The bed is narrow but freshly made, its striped blanket tucked hard beneath the mattress. A wardrobe stands beside it with one door slightly proud of the other. On the small desk, beneath the cone of the lamp, the welcome sheet lies beside your keys: supper at half past six; the staff staircase beside the office; Nell Ward's number; induction at nine tomorrow.\\n+\\n+Beyond the window, Harbour Street runs downhill towards a strip of silver water. The light has not gone yet. It catches on the upper panes opposite and on the roof of a parked van, while farther off the harbour is already beginning to lose its edges. A gull lands somewhere out of sight, gives one affronted cry, and is answered by another.\\n+\\n+Your luggage occupies the bit of floor between the bed and desk. The room smells faintly of paint, dust warmed by the lamp, and whatever was used to clean the window. From below comes the intermittent domestic clatter of plates being set down, then the heavier knock of something closed in the little kitchen. Voices travel up the stairwell in pieces: a laugh, a low reply, a phrase too blurred to make out. The building has been shut for years, but it is not quiet now.\\n+\\n+The door opens directly onto the landing. At its far end, the staff staircase falls towards the lit foyer, where crockery clicks again and someone says, more clearly this time, \\\"That's the bread, then.\\\"\\n+\\n+What does Rowan do?\\n*** End Patch\");\ntext(typeof r === \"string\" ? r : JSON.stringify(r));\n"
+    }
+  ],
+  "scope": "Public final, model/effort and public tool I/O metadata only. No private reasoning inspected. Request delivery is a file-based coding-agent proxy, not direct API equivalence."
+}

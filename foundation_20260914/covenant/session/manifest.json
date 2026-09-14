@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "created_at": "2026-09-14T20:00:26.446691+00:00",
+  "story": "covenant",
+  "transport": "proxy",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "max_output_tokens": 12000,
+  "prefix_order": [
+    "author.txt",
+    "direction.md",
+    "canon.md"
+  ],
+  "source_sha256": {
+    "author.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "revision.txt": "0e0ad0436bcf0456f3d67e6d90644ce3aa804fc0f069d2441e58edc7ac62cb68",
+    "direction.md": "308127d581baae8a805b281d2b562d2eb331820eb2ec3f227456fb2a3671357c",
+    "canon.md": "cf86a0e22df7aae25f1525ea51a6d280450e88d55a36561a3c9ed319fc31a63d",
+    "player.json": "ef4a5f30b25ff97986d2b947f1c05f648206914b2c679708955f55c94b22807e"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "agent": "/root/foundation_cov_00_author",
+  "session_id": "01a0a182-1896-7da2-9378-c8fb3ee84132",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T15-00-52-01a0a182-1896-7da2-9378-c8fb3ee84132.jsonl",
+  "configurations": [
+    {
+      "model": "gpt-5.6-terra",
+      "effort": "max"
+    }
+  ],
+  "first_public_final_id": "msg_04940cbbe65f9ceb016aa852bcc0f487d18148744ee9999625",
+  "public_final_count": 1,
+  "first_public_final_sha256": "a62aa7cf3f86df1dd0b5ecc2c5f53e7e4dc6c1509a4067e1d9b0a37ace5e4e1c",
+  "written_response_sha256": "5b810fb40d10fbea987f30768b89b4dcb32ddb603b653629274a23777eb57604",
+  "written_vs_final": "trailing_newline_only",
+  "request_id": "cdd3a36ce1fe48fdbf4f264609fc88bb",
+  "request_sha256": "a78bad2924dde89a2334b78d9f9bcb7336a9115a5c54d2d54f6abb0695ef0a11",
+  "request_seen_verbatim_in_public_tool_output": true,
+  "request_lines_seen_in_order": true,
+  "missing_request_lines": [],
+  "public_tool_calls": [
+    {
+      "call_id": "call_gxurNQ4zyOXq8yXb4BMshEX9",
+      "name": "exec",
+      "source": "const r = await tools.exec_command({\"cmd\":\"wc -c /home/dan/ayoa-worktrees/covenant-single-llm/sessions/foundation_20260914/covenant/attempts/cdd3a36ce1fe48fdbf4f264609fc88bb/request.txt && sed -n '1,20000p' /home/dan/ayoa-worktrees/covenant-single-llm/sessions/foundation_20260914/covenant/attempts/cdd3a36ce1fe48fdbf4f264609fc88bb/request.txt\",\"workdir\":\"/home/dan/ayoa\",\"yield_time_ms\":10000,\"max_output_tokens\":60000});\ntext(r.output);"
+    },
+    {
+      "call_id": "call_Y1NLLzrZj1TIm3lMAbyslFhz",
+      "name": "exec",
+      "source": "const patch = \"*** Begin Patch\\n*** Add File: /home/dan/ayoa-worktrees/covenant-prompt-archive/foundation_20260914/covenant/00.author.txt\\n+The lamp on your desk has been turned low enough that its flame makes a small, steady oval among the ink stains. Beyond it, the framed letter catches a line of light across its glass: a cramped hand, an old date, a name you have not yet had time to decide what to do with. The room around it is orderly in the way of a place prepared for an expected guest. Your mended charcoal coat brings its own familiar roughness to the chair when you shift.\\n+\\n+Outside the window, the gardens are already silvered by evening. Their pale paths curve between dark hedges toward the black shapes of the Academy buildings, and farther out the bridges hang over weather that never quite becomes rain here. A lamp-globe comes alive near the garden wall, then another. From somewhere below, a door opens onto a burst of warm air and the smell of butter, pepper, and something roasted with fruit.\\n+\\n+The dinner bell is not grand. It gives three clear notes from the ground floor, and the house answers in smaller sounds: a chair drawn back, a cupboard shut, voices gathering where the stairs turn.\\n+\\n+A woman in Academy livery appears at the open door with a covered serving dish balanced on one palm. She has evidently made the climb in silence; only the soft clink of a spoon under the lid gives her away. She inclines her head without trying to look past you into the room.\\n+\\n+\\\"The first-year table is laid, Mr. Garvey,\\\" she says. \\\"The dining hall is at the foot of the stairs, through the common room.\\\"\\n+\\n+Then she steps aside, leaving the passage clear.\\n+\\n+From below comes a man's voice, crisp with amusement. \\\"If the pears have been cooked in wine, I reserve the right to call this an attempt on my character.\\\"\\n+\\n+\\\"You reserve rights very freely,\\\" says a woman.\\n+\\n+Another voice, lower and more measured, says, \\\"It does smell good.\\\"\\n+\\n+For a moment there is the faint scrape of crockery and a brief laugh, quickly swallowed by the old house. The stair rail begins just beyond the doorway, polished smooth by generations of hands. Below it, firelight moves over the common room ceiling; beyond that, the long dining table waits with its candles, its seventeen places, and the people who have come to see what a human heir looks like when he arrives.\\n*** End Patch\";\nconst r = await tools.apply_patch(patch);\ntext(typeof r === \"string\" ? r : JSON.stringify(r));"
+    }
+  ],
+  "scope": "Public final, model/effort and public tool I/O metadata only. No private reasoning inspected. Request delivery is a file-based coding-agent proxy, not direct API equivalence."
+}

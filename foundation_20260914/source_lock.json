@@ -1,0 +1,13 @@
+{
+  "narrative/__init__.py": "fdf33ddff1b1431fa6c597972bca4c1b206fdd209997a064f02013801376aae4",
+  "narrative/__main__.py": "2824351c5b1f814aa279f5689b2c90c13b42820bbe5ff1492586bc2d09732867",
+  "narrative/core.py": "e68ddd3eb59d2fedf690b13c9c579177458147d2d2a2f22da804221a7eefa04f",
+  "prompts/author.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+  "prompts/revision.txt": "0e0ad0436bcf0456f3d67e6d90644ce3aa804fc0f069d2441e58edc7ac62cb68",
+  "stories/breakwater/canon.md": "0000b32ddc5c1cf43b7c237d6bd3ecb783c88c6d2247fe5a5e461fe0dc10c77a",
+  "stories/breakwater/direction.md": "094e027e48719d3b456003e7ff0c9c21d2e4ec8d31c64e254db9d96c5ee42391",
+  "stories/breakwater/player.json": "25fde4634adb1e0b67ed60df5e25b1c02b0a53583e4e25354af19fe436cb6312",
+  "stories/covenant/canon.md": "cf86a0e22df7aae25f1525ea51a6d280450e88d55a36561a3c9ed319fc31a63d",
+  "stories/covenant/direction.md": "308127d581baae8a805b281d2b562d2eb331820eb2ec3f227456fb2a3671357c",
+  "stories/covenant/player.json": "ef4a5f30b25ff97986d2b947f1c05f648206914b2c679708955f55c94b22807e"
+}

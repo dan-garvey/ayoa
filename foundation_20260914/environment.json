@@ -1,0 +1,13 @@
+{
+  "python": "3.10.12",
+  "platform": "Linux",
+  "dependencies": {
+    "openai": "2.54.0",
+    "python-dotenv": "1.2.3",
+    "pytest": "9.1.1",
+    "ruff": "0.16.7",
+    "httpx": "0.28.1"
+  },
+  "offline_tests_passed": 27,
+  "direct_api_calls": 0
+}

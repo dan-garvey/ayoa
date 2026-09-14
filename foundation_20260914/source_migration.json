@@ -1,0 +1,95 @@
+{
+  "source_commit": "d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b",
+  "covenant_changes": [
+    {
+      "source": "<campaign>\nCovenant of Thrones is political fantasy at a residential academy: companionship,\nrivalry, dangerous romance, and institutional intrigue. Its pleasures include\nliving alongside people raised to become your enemies, the strange beauty of\ntheir world, and finding what they want beyond their assigned political role.\nIts hidden history is serious, but an evening of friendship need not become an\ninvestigation. No romance, alliance, betrayal, or ending is predetermined.\n</campaign>\n\n",
+      "canon": "",
+      "direction": "<campaign>\nCovenant of Thrones is political fantasy at a residential academy: companionship,\nrivalry, dangerous romance, and institutional intrigue. Its pleasures include\nliving alongside people raised to become your enemies, the strange beauty of\ntheir world, and finding what they want beyond their assigned political role.\nIts hidden history is serious, but an evening of friendship need not become an\ninvestigation. No romance, alliance, betrayal, or ending is predetermined.\n</campaign>",
+      "reason": "Genre and campaign direction, preserved verbatim"
+    },
+    {
+      "source": "<tone_and_opening>\nCharacter-led social fantasy with wit, friction, curiosity, and room for quiet.\nLet an evening acquire its particular mood from the people present. Render racial\ndifferences through heat, cold,\nwings, skin, physical habits, and magic instead of labels alone. Intimacy develops\nthrough particular shared experiences over time. Do not decode horns, ears,\ntails, or posture into a stated emotion. A rebuff does not need a concealed\nattraction beneath it. Peers can disagree, joke, be bored, or pursue each other.\nTheir political objections have substance; dinner can remain civil without\nresolving them. Respect and vulnerability are not owed for being a pleasant guest.\n\nBegin in Rowan's room shortly before the first-year welcome dinner. Rowan is\nthe first human Conclave student in generations. His primer tells him the public\nhistory, the dinner occasion, and Article Nineteen; it reveals no conspiracy.\nAshara, Ysolde, Caelindra, Seraphel, Thessaly, Rashid, and Aldric are gathering in\nthe shared dining hall. Faculty and Lysara are elsewhere initially. Establish\nan immediate detail of the room and a way to join the others. Let the house\nbecome familiar through use instead of an opening inventory. Allow the dinner and any\nlater social plans to develop from what happens, rather than prescribing an arc.\n</tone_and_opening>",
+      "canon": "<opening_state>\nRowan starts in his room shortly before the first-year welcome dinner. Rowan is\nthe first human Conclave student in generations. His primer tells him the public\nhistory, the dinner occasion, and Article Nineteen; it reveals no conspiracy.\nAshara, Ysolde, Caelindra, Seraphel, Thessaly, Rashid, and Aldric are gathering in\nthe shared dining hall. Faculty and Lysara are elsewhere initially. </opening_state>",
+      "direction": "<tone>\nCharacter-led social fantasy with wit, friction, curiosity, and room for quiet.\nLet an evening acquire its particular mood from the people present. Render racial\ndifferences through heat, cold,\nwings, skin, physical habits, and magic instead of labels alone. Intimacy develops\nthrough particular shared experiences over time. Do not decode horns, ears,\ntails, or posture into a stated emotion. A rebuff does not need a concealed\nattraction beneath it. Peers can disagree, joke, be bored, or pursue each other.\nTheir political objections have substance; dinner can remain civil without\nresolving them. Respect and vulnerability are not owed for being a pleasant guest.\n</tone>\n\n<opening>\nEstablish\nan immediate detail of the room and a way to join the others. Let the house\nbecome familiar through use instead of an opening inventory. Allow the dinner and any\nlater social plans to develop from what happens, rather than prescribing an arc.\n</opening>",
+      "reason": "Starting facts stay in canon; portrayal and scene-entry direction move together"
+    },
+    {
+      "source": "Let that shape choices without turning each conversation into\na lecture on the law. ",
+      "canon": "",
+      "direction": "<portrayal subject=\"Article Nineteen\">\nLet the law shape choices without turning each conversation into a lecture on it.\n</portrayal>",
+      "reason": "The law and its actual limits remain unchanged in canon"
+    },
+    {
+      "source": "Do not grant him a hidden magical awakening to solve this.",
+      "canon": "",
+      "direction": "<portrayal subject=\"Rowan\">\nDo not grant Rowan a hidden magical awakening to solve his magical inertness.\n</portrayal>",
+      "reason": "Magical inertness, survival, and ignorance remain explicit canon"
+    },
+    {
+      "source": "She can laugh at him, take his side, or lose\npatience without first making a speech about standards.",
+      "canon": "She can laugh at him, take his side, or lose\npatience.",
+      "direction": "<portrayal character=\"Ashara\">\nShe can laugh at Rashid, take his side, or lose patience without first making a speech about standards.\n</portrayal>",
+      "reason": "Preserve emotional range and the actual two-year relationship; move corrective staging"
+    },
+    {
+      "source": "His exhaustion and his sister's importance are private, not an opening-night\nconfession waiting for a considerate question.",
+      "canon": "His exhaustion and his sister's importance are private.",
+      "direction": "<portrayal character=\"Rashid\">\nHis exhaustion and his sister's importance are not an opening-night confession waiting for a considerate question.\n</portrayal>",
+      "reason": "Privacy stays a canon knowledge boundary"
+    },
+    {
+      "source": "An author asking whether she enjoyed something can receive the part\nshe liked, a complaint, or a question about what comes next.",
+      "canon": "",
+      "direction": "<portrayal character=\"Caelindra\">\nAn author asking whether she enjoyed something can receive the part she liked, a complaint, or a question about what comes next.\n</portrayal>",
+      "reason": "Move the hypothetical response menu; retain tastes, resistance, loneliness, and formative education"
+    },
+    {
+      "source": "Her binding prevents direct disclosure of the crime even in verse; an ordinary\nconversation need not contain a clue.",
+      "canon": "Her binding prevents direct disclosure of the crime even in verse.",
+      "direction": "<portrayal character=\"Seraphel\">\nAn ordinary conversation need not contain a clue.\n</portrayal>",
+      "reason": "Keep the binding, verse interpretation, tastes, and private knowledge unchanged"
+    },
+    {
+      "source": "In company she generally\nspeaks casually: a short answer, something she wants, a complaint, or a joke\nthat fits what just happened.",
+      "canon": "In company she generally\nspeaks casually.",
+      "direction": "<portrayal character=\"Thessaly\">\nIn company she generally speaks casually: a short answer, something she wants, a complaint, or a joke that fits what just happened.\n</portrayal>",
+      "reason": "Move illustrative delivery guidance, preserving social competence and ordinary casual speech"
+    },
+    {
+      "source": "She does not interpret the table's conversation for everyone else.\n",
+      "canon": "",
+      "direction": "<portrayal character=\"Thessaly\">\nShe does not interpret the table's conversation for everyone else.\n</portrayal>",
+      "reason": "Narrative participation guidance, not a biographical incident"
+    },
+    {
+      "source": "When she has no reason to join an exchange, she can\nattend to her own business without supplying an aside.",
+      "canon": "",
+      "direction": "<portrayal character=\"Thessaly\">\nWhen she has no reason to join an exchange, she can attend to her own business without supplying an aside.\n</portrayal>",
+      "reason": "Preserve permission for nonparticipation outside the biography"
+    },
+    {
+      "source": "Being sincere does\nnot make him the calmest or most reasonable person in every dispute.",
+      "canon": "",
+      "direction": "<portrayal character=\"Aldric\">\nBeing sincere does not make him the calmest or most reasonable person in every dispute.\n</portrayal>",
+      "reason": "Retain sincerity, defensiveness, doubts and fallibility in canon"
+    }
+  ],
+  "breakwater_canon_byte_identical": true,
+  "notes": [
+    "No biographies were summarized. Formative history, relationships, tastes, private knowledge, abilities and starting commitments survive.",
+    "Illustrative capacities which also describe actual psychology remain canon; not every conditional sentence is a writing instruction.",
+    "Covenant uses restored C41, not the older C42/C43 comparison brief. No original-chat-only material was newly imported.",
+    "Breakwater direction is new genre/opening guidance; its entire source brief is unchanged canon.",
+    "Default player descriptions are unchanged. Old opening submissions are supplied by story direction/canon plus the new explicit first player turn."
+  ],
+  "output_sha256": {
+    "prompts/author.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "prompts/revision.txt": "0e0ad0436bcf0456f3d67e6d90644ce3aa804fc0f069d2441e58edc7ac62cb68",
+    "stories/covenant/canon.md": "cf86a0e22df7aae25f1525ea51a6d280450e88d55a36561a3c9ed319fc31a63d",
+    "stories/covenant/direction.md": "308127d581baae8a805b281d2b562d2eb331820eb2ec3f227456fb2a3671357c",
+    "stories/covenant/player.json": "ef4a5f30b25ff97986d2b947f1c05f648206914b2c679708955f55c94b22807e",
+    "stories/breakwater/canon.md": "0000b32ddc5c1cf43b7c237d6bd3ecb783c88c6d2247fe5a5e461fe0dc10c77a",
+    "stories/breakwater/direction.md": "094e027e48719d3b456003e7ff0c9c21d2e4ec8d31c64e254db9d96c5ee42391",
+    "stories/breakwater/player.json": "25fde4634adb1e0b67ed60df5e25b1c02b0a53583e4e25354af19fe436cb6312"
+  }
+}

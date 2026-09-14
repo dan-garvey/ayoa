@@ -1,0 +1,36 @@
+{
+  "implementation_commit": "e93706364570f29445d973caf48e2997f4b66c58",
+  "source_delivery_note": "Runtime and prompts unchanged from the tested implementation; Covenant canon has the documented three trailing-space removals.",
+  "checks": [
+    {
+      "name": "offline_tests",
+      "command": ".venv/bin/pytest -q",
+      "exit_code": 0,
+      "output": "...........................                                              [100%]\n27 passed in 4.80s\n"
+    },
+    {
+      "name": "ruff",
+      "command": ".venv/bin/ruff check narrative tests",
+      "exit_code": 0,
+      "output": "All checks passed!\n"
+    },
+    {
+      "name": "format",
+      "command": ".venv/bin/ruff format --check narrative tests",
+      "exit_code": 0,
+      "output": "4 files already formatted\n"
+    },
+    {
+      "name": "playtest_audit",
+      "command": ".venv/bin/python /home/dan/ayoa-worktrees/covenant-prompt-archive/foundation_20260914/verify.py",
+      "exit_code": 0,
+      "output": "See validation.json"
+    },
+    {
+      "name": "delivery_diff",
+      "command": "git diff d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b --check",
+      "exit_code": 0,
+      "output": ""
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "tested_implementation_commit": "e93706364570f29445d973caf48e2997f4b66c58",
+  "changes": {
+    "stories/covenant/canon.md": {
+      "before_sha256": "cf86a0e22df7aae25f1525ea51a6d280450e88d55a36561a3c9ed319fc31a63d",
+      "after_sha256": "0f52f6ef18635011b0e19aeffbe48f67afa6d68610ad887de918268acf0f5601",
+      "changed_lines": [
+        209,
+        226,
+        297
+      ],
+      "kind": "Remove trailing spaces only; no wording or line breaks changed.",
+      "frozen_original": "covenant/session/snapshot/canon.md"
+    }
+  },
+  "note": "Applied after the completed playtests and first successful audit. All frozen session snapshots and source locks remain unchanged."
+}

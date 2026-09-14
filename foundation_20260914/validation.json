@@ -1,0 +1,125 @@
+{
+  "passed": true,
+  "stories": {
+    "covenant": {
+      "summary": {
+        "published_turns": 4,
+        "pending_stage": null,
+        "requests_prepared": 8,
+        "api_calls_started": 0,
+        "responses_received": 8,
+        "responses_with_usage": 0,
+        "reported_usage": null,
+        "recorded_api_seconds": null,
+        "visible_words": 2866
+      },
+      "pairs": [
+        {
+          "turn": 0,
+          "input": "Begin the story.",
+          "author_words": 399,
+          "author_sha256": "5b810fb40d10fbea987f30768b89b4dcb32ddb603b653629274a23777eb57604",
+          "editor_words": 447,
+          "editor_sha256": "418710c75aa0c3e500b9909ad4afeab155c7fbbd65f897c0a11edd54594c54b9"
+        },
+        {
+          "turn": 1,
+          "input": "I thank the server and go downstairs to the dining hall. \"Good evening. I'm Rowan. May I sit here?\" I indicate an empty place near the conversation about the pears.",
+          "author_words": 681,
+          "author_sha256": "9b8abe9ddbda6e445746fc8b9e3ca7434d3955814e6a13cc1295fb7763a2471b",
+          "editor_words": 794,
+          "editor_sha256": "c93e619c7576ae4d7cf84a78b3810a7d0549110801ba861f2efd3bedfe913c22"
+        },
+        {
+          "turn": 2,
+          "input": "\"The primer covered the public history, Article Nineteen, and tonight's dinner. I haven't been shown much of the Academy yet.\" Privately, I haven't decided whether I like Rashid; I do not say or signal that. I eat and listen through the rest of the meal, leaving the others room to pursue their own conversation. Stop when dinner finishes.",
+          "author_words": 856,
+          "author_sha256": "e6e257f77f070984167f6235c751fb30c786bda050a3885808222b024107ac85",
+          "editor_words": 1092,
+          "editor_sha256": "fe1c4bfeb817679ac71bcf8edcd28096191034a3aff41a7ad03303dce9ac1eb5"
+        },
+        {
+          "turn": 3,
+          "input": "\"Thank you for supper. I'm going to have a quiet evening upstairs, so I won't join the cards or the practice tonight.\" I return to my room and spend twenty minutes putting away my luggage and making a list of the names I learned at dinner. You may handle those routine activities, but don't add dialogue or private judgments for me. Stop after the twenty minutes.",
+          "author_words": 338,
+          "author_sha256": "2d417d7c88397bf6be02d377ee3ba3afdd9f57f7489d6ea492e4b5850d1938d6",
+          "editor_words": 533,
+          "editor_sha256": "6f9b73e3fa892f869d9134dfa6c0c2db1932006a91eb20aa64442a4e24e9aaab"
+        }
+      ]
+    },
+    "breakwater": {
+      "summary": {
+        "published_turns": 4,
+        "pending_stage": null,
+        "requests_prepared": 8,
+        "api_calls_started": 0,
+        "responses_received": 8,
+        "responses_with_usage": 0,
+        "reported_usage": null,
+        "recorded_api_seconds": null,
+        "visible_words": 3305
+      },
+      "pairs": [
+        {
+          "turn": 0,
+          "input": "Begin the story.",
+          "author_words": 270,
+          "author_sha256": "e1c54c3241b07f4463fcf237de3ad3dc0c262ec5e9d4f6503ecc9e8876e844eb",
+          "editor_words": 526,
+          "editor_sha256": "81ebe52581f20f0c0d3a68af34153dcad01852a75314087e6a9d9bb10d4fda17"
+        },
+        {
+          "turn": 1,
+          "input": "I go downstairs to the foyer. \"Hello, everyone. I'm Rowan—Nell's new cataloguer. Something smells good.\" I offer to carry the bread to the table, then ask the people there, \"What film are you each most looking forward to showing here?\"",
+          "author_words": 791,
+          "author_sha256": "3ac756b40c6f96b4c9b029b1db2369ec8b73654cb86cd9b47996366f9283a4b6",
+          "editor_words": 645,
+          "editor_sha256": "db2d87a949fbc5484ff03480641e2660e602fb4f5dd2ad145ad97d9a67c2513d"
+        },
+        {
+          "turn": 2,
+          "input": "\"I'd choose A Matter of Life and Death. I saw it with a friend on a laptop, and I've wanted to see it on a big screen ever since. I'm happy to help with supper, but I'm leaving the cinema work until tomorrow's induction.\" I sit down and eat, listening rather than steering the rest of the conversation. Let the meal reach its end; don't add any dialogue for me.",
+          "author_words": 1144,
+          "author_sha256": "bdf075691beeb509df1ffa16a7d228a3eefee5fb1ab2653b3c724743ef24a6e1",
+          "editor_words": 1409,
+          "editor_sha256": "071f71d733a5a09c3c3748ade0d6041a97ee679c642a26bf07f6696c5ba771bd"
+        },
+        {
+          "turn": 3,
+          "input": "I stay in the kitchen with Jo and Owen. \"I can dry for ten minutes, then I'm going upstairs. Where do the clean plates go?\" You may handle the routine drying and putting away, but don't invent any further speech or private thoughts for me. Keep the scene here and stop after ten minutes; I'm not joining the cinema work tonight.",
+          "author_words": 551,
+          "author_sha256": "47f243ffa75f4a6b8229f979e4536ec6bafbae70a7d545f02fcbcff7a55c48a2",
+          "editor_words": 725,
+          "editor_sha256": "014799fdde49f4c9f6915f1eb670516a4feaeca16ad1f63807d52162ef907d3c"
+        }
+      ]
+    }
+  },
+  "fresh_model_responses": 16,
+  "published_passages": 8,
+  "player_turns_after_openings": 6,
+  "direct_api_calls": 0,
+  "rerolls": 0,
+  "frozen_source_locks_match": true,
+  "delivered_source_changes": {
+    "stories/covenant/canon.md": {
+      "before_sha256": "cf86a0e22df7aae25f1525ea51a6d280450e88d55a36561a3c9ed319fc31a63d",
+      "after_sha256": "0f52f6ef18635011b0e19aeffbe48f67afa6d68610ad887de918268acf0f5601",
+      "changed_lines": [
+        209,
+        226,
+        297
+      ],
+      "kind": "Remove trailing spaces only; no wording or line breaks changed.",
+      "frozen_original": "covenant/session/snapshot/canon.md"
+    }
+  },
+  "all_requests_reconstructed_from_frozen_sources_and_published_history": true,
+  "all_public_source_reads_complete": true,
+  "source_and_response_notes": [
+    "The first two author inputs were accepted from their agent-written files, which differ from the captured public finals only by one trailing newline. Both byte sequences are preserved.",
+    "Subsequent stages accept the captured first public final verbatim. Agent-written response artifacts remain separately preserved.",
+    "This is a short implementation smoke playtest, not the broader literary selection protocol. No private reasoning or direct API usage was inspected or inferred."
+  ]
+}

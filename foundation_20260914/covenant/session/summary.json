@@ -1,0 +1,11 @@
+{
+  "published_turns": 4,
+  "pending_stage": null,
+  "requests_prepared": 8,
+  "api_calls_started": 0,
+  "responses_received": 8,
+  "responses_with_usage": 0,
+  "reported_usage": null,
+  "recorded_api_seconds": null,
+  "visible_words": 2866
+}
