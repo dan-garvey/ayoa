@@ -1,0 +1,83 @@
+{
+  "checked_at": "2026-09-14T16:26:57.470013+00:00",
+  "agent": "/root/proxy_c42_independent_review",
+  "session_id": "01a0a0ae-e49e-74a1-b625-28ad0fd00046",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T11-10-11-01a0a0ae-e49e-74a1-b625-28ad0fd00046.jsonl",
+  "model_effort_metadata": [
+    [
+      "gpt-6-astra",
+      "max"
+    ]
+  ],
+  "scope": "Exact source coverage from public tool calls/results and model metadata. No private reasoning inspected; file delivery does not establish cognition or compliance with every instruction.",
+  "files": [
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_42/review_request.txt",
+      "sha256": "810e3937dbbe44da5c09b689148451101c6ef0379ad52bcbcca358a14db37d9e",
+      "lines": 11,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 11,
+          "call_id": "call_7DdjSLqT2cQo47qtHmCibDJy"
+        }
+      ],
+      "initial_chunks_not_fully_returned": []
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_42/covenant.txt",
+      "sha256": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+      "lines": 378,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 378,
+          "call_id": "call_NCvX6oLVcbd2skz4PhCW641u"
+        }
+      ],
+      "initial_chunks_not_fully_returned": []
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_42/review_material.txt",
+      "sha256": "67d8bd6907b0917521a461cf4b3ebf03568491cdca5807299a1e6d9340be483e",
+      "lines": 1255,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 250,
+          "call_id": "call_0YRfqoZHshjhAplLAZrwexj0"
+        },
+        {
+          "start": 751,
+          "end": 1000,
+          "call_id": "call_0YRfqoZHshjhAplLAZrwexj0"
+        },
+        {
+          "start": 1001,
+          "end": 1255,
+          "call_id": "call_0YRfqoZHshjhAplLAZrwexj0"
+        },
+        {
+          "start": 251,
+          "end": 750,
+          "call_id": "call_es7gDzUYaGnfBmTyUBEZPJ37"
+        }
+      ],
+      "initial_chunks_not_fully_returned": [
+        {
+          "start": 251,
+          "end": 500,
+          "call_id": "call_0YRfqoZHshjhAplLAZrwexj0"
+        },
+        {
+          "start": 501,
+          "end": 750,
+          "call_id": "call_0YRfqoZHshjhAplLAZrwexj0"
+        }
+      ]
+    }
+  ],
+  "all_required_files_read_in_full": true,
+  "batch_truncation_repaired_before_assessment": true,
+  "truncation_detail": "The initial five-range batch was truncated in its middle. Its complete JSON result objects preserve lines 1-250 and 751-1255 exactly. The reviewer independently reread lines 251-750 in an untruncated call before writing its assessment. The initial generic audit did not decode per-line JSON or the range loop and recognized only that 500-line reread. This audit verifies the union of actual complete returned chunks; no missing text is reconstructed and no follow-up review was requested."
+}

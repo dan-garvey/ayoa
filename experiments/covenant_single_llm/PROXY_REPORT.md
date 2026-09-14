@@ -11,10 +11,15 @@ The latest experiment is C42: eight completed edits comparing the user's approve
 conditions retain identical full story context and common instructions. The
 [locked root comparison](proxy_trials/candidate_42/pilot_review.md) prefers both
 short dinner edits to both long controls: they reduce ornate dialogue and retain
-the substantive disagreement. The reading comparison is mixed; the longer task
-produces more particular personal reactions. Independent comparison is pending.
-All first drafts, edits and requests are preserved; there are no new live player
-turns or promotion claims in this screen.
+the substantive disagreement. The
+[independent review](proxy_trials/reviews/round42_independent_comparison.md)
+also finds both short dinners improved and retainable, while rating one long
+dinner alongside the best short dinner. Both reviewers find reduced rhetorical
+burden in all four short edits; their reading preferences and whole-passage
+quality judgments differ. The [final comparison](proxy_trials/candidate_42/review_response.md)
+preserves this useful targeted gain and the failed advancement gate. All original
+drafts, edits and requests are preserved; there are no new live player turns
+or promotion claims in this screen.
 
 The previous completed comparison was C41: sixteen new dinner continuations
 testing the existing prompt against a 350-word default ceiling. Both the
@@ -594,12 +599,36 @@ unwanted formulations and preserves the treaty disagreement, although the
 literal complaint exchange and editing-as-work joke remain. Both long controls
 replace that discussion with another petition review and new generalizations.
 For the manuscript, the short edits give plainer responses and actual requests
-to hear part again; the long alternatives offer more distinct interpretation
-and personal interest. Root gives all dinners prose/distinction 3/3, the long
-readings 4/4 and the short readings 4/3. The reviewer receives original drafts
-alongside anonymized revisions to assess editing effects directly. Independent
-findings are pending; the locked root already rejects advancement to substantial
-trials while retaining the useful targeted dinner improvement.
+to hear part again. Root prefers the long alternatives' more particular reactions,
+giving both 4/4 versus the short readings' 4/3. The
+[independent reviewer](proxy_trials/reviews/round42_independent_comparison.md)
+prefers long reading 2, then short reading 1, short reading 2 and long reading 1;
+its respective scores are 4/4, 4/4, 3/3 and 3/3. It finds long reading 1's
+interpretation a compressed moral lesson, where root finds relevant personal
+attention. These judgments remain separately locked.
+
+For dinner, root gives every edit prose/distinction 3/3 while substantively
+preferring both short versions. The independent reviewer gives both short
+dinners and long dinner 2 4/4, with long dinner 1 3/3. It ranks short dinner 1
+alongside long dinner 2, then short dinner 2, then long dinner 1. The detailed
+[comparison](proxy_trials/candidate_42/review_response.md) records each reviewer’s
+reasons, including why independent petition work is permitted and may be engaging.
+Both short dinners keep the original's substantive disagreement while removing
+several pronouncements: in one, "There is no proper amount. There is only enough"
+becomes "It could use more sugar." The 604-word original becomes 594 and 574 words,
+so the effect is not heavy scene truncation. Both reviewers classify all four
+short edits as having reduced rhetorical burden, without equating that to quality.
+
+The [decision](proxy_trials/candidate_42/decision.json) preserves this positive
+result but does not advance the prompt: the root and independent retainability
+requirements both fail, for different passages. There is no new material player
+authorship or character-knowledge failure; local petition-handoff and pencil/ink
+contradictions occur in the long controls. Full source reads and both first
+assessments are preserved, including the reviewer's independent reread of a
+truncated batch's missing middle before its assessment. These eight edits are a
+fixed-draft comparison, not a new two-stage live session. The 23-versus-312 figures
+are instruction words, not measured API tokens, cost or latency. No substantial
+trial or promotion follows automatically, and the main runtime remains unchanged.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
