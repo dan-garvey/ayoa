@@ -1,0 +1,9 @@
+{
+  "kind": "unreleased-draft editorial diagnostic",
+  "source_case": "candidate_23/game_replay",
+  "source_draft_sha256": "1076a8c3dc37ae0781e7f35656eee92d6fdab840c0bf8c259a72fa31b2ce1557",
+  "source_packet_sha256": "596385782ae6045ffaa9d3ff942446e9ced099e959553f009b7d4658c24b5a31",
+  "input_sha256": "e39c7b952f71cbb14fb1893bc989a488fa72d21c3319ba55a4a12fac3f110a65",
+  "packet_sha256": "6092dac1c1f08f551975b3aff3a69fd1bfc0306c9381ce29fe2d139eae8ba806",
+  "limitation": "Editor receives public context and the completed C23 passage as a draft, not the original author hidden state. Both original and revision are retained. No fresh-session success may be inferred."
+}

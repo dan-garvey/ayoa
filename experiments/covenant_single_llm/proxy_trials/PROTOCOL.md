@@ -24,6 +24,14 @@ changes role and order together and is a proxy sensitivity test, not a direct AP
 system-message experiment. Earlier file instructions were explicitly delegated;
 a delivery hypothesis does not establish that the model ignored them.
 
+Candidate24 is an editing diagnostic. Each editor receives the complete C23
+context and its completed passage explicitly designated as an unreleased draft.
+The original remains in `00.draft.md`; the first revision is `00.story.md`.
+The editing instructions are generic and contain no character dialogue examples.
+These cases have zero fresh player turns and cannot satisfy the live-session
+selection bar. Editing capability would support a subsequent generation test,
+not establish that one-pass generation or a two-call runtime has succeeded.
+
 Through candidate 08, the artifact wrapper also said not to "evaluate the prose"
 or "propose edits," intending to exclude reviewer output and repository work.
 Those words could conflict with private self-editing requested by the story

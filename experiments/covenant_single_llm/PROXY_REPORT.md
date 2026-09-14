@@ -14,9 +14,11 @@ records this distinction and its effect on earlier judgments.
 
 ## What is being tested
 
-Each session has one Terra coding agent at maximum reasoning. Its initial packet
-contains the complete Covenant brief, including secrets, followed by the frozen
-storytelling instructions and player description. A player submission produces
+Each session has one Terra coding agent at maximum reasoning. It receives the
+complete Covenant brief, including secrets, frozen storytelling instructions
+and the player description. Through candidate22 these are in its initial packet;
+candidate23 moves the same common instructions into its direct request while
+keeping the full brief and turn data in the packet. A player submission produces
 one passage from that same agent, which authors adjudication, every NPC and the
 narration together. Subsequent turns retain its story conversation. There is no
 router-to-character-to-narrator cascade, separate character memory, private
@@ -89,6 +91,39 @@ about the protagonist. The [pilot decision](proxy_trials/candidate_19/decision.j
 records the rejection and a possible one-year chronology discrepancy without
 mistaking all new history for a failure. No independent full review was requested
 after this clear pilot rejection.
+
+## Later diagnostic screens
+
+Candidates20 and21 test general dialogue examples, first isolated lines and then
+an unrelated complete exchange. Neither produces a clear improvement across
+the screens. Candidate20's game also invents present player dialogue during a
+delegated game; candidate21 explicitly separates activity delegation from speech
+and avoids that particular failure in its replay. Its two fresh sessions are
+stopped after five and four player turns because the shared didactic register
+remains. They are incomplete trials, not successful long sessions.
+
+The user rejected character-specific speech examples as restrictive and difficult
+to transfer between stories; none were implemented. A focused review of official
+Terra and GPT-5.6 guidance found general instruction-clarity advice, not a
+Terra-specific fiction recipe. The [research note](proxy_trials/reviews/terra_prompting_research.md)
+records the sources and their limits.
+
+Candidate22 shortens only the common instructions. Its complete Covenant brief
+is byte-identical to candidate19, including all character backgrounds. Three
+screens become longer but remain didactic. The user emphasized that rich
+backstories are essential; reducing character context is not an acceptable
+strategy. Candidate23 keeps the same prompt content and tests direct delivery
+of the common rules. Its [game](proxy_trials/candidate_23/game_replay/transcript.md),
+[Stone visit](proxy_trials/candidate_23/stone_replay/transcript.md), and
+[opening](proxy_trials/candidate_23/session_a/transcript.md) show no clear
+literary gain. Role and order change together in this coding-agent proxy; this
+does not isolate the effect of an API system-message role.
+
+Candidate24 separately tests editing, preserving C23's original passages as
+unreleased drafts. Both revisions largely paraphrase the originals and retain
+the troublesome rhetorical observations. Tool-read audits confirm that the
+editors received the full character context without truncation. These revisions
+are not live player turns and do not qualify a candidate for selection.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
