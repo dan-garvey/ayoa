@@ -1,0 +1,16 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "4452844237c7fe4014031511b0e97f5e5f66f71af82aceeceb4631ceb4440934",
+      "story_sha256": "c4c41ab36fe394e29c6a94416158c514674e072e8b7bc9196abddde8b2de115b",
+      "story_words": 804
+    }
+  ],
+  "player_turns": 1,
+  "session_kind": "matched continuation scene-selection diagnostic",
+  "story_words": 804
+}

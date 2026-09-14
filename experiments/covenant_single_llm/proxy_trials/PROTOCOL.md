@@ -126,6 +126,18 @@ This changes style, size, salience, comprehension and texture together; it is
 not a pure cadence or compression test, a runtime summarizer, or a long-session
 quality result. Biography reduction is not part of the intervention.
 
+Candidate33 tests a small allocation-of-attention change in the generation
+prompt. Only the two pacing sentences in C29's first prose paragraph are
+replaced: routine stretches of an extended activity can pass in concrete
+narration while a particular interaction receives sustained scene time. All
+other common instructions and the complete Covenant remain unchanged. Two
+contexts, two conditions and two fresh repeats yield eight one-pass continuations
+with exact C32 raw-history packets. No editor, selector or semantic history is
+used. The initial advice is a hypothesis, not a quality result. Root and a fresh
+blind reviewer will assess every output; brevity or fewer named speakers alone
+cannot pass if lived interaction, player redirection or particular interests
+become weaker.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

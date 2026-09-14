@@ -1,0 +1,1299 @@
+<context id="book">
+
+<player_persona>
+{
+  "name": "Rowan Garvey",
+  "description": "A twenty-three-year-old human man with brown skin, unruly dark hair, and ink-stained fingers, wearing a carefully mended charcoal coat and the inherited Garvey signet. Newly arrived and unsure of Conclave customs. He grew up unaware of his heritage, lost his parents young, and does not know whether he has any magic.",
+  "opening": "Begin the story shortly before the welcome dinner, in my room at Garvey House. I play Rowan Garvey."
+}
+</player_persona>
+
+<published_conversation>
+
+<turn index="0">
+<player_submission>
+My character: Rowan Garvey. A twenty-three-year-old human man with brown skin, unruly dark hair, and ink-stained fingers, wearing a carefully mended charcoal coat and the inherited Garvey signet. Newly arrived and unsure of Conclave customs. He grew up unaware of his heritage, lost his parents young, and does not know whether he has any magic.
+
+Begin the story shortly before the welcome dinner, in my room at Garvey House. I play Rowan Garvey.
+</player_submission>
+<story>
+The lamp on the walnut desk makes a bright island of the room and leaves the upper corners to their old shadows. An uncapped bottle of ink stands beside the blotter; its black rim answers the stains at your fingertips. The Garvey signet has been polished hard enough to catch the light, though the charcoal wool at your wrist still shows every careful mend.
+
+The framed letter beside the lamp is addressed to a great-nephew with another name. Its writer expects him in summer and has made room for him in the house between a recipe for plum cake and a complaint about the garden wall. The paper has yellowed evenly inside the glass. Nothing in it asks anything of you.
+
+Beyond the window, the storm turns soundlessly below the plateau. Lightning opens and closes in the cloudbank, whitening the distant garden paths for an instant at a time.
+
+Downstairs, somebody drags a chair back from the dining table. A covered dish gives off a brief, savory breath when its lid is lifted. Then Rashid says, with the measured patience of a man already repeating himself, “I’m not asking the Academy to reopen the court tonight. I’m asking them to say what failed and to give the practice group a supervised hour once they know.”
+
+“And if they do not know by tomorrow?” Aldric asks.
+
+“Then they should say that, too.”
+
+Ashara’s reply comes a moment later. Heat seems to travel with it. “You have accounts from the people there. You do not have the instructor’s report.”
+
+“I know.”
+
+“Good. Then don’t write the report for them because you dislike the delay.”
+
+Rashid exhales through his nose. “I dislike them closing the only court that doesn’t require a private tutor.”
+
+“Those are separate objections.”
+
+“They are connected objections.”
+
+“Only if you make them so.”
+
+A spoon taps porcelain. The argument does not seem to have spoiled anyone’s appetite; the small sounds of serving continue around it.
+
+“The report may include something the students did not see,” Aldric says. His usual formal cadence has softened, though not by much. “A damaged ward, perhaps. If another person is hurt because everyone wanted the doors open quickly, that will not make the original restriction seem unfair.”
+
+“No,” Rashid says. “It will make it worse.”
+
+For several seconds, the room below is quiet enough that someone can be heard pouring water.
+
+Thessaly says, “The request can ask for the report’s conclusion without claiming to know it.”
+
+“It can,” Rashid says.
+
+“That is less satisfying than a campaign,” she adds, “but I did not say it was impossible.”
+
+The chair legs scrape again. Ashara’s tail gives a single impatient thump against wood. “Write that version, then. Leave the part about my training slot out of it.”
+
+“I had not put that in.”
+
+“You were about to.”
+
+“I was considering it.”
+
+“No distinction worth billing for.”
+
+This earns a reluctant laugh from Rashid, and then a quieter one from someone farther down the table.
+
+“If you have finished conducting civic repair over the carrots,” Caelindra says, “would anyone like them? They have been boiled past the point of political relevance.”
+
+“They are good,” Seraphel says.
+
+Her voice makes three plain lines of it.
+
+“Soft from the pot,
+bright with butter,
+and still a carrot.”
+
+“A devastating defense,” Caelindra says, but there is no bite in it.
+
+“The carrots are not the problem,” Ysolde says. “The gravy boat is empty.”
+
+“You noticed that before the argument?” Thessaly asks.
+
+“Yes.”
+
+“Why did you wait?”
+
+“It was not yet empty.”
+
+A laugh moves around the table, easier this time. Someone crosses the dining hall; the rhythmic click of shoes reaches the staircase, followed by the low rustle of Academy livery. A server appears on the landing with a small covered dish balanced in one hand. She looks toward your door and inclines her head.
+
+“Mr. Garvey,” she says, keeping her voice tactfully low. “Dinner is served. The others have begun.”
+
+At the foot of the stairs, the dining hall is warm with candlelight and conversation. The long table lies just beyond the doorway, its occupied places gathering the evening’s voices around it.
+</story>
+</turn>
+
+<turn index="1">
+<player_submission>
+“Thank you,” I tell the server, and follow her downstairs.
+
+At the dining-room doorway I give the table a slightly awkward nod. “I'm Rowan. Thank you for having me—and I'm sorry to be late.”
+
+I look for an unoccupied place with a setting. The smell of dinner has made me realize how hungry I am; once I'm seated, I'm quite happy to eat and listen while I learn which names belong to which faces.
+</player_submission>
+<story>
+The server accepts your thanks with a small nod and leads you downstairs. At the dining-room doorway, the conversation thins into silence just long enough for your introduction to reach everyone at the table.
+
+“You’re not late,” says the young man with amber eyes and dark fur along the backs of his hands. He has started to rise, then settles back with one hand on the chair. “The soup was early. Rashid vel Amara.”
+
+The horned woman beside him gives you a level look. Her swept-back black-red horns frame hair tied so severely that not a strand has escaped it. “Ashara vel Kothren.”
+
+“Aldric Verantus,” says the angel in white and gold.
+
+The pale, white-haired woman across the table sets down her spoon. “Ysolde Thornmantle.”
+
+“Caelindra Vaeyn.” Silver hair catches the candlelight as its owner inclines her head. Her violet eyes move briefly to your signet, then back to your face.
+
+“Thessaly Morrow,” says the small woman beside the empty setting. “That chair is yours. It has been empty for some time, which is its only qualification.”
+
+The honey-haired angel at the far side smiles. The small white wings visible behind her shoulders lift slightly before she speaks.
+
+“Seraphel Dawnquill.
+Sit while the sauce is warm;
+your name will keep.”
+
+“It is still warm,” Ysolde says.
+
+“An excellent reason to sit,” Seraphel replies.
+
+The unused place has been laid between Thessaly and Ysolde. The server holds the chair as you take it, then sets down the dish she carried from upstairs: roasted roots glossed with butter, dark slices of meat beneath their browned crust, and a green sauce sharp with herbs. A basket of warm bread stands near Thessaly’s elbow. When she shifts it toward you, the crust gives softly under your fingers.
+
+For a few moments, the table attends to food. The servers move in and out with the quiet precision of people who know how to cross a crowded room without becoming part of its conversation. Ashara takes the gravy boat before it can pass her. Rashid watches the motion, then reaches for the folded sheet beside his plate instead of another helping.
+
+“Since we have a new audience,” he says, “I should make clear that I was not trying to overthrow the Academy before supper.”
+
+“Your draft contained the phrase *immediate redress*,” Aldric says.
+
+“Once.”
+
+“Twice,” Ashara says.
+
+Rashid glances at the page. “Twice, apparently.” He turns it facedown. “The covered court was closed after someone in our evening practice group was injured. I want the Academy to tell us what happened and give the group supervised time when it can be used safely. Ashara thinks the first version sounded as though I already knew what the report would say.”
+
+“You did not,” Ashara says.
+
+“I did not.”
+
+“Then do not write as though you do.”
+
+The paper stays under his hand. “I’ve changed it.”
+
+Thessaly reaches for a piece of bread. “Does it name the injured person?”
+
+“No.”
+
+“Good.” She tears the bread in half. “Names have a habit of acquiring jobs they did not volunteer for.”
+
+Rashid nods once. “The people who attend can decide whether they want to sign it. No one will be put on it because I know their name.”
+
+That earns him a brief glance from Ashara, less guarded than the one she gave the paper.
+
+“I will read the revised version,” she says.
+
+“That is all I asked.”
+
+“It is not all you asked.”
+
+“It is all I am asking now.”
+
+Caelindra turns a roasted root over with the end of her fork. “A distinction brought to you by the presence of dinner.”
+
+“Dinner improves many arguments,” Rashid says.
+
+“Only the ones that survive it.”
+
+Aldric reaches for the water pitcher. “Show me the wording before you collect signatures. I will decide then.”
+
+“Fair.”
+
+The matter is set aside without being settled. Rashid tucks the folded sheet beneath his napkin. Ashara takes a bite of the roasted roots, considers them, and passes the serving dish toward Ysolde.
+
+Ysolde studies the green sauce at the edge of her plate. “Tarragon,” she says.
+
+Caelindra looks at her. “I had hoped it was an accident.”
+
+“It is deliberate.”
+
+“That makes it worse.”
+
+Seraphel’s smile returns.
+
+“A herb with intent
+is still a herb,
+however fiercely applied.”
+
+“You are too forgiving of plants,” Caelindra says.
+
+“I have never been forgiven by one.”
+
+The line sits for a moment before Thessaly laughs, quick and unselfconscious. Even Caelindra’s mouth threatens a smile before she returns to her plate.
+
+Outside the tall windows, lightning runs through the storm below the Academy. Ysolde watches the next pale flare.
+
+“The wind has gone west,” she says.
+
+Ashara follows her gaze. “Can you see that from here?”
+
+“From the cloud above the lightning.”
+
+“What changes?” Rashid asks.
+
+“The bridge lamps will lean by morning.”
+
+Caelindra turns toward the window. “Lamps do not lean.”
+
+“Their light does.”
+
+Ysolde returns to her meal. Nobody immediately finds a reason to dispute her, and the conversation drifts instead to the term’s first seminar, a professor’s punishing reading list, and the Academy kitchens’ longstanding affection for pepper. Around the table, the names begin to attach themselves to voices: Rashid and Ashara’s unfinished argument, Aldric’s deliberate replies, Caelindra’s dry objections, Thessaly’s sudden observations, Seraphel’s verse, Ysolde’s few precise words.
+
+The plates continue to empty beneath the candlelight while the storm flashes below the windows.
+</story>
+</turn>
+
+<turn index="2">
+<player_submission>
+I look toward the windows, trying to picture light leaning across a bridge.
+
+“Ysolde—when you say their light leans, do you mean the flame, or the light itself?” I ask when there's a gap in the conversation. “I've mostly known oil lamps. I'm afraid I don't yet know which things here are ordinary.”
+
+I take a little more of the green sauce; I like the sharpness against the meat.
+</player_submission>
+<story>
+Ysolde turns from the window to you. Her attention settles with the same stillness she brought to the gravy boat.
+
+“The light itself,” she says. “The globe has no flame. Its glass and metal are fixed to the bridge rail, but the radiance inside is held in a shape.”
+
+She sets two fingers together above the table, then draws them slowly sideways.
+
+“On a calm night, each one makes a round pool beneath it. When the western current runs under the plateau, the storm pulls the outer edge of that pool east. The post remains upright. The bridge remains where it is. Only the bright part stretches.”
+
+The tarragon is sharp and grassy against the meat, its heat lingering after the first bite. Ysolde glances back to the dark beyond the windows.
+
+“From the gardens, it looks as if the whole row has tipped. From above, the lamps look like pale feathers pressed in one direction.”
+
+“From the ground,” Caelindra says, turning her wineglass by the stem, “it looks as if someone paid dearly for a street of lamps and then neglected to screw them in.”
+
+“They are screwed in,” Ysolde says.
+
+Caelindra’s mouth twitches. “Then the design is only visually irresponsible.”
+
+“It is useful from the air.”
+
+That gives Ysolde more to say. “The lamps make the safe approach visible in bad weather. The bridge itself is difficult to mistake for anything else, but the line of light tells you which end is the Academy. In fog, it is more important.”
+
+Rashid looks toward the storm. “I asked a groundskeeper whether the south bridge was failing the first time I saw it.”
+
+“You asked if it was supposed to do that,” Ashara says.
+
+“Which was more diplomatic.”
+
+“You were pointing at it as though it had insulted your family.”
+
+“It was raining sideways.”
+
+“That is weather,” Ysolde says.
+
+“Yes,” Rashid says. “I know that now.”
+
+Seraphel’s smile moves faintly at the edge of her cup.
+
+“No wick, no smoke,
+only light persuaded
+to keep a road.”
+
+“That is close,” Ysolde says.
+
+Thessaly tears a piece of bread from the loaf. “Does it ever stop keeping the road?”
+
+“Not in weather like this.”
+
+“Then I prefer it to a flame.”
+
+“Most people do,” Aldric says.
+
+Caelindra takes another spoonful of the tarragon sauce and looks faintly displeased to find that she still dislikes it. “The lamps may be dependable. The kitchen is less so.”
+
+“You have had three helpings,” Ashara says.
+
+“I am verifying my judgment.”
+
+No one asks for further proof. The server returns for the emptied serving dish, and Rashid slides his folded petition beneath his plate rather than opening it again. Dinner resumes around smaller matters: whether the first seminar’s reading list was intended as instruction or punishment, whether pepper belongs in every Academy sauce, whether the north garden’s roses have always grown in winter.
+
+Another wash of lightning opens the cloud below the plateau. Between one blink and the next, the western bridge shows itself beyond the garden wall: a pale line held perfectly straight over the storm, its lamps casting long bright strokes sideways into the dark.
+
+Ysolde watches until the cloud takes it again. Then she returns to her plate.
+</story>
+</turn>
+
+</published_conversation>
+
+<player_submission>
+I watch the bridge until the cloud hides it again.
+
+“I've never seen anything like that,” I say quietly to Ysolde. “Thank you.”
+
+I finish my meal at an unhurried pace, listening to the talk around me. For now, a warm room and company are enough; I don't feel any need to find another question to fill my mouth while I'm still eating.
+</player_submission>
+
+<proposed_continuation label="BOOK-1">
+Ysolde inclines her head once.
+
+“You are welcome,” she says. “They work better from above.”
+
+Caelindra looks from the window to her. “That is a generous assessment of a row of lamps attempting to escape sideways.”
+
+“They do not attempt anything.”
+
+“Of course not. They have been trained to accept the design.”
+
+For a moment Ysolde considers this as if Caelindra may have offered a practical objection. Then she says, “The groundskeeper designed them.”
+
+“Then I withdraw my criticism of the lamps.” Caelindra sets down her glass. “It would be cruel to give them responsibility for a groundskeeper.”
+
+Ashara’s mouth shifts around the edge of a smile. Rashid lets out a breath that is almost a laugh and reaches for the bread before the exchange can acquire another layer. Across from you, Seraphel lowers her eyes to her plate, her small wings stirring once behind her shoulders.
+
+“Even a fixed bright thing
+may look unsteady
+in a moving world.”
+
+“That is either about lamps or dinner,” Thessaly says.
+
+“Both are permitted,” Seraphel replies.
+
+The server replaces the meat platter with a shallow dish of baked pears, their skins split and shining in dark syrup. There is cream in a small silver jug, and a scatter of toasted nuts that makes a dry, warm smell beneath the herbs and pepper still hanging over the table. You finish the last of the green sauce with a piece of bread. It remains sharp enough to wake the tongue after the richness of the meal.
+
+Rashid waits until the serving dishes have passed before he draws the folded petition from beneath his napkin. He does not open it at once. His thumb rests on the crease, where the paper has been folded and unfolded enough times to soften.
+
+“I did change the opening,” he says to Ashara.
+
+“You said that.”
+
+“I am establishing that I listened.”
+
+“One alteration establishes no such thing.”
+
+He looks at the paper. “The request now asks for the instructor’s conclusion, an explanation of the restriction, and supervised hours once the court is safe. It does not accuse anyone of hiding anything.”
+
+“Better,” Aldric says.
+
+“That is not an answer to whether you’ll support it.”
+
+“It is an answer to whether the wording is better.” Aldric reaches for a pear half, careful with the spoon. “I will read it before I decide. You have made it sound as if the Academy has already refused a reasonable request. It has not received one yet.”
+
+Rashid’s fingers tighten briefly on the page. “It closed the court before it told the people who use it what happened.”
+
+“After an injury,” Aldric says.
+
+“Yes.”
+
+The word lands without heat, though the fur along the back of Rashid’s hand lies too flat against the paper. Ashara holds out her hand.
+
+“Give it here.”
+
+He passes the sheet to her. She reads with her dessert spoon still between two fingers, gold eyes moving down the lines. The candles throw a low red sheen across her skin. No one fills the quiet for her.
+
+At last, she taps the page near the middle. “This sentence says students without private training have been ‘excluded from the ordinary practice of their peers.’”
+
+“They have.”
+
+“Some have. Some students are in the Military track and have other courts. Some have tutors. Some do not train.”
+
+“The group trains there.”
+
+“Then say that. Do not make a claim broad enough for someone to dismiss because you wanted it to wound.”
+
+Rashid’s jaw moves once. “You think I want it to wound?”
+
+“I think you are angry.”
+
+“I am angry.”
+
+“Then write accurately while you are.”
+
+He watches her for a beat, then nods. “All right.”
+
+Thessaly has poured cream over her pear in a thin white line. “Does the request say that the people signing it may include their own account?”
+
+“There is a space for comments.”
+
+“A space is not the same as an invitation.”
+
+Rashid turns toward her. “What would you put?”
+
+“That anyone who wants the court reopened may say why they use it. Or why they do not wish to say why. Both are information.”
+
+“The Academy will take an unsigned request less seriously.”
+
+“Probably.” Thessaly lifts one shoulder. “That does not make a name available for your use.”
+
+“I know.” His answer comes quickly, then he looks down at the page again. “I know. I can add that comments may be anonymous.”
+
+“And that signing is voluntary,” Ashara says, still reading.
+
+“It already is.”
+
+“Write it.”
+
+Caelindra cuts into a pear with great care. “You are all making a petition sound like a medical procedure.”
+
+“It is a request to an institution,” Aldric says. “Those are usually worse.”
+
+“Then I am grateful that my future consists of a court and not a council chamber.”
+
+Ysolde looks at her. “Your future does not consist of either thing alone.”
+
+Caelindra pauses with her spoon halfway to her mouth. “How reassuring.”
+
+“It was not meant to be.”
+
+This time the laugh reaches Caelindra before she can prevent it. It is brief and surprised; she looks down at the pear as if it has caused the trouble. Seraphel’s smile brightens.
+
+“A mercy, perhaps,
+that truth has no duty
+to arrive prettily.”
+
+“It could make a little effort,” Caelindra says.
+
+“No,” Ysolde says. “Then it might be less true.”
+
+The conversation moves on before the thought can harden into an argument. Aldric describes the first-year reading list with the solemn injury of someone who has counted its pages. Ashara says that a book which takes two hands to lift ought to be issued with a weapon permit. Rashid objects that he has seen her carry a weighted practice shield up three flights of stairs without changing pace.
+
+“The shield did not contain footnotes,” Ashara says.
+
+“A distinction your professors will be relieved to hear.”
+
+“My professors are relieved by very little.”
+
+“Then perhaps that is why they assign so many pages,” Thessaly says. “They are trying to feel something.”
+
+The remark makes Aldric choke softly on his water. He recovers before anyone can decide whether to help him. The servers clear the pear dishes one by one, leaving cups of dark tea and the small crumbs of the meal’s arguments on the white cloth.
+
+Outside, the cloud loosens for a few breaths. The western bridge appears again beyond the gardens, level and pale above the storm. Its lamps trail their long bright strokes eastward, as Ysolde promised. Seen through the tall window, they look less like a row of objects than a single white current drawn across the dark.
+
+Rashid gathers the petition, now marked in Ashara’s compact hand. “I’ll revise this tonight. I’ll leave copies in the common room after breakfast for anyone from the group who wants one.”
+
+“Bring the final version to me first,” Ashara says.
+
+“At seven?”
+
+“Seven.”
+
+Aldric folds his napkin beside his plate. “I will read it then as well.”
+
+“You may both have the honor of making it less dramatic,” Caelindra says. “A rare civic achievement.”
+
+“It will still be dramatic,” Rashid says, slipping the page into the inner pocket of his coat. “Just defensibly so.”
+
+Thessaly takes up her tea. “That is a better bargain than the first one.”
+
+Around the table, chairs begin to ease back from the varnished wood. The dining hall remains warm despite the storm pressing light against the windows, and for another moment the eight of you are simply there: cups cooling, candles shortening, the bridge holding its bright line beyond the garden wall.
+</proposed_continuation>
+
+<proposed_continuation label="BOOK-2">
+Ysolde inclines her head. “You are welcome. The first view does that to most people.”
+
+“It makes a poor advertisement for engineering,” Caelindra says.
+
+“The bridge is not advertising.”
+
+“Then it has at least avoided making promises it cannot keep.”
+
+Rashid leans back in his chair. “It is different when you are on it.”
+
+“You were not on it for long,” Ashara says. “You stopped halfway across and held the rail with both hands.”
+
+“I was checking its stability.”
+
+“With both hands.”
+
+“That is why rails exist.”
+
+Seraphel lifts her cup.
+
+“A rail may serve
+the cautious hand
+and the confident one.”
+
+“A generous ruling,” Rashid says.
+
+“It is accurate,” Ysolde says.
+
+The exchange leaves the table in a quieter humor. You finish the last of the meat and the roasted roots at the same unhurried pace, taking the green sauce with them until only its tarragon bite remains on your tongue. Around you, talk travels without needing your help: a complaint about the first seminar’s reading list; Rashid’s claim that Professor Windwhisper has assigned a century of treaties simply to see who complains first; Caelindra’s certainty that she would prefer the treaties to his complaints.
+
+The servers clear the plates and bring shallow dishes of pears baked soft in spiced wine, each with a spoonful of pale cream and a thin almond biscuit balanced across the rim. Candlelight catches in the dark syrup. Beyond the windows, the storm gives another silent flash, and the west bridge appears for an instant with every lamp’s brightness pulled eastward.
+
+Rashid waits until the server has passed before drawing the folded petition out from beneath his napkin. He has already crossed out two lines and written smaller replacements in the margin.
+
+“I removed ‘immediate redress,’” he says to Ashara.
+
+“I can see that.” She holds out her hand. He gives her the page.
+
+Her eyes move over it while she eats a slice of pear. “You have asked for restoration of access after an appropriate review.”
+
+“Yes.”
+
+“Ask what their review is reviewing.”
+
+Rashid takes up his pencil again. “The accident.”
+
+“The report on the accident, the court, the equipment, the wards—whatever they find. If they are going to keep the court closed, they can tell you what has to change before it opens.”
+
+“That is nearly a whole letter.”
+
+“Then write a whole letter.”
+
+Aldric sets down his spoon. “And say plainly that the group is not asking to use it before the Academy considers it safe. Otherwise they will read urgency as carelessness.”
+
+Rashid’s pencil pauses above the page. “I do not intend carelessness.”
+
+“I know,” Aldric says. “They may not.”
+
+Thessaly turns her dessert spoon between her fingers. “A question with an answer someone can actually give is harder to ignore. You may still be ignored. It is only harder.”
+
+“A bright prospect,” Caelindra says.
+
+“I did not offer a promise.”
+
+Rashid looks from the paper to Ashara, then adds a new line beneath the others. The scratching of the pencil is audible for a few moments between the clink of spoons and the windless quiet beyond the glass.
+
+“There,” he says at last. “I will leave it in the library tomorrow after the first seminar. Anyone who wants to read it can.”
+
+“I will,” Aldric says.
+
+“That includes you,” Rashid says.
+
+“It does.”
+
+Ashara gives the page back. “Bring me the clean copy before you put it out.”
+
+“You already read it.”
+
+“I read this copy.”
+
+For a moment Rashid looks as though he may object. Then he folds the sheet along its old creases and slips it into his coat. “Fine.”
+
+Caelindra finishes her pear. “A narrow escape. I had feared supper would end before anyone produced a document requiring three readers.”
+
+“There is still time,” Rashid says.
+
+“Not if I can help it.”
+
+Thessaly glances through the open doorway to the common room, where the fire has settled into a red bed beneath the portraits and a square card table waits beside the hearth. “There is a box of Rooks and Rivers on that table,” she says. “The rules are printed on the lid. No one owes anyone anything when they win.”
+
+“An unusually comforting feature,” Seraphel says.
+
+“A game with enforceable boundaries,” Aldric says. “That seems sensible.”
+
+“It is a game with rules,” Thessaly says. “The boundaries follow.”
+
+Rashid’s mouth curves. “One hand, then I rewrite this properly.”
+
+“You will lose the first hand because you have not played it,” Ysolde says.
+
+“That is a very practical prediction.”
+
+“It is not a prediction. It is the usual result.”
+
+Seraphel’s wings lift a fraction behind her shoulders.
+
+“Then let the first loss be small,
+and let the next hand
+know more.”
+
+Thessaly looks across the remnants of dinner toward you, her black eyes steady. “Do you know Rooks and Rivers, Rowan?”
+</proposed_continuation>
+
+<proposed_continuation label="BOOK-3">
+Ysolde inclines her head once. Her gaze goes back to the window before she answers.
+
+“You are welcome. In fog it is prettier.”
+
+Caelindra looks from Ysolde to the white break of storm beyond the glass. “That seems a poor recommendation for a bridge.”
+
+“It is not a recommendation,” Ysolde says. “Fog is weather.”
+
+“Does fog move the light farther?” Thessaly asks.
+
+“No. It hides everything except the lamps.” Ysolde draws a short line across the tablecloth with one fingertip, stopping before the salt cellar. “Then the line is clearer. From the air, it is almost the only useful thing to see.”
+
+“From the ground,” Rashid says, “it makes you certain the bridge is about to shed its railings.”
+
+Ashara takes a drink of water. “You thought that for three days.”
+
+“I thought it until someone explained the lamps.”
+
+“You asked a gardener whether the north bridge was damaged.”
+
+“The gardener had a shovel. It seemed likely he would know about damage.”
+
+“He was digging around a rosebush.”
+
+“A rosebush can be near a bridge.”
+
+Thessaly’s laugh arrives before she can take another piece of bread. “This is an excellent system. It lets the Academy educate people by making them look foolish in mist.”
+
+Seraphel lifts her cup, the warm gold of her skin gentling in the candlelight.
+
+“The weather takes its fee
+from every proud traveler
+and leaves them damp.”
+
+“It left me wet,” Rashid says. “Pride was not involved.”
+
+“That is not what Ashara has reported,” Caelindra says.
+
+Ashara’s tail gives one measured sweep behind her chair. “I have reported only observable facts.”
+
+“Then we are in safe hands,” Aldric says, though the corners of his mouth shift when he reaches for the water pitcher.
+
+The conversation opens again after that, no longer gathered around the storm. A server removes the meat platter and returns with shallow bowls of baked pear, each half glossy with honey and scattered with crushed nuts. The steam carries cinnamon across the table. Caelindra regards her portion with more generosity than she gave the tarragon sauce.
+
+“At last,” she says. “A food with a coherent purpose.”
+
+“Its purpose is dessert,” Ysolde says.
+
+“Yes. Coherently.”
+
+Rashid has set the folded request beside his plate, but he does not open it. “If we are accounting for purposes, tomorrow’s Covenant Law reading appears intended to punish us for choosing the Conclave.”
+
+“It is ninety-two pages,” Aldric says.
+
+“I know. I counted them while deciding whether the cover had been padded.”
+
+Caelindra cuts into the pear with the edge of her spoon. “The first fifty pages are tolerable. After that, the court begins to explain itself, which is a mistake it repeats at length.”
+
+Rashid turns toward her. “You’ve read it already?”
+
+“Of course I have. I dislike spending annoyance on a thing I have not examined.”
+
+“And the decision?” Ashara asks.
+
+“Correct on jurisdiction. Tedious in every other respect.”
+
+“That is a fair description of most good law,” Aldric says.
+
+“It is a fair description of most law,” Thessaly replies. “Goodness has very little to do with its length.”
+
+Seraphel’s wings settle close behind her shoulders.
+
+“A law may close a door,
+then call the hinge
+a lesson in patience.”
+
+For a moment Aldric studies the honey melting over his dessert. “That is why there are appeals,” he says.
+
+“And lawyers,” Thessaly says.
+
+“And people who want neither,” Rashid adds.
+
+Ashara looks at the folded paper. “Your request should not become a judgment against the instructor before anyone has read the report.”
+
+“It will not.” Rashid taps the page once. “I will have a clean copy on the sideboard before breakfast. It asks for the report’s conclusion and a supervised hour once the court is safe. Nothing else.”
+
+“No names?” Thessaly asks.
+
+“No names.”
+
+“Then I will read it.”
+
+“I will also,” Aldric says.
+
+Ashara nods. “So will I.”
+
+Caelindra raises her spoon. “If it has no footnotes, I reserve the right to find it aesthetically undernourished.”
+
+“It has no footnotes.”
+
+“Then perhaps it will improve overnight.”
+
+Rashid gives her a look that lasts just long enough to be an answer, then folds the request again and slides it inside his jacket. No one pushes a page toward you or asks for a pledge while the plates are still warm.
+
+Outside, another run of lightning shows the western bridge for an instant: its hard white span straight over the cloudbank, every lamp spilling a long bright stroke sideways into dark. When the cloud closes, the image remains with the scent of cinnamon and lamp oil, the low scrape of forks, and the uneven rhythm of eight people learning how to share a table.
+
+The servers clear the dessert bowls one by one. Beyond the dining-room doorway, the common room fire throws a restless orange reflection up the stairwell, while the library remains lit behind its open doors. At the table, conversation has turned to whether the Academy’s morning bells are deliberately early or merely indifferent to sleep.
+</proposed_continuation>
+
+<proposed_continuation label="BOOK-4">
+Ysolde inclines her head. “You are welcome.”
+
+For a little while, that is all there is to say about the bridge. The next lightning flare finds only rain where its pale line had been. You finish the meat and the last of the roasted roots at the pace you have chosen, using the warm bread to gather the sharp green sauce from the plate. Beside you, Thessaly has dismantled her own portion of the loaf with a neatness that leaves no crumbs on the cloth.
+
+The room does not make a ceremony of your silence. Candles burn low in their sconces; a server refills the water glasses and carries away an empty dish. Ashara reaches across Rashid for the salt without looking at him. He moves his elbow before her sleeve can brush his plate, still reading the folded sheet under his napkin as if the words might have altered during supper.
+
+At last he folds it once more and puts it beside his glass.
+
+“I’ll make a clean copy in the morning,” he says. “It can ask for the instructor’s conclusion, the conditions for reopening, and supervised time if the court can be made safe. No names. No claims about what caused the injury.”
+
+“Remove *immediate*,” Ashara says.
+
+“It has been removed.”
+
+“From every sentence?”
+
+Rashid’s mouth shifts around the answer he had been about to give. “From every sentence.”
+
+“Then I’ll read it.”
+
+“That was the arrangement.”
+
+“You say that as though you did not spend ten minutes attempting to improve it.”
+
+“I spent ten minutes attempting to make it useful.”
+
+“Those can be different things.”
+
+“They often are,” Aldric says. He has not looked up from cutting the crust from a second piece of bread. “I will ask the student office whether the report has a release date. If it does, you can put that in the request instead of guessing.”
+
+Rashid looks at him then. “That would help.”
+
+“It is a question with an answer somewhere.”
+
+“A rare luxury,” Caelindra says.
+
+Seraphel rests her cup between both hands.
+
+“A door that is shut  
+should have a reason,  
+and a hand that opens it.”
+
+Ashara gives the folded paper one light tap with a fingernail. “There. That is the whole petition, if you need a motto.”
+
+“I do not,” Rashid says.
+
+“You absolutely do,” Thessaly says. “A motto makes people forgive an extra page.”
+
+“Does it?”
+
+“No. But they enjoy themselves while refusing.”
+
+The answer draws a brief sound from Ysolde, almost too quiet to distinguish from her setting down her fork. Caelindra looks toward her, then toward Thessaly.
+
+“I would like to know where you learned that,” Caelindra says.
+
+“From people with extra pages.”
+
+“A comprehensive education,” Rashid says.
+
+The petition stays where it is. Conversation loosens around it rather than returning to the same knot. Aldric mentions that Professor Windwhisper has assigned the opening commentary on the First Accord before the first seminar. Caelindra closes her eyes for a moment at the title.
+
+“The one with eighty-seven footnotes before the first useful disagreement?” she says.
+
+“Eighty-nine in the revised edition,” Aldric says.
+
+“Then scholarship advances.”
+
+“The footnotes are useful,” he says. “They establish which translations were accepted by the signatories.”
+
+“They establish that seven delegations could not agree where to put a comma.”
+
+“That is also useful.”
+
+Ashara breaks a piece from the bread basket. “It tells you where the fight will start.”
+
+“Not all disagreements are fights,” Aldric says.
+
+“No. Some of them have footnotes.”
+
+Rashid’s laugh arrives before he seems to intend it. He leans back in his chair, and for a moment the care in his posture eases enough that the dark fur at his wrist catches the candlelight. “If the reading list is going to be our first battlefield, I want a map.”
+
+Ysolde says, “The commentary has an index.”
+
+“That is not a map.”
+
+“It tells you where things are.”
+
+“A fair point,” he says, with the grave courtesy of someone conceding a technical defeat.
+
+Caelindra studies him over the rim of her glass. “You concede too quickly when the point is genuinely good. It makes the rest of us look unreasonable.”
+
+“I’ll try to be worse company tomorrow.”
+
+“Do,” she says. “It may make the commentary shorter.”
+
+When dessert comes, it is a dark pear tart cut into narrow pieces, with cream carrying the faint smoky taste of something caramelized. The servers set it down without announcement. Ashara takes hers immediately; Ysolde waits until the cream has stopped steaming. Seraphel regards the tart with open approval.
+
+“At last, a course  
+with no treaty clause  
+hidden in it.”
+
+“You cannot know that,” Thessaly says.
+
+Seraphel’s smile turns toward her.
+
+“Then let it remain  
+an edible mystery  
+until breakfast.”
+
+“That is acceptable,” Thessaly says, and takes a second spoonful of cream.
+
+The tart gives the table something uncomplicated to agree upon. Even Caelindra eats her slice without attempting to improve it. The storm keeps moving beyond the high windows, white now and then behind the garden wall, while the long table gathers scraps of ordinary information: which stair sticks in damp weather, which librarian will let a book be renewed twice, which seminar rooms are cold enough to make ink thicken in its bottle. Rashid knows the names of two students in the Commerce track who are said to make tolerable tea. Ashara says their tea is dreadful but their card table is level. Aldric insists that neither fact is relevant to the Covenant Law reading.
+
+“It is relevant to surviving it,” Rashid says.
+
+No one disputes that.
+
+By the time the last plates are cleared, the dining hall has acquired the softened disorder of a meal that has run longer than its formal welcome required. Thessaly draws a small leather case from her pocket and opens it beside her empty dessert plate. Inside lie smooth counters of black stone and pale shell, each no bigger than a thumbnail.
+
+“I am taking these to the common room,” she says. “The table there does not wobble.”
+
+“It wobbles,” Ashara says.
+
+“Less than the one in the library.”
+
+“That is not the same claim.”
+
+“It is the claim I made.” Thessaly closes the case again. “Anyone may come and lose honestly.”
+
+Rashid glances at the folded petition, then at the clock over the sideboard. “After I copy this.”
+
+“You will make the title larger than the request,” Ashara says.
+
+“I will not.”
+
+“You will.”
+
+Thessaly rises with the case in one hand. “Then I will reserve the better counters for someone else.”
+
+The candlelight has made the room warmer than the corridors beyond it. Around the table, people begin to gather papers, cups, and the small possessions with which they arrived, while the rain traces itself down the tall dark panes.
+</proposed_continuation>
+
+</context>
+
+<context id="reading">
+
+<player_persona>
+{
+  "name": "Rowan Garvey",
+  "description": "A twenty-three-year-old human man with brown skin, unruly dark hair, and ink-stained fingers, wearing a carefully mended charcoal coat and the inherited Garvey signet. Newly arrived and unsure of Conclave customs. He grew up unaware of his heritage, lost his parents young, and does not know whether he has any magic.",
+  "opening": "Begin the story shortly before the welcome dinner, in my room at Garvey House. I play Rowan Garvey."
+}
+</player_persona>
+
+<published_conversation>
+
+<turn index="0">
+<player_submission>
+My character: Rowan Garvey. A twenty-three-year-old human man with brown skin, unruly dark hair, and ink-stained fingers, wearing a carefully mended charcoal coat and the inherited Garvey signet. Newly arrived and unsure of Conclave customs. He grew up unaware of his heritage, lost his parents young, and does not know whether he has any magic.
+
+Begin the story shortly before the welcome dinner, in my room at Garvey House. I play Rowan Garvey.
+</player_submission>
+<story>
+Evening has blued the garden paths below your window. Beyond their pale walls, a bridge of hard light reaches over the storm and vanishes into cloud. The careful repair at the cuff of your charcoal coat catches the lamp in a dull silver line. Your inherited signet has caught a stripe of light against the ink on your fingers. Beside the desk, a framed letter hangs in its gilt frame, close handwriting addressed to a Garvey great-nephew with another name.
+
+The dinner bell sounds once below. A chair shifts across the dining hall floor.
+
+“Will you sign the request, Ashara?”
+
+“I agree the restriction is too broad. I won't sign a draft that uses my booking tomorrow.”
+
+“It shows the court can be supervised.”
+
+“It shows I have a ranked bout.”
+
+“I have statements from six students.”
+
+“You do not have the instructor's report.”
+
+“They won't release it.”
+
+“Then ask them again.”
+
+Two taps sound at your door.
+
+“Rowan Garvey?” says a young woman's voice. “I'm Thessaly Morrow. The dining hall is downstairs, left at the stair. Would you like me to show you?”
+</story>
+</turn>
+
+<turn index="1">
+<player_submission>
+"Yes, please. I've been upstairs long enough." I open the door and introduce myself to Thessaly. I walk down with her and greet the people at dinner. "I'm Rowan. I'm glad to meet you all." I look for my place and sit when the others do.
+</player_submission>
+<story>
+Thessaly steps back from the doorway while you open it, her blue-black hair moving slowly around her shoulders. Her black eyes touch on the Garvey signet, then lift again.
+
+“Good. The dining hall is left at the bottom of the stairs. The library is to the right. The doors look nearly identical from the landing.”
+
+She walks downstairs beside you. The common room opens below the portrait-lined wall, firelight catching on leather chair arms and the rims of abandoned tea cups. Warm bread and lamp oil meet you at the dining hall door.
+
+The long table is set for seventeen. Seven places are occupied by glasses, folded napkins, and people paused around a covered tureen. Rashid has pressed the sheet from before into a neat square beneath his water glass. Across from him, Ashara's tail follows the line of her chair leg, its spade held just above the floor.
+
+When you greet them, “I'm Rowan. I'm glad to meet you all,” Rashid rises.
+
+“Rashid vel Amara. Welcome. You made it before the soup.”
+
+“Ashara vel Kothren.”
+
+The white-haired woman by the window inclines her head. “Ysolde Thornmantle.”
+
+“Caelindra Vaeyn,” says the silver-haired elf.
+
+An angel in white and gold steps away from his chair. “Aldric Verantus. It is a pleasure to meet you.”
+
+The other angel's small wings shift against her sleeves.
+
+“Seraphel Dawnquill.
+
+Dinner has waited.
+
+Please sit.”
+
+Thessaly moves to the place beside a narrow ivory card lettered ROWAN GARVEY. Her own card waits to its left; Seraphel's is on the other side. When the servers lift the tureen lids, chairs draw back around the table, and you take your seat with the others.
+
+Steam rises from bowls of pale broth scattered with herbs. Caelindra lays her spoon across the rim of hers.
+
+“Before the Garvey verification, what did you study?”
+</story>
+</turn>
+
+<turn index="2">
+<player_submission>
+"I worked at a printer's. I set type and did some binding, and the owner let me read things after hours. That was most of my schooling." I try the soup. "I write little scenes sometimes, though I haven't had anything printed. What are you studying here?"
+</player_submission>
+<story>
+The broth is pale and clear, sharpened with herbs and a trace of citrus. Caelindra glances at the ink on your fingers.
+
+“Hand-set type leaves a particular stain,” she says.
+
+Aldric answers your question first. “Covenant law, chiefly. I read theology beside it.”
+
+“Military history and negotiation,” Ashara says. “Combat theory takes the mornings.”
+
+Rashid sets his bread down. “Procedure. Voting qualifications, admissions, committee rules. I brought that request because I want the rules read closely.”
+
+“Maps,” Ysolde says. “Mountain passes and air routes.”
+
+“Time-bindings and court archives,” Caelindra says.
+
+“Contracts,” says Thessaly. “The syllabus begins with obligations.”
+
+Seraphel folds her hands beside her spoon.
+
+“Covenant history,
+
+music,
+
+formal debate.”
+
+Caelindra tastes the soup at last. Her violet eyes return to you.
+
+“What do your scenes concern?”
+</story>
+</turn>
+
+<turn index="3">
+<player_submission>
+"The one I'm working on has two sisters and one decent coat. One needs it for a job interview; the other wants to pawn it before the rent collector comes. I've only written the argument so far. I don't know how it ends yet." I take a piece of bread, then turn a little toward Seraphel. "You said music. Do you sing, or play something?"
+</player_submission>
+<story>
+The bread cracks softly under your fingers. Caelindra leaves her spoon at the edge of her bowl.
+
+“Two sisters and one coat,” she says. “That is clear.”
+
+Rashid refolds the loose corner of the request beneath his glass. Ashara reaches for her water. Thessaly studies the surface of her broth without speaking.
+
+When you turn toward Seraphel, she sets her spoon down beside the bowl. Her small white wings brush the back of her chair.
+
+“I sing.
+
+I play a small harp.
+
+It is in my room.
+
+After dinner, I could bring it down.
+
+Would you like to hear it?”
+</story>
+</turn>
+
+<turn index="4">
+<player_submission>
+"Yes, I'd like that. I'll be in the common room after we eat." I smile at Seraphel, then return to my dinner. I listen to the conversation around the table without trying to keep it on myself, and when I've finished eating I take my glass through to the common room.
+</player_submission>
+<story>
+At your smile and answer, Seraphel inclines her head.
+
+“After dinner,
+
+I will fetch it.”
+
+The servers clear the soup bowls and set out the next course. Rashid slides the folded request out from beneath his glass.
+
+“I'll ask for the instructor's report tomorrow. In writing. I won't circulate the request before I see it.”
+
+“And it doesn't mention my bout,” Ashara says.
+
+“It won't.”
+
+“Ask for the accident record in the same letter,” Aldric says. “It may be separate.”
+
+“All right.”
+
+The talk moves through morning timetables and the Arcana lecturer's three-hundred-page assignment for the first seminar. Ysolde describes a mountain map that gives one pass three names.
+
+“The oldest is wrong,” Caelindra says.
+
+“It was used when the map was made,” Ysolde replies.
+
+By the time the plates have been cleared, the candles have shortened in their sconces. When you have finished eating, you carry your glass through to the common room. The fire is low behind its iron screen, and the painted Garveys above it look down over the empty chairs.
+
+A few minutes later, Seraphel comes down the stairs with a small dark-wood harp wrapped in blue cloth. She settles on the hearthrug, unwraps it, and tests two strings with her thumb.
+
+“This is short.
+
+It comes from the river roads
+
+south of my mother's house.”
+
+The melody moves quickly, bright at first, then circles through a low, lingering phrase. Seraphel's voice enters after the second turn: clear above the fire, softer when the tune narrows, then rising once before the final chord. When the sound has faded, she rests her palm across the strings.
+
+“The next has a courier
+
+and a goat.
+
+It isn't dignified.
+
+Would you like it?”
+</story>
+</turn>
+
+<turn index="5">
+<player_submission>
+"Yes, please." I put my glass safely beside the chair and settle in to listen. I let her sing the whole song without interrupting, tapping one finger against my knee when I catch the rhythm.
+</player_submission>
+<story>
+You put your glass safely beside the chair and settle in to listen. Seraphel takes the next tune faster than the first, her fingers setting a bright, skipping rhythm beneath the melody. When you catch it, one finger begins to tap against your knee.
+
+“At Bellford Gate a courier came
+
+with letters sealed in blue;
+
+a piebald goat came down the hill
+
+and followed after too.
+
+At Fordside Inn it stole his bread,
+
+at market, chewed his twine;
+
+the courier saved the letters, and
+
+the goat drank half his wine.
+
+The mayor struck his brass bell twice
+
+and named the goat his clerk;
+
+the courier took his double fare
+
+and went back to his work.”
+
+Seraphel lets the final chord hang in the room until it disappears beneath her palm. The fire gives a low pop behind its screen. She looks down at the harp without speaking.
+</story>
+</turn>
+
+<turn index="6">
+<player_submission>
+"Thank you. I liked that." I sit quietly for a little while, looking at the fire. Then I ask Seraphel, "Are you staying down here? I could fetch the page of my scene, if you'd like to hear it. It's only a dozen lines."
+</player_submission>
+<story>
+“You found the rhythm,” Seraphel says.
+
+The harp lies quiet across her knees, one hand resting over the strings. For a little while, the fire moves behind its iron screen and pale lightning shifts in the cloud beyond the high windows. The common room remains empty.
+
+When you ask about the page, Seraphel lifts her eyes from the harp.
+
+“I won't go yet.
+
+Bring your page.
+
+Read it here.”
+</story>
+</turn>
+
+</published_conversation>
+
+<player_submission>
+I fetch the page from my room and return to my chair. "Nell's the one with the interview." I smooth the paper on my knee and read the twelve lines, trying a quicker voice for Nell and a lower one for Ada:
+
+Nell: Hold still. You've caught the lining.
+Ada: Let go of the sleeve.
+Nell: My interview's at ten.
+Ada: And Voss comes at noon.
+Nell: If I get this job, we can pay him next Friday.
+Ada: He came last Friday. You were out.
+Nell: I was looking for work.
+Ada: I know. I was the one who answered.
+Nell: Give me until eleven.
+Ada: The pawnbroker won't take it if you spill anything on it.
+Nell: Then come with me. You can guard the coat.
+Ada: In what?
+
+I lower the page. "That's all I've got down."
+</player_submission>
+
+<proposed_continuation label="READING-1">
+The paper settles against your knee. A coal shifts in the fireplace with a soft collapse, and for a moment the last question of the scene seems to remain in the room with the smoke and the low lamp-oil smell.
+
+Seraphel has listened without touching the harp. Her hand rests over the strings, still enough that the blue cloth pooled beside her has not stirred.
+
+“The last answer
+
+is good.
+
+It makes the coat
+
+belong to both of them.”
+
+She looks at the page rather than at you.
+
+“At first I thought
+
+Ada wanted money
+
+more than Nell's interview.
+
+But she was the one
+
+who answered Voss.
+
+She has been waiting
+
+with that fear already.”
+
+Outside the high windows, pale lightning opens and closes beyond the garden walls. Seraphel's thumb brushes one of the lower strings, too softly to make a note.
+
+“Nell isn't foolish.
+
+She has a plan.
+
+Ada isn't only cruel.
+
+She has a reason
+
+to be angry.
+
+I like that neither of them
+
+gets to be easy.”
+
+Her mouth bends briefly at one corner.
+
+“The goat would steal the coat.
+
+That would be a bad ending.”
+
+She draws the harp a little closer across her knees.
+
+“I want to know
+
+whether Ada goes with her.
+
+Not because she ought to.
+
+Because I want to see
+
+what she chooses.”
+
+The fire ticks behind its screen. Seraphel leaves the page in the quiet between you, then lifts her eyes.
+
+“When you have another dozen lines,
+
+bring them down.”
+</proposed_continuation>
+
+<proposed_continuation label="READING-2">
+The paper gives a soft crackle as you lower it. Seraphel does not look away at once. The blue cloth from the harp has slipped loose across the hearthrug, and one bright string still catches the fire through the narrow space beneath her hand.
+
+From the dining hall comes the muted work of the servers: porcelain meeting porcelain, a chair leg eased rather than dragged across the floor. No one comes through.
+
+Then Seraphel says,
+
+“‘In what?’ is a good end.
+
+It leaves Ada
+with only that question.
+
+She knows Nell looked for work.
+She knows Voss is coming.
+She is not saying
+that Nell did nothing.”
+
+Her thumb touches the lowest harp string. The note is small and dark under the crackle of the fire.
+
+“Ada has been answering doors,
+I think.
+
+That is why she is angry.
+Not only because of the coat.”
+
+She glances at the page again, not reaching for it. The corner of her mouth lifts briefly at the last line.
+
+“And Nell says ‘Give me until eleven’
+as if an hour were a thing
+she could put in Ada’s hand.
+
+I like that.
+It is hopeful.
+It is also unfair.”
+
+The fire settles inward. Outside the tall window, pale lightning moves somewhere below the gardens, too distant to make a sound in the house.
+
+Seraphel shifts the harp from her knees and lays it carefully in its blue cloth. Her wings make a faint dry whisper against her sleeves.
+
+“Do not make them agree too soon.
+
+Ada may be right
+and still be frightened.
+
+Nell may be trying her best
+and still ask too much.”
+
+She looks toward the dining-hall door as another dish is lifted away, then back to you.
+
+“Bring the next page
+if you want a listener.
+
+I want to know
+whether Ada goes with her.”
+</proposed_continuation>
+
+<proposed_continuation label="READING-3">
+The page makes a dry whisper as you smooth it across your knee. Seraphel has laid the harp beside the hearth, blue cloth folded over its dark frame. The low fire throws a wavering line across the paper.
+
+You give Nell the quicker voice and Ada the lower one. Seraphel does not look away while you read. At the final question, one of the logs settles behind the iron screen. She leaves the silence where it is, then shifts the blue cloth farther from the harp's strings.
+
+“Your last line
+makes the coat vanish.
+
+For a moment,
+they have no thing
+to quarrel through.
+
+Nell can leave.
+Ada has to wait
+for Voss.”
+
+Her gaze returns to the page.
+
+“I thought Ada was cruel,
+then I thought
+she was afraid
+to meet him alone.
+
+Perhaps I am wrong.
+
+I like that I cannot tell.”
+
+Across the common room, a clock ticks on the mantel beneath a Garvey portrait. Seraphel reaches for the harp, but only rests her fingers over its cloth.
+
+“May I hear it again,
+with Ada first?”
+</proposed_continuation>
+
+<proposed_continuation label="READING-4">
+The last line leaves the common room quiet enough for the fire's small clicks to carry. Seraphel holds the harp across her knees without touching the strings. A pale flicker from the storm moves over the high window and is gone.
+
+Then she looks at the page in your lowered hand.
+
+“Your Ada has counted
+
+the Fridays.
+
+Nell has only ten o'clock.
+
+That is why the coat
+
+feels heavier than cloth.
+
+‘In what?’ is cruel.
+
+I mean that kindly.
+
+Could we hear it once more?
+
+I would put a small tune
+
+under their argument—
+
+one note for Nell,
+
+another for Ada.”
+</proposed_continuation>
+
+</context>

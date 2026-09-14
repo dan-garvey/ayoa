@@ -1,0 +1,15 @@
+{
+  "agent": "/root/terra_c33_book_scene_2",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "matched continuation scene-selection diagnostic",
+  "fresh_sessions": 0,
+  "calls_per_player_submission": 1,
+  "variant": "scene",
+  "repeat": 2,
+  "review_feedback_supplied": false,
+  "system_prompt_file": "system_scene.txt",
+  "author_request_sha256": "03a0a860af5644ff09f4a6e4afbeb63910920b0fcee94a234dc4c6f6e59dc769",
+  "launch_request_sha256": "13ea1c0084d4d3c51b2e6fc6c95e3f66779fb4232ca3d8bb22cd9cec73f6cc14"
+}

@@ -1,0 +1,94 @@
+# Terra coding-agent proxy transcript
+
+Exact player submissions and saved story passages.
+
+## Continuation 0: matched continuation scene-selection diagnostic
+
+**Player**
+
+I fetch the page from my room and return to my chair. "Nell's the one with the interview." I smooth the paper on my knee and read the twelve lines, trying a quicker voice for Nell and a lower one for Ada:
+
+Nell: Hold still. You've caught the lining.
+Ada: Let go of the sleeve.
+Nell: My interview's at ten.
+Ada: And Voss comes at noon.
+Nell: If I get this job, we can pay him next Friday.
+Ada: He came last Friday. You were out.
+Nell: I was looking for work.
+Ada: I know. I was the one who answered.
+Nell: Give me until eleven.
+Ada: The pawnbroker won't take it if you spill anything on it.
+Nell: Then come with me. You can guard the coat.
+Ada: In what?
+
+I lower the page. "That's all I've got down."
+
+**Story**
+
+The paper settles against your knee. A coal shifts in the fireplace with a soft collapse, and for a moment the last question of the scene seems to remain in the room with the smoke and the low lamp-oil smell.
+
+Seraphel has listened without touching the harp. Her hand rests over the strings, still enough that the blue cloth pooled beside her has not stirred.
+
+“The last answer
+
+is good.
+
+It makes the coat
+
+belong to both of them.”
+
+She looks at the page rather than at you.
+
+“At first I thought
+
+Ada wanted money
+
+more than Nell's interview.
+
+But she was the one
+
+who answered Voss.
+
+She has been waiting
+
+with that fear already.”
+
+Outside the high windows, pale lightning opens and closes beyond the garden walls. Seraphel's thumb brushes one of the lower strings, too softly to make a note.
+
+“Nell isn't foolish.
+
+She has a plan.
+
+Ada isn't only cruel.
+
+She has a reason
+
+to be angry.
+
+I like that neither of them
+
+gets to be easy.”
+
+Her mouth bends briefly at one corner.
+
+“The goat would steal the coat.
+
+That would be a bad ending.”
+
+She draws the harp a little closer across her knees.
+
+“I want to know
+
+whether Ada goes with her.
+
+Not because she ought to.
+
+Because I want to see
+
+what she chooses.”
+
+The fire ticks behind its screen. Seraphel leaves the page in the quiet between you, then lifts her eyes.
+
+“When you have another dozen lines,
+
+bring them down.”

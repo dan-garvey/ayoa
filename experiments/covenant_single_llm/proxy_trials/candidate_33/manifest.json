@@ -1,0 +1,86 @@
+{
+  "created_at": "2026-09-14T08:09:16.559796+00:00",
+  "source_commit": "12bf701aa3be6ad50256a261d595491be49a55ff",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "derived_from": "C29 one-pass generation; C32 raw-history packets. C33 changes only the first prose paragraph.",
+  "prompt_sha256": {
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "system_scene.txt": "9861563ff4444aa4fccbfa10398a16e18337d2de4308bd9f4685c34611441ff9",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "wrapper_file": "proxy_wrapper.txt",
+  "wrapper_sha256": "39b9aeddfad81fec3d65d9801a4602cb0e08a5a9891c3822eae4381bcde3774a",
+  "planned_scope": "Two contexts, two prompt conditions, two fresh repeats: eight first continuations, eight author tasks, zero fresh long sessions.",
+  "change": "First prose paragraph allocates scene versus summary by current attention and elapsed activity. All remaining common instructions, full Covenant and raw published context stay exact.",
+  "loop": "Each fresh whole-story Terra/max author reads its common instructions, full Covenant/persona, complete published history and current player input, then returns one first continuation. No editor or selector.",
+  "review_contract": "Root locks its full-output assessment before a fresh anonymous comparison against original context. Retain all eight first outputs. Shortness alone is not success; assess lived interaction, particular interests and player scope.",
+  "cases": [
+    {
+      "case": "book_control_1",
+      "kind": "book",
+      "variant": "control",
+      "repeat": 1,
+      "prompt_file": "system.txt",
+      "packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86"
+    },
+    {
+      "case": "book_control_2",
+      "kind": "book",
+      "variant": "control",
+      "repeat": 2,
+      "prompt_file": "system.txt",
+      "packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86"
+    },
+    {
+      "case": "book_scene_1",
+      "kind": "book",
+      "variant": "scene",
+      "repeat": 1,
+      "prompt_file": "system_scene.txt",
+      "packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86"
+    },
+    {
+      "case": "book_scene_2",
+      "kind": "book",
+      "variant": "scene",
+      "repeat": 2,
+      "prompt_file": "system_scene.txt",
+      "packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86"
+    },
+    {
+      "case": "reading_control_1",
+      "kind": "reading",
+      "variant": "control",
+      "repeat": 1,
+      "prompt_file": "system.txt",
+      "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
+    },
+    {
+      "case": "reading_control_2",
+      "kind": "reading",
+      "variant": "control",
+      "repeat": 2,
+      "prompt_file": "system.txt",
+      "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
+    },
+    {
+      "case": "reading_scene_1",
+      "kind": "reading",
+      "variant": "scene",
+      "repeat": 1,
+      "prompt_file": "system_scene.txt",
+      "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
+    },
+    {
+      "case": "reading_scene_2",
+      "kind": "reading",
+      "variant": "scene",
+      "repeat": 2,
+      "prompt_file": "system_scene.txt",
+      "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
+    }
+  ],
+  "limits": "This is a bounded instruction screen. Scene selection can reduce ensemble coverage while leaving focal dialogue weak or replacing experience with thin summary. No long-session, API-equivalence or model-ceiling claim."
+}

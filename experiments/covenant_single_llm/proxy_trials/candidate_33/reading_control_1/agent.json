@@ -1,0 +1,15 @@
+{
+  "agent": "/root/terra_c33_reading_control_1",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "matched continuation scene-selection diagnostic",
+  "fresh_sessions": 0,
+  "calls_per_player_submission": 1,
+  "variant": "control",
+  "repeat": 1,
+  "review_feedback_supplied": false,
+  "system_prompt_file": "system.txt",
+  "author_request_sha256": "3738e49584170ef00e084f226705b3be549a8214617ffc1455664b99103d1950",
+  "launch_request_sha256": "b8667b9339752e4281f9028e4fbf57da659e8b5c8004fb37749375bce035e071"
+}

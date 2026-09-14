@@ -272,11 +272,28 @@ corrections, retains the pre-audit records, and states the remaining presentatio
 losses. All eight one-pass continuations are saved, with no editorial stage.
 The [locked pilot](proxy_trials/candidate_32/pilot_comparison.md) rates every
 dinner at3; it retains one raw-history reading at4 and rates the other readings
-at3. It finds no dependable remedy in the record representation. A fresh blind
-review is underway against the complete original conversation. Public tool
-records verify all eight authors read their complete instructions and packets
-with Terra/max. This is an isolated context diagnostic, not a runtime
-summarization feature. No candidate is selected.
+at3. The [blind comparison](proxy_trials/reviews/round32_blind_comparison.md)
+also rates all dinners at3. It retains one reading in each representation,
+disagreeing with the root about reading_record_1. It identifies a local mismatch
+when book_raw_2 treats Aldric's request to review the petition as new despite
+his earlier request and Rashid's acceptance. No new material authorship or
+secret-knowledge breach is found. The [decision](proxy_trials/candidate_32/decision.json)
+does not promote the history record. Public tool records verify all eight
+authors read their complete instructions and packets with Terra/max. This is an
+isolated context diagnostic, not a runtime summarization feature.
+
+The [scene-selection advice](proxy_trials/reviews/round33_scene_selection_advice.md)
+finds that existing guidance and outputs already allow summary and selective
+participation. Its remaining hypothesis concerns sustained attention across an
+extended activity. Candidate33 changes just two pacing sentences, preserving the
+complete Covenant and raw histories. All eight first continuations are saved.
+The [locked pilot](proxy_trials/candidate_33/pilot_comparison.md) rates all dinners
+at3 and retains only reading_scene_1 at4. It finds the new instruction does not
+reliably concentrate attention on a stronger interaction. Blind review is
+underway. One output-path clarification and one exact capture of returned fiction
+are recorded in [delivery variations](proxy_trials/candidate_33/delivery_variations.json);
+neither requested a new draft. All instructions and packets were read in full,
+including the corrected final-line read. No candidate is selected.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

@@ -1,0 +1,45 @@
+{
+  "scope": "Frozen input and preservation checks, not a quality result.",
+  "complete_Covenant_exact_C19": true,
+  "unchanged_C29_control": true,
+  "variant_changes_only_first_prose_paragraph": true,
+  "all_case_context_and_player_text_exact_C32_raw": true,
+  "case_packet_and_request_assembly_verified": true,
+  "previous_output_hashes_unchanged": true,
+  "planned_author_outputs": 8,
+  "completed_author_outputs": 8,
+  "cases": [
+    {
+      "case": "book_control_1",
+      "story_sha256": "15e6d7a6c1dc39e3ad463ffe90a34c73ba789ff39667d032d7c2ce8d32d4bb9c"
+    },
+    {
+      "case": "book_control_2",
+      "story_sha256": "4b794074f14ae970df652def2f38590d953422282cbf8ccf2bf59f7cbc81fb2a"
+    },
+    {
+      "case": "book_scene_1",
+      "story_sha256": "c4c41ab36fe394e29c6a94416158c514674e072e8b7bc9196abddde8b2de115b"
+    },
+    {
+      "case": "book_scene_2",
+      "story_sha256": "5ac0c694a1ce2898f50a794122f0dded63c22cdd9e99918a5dbea94f089aa76d"
+    },
+    {
+      "case": "reading_control_1",
+      "story_sha256": "b8b3d7ab1547c726b363db36e4d957a320994d87b5c789e93868d2ed23c6d676"
+    },
+    {
+      "case": "reading_control_2",
+      "story_sha256": "b6f9f10a8587ade7894371dc17189f229da2572fe1c92be6d35c32a56e56310b"
+    },
+    {
+      "case": "reading_scene_1",
+      "story_sha256": "e725bef0a346d7e8596417deab44dc4d50d510f3b91160b5556f965446ce5648"
+    },
+    {
+      "case": "reading_scene_2",
+      "story_sha256": "3057c95014272de25490459c9662b958cac506d08f8d47c8fe497ef119929ccb"
+    }
+  ]
+}
