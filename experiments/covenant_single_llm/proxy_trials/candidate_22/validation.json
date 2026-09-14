@@ -1,0 +1,31 @@
+{
+  "prompt_and_wrapper_hashes_match": true,
+  "full_covenant_identical_to_candidate_19": true,
+  "sessions": {
+    "game_replay": {
+      "responses": 1,
+      "player_turns": 1,
+      "story_words": 992,
+      "contiguous_pairs": true,
+      "export_matches_raw_hashes": true,
+      "packet_has_frozen_instructions_in_manifest_order": true
+    },
+    "stone_replay": {
+      "responses": 1,
+      "player_turns": 1,
+      "story_words": 1166,
+      "contiguous_pairs": true,
+      "export_matches_raw_hashes": true,
+      "packet_has_frozen_instructions_in_manifest_order": true
+    },
+    "session_a": {
+      "responses": 1,
+      "player_turns": 0,
+      "story_words": 823,
+      "contiguous_pairs": true,
+      "export_matches_raw_hashes": true,
+      "packet_has_frozen_instructions_in_manifest_order": true
+    }
+  },
+  "scope": "Artifact integrity only; not semantic or literary validation."
+}

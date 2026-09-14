@@ -1,0 +1,8 @@
+{
+  "agent": "/root/terra_c22_session_a",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "review_feedback_supplied": false,
+  "planned_scope": "Initial screen and adaptive follow-ups if warranted. Freeze prompts; preserve first outputs."
+}
