@@ -69,3 +69,50 @@ and the game socially engaging, with a definite local ordering error that the
 OOC response corrects. It finds no definite authorship or knowledge failure in
 either replay. It does not certify the full board or a long campaign. This is
 favorable bounded evidence, while fresh A remains an initial live screen.
+
+A04 finishes the requested dinner and lets several residents decline the garden
+walk for different reasons. Rashid continues his writing, Ashara prepares for an
+early training session, Aldric keeps evening prayer, and Caelindra prefers seeing
+the path. Ysolde and Thessaly accept. The edit cuts a more elaborate collective
+dessert argument; the remaining disagreement over cloves is ordinary taste.
+A05 completes the delegated half-hour walk and returns to the garden door. Its
+bridge recollection and interest in flowers give the companions particular things
+to enjoy without an obligatory plot hook. The revision removes a general maxim
+from the draft. Rowan's private memory of Merek Vale's press and its blue lamp
+does not become their knowledge. This is promising quiet participation, not yet
+a full-session quality judgment.
+
+A06 brings Rowan back to Rashid on Rowan's own initiative. The companions go
+upstairs before Rowan explicitly discloses his typesetting experience; that job
+is now available to Rashid, while Merek and the private lamp memory remain
+undisclosed. Rashid accepts the offered distinction between reading his request
+and signing for the group. He presents an actual sentence and a specific problem
+with its implied membership requirement. That gives the player something
+substantive to answer and keeps the campaign Rashid's concern. The edit replaces
+the draft's garden-door quips with simpler goodnights.
+
+Fresh B00 has its own letter and dinner details; it is separate canon from A.
+The revised opening still contains a long sequence of tidy distinctions and
+matching jokes across the ensemble. Several positions in the court dispute are
+clear, but remarks about civic repair, carrots and political relevance continue
+the polished group register seen in earlier candidates. This is a visible
+weakness to assess over the full session, not evidence about later unseen turns.
+
+A07 accepts the exact sentence Rowan supplies, explains the difference in scope
+and ends with a thank-you. The editorial setting makes discussion of wording
+appropriate, though the request-versus-objection distinction is still tidy.
+A08 delivers an ordinary complete letter from Miriam to Corin, with relatives,
+food and household arrangements, then completes the requested sleep and arrival
+at breakfast. Neither name had been established in published A before this.
+The winter-break wording is less clearly aligned with A00's expected visit
+before winter, but no school/calendar dates establish an impossible chronology.
+The letter's final narration repeats its concrete details unnecessarily. The
+public bout notice supplies a visible route to the timing Rowan privately hopes
+to learn; no NPC responds to that unspoken wish.
+
+B01's published group dinner retains or adds several conspicuous maxims and
+matching replies: the chair's qualification, names acquiring jobs, dinner
+improving arguments, and a herb's intent. The generalizations are concentrated
+in a scene with many speakers. This warrants concern about the shared ensemble
+register despite the stronger small exchanges in A; later B remains unreviewed
+at the time of this note.

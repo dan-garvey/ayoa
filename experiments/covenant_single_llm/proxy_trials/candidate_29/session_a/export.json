@@ -42,9 +42,59 @@
       "draft_words": 283,
       "editor_request_sha256": "6cdd83ffbbddfbc927b3211e3ec1f647cd5920c58494ca0b0519db0b88b1e70a",
       "author_task_requests": 2
+    },
+    {
+      "turn": 4,
+      "input_sha256": "6d2043de2f09716f18f07eeb508f66d0bffe2289dbfb90461faf9e2c09c59bcd",
+      "story_sha256": "aae0cb26b106d55990902748b7a52c06145dbfc935d7c599aa2fe4c1a8682969",
+      "story_words": 284,
+      "draft_sha256": "0c86e1575e629d0e08c365e0c338c6144b7777bfd28e0290aa7a175b2f8b56c3",
+      "draft_words": 356,
+      "editor_request_sha256": "d74bd2b1675696c5d7ab3898548cbc7457636c3b0ce3688aee44e79feba4305b",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 5,
+      "input_sha256": "383a47cd71aaefb0fd4c45f8b2068d65c2df91a8b40a79fae35d43c388f231b8",
+      "story_sha256": "0148fabee9b1061c9b816ae4d0bfb86c7b36a5a32810bdd860df922e9356c315",
+      "story_words": 372,
+      "draft_sha256": "66f312cf1df57813b189089f97143285a19e3eaacbacbc28a8dc62c52e150185",
+      "draft_words": 421,
+      "editor_request_sha256": "b48f79c29274dfd630d56074fbc6c1b340e533bcaf14f838bfa0039356e19d19",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 6,
+      "input_sha256": "35c6ef8c029988a46aaf44bc874f0858d6ef88c4c23cf57b6399201c7dc24886",
+      "story_sha256": "dcd983c978045124e44bba4ed9d50357853bd524b7ed39d4b699ecdc25b54531",
+      "story_words": 335,
+      "draft_sha256": "d626fcac999ed98eaacce0af69bfd65a9ee9aab4ad56d391c20860c8e8424608",
+      "draft_words": 331,
+      "editor_request_sha256": "1c924e318500dc45b3ddad025ce0fe1e17756264c64bd0fb2f3f732ac9c4eb62",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 7,
+      "input_sha256": "3d60246da25409a9f7a1a324abc4cd063614a87a26083c42241ea0eb0b6eea46",
+      "story_sha256": "f1337ae5e8d0f272009cc9b6998cfce3045de617a84436a5a982a3c411c80f50",
+      "story_words": 188,
+      "draft_sha256": "5fb73aa407861a65f522d1b134025690da723f0656521c8bcae93de3c675d80b",
+      "draft_words": 235,
+      "editor_request_sha256": "0d9d07a7dc4ade68f5c4e7a31aea6ef97c5ff29eb2f27f692d06a43e156709a4",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 8,
+      "input_sha256": "99adcedd6b8232469d40d3c1f3813dcf7d4abb9123c21a2d9f777bf556f6a1cf",
+      "story_sha256": "b2316b80be6e8bb9582b789c988ccb13f86f269a286f7acf82c9c9159fe18c4f",
+      "story_words": 408,
+      "draft_sha256": "9d9a3032944dd100b85969f3014dabc9f4aec606adfb6b85d58ded6309d4a996",
+      "draft_words": 414,
+      "editor_request_sha256": "5f5779256174a666c4ec82bff1ba7eacb49a79c9d88b036d74a9e08dc1c5462f",
+      "author_task_requests": 2
     }
   ],
-  "player_turns": 3,
+  "player_turns": 8,
   "session_kind": "fresh interactive session",
-  "story_words": 1610
+  "story_words": 3197
 }

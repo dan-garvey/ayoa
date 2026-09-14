@@ -33,12 +33,29 @@
         0,
         1,
         2,
-        3
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
       ],
-      "author_task_requests_for_verified_indices": 8,
-      "player_turns_in_verified_snapshot": 3,
+      "author_task_requests_for_verified_indices": 18,
+      "player_turns_in_verified_snapshot": 8,
       "unpublished_input_indices": [
-        "04"
+        "09"
+      ]
+    },
+    {
+      "case": "session_b",
+      "verified_published_indices": [
+        0,
+        1
+      ],
+      "author_task_requests_for_verified_indices": 4,
+      "player_turns_in_verified_snapshot": 1,
+      "unpublished_input_indices": [
+        "02"
       ]
     }
   ],

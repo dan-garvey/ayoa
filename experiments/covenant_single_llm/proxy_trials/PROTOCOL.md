@@ -67,6 +67,14 @@ Several related instructions change together; no individual causal effect is
 isolated. The loop still has two sequential requests to the same story author,
 and retains its unreleased drafts in proxy conversation context.
 
+C29's initial results warranted extending A and starting a fresh B toward fifteen
+player turns each. Root drives A and sees drafts. B's separate player driver
+begins with its published opening and supplies B01 onward under a patient,
+observant policy. It reads published fiction and the generic saved requests for
+relay, not draft files, background packets, prompts or reviews. Draft completion
+notifications can still reach it, so exposure is described rather than claiming
+strict blinding. Every first draft and revision is retained.
+
 Through candidate 08, the artifact wrapper also said not to "evaluate the prose"
 or "propose edits," intending to exclude reviewer output and repository work.
 Those words could conflict with private self-editing requested by the story

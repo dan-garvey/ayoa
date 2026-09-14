@@ -1,0 +1,14 @@
+{
+  "agent": "/root/terra_c29_session_b",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "review_feedback_supplied": false,
+  "planned_scope": "Fresh two-request session, target15 player turns. Every first draft and first revision retained.",
+  "calls_per_player_submission": 2,
+  "player_policy": "Separate player driver: patient, observant newcomer willing to engage with other peoples interests. Allows quiet and follows invitations when interested, without a predetermined companion or plot.",
+  "player_driver": "/root/proxy_c29_player_b",
+  "driver_exposure": "Driver reads published fiction and generic editorial requests for relay, not drafts, full Covenant, story prompts or reviews. Root sees drafts. Not a strictly blinded trial.",
+  "author_request_sha256": "8ed66e405d4f74585083d4bb70f819711119cfde773522ccb6d743b65f3d0164",
+  "editor_request_sha256": "6800fdec9b203533d182e6b2e2997d9ed94773ac1d71ebee61152fd3b8979dd1"
+}

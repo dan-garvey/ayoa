@@ -113,6 +113,40 @@
           "exact_packet_chunk_found_in_tool_output": true
         }
       ]
+    },
+    {
+      "case": "session_b",
+      "session_id": "01a09e78-5f0b-7681-9b35-399458c14b96",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "log": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T00-51-23-01a09e78-5f0b-7681-9b35-399458c14b96.jsonl",
+      "packet_lines": 392,
+      "packet_sha256": "b3bfcc39daa7602818ef55b6bcf61e0bd72de1b0845a8eff9b0ed386e13cce6a",
+      "complete_untruncated_tool_read_verified": true,
+      "reads": [
+        {
+          "requested_lines": [
+            1,
+            240
+          ],
+          "received_lines": [
+            1,
+            240
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        },
+        {
+          "requested_lines": [
+            241,
+            480
+          ],
+          "received_lines": [
+            241,
+            392
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        }
+      ]
     }
   ]
 }

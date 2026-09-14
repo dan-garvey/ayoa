@@ -190,3 +190,199 @@ Seraphel folds a scrap of bread between her fingers.
 and clear light.”
 
 Rashid takes the smaller half of his bread for himself. The court is left for morning, and the stew begins to cool.
+
+## Turn 4
+
+**Player**
+
+"The south rail, then. Thank you." I return to my dinner and listen to the others while I eat. When the plates are being cleared, I say, "I'm going to have a look at the gardens before bed. I'd welcome company, if anyone fancies a walk."
+
+**Story**
+
+“The south rail, then. Thank you.”
+
+Ashara gives a short nod and returns to her stew. The court is left alone for the rest of dinner. You eat while the servers clear the bread plates and bring a final course of poached pears in dark syrup.
+
+Caelindra tastes hers and sets her spoon down.
+
+“Clove.”
+
+Ysolde cuts a neat slice from her pear. “Yes.”
+
+“It swallows the fruit.”
+
+“It warms it.”
+
+Caelindra tries the syrup again, this time with the pear. “It still swallows the fruit.”
+
+Ysolde eats another bite without replying. Across the table, Rashid finishes his dessert quickly; Thessaly turns her spoon over in the syrup, watching its dark surface gather and break along the bowl. Seraphel cups her tea in both hands.
+
+The plates are being cleared when you say, “I'm going to have a look at the gardens before bed. I'd welcome company, if anyone fancies a walk.”
+
+Rashid folds his napkin and leaves it beside his cup. “I have wording to revise before morning.”
+
+“I am sleeping,” Ashara says. “Dawn is early.”
+
+Aldric rises, smoothing the front of his white-and-gold coat. “I have evening prayer. Good night, Rowan.”
+
+Caelindra glances toward the dark windows. “No, thank you. I prefer to see where a path ends.”
+
+Ysolde pushes her chair back. “I will come. The south path has the clearest view of the bridges.”
+
+Thessaly sets down her spoon. “I fancy a walk. I have not seen the gardens at night.”
+
+Seraphel remains with her tea, wings folded close behind her. Ysolde waits beside her chair, white hair bright in the candlelight; Thessaly has already turned toward the doorway through the common room and out to the pale garden paths.
+
+## Turn 5
+
+**Player**
+
+I button my coat and join Ysolde and Thessaly on the south path. I'm happy to spend about half an hour walking around the gardens with them, staying on the Academy grounds. The light on the path reminds me of the blue glass lamp over Merek Vale's press, where I used to set type on winter evenings; I keep that memory to myself. Looking toward the hard-light bridge, I say, "Those lights don't flicker at all. I keep thinking they ought to."
+
+**Story**
+
+You button your coat and join Ysolde and Thessaly on the south path.
+
+The garden walls hold back most of the wind. Pale lamps set at ankle height turn the gravel blue-white, while above the hedges a hard-light bridge runs away from the Academy in a single unwavering line. Far below, lightning opens soundlessly in the storm.
+
+“Those lights don't flicker at all,” you say, looking toward the bridge. “I keep thinking they ought to.”
+
+Ysolde follows your gaze. “They are not lamps. The light is what the bridge looks like while it holds its shape.”
+
+“And if it stopped?” Thessaly asks.
+
+“Someone would close the bridge long before that.”
+
+Thessaly watches the white span for several steps. “I prefer that arrangement.”
+
+The path bends around a bed of night-blooming flowers, white cups open under the lamps. Ysolde slows near the low south wall where the bridges are easiest to see.
+
+“I used to fly beside the dragon bridge before sunrise,” she says. “From above, it looked too thin to trust. When I came close, it had more width than I expected.”
+
+“Did you trust it then?”
+
+“I did not need to. I was flying.”
+
+Thessaly's smile arrives a moment after the answer. “That is an advantage.”
+
+The three of you continue along the paths at an easy pace. Thessaly pauses at a cluster of small blue flowers growing under an espaliered pear tree. She does not touch them, only watches their petals tremble in the moving air.
+
+“They open at night,” she says.
+
+“After the lamps come on,” Ysolde replies. “They close before dawn.”
+
+“I like them better for that.”
+
+Farther along, a stone rabbit is half-hidden in a bed of thyme, its ears worn smooth by weather and hands. Thessaly crouches beside it.
+
+“It is facing a wall.”
+
+“The eastern path,” Ysolde says.
+
+“It cannot see the path.”
+
+Ysolde looks at the rabbit for a while. “No.”
+
+The circuit of pale paths stays within the shelter of the garden walls. Bridges appear and disappear beyond the hedges; the storm shifts below them without sound. By the time roughly half an hour has passed, the garden door to Garvey House is ahead again, its brass handle catching the blue-white path light.
+
+## Turn 6
+
+**Player**
+
+At the garden door I say, "Thank you both. I'm glad I didn't go alone." I go inside with them. Before turning in, I stop at the common-room table to see whether Rashid is still working. If he is, I say, "Have you found wording you're satisfied with? I won't sign for your group, but I spent a few years setting type. I can at least spot where a sentence gets tangled."
+
+**Story**
+
+At the garden door you say, “Thank you both. I'm glad I didn't go alone.”
+
+Ysolde rests her hand on the brass handle. “So am I.”
+
+Thessaly looks back once at the blue-white lamps among the hedges. “I was glad to be asked.”
+
+The three of you go inside. The common room has grown quieter since dinner: only a few lamps remain lit among the leather chairs and study tables, and the fireplace has settled into a low red glow beneath the portraits of dead Garveys. Ysolde pauses at the foot of the stairs.
+
+“Good night, Rowan.”
+
+“Good night,” Thessaly says. She watches the fire a moment longer, then turns toward the upper hall with Ysolde.
+
+At one of the long tables, Rashid is still working. His jacket is draped over the back of a chair; several sheets lie before him beneath a shaded lamp, with lines crossed through in dark ink. He looks up when you approach.
+
+“Have you found wording you're satisfied with? I won't sign for your group, but I spent a few years setting type. I can at least spot where a sentence gets tangled.”
+
+Rashid's gaze moves from you to the pages. “No signature,” he says. “Just a reader.”
+
+He turns the top sheet so its lines face you. The heading reads *Request for Supervised Practice Access*. Beneath it, a sentence has been altered three times.
+
+“I want a supervised hour while the Academy reviews the injury,” Rashid says. “I do not want to hand them an attendance list for a group that was supposed to be open.” He taps the last version with one furred finger. “Every way I write it makes the group sound smaller than it is.”
+
+The sentence begins: *We request that the suspended practice hour be restored in a supervised form for students who regularly attended it, pending the conclusion of the Academy review.*
+
+Rashid leans back from the table. “Can you make that say what I mean without making it sound like a loophole?”
+
+## Turn 7
+
+**Player**
+
+I sit down and point to 'regularly attended.' "That is the bit that sounds like a membership list. Could you ask for the hour back without deciding who belongs?" I take a spare sheet, if he offers one, and write: 'We request the restoration of the open practice hour, with supervision, while the Academy completes its review.' I turn it toward him. "That's plainer, anyway. You'd know whether it asks for the right thing."
+
+**Story**
+
+You sit beside him and point to *regularly attended.*
+
+“That is the bit that sounds like a membership list. Could you ask for the hour back without deciding who belongs?”
+
+Rashid reads the line again. “Yes.”
+
+He draws a clean sheet from the stack and places it in front of you, along with the inkpot and a spare pen. You take the page and write: *We request the restoration of the open practice hour, with supervision, while the Academy completes its review.*
+
+When you turn it toward him, you say, “That's plainer, anyway. You'd know whether it asks for the right thing.”
+
+Rashid reads it twice.
+
+“Open practice hour,” he says. “That makes it a time anyone can use, not a club asking to be admitted. And it says who has to make it safe.”
+
+He moves the earlier draft aside. “I was writing for objections. This is a request.”
+
+The new sheet lies square beneath the lamp. Rashid takes up his pen and begins a clean copy in his narrow, even handwriting. After the title, he writes your sentence without changing a word.
+
+“Thank you,” he says.
+
+## Turn 8
+
+**Player**
+
+"You're welcome. Good night, Rashid." I leave him to the clean copy and go upstairs. Before bed, I sit at the desk and read the whole framed letter once, taking my time with it. Then I turn in. In the morning I wash, dress, and go downstairs for breakfast, hoping to learn when the public bouts are without intruding on Ashara's training.
+
+**Story**
+
+“You're welcome. Good night, Rashid.”
+
+He gives a distracted nod over the clean copy. “Good night.”
+
+Upstairs, your room is dark except for the lamp by the desk and the thin light from the storm beyond the window. You sit down and take the framed letter in both hands, angling it away from the lamp's glare.
+
+The handwriting is small but steady.
+
+*My dear Corin,*
+
+*Your mother tells me you have finally agreed to come for the first week of winter break, which is excellent news. Your room will be ready on the second floor. I have put the blue quilt on the bed because you always say the red one is too warm, and Mrs. Pell has promised not to make you eat turnips merely because she believes children require character.*
+
+*Bring boots. The pear tree lost a limb in the last wind, and your uncle insists it can be tied back before spring. I have told him that this is foolish, but he says you will take his side. Your cousins are coming on Saturday, provided the bridge office grants them permission before Friday, so do not arrive looking as though the house has been arranged entirely for you.*
+
+*I am very glad you are coming. Your aunt,*
+
+*Miriam Garvey*
+
+There is nothing after the signature except the quick postscript: *Tell your mother I have remembered the plums this time.*
+
+The blue quilt, muddy boots, cousins on Saturday, too many turnips: the letter leaves these small arrangements beneath the glass. Its author has been dead long enough for the ink to brown at the edges. You turn in after reading it through.
+
+Morning comes grey above the storm. You wash, dress, and go downstairs to breakfast. The dining hall is brighter without candles, its long table set with porridge, fruit, bread, and dark tea. Ysolde sits near the window with a cup in both hands; Thessaly is selecting pieces of orange from a bowl with a small fork. Ashara's place is empty. Rashid's papers are gone from the common-room table beyond the open door.
+
+Beside that doorway, the Academy's slate has been updated for the day. A fresh card is pinned beneath the heading *Dueling Grounds.*
+
+*Public bouts: fourth bell, weather permitting.*
+
+*Ranked pairings and spectators' rails posted at the octagon after second bell.*
+
+The card is written in a firm, impersonal hand. Outside the dining hall windows, the hard-light bridges remain white against the clouds.
