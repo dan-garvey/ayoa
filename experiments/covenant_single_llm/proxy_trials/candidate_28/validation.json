@@ -1,0 +1,62 @@
+{
+  "scope": "Three bounded editing diagnostics; zero fresh player turns.",
+  "prompt_and_wrapper_hashes_verified": true,
+  "full_Covenant_unchanged_from_C19": true,
+  "generation_prompt_unchanged_from_C27": true,
+  "cases": [
+    {
+      "case": "premise_edit",
+      "complete_published_prior_indices": [
+        0,
+        1,
+        2
+      ],
+      "input_draft_and_source_commit_verified": true,
+      "packet_and_saved_request_verified": true,
+      "output_present": true,
+      "story_sha256": "d55e845e6db30a6a5f3ef8788e5a796a8141a30ed107dd8f558f3d64e75f2aa1",
+      "fresh_player_turns": 0
+    },
+    {
+      "case": "reading_edit",
+      "complete_published_prior_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "input_draft_and_source_commit_verified": true,
+      "packet_and_saved_request_verified": true,
+      "output_present": true,
+      "story_sha256": "4779d1e97002cde1b4c63297a63029d5b8126ad7d2eb875b51d1b0df64ebb6af",
+      "fresh_player_turns": 0
+    },
+    {
+      "case": "game_edit",
+      "complete_published_prior_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "input_draft_and_source_commit_verified": true,
+      "packet_and_saved_request_verified": true,
+      "output_present": true,
+      "story_sha256": "8231fec06f98f8835c112e46d509345835b282296aa8d0f63e043cbeadab11d0",
+      "fresh_player_turns": 0
+    }
+  ],
+  "limitations": "Artifact integrity and committed source correspondence only. Saved launch text checked against template, not decrypted collaboration payloads. Packet tool-read coverage requires a separate audit. Does not establish literary quality, a live-session pass or direct API equivalence."
+}

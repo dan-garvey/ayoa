@@ -48,6 +48,15 @@ only published fiction between player turns. The root pilots A, supplied B01,
 and sees drafts. A separate driver supplies B02 onward and reads the generic
 editorial requests for exact relay, so neither trial is strictly blinded.
 
+Candidate28 begins with three editing diagnostics using original C27 drafts and
+their complete published prior fiction. It keeps C27's generation instructions
+and full Covenant and changes the revision task. The revision may replace new
+choices and outcomes in the unreleased draft; prior published fiction and player
+authorship remain authoritative. These fresh editors do not receive the source
+author's prior drafts or later published passages. Their three outputs count as
+zero fresh player turns. This changes editorial authority and participation
+guidance together and cannot isolate either effect by itself.
+
 Through candidate 08, the artifact wrapper also said not to "evaluate the prose"
 or "propose edits," intending to exclude reviewer output and repository work.
 Those words could conflict with private self-editing requested by the story

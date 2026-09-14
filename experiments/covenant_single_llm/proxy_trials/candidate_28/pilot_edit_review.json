@@ -1,0 +1,19 @@
+{
+  "scope": "Locked pilot of three single-response editing diagnostics, before independent comparison. Zero fresh player turns; no full-session scores or selection.",
+  "premise_edit": {
+    "verdict": "More participation than C27's bare acknowledgment, but no convincing literary gain across the whole exchange.",
+    "evidence": "Several NPCs turn the briefly offered premise into unsolicited writing instructions. The appointment-versus-deadline distinction creates a debatable workshop exchange just as the player turns to Seraphel's music. The individual replies are relevant to the premise but the group again shares a prepared advisory role.",
+    "boundaries": "Advice is not new canonical manuscript text. No definite authorship or knowledge violation. Caelindra's disagreement need not be treated as authoritative truth about the plot."
+  },
+  "reading_edit": {
+    "verdict": "A modest improvement in personal reaction, still a very short encounter.",
+    "evidence": "Seraphel picks a specific submitted line, interprets the closed door and expresses a preference for Ada. This is invited interpretation, not an unsolicited lesson. Compared with the original thin draft and C27's final response, it gives her clearer taste without inventing additional manuscript lines.",
+    "boundaries": "The two quoted lines come from the player's text. No new manuscript, unspoken request or protagonist dialogue. No full-session implication."
+  },
+  "game_edit": {
+    "verdict": "Modest improvement in activity-specific participation; not evidence of sustained quality.",
+    "evidence": "Thessaly responds to a blocked route and anticipates a defensive move, then takes a different crossing. Her contribution is more than rules and a result, though the social texture remains slight and the prose mostly reports placements. The draw is retained without an extra rematch hook.",
+    "boundaries": "The player delegated a complete game and tactical choices, not new speech; the edit stays within that scope. No proven placement contradiction from the partial board. A full legal move trace cannot be certified. The game remains Pathstones and is separate from the Lanterns replay."
+  },
+  "overall": "The new task can retain particular opinions and add a little reciprocal action. It also regenerates the ensemble-advice pattern. Await independent comparison to assess whether the bounded gains warrant live testing. All full backstories and the C27 generation prompt remain unchanged; no causal isolation of the task's separate changes."
+}

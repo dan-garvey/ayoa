@@ -1,0 +1,22 @@
+{
+  "source_commit": "120283a0d7f939639dcd961e8252d1bfd5f3c437",
+  "source_candidate": "candidate_27",
+  "source_case": "session_b",
+  "unreleased_turn": 3,
+  "prior_published_turns": [
+    0,
+    1,
+    2
+  ],
+  "files": {
+    "candidate_27/session_b/00.input.txt": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+    "candidate_27/session_b/00.story.md": "7219f952a4382a5b5b3954c0b366d3b2b83e18ba2455914d7f4255452f70ba7e",
+    "candidate_27/session_b/01.input.txt": "e183c0e6c9b861bc804b6254ee9e9d35cbf18c173567be7b16d2bae72f41ca5d",
+    "candidate_27/session_b/01.story.md": "255fe85a02eefe5b2a1c2b3a3faa102d6fdda2083acadfe7dabd9096bc3aaa17",
+    "candidate_27/session_b/02.input.txt": "078430612a760955b68f0be74ebb38912e1e00a7e0486165622e824ad17a4926",
+    "candidate_27/session_b/02.story.md": "aa968736e8b9576a335ee67fd1586f46f829f7897e6e4bd77f042a02b8d70698",
+    "candidate_27/session_b/03.input.txt": "8ef08c9907ecd045927a277dbdc6a3270f5bd518745086de0803471e7ba09b17",
+    "candidate_27/session_b/03.draft.md": "d6e04dac4802108b37949195ecc4ca63c625e0141820ba09a5c50acb2d16c171"
+  },
+  "packet_sha256": "9f11df71332ad50ae41b34b84d8263a2f4ffc7106785bb83aa7a78c535514580"
+}

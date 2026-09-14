@@ -1,0 +1,34 @@
+{
+  "source_commit": "120283a0d7f939639dcd961e8252d1bfd5f3c437",
+  "source_candidate": "candidate_27",
+  "source_case": "session_b",
+  "unreleased_turn": 7,
+  "prior_published_turns": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "files": {
+    "candidate_27/session_b/00.input.txt": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+    "candidate_27/session_b/00.story.md": "7219f952a4382a5b5b3954c0b366d3b2b83e18ba2455914d7f4255452f70ba7e",
+    "candidate_27/session_b/01.input.txt": "e183c0e6c9b861bc804b6254ee9e9d35cbf18c173567be7b16d2bae72f41ca5d",
+    "candidate_27/session_b/01.story.md": "255fe85a02eefe5b2a1c2b3a3faa102d6fdda2083acadfe7dabd9096bc3aaa17",
+    "candidate_27/session_b/02.input.txt": "078430612a760955b68f0be74ebb38912e1e00a7e0486165622e824ad17a4926",
+    "candidate_27/session_b/02.story.md": "aa968736e8b9576a335ee67fd1586f46f829f7897e6e4bd77f042a02b8d70698",
+    "candidate_27/session_b/03.input.txt": "8ef08c9907ecd045927a277dbdc6a3270f5bd518745086de0803471e7ba09b17",
+    "candidate_27/session_b/03.story.md": "2357e7138c807f994fcdde4dc0b5aab5bf1b6474fa4f5e8bfffdf3e1dc44387b",
+    "candidate_27/session_b/04.input.txt": "8e2d0525c2713bf33d9ab6764efd80664f78d761456139b6ed2b373428da8821",
+    "candidate_27/session_b/04.story.md": "38e8505bce1954f1a750120d91f6266855b4460a8dad6428315bd741d1bf2a9c",
+    "candidate_27/session_b/05.input.txt": "901f451f5a234054f27227ec6baf671335d42900bd51f1b0429a00d549237fa2",
+    "candidate_27/session_b/05.story.md": "8f2d32b07b316f06d63c55d6af2b7eb77ac8914e6324b99492c9fc9a95bf1c6b",
+    "candidate_27/session_b/06.input.txt": "8362ca7a8be9a4af4b4de749f0479d4a822f33298b0ac0921764da8be585ccd6",
+    "candidate_27/session_b/06.story.md": "093e571215b6316431dbd53b5db907ae84a70ab01d73f1ff4a3c0455f3e6c837",
+    "candidate_27/session_b/07.input.txt": "1f8f4d8e36b4c6801cd3ca5ae22128f1bd67fd34931a639aef6b523cf7ddeba6",
+    "candidate_27/session_b/07.draft.md": "30971ad9390cdad7862d18fa3676aa0283b926d72fc0bbc15d801dcf9ae52515"
+  },
+  "packet_sha256": "1ce89fa1453c456b70fb88e338a2212a43be0144d69fe24fed558fddb40c7c48"
+}

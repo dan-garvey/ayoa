@@ -1,0 +1,141 @@
+{
+  "scope": "Public packet-read tool records and model metadata only; no private reasoning or encrypted task payloads extracted.",
+  "cases": [
+    {
+      "case": "premise_edit",
+      "session_id": "01a09e4d-070e-79a3-ac14-26f3f021ddfe",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "log": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T00-04-03-01a09e4d-070e-79a3-ac14-26f3f021ddfe.jsonl",
+      "packet_lines": 525,
+      "packet_sha256": "9f11df71332ad50ae41b34b84d8263a2f4ffc7106785bb83aa7a78c535514580",
+      "complete_untruncated_tool_read_verified": true,
+      "reads": [
+        {
+          "requested_lines": [
+            1,
+            240
+          ],
+          "received_lines": [
+            1,
+            240
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        },
+        {
+          "requested_lines": [
+            241,
+            480
+          ],
+          "received_lines": [
+            241,
+            480
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        },
+        {
+          "requested_lines": [
+            481,
+            720
+          ],
+          "received_lines": [
+            481,
+            525
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        }
+      ]
+    },
+    {
+      "case": "reading_edit",
+      "session_id": "01a09e4d-addf-74b0-9870-b03cff44aef1",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "log": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T00-04-46-01a09e4d-addf-74b0-9870-b03cff44aef1.jsonl",
+      "packet_lines": 666,
+      "packet_sha256": "1ce89fa1453c456b70fb88e338a2212a43be0144d69fe24fed558fddb40c7c48",
+      "complete_untruncated_tool_read_verified": true,
+      "reads": [
+        {
+          "requested_lines": [
+            1,
+            260
+          ],
+          "received_lines": [
+            1,
+            260
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        },
+        {
+          "requested_lines": [
+            261,
+            520
+          ],
+          "received_lines": [
+            261,
+            520
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        },
+        {
+          "requested_lines": [
+            521,
+            780
+          ],
+          "received_lines": [
+            521,
+            666
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        }
+      ]
+    },
+    {
+      "case": "game_edit",
+      "session_id": "01a09e4e-52d4-7962-a222-449c8a2756c1",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "log": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T00-05-28-01a09e4e-52d4-7962-a222-449c8a2756c1.jsonl",
+      "packet_lines": 777,
+      "packet_sha256": "06019dcf008be9b4d5061f25a3f4eb3965ecb2eb513c74db44b3f18b1e38be66",
+      "complete_untruncated_tool_read_verified": true,
+      "reads": [
+        {
+          "requested_lines": [
+            1,
+            260
+          ],
+          "received_lines": [
+            1,
+            260
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        },
+        {
+          "requested_lines": [
+            261,
+            520
+          ],
+          "received_lines": [
+            261,
+            520
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        },
+        {
+          "requested_lines": [
+            521,
+            780
+          ],
+          "received_lines": [
+            521,
+            777
+          ],
+          "exact_packet_chunk_found_in_tool_output": true
+        }
+      ]
+    }
+  ],
+  "delivery_note": "The reading editor initially omitted the Begin Patch marker; that write failed. It then submitted the same fiction with the marker and saved its first revision. No story reroll."
+}

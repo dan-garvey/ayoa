@@ -20,7 +20,9 @@ and the player description. Through candidate22 these are in its initial packet;
 candidate23 moves the same common instructions into its direct request while
 keeping the full brief and turn data in the packet. A player submission produces
 one passage from that same agent, which authors adjudication, every NPC and the
-narration together. Subsequent turns retain its story conversation. There is no
+narration together. Candidate27 adds a second, sequential revision request to
+that same author before passage delivery. Subsequent turns retain its story
+conversation, including the unreleased drafts in that proxy. There is no
 router-to-character-to-narrator cascade, separate character memory, private
 planning model, or semantic validator in the story loop.
 
@@ -53,6 +55,7 @@ those sessions. The full [protocol](proxy_trials/PROTOCOL.md) predates selection
 | 16 | 15 / 20 | 4/4/4/4/4; 4/4/4/4/4 | 4/4/4/4/4; 4/3/3/3/3 | B completes an itinerary but lacks sufficient reciprocal initiative. |
 | 17 | 18 / 21 | 4/4/4/4/4; 3/4/4/4/4 | 3/3/4/4/4; 4/3/4/4/4 | More reciprocal presence; character voices and dramatization remain weak. |
 | 19 | 15 / 15 | 3/3/4/4/4; 3/3/4/4/4 | Not commissioned after pilot rejection | Ordinary letters improve; games and refusals still become lessons. |
+| 27 | 15 / 15 | 3/4/4/4/4; 3/4/4/3/4 | 3/4/4/4/4; 3/3/4/3/3 | Less habitual rhetoric; repeated positions and thin reciprocal interaction remain. |
 
 Candidate17's [A transcript](proxy_trials/candidate_17/session_a/transcript.md)
 develops Thessaly's game into a shared reading appointment and a book loan. A
@@ -164,6 +167,14 @@ inadequately explained; the incomplete board proves neither illegality nor a
 successful repair. All37 published passages and74 sequential author tasks are
 preserved. The [decision](proxy_trials/candidate_27/decision.json) rejects C27.
 No candidate is selected. The full Covenant remains byte-identical to candidate19.
+
+Candidate28 begins with three bounded revisions of C27's original drafts. The
+new [revision task](proxy_trials/candidate_28/revision_task.txt) allows replacing
+unpublished NPC choices while preserving published history and player authorship.
+It asks the revision to develop a missing personal response when deleting
+rhetoric leaves only an acknowledgment. Complete backgrounds remain unchanged.
+These are editing diagnostics with zero fresh player turns; they do not establish
+that a live session will improve.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

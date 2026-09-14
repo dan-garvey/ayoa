@@ -1,0 +1,10 @@
+{
+  "agent": "/root/terra_c28_game_edit",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "review_feedback_supplied": false,
+  "case_type": "editorial diagnostic of unreleased draft; not a live player turn",
+  "planned_scope": "One revision. Preserve first output.",
+  "author_request_sha256": "1a6bbaddd6c43810b6a3fa7e3942672a0dfba395f856f67edec06f1fe70edb66"
+}
