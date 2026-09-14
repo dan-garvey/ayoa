@@ -1,0 +1,19 @@
+{
+  "created_at": "2026-09-14T00:05:10.263455+00:00",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "source_commit": "0babb01f807aed043ca14ec29d8dfc55e4b60d71",
+  "derived_from": "candidate_18 frozen manifest",
+  "instruction_order": [
+    "covenant.txt",
+    "system.txt"
+  ],
+  "prompt_sha256": {
+    "system.txt": "230a932560bc255ab2069fd60c399f75e8db014ffa8c173cff2d9f1f0c0ee186",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "wrapper_file": "proxy_wrapper.txt",
+  "wrapper_sha256": "90f75e90843083ee2daa2b2f889d6d5ad4ce524d71812dc7f46aca6991153eb7",
+  "change": "Only the framed-letter stimulus changes from C18: a named great-nephew and particular planned visit, ordinary correspondence, recipient need not be Rowan. Retains the dead aunt, missed visit, all hidden truths and all system instructions. Repeated advice-heavy future-heir letters motivated this input change. C18 removes C17 sentence cap but did not fix the letter; no causal claim from short screens."
+}

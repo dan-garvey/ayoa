@@ -50,6 +50,7 @@ those sessions. The full [protocol](proxy_trials/PROTOCOL.md) predates selection
 | 14 | 15 / 22 | 4/4/4/4/4; 3/4/4/4/4 | 4/4/4/4/4; 3/4/4/4/4 | Family anecdotes and letters remain didactic. |
 | 16 | 15 / 20 | 4/4/4/4/4; 4/4/4/4/4 | 4/4/4/4/4; 4/3/3/3/3 | B completes an itinerary but lacks sufficient reciprocal initiative. |
 | 17 | 18 / 21 | 4/4/4/4/4; 3/4/4/4/4 | 3/3/4/4/4; 4/3/4/4/4 | More reciprocal presence; character voices and dramatization remain weak. |
+| 19 | 15 / 15 | 3/3/4/4/4; 3/3/4/4/4 | Not commissioned after pilot rejection | Ordinary letters improve; games and refusals still become lessons. |
 
 Candidate17's [A transcript](proxy_trials/candidate_17/session_a/transcript.md)
 develops Thessaly's game into a shared reading appointment and a book loan. A
@@ -75,6 +76,19 @@ different interests still share too much of the same restrained, politely witty
 register. Both judgments are retained. The reviewer also identifies a localized
 source gap when Aldric mentions a letter discussed upstairs with Ashara; no
 unshown relay is treated as observed evidence to dismiss that concern.
+
+Candidate19 changes the framed letter to ordinary correspondence about a named
+relative's planned visit. Its [family replay](proxy_trials/candidate_19/family_replay/transcript.md)
+and fresh letters become more particular. In [A](proxy_trials/candidate_19/session_a/transcript.md),
+Ashara fulfills a ten-minute lesson and keeps her refusal of an extension, while
+Thessaly completes a game. In [B](proxy_trials/candidate_19/session_b/transcript.md),
+a family lookup leads to Rowan's own letter and a sunset invitation reaches an
+actual walk and tea. The full trials still fall below the prose bar: game
+corrections become maxims, and ordinary refusals or information acquire lessons
+about the protagonist. The [pilot decision](proxy_trials/candidate_19/decision.json)
+records the rejection and a possible one-year chronology discrepancy without
+mistaking all new history for a failure. No independent full review was requested
+after this clear pilot rejection.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
