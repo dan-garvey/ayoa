@@ -1,0 +1,14 @@
+{
+  "launches": [
+    {
+      "case": "session_a",
+      "agent": "/root/terra_proxy_c35_a",
+      "launched_before_record_at": "2026-09-14T08:50:46.772653+00:00"
+    },
+    {
+      "case": "session_b",
+      "agent": "/root/terra_proxy_c35_b",
+      "launched_before_record_at": "2026-09-14T08:50:46.772662+00:00"
+    }
+  ]
+}

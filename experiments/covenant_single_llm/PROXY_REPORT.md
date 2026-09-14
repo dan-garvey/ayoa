@@ -289,11 +289,41 @@ extended activity. Candidate33 changes just two pacing sentences, preserving the
 complete Covenant and raw histories. All eight first continuations are saved.
 The [locked pilot](proxy_trials/candidate_33/pilot_comparison.md) rates all dinners
 at3 and retains only reading_scene_1 at4. It finds the new instruction does not
-reliably concentrate attention on a stronger interaction. Blind review is
-underway. One output-path clarification and one exact capture of returned fiction
+reliably concentrate attention on a stronger interaction. The
+[blind comparison](proxy_trials/reviews/round33_blind_comparison.md) also rates
+all dinners at3 and retains one reading in each condition. It additionally flags
+Thessaly's table-wobble exchange as violating her truthfulness constraint. The
+[root response](proxy_trials/candidate_33/review_response.md) regards that
+reference as ambiguous and retains the concern; no change to the binding is
+proposed. The [decision](proxy_trials/candidate_33/decision.json) does not promote
+the pacing change. One output-path clarification and one exact capture of returned fiction
 are recorded in [delivery variations](proxy_trials/candidate_33/delivery_variations.json);
 neither requested a new draft. All instructions and packets were read in full,
-including the corrected final-line read. No candidate is selected.
+including the corrected final-line read.
+
+Candidate34 changes only the common prompt's opening sentence to request
+naturalistic interactive fiction in a contemporary literary register. The
+complete Covenant, remaining rules and raw history are exact. All eight first
+outputs are saved. The [locked pilot](proxy_trials/candidate_34/pilot_comparison.md)
+and [independent review](proxy_trials/reviews/round34_blind_comparison.md) rate
+every dinner at3 and retain both reading controls at4. The independent review
+also retains reading_literary_1, which the root regards as too prescriptive.
+No definite new material boundary failure is found; local POV and credibility
+repairs remain. The [decision](proxy_trials/candidate_34/decision.json) does not
+promote the cue. This was a positive style-cue hypothesis, not established model
+guidance, and does not establish a broad model limit.
+
+Candidate35 starts two fresh sessions with unchanged C29 generation instructions
+and a different [current situation](proxy_trials/candidate_35/current_business.txt).
+Rashid has overlapping commitments to cards with Dena and friends and practice
+with Ashara. The parties know different parts of the arrangements. All Covenant
+material outside current_business remains byte-identical, including the full
+character backgrounds and Dena's paragraph. An active root-driven player and a
+separate observant player driver follow the same opening and persona. Each
+session uses one persistent Terra/max whole-story author with one first passage
+per submission. The initial five-turn screen is underway; this broadens situation
+coverage and does not itself demonstrate improved generic prompting. No candidate
+is selected.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

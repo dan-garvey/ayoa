@@ -138,6 +138,29 @@ blind reviewer will assess every output; brevity or fewer named speakers alone
 cannot pass if lived interaction, player redirection or particular interests
 become weaker.
 
+Candidate34 tests a positive literary-register cue. Only C29's opening sentence
+changes to request naturalistic interactive fiction using the prose and dialogue
+register of a contemporary literary novel. The entire remaining common prompt,
+all biographies/world facts and exact raw histories stay fixed. Two contexts,
+two conditions and two fresh repeats yield eight first continuations with no
+editor or selector. Both conditions end task files with a newline to make the
+output-path line visible to a wc-l-based read. This formatting correction changes
+no storytelling instruction. The stylistic label is a hypothesis, not official
+model guidance. The screen must not be used to claim a broad model limit or
+general improvement if only these contexts change.
+
+Candidate35 starts fresh stories with unchanged C29 generation instructions,
+persona and wrapper. Only the Covenant's current_business changes: Rashid has
+accepted overlapping commitments to practice with Ashara and cards with Dena
+and friends. All other Covenant material and Dena's complete paragraph remain
+byte-identical. No outcome or confrontation is prescribed. The root drives an
+active player using encountered facts; a separate driver sees only the persona,
+its own submissions and published fiction for an observant player. Each uses
+one persistent Terra/max whole-story author and one first publication per input.
+Assess five turns before extending toward fifteen; retain the twelve-turn
+minimum, two-policy requirement and held-out probes for selection. This is a
+changed-situation test, not an isolated generic prompt intervention.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

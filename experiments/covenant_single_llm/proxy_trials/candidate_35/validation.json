@@ -1,0 +1,31 @@
+{
+  "scope": "Frozen setup, unchanged full character/world context outside current situation, and first output preservation; not a literary assessment.",
+  "common_prompt_exact_C29": true,
+  "all_Covenant_outside_current_business_unchanged": true,
+  "Dena_paragraph_preserved_verbatim": true,
+  "previous_outputs_unchanged": true,
+  "cases": [
+    {
+      "case": "session_a",
+      "player_turns_completed": 0,
+      "responses": [
+        {
+          "turn": 0,
+          "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+          "story_sha256": "f963e7ab6f02d3f3181b944ed3c81d65eb86e132379f0dad243030a3c8041375"
+        }
+      ]
+    },
+    {
+      "case": "session_b",
+      "player_turns_completed": 0,
+      "responses": [
+        {
+          "turn": 0,
+          "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+          "story_sha256": "6550c5f0ba8040162accfc5f91f699000a980a6b5a10fd887b5526b061723d79"
+        }
+      ]
+    }
+  ]
+}

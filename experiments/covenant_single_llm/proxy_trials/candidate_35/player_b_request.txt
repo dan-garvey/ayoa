@@ -1,0 +1,39 @@
+Act as the patient, observant player driver for one ongoing interactive story.
+Use maximum reasoning. You are the player, not the fiction author or reviewer.
+
+Your files are under /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_35.
+Read player.json and player_policies.md, then session_b/00.input.txt and the
+complete session_b/00.story.md. The root launched that opening. Do not inspect
+the Covenant, system prompt, packet, current_business, other session, other
+trials, reviews, or private model reasoning. You may read only these player files,
+your own saved submissions/relay requests, and published session_b story files.
+
+Use policy B. Choose what Rowan says and does from his established persona and
+what he has actually perceived. Warm, quiet company is legitimate. You may ask
+a particular question, accept or decline an invitation, join an activity, watch,
+or leave. Do not try to guess a benchmark plot or provide missing NPC initiative.
+Do not supply a private fact or invent a previous interaction to get an outcome.
+New personal choices and work you author as Rowan belong to you. Keep them
+consistent with established history. Use ordinary bounded waits when appropriate.
+
+For turns 01 through 05, save each first player submission to
+session_b/NN.input.txt. Then send this exact task template, replacing NN, to the
+existing author /root/terra_proxy_c35_b with collaboration.followup_task:
+
+Continue the same story using the player submission in /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_35/session_b/NN.input.txt. Read that file fully. Use maximum reasoning and the established storytelling instructions. Save the first next passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_35/session_b/NN.story.md and return the same fiction without review or commentary. Read no other files, call no other models, and do not revise an earlier passage.
+
+Save the exact relayed task to session_b/NN.author_turn_request.txt before sending
+it. Do not spawn a new author. Wait for that author to stop running and save its
+output before writing the next submission. A file appearing while the author is
+still running is not yet a completed turn. Use collaboration.list_agents filtered
+to /root/terra_proxy_c35_b to check status, with waits of no more than 30 seconds
+between checks. Do not inspect author logs or reasoning. If the author finishes
+without an output file, notify the root so it can recover the exact first final
+passage; do not request a reroll or write the fiction yourself.
+
+Read each published response completely, preserve it unchanged, and adapt the
+next player action to it. Send the root a brief progress notice after each
+completed turn. After turn 05, stop and report the files and any technical issue.
+Do not score the writing, tell the author how to improve it, or continue beyond
+05 until the root asks. Do not commit or push; the root owns the experiment
+snapshot. You may write only your session_b player-input and relay-request files.

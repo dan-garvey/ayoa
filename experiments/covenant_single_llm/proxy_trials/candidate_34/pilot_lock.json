@@ -1,0 +1,15 @@
+{
+  "locked_at": "2026-09-14T08:44:55.044877+00:00",
+  "pilot_sha256": "f59632bdb32682ae09e57fa0ff959cac48f2f01741bebeef66f07088487ffa8e",
+  "story_sha256": {
+    "book_control_1": "0c39dfc9613df463fd034c0cbaffbe196b10b4b9682cb115ee902027bae74e4e",
+    "book_control_2": "6e253b588af2c126f4571eb784e2bc7344d341142c48dfa3980e4e6fc9afa1c8",
+    "book_literary_1": "d104ee91afa4ed32565c3fc3c6235b6667e433728d442d29e4ab33c17b5d23a9",
+    "book_literary_2": "a0d8a01a173b79b87cc3f7227ff22713719724986388ac3d7364183c7527aa79",
+    "reading_control_1": "36b370d208c23e622f14b528ec57ab8d439ee1888bbcd315913aaf84c2698db6",
+    "reading_control_2": "72153d8b1a70e0f7b9d7b07426543840629921ac2a0fd7a220cd76f5e99a5778",
+    "reading_literary_1": "9de3806b6b60d0189ce22782e9240a70fc205f9734a41d7708c9f1b05f0431ff",
+    "reading_literary_2": "a9302812f0a48938b2628e771ffdc6cdd6cf4e8bb4345aeb395a75e1d7f9c9c2"
+  },
+  "independent_literary_review_not_yet_requested": true
+}

@@ -1,0 +1,15 @@
+{
+  "agent": "/root/terra_c34_reading_literary_1",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "matched continuation literary-register diagnostic",
+  "fresh_sessions": 0,
+  "calls_per_player_submission": 1,
+  "variant": "literary",
+  "repeat": 1,
+  "review_feedback_supplied": false,
+  "system_prompt_file": "system_literary.txt",
+  "author_request_sha256": "d7282dd64f040a486da58d262ac1fa949b44bc962b951fef1f7edff6de15aaca",
+  "launch_request_sha256": "e8fa47c3318625ed809909d33ea5a4ccfa40cbdd6e48ad02be223b86d07afdab"
+}

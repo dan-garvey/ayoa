@@ -1,0 +1,85 @@
+{
+  "scope": "Public tool call/output records and model/effort metadata only. No private reasoning inspected.",
+  "all_completed_author_instructions_and_packets_read_in_full": true,
+  "cases": [
+    {
+      "case": "session_a",
+      "agent": "/root/terra_proxy_c35_a",
+      "session_id": "01a09f1a-4ba3-75a0-9012-96dd03f9fcbc",
+      "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T03-48-15-01a09f1a-4ba3-75a0-9012-96dd03f9fcbc.jsonl",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "files": [
+        {
+          "file": "author_request.txt",
+          "sha256": "59191b53c08fccc2e2b583e5ca45f417d94c156a3b91a5f815faa21e5f16bb3c",
+          "lines": 54,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 54,
+              "call_id": "call_v8N5cZVmreieYFlXUDzIHOux"
+            }
+          ]
+        },
+        {
+          "file": "packet.txt",
+          "sha256": "10fb66121470404599c87f4ec647c0267bb97edade4cf55e94cb3284415e2c41",
+          "lines": 388,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 240,
+              "call_id": "call_cnXfqN4aE3v5aIMOb8Bsh7Hz"
+            },
+            {
+              "start": 241,
+              "end": 388,
+              "call_id": "call_eCqJcOE1N6aYgoqicXtBENyR"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "session_b",
+      "agent": "/root/terra_proxy_c35_b",
+      "session_id": "01a09f1a-b349-7370-a81c-916d0cd7cb1f",
+      "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T03-48-42-01a09f1a-b349-7370-a81c-916d0cd7cb1f.jsonl",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "files": [
+        {
+          "file": "author_request.txt",
+          "sha256": "f72d03367e44f21db5d9c705bbc26c63a57741ae9fbe7627e60f5a6d6e5da090",
+          "lines": 54,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 54,
+              "call_id": "call_Em1r39OPAnqCbGblDgchUd8a"
+            }
+          ]
+        },
+        {
+          "file": "packet.txt",
+          "sha256": "10fb66121470404599c87f4ec647c0267bb97edade4cf55e94cb3284415e2c41",
+          "lines": 388,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 260,
+              "call_id": "call_iEjaQrTLaCpIJQU3GatQB5Lu"
+            },
+            {
+              "start": 261,
+              "end": 388,
+              "call_id": "call_FVM6KXYQQ5hbEFW5AY5bEkNP"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "limits": "File delivery and visible read coverage verified; not a plaintext comparison of encrypted collaboration relay payloads or proof of instruction adherence."
+}

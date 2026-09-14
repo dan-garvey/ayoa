@@ -1,0 +1,87 @@
+{
+  "created_at": "2026-09-14T08:26:26.546164+00:00",
+  "source_commit": "a4411860185418c5ba52bfee0dc47d302e6d0538",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "derived_from": "C29 one-pass generation; C32 raw-history packets. C34 changes only the opening style sentence.",
+  "prompt_sha256": {
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "system_literary.txt": "c486d66be439e9a33c1591b3bf4e6216efe3ea1cefeac7befa497e081cb64c03",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "wrapper_file": "proxy_wrapper.txt",
+  "wrapper_sha256": "39b9aeddfad81fec3d65d9801a4602cb0e08a5a9891c3822eae4381bcde3774a",
+  "planned_scope": "Two contexts, two prompt conditions, two fresh repeats: eight first continuations, eight author tasks, zero fresh long sessions.",
+  "change": "Opening sentence requests naturalistic interactive fiction in the prose/dialogue register of a contemporary literary novel. All remaining instructions, full Covenant and raw context stay exact. No named-author or character dialogue example, voice lexicon, or reduced biography.",
+  "loop": "Each fresh whole-story Terra/max author reads its common instructions, full Covenant/persona, complete published history and current player input, then returns one first continuation. No editor or selector.",
+  "review_contract": "Root locks its full-output assessment before a fresh anonymous comparison against original context. Retain all eight first outputs. Assess whole exchanges, lived interaction, particular interests and player scope.",
+  "delivery_format": "Both conditions end request files with a newline so wc -l includes the output-path line. No story instruction changes accompany this technical formatting correction.",
+  "cases": [
+    {
+      "case": "book_control_1",
+      "kind": "book",
+      "variant": "control",
+      "repeat": 1,
+      "prompt_file": "system.txt",
+      "packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86"
+    },
+    {
+      "case": "book_control_2",
+      "kind": "book",
+      "variant": "control",
+      "repeat": 2,
+      "prompt_file": "system.txt",
+      "packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86"
+    },
+    {
+      "case": "book_literary_1",
+      "kind": "book",
+      "variant": "literary",
+      "repeat": 1,
+      "prompt_file": "system_literary.txt",
+      "packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86"
+    },
+    {
+      "case": "book_literary_2",
+      "kind": "book",
+      "variant": "literary",
+      "repeat": 2,
+      "prompt_file": "system_literary.txt",
+      "packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86"
+    },
+    {
+      "case": "reading_control_1",
+      "kind": "reading",
+      "variant": "control",
+      "repeat": 1,
+      "prompt_file": "system.txt",
+      "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
+    },
+    {
+      "case": "reading_control_2",
+      "kind": "reading",
+      "variant": "control",
+      "repeat": 2,
+      "prompt_file": "system.txt",
+      "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
+    },
+    {
+      "case": "reading_literary_1",
+      "kind": "reading",
+      "variant": "literary",
+      "repeat": 1,
+      "prompt_file": "system_literary.txt",
+      "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
+    },
+    {
+      "case": "reading_literary_2",
+      "kind": "reading",
+      "variant": "literary",
+      "repeat": 2,
+      "prompt_file": "system_literary.txt",
+      "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
+    }
+  ],
+  "limits": "This is a bounded positive-register hypothesis, not documented model-specific guidance. The label may flatten setting-specific formality, change narration more than speech, or have little effect. No long-session, API-equivalence or model-ceiling claim."
+}

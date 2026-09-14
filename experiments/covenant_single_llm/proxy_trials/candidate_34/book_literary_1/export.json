@@ -1,0 +1,16 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "4452844237c7fe4014031511b0e97f5e5f66f71af82aceeceb4631ceb4440934",
+      "story_sha256": "d104ee91afa4ed32565c3fc3c6235b6667e433728d442d29e4ab33c17b5d23a9",
+      "story_words": 1004
+    }
+  ],
+  "player_turns": 1,
+  "session_kind": "matched continuation literary-register diagnostic",
+  "story_words": 1004
+}

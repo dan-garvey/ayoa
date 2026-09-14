@@ -1,0 +1,12 @@
+{
+  "agent": "/root/terra_proxy_c35_a",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "fresh session",
+  "calls_per_player_submission": 1,
+  "policy": "a",
+  "review_feedback_supplied": false,
+  "author_request_sha256": "59191b53c08fccc2e2b583e5ca45f417d94c156a3b91a5f815faa21e5f16bb3c",
+  "launch_request_sha256": "01d1fc96dd00a9b4738aa154fd1eba56407c8b15d160b53a11e5321799a4170d"
+}
