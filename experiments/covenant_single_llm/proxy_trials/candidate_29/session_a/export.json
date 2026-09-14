@@ -1,0 +1,50 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+      "story_sha256": "17034281a16b475e2b767b6681834374f317209bb93d34206042bf2602069edf",
+      "story_words": 631,
+      "draft_sha256": "dff21cac4757cf6e192e57ec657ec47e1a571ee891eb539f14806fff1ace869a",
+      "draft_words": 727,
+      "editor_request_sha256": "0c2f9e70758a82bc3fc7c0dfeb9704e7be2e799082fe3ab56298401571dc4d0b",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 1,
+      "input_sha256": "d4173dbec1f36c14c22721c450bed418f720737daec712b7e8acf9ef9ce7bb92",
+      "story_sha256": "fac50e7eb7b09b91de23064eb062e85ede2bb39f35c3a79eb3fc12923136f64f",
+      "story_words": 545,
+      "draft_sha256": "40e5208722b37b7e88fc160987fde85c1c4911ed331f3766f60531927ba11bd6",
+      "draft_words": 586,
+      "editor_request_sha256": "07b921cd856b34013aeec78fc3b4579d747bfb61c2794b661ee7ab10ceabc38e",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 2,
+      "input_sha256": "7b790621e6e95c4e67b7f469cab7bdb3cfa0caa911309a06e4201c072308f4c7",
+      "story_sha256": "eafa1e7048a01b3ca44b74c4729de1f5ff7abc295b901e6a3e5f89c4a07991e8",
+      "story_words": 232,
+      "draft_sha256": "c9a5e2e124e45188d75190d0276de95ea1740e191be18b479cccb6eb42346244",
+      "draft_words": 293,
+      "editor_request_sha256": "19d95151a594ae9bcb8552bd43d67d36f03c7d78060461bd52b0e38faf708dc3",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 3,
+      "input_sha256": "929c178e18bdda4328fe2398106de858b93bea9cd6c48c1321b08de798a4c3be",
+      "story_sha256": "bda1646c5ac5196004725e23054f871b431b9237ac3cd7087173db8fefe1d237",
+      "story_words": 202,
+      "draft_sha256": "57d8434ee0155a44e115f3c7413e88d55d6ccd892a89322db5a7ba94a3b0514d",
+      "draft_words": 283,
+      "editor_request_sha256": "6cdd83ffbbddfbc927b3211e3ec1f647cd5920c58494ca0b0519db0b88b1e70a",
+      "author_task_requests": 2
+    }
+  ],
+  "player_turns": 3,
+  "session_kind": "fresh interactive session",
+  "story_words": 1610
+}

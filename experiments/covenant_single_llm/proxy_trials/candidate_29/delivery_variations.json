@@ -1,0 +1,11 @@
+{
+  "variations": [
+    {
+      "case": "reading_replay",
+      "turn": 1,
+      "stage": "revision",
+      "variation": "The direct request omitted the space after the comma in 'refuse,remain'. The saved request preserves the delivered wording and has a final file newline added by the patch tool; the direct request had no final newline. All words and substantive instructions are unchanged.",
+      "recovery": "No second request or story reroll; preserve the first revision. The frozen revision_task.txt remains unchanged."
+    }
+  ]
+}

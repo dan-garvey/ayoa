@@ -57,6 +57,16 @@ author's prior drafts or later published passages. Their three outputs count as
 zero fresh player turns. This changes editorial authority and participation
 guidance together and cannot isolate either effect by itself.
 
+Candidate29 returns to normal generation followed by revision, with no supplied
+draft in the initial packet. It removes the generation prompt's short-paragraph
+target and duplicate structural-edit instructions, while keeping the separate
+revision request. The revision also follows changes in subject or addressee.
+The full Covenant is unchanged. Initial scope is two matched continuation
+screens and a fresh A session. Replays do not replace substantial fresh trials.
+Several related instructions change together; no individual causal effect is
+isolated. The loop still has two sequential requests to the same story author,
+and retains its unreleased drafts in proxy conversation context.
+
 Through candidate 08, the artifact wrapper also said not to "evaluate the prose"
 or "propose edits," intending to exclude reviewer output and repository work.
 Those words could conflict with private self-editing requested by the story

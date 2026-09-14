@@ -1,0 +1,30 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "1f8f4d8e36b4c6801cd3ca5ae22128f1bd67fd34931a639aef6b523cf7ddeba6",
+      "story_sha256": "a6ac9f242ceed2a899505def565b737c7fb94c5e6d8b59e62ea5bc88e6bae729",
+      "story_words": 125,
+      "draft_sha256": "84e8bc343ec0e0dc7688b6dac8dcd02cbcfff7f7e002221dcb97ae05cae1d558",
+      "draft_words": 138,
+      "editor_request_sha256": "99b4b089b32ff4c5419b004bca7fc911b1dd0d6e9e712f577abb186696bf7084",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 1,
+      "input_sha256": "302a96858733f922c659486cb242f644dd379f25b39193d67687415cd5a11634",
+      "story_sha256": "4d5399a43af48ab1d119f20685187760e6c8896f93bee84e508d0726ae69edfe",
+      "story_words": 146,
+      "draft_sha256": "94cc0ef4a0e199fcca51845e9b7792d75d4bb7721e79745aa5cf825e0e4f5e6b",
+      "draft_words": 131,
+      "editor_request_sha256": "3e6b629f3940c2e00832e0faeb2cc9b868c8697a8e9f9270ce5965a2b44f205b",
+      "author_task_requests": 2
+    }
+  ],
+  "player_turns": 2,
+  "session_kind": "matched continuation replay with two author requests; not a fresh session",
+  "story_words": 271
+}

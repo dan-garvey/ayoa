@@ -1,0 +1,12 @@
+{
+  "agent": "/root/terra_c29_game_replay",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "review_feedback_supplied": false,
+  "calls_per_player_submission": 2,
+  "planned_scope": "Normal generation plus separate revision; preserve each first draft and first revision.",
+  "author_request_sha256": "929cbcb091eb6357b0b18951db9d993625cc7a9320b630fc17f5db8a970b6036",
+  "editor_request_sha256": "634c57780e7b7a38e8356cd6c0019ea53898e0dcba58b9c4168c3ea885e31b8e",
+  "case_type": "matched continuation replay with two author requests; not a fresh session"
+}

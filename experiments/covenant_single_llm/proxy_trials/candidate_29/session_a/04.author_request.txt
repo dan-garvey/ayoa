@@ -1,0 +1,6 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+"The south rail, then. Thank you." I return to my dinner and listen to the others while I eat. When the plates are being cleared, I say, "I'm going to have a look at the gardens before bed. I'd welcome company, if anyone fancies a walk."
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_29/session_a/04.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

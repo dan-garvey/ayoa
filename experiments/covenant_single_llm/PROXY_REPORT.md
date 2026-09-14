@@ -181,6 +181,19 @@ C27's simpler group reply to C28's unsolicited writing workshop. The game also
 has an ambiguous opening move order. The [decision](proxy_trials/candidate_28/decision.json)
 retains the bounded gains without selecting C28 or claiming a live improvement.
 
+Candidate29 tests normal generation followed by revision with a simpler common
+prompt: no short-paragraph target or duplicate structural-edit instructions.
+The separate revision also follows the player's conversational focus. The full
+Covenant is unchanged. Its [reading continuation](proxy_trials/candidate_29/reading_replay/transcript.md)
+gives Seraphel a particular reader preference and a childhood song. The
+[game continuation](proxy_trials/candidate_29/game_replay/transcript.md) completes
+play but reverses the fourth moves in narration. An explicit OOC follow-up
+receives an admission and a coherent local correction. The
+[independent review](proxy_trials/reviews/round29_replays_review.md) finds the
+reading strong and the game socially engaging while retaining the initial error
+and limits of the repair. Fresh A is still a short ongoing screen. No candidate
+is selected from these replays.
+
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
 65,117 words of generated story. These counts include replays and rejected
