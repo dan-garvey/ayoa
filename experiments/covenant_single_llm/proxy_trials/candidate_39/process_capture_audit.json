@@ -1,0 +1,276 @@
+{
+  "audited_at": "2026-09-14T11:47:40.364155+00:00",
+  "after_both_literary_locks": true,
+  "scope": "Public tool calls, exact Add File patch bodies, captured public finals and immutable file hashes only. No private reasoning inspected. All public tool calls classified; initial mutation regex counts are candidate counts, not actual saves.",
+  "literary_lock_sha256": {
+    "pilot_lock.json": "67bde1e3822ff9b444c6a465b5cf70fa3cdbe69a3e80fe6b8f052628829370a7",
+    "independent_lock.json": "3e2da8bcab4a2a22749674f3f6d10ac3855e56305858532c33136032f1e1cc26"
+  },
+  "cases": [
+    {
+      "case": "later_prose_1",
+      "actual_preliminary_writes": 1,
+      "preliminary_words": 1358,
+      "final_words": 1401,
+      "preliminary_sha256": "bec91f3fb6f9d52482d50131dd109b4a89aceb0c7e899d9e5e83dea13079b490",
+      "final_sha256": "1c668efd848b19ec80b991cf3b3c136dd021959ff25c79f02c152b705dff2daf",
+      "path_only_first_final": true,
+      "first_snapshot_and_live_original_unchanged": true,
+      "write_calls": [
+        {
+          "call_id": "call_gGg7KhM1vM4OU4Bqw65B5ABB",
+          "after_public_final_count": 0,
+          "patch_body_equals_first_snapshot": true,
+          "source_sha256": "7c52853b76198941bb35260ea61f77dafda451fddd47517a903704d1a12c904e"
+        }
+      ],
+      "all_public_calls": [
+        {
+          "call_id": "call_y79cLQAvBRrh0QOqHlQYX2hk",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "e51d6fcb6696ed4f4d86a982ca76d384d35fe3dcb4d37f1376f7cde1f83bbeae"
+        },
+        {
+          "call_id": "call_JRuk784ATL1avG37pqEEG3F4",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "c28bb91b104c9a4e1a056c5641c896e169eaff936173f3696584bcbd3741c51f"
+        },
+        {
+          "call_id": "call_M34GPijRCV8qmjtp2KsDuYCq",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "decaf98761f0b1832ba892db276e7b0575e88d794de22b3f5b39d555d9539cda"
+        },
+        {
+          "call_id": "call_D8Q5L1raxFwwDRq1TeW6zhF8",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "39d6c6f301ef6f26771e74c7262367ec0f57e640fa125e4e7292c4e55a3dfcef"
+        },
+        {
+          "call_id": "call_Erh8vWYGce3jgy0eiAethmaf",
+          "after_public_final_count": 0,
+          "classification": "read-only existence check",
+          "source_sha256": "efa8c67fde83233404bca4c5eba25d5b1f9f2a251f0b55361b2267b0f05adc7d"
+        },
+        {
+          "call_id": "call_gGg7KhM1vM4OU4Bqw65B5ABB",
+          "after_public_final_count": 0,
+          "classification": "single Add File of the preliminary artifact",
+          "source_sha256": "7c52853b76198941bb35260ea61f77dafda451fddd47517a903704d1a12c904e"
+        },
+        {
+          "call_id": "call_bFn5ffk2odL70PwmLbYoIm4n",
+          "after_public_final_count": 1,
+          "classification": "read-only file read or line count",
+          "source_sha256": "dbe677e9c464f1dd8196f6820710457af48036b1527aed99574909b98c19bb14"
+        }
+      ],
+      "preliminary_capture_regex_candidates": 2,
+      "regex_explanation": "Any additional candidate was a read-only existence check printing to stdout, not a file write."
+    },
+    {
+      "case": "later_prose_2",
+      "actual_preliminary_writes": 1,
+      "preliminary_words": 1206,
+      "final_words": 1090,
+      "preliminary_sha256": "486ebbf4ee2378841213baeb9bd156b72e02d93e7a2782c254e440842505ca41",
+      "final_sha256": "ff0392047891300515058d6e724f127a75c73dca1ac59755eed433ae72c1f1db",
+      "path_only_first_final": true,
+      "first_snapshot_and_live_original_unchanged": true,
+      "write_calls": [
+        {
+          "call_id": "call_5m3MRfFwiBGbHrHGsdOSnzZw",
+          "after_public_final_count": 0,
+          "patch_body_equals_first_snapshot": true,
+          "source_sha256": "188e68f45deb032fdbc4bed65920fa4d10024186626c2e72479dd6fff7b7c0bf"
+        }
+      ],
+      "all_public_calls": [
+        {
+          "call_id": "call_TD5Xb7M6GT7OPseyr64pMGim",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "3bea87911444e295ba06dc45edd22920156691b66385c489bce23d6fa9667573"
+        },
+        {
+          "call_id": "call_ws4jDXw6XFD0HKbjPajVTyCf",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "6f68867f5ac6afe5ff55cd88deec286c38607398e17cedaa04cb68e6b10d76ce"
+        },
+        {
+          "call_id": "call_tlQjauye7qhxDyMNaC6ZXwRp",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "92f85f07aa749b2ecb0267432353db919461fedb41ccf6fdd53cb2fe430ef9bc"
+        },
+        {
+          "call_id": "call_gDBkg7TBkNasWSOgXx1pWZjp",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "9b3077de18518f57bc4c44c6f3888d80ea41e4b8313896d2f707f8d8b7dc3519"
+        },
+        {
+          "call_id": "call_qVDIxDewLV7PH9A7AkMcscnZ",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "321eff3b99c831a08f068895643b34b8dea33b9138d1395a0ab06c8eb7886bfd"
+        },
+        {
+          "call_id": "call_Usf5xPu5rt683NNGecb3YCp8",
+          "after_public_final_count": 0,
+          "classification": "read-only existence check",
+          "source_sha256": "9283f1cf9cd20b92a68af39560f7fd300d2d7afd25f60484333c81d3011718f3"
+        },
+        {
+          "call_id": "call_5m3MRfFwiBGbHrHGsdOSnzZw",
+          "after_public_final_count": 0,
+          "classification": "single Add File of the preliminary artifact",
+          "source_sha256": "188e68f45deb032fdbc4bed65920fa4d10024186626c2e72479dd6fff7b7c0bf"
+        },
+        {
+          "call_id": "call_13ppbdbSCrPqBs5J0JJyXfVa",
+          "after_public_final_count": 1,
+          "classification": "read-only file read or line count",
+          "source_sha256": "43479857b9f646a2009d307208f860e5c9920475414039cc5b9891cf77900634"
+        }
+      ],
+      "preliminary_capture_regex_candidates": 2,
+      "regex_explanation": "Any additional candidate was a read-only existence check printing to stdout, not a file write."
+    },
+    {
+      "case": "later_synopsis_1",
+      "actual_preliminary_writes": 1,
+      "preliminary_words": 152,
+      "final_words": 716,
+      "preliminary_sha256": "6958ae6d237cf3c4a0dc40c20d0db314d1af3417c8ad5ab1b1a8cae6029a6f8b",
+      "final_sha256": "738bcf9e9b3c7f28dba558bbe91f8b0ccafb987a7b196b9f68aafb40283d0d2e",
+      "path_only_first_final": true,
+      "first_snapshot_and_live_original_unchanged": true,
+      "write_calls": [
+        {
+          "call_id": "call_7TUCHBWMtRzPck7usJvDttlQ",
+          "after_public_final_count": 0,
+          "patch_body_equals_first_snapshot": true,
+          "source_sha256": "f3143ce4dd6da7413f876ec88f702f8fa3035cda359955b06ecac9e1be940ea6"
+        }
+      ],
+      "all_public_calls": [
+        {
+          "call_id": "call_jHcpxf3FmEW7PSHdHjx6HqM8",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "4319bb8749303a806c64de8997da612ec5d1afa8de08e4ffa0de1cc6a2a5dd7a"
+        },
+        {
+          "call_id": "call_S9CFSoWa6TnAr6NkrBslHRbZ",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "dee8793ab2983d70786333278039dacf1f2e24640b4db5ac543088786c1e0974"
+        },
+        {
+          "call_id": "call_nXwgrr0YdC8eIUTHIR3PpVOe",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "54b978c898a76550b3b6bba98e5b812547139302da0f799bb5bf7842e4de7513"
+        },
+        {
+          "call_id": "call_8j5voVQ0xnUsj1enAqyOSsBv",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "a2e40c8b120550910db0d281a4af1352607ae712475641b138e0c31b549c364e"
+        },
+        {
+          "call_id": "call_BQSWwnO2iASpHqhYsUwHmc7n",
+          "after_public_final_count": 0,
+          "classification": "read-only existence check",
+          "source_sha256": "583c66eac6ceb86abb2281e18458ba9064ecea3a67e52f55397b0806add0e29c"
+        },
+        {
+          "call_id": "call_7TUCHBWMtRzPck7usJvDttlQ",
+          "after_public_final_count": 0,
+          "classification": "single Add File of the preliminary artifact",
+          "source_sha256": "f3143ce4dd6da7413f876ec88f702f8fa3035cda359955b06ecac9e1be940ea6"
+        },
+        {
+          "call_id": "call_0OqhProIJCiJmw19ciCNQWrd",
+          "after_public_final_count": 1,
+          "classification": "read-only file read or line count",
+          "source_sha256": "d00c70cad3b339c41aed152dfb559c7cd66040356c8f324b4b1f075e42d22174"
+        }
+      ],
+      "preliminary_capture_regex_candidates": 1,
+      "regex_explanation": "Any additional candidate was a read-only existence check printing to stdout, not a file write."
+    },
+    {
+      "case": "later_synopsis_2",
+      "actual_preliminary_writes": 1,
+      "preliminary_words": 152,
+      "final_words": 945,
+      "preliminary_sha256": "ba720ce8e0f68f20772111edbdc5c878c63644fc06f97b7e74ecf8d5405a699b",
+      "final_sha256": "84f32ffc5a630c5e1c51e63794b4ce70a3c47883d5473fb07311f86c007102bc",
+      "path_only_first_final": true,
+      "first_snapshot_and_live_original_unchanged": true,
+      "write_calls": [
+        {
+          "call_id": "call_NwGaZVcy0KuikFYMKBWXH1BM",
+          "after_public_final_count": 0,
+          "patch_body_equals_first_snapshot": true,
+          "source_sha256": "ee67f6633ca902a861d5150f7f62189fec5a04877e842e413fa5cf60b6ee6aeb"
+        }
+      ],
+      "all_public_calls": [
+        {
+          "call_id": "call_qRPKgdkd6Q6GhRxRYPuhdin9",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "9ff041b945bfb6911b30a9b9d5462400e4a4a0004875d3bf80ae0c2f5f7ad75d"
+        },
+        {
+          "call_id": "call_ZX3zxj7e8HHZa5FIdv9vErNR",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "a33b26a8b03759e2b9c0526014fcb5f6c5c82e759649802085a19420cf5cd236"
+        },
+        {
+          "call_id": "call_95VMDqnHLwlziDKqoWDwu2J9",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "06638e6f7f782a28f204d32e15622742d546a0477616e8ba9c9adec430d35513"
+        },
+        {
+          "call_id": "call_oCNUKTNwz9LxPRjbfLFgAdAw",
+          "after_public_final_count": 0,
+          "classification": "read-only file read or line count",
+          "source_sha256": "f0bcb3941272e141a2cec1892c184445bd6b595073ba96927d5964cebac7acb9"
+        },
+        {
+          "call_id": "call_EaQzhRL6kbZ7iZydbBaRhW7S",
+          "after_public_final_count": 0,
+          "classification": "read-only existence check",
+          "source_sha256": "9fd9fc4d0ae3fafd2f71b250901b9283a68635281689d4f067f83962fd8185bf"
+        },
+        {
+          "call_id": "call_NwGaZVcy0KuikFYMKBWXH1BM",
+          "after_public_final_count": 0,
+          "classification": "single Add File of the preliminary artifact",
+          "source_sha256": "ee67f6633ca902a861d5150f7f62189fec5a04877e842e413fa5cf60b6ee6aeb"
+        },
+        {
+          "call_id": "call_cED1ohcyS77KUH9Ic5yXGF7O",
+          "after_public_final_count": 1,
+          "classification": "read-only file read or line count",
+          "source_sha256": "8351190ac0b7930f769263eb75b19ab3df2402abfb07627634142d89c670edb2"
+        }
+      ],
+      "preliminary_capture_regex_candidates": 2,
+      "regex_explanation": "Any additional candidate was a read-only existence check printing to stdout, not a file write."
+    }
+  ],
+  "total_preliminary_words": 2868,
+  "all_four_single_save_contracts_pass": true,
+  "all_four_final_tasks_return_only": true
+}

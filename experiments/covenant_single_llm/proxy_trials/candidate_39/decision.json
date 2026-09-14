@@ -1,0 +1,178 @@
+{
+  "decided_at": "2026-09-14T11:50:41.063739+00:00",
+  "status": "rejected",
+  "selected": false,
+  "new_publications": 6,
+  "new_story_words": 5860,
+  "new_preliminary_artifacts": 4,
+  "preliminary_words": 2868,
+  "author_requests": 10,
+  "historical_control_publications": 0,
+  "fresh_substantial_sessions": 0,
+  "conditional_first_dinner_cases_launched": 0,
+  "root_scores": {
+    "later_direct_1": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "later_synopsis_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_prose_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_direct_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_prose_2": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "later_synopsis_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ]
+  },
+  "root_preference": [
+    "later_prose_2",
+    "later_direct_1",
+    [
+      "later_direct_2",
+      "later_prose_1"
+    ],
+    "later_synopsis_2",
+    "later_synopsis_1"
+  ],
+  "independent_scores": {
+    "later_synopsis_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_prose_2": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "later_direct_1": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "later_direct_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_prose_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_synopsis_1": [
+      3,
+      3,
+      3,
+      3,
+      3
+    ]
+  },
+  "independent_preference": [
+    "later_direct_1",
+    "later_prose_2",
+    "later_direct_2",
+    "later_prose_1",
+    "later_synopsis_2",
+    "later_synopsis_1"
+  ],
+  "primary_gate_passed": false,
+  "reason": "Both reviewers give all six publications prose3 and rank both synopsis publications below all four controls. Both synopsis repeats fail the predeclared literary and preference requirements; the conditional first-dinner screen is not launched.",
+  "disagreements": [
+    "Root prefers prose2 to direct1; independent reverses them. Root approximately ties direct2 with prose1; independent prefers direct2.",
+    "Independent scores synopsis1 interests/direction/initiative3/3/3 for insufficient development; root scores4/4/4 for the enacted disclosure and pending practical choices.",
+    "Root initially recorded the direct1 Council callback as a source ambiguity. Independent identifies unsupported knowledge; root accepts the local gap in the response without altering the locked initial assessment."
+  ],
+  "new_local_failures": [
+    {
+      "case": "later_direct_1",
+      "finding": "Dena echoes Rowan's earlier Council comparison with no supplied source for hearing it. No offstage relay or earlier overhearing is invented."
+    },
+    {
+      "case": "later_direct_2",
+      "finding": "Sauce boat warms visibly without a visible effect establishing temperature."
+    },
+    {
+      "case": "later_prose_1",
+      "finding": "Final first-quarter-hour-of-welcome-evening wording resets an already ongoing dinner."
+    },
+    {
+      "case": "later_synopsis_1",
+      "finding": "Soup bowls are collected after the published history has removed them."
+    },
+    {
+      "case": "later_synopsis_2",
+      "finding": "Narration asserts Aldric's unspoken decision about taking offense."
+    }
+  ],
+  "material_authorship_or_secret_disclosure_failure_identified": false,
+  "ambiguities_preserved": [
+    "The last-year orientation recollection is not proven incompatible with first-year Conclave status; no prior programme is invented to repair it.",
+    "Lantern ignition mechanics are underexplained, not a demonstrated contradiction repaired with invented magic.",
+    "Dena can ask whether others should start without Rashid as a fallible inference, and the unnamed card-table impact does not establish whose emotion it expresses."
+  ],
+  "positive_evidence": "Both reviewers give distinction4 to direct1 for its competing interpersonal wants and prose2 for its connected practical weather discussion. NPC accommodation and Rashid choosing to disappoint friends are both permissible independently motivated behavior.",
+  "process_conclusion": "Both synopses already assign familiar verbal roles without rich concrete scene material. Prose1 changes events and prose2 retains a coherent ordinary topic, but publication does not reliably improve the prose. No evidence supports keeping the extra stage as the rescue.",
+  "validation": {
+    "all_six_full_author_input_reads_verified": true,
+    "all_four_full_final_request_reads_verified": true,
+    "all_six_exact_final_captures_verified": true,
+    "all_four_preliminaries_saved_once": true,
+    "all_four_first_preliminary_snapshots_unchanged": true,
+    "both_literary_locks_precede_preliminary_inspection": true,
+    "independent_complete_read_coverage_verified": true,
+    "frozen_inputs_unchanged": true
+  },
+  "scope_limits": "Six fresh single continuations at one later-dinner context, four public authored preliminaries, ten author requests, zero substantial sessions. Root condition-informed; independent provenance-anonymized. Direct vs preliminary changes request count and save/instruction obligations. Preliminary arms differ in representation and length. No API cost, latency, cache, private reasoning or long-term quality claim.",
+  "file_sha256": {
+    "pilot_review.md": "463f08a7cef36d1a012f8394d08095e113ecd7c2280f66aa7f12d496da380d27",
+    "pilot_lock.json": "67bde1e3822ff9b444c6a465b5cf70fa3cdbe69a3e80fe6b8f052628829370a7",
+    "independent_lock.json": "3e2da8bcab4a2a22749674f3f6d10ac3855e56305858532c33136032f1e1cc26",
+    "review_read_audit.json": "fbeeed9684f5a211a5a298c59106571fe7b6b89c41fe78c58a4241b16c99786c",
+    "process_audit.md": "819b8c88352251862719665b54e404be29760b3f02584fb46f294dbef248a8ad",
+    "process_capture_audit.json": "9f8c57b0c5dd5f8762b067747d11284745a05dee8a6c95d2ede5aa3ee0fff512",
+    "review_response.md": "a81802190bf6874c1f9bbafed0b533735c039178c660f89bae357df2ef90491b",
+    "../reviews/round39_independent_comparison.md": "99653c4b93ce8809f9317f97ee88ef105b43c1aa3cf75580a22f3b600e52d298"
+  },
+  "next": "No C39 advancement or C40 prompt selected. A separately bounded evidence-based next-direction assessment is pending; overall prompt-iteration goal remains unresolved."
+}

@@ -1,0 +1,96 @@
+{
+  "agent": "/root/proxy_c39_independent_review",
+  "session_id": "01a09fac-9b43-7b72-8330-2318e07cb5eb",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T06-28-04-01a09fac-9b43-7b72-8330-2318e07cb5eb.jsonl",
+  "model_effort_metadata": [
+    [
+      "gpt-6-astra",
+      "max"
+    ]
+  ],
+  "scope": "Exact read coverage from public tool calls and outputs plus model/effort metadata. No private reasoning inspected. This verifies supplied files were returned in full, not compliance with every instruction or hidden cognition.",
+  "files": [
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_39/review_request.txt",
+      "sha256": "c2fd8263f797faf9f61cba743f8e3624c74d7830c3886758fc57aac2c6c988ee",
+      "lines": 14,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 14,
+          "call_id": "call_y7ql122IKsMbYqavp55oPz4c",
+          "line_numbered": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_39/covenant.txt",
+      "sha256": "1dbbc655a32ac2c8934882b9119424f8a09ae6fa4000c7619ab03f7d8bb33981",
+      "lines": 390,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 160,
+          "call_id": "call_afKQHin3lVnde4tq7BO062EL",
+          "line_numbered": false
+        },
+        {
+          "start": 161,
+          "end": 280,
+          "call_id": "call_8MTz5f6MEe0s1hwPR8HYadVZ",
+          "line_numbered": false
+        },
+        {
+          "start": 281,
+          "end": 390,
+          "call_id": "call_8MTz5f6MEe0s1hwPR8HYadVZ",
+          "line_numbered": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_39/review_material.txt",
+      "sha256": "b9a9f088d8cafcf1646a440fb9a04b0b4ae61db9e2a6ac5a019bd2dd470b25e9",
+      "lines": 938,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 180,
+          "call_id": "call_8MTz5f6MEe0s1hwPR8HYadVZ",
+          "line_numbered": false
+        },
+        {
+          "start": 181,
+          "end": 340,
+          "call_id": "call_j0DqM3PDs7QIcOQCYC6CMXJL",
+          "line_numbered": false
+        },
+        {
+          "start": 341,
+          "end": 490,
+          "call_id": "call_j0DqM3PDs7QIcOQCYC6CMXJL",
+          "line_numbered": false
+        },
+        {
+          "start": 491,
+          "end": 640,
+          "call_id": "call_j0DqM3PDs7QIcOQCYC6CMXJL",
+          "line_numbered": false
+        },
+        {
+          "start": 641,
+          "end": 790,
+          "call_id": "call_xZZm8anIVHp2bbrz4pBBUKvz",
+          "line_numbered": false
+        },
+        {
+          "start": 791,
+          "end": 938,
+          "call_id": "call_xZZm8anIVHp2bbrz4pBBUKvz",
+          "line_numbered": false
+        }
+      ]
+    }
+  ],
+  "all_required_files_read_in_full": true
+}

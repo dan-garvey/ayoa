@@ -439,7 +439,7 @@ correct complete authoritative brief; different biographies can reveal condition
 membership despite anonymized provenance. There are four new continuations,
 four historical comparators, and zero substantial sessions. No candidate is promoted.
 
-Candidate39 begins a distinct, low-confidence composition screen supported by
+Candidate39 tests a distinct, low-confidence composition screen supported by
 the [design audit](proxy_trials/reviews/round39_planning_design_audit.md). At the
 same later dinner, two fresh direct authors are compared with two authors who
 first draft prose and two who first compose a concise synopsis without dialogue.
@@ -447,20 +447,35 @@ Each preliminary author saves its first artifact and returns only its path, then
 receives the identical fixed final-composition request. Root hashes those
 artifacts without reading them before final-only literary review. Every arm
 retains the full restored Covenant and exact source conversation. This is six
-new finals and ten author requests when complete; the first-dinner check is
+new finals and ten author requests; the first-dinner check is
 conditional on a primary pass. It is not six completed long sessions or evidence
-that private planning was previously absent. All six authors have launched;
-all six final passages are complete, totaling5,860 final story words. The
+that private planning was previously absent. All six final passages are complete,
+totaling5,860 final story words. The
 [locked final-only root review](proxy_trials/candidate_39/pilot_review.md) gives
 every publication prose3, with distinction4 only for direct1 and prose2. Its
 preferred prose2 develops a real discussion of weather and contest rules, while
 both synopsis outputs still organize the ensemble around prepared conclusions.
-The root primary gate fails. All required full reads and exact final captures
-are verified; intermediate save sequences remain for the post-review audit.
-No synopsis or draft contents have been displayed to root. Independent
-final-only comparison is running before intermediate inspection. No conditional
-first-dinner cases are launched. The full scope and stopping rule remain frozen
-in the manifest.
+The [independent final-only comparison](proxy_trials/reviews/round39_independent_comparison.md)
+also gives all six prose3 and ranks both synopsis publications last. It prefers
+direct1 over prose2, reversing root's top two, and gives synopsis1 lower scores
+for development of interests, direction and initiative. These disagreements and
+its local knowledge/POV/continuity findings remain in the
+[response](proxy_trials/candidate_39/review_response.md). Both literary reviews
+were locked before the [process audit](proxy_trials/candidate_39/process_audit.md).
+Each preliminary was saved exactly once; apparent extra mutation calls were
+read-only existence checks. The two synopses already describe the familiar
+verbal roles rather than developed scene material. One prose publication adds
+an enacted scheduling consequence, while the other retains its weather
+discussion and removes a personal anecdote; neither reaches the prose bar.
+The [decision](proxy_trials/candidate_39/decision.json) rejects the primary screen.
+All full reads and exact captures are verified. No conditional first-dinner
+cases or substantial sessions are launched, and no prompt is promoted.
+
+The [cast-instruction audit](proxy_trials/reviews/round40_cast_instruction_audit.md)
+identifies portrayal guidance mixed into some biographies, but finds no current
+evidence that another deletion or a larger source import would repair the prose.
+Any semantic cleanup must preserve the psychology, history and knowledge limits
+mixed into those passages. No C40 intervention is selected by that audit.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
