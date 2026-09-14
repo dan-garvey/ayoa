@@ -175,6 +175,11 @@ It asks the revision to develop a missing personal response when deleting
 rhetoric leaves only an acknowledgment. Complete backgrounds remain unchanged.
 These are editing diagnostics with zero fresh player turns; they do not establish
 that a live session will improve.
+The [independent comparison](proxy_trials/reviews/edit28_review.md) prefers
+C28's specific manuscript response and, narrowly, its more social game. It prefers
+C27's simpler group reply to C28's unsolicited writing workshop. The game also
+has an ambiguous opening move order. The [decision](proxy_trials/candidate_28/decision.json)
+retains the bounded gains without selecting C28 or claiming a live improvement.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
