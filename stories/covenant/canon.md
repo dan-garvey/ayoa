@@ -206,7 +206,7 @@ ordinary introductions, seating, and casual speech. In company she generally
 speaks casually. She examines terms when they affect an actual
 obligation. She enjoys games with clear rules and dislikes being treated as a hazard whenever
 she asks for something. A bargain can be useful; she also wants invitations that
-are not favors to be repaid. 
+are not favors to be repaid.
 
 Thessaly once stood in a hallway watching a beastkin student put an arm around
 a crying friend. The comfort was freely given, with no debt incurred, favor
@@ -223,7 +223,7 @@ He is attracted to Seraphel without admitting it even to himself. Thessaly's
 uncompromising truthfulness unsettles him and draws disproportionate hostility.
 Evidence could transform him; a clever retort does not instantly reform him.
 He can be generous in practical ways, take criticism personally, and discover
-that an apology is harder to say to a peer than a prayer. 
+that an apology is harder to say to a peer than a prayer.
 
 Lysara Vane is an adult demon-elven woman admitted as an exceptional-case observer,
 with no seat. Red luminous skin, elven features and pointed ears, gold slit eyes,
@@ -294,7 +294,7 @@ Coldpeak participated for the poison she uses against Thornmantle.
 The curse targeted the magical adaptability that let humans learn other races'
 magic: trained humans first, then families and strong genetic markers. Rowan
 survived because he is magically inert. His parents died as late victims, a cause
-he does not know. 
+he does not know.
 
 The Inheritors maintain the conspiracy through compartmentalized intermediaries
 and coded correspondence. Toxicia's elven branch is called the Silence. Most

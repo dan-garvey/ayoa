@@ -53,7 +53,8 @@ restorations and change the starting circumstances.
 
 Story direction and canon are separated without summarizing the biographies.
 Mixed passages retain their psychological and knowledge content; explicit portrayal
-guidance moves to direction. Breakwater's entire C41 brief remains byte-identical
+guidance moves to direction. The [source audit](https://github.com/dan-garvey/ayoa/blob/caf12e4967c8315a032014b8c08bd224d4cdba39/foundation_20260914/source_migration.json)
+records each move. Breakwater's entire C41 brief remains byte-identical
 canon, accompanied by a short genre/opening direction. It is an experiment-authored
 example, not a user-selected replacement for Covenant or a blind held-out story.
 
@@ -65,11 +66,30 @@ events, dates, abilities and disclosures; invention alone is not an error.
 
 ## Foundation validation
 
-The implementation tests context separation, API/proxy request equivalence, exact
-draft preservation, publication, restart recovery and failures using offline
-clients, including the real SDK with an in-memory HTTP transport. Literary
-validation uses the first outputs from fresh Terra/max proxies, an opening plus
-three player turns in each story, with each editor seeing only its own draft and
-the shared published context. Final evidence and outcomes are recorded after those
-runs finish. Proxy usage, latency and hidden context cannot establish direct API
-cost, performance or behavioral equivalence.
+All 27 offline tests pass, covering context separation, API/proxy request
+equivalence, exact draft preservation, publication, restart recovery and failures,
+including the real SDK with an in-memory HTTP transport. Ruff and formatting
+checks pass. The foundation's direct API transport has not been exercised with
+a live call.
+
+The implementation playtests produced eight published passages: an opening plus
+three player turns in Covenant and Breakwater, using 16 fresh Terra/max proxies.
+Every first draft and edit is preserved. The [audit](https://github.com/dan-garvey/ayoa/blob/caf12e4967c8315a032014b8c08bd224d4cdba39/foundation_20260914/validation.json)
+reconstructs every request from frozen sources and published history and verifies
+the accepted outputs and complete public input reads. The [evidence index](https://github.com/dan-garvey/ayoa/blob/caf12e4967c8315a032014b8c08bd224d4cdba39/foundation_20260914/README.md)
+links both transcripts, all draft/edit pairs, source hashes and quality gates.
+
+The [full review](https://github.com/dan-garvey/ayoa/blob/caf12e4967c8315a032014b8c08bd224d4cdba39/foundation_20260914/review.md)
+records a clear local cleanup: “a thin slice is just a small disappointment”
+becomes “The first ones were too thick,” while the characters retain their film
+preferences. NPC commitments and room reservations survive the player's decision
+to leave those activities alone. Covenant honors an explicitly quiet interval.
+These are useful gains, alongside regressions: most edits grow longer, a new
+stock joke appears, Covenant gains a speaker-attribution error, and Breakwater's
+final passage moves the player beyond the requested stopping point.
+
+This short smoke test validates the foundation workflow and exposes literary
+problems. It does not establish reliable overall improvement, long-term coherence
+or an advantage over the former engine. Proxy usage, latency and hidden context
+cannot establish direct API cost, performance or behavioral equivalence. The
+broader narrative-quality task remains open.
