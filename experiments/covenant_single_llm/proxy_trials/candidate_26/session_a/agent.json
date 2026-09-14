@@ -1,0 +1,10 @@
+{
+  "agent": "/root/terra_c26_session_a",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "review_feedback_supplied": false,
+  "planned_scope": "Initial screen, then adaptive frozen-prompt continuation if warranted. Preserve first outputs.",
+  "author_request_sha256": "4cd9cfdb9224a58c78129959cf31c8bad31740d5c10d92f8a538a8967e465d27",
+  "player_policy": "Pilot A: practical newcomer, tentative social participation, honest refusal of unknown causes; active interests, private thoughts, and quiet intervals; extend for outcomes."
+}

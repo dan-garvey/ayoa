@@ -1,0 +1,1 @@
+Technical path correction: the packet path in the launch message accidentally repeated a directory. Read /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_26/session_b/packet.txt. The output path was correct. All fiction instructions remain unchanged; this is not player input.

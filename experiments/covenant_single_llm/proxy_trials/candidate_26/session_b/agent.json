@@ -1,0 +1,13 @@
+{
+  "agent": "/root/terra_c26_session_b",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "review_feedback_supplied": false,
+  "planned_scope": "Initial screen, then adaptive frozen-prompt continuation if warranted. Preserve first outputs.",
+  "author_request_sha256": "478fdbe9699dfa3c9e28c744df483cc0f68b41d1a29f31136703b8089d16c9fb",
+  "player_policy": "Independent player driver from turn01, reads only own public turn files and persona in initial submission. Socially active newcomer, declines responsibility for unknown public cause, pursues company and ordinary interests; changes of plan, authored work and quiet where natural. Root saw opening and controls early-stop decisions, but supplies no prose criticism to driver or author.",
+  "technical_recovery": "Launch packet path accidentally repeated experiments/covenant_single_llm. Corrected immediately through send_message before any story output. No prompt content or player submission changed; preserve first story output.",
+  "delivery_correction_sha256": "15ec6a29907acb378c22947b6bf2321b96b236f9094c034115be6b5e73b257b0",
+  "player_driver": "/root/proxy_c26_player_b"
+}

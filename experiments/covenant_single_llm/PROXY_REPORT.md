@@ -133,6 +133,20 @@ the Stone passage. It also notes thin anecdotes and administrative conversation.
 This warrants testing the operations in normal generation; it does not establish
 that a private editing instruction can reproduce a supplied-draft revision.
 
+Candidate26 tests that transfer with the complete Covenant unchanged. Its two
+fresh sessions stop after five player turns apiece. A practice bout receives
+actual exchanges and a result, and a novel discussion has particular comic
+detail. The pilot still finds too much shared, prepared commentary across the
+cast, plus a closely read letter reduced to generic description. The
+[decision](proxy_trials/candidate_26/decision.json) distinguishes unsolicited
+judgments from a game metaphor the player himself introduced. No substantial
+session pass or independent full-session score is claimed.
+
+Candidate27 begins a different loop: one whole-story author composes a passage,
+then receives a fixed editorial request before delivery. Both stages retain the
+full backgrounds. Its two requests are sequential, with originals preserved;
+they are not independent character-agent work or evidence of one-request cost.
+
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
 65,117 words of generated story. These counts include replays and rejected

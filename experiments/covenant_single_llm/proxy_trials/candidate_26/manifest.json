@@ -1,0 +1,21 @@
+{
+  "created_at": "2026-09-14T02:10:24.875654+00:00",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "source_commit": "06fb9951648ab1970969851383d2e8ecc2479634",
+  "derived_from": "C23 common narrative contract and complete Covenant; concrete editorial operations from C25 tested during normal generation",
+  "instruction_order": [
+    "system.txt",
+    "covenant.txt"
+  ],
+  "prompt_sha256": {
+    "system.txt": "a7b8ca3989db1685112db14e557e67c07f231b65f8d3c17829f99f9da7585631",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "wrapper_file": "proxy_wrapper.txt",
+  "wrapper_sha256": "39b9aeddfad81fec3d65d9801a4602cb0e08a5a9891c3822eae4381bcde3774a",
+  "proxy_delivery": "Common instructions in direct author request; complete Covenant and turn data in packet. One story response per player submission; no supplied draft or separate editorial call.",
+  "change": "Replace soft final prose paragraph with concrete speech composition and private structural revision operations. Restore a qualitative conversational scope default of one or two short paragraphs, with extended activities allowed more room. All narrative-boundary and adaptive-direction rules, complete Covenant, persona and wrapper otherwise fixed. No character dialogue examples or backstory reduction.",
+  "planned_scope": "Matched game screen and fresh session A initially; second fresh policy and held-out cases if prose warrants substantial trials. Freeze author prompts and preserve first outputs."
+}

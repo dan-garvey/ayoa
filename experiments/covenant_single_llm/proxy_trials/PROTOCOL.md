@@ -36,6 +36,17 @@ drafts, rather than chaining a second edit through candidate24's prose.
 Candidate26 tests concrete private revision instructions during normal generation:
 no supplied draft, additional editor, or second editorial request is in that loop.
 
+Candidate27 tests two sequential requests to the same whole-story author. A
+player submission first produces `NN.draft.md`; a fixed editorial request then
+produces `NN.story.md`, which is the passage delivered to the player. Both
+requests retain the complete world and story context. Drafts and exact editorial
+requests remain available alongside the published transcript. There are no
+separate character agents. These are two author tasks, not a claim about direct
+API call counts, latency, or cache behavior. Unreleased drafts remain in the
+coding agent's conversation; this differs from an API implementation retaining
+only published fiction between player turns. The root pilots both fresh sessions
+and sees drafts, so the player trials are not blinded.
+
 Through candidate 08, the artifact wrapper also said not to "evaluate the prose"
 or "propose edits," intending to exclude reviewer output and repository work.
 Those words could conflict with private self-editing requested by the story
