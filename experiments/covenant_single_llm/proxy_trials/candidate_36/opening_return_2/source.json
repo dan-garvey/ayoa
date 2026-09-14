@@ -1,0 +1,11 @@
+{
+  "trial": "candidate_35",
+  "context": "opening",
+  "published_history_turns": [],
+  "current_input": "candidate_35/session_a/00.input.txt",
+  "source_files_sha256": {
+    "candidate_35/session_a/packet.txt": "10fb66121470404599c87f4ec647c0267bb97edade4cf55e94cb3284415e2c41",
+    "candidate_35/session_a/00.input.txt": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72"
+  },
+  "later_outputs_or_reviews_in_author_packet": false
+}

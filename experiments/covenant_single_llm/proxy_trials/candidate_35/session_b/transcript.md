@@ -2,7 +2,7 @@
 
 Exact player submissions and saved story passages.
 
-## Continuation 0: fresh session
+## Opening
 
 **Player**
 
@@ -52,7 +52,7 @@ Seraphel steps back from the doorway and leaves the stair clear.
 
 "Would you like company going down?"
 
-## Continuation 1: fresh session
+## Turn 1
 
 **Player**
 
@@ -132,7 +132,7 @@ Ashara sets her spoon beside her bowl. Her gold eyes settle briefly on the Garve
 
 "How much did the people who brought you here actually tell you before they decided this was yours?"
 
-## Continuation 2: fresh session
+## Turn 2
 
 **Player**
 
@@ -212,7 +212,7 @@ The exchange loosens something in the room. Caelindra asks whether the octagon's
 
 At the far windows, another ribbon of silent lightning opens the storm below the Nexus. For an instant the light bridges hang over it like paths drawn on black paper. Then the dining hall returns to candlelight, warm food, and the unfinished evening gathered around the long table.
 
-## Continuation 3: fresh session
+## Turn 3
 
 **Player**
 
@@ -300,7 +300,7 @@ They leave by the garden doors together, Ashara's dark tail making one brief lin
 
 In the common room, Dena deals the first hand. Her two companions bend over their cards. The fourth chair remains empty beside the hearth, its leather cushion catching the firelight. At the long dining table, pear cake and tea still wait among the candle stubs, while Seraphel watches the card game with open interest and Thessaly begins, very quietly, to count the suits in the deck.
 
-## Continuation 4: fresh session
+## Turn 4
 
 **Player**
 
@@ -398,7 +398,7 @@ Dena squares the deck against the felt, then slides it toward the empty chair wi
 
 "The next hand starts clean. The rules make more sense once they have had a chance to misbehave."
 
-## Continuation 5: fresh session
+## Turn 5
 
 **Player**
 

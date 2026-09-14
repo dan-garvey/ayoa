@@ -1,0 +1,28 @@
+{
+  "agent": "/root/terra_proxy_c36_dinner_save_2",
+  "session_id": "01a09f4e-3896-7ab2-b12f-fb989c6d0d82",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T04-44-58-01a09f4e-3896-7ab2-b12f-fb989c6d0d82.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "public_final_message_id": "msg_062e521399705661016aa7c305a8b087d1b4234ce605efe879",
+  "public_final_phase": "final_answer",
+  "public_final_sha256": "67113b77120081adaf2108145d61b44efdb78f3b32e64e708c4dc717d5946a64",
+  "publication_sha256": "67113b77120081adaf2108145d61b44efdb78f3b32e64e708c4dc717d5946a64",
+  "root_capture_exact_unmodified": true,
+  "final_answer_count": 1,
+  "detected_mutation_tool_calls": [
+    {
+      "call_id": "call_5fGOPRnVKPJ7IbWlUa546Yu9",
+      "tool": "exec",
+      "tool_input_sha256": "b37c2a59fef3cb74fb95123f1d1abbe7f05e44930c3f3ccf2658d75f55e1f92f"
+    }
+  ],
+  "author_written_file_exists": true,
+  "scope": "Public final messages, public tool-call records and model metadata only. No private reasoning inspected. No rewriting, normalization, selection or extra author request during capture.",
+  "author_written_sha256": "ba090550bec8ec7edba6780d0f268ee9894e5452fb9a9e7c6946cc8d38ed4ba8",
+  "author_file_equals_public_final": false,
+  "exact_repetition_except_terminal_newlines": false,
+  "same_words_under_declared_format_normalization": true,
+  "comparison_normalization_only": "For comparison only, normalize literal backslash-n(+), curly quotation/apostrophe marks, and whitespace. Both original artifacts remain unchanged.",
+  "assigned_delivery_steps_observed": true
+}

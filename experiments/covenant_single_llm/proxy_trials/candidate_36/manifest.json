@@ -1,0 +1,99 @@
+{
+  "created_at": "2026-09-14T09:32:46.642517+00:00",
+  "source_commit": "400dc560f1e435c2a5e40be2a0ff66226b79a730",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "prompt_sha256": {
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "covenant.txt": "1d38f11c017430101d0d8ccef701d43968ed9cb6b930d43ce1631c9c29819bc5",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "wrapper_sha256": {
+    "proxy_wrapper.txt": "39b9aeddfad81fec3d65d9801a4602cb0e08a5a9891c3822eae4381bcde3774a",
+    "proxy_wrapper_return_only.txt": "179246ea68d39221c6a5ee630849c727cfc51d2a5de95518098deb87d9753b82"
+  },
+  "cases": [
+    {
+      "case": "opening_save_1",
+      "context": "opening",
+      "condition": "save",
+      "repeat": 1,
+      "packet_sha256": "10fb66121470404599c87f4ec647c0267bb97edade4cf55e94cb3284415e2c41",
+      "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72"
+    },
+    {
+      "case": "opening_save_2",
+      "context": "opening",
+      "condition": "save",
+      "repeat": 2,
+      "packet_sha256": "10fb66121470404599c87f4ec647c0267bb97edade4cf55e94cb3284415e2c41",
+      "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72"
+    },
+    {
+      "case": "opening_return_1",
+      "context": "opening",
+      "condition": "return",
+      "repeat": 1,
+      "packet_sha256": "10fb66121470404599c87f4ec647c0267bb97edade4cf55e94cb3284415e2c41",
+      "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72"
+    },
+    {
+      "case": "opening_return_2",
+      "context": "opening",
+      "condition": "return",
+      "repeat": 2,
+      "packet_sha256": "10fb66121470404599c87f4ec647c0267bb97edade4cf55e94cb3284415e2c41",
+      "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72"
+    },
+    {
+      "case": "dinner_save_1",
+      "context": "dinner",
+      "condition": "save",
+      "repeat": 1,
+      "packet_sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+    },
+    {
+      "case": "dinner_save_2",
+      "context": "dinner",
+      "condition": "save",
+      "repeat": 2,
+      "packet_sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+    },
+    {
+      "case": "dinner_return_1",
+      "context": "dinner",
+      "condition": "return",
+      "repeat": 1,
+      "packet_sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+    },
+    {
+      "case": "dinner_return_2",
+      "context": "dinner",
+      "condition": "return",
+      "repeat": 2,
+      "packet_sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+    }
+  ],
+  "launch_order": [
+    "opening_save_1",
+    "opening_return_1",
+    "dinner_return_1",
+    "dinner_save_1",
+    "opening_return_2",
+    "opening_save_2",
+    "dinner_save_2",
+    "dinner_return_2"
+  ],
+  "advice": "../reviews/round36_prompt_advice.md",
+  "advice_sha256": "c2d572db3445da4d10e88fd0d4be7e0ae5122252fa7757d803b31fc39c0c26d4",
+  "change": "Only author file-writing/duplicate-delivery obligation and corresponding output-path instruction differ. Full C35 common rules, Covenant and persona unchanged.",
+  "loop": "One fresh whole-story Terra/max author task per output. Both read the same frozen context. Save condition writes a separate artifact and returns fiction; return condition emits final fiction only. Root captures the exact first public final in both conditions without alteration. No editor or selector.",
+  "primary_review_surface": "Captured public final answer in both conditions. Control author-written file is retained and compared separately; never choose the better surface.",
+  "scope": "Two contexts by two conditions by two fresh repeats: eight first outputs, zero fresh long sessions. Opening has no prior story prose; dinner includes exact published C35 B00-B02 and B03 input, including original formatting.",
+  "screening_rule": "Advance for further trials only if both reviewers find substantive return-only advantage in both contexts, both return repeats per context score at least4 for prose, and there is no material loss or unresolved boundary failure. This does not select a candidate or replace the two substantial-session and held-out-probe requirements.",
+  "limits": "Tests combined task/delivery obligation and within-task effects, not accumulated repeated prose in a persistent conversation. No direct story API call or production latency/cache/cost claim. Technical noncompliance and unfavorable first outputs remain recorded; no rerolls."
+}

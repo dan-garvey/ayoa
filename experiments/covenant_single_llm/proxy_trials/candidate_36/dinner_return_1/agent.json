@@ -1,0 +1,14 @@
+{
+  "agent": "/root/terra_proxy_c36_dinner_return_1",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "dinner delivery diagnostic",
+  "calls_per_player_submission": 1,
+  "condition": "return",
+  "repeat": 1,
+  "review_feedback_supplied": false,
+  "primary_publication": "Exact first public final answer, captured by root in both conditions.",
+  "author_request_sha256": "d66d6c00ca8b87abe4d19ae87bb1ed6cc32ca1e307fdad822109b8d7b26620ec",
+  "launch_request_sha256": "2b757d678362374c5e2316b2f77d03bd4e98e68600215286d431cb9d8fa1e6d9"
+}

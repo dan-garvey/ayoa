@@ -1,0 +1,20 @@
+{
+  "trial": "candidate_35",
+  "context": "dinner",
+  "published_history_turns": [
+    0,
+    1,
+    2
+  ],
+  "current_input": "candidate_35/session_b/03.input.txt",
+  "source_files_sha256": {
+    "candidate_35/session_b/00.input.txt": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+    "candidate_35/session_b/00.story.md": "6550c5f0ba8040162accfc5f91f699000a980a6b5a10fd887b5526b061723d79",
+    "candidate_35/session_b/01.input.txt": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031",
+    "candidate_35/session_b/01.story.md": "47161f65e62a4ab4d10789baff9445628c578053a15badbc98480a5b760b6828",
+    "candidate_35/session_b/02.input.txt": "1789537eb4512bd3b38612bd64d9414caf445fd0136917c9aa52c190eba1f578",
+    "candidate_35/session_b/02.story.md": "875dd0264165103c94a1c9debd1f67e0d1bbb140df7e48fbc3e615ba6a1fa619",
+    "candidate_35/session_b/03.input.txt": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+  },
+  "later_outputs_or_reviews_in_author_packet": false
+}

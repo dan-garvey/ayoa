@@ -161,6 +161,21 @@ Assess five turns before extending toward fifteen; retain the twelve-turn
 minimum, two-policy requirement and held-out probes for selection. This is a
 changed-situation test, not an isolated generic prompt intervention.
 
+Candidate36 tests the obligation to write the passage through tools and repeat
+it in the final answer. Full C35 common instructions, Covenant and persona stay
+exact. Both conditions read the same packet for each context: the fresh opening,
+or complete published B00–B02 with the B03 player submission. Two fresh repeats
+per condition yield eight first outputs, with no editor or selector. In the
+control the author saves a separate artifact and returns fiction; in treatment
+the author returns fiction only. The root captures the exact first public final
+answer in both conditions as the primary publication, without formatting changes
+or choosing a preferred surface. The control's author-written file is preserved
+and compared separately. Technical noncompliance and all unfavorable first
+outputs remain recorded. This isolates the practical combined delivery obligation
+in a fresh-author screen, not accumulated earlier repetition. Any apparent gain
+still needs full trials and held-out boundary cases, including coherent activity
+resolution; a formatting-only improvement cannot pass the literary screen.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

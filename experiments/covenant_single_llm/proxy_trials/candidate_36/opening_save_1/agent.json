@@ -1,0 +1,14 @@
+{
+  "agent": "/root/terra_proxy_c36_opening_save_1",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "opening delivery diagnostic",
+  "calls_per_player_submission": 1,
+  "condition": "save",
+  "repeat": 1,
+  "review_feedback_supplied": false,
+  "primary_publication": "Exact first public final answer, captured by root in both conditions.",
+  "author_request_sha256": "b3245e80610e9bdecbdadd9012c1beb2c2034c7469ed93c70eb672ed28790187",
+  "launch_request_sha256": "c64a505958aafa0769f4ca263c6aeb7353a7a5294cfed60cb1304867207dc6cf"
+}

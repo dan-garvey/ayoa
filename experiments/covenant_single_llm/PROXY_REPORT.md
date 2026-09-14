@@ -330,17 +330,44 @@ return, while B stays with dinner and cards. The shared dialogue rhythm persists
 even among the new friends. A's last game both denies and relies on Dena having
 displayed a banner; B's last game supplies an unsupported winning total including
 an apparent transfer of Rowan's crossing. These material state concerns prevent
-selection independently of the prose scores. Independent review is pending.
+selection independently of the prose scores. The
+[independent review](proxy_trials/reviews/round35_review.md) rates A at 3/3/4/3/3
+and B at 4/4/4/3/3. It retains B's social writing where the root does not, while
+confirming the game-state failures and crediting A's completed practice. The
+[response](proxy_trials/candidate_35/review_response.md) preserves these differences;
+the [decision](proxy_trials/candidate_35/decision.json) rejects C35 as tested.
+An [export correction](proxy_trials/candidate_35/export_correction.json) fixes
+only an opening-inclusive turn count and transcript headings, leaving every
+player submission, story, and original pilot judgment intact.
 
 The [delivery audit](proxy_trials/candidate_35/publication_delivery_audit.json)
 finds the public final answers have the same words as the saved story files after
 declared formatting normalization. Nine files differ in quotation typography or
 literal line-break escapes; none of the originals is changed. The dialogue and
-state defects exist in both surfaces. The next advisory task considers a
-return-only author, whose exact final fiction would be captured by the root,
-as a possible task/delivery experiment. That hypothesis is not a demonstrated
-literary improvement. C35 broadens situation coverage and does not establish a
-generic prompt-quality gain. No candidate is selected.
+state defects exist in both surfaces. C36 tests a return-only author, whose exact
+final fiction is captured by the root. C35 broadens situation coverage and does
+not establish a generic prompt-quality gain.
+
+Candidate36 follows the [delivery advice](proxy_trials/reviews/round36_prompt_advice.md)
+with eight matched first outputs: a fresh opening and a quiet dinner continuation,
+each with two repeats per delivery condition. All C35 common instructions,
+backgrounds and persona remain exact, and the two conditions share identical
+context packets. The save condition writes a separate artifact and returns
+fiction; the return condition emits final fiction only. The root captures the
+exact first public final in both conditions for the primary comparison. This
+keeps formatting differences in the authored files from masquerading as better
+composition. All eight first outputs are saved, totaling 5,965 story words. The
+[locked pilot](proxy_trials/candidate_36/pilot_review.md) rates all four openings
+at4 for prose within their limited scope and all four dinners at3. The familiar
+reply pattern remains in both conditions, and dinner_save_2 gives Ashara the date
+of an earlier promise without a disclosed source. All full packet/task reads,
+Terra/max settings and exact public-final captures are verified. The two control
+openings match their authored files except for terminal newlines; the two control
+dinners differ in formatting but have the same words under declared comparison
+normalization. Originals remain unchanged. Blind review is running; there is no
+editor, selector or selected prompt. This tests a combined task/delivery obligation
+and within-task effects, not accumulated repetition across a persistent
+conversation or production API costs.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

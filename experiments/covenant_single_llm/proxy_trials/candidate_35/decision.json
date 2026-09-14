@@ -1,0 +1,70 @@
+{
+  "status": "screen_complete_rejected_as_tested",
+  "decided_at": "2026-09-14T09:35:42.971944+00:00",
+  "fresh_player_turns": {
+    "session_a": 5,
+    "session_b": 5
+  },
+  "published_responses": 12,
+  "author_requests": 12,
+  "story_words": 11209,
+  "fresh_substantial_sessions": 0,
+  "root_scores": {
+    "session_a": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "session_b": [
+      3,
+      3,
+      4,
+      3,
+      4
+    ]
+  },
+  "independent_scores": {
+    "session_a": [
+      3,
+      3,
+      4,
+      3,
+      3
+    ],
+    "session_b": [
+      4,
+      4,
+      4,
+      3,
+      3
+    ]
+  },
+  "score_order": [
+    "prose/dialogue",
+    "distinction",
+    "independent interests",
+    "direction",
+    "adaptive initiative"
+  ],
+  "pilot": "pilot_review.md",
+  "pilot_lock": "pilot_lock.json",
+  "independent_review": "../reviews/round35_review.md",
+  "independent_review_sha256": "3473c0f46a39ff077906c04ac458071dca330f7fab216a72e55bf72e0bd31115",
+  "review_response": "review_response.md",
+  "export_correction": "export_correction.json",
+  "delivery_audit": "publication_delivery_audit.json",
+  "findings": [
+    "Both reviews identify material state failures in the final games. A denies and relies on an already-displayed banner; B awards an unsupported tally including the earlier blue crossing awarded to Rowan.",
+    "Both credit the observed scheduling disclosure and independent activities; A completes actual drills and returns Rashid, while B does not observe the offstage practice or his return.",
+    "Independent review retains B prose/distinction at4 where root rates3. It rates direction/initiative3 because activity resolution fails; original pilot scores and review response preserve the disagreement.",
+    "No demonstrated conspiracy disclosure or broadcast of Dena family concerns. Local narrator POV, coat-state and verse-presentation concerns remain."
+  ],
+  "limits": [
+    "Five player turns per policy, not substantial selection trials.",
+    "Changed current situation with full character/world context retained; no demonstrated generic prompt improvement.",
+    "No direct story API, runtime change, reroll or story repair."
+  ],
+  "next_step": "C36 matched return-only/save-and-return delivery screen; complete prompts and both first-public-final surfaces are held constant except the assigned delivery obligation."
+}

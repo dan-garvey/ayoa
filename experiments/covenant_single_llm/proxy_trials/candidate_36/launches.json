@@ -1,0 +1,50 @@
+[
+  {
+    "case": "opening_save_1",
+    "agent": "/root/terra_proxy_c36_opening_save_1",
+    "launched": true,
+    "recorded_at": "2026-09-14T09:34:07.404988+00:00"
+  },
+  {
+    "case": "opening_return_1",
+    "agent": "/root/terra_proxy_c36_opening_return_1",
+    "launched": true,
+    "recorded_at": "2026-09-14T09:34:07.404997+00:00"
+  },
+  {
+    "case": "dinner_return_1",
+    "agent": "/root/terra_proxy_c36_dinner_return_1",
+    "launched": true,
+    "recorded_at": "2026-09-14T09:34:07.404999+00:00"
+  },
+  {
+    "case": "dinner_save_1",
+    "agent": "/root/terra_proxy_c36_dinner_save_1",
+    "launched": true,
+    "recorded_at": "2026-09-14T09:40:02.021331+00:00"
+  },
+  {
+    "case": "opening_return_2",
+    "agent": "/root/terra_proxy_c36_opening_return_2",
+    "launched": true,
+    "recorded_at": "2026-09-14T09:40:02.021341+00:00"
+  },
+  {
+    "case": "opening_save_2",
+    "agent": "/root/terra_proxy_c36_opening_save_2",
+    "launched": true,
+    "recorded_at": "2026-09-14T09:44:49.720940+00:00"
+  },
+  {
+    "case": "dinner_save_2",
+    "agent": "/root/terra_proxy_c36_dinner_save_2",
+    "launched": true,
+    "recorded_at": "2026-09-14T09:50:40.701786+00:00"
+  },
+  {
+    "case": "dinner_return_2",
+    "agent": "/root/terra_proxy_c36_dinner_return_2",
+    "launched": true,
+    "recorded_at": "2026-09-14T09:50:40.701796+00:00"
+  }
+]

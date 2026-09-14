@@ -1,0 +1,35 @@
+# Terra coding-agent proxy transcript
+
+Exact player submissions and saved story passages.
+
+## Continuation 0: opening delivery diagnostic
+
+**Player**
+
+My character: Rowan Garvey. A twenty-three-year-old human man with brown skin, unruly dark hair, and ink-stained fingers, wearing a carefully mended charcoal coat and the inherited Garvey signet. Newly arrived and unsure of Conclave customs. He grew up unaware of his heritage, lost his parents young, and does not know whether he has any magic.
+
+Begin the story shortly before the welcome dinner, in my room at Garvey House. I play Rowan Garvey.
+
+**Story**
+
+The framed letter on the desk is the only thing in the room that looks as though it has been waiting longer than you have.
+
+Its paper has browned at the edges beneath the glass. Narrow, steady handwriting runs across it in an ink now the color of old tea, interrupted by the reflection of the lamp. Whoever chose the frame has set it beside a fresh blotter and an empty inkwell, giving an ordinary piece of family correspondence the posture of an heirloom. Your own ink-stained fingers and the Garvey signet make a less convincing arrangement beside it.
+
+The bed has been made with a precision that leaves the coverlet uncreased. Clothes sent ahead by the lawyers occupy the wardrobe in orderly ranks, their good wool smelling faintly of cedar and a shop you have never entered. Your charcoal coat, carefully mended at the cuff, belongs to the room more readily than any of them do.
+
+The window faces the gardens. Their pale paths curve among flowering hedges below, sheltered by walls that keep the wind from tearing at the beds. Beyond them, the edge of the Nexus falls away into cloud. Lightning moves through the storm far below in slow white veins, silent at this height. One of the hard-light bridges catches the last of the evening and holds it, a long blue line vanishing toward a country you cannot see.
+
+A bell sounds somewhere on the ground floor: a single restrained note, followed by the softer business of doors, plates, and people arriving where they are expected. The house is old enough that each noise reaches you by a different route. A murmur rises through the stairwell outside your room, then a quick laugh, then the scrape of a chair being drawn back.
+
+There is a knock at your door.
+
+When it opens, the woman outside wears Academy livery in dark blue and carries no tray, only a folded napkin over one arm. She is perhaps a few years older than you, with the calm expression of someone who has already guided several lost guests through this house tonight.
+
+“Mr. Garvey,” she says. “Dinner will be served shortly. The other Conclave students are gathering in the common room first.”
+
+She indicates the corridor behind her. Lamps have come alive along its wood-paneled length, leading to the broad stair that curls down toward the warmer light below.
+
+“Take the stairs to the ground floor. The common room is impossible to miss once you hear the fireplace. From there, follow the smell of roast pears. The dining hall is through the next door.” A small smile touches one corner of her mouth. “The library is the door that looks as though it disapproves of you. You can save that for later.”
+
+Below, a voice says something too low to catch. Another answers with a brief burst of laughter, unguarded enough to carry. The server steps aside, leaving the corridor clear between your room and the waiting stair.

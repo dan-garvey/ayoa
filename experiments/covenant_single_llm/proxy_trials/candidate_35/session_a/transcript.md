@@ -2,7 +2,7 @@
 
 Exact player submissions and saved story passages.
 
-## Continuation 0: fresh session
+## Opening
 
 **Player**
 
@@ -66,7 +66,7 @@ Ashara gives a short sound that might be a laugh. “Speak for yourself. Some of
 
 The bell begins below: three clear notes, neither urgent nor easy to ignore. Beyond the door, Aldric’s shadow lies across the threshold in the hall light. Down the open stairwell wait firelight, voices, a long table set for seventeen, and a name newly placed among the others.
 
-## Continuation 1: fresh session
+## Turn 1
 
 **Player**
 
@@ -162,7 +162,7 @@ Rashid reaches for the bread basket, then pauses with his hand above it. His att
 
 “What do you write, Rowan?”
 
-## Continuation 2: fresh session
+## Turn 2
 
 **Player**
 
@@ -276,7 +276,7 @@ Ashara turns toward the outer door, where the night beyond the common room waits
 
 Rashid reaches for his coat. Dena and her friends spread the deck across the low table by the fire. For a moment, the house holds both invitations at once: card backs clicking under Dena’s steady hand, and the open door toward the dueling grounds where Ashara has already begun to walk.
 
-## Continuation 3: fresh session
+## Turn 3
 
 **Player**
 
@@ -398,7 +398,7 @@ Rashid fastens his coat as he steps out of the octagon. “And if Dena has not e
 
 He heads back toward the lamps of Garvey House at a quicker pace than he used on the way out. Ashara lingers only long enough to check the white stones where Rashid’s feet disturbed the line, then turns toward the same path. The octagon is quiet again behind them, marked with scuffs, shallow heel prints, and the fading warmth of the last exchange.
 
-## Continuation 4: fresh session
+## Turn 4
 
 **Player**
 
@@ -470,7 +470,7 @@ The deck passes to Dena. She deals with her uninjured hand, one card at a time, 
 
 Around the table, the others settle into the brief, attentive quiet of people who know the rules and are waiting to see what someone new will do with them. The discard waits in the firelight; the draw pile keeps its painted faces hidden.
 
-## Continuation 5: fresh session
+## Turn 5
 
 **Player**
 
