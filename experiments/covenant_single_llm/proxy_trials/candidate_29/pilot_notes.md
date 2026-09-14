@@ -116,3 +116,48 @@ improving arguments, and a herb's intent. The generalizations are concentrated
 in a scene with many speakers. This warrants concern about the shared ensemble
 register despite the stronger small exchanges in A; later B remains unreviewed
 at the time of this note.
+
+A09 completes the first public bout rather than silently treating Rowan's
+interest as a commitment to Ashara's later match. It supplies named competitors,
+specific exchanges and a result. Breakfast still gives Thessaly and Ysolde a
+tidy notice-writing exchange. A10 answers a reasonable spectator question about
+the final staff contact: the seller says the ankle touch preceded the block.
+That adds an omitted step rather than contradicting an explicit claim that the
+body was never touched. The revision replaces the draft's generalization about
+the sound of danger with the seller's own interest in a larger crowd buying tea.
+The later bout is choreographed through a three-to-two Ashara win without
+inventing Rowan's speech or making him a participant.
+
+Both officials use 'three clean marks', while the earlier staff match ends
+two-to-one and the open challenge continues to three-to-two. The phrase's
+meaning and whether the formats differ have not been established. This is an
+unclear scoring contract, not yet proof that the same explicit win condition
+has been violated. A11's in-character novice question asks about the difference.
+The correction outcome is still pending as this observation is written.
+
+After B02, root asked its driver to pause after five published player turns for
+a screen review. The question to Ysolde still expands into a full-ensemble chain
+of replies in both draft and published text. The published version gives her
+useful, particular expertise and Rashid a public recollection, but the many
+matching comments remain a repeated aesthetic weakness. This is a disclosed
+scope change during screening, not a completed fifteen-turn B trial.
+
+A11 distinguishes a practice set's first-to-two format from the open challenge's
+first-to-three format. Those newly specified rules fit the two recorded results.
+The seller's additional claim that the cards use the same phrase is less sound:
+A09's open-challenge line says 'standard warding', not 'three clean marks'. The
+officials used that phrase in both bouts. Retain this inaccurate explanation of
+the displayed notices as a limitation; it is not proof that the new scoring
+distinction itself is impossible. The rest of A11 completes the requested return
+and observation through supper, with residents doing their own activities.
+Rashid leaves toward the offices with a sheet, but the petition's outcome is not
+yet visible.
+
+A12 gives Ashara a specific assessment of her opponent's dust tactic and brief
+familiar interaction with Rashid. His arrival overlaps her account; he can hear
+the current exchange and need not possess secret knowledge of the bout. A13
+responds to Rowan's expressed uncertainty by suggesting an assessment and one
+basic blade lesson. The revision cuts the draft's spear/appearance/kindness
+exchange, retaining concrete directions and bounded help. This is an NPC offer
+following a real player interest; whether it is fulfilled remains for subsequent
+turns.

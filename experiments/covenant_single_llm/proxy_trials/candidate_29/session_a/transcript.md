@@ -386,3 +386,223 @@ Beside that doorway, the Academy's slate has been updated for the day. A fresh c
 *Ranked pairings and spectators' rails posted at the octagon after second bell.*
 
 The card is written in a firm, impersonal hand. Outside the dining hall windows, the hard-light bridges remain white against the clouds.
+
+## Turn 9
+
+**Player**
+
+I say good morning to Ysolde and Thessaly and join them for breakfast. I don't bring up the petition; I listen to whatever is occupying them this morning. After eating, I go to the octagon once the pairings have been posted and read the board. I mean to watch the first public bout from the south rail, staying through its result when fourth bell comes.
+
+**Story**
+
+“Good morning,” you say to Ysolde and Thessaly, and join them at the breakfast table.
+
+Ysolde inclines her head over her tea. “Good morning.”
+
+Thessaly pushes the orange bowl toward the empty place opposite them. “There are still good pieces.”
+
+The three of you eat while the dining hall slowly fills and empties around you. Thessaly has a folded copy of the morning notices beside her plate. She holds one line flat with her fingertip.
+
+“It says weather permitting,” she says. “It does not say what weather changes.”
+
+“Wind,” Ysolde replies. “It carries dust over the marks and makes staff work poor. Rain turns the north edge to mud.”
+
+Thessaly reads the line again. “They should put that on the notice.”
+
+“Then no one would read the notice.”
+
+After breakfast, you leave Garvey House for the octagon. The quadrangle is busy with the morning's traffic: students crossing black demon stone and white angel marble, a pair of older elves carrying rolls of paper beneath one arm, dragon-carved arches casting short shadows across the path. At the dueling ground, a fresh board has been fixed beside the gate.
+
+The rankings fill its left side in neat columns. Ashara vel Kothren holds the first line. Beneath the day's notices, the pairings have been posted:
+
+*Fourth bell — Keva Orin, rank fifteen, versus Dareth Vosk, rank fourteen. Practice staves; three clean marks.*
+
+*Sixth bell — Ashara vel Kothren, rank one, versus Veyr Caul, rank two. Open challenge; standard warding.*
+
+You find a place at the south rail before fourth bell. The packed earth of the octagon lies clear beneath the high, pale sky, its boundary stones set in a precise white ring. Spectators gather in small knots along the other sides: students with books tucked under their arms, two Military instructors in dark coats, a Commerce student selling cups of spiced tea from a tray.
+
+At fourth bell, a lean wolf-blooded student in grey practice clothes steps through the western gate, a blunt ash staff balanced across her shoulders. The demon opposite her is shorter and broader, with ember-dark skin and a shaved head; he rolls his staff once between both hands while an instructor checks the ward bands at each of their wrists.
+
+“Keva Orin. Dareth Vosk,” the instructor calls. “Three clean marks. No casting beyond the bands. Break when I call it.”
+
+Dareth takes the center first. His strikes are compact and hard, forcing Keva back toward the south side of the ring. From the rail, her pivots are easy to follow: heel down, turn, step clear before the staff arrives. On his third advance she lets his blow pass, turns beneath it, and taps the back of his shoulder. Her ward band flashes blue.
+
+The crowd makes a brief, interested sound. Dareth resets his grip and waits through a full breath. When he moves again, the rhythm is different. Keva begins the same turn; his staff reaches her ribs before she can clear it. His band flashes.
+
+One mark each.
+
+The last exchange is short. Dareth feints high. Keva gives ground, lets the staff chase her, and strikes low at his front ankle. Ash wood meets ash wood with a clean crack. The instructor's raised hand stops them both.
+
+“Keva Orin, two marks to one.”
+
+Keva lowers her staff first. Dareth bows from the waist, receives the bow in return, and leaves the ring with his practice weapon over one shoulder. Around the octagon, the spectators begin to loosen into smaller conversations. On the board by the gate, Ashara's name remains beneath sixth bell.
+
+## Turn 10
+
+**Player**
+
+I buy a cup of spiced tea from the Commerce student once there's a gap in the queue. "This is my first time watching," I say. "How do they count a clean mark? On that last exchange, I thought I heard the staves hit each other." I glance back at the board; I intend to stay for Ashara's bout at sixth bell.
+
+**Story**
+
+When the queue at the tea tray thins, you buy a cup from the Commerce student. The cup is thick paper wrapped in a braid of straw; steam carries cinnamon and black pepper over the sharper scent of trampled earth.
+
+“This is my first time watching,” you say. “How do they count a clean mark? On that last exchange, I thought I heard the staves hit each other.”
+
+The student drops two coins into a wooden box and looks back toward the ring. She has a narrow green ribbon woven through one braid and a brass abacus at her belt.
+
+“They did,” she says. “But Keva's tip reached his ankle first. His staff caught hers after the band had already lit.” She taps the inside of her own wrist. “The ward reads a strike on the body, not a block. If both bands light, the instructor calls a double and starts them again.”
+
+She pours another cup from the steaming pot. “Watch the bands or the instructor's hand. For Kothren and Caul, buy before sixth bell. They empty my tray every time.”
+
+You glance back at the board. Ashara's name remains beneath sixth bell.
+
+The tea stays hot through the next stretch of the afternoon. Students trade places along the rail; a few leave for lectures, then return with friends. By the time the sixth bell begins to sound, the spiced-tea tray has nearly emptied and the octagon is crowded three deep along its northern side. The south rail remains less pressed, with enough room to see the ring.
+
+Ashara enters from the western gate in a sleeveless black practice coat, her hair bound tight behind her horns. She carries a blunted saber in one hand and wears a plain ward band at each wrist. Across the octagon, Veyr Caul is a dark-haired dragon student with slate-grey skin and a long practice spear. A strip of blue cloth is tied around the base of his right horn.
+
+The instructor from the earlier bout waits between them.
+
+“Ashara vel Kothren. Veyr Caul. Three clean marks. Standard wards. No casting past the boundary stones. Break at my call.”
+
+They bow. Veyr rolls the spear once in his palms. Ashara's tail clears the ground behind her as she takes her guard.
+
+At the signal, Veyr tests the distance with two quick thrusts. Ashara turns the first aside and yields the second, moving neither hurriedly nor far. His third thrust comes lower; she catches it on her saber, steps in along the shaft, and taps the ward at his ribs. Red light flashes at her wrist.
+
+Veyr takes two steps back, expression unchanged, and brings the butt of his spear hard against the earth. A dry gust scours dust across the ring. Ashara blinks; Veyr's spear point reaches her shoulder before she can recover the line. Blue light flashes at his wrist.
+
+One mark each.
+
+This time Ashara does not follow him immediately. She makes Veyr circle the outer edge of the white stones, saber held low. When he drives forward, she retreats just enough to keep the spear extended. On his next thrust she angles her blade beneath the shaft and knocks it wide. Her elbow catches the ward at his upper arm before he can draw the weapon back.
+
+Two marks to one.
+
+Veyr changes hands on the spear and comes at her faster, no longer trying to keep the circle. Ashara meets the first sweep, then the second. The third catches the flat of her saber and sends a jolt through her whole arm; Veyr uses the opening to strike her thigh. His ward band lights.
+
+Two marks each.
+
+For a moment neither moves. The dust settles in a thin brown veil over the packed earth. Then Ashara shifts her grip, turning the saber so its blunt point faces forward. Veyr advances with the spear held high, waiting for her to close.
+
+She does not. She steps left, then left again, close enough that the spear must turn with her. When Veyr commits to the sweep, Ashara drops low beneath it. Her tail braces briefly against the earth as she comes through the turn, and the saber's tip strikes the ward at his knee.
+
+Red light flares.
+
+The instructor raises a hand. “Ashara vel Kothren, three marks to two.”
+
+Veyr lowers his spear. He bows. Ashara returns it, once, then lifts her saber for the instructor to inspect before taking it back through the western gate. The crowd begins to spill from the rails, voices rising around the final turn. Your cup has gone cold in your hand.
+
+## Turn 11
+
+**Player**
+
+I applaud with the other spectators. If the tea seller is still at the rail, I stop on my way out and say, "Keva's bout ended at two marks to one. Is there a different scoring format for open challenges?" After that I go back to Garvey House, find somewhere comfortable in the common room, and settle in until supper. I'd rather see who comes and goes than start another conversation about the petition.
+
+**Story**
+
+You applaud with the other spectators. When the rail begins to open, the Commerce student is still beside her tray, stacking the empty paper cups into one another.
+
+“Keva's bout ended at two marks to one,” you say on your way out. “Is there a different scoring format for open challenges?”
+
+She nods. “Keva's was a practice set: first to two marks. Standard warding is first to three.” She folds the straw braid around the tea pot and tucks it beneath the tray. “The cards use the same phrase for both. You learn which is which by watching.”
+
+You leave the octagon and return to Garvey House. The common room is cool after the afternoon outside, its fireplace laid but not lit. You choose a leather chair angled toward the doorway and settle in with the view of the stairs, the garden door, and the tables beneath the portraits.
+
+For a while the house moves around you without stopping. A pair of second-year Conclave students you do not know cross from the library to the gardens, arguing softly over a stack of maps. A server brings in a basket of clean napkins and takes it upstairs. The light through the garden door turns from pale afternoon to the blue of early evening.
+
+Ashara comes in from the quadrangle carrying her saber case by one strap. Her practice coat has been exchanged for a dark shirt with the sleeves rolled to her elbows. She drinks a glass of water at the sideboard, checks the clock over the mantel, and goes upstairs.
+
+Later, Thessaly sits at the far end of one of the tables with a little wooden board and a pouch of black and white counters. She arranges the counters into rows, studies them, then sweeps the whole pattern away and begins again. Ysolde comes in from the gardens, stopping by the window long enough to watch the hard-light bridges brighten against the storm.
+
+Rashid appears only near dusk. A folded sheet is tucked into the inner pocket of his jacket. He takes a cup of water from the sideboard, pauses by the library door, and then leaves through the corridor toward the Academy offices.
+
+The common room grows dim enough that the lamps are lit one by one. At last the dining hall doors open and a server rings the first supper bell, clear and small above the fire being built in the grate.
+
+## Turn 12
+
+**Player**
+
+I go in for supper when the bell rings. If Ashara is at the table, I say, "Congratulations. I'm glad I stayed for your bout. I thought Caul had you when he kicked up the dust." I take my usual place and help myself to whatever is being served.
+
+**Story**
+
+You go into the dining hall when the bell rings.
+
+Ashara is already at the table in the place beside yours, her hair loose now around the base of her horns. A serving dish of roasted squash and chickpeas sits between her and Ysolde; flatbread, dark greens, and a pot of herb-scented rice fill the rest of the table.
+
+“Congratulations,” you say. “I'm glad I stayed for your bout. I thought Caul had you when he kicked up the dust.”
+
+Ashara looks across at you. “Nearly. I watched the spear and missed the dust. He spent the first mark teaching me where he wanted my eyes.” She tears a piece from the flatbread. “It was a good choice.”
+
+Rashid arrives from the hall as she says it, a clean shirt beneath his dark jacket and no papers in his hands. He takes his seat across the table.
+
+“He only needs that once with you,” Rashid says.
+
+“I hope so.”
+
+Ashara slides the squash toward your place. “Take some before it goes cold. The kitchen used enough pepper tonight.”
+
+You take your usual place and help yourself to the rice, greens, and chickpeas. The squash has been roasted until its edges darken, with enough pepper to warm the back of the mouth. Around the table, serving dishes begin to pass from hand to hand.
+
+## Turn 13
+
+**Player**
+
+I take some squash. "It is good," I say after trying it. "Watching today made me want to learn something I can actually do. I've read the primer twice and still don't know whether I can make a spark, let alone stop a spear." I eat for a moment. "I suppose I need to find a first lesson somewhere."
+
+**Story**
+
+You take some squash.
+
+“It is good,” you say after trying it. “Watching today made me want to learn something I can actually do. I've read the primer twice and still don't know whether I can make a spark, let alone stop a spear.” You eat for a moment. “I suppose I need to find a first lesson somewhere.”
+
+Ashara takes another piece of flatbread. “Do not start with a spear. It makes errors expensive.”
+
+Ysolde sets down her cup. “Start with the Arcana intake office. North corridor of the Arcana wing, past the copying room. They do basic assessments in the morning.”
+
+Caelindra looks up from her greens. “Ask for an assessment, not a spark. They will know what you mean.”
+
+Ashara reaches for the water carafe. “Do that first. If you want a blade lesson after, come to the octagon tomorrow after second bell.”
+
+She fills her glass. “One lesson. Practice blade, stance, balance, and how not to put your thumb where it does not belong. You will not need magic for that.”
+
+The serving dishes make another circuit of the table. Outside the tall dining-hall windows, the lamps in the quadrangle come on one by one.
+
+## Turn 14
+
+**Player**
+
+"I'll do that. Thank you. And I'd like the blade lesson, Ashara, if I can get the assessment done in time." I finish supper, spend a little while in the common room, and go to bed. The next morning I eat early and follow Ysolde's directions to the Arcana intake office. When I can speak to whoever is receiving students, I say, "Rowan Garvey. I've been advised to ask for a basic assessment. I don't know whether I can channel anything."
+
+**Story**
+
+“I'll do that. Thank you. And I'd like the blade lesson, Ashara, if I can get the assessment done in time.”
+
+Ashara nods once. “Second bell. If the intake office keeps you, another day.”
+
+Supper continues around that arrangement. Afterward, you spend a little while in the common room while the fire burns low and the house settles around you, then go upstairs to bed.
+
+You eat early the next morning and follow Ysolde's directions through the Arcana wing. The north corridor is narrower than the quadrangle routes, lined with labelled doors and shallow cases displaying brass instruments, knots of colored thread, and stoppered bottles. Beyond the copying room, a small slate reads *INTAKE ASSESSMENTS — FIRST-YEAR STUDENTS.*
+
+Inside, a woman with iron-grey curls and copper spectacles is sorting narrow cards into a wooden rack. Her ink-stained cuffs are rolled above both wrists. She looks up when you enter.
+
+“Rowan Garvey,” you say. “I've been advised to ask for a basic assessment. I don't know whether I can channel anything.”
+
+The woman checks a ledger, then pulls out a fresh card. “Instructor Maelin Orr. We test for response, not talent. A result here does not decide what else you may study.”
+
+She leads you through a door into a smaller room with a plain chair, a copper plate set into a dark wood table, and three glass rods held upright in a stand. One is clear, one clouded white, and one the blue of a deep pool.
+
+“Palms on the plate,” Orr says. “Do not force anything. The instruments are not looking for a spark. They are looking for response.”
+
+The copper is cool beneath your hands. Orr touches the clear rod with a narrow tuning fork. A low note hums through the table. Nothing stirs inside the glass.
+
+She repeats the test with the clouded rod, then the blue one. The note changes each time: thin and bright, then soft enough to seem more felt than heard, then low again. The rods remain still. No color gathers in the copper. No warmth reaches your palms.
+
+Orr makes a brief note on the card. “One broader resonance.”
+
+She places a square of dark glass over the copper plate and sets a small white stone at its center. The fork gives a final, steady tone. The stone does not move. After a moment, Orr lifts it away.
+
+“Unchanneled,” she says. “The individual channels are flat, and the broad resonance is flat with them.”
+
+She turns the card so its final line faces you: *Assessment: unchanneled.*
+
+The second bell has not rung yet.

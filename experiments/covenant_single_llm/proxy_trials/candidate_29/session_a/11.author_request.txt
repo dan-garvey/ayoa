@@ -1,0 +1,6 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+I applaud with the other spectators. If the tea seller is still at the rail, I stop on my way out and say, "Keva's bout ended at two marks to one. Is there a different scoring format for open challenges?" After that I go back to Garvey House, find somewhere comfortable in the common room, and settle in until supper. I'd rather see who comes and goes than start another conversation about the petition.
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_29/session_a/11.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

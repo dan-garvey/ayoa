@@ -92,9 +92,69 @@
       "draft_words": 414,
       "editor_request_sha256": "5f5779256174a666c4ec82bff1ba7eacb49a79c9d88b036d74a9e08dc1c5462f",
       "author_task_requests": 2
+    },
+    {
+      "turn": 9,
+      "input_sha256": "9a0af9872f3c455fce5730ee1207dc6d388485cc36a1e45c583f82402a292e56",
+      "story_sha256": "2268209ff2065bd3c024a3ccc03cd2aa3c9435d4d0757aba73a5cedd9899816e",
+      "story_words": 594,
+      "draft_sha256": "8b9fee0043fa9a01ddd9256d07cd3a93e35eb1a9c06e397082f67ac20f12cea8",
+      "draft_words": 598,
+      "editor_request_sha256": "3fa619b968806647e5a64874bd3c9e044d9769efb72125e1744739169a8c731e",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 10,
+      "input_sha256": "35d16fe3d07b82819a1319cd0e783bcf13f3da95c7743845dd275addf33826fc",
+      "story_sha256": "8b59d9e8698b8858975736b28c92f2e89f018d201c30e9581ff1158a0ec1d854",
+      "story_words": 767,
+      "draft_sha256": "d06cc8ddca36689a0cfcc18f45c8035994c21b6b551c7dc8307ea695301f5cf4",
+      "draft_words": 807,
+      "editor_request_sha256": "aeffac6b1f7a896d086a6cbc4af6a87e202274c00236a74dafb6fbb9dca7590d",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 11,
+      "input_sha256": "c0c3c74b8383b148e151679563d54e2b509ab3c4a70ee831947a5fb673554185",
+      "story_sha256": "a17e8e3b3c996bcedd074b5763d2f557b452b0edd6b42c6a28048e2b5e06a7f3",
+      "story_words": 404,
+      "draft_sha256": "a3f0260350b1d18a142cae0d9516a9f67f8cfc6ace4ad621c64b3755433e857c",
+      "draft_words": 424,
+      "editor_request_sha256": "19b3e67ed5e637a6b2855d82122ed4498318506ca9e6617401fa061f5d7d744b",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 12,
+      "input_sha256": "f1c1cf08ed078938beff96c9fa703c198876f2e3a19643be73804b9bb934cfe2",
+      "story_sha256": "d35d6204f221bafbd4bcfb917790f359614c81fc0991717768bd7c053c3bfb79",
+      "story_words": 223,
+      "draft_sha256": "5c5c0ee9493524a96c6d242d834876384c281d53b8b35b046caa78b4349527a6",
+      "draft_words": 236,
+      "editor_request_sha256": "e60d500e5c9fb53e08874fffc3b6de8cbd528f6d880ef468a184e20e0b28aa94",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 13,
+      "input_sha256": "6f444b94c56262f1a4737f4e396f77f513d03afe8b91909c05fd014089d7df81",
+      "story_sha256": "2e421e6e994867167460bebec664f48f04793c8a9ebc3586312823e5e3744531",
+      "story_words": 199,
+      "draft_sha256": "772cbdf0f852462fc6c932360fb8fa3ddef6fae2a80e0becc3f908836b1c2f0b",
+      "draft_words": 272,
+      "editor_request_sha256": "a2397ecebadee7deb349d548698eb7cbeca469a67da2923800f4bb5f16bbb7c8",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 14,
+      "input_sha256": "0b1c4d4d2befe2e24c251da6da1827794fe5689d380b775594e9576f723b9cde",
+      "story_sha256": "cda09b32dea8554754905c52ab969116d59f2ef9234413635707a6b68dda0e8b",
+      "story_words": 431,
+      "draft_sha256": "6e9f4f8111d9f77bcaa13ce92e6349255daee09504167b4e60e858592695de2a",
+      "draft_words": 455,
+      "editor_request_sha256": "f57461caf2620a041e8e8fdd874be5e930f20d05352683acdc58b6abcbbe8a3c",
+      "author_task_requests": 2
     }
   ],
-  "player_turns": 8,
+  "player_turns": 14,
   "session_kind": "fresh interactive session",
-  "story_words": 3197
+  "story_words": 5815
 }

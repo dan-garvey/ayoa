@@ -1,0 +1,20 @@
+{
+  "locked_before_independent_review_at": "2026-09-14T06:25:46.356978+00:00",
+  "scope": "B opening and five published player turns, segment judgments only",
+  "sha256": {
+    "pilot_screen_b.md": "fc97fd80e237f15b24feaa143c93873b095fa64640a62b1cd72420a70aaa1a90",
+    "session_b/00.input.txt": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+    "session_b/00.story.md": "2868cfa1901c5cfa19f662bade6ab1a8555f24d5b7736fdca0f726ff9df2cb75",
+    "session_b/01.input.txt": "8c59b44d3c9b42056ccb3edf456f749077171e1dcd969804f2eb41ded7c29a47",
+    "session_b/01.story.md": "66e235f8960cb9f57757f766fbca2a77a0c00fb6f351213a83cfc7ac4a4a3379",
+    "session_b/02.input.txt": "62c76085a7e1faf7ac1437e9bb303235f2dfd40965a5ced149bd169930b835e0",
+    "session_b/02.story.md": "d51d30f82a73631bb74e60ebaca3a44f3d6b61aeda9238a98070ea38727193c8",
+    "session_b/03.input.txt": "4452844237c7fe4014031511b0e97f5e5f66f71af82aceeceb4631ceb4440934",
+    "session_b/03.story.md": "17bac5e4cb247244076ac50fef7657f1eac46e6bbc5e5d576a3119dc7b41526d",
+    "session_b/04.input.txt": "5479ed52de6bc98738ff0c268da8f6be24b1e67e149d3365db24db63efbfc771",
+    "session_b/04.story.md": "1e00dcbb1ee0128ea51b2118d6b26bd4411eceeaf76d37045d3784934024a188",
+    "session_b/05.input.txt": "385547beefed463f9638a858f826e06c65966157333e8da76c06afbd97926802",
+    "session_b/05.story.md": "476100ac843142e042553339ecc3c373f06fbe94b60622955a6da530f95fc9d6",
+    "session_b/transcript.md": "8cf5b0d614114af74f11962668305ff7081a3401b3fd37f80dd2b1a33d219287"
+  }
+}

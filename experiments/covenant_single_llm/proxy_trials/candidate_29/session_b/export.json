@@ -22,9 +22,49 @@
       "draft_words": 928,
       "editor_request_sha256": "df93ae98ae09f4ea5ef930213197b7eac921df61a81f182807ce878fb78a4731",
       "author_task_requests": 2
+    },
+    {
+      "turn": 2,
+      "input_sha256": "62c76085a7e1faf7ac1437e9bb303235f2dfd40965a5ced149bd169930b835e0",
+      "story_sha256": "d51d30f82a73631bb74e60ebaca3a44f3d6b61aeda9238a98070ea38727193c8",
+      "story_words": 536,
+      "draft_sha256": "f9dc3314e414da6410c862ce120036db6c0d24b3985cbab80a330cde0652f412",
+      "draft_words": 542,
+      "editor_request_sha256": "fd518124eb758ff94329491fa3a212908c14496fc706663379046e21a9ecf37d",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 3,
+      "input_sha256": "4452844237c7fe4014031511b0e97f5e5f66f71af82aceeceb4631ceb4440934",
+      "story_sha256": "17bac5e4cb247244076ac50fef7657f1eac46e6bbc5e5d576a3119dc7b41526d",
+      "story_words": 495,
+      "draft_sha256": "fd9011cb44d52e4b489359c9a13f8e19e3aa8c0b61e281eac55fd3fa27b1f2b1",
+      "draft_words": 604,
+      "editor_request_sha256": "4914aac06d9d5eb9eb017b3305caf431002776ae794b06f1e8fc2ba6218a3cf6",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 4,
+      "input_sha256": "5479ed52de6bc98738ff0c268da8f6be24b1e67e149d3365db24db63efbfc771",
+      "story_sha256": "1e00dcbb1ee0128ea51b2118d6b26bd4411eceeaf76d37045d3784934024a188",
+      "story_words": 353,
+      "draft_sha256": "e6530fe42509554c805aa054a7791c26fcd667d1431c248cfbbc11a4c71c2df5",
+      "draft_words": 352,
+      "editor_request_sha256": "2ccfe4da6fe645cec16a44dee53dda9919c6f71432d3784c78a8419ea03febd1",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 5,
+      "input_sha256": "385547beefed463f9638a858f826e06c65966157333e8da76c06afbd97926802",
+      "story_sha256": "476100ac843142e042553339ecc3c373f06fbe94b60622955a6da530f95fc9d6",
+      "story_words": 335,
+      "draft_sha256": "20d31d6bd640582d541e868f8f7f4dbb306bdf54372a9b54b5d01bf920c3ac10",
+      "draft_words": 353,
+      "editor_request_sha256": "1a32ed1303a67df13c74a7089b560fed1699c9ab82ba4a315da55d274a9a795a",
+      "author_task_requests": 2
     }
   ],
-  "player_turns": 1,
+  "player_turns": 5,
   "session_kind": "fresh interactive session",
-  "story_words": 1591
+  "story_words": 3310
 }
