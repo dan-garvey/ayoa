@@ -13,12 +13,18 @@ def create(service):
     return response.json()["id"]
 
 
+def version(service, name):
+    return service.client.get("/api/session", params={"id": name}).json()["version"]
+
+
 def test_proxy_chat_preserves_sources_but_only_displays_published_story(chat_service):
     service = chat_service()
     client = service.client
     name = create(service)
     turn = "I wait.\n\n*Quietly.*"
-    sent = client.post("/api/turn", json={"id": name, "text": turn, "expected_turns": 0})
+    sent = client.post(
+        "/api/turn", json={"id": name, "text": turn, "expected_version": version(service, name)}
+    )
     assert sent.status_code == 200
     assert sent.json()["turns"] == []
     assert sent.json()["pending"]["input"] == turn
@@ -128,7 +134,7 @@ def test_markdown_keeps_formatting_without_executable_html_or_images():
 def test_progress_reads_stay_responsive_and_stale_tabs_cannot_duplicate_turns(chat_service):
     service = chat_service("PRIVATE_DRAFT", "Published response.", transport="api", pause_at=2)
     name = create(service)
-    payload = {"id": name, "text": "I open the door.", "expected_turns": 0}
+    payload = {"id": name, "text": "I open the door.", "expected_version": version(service, name)}
     with ThreadPoolExecutor() as pool:
         future = pool.submit(service.client.post, "/api/turn", json=payload)
         try:
@@ -137,13 +143,20 @@ def test_progress_reads_stay_responsive_and_stale_tabs_cannot_duplicate_turns(ch
             assert progress.status_code == 200 and progress.json()["busy"]
             assert progress.json()["turns"] == [] and "PRIVATE_DRAFT" not in progress.text
             assert service.client.post("/api/turn", json=payload).status_code == 409
+            assert (
+                service.client.post(
+                    "/api/rename", json={**payload, "player_name": "Jules"}
+                ).status_code
+                == 409
+            )
         finally:
             service.model.release.set()
         assert future.result().status_code == 200
     assert service.client.post("/api/turn", json=payload).status_code == 409
     assert len(service.model.requests) == 2
     assert service.model.requests[0]["input"][-1]["content"] == payload["text"]
-    assert "expected_turns" not in json.dumps(service.model.requests)
+    assert "expected_version" not in json.dumps(service.model.requests)
+    assert payload["expected_version"] not in json.dumps(service.model.requests)
     assert service.app.token not in json.dumps(service.model.requests)
 
 
@@ -151,7 +164,8 @@ def test_browser_resume_reuses_successful_draft_after_editor_failure(chat_servic
     service = chat_service("saved draft", TimeoutError(), "Published after retry.", transport="api")
     name = create(service)
     result = service.client.post(
-        "/api/turn", json={"id": name, "text": "I wait.", "expected_turns": 0}
+        "/api/turn",
+        json={"id": name, "text": "I wait.", "expected_version": version(service, name)},
     )
     assert result.status_code == 409
     paused = service.client.get("/api/session", params={"id": name}).json()
@@ -178,3 +192,59 @@ def test_proxy_updates_from_cli_are_visible_in_chat(chat_service):
     core.accept(session, editor["request_id"], "Final from the command line.")
     view = service.client.get("/api/session", params={"id": name}).json()
     assert view["pending"] is None and view["turns"][0]["output"] == "Final from the command line."
+
+
+def test_chat_name_selection_and_renaming_use_shared_identity_and_guard_stale_tabs(chat_service):
+    service = chat_service("draft", "published", transport="api")
+    client = service.client
+    view = client.post(
+        "/api/sessions", json={"story": "harbor", "player_name": " Éloi   Vale "}
+    ).json()
+    assert view["player"] == "Éloi Vale"
+    name = view["id"]
+    session = service.app.session_path(name)
+    payload = {"id": name, "player_name": "Renée", "expected_version": view["version"]}
+    assert client.post("/api/rename", json=payload, headers={"X-Chat-Token": ""}).status_code == 403
+    renamed = client.post("/api/rename", json=payload)
+    assert renamed.status_code == 200 and renamed.json()["player"] == "Renée"
+    assert renamed.json()["turns"] == [] and not service.model.requests
+    assert client.get("/api/sessions").json()["sessions"][0]["player"] == "Renée"
+    assert core.player_identity(session, core.load_session(session)[1])["name"] == "Renée"
+    assert client.get("/api/bootstrap").json()["stories"][0]["player"] == "Casey"
+    assert client.post("/api/rename", json={**payload, "player_name": "Stale"}).status_code == 409
+    assert client.post("/api/turn", json={**payload, "text": "Stale turn."}).status_code == 409
+    assert (
+        client.post("/api/rename", json={"id": name, "player_name": "No version"}).status_code
+        == 409
+    )
+    assert not service.model.requests
+    response = client.post(
+        "/api/turn",
+        json={"id": name, "text": "Start", "expected_version": renamed.json()["version"]},
+    )
+    assert response.status_code == 200
+    for request in service.model.requests:
+        assert "Renée" in request["input"][0]["content"]
+        assert "Éloi Vale" in request["input"][0]["content"]
+        assert "Renée" not in request["instructions"]
+    core.rename_player(session, "Jules")
+    assert client.get("/api/session", params={"id": name}).json()["player"] == "Jules"
+
+
+def test_chat_rejects_invalid_name_before_creation_and_rename_while_pending(chat_service):
+    service = chat_service()
+    client = service.client
+    for value in (" ", "x" * 81, {"name": "Jules"}):
+        response = client.post("/api/sessions", json={"story": "harbor", "player_name": value})
+        assert response.status_code == 409
+    assert not list(service.app.sessions.iterdir())
+    name = create(service)
+    session = service.app.session_path(name)
+    core.submit(session, "Start")
+    before = (session / "state.json").read_bytes()
+    result = client.post(
+        "/api/rename",
+        json={"id": name, "player_name": "Jules", "expected_version": version(service, name)},
+    )
+    assert result.status_code == 409 and "pending response" in result.json()["error"]
+    assert (session / "state.json").read_bytes() == before

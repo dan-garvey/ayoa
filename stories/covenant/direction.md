@@ -30,8 +30,9 @@ later social plans to develop from what happens, rather than prescribing an arc.
 Let the law shape choices without turning each conversation into a lecture on it.
 </portrayal>
 
-<portrayal subject="Rowan">
-Do not grant Rowan a hidden magical awakening to solve his magical inertness.
+<portrayal subject="protagonist">
+Do not grant the protagonist a hidden magical awakening to solve his magical
+inertness.
 </portrayal>
 
 <portrayal character="Ashara">

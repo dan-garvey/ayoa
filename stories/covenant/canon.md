@@ -22,7 +22,8 @@ Humans once could learn fragments of every other magical tradition.
 Sixty years ago a plague reduced the human population by about ninety percent.
 The official account calls it natural. The great houses collapsed and the human
 Council seat has remained empty. Surviving scholarship offers mostly summaries;
-primary sources require restricted access. Rowan's verified Garvey inheritance
+primary sources require restricted access. The protagonist's verified Garvey
+inheritance
 returns a human to the Conclave and gives him wealth, a name, and responsibilities
 he has not been prepared for. It does not make him magically powerful.
 
@@ -49,15 +50,17 @@ privacy, or a place to practice without an audience.
 <places>
 Garvey House is the shared Conclave residence, a three-story accumulation of
 different architectural traditions. The common room, dining hall, and library
-are on the ground floor; Rowan's room is one floor above them. Rowan inherits the Garvey name and property;
+are on the ground floor; the protagonist's room is one floor above them. The
+protagonist inherits the Garvey family's property and standing;
 the building's established residential use does not make the other students his
 dependents or give him authority over their private rooms.
 
-Rowan's second-floor room has a made bed, clothes sent ahead by the lawyers, a
+The protagonist's second-floor room has a made bed, clothes sent ahead by the
+lawyers, a
 desk, and a window toward the gardens and bridges. A framed handwritten letter
 from a dead Garvey aunt concerns a planned visit by her named great-nephew,
 who never came. It is ordinary correspondence written for that occasion. Its
-recipient need not be Rowan. The common room
+recipient need not be the protagonist. The common room
 has portraits of dead Garveys, an oversized fireplace, study tables, leather
 chairs, and stairs to unused upper floors. It connects to the dining hall,
 library, and gardens. These are places where students regularly meet.
@@ -100,7 +103,8 @@ and politics. By the time she recognized other possible lives, she wanted this
 one. She leads the dueling rankings and becomes more controlled when uncertain.
 She is proud, exacting, and capable of humor without surrendering her authority.
 Her designation was won in the open Trials of Ascension, not inherited. She
-finds Rowan's automatic political inheritance objectionable and believes skill
+finds the protagonist's automatic political inheritance objectionable and
+believes skill
 and demonstrated judgment should earn authority. Her own family advantages are
 a blind spot. She wants demon restrictions reformed and can lack empathy for
 people whose struggles she does not understand. Flattery, submission, and a
@@ -108,7 +112,8 @@ single clever argument do not establish the competence she respects.
 She has sensed her grandmother Ashira conceals something serious since she was
 nine, but has chosen not to force a confession. She does not know the conspiracy.
 She can be attracted to human men; attraction guarantees neither interest in
-Rowan nor a romantic outcome. She likes competition, good food after training,
+the protagonist nor a romantic outcome. She likes competition, good food after
+training,
 and company that can survive a disagreement. With Rashid she has two years of
 habit and unfinished arguments. She can laugh at him, take his side, or lose
 patience. She is more likely to
@@ -125,7 +130,8 @@ proud to name. Ashara knows he is pursuing her, but her answer is not predetermi
 He keeps his eleven-year-old sister's letters under his bed: the one part of his
 life that serves no strategy. He avoids asking what he would want for himself.
 He wants full equality for beastkin and resents the human-designed institutions
-that denied it. Rowan receives standing and social grace Rashid has had to earn;
+that denied it. The protagonist receives standing and social grace Rashid has
+had to earn;
 friendliness does not settle that grievance. Shared reform goals and demonstrated
 competence could support an alliance. Interest in Ashara creates a real rivalry:
 Rashid can win her attention and will not conveniently surrender his courtship.
@@ -165,7 +171,8 @@ Conclave and covers that injury with superiority. Fluster makes her more formal.
 She privately reads human poetry and would not admit it to her sisters or mother.
 She has not been told of her mother Toxicia's involvement in the human collapse.
 Her pride can coexist with curiosity, specificity, and a wish for company.
-Her contempt for human haste is also real. Rowan will die before some of her
+Her contempt for human haste is also real. The protagonist will die before some
+of her
 projects are finished, and she does not begin by considering his opinions or
 inheritance impressive. Persistence alone irritates her. A reason to reconsider
 must come from sustained conduct, a substantial argument, or work she can
@@ -236,10 +243,11 @@ not at the initial dinner table; a later entrance requires a plausible occasion.
 
 Professor Kira vel Shaan is a young adult demon teaching Practical Rhetoric,
 ambitious and accomplished without a great family's birthright. Recruited in her
-late twenties, she sincerely thinks monitoring Rowan protects demon interests.
+late twenties, she sincerely thinks monitoring the protagonist protects demon
+interests.
 She knows her assignment and the Inheritors' name, not the entire original crime.
 She may offer mentorship or cultivate intimacy if useful, but is a thinking
-person whose tactics depend on Rowan's conduct.
+person whose tactics depend on the protagonist's conduct.
 
 Professor Elara Windwhisper is an elf who was alive when the Covenant was signed.
 She has taught Covenant Law for over a century, rarely raises her voice, reports
@@ -255,7 +263,7 @@ loudness protects him and makes him poorly suited to covert recruitment.
 Professor Gareth Stone is the last visible human academic and teaches human
 Covenant history. He lived through the collapse, knows fragments of its cause,
 and hides primary-source documents. Threats made silence a decades-long habit.
-He needs credible protection or substantial pressure to risk helping Rowan.
+He needs credible protection or substantial pressure to risk helping the protagonist.
 
 Chancellor Mordecai Ashworth is an old angel scholar who has led the Academy for
 sixty years. Fond of students in general, he prefers institutional stability to
@@ -264,7 +272,8 @@ chooses not to investigate. He controls restricted-history access.
 
 Lord Verantus is the angel Council seat holder and the conspiracy's leader.
 He believes he is a steward protecting civilization, not a tyrant. He has tracked
-Rowan since the inheritance verification and works through intermediaries. He
+the protagonist since the inheritance verification and works through
+intermediaries. He
 has deliberately kept Aldric ignorant and cannot imagine his own downfall.
 
 Lady Ashira vel Kothren is Ashara's ancient grandmother, once a major demon
@@ -274,7 +283,8 @@ her weak than complicit. She has not told her granddaughter.
 
 Toxicia Vaeyn, Caelindra's mother, leads the Amber Court and the Silence. A
 scientific genius coerced by Verantus, she designed the curse. She is committed
-to the cover-up but carries unprocessed guilt. Caelindra's attachment to Rowan
+to the cover-up but carries unprocessed guilt. Caelindra's attachment to the
+protagonist
 would give the other conspirators leverage over her. Specific compelling evidence
 could break her composure more readily than the others'.
 
@@ -292,7 +302,8 @@ Toxicia into combining demon life-magic, angel purification, and elven time-bind
 Coldpeak participated for the poison she uses against Thornmantle.
 
 The curse targeted the magical adaptability that let humans learn other races'
-magic: trained humans first, then families and strong genetic markers. Rowan
+magic: trained humans first, then families and strong genetic markers. The
+protagonist
 survived because he is magically inert. His parents died as late victims, a cause
 he does not know.
 
@@ -304,11 +315,12 @@ knowledge merely through kinship. Seraphel is the central student exception.
 The Dawnquills discovered the crime and prepared to expose it. Verantus paid a
 fae curse-smith to bind their bloodline to verse. The curse can be broken when
 the truth of its origin is spoken before representatives of all seven races.
-The vacant human seat made this apparently impossible; Rowan changes that.
+The vacant human seat made this apparently impossible; the protagonist changes that.
 Thessaly knows general principles of old bindings, not this specific solution.
 
 Dan Garvey sealed evidence behind a bloodline-keyed ward in the abandoned wing.
-Rowan's bloodline, not magical power, can open it. Administration does not know
+The protagonist's bloodline, not magical power, can open it. Administration does
+not know
 its significance. The conspirators suspect an archive exists and use fabricated
 maintenance orders to seek access, but cannot breach the ward themselves.
 
@@ -347,12 +359,14 @@ does not want her name in a public campaign: her family already thinks she waste
 time on practice. Rashid knows this; the other residents have not been told.
 She can speak for herself and may disagree with the way he is helping.
 
-Rowan has not learned these arrangements. Further knowledge needs conversation
+The protagonist has not learned these arrangements. Further knowledge needs
+conversation
 or observation. Neither gathering depends on him.
 </current_business>
 
 <opening_state>
-Rowan starts in his room shortly before the first-year welcome dinner. Rowan is
+The protagonist starts in his room shortly before the first-year welcome dinner.
+The protagonist is
 the first human Conclave student in generations. His primer tells him the public
 history, the dinner occasion, and Article Nineteen; it reveals no conspiracy.
 Ashara, Ysolde, Caelindra, Seraphel, Thessaly, Rashid, and Aldric are gathering in

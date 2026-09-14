@@ -12,8 +12,10 @@ action, NPC dialogue and narration, and a subsequent prose edit.
 character backgrounds, world facts, secrets and initial circumstances, and
 `player.json` with a default name and description. Psychological dispositions,
 abilities and genuine knowledge restrictions remain canon even when expressed
-as constraints. A story may prescribe a protagonist premise; overriding the
-player file does not automatically rewrite that premise.
+as constraints. Canon and direction refer to **the protagonist**, leaving the
+chosen name out of the stable instruction prefix. A story may prescribe a
+protagonist premise; choosing a name or overriding the player description does
+not rewrite their ancestry, other characters or named places.
 
 Initialization freezes these files plus `prompts/revision.txt` and model settings.
 It makes no model call. The first submitted input requests the opening. Source
@@ -27,6 +29,15 @@ produces a draft. The editor receives exactly that context, then the draft as
 an assistant message and the concise revision task as a user message. Both calls
 use the same model and reasoning settings. They are sequential: the editor waits
 for the draft. Discarded drafts and revision requests never enter later turns.
+
+Protagonist name choices are stored in `state.json` as `player_names`, with the
+latest choice last. A session without a name choice uses its frozen default.
+Both browser and CLI use the same validation and atomic rename operation. Names
+are 1–80 characters after whitespace normalization and exclude control characters.
+A rename is rejected while a response remains pending, keeping prepared author
+and editor requests valid. When names change, the player-description message
+identifies earlier names as the same protagonist and treats this as a naming
+correction. Published text, frozen sources and raw attempts remain unchanged.
 
 ## Persistence and transport
 
@@ -88,10 +99,12 @@ Stopping the server still uses the core's existing interrupted-attempt recovery.
 
 An in-memory guard identifies active HTTP operations and rejects simultaneous
 requests for the same session. The core's file lock remains authoritative across
-CLI and browser processes. Browser submissions include the published turn count
-they were composed against; the core checks it under that lock to reject a stale
-tab or a repeated submission after publication. This adds no prompt content or
-persisted history fields. Failed reads and actions leave the saved turn explicit.
+CLI and browser processes. Browser turns and renames include a version derived
+from the state they were composed against; the core checks it under that lock.
+This replaces the former turn-count check so stale tabs cannot overwrite a name
+or submit a turn after an identity change. The version never enters model context
+and needs no separate persisted counter. Failed reads and actions leave the saved
+turn explicit.
 
 The conversation projection includes only published exchanges, the current player
 submission and response status. Drafts, canon, provider output and credentials are
@@ -112,4 +125,6 @@ never receive an API key. This is not a public deployment or multi-user service.
 Offline HTTP and Chromium checks cover publication, formatting, proxy acceptance,
 concurrent progress reads, stale submissions, recovery after a failed edit,
 reload during generation, saved composer text, mobile navigation and reading
-position. Live narrative quality remains evaluated through the separate playtests.
+position. Naming checks also cover both model calls, unchanged raw history,
+concurrent and pending edits, stale tabs, Unicode and mobile layout. Live narrative
+quality remains evaluated through the separate playtests.

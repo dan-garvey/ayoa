@@ -22,6 +22,10 @@ python3 -m venv .venv
 ```
 
 Open **http://localhost:8765**. Choose a saved story or select **New story**.
+Choose your protagonist’s name before beginning. To rename them between turns,
+click the name above the story title. Their background stays the same, and
+earlier passages keep their original wording. Future responses receive the new
+name and a correction identifying earlier names as the same character.
 The conversation shows your turns and published passages, with Markdown emphasis,
 headings, quotations, lists, tables, and preserved verse line breaks. Reading
 preferences offer light/dark appearance and adjustable text size. New passages
@@ -56,12 +60,22 @@ The server binds only to loopback; it is a local, single-user interface.
 The original commands remain available:
 
 ```bash
-.venv/bin/python -m narrative init --story covenant --session sessions/my-story
+.venv/bin/python -m narrative init --story covenant --session sessions/my-story --player-name 'Avery'
 .venv/bin/python -m narrative turn --session sessions/my-story --text 'Begin the story.'
 ```
 
 Initialization makes no model calls. `breakwater` is a second bundled story:
 a contemporary coastal cinema with a rich ensemble.
+
+Omit `--player-name` to use the story’s default. Rename an existing protagonist
+after completing any pending response:
+
+```bash
+.venv/bin/python -m narrative rename --session sessions/my-story --player-name 'Morgan'
+```
+
+Names allow 1–80 characters, including Unicode; extra whitespace is normalized.
+Renaming makes no model call and preserves the transcript and saved attempts.
 
 The turn command returns a request id and paths to exact JSON and readable text
 requests. Give the complete text request to a fresh Terra coding agent at maximum
@@ -117,14 +131,18 @@ unavailable proxy usage is shown as null. Sessions are ignored by Git.
 Create a directory with these three files and pass its name or path to `--story`:
 
 - `canon.md`: world, full biographies, relationships, private knowledge and initial
-  circumstances. Consistent invented history is welcome; contradictory history is not.
+  circumstances. Refer to the player character as **the protagonist**, using their
+  chosen name only in `player.json`. Consistent invented history is welcome;
+  contradictory history is not.
 - `direction.md`: the story's genre, tone, portrayal and opening instructions.
 - `player.json`: `{"name": "...", "description": "..."}` for its default protagonist.
 
 Reusable author/editor instructions live in `prompts/`. Select an experimental
 pair with `--prompts DIRECTORY` when initializing a new session. `--player-file`
 selects another description; it must remain consistent with the story's premise.
-There is no automatic rewriting of a story when the player file changes.
+`--player-name` overrides its default name. Naming preserves the story’s family
+history, places and other characters: Covenant’s Garvey ancestry and estate,
+for example, remain part of the premise even when you choose another surname.
 
 [DESIGN.md](DESIGN.md) describes the context and recovery contracts.
 [AGENTS.md](AGENTS.md) describes contribution and evidence practices.

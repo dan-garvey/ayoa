@@ -40,32 +40,35 @@ beside the office, so someone coming downstairs reaches the foyer without
 passing through the auditorium or kitchen.
 
 On the first-floor landing are the projection booth, an archive workroom and
-the former caretaker's accommodation. Rowan has its single bedroom, with a bed,
+the former caretaker's accommodation. The protagonist has its single bedroom,
+with a bed,
 wardrobe, small desk, desk lamp and a window overlooking Harbour Street towards
 the harbour. A separate little shower room serves the accommodation. Nobody
 else lives in the building. The archive workroom contains shelves, folding
 worktables and a lockable cupboard for material lent by individuals. Nell holds
-its keys in the office. Rowan already has keys to the bedroom and the side
+its keys in the office. The protagonist already has keys to the bedroom and the side
 entrance; archive access is part of tomorrow's work induction.
 </building>
 
-<rowan>
-Rowan is twenty-three, an aspiring writer newly employed as a temporary
+<protagonist>
+The protagonist is twenty-three, an aspiring writer newly employed as a temporary
 cataloguer. The paid contract runs for six weeks, Monday 14 September through
 Sunday 25 October 2026, at thirty hours a week. The upstairs room is included
-for that period, with checkout on Monday 26 October. Nell recruited Rowan from
+for that period, with checkout on Monday 26 October. Nell recruited the
+protagonist from
 an application and references. The work is to inventory programmes, photographs
 and business papers, record condition and provenance, and distinguish material
 owned by the trust from loans with particular permissions.
 
-Rowan has no ownership interest, managerial duties or responsibility for
+The protagonist has no ownership interest, managerial duties or responsibility for
 fundraising. Nell supervises the archive contract. The trust has funded all six
-weeks of wages. The other seven people know Rowan's name, role and length of
+weeks of wages. The other seven people know the protagonist's name, role and
+length of
 stay from Nell's staff email last Thursday. Nell's brief welcome today is the
-only introduction so far. Rowan's interest in writing was part of the job
+only introduction so far. The protagonist's interest in writing was part of the job
 application, which Nell read. The rest of the group has not been given a
 biography of the new cataloguer.
-</rowan>
+</protagonist>
 
 <present_people>
 <character name="Nell Ward" age="44" role="general manager">
@@ -325,7 +328,7 @@ confirmed. Only Dev and Hana know the proposed test time. Nell knows Dev is
 working in the booth this evening, which does not itself reserve the
 auditorium. Test audio would be audible on Rosa's recording, and checking
 receivers requires moving through the seated area where she intends to work.
-Neither project requires Rowan's participation.
+Neither project requires the protagonist's participation.
 </auditorium_evening>
 
 <owen_interview>
@@ -339,7 +342,7 @@ At about 14:00, while helping Jo unload food from her van, Owen told her the
 job, place and proposed interview time. He asked to tell Martin and Nell
 himself, and Jo agreed. Neither Martin nor Nell knows that Owen applied. Rosa
 knows he has been looking for more stable work in general, from earlier
-conversations, but has not heard about this application. Rowan has no
+conversations, but has not heard about this application. The protagonist has no
 information about Owen's job search.
 </owen_interview>
 
@@ -359,8 +362,9 @@ heard from Martin last Thursday that Bea planned to lend an album. She has not
 seen it or requested its pictures for her exhibition. Tonight's confirmed
 appointment concerns the programme boards alone.
 
-Rowan's induction is scheduled for 09:00 tomorrow and includes the loan
-records. Rowan has not yet seen this album or been told its particular terms.
+The protagonist's induction is scheduled for 09:00 tomorrow and includes the loan
+records. The protagonist has not yet seen this album or been told its particular
+terms.
 Bea wants to consult people pictured before deciding about public use; she has
 not started those conversations.
 </beas_album>
@@ -370,21 +374,23 @@ The staff rota for the first public weekend is due to be completed on
 Wednesday. Nell is assembling availability already supplied by the paid staff.
 Jo has agreed a short opening menu with her suppliers and is checking her own
 costs before printing it. She will keep the lunch van's Friday route through
-October while she learns how the concession trades. Rowan's six weeks of
+October while she learns how the concession trades. The protagonist's six weeks of
 cataloguing begin with the trust's business papers and programme boxes; the
 exhibition does not depend on completion of the whole archive.
 
 Tonight's supper is Jo's invitation to the people who have been working here
 today and to the new lodger. The seven regulars contribute towards ingredients;
-Rowan is her guest on this first evening. The meal is tomato and chickpea stew,
+the protagonist is her guest on this first evening. The meal is tomato and
+chickpea stew,
 a cheese-and-onion pie, bread and a green salad. Jo intends to put it out at
 18:30. The invitation carried no meeting agenda.
 </ordinary_work>
 </current_business>
 
 <opening_state>
-It is Monday 14 September 2026, at 18:15. Rowan is upstairs in the assigned
-room, with the luggage brought on this afternoon's journey. Nell showed Rowan
+It is Monday 14 September 2026, at 18:15. The protagonist is upstairs in the assigned
+room, with the luggage brought on this afternoon's journey. Nell showed the
+protagonist
 the room at 17:45, handed over the keys and then returned to the office.
 
 A single welcome sheet lies on the desk. It gives the supper time, directions

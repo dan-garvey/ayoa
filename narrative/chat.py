@@ -85,7 +85,7 @@ class ChatApp:
                 )
         return result
 
-    def create(self, story_id: str) -> dict:
+    def create(self, story_id: str, player_name: str | None = None) -> dict:
         if story_id not in {story["id"] for story in self.story_list()}:
             raise ValueError("Choose one of the available stories")
         name = f"{story_id}-{uuid.uuid4().hex[:12]}"
@@ -93,6 +93,7 @@ class ChatApp:
             self.sessions / name,
             self.stories / story_id,
             prompts=self.prompts,
+            player_name=player_name,
             **self.defaults,
         )
         return self.view(name)
@@ -124,7 +125,7 @@ class ChatApp:
             name = session.relative_to(self.sessions).as_posix()
             try:
                 manifest, state = core.load_session(session)
-                player = core.read_json(session / "snapshot/player.json")
+                player = core.player_identity(session, state)
                 result.append(
                     {
                         "id": name,
@@ -145,7 +146,7 @@ class ChatApp:
         # State replacement is atomic. Reading it does not wait on a model call's
         # file lock, so reload and progress remain available during generation.
         manifest, state = core.load_session(session)
-        player = core.read_json(session / "snapshot/player.json")
+        player = core.player_identity(session, state)
         pending = state["pending"]
         waiting = None
         if pending:
@@ -177,6 +178,7 @@ class ChatApp:
             "created_at": manifest["created_at"],
             "transport": manifest["transport"],
             "turn_count": len(state["turns"]),
+            "version": core.state_version(state),
             "turns": [
                 {
                     "number": turn["turn"],
@@ -195,6 +197,12 @@ class ChatApp:
         session = self.session_path(name)
         with self.operation(session):
             manifest, _ = core.load_session(session)
+            if command in {"turn", "rename"}:
+                if (
+                    not isinstance(body.get("expected_version"), str)
+                    or not body["expected_version"]
+                ):
+                    raise ValueError("Refresh the story before trying again")
             if command == "accept":
                 text = body.get("text")
                 if not isinstance(text, str) or not text.strip():
@@ -203,17 +211,19 @@ class ChatApp:
                 if not isinstance(request_id, str):
                     raise ValueError("Open the current handoff before accepting a response")
                 core.accept(session, request_id, text)
+            elif command == "rename":
+                core.rename_player(
+                    session, body.get("player_name"), expected_version=body["expected_version"]
+                )
             else:
                 if command == "turn":
-                    if type(body.get("expected_turns")) is not int:
-                        raise ValueError("Refresh the story before sending this turn")
                     if not isinstance(body.get("text"), str) or not body["text"].strip():
                         raise ValueError("Write a turn before sending it")
                 context = self.client_factory() if manifest["transport"] == "api" else nullcontext()
                 with context as client:
                     if command == "turn":
                         core.submit(
-                            session, body["text"], client, expected_turns=body["expected_turns"]
+                            session, body["text"], client, expected_version=body["expected_version"]
                         )
                     elif command == "resume":
                         core.resume(session, client)
@@ -357,8 +367,8 @@ class ChatHandler(BaseHTTPRequestHandler):
                 raise ValueError("Invalid story action")
             route = urlsplit(self.path).path
             if route == "/api/sessions":
-                self.json(201, app.create(body.get("story")))
-            elif route in {"/api/turn", "/api/resume", "/api/accept"}:
+                self.json(201, app.create(body.get("story"), body.get("player_name")))
+            elif route in {"/api/turn", "/api/resume", "/api/accept", "/api/rename"}:
                 self.json(200, app.action(body.get("id"), route.removeprefix("/api/"), body))
             else:
                 self.json(404, {"error": "Unknown story action"})

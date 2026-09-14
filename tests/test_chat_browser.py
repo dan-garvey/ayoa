@@ -175,3 +175,76 @@ def test_long_passages_open_at_start_and_do_not_interrupt_earlier_reading(browse
         assert abs(page.locator(".message.story").last.bounding_box()["y"] - top - 28) < 3
     finally:
         page.close()
+
+
+def test_browser_choose_and_rename_protagonist_preserves_prose_and_unsent_turn(
+    browser, chat_service
+):
+    service = chat_service()
+    page = browser.new_page()
+    try:
+        page.goto(service.url)
+        page.get_by_role("button", name="New story", exact=True).click()
+        expect(page.get_by_label("Protagonist name", exact=True).first).to_have_value("Casey")
+        page.locator("#new-player").fill("Éloi Vale")
+        page.get_by_role("dialog").get_by_role("button", name="Begin story", exact=True).click()
+        expect(page.locator("#story-kicker")).to_have_text("PLAYING AS ÉLOI VALE")
+        expect(page.get_by_role("button", name="Rename protagonist", exact=True)).to_be_disabled()
+        expect(page.get_by_role("button", name="Response handoff", exact=True)).to_be_visible()
+        name = service.app.session_list()[0]["id"]
+        packet = service.app.handoff(name)
+        assert "My character: Éloi Vale." in packet["text"]
+        publish_proxy(page, "draft", "Éloi Vale waits by the **water**.")
+        composer = page.get_by_role("textbox", name="Your next turn")
+        composer.fill("I listen.\nAnd wait.")
+        page.get_by_role("button", name="Rename protagonist", exact=True).click()
+        expect(page.locator("#rename-name")).to_have_value("Éloi Vale")
+        page.locator("#rename-name").fill("Renée O'Vale")
+        page.get_by_role("button", name="Save name", exact=True).click()
+        expect(page.locator("#rename-dialog")).not_to_be_visible()
+        expect(page.locator("#story-kicker")).to_have_text("PLAYING AS RENÉE O'VALE")
+        expect(page.locator(".session-meta")).to_contain_text("Renée O'Vale")
+        expect(composer).to_have_value("I listen.\nAnd wait.")
+        page.reload()
+        expect(page.locator("#story-kicker")).to_have_text("PLAYING AS RENÉE O'VALE")
+        expect(composer).to_have_value("I listen.\nAnd wait.")
+        expect(page.locator(".message.story .prose")).to_have_text("Éloi Vale waits by the water.")
+        composer.press("Control+Enter")
+        expect(page.get_by_role("button", name="Response handoff", exact=True)).to_be_visible()
+        packet = service.app.handoff(name)
+        assert "My character: Renée O'Vale." in packet["text"]
+        assert '"Éloi Vale"' in packet["text"]
+        publish_proxy(page, "next draft", "A reply.")
+        expect(page.locator(".message.story")).to_have_count(2)
+    finally:
+        page.close()
+
+
+def test_browser_stale_rename_does_not_overwrite_a_new_name(browser, chat_service):
+    service = chat_service()
+    view = service.app.create("harbor")
+    page = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True)
+    try:
+        page.goto(f"{service.url}/#{view['id']}")
+        page.get_by_role("button", name="Rename protagonist", exact=True).click()
+        page.locator("#rename-name").fill("Avery")
+        core.rename_player(service.app.session_path(view["id"]), "Morgan")
+        expect(page.locator("#story-kicker")).to_have_text("PLAYING AS MORGAN")
+        page.get_by_role("button", name="Save name", exact=True).click()
+        expect(page.locator("#rename-error")).to_contain_text("story changed")
+        assert service.app.view(view["id"])["player"] == "Morgan"
+        expect(page.locator("#rename-name")).to_have_value("Avery")
+        page.get_by_role("button", name="Close rename protagonist", exact=True).click()
+        page.get_by_role("button", name="Rename protagonist", exact=True).click()
+        expect(page.locator("#rename-name")).to_have_value("Morgan")
+        long_name = "<b>" + "É" * 73 + "</b>"
+        page.locator("#rename-name").fill(long_name)
+        page.get_by_role("button", name="Save name", exact=True).click()
+        expect(page.locator("#story-kicker")).to_have_text(f"PLAYING AS {long_name.upper()}")
+        assert page.locator("#story-kicker b").count() == 0
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        page.get_by_role("button", name="Open story list").click()
+        expect(page.locator(".session-meta")).to_contain_text(long_name)
+        assert page.locator(".session-list").evaluate("el => el.scrollWidth <= el.clientWidth")
+    finally:
+        page.close()

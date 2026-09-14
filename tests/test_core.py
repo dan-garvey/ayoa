@@ -393,7 +393,7 @@ def test_real_sdk_serialization_with_offline_transport(setup):
 def test_bundled_stories_render_in_isolation(tmp_path, story):
     session = tmp_path / story
     bundle = core.ROOT / "stories" / story
-    core.init_session(session, bundle)
+    core.init_session(session, bundle, player_name="CHOSEN_PROTAGONIST")
     request = core.read_json(Path(core.submit(session, "Start here")["request_json"]))
     expected = "\n\n".join(
         path.read_text().strip()
@@ -401,6 +401,132 @@ def test_bundled_stories_render_in_isolation(tmp_path, story):
     )
     assert request["instructions"] == expected
     assert "Start here" not in request["instructions"]
+    assert "CHOSEN_PROTAGONIST" not in request["instructions"]
+    default = core.read_json(bundle / "player.json")
+    assert not re.search(rf"\b{re.escape(default['name'].split()[0])}\b", expected, re.I)
+    assert "CHOSEN_PROTAGONIST" in request["input"][0]["content"]
+    assert default["description"] in request["input"][0]["content"]
+
+
+@pytest.mark.parametrize("transport", ["api", "proxy"])
+def test_renaming_preserves_evidence_and_reaches_both_calls(setup, transport):
+    create, _, story = setup
+    override = story / "custom.json"
+    core.write_json(override, {"name": "DEFAULT_NAME", "description": "FULL_BACKGROUND"})
+    session = create(transport=transport, player_file=override, player_name="  Éloi   Vale  ")
+    assert (session / "snapshot/player.json").read_bytes() == override.read_bytes()
+    client = FakeClient(
+        raw_response("discarded draft"), raw_response("Éloi Vale opens the letter.")
+    )
+    result = core.submit(session, "I, Éloi, open it.\n", client)
+    if transport == "proxy":
+        result = core.accept(session, result["request_id"], "discarded draft")
+        core.accept(session, result["request_id"], "Éloi Vale opens the letter.")
+    _, old_state = core.load_session(session)
+    saved = {
+        path: path.read_bytes()
+        for path in session.rglob("*")
+        if path.is_file() and path.name != "state.json"
+    }
+    core.rename_player(session, "Renée O'Vale")
+    _, renamed = core.load_session(session)
+    assert renamed["turns"] == old_state["turns"]
+    assert core.player_identity(session, renamed) == {
+        "name": "Renée O'Vale",
+        "description": "FULL_BACKGROUND",
+        "previous_names": ["Éloi Vale"],
+    }
+    core.export(session)
+    assert all(path.read_bytes() == data for path, data in saved.items())
+    old_author = core.read_json(
+        core.attempt_dir(session, old_state["turns"][0]["author"]) / "request.json"
+    )
+    assert old_author["input"][0]["content"] == "My character: Éloi Vale. FULL_BACKGROUND"
+    # Reapplying the same name is a no-op, including after whitespace normalization.
+    before = (session / "state.json").read_bytes()
+    core.rename_player(session, " Renée O'Vale ")
+    assert (session / "state.json").read_bytes() == before
+
+    client = FakeClient(raw_response("new draft"), raw_response("new passage"))
+    author = core.submit(session, "I read on.", client)
+    if transport == "proxy":
+        editor = core.accept(session, author["request_id"], "new draft")
+        requests = [core.read_json(Path(attempt["request_json"])) for attempt in (author, editor)]
+        core.accept(session, editor["request_id"], "new passage")
+    else:
+        requests = client.requests
+    assert len(requests) == 2
+    assert requests[1]["input"][:-2] == requests[0]["input"]
+    for request in requests:
+        assert request["instructions"] == old_author["instructions"]
+        identity = request["input"][0]["content"]
+        assert "Renée O'Vale" in identity and "Éloi Vale" in identity
+        assert "FULL_BACKGROUND" in identity and "DEFAULT_NAME" not in identity
+        assert request["input"][1:3] == [
+            {"role": "user", "content": "I, Éloi, open it.\n"},
+            {"role": "assistant", "content": "Éloi Vale opens the letter."},
+        ]
+        assert "discarded draft" not in json.dumps(request)
+    # Returning to an earlier name keeps only other names in the correction.
+    core.rename_player(session, "Éloi Vale")
+    identity = core.player_identity(session, core.load_session(session)[1])
+    assert identity["name"] == "Éloi Vale"
+    assert identity["previous_names"] == ["Renée O'Vale"]
+
+
+@pytest.mark.parametrize("invalid", ["", " \n\t ", "a" * 81, "bad\x00name", "bad\ud800name", 123])
+def test_invalid_name_never_creates_or_changes_a_session(setup, tmp_path, invalid):
+    create, _, _ = setup
+    with pytest.raises(ValueError):
+        create("invalid", player_name=invalid)
+    assert not (tmp_path / "invalid").exists()
+    session = create()
+    before = (session / "state.json").read_bytes()
+    with pytest.raises(ValueError):
+        core.rename_player(session, invalid)
+    assert (session / "state.json").read_bytes() == before
+
+
+def test_session_using_frozen_default_keeps_pending_requests_valid_and_can_be_renamed(setup):
+    create, _, _ = setup
+    session = create()
+    _, state = core.load_session(session)
+    del state["player_names"]  # A session that still uses its frozen default identity.
+    core.write_json(session / "state.json", state)
+    author = core.submit(session, "Start")
+    assert core.resume(session)["request_id"] == author["request_id"]
+    before = (session / "state.json").read_bytes()
+    with pytest.raises(core.NarrativeError, match="pending response"):
+        core.rename_player(session, "Jules")
+    assert (session / "state.json").read_bytes() == before
+    editor = core.accept(session, author["request_id"], "draft")
+    with pytest.raises(core.NarrativeError, match="pending response"):
+        core.rename_player(session, "Jules")
+    core.accept(session, editor["request_id"], "published")
+    core.rename_player(session, "Jules")
+    request = core.read_json(Path(core.submit(session, "Continue")["request_json"]))
+    assert "Jules" in request["input"][0]["content"]
+    assert "PLAYER_BINDING" in request["input"][0]["content"]
+
+
+def test_name_changes_and_turns_share_one_stale_state_check(setup):
+    create, _, _ = setup
+    session = create()
+    version = core.state_version(core.load_session(session)[1])
+    with ThreadPoolExecutor() as pool:
+        futures = [
+            pool.submit(core.rename_player, session, name, expected_version=version)
+            for name in ("Avery", "Morgan")
+        ]
+    assert sum(future.exception() is None for future in futures) == 1
+    assert sum(isinstance(future.exception(), core.NarrativeError) for future in futures) == 1
+    before = (session / "state.json").read_bytes()
+    with pytest.raises(core.NarrativeError, match="story changed"):
+        core.submit(session, "A stale turn.", expected_version=version)
+    assert (session / "state.json").read_bytes() == before
+    assert not list((session / "attempts").iterdir())
+    current = core.state_version(core.load_session(session)[1])
+    assert core.submit(session, "A fresh turn.", expected_version=current)["stage"] == "author"
 
 
 def test_prompt_hygiene():
@@ -421,12 +547,28 @@ def test_cli_proxy_never_requires_credentials(setup, tmp_path, monkeypatch, caps
     session = tmp_path / "cli"
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     assert (
-        main(["init", "--session", str(session), "--story", str(story), "--prompts", str(prompts)])
+        main(
+            [
+                "init",
+                "--session",
+                str(session),
+                "--story",
+                str(story),
+                "--prompts",
+                str(prompts),
+                "--player-name",
+                "Avery",
+            ]
+        )
         == 0
     )
     capsys.readouterr()
+    assert core.player_identity(session, core.load_session(session)[1])["name"] == "Avery"
+    assert main(["rename", "--session", str(session), "--player-name", "Morgan"]) == 0
+    assert json.loads(capsys.readouterr().out)["name"] == "Morgan"
     assert main(["turn", "--session", str(session), "--text", "Start"]) == 0
     request = json.loads(capsys.readouterr().out)
+    assert "Morgan" in core.read_json(Path(request["request_json"]))["input"][0]["content"]
     output = tmp_path / "output.txt"
     output.write_text("draft")
     assert (

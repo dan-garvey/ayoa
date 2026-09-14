@@ -21,7 +21,7 @@
   <main class="main">
     <header class="topbar">
       <button class="icon-button mobile-menu" id="menu" aria-label="Open story list" aria-controls="sidebar" aria-expanded="false">☰</button>
-      <div class="story-heading"><span class="eyebrow" id="story-kicker">YOUR NEXT CHAPTER</span><h1 id="story-title">Your stories</h1></div>
+      <div class="story-heading"><button class="player-name" id="rename-player" aria-label="Rename protagonist" title="Rename protagonist" disabled><span class="eyebrow" id="story-kicker">YOUR NEXT CHAPTER</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6L16 3zm-3 3 5 5"/></svg></button><h1 id="story-title">Your stories</h1></div>
       <div class="header-actions">
         <span class="status-chip" id="status-chip" hidden></span>
         <button class="icon-button" id="export" aria-label="Download story" title="Download story" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5"/></svg></button>
@@ -64,15 +64,25 @@
     </footer>
   </main>
 
-  <dialog id="new-dialog" class="dialog">
+  <dialog id="new-dialog" class="dialog" aria-labelledby="new-title">
     <form id="new-form">
       <div class="dialog-heading"><span class="eyebrow">A FRESH PAGE</span><button class="icon-button" type="button" data-close="new-dialog" aria-label="Close new story">×</button></div>
-      <h2>Where shall we begin?</h2><p class="muted">Choose a world. Each story keeps its own place.</p>
+      <h2 id="new-title">Where shall we begin?</h2><p class="muted">Choose a world. Each story keeps its own place.</p>
       <label class="field-label" for="story-choice">Story</label><select id="story-choice" required></select>
-      <div class="character-note">You’ll play as <strong id="new-player"></strong>.</div>
+      <label class="field-label" for="new-player">Protagonist name</label><input id="new-player" type="text" required maxlength="80" autocomplete="off" spellcheck="false">
       <p class="mode-note" id="mode-note"></p>
       <p class="dialog-error" id="new-error" role="alert" hidden></p>
       <button class="button primary full-width" id="create-story" type="submit">Begin story <span aria-hidden="true">↗</span></button>
+    </form>
+  </dialog>
+
+  <dialog id="rename-dialog" class="dialog" aria-labelledby="rename-title">
+    <form id="rename-form">
+      <div class="dialog-heading"><span class="eyebrow">YOUR CHARACTER</span><button class="icon-button" type="button" data-close="rename-dialog" aria-label="Close rename protagonist">×</button></div>
+      <h2 id="rename-title">Rename your protagonist</h2><p class="muted" id="rename-help">Your character’s background stays the same. Earlier passages keep their original wording.</p>
+      <label class="field-label" for="rename-name">Protagonist name</label><input id="rename-name" type="text" required maxlength="80" autocomplete="off" spellcheck="false" aria-describedby="rename-help">
+      <p class="dialog-error" id="rename-error" role="alert" hidden></p>
+      <button class="button primary full-width" id="save-name" type="submit">Save name</button>
     </form>
   </dialog>
 

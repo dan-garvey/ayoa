@@ -21,13 +21,14 @@ def parser() -> argparse.ArgumentParser:
     chat.add_argument("--reasoning", default="max")
     chat.add_argument("--max-output-tokens", type=int, default=12000)
     chat.add_argument("--env-file", type=Path)
-    for name in ("init", "turn", "accept", "resume", "export"):
+    for name in ("init", "turn", "accept", "resume", "export", "rename"):
         command = commands.add_parser(name)
         command.add_argument("--session", type=Path, required=True)
         if name == "init":
             command.add_argument("--story", required=True, help="Bundled story name or directory")
             command.add_argument("--prompts", type=Path, default=core.ROOT / "prompts")
             command.add_argument("--player-file", type=Path)
+            command.add_argument("--player-name", help="Choose the protagonist's name")
             command.add_argument("--transport", choices=("api", "proxy"), default="proxy")
             command.add_argument("--model", default="gpt-5.6-terra")
             command.add_argument("--reasoning", default="max")
@@ -39,6 +40,8 @@ def parser() -> argparse.ArgumentParser:
         if name == "accept":
             command.add_argument("--request-id", required=True)
             command.add_argument("--output-file", type=Path, required=True)
+        if name == "rename":
+            command.add_argument("--player-name", required=True)
         if name in {"turn", "resume"}:
             command.add_argument("--env-file", type=Path)
     return result
@@ -82,6 +85,7 @@ def main(argv: list[str] | None = None) -> int:
                 story.resolve(),
                 prompts=args.prompts,
                 player_file=args.player_file,
+                player_name=args.player_name,
                 transport=args.transport,
                 model=args.model,
                 reasoning=args.reasoning,
@@ -93,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "export":
             value = core.export(session)
+        elif args.command == "rename":
+            value = core.rename_player(session, args.player_name)
         else:
             manifest, _ = core.load_session(session)
             context = api_client(args.env_file) if manifest["transport"] == "api" else nullcontext()

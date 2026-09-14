@@ -15,6 +15,7 @@ let rendered = "";
 let sessionSignature = "";
 let storyChoices = [];
 let handoffPacket = null;
+let renameTarget = null;
 let refreshing = false;
 let refreshAgain = false;
 let toastTimer;
@@ -204,6 +205,7 @@ function updateControls() {
   input.disabled = waiting;
   $("send").disabled = waiting || !input.value.trim();
   $("export").disabled = !current.turn_count || waiting;
+  $("rename-player").disabled = waiting;
   $("response-status").hidden = !waiting;
   $("status-chip").hidden = false;
   $("activity-dot").classList.toggle("active", busy);
@@ -255,6 +257,7 @@ async function selectSession(id) {
   $("response-status").hidden = true;
   $("latest").hidden = true;
   $("export").disabled = true;
+  $("rename-player").disabled = true;
   input.value = storage.get(`draft:${id}`) || "";
   input.disabled = true;
   $("send").disabled = true;
@@ -269,14 +272,14 @@ async function selectSession(id) {
 async function sendTurn(text = input.value) {
   if (!current || current.pending || current.busy || sending.has(selected) || !text.trim()) return;
   const id = selected;
-  const submission = { id, text, expected_turns: current.turn_count };
+  const submission = { id, text, expected_turns: current.turn_count, expected_version: current.version };
   input.value = text;
   storage.set(`draft:${id}`, text);
   storage.set(`submission:${id}`, JSON.stringify(submission));
   sending.add(id);
   notice("");
   updateControls();
-  const request = api("/api/turn", submission);
+  const request = api("/api/turn", { id, text, expected_version: submission.expected_version });
   refresh();
   try {
     const view = await request;
@@ -309,14 +312,14 @@ function newStory() {
   $("story-choice").focus();
 }
 function chooseStory() {
-  $("new-player").textContent = storyChoices.find((story) => story.id === $("story-choice").value)?.player || "your character";
+  $("new-player").value = storyChoices.find((story) => story.id === $("story-choice").value)?.player || "";
 }
 async function createStory(event) {
   event.preventDefault();
   $("create-story").disabled = true;
   $("new-error").hidden = true;
   try {
-    const view = await api("/api/sessions", { story: $("story-choice").value });
+    const view = await api("/api/sessions", { story: $("story-choice").value, player_name: $("new-player").value });
     $("new-dialog").close();
     await selectSession(view.id);
     // Render the confirmed new session even if an older poll was in flight.
@@ -326,6 +329,34 @@ async function createStory(event) {
     $("new-error").textContent = error.message;
     $("new-error").hidden = false;
   } finally { $("create-story").disabled = false; }
+}
+
+function openRename() {
+  if (!current || current.pending || current.busy || sending.has(selected)) return;
+  renameTarget = { id: selected, expected_version: current.version };
+  $("rename-name").value = current.player;
+  $("rename-error").hidden = true;
+  $("rename-dialog").showModal();
+  $("rename-name").focus();
+  $("rename-name").select();
+}
+async function renamePlayer(event) {
+  event.preventDefault();
+  if (!renameTarget) return;
+  const target = renameTarget;
+  $("save-name").disabled = true;
+  $("rename-error").hidden = true;
+  try {
+    renderView(await api("/api/rename", { ...target, player_name: $("rename-name").value }));
+    $("rename-dialog").close();
+    toast("Protagonist name saved");
+  } catch (error) {
+    $("rename-error").textContent = `${error.message} Close and reopen this dialog to try again.`;
+    $("rename-error").hidden = false;
+  } finally {
+    $("save-name").disabled = false;
+    await refresh();
+  }
 }
 
 async function loadHandoff(id) {
@@ -392,6 +423,8 @@ $("new-story").addEventListener("click", newStory);
 $("welcome-start").addEventListener("click", newStory);
 $("new-form").addEventListener("submit", createStory);
 $("story-choice").addEventListener("change", chooseStory);
+$("rename-player").addEventListener("click", openRename);
+$("rename-form").addEventListener("submit", renamePlayer);
 $("composer-form").addEventListener("submit", (event) => { event.preventDefault(); sendTurn(); });
 input.addEventListener("input", () => { if (selected) storage.set(`draft:${selected}`, input.value); resizeInput(); updateControls(); });
 input.addEventListener("keydown", (event) => {

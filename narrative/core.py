@@ -8,6 +8,7 @@ import json
 import os
 import tempfile
 import time
+import unicodedata
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -62,6 +63,35 @@ def write_json(path: Path, value: Any) -> None:
     atomic_write(path, (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode())
 
 
+def normalize_player_name(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError("Choose a name for your protagonist")
+    name = " ".join(value.split())
+    if not name or len(name) > 80 or any(unicodedata.category(c) in {"Cc", "Cs"} for c in name):
+        raise ValueError("Use a protagonist name of 1–80 characters without control characters")
+    return name
+
+
+def player_identity(session: Path, state: dict) -> dict:
+    player = read_json(session / "snapshot" / "player.json")
+    names = state.get("player_names", [player["name"]])
+    return {
+        "name": names[-1],
+        "description": player["description"],
+        "previous_names": list(dict.fromkeys(name for name in names if name != names[-1])),
+    }
+
+
+def state_version(state: dict) -> str:
+    """An optimistic concurrency token derived from the single publication record."""
+    return digest(json.dumps(state, sort_keys=True, ensure_ascii=False).encode())
+
+
+def check_version(state: dict, expected: str | None) -> None:
+    if expected is not None and expected != state_version(state):
+        raise NarrativeError("The story changed; refresh before trying again")
+
+
 @contextmanager
 def locked(session: Path):
     # A failed lookup must not initialize a session as a side effect.
@@ -78,6 +108,7 @@ def init_session(
     *,
     prompts: Path = ROOT / "prompts",
     player_file: Path | None = None,
+    player_name: str | None = None,
     transport: str = "proxy",
     model: str = "gpt-5.6-terra",
     reasoning: str = "max",
@@ -104,6 +135,7 @@ def init_session(
         or any(not isinstance(value, str) or not value.strip() for value in player.values())
     ):
         raise ValueError("player.json needs nonempty name and description strings")
+    chosen_name = normalize_player_name(player["name"] if player_name is None else player_name)
     session.mkdir(parents=True, exist_ok=False)
     (session / "snapshot").mkdir()
     (session / "attempts").mkdir()
@@ -125,6 +157,7 @@ def init_session(
         session / "state.json",
         {
             "manifest_sha256": digest((session / "manifest.json").read_bytes()),
+            "player_names": [chosen_name],
             "turns": [],
             "pending": None,
         },
@@ -147,6 +180,12 @@ def load_session(session: Path) -> tuple[dict, dict]:
     for index, turn in enumerate(state["turns"]):
         if turn["turn"] != index or not turn["input"].strip() or not turn["output"].strip():
             raise NarrativeError("Invalid published history")
+    if "player_names" in state:
+        names = state["player_names"]
+        if not isinstance(names, list) or not names:
+            raise NarrativeError("Invalid protagonist name history")
+        if any(normalize_player_name(name) != name for name in names):
+            raise NarrativeError("Invalid protagonist name history")
     return manifest, state
 
 
@@ -183,10 +222,16 @@ def make_request(session: Path, manifest: dict, state: dict) -> dict:
     if pending is None:
         raise NarrativeError("No pending submission")
     snapshot = session / "snapshot"
-    player = read_json(snapshot / "player.json")
-    messages = [
-        {"role": "user", "content": (f"My character: {player['name']}. {player['description']}")}
-    ]
+    player = player_identity(session, state)
+    identity = f"My character: {player['name']}. {player['description']}"
+    if player["previous_names"]:
+        identity += (
+            "\nEarlier names for this protagonist: "
+            + json.dumps(player["previous_names"], ensure_ascii=False)
+            + ". This is a name correction, not an event in the story; "
+            "their background and relationships stay the same."
+        )
+    messages = [{"role": "user", "content": identity}]
     for turn in state["turns"]:
         messages.extend(
             [
@@ -352,19 +397,35 @@ def _drive(session: Path, manifest: dict, state: dict, client: Any, *, retry: bo
 
 
 def submit(
-    session: Path, text: str, client: Any = None, *, expected_turns: int | None = None
+    session: Path, text: str, client: Any = None, *, expected_version: str | None = None
 ) -> dict:
     if not isinstance(text, str) or not text.strip():
         raise ValueError("A player submission cannot be empty")
     with locked(session):
         manifest, state = load_session(session)
-        if expected_turns is not None and expected_turns != len(state["turns"]):
-            raise NarrativeError("The story changed; refresh before submitting this turn")
+        check_version(state, expected_version)
         if state["pending"] is not None:
             raise NarrativeError("A turn is pending; accept its response or resume it first")
         state["pending"] = {"input": text, "author": None, "request_id": None}
         write_json(session / "state.json", state)
         return _drive(session, manifest, state, client, retry=False)
+
+
+def rename_player(session: Path, name: str, *, expected_version: str | None = None) -> dict:
+    chosen_name = normalize_player_name(name)
+    with locked(session):
+        _, state = load_session(session)
+        check_version(state, expected_version)
+        if state["pending"] is not None:
+            raise NarrativeError("Finish the pending response before renaming your protagonist")
+        player = player_identity(session, state)
+        if chosen_name != player["name"]:
+            state["player_names"] = [
+                *state.get("player_names", [player["name"]]),
+                chosen_name,
+            ]
+            write_json(session / "state.json", state)
+        return player_identity(session, state)
 
 
 def accept(session: Path, request_id: str, text: str) -> dict:

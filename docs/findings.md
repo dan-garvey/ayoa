@@ -54,9 +54,16 @@ restorations and change the starting circumstances.
 Story direction and canon are separated without summarizing the biographies.
 Mixed passages retain their psychological and knowledge content; explicit portrayal
 guidance moves to direction. The [source audit](https://github.com/dan-garvey/ayoa/blob/caf12e4967c8315a032014b8c08bd224d4cdba39/foundation_20260914/source_migration.json)
-records each move. Breakwater's entire C41 brief remains byte-identical
+records each move. Breakwater's entire C41 brief was imported as byte-identical
 canon, accompanied by a short genre/opening direction. It is an experiment-authored
 example, not a user-selected replacement for Covenant or a blind held-out story.
+
+The current story files use **the protagonist** in place of Rowan so the player
+can choose a name. Covenant's inheritance wording preserves the Garvey family's
+property and standing without requiring the chosen surname to be Garvey. Family
+history, places and the full biographies remain intact. The default name lives
+in `player.json`; session name choices and corrections appear in the user tail.
+The pinned playtest snapshots retain their original wording.
 
 Player-owned dialogue, thoughts, feelings, consequential choices and manuscript
 contents remain protected. NPCs may pursue their own goals, resist, misunderstand,
