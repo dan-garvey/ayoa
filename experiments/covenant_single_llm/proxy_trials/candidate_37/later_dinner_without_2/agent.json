@@ -1,0 +1,15 @@
+{
+  "agent": "/root/terra_proxy_c37_later_dinner_without_2",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "later_dinner speech-guidance diagnostic",
+  "calls_per_player_submission": 1,
+  "condition": "without",
+  "delivery": "return_only",
+  "repeat": 2,
+  "review_feedback_supplied": false,
+  "primary_publication": "Exact first public final answer captured by root.",
+  "author_request_sha256": "4d249387917c224a74916e0664bf2c40b2b265dc38377588c0a044ff8e46082a",
+  "launch_request_sha256": "9f5e7c94ba3b0184541844fb7ee56f720c853b7824c642ae71259a535f86ccc0"
+}

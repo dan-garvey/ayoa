@@ -1,0 +1,76 @@
+{
+  "agent": "/root/proxy_c36_independent_review",
+  "session_id": "01a09f5a-7546-7a71-ba98-ee2d88875c27",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T04-58-20-01a09f5a-7546-7a71-ba98-ee2d88875c27.jsonl",
+  "model_effort_metadata": [
+    [
+      "gpt-6-astra",
+      "max"
+    ]
+  ],
+  "scope": "Exact read coverage from public tool calls and outputs plus model/effort metadata. No private reasoning inspected. This verifies supplied files were returned in full, not compliance with every instruction or hidden cognition.",
+  "files": [
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_36/review_request.txt",
+      "sha256": "c441fe62bbf732500268b28286f9f32fa616c6f00793c1b8eff636849443d91f",
+      "lines": 14,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 14,
+          "call_id": "call_CiKjLzD2KSYLXRppaFYjs67P"
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_36/covenant.txt",
+      "sha256": "1d38f11c017430101d0d8ccef701d43968ed9cb6b930d43ce1631c9c29819bc5",
+      "lines": 374,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 190,
+          "call_id": "call_UCeiPU9HRBWhCvIgIN8YOGmf"
+        },
+        {
+          "start": 191,
+          "end": 374,
+          "call_id": "call_UCeiPU9HRBWhCvIgIN8YOGmf"
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_36/review_material.txt",
+      "sha256": "a8c1b06d1261731ab98b85e2ac09054e9f538acc6677d0629a32f94918194d8d",
+      "lines": 868,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 170,
+          "call_id": "call_xwiqwVYqu64VqCYhNb9mmMNn"
+        },
+        {
+          "start": 171,
+          "end": 335,
+          "call_id": "call_xwiqwVYqu64VqCYhNb9mmMNn"
+        },
+        {
+          "start": 336,
+          "end": 510,
+          "call_id": "call_Xr6ZAW3QAMcmwcL9M50qBKgW"
+        },
+        {
+          "start": 511,
+          "end": 685,
+          "call_id": "call_Xr6ZAW3QAMcmwcL9M50qBKgW"
+        },
+        {
+          "start": 686,
+          "end": 868,
+          "call_id": "call_Xr6ZAW3QAMcmwcL9M50qBKgW"
+        }
+      ]
+    }
+  ],
+  "all_required_files_read_in_full": true
+}

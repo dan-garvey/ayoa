@@ -1,0 +1,105 @@
+{
+  "created_at": "2026-09-14T10:10:11.809482+00:00",
+  "source_commit": "cf0bfe081b3e4923ca665c1384a51f6924f588d0",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "prompt_sha256": {
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "system_without_speech.txt": "bc309c83ef48e5a8c690c4e3752a0b9286ffa33ef94e04ef020a9307fcf157d4",
+    "covenant.txt": "1d38f11c017430101d0d8ccef701d43968ed9cb6b930d43ce1631c9c29819bc5",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90",
+    "proxy_wrapper.txt": "179246ea68d39221c6a5ee630849c727cfc51d2a5de95518098deb87d9753b82",
+    "removed_speech_paragraph.txt": "c10e7aac9a2d565e465e7321844014eba95520ea824183b70986f060d3470cd4"
+  },
+  "cases": [
+    {
+      "case": "first_dinner_control_1",
+      "context": "first_dinner",
+      "condition": "control",
+      "repeat": 1,
+      "system_file": "system.txt",
+      "packet_sha256": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+      "input_sha256": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031"
+    },
+    {
+      "case": "first_dinner_control_2",
+      "context": "first_dinner",
+      "condition": "control",
+      "repeat": 2,
+      "system_file": "system.txt",
+      "packet_sha256": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+      "input_sha256": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031"
+    },
+    {
+      "case": "first_dinner_without_1",
+      "context": "first_dinner",
+      "condition": "without",
+      "repeat": 1,
+      "system_file": "system_without_speech.txt",
+      "packet_sha256": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+      "input_sha256": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031"
+    },
+    {
+      "case": "first_dinner_without_2",
+      "context": "first_dinner",
+      "condition": "without",
+      "repeat": 2,
+      "system_file": "system_without_speech.txt",
+      "packet_sha256": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+      "input_sha256": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031"
+    },
+    {
+      "case": "later_dinner_control_1",
+      "context": "later_dinner",
+      "condition": "control",
+      "repeat": 1,
+      "system_file": "system.txt",
+      "packet_sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+    },
+    {
+      "case": "later_dinner_control_2",
+      "context": "later_dinner",
+      "condition": "control",
+      "repeat": 2,
+      "system_file": "system.txt",
+      "packet_sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+    },
+    {
+      "case": "later_dinner_without_1",
+      "context": "later_dinner",
+      "condition": "without",
+      "repeat": 1,
+      "system_file": "system_without_speech.txt",
+      "packet_sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+    },
+    {
+      "case": "later_dinner_without_2",
+      "context": "later_dinner",
+      "condition": "without",
+      "repeat": 2,
+      "system_file": "system_without_speech.txt",
+      "packet_sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+    }
+  ],
+  "launch_order": [
+    "first_dinner_control_1",
+    "later_dinner_without_1",
+    "first_dinner_without_1",
+    "later_dinner_control_1",
+    "first_dinner_without_2",
+    "later_dinner_control_2",
+    "first_dinner_control_2",
+    "later_dinner_without_2"
+  ],
+  "advice": "../reviews/round37_prompt_advice.md",
+  "advice_sha256": "d26460e07e9e957069c13b11128670c5c8cf1a036378ca20b43b602479d2b649",
+  "change": "Delete only C36 system lines41-48: its final81-word generic speech-craft paragraph plus following blank. No replacement text. All remaining common instructions, complete Covenant and persona unchanged. Return-only delivery shared by both arms.",
+  "loop": "One fresh whole-story Terra/max author task per first output. Author reads its task and frozen complete packet, then returns only the first final fiction. Root captures that exact public final after completion. No editor, selector, character agents, discarded drafts or reviewer feedback.",
+  "scope": "Two ensemble dinner contexts by two conditions by two fresh repeats: eight first continuation outputs, zero fresh substantial sessions. First dinner includes C35 B00 plus exact B01 input. Later dinner is the exact C36 B03 context, with C35 B00-B02 and B03 input.",
+  "screening_rule": "Later dinner is the primary rescue test: both reviewers must rate both without-guidance repeats at least4 for prose and rank both ahead of both fresh controls for substantive literary reasons. A tie, split repeat, or reviewer disagreement fails advancement. Both without-guidance first-dinner repeats must also score at least4 for prose with no material decline in character distinction, independent interests, direction or adaptive initiative; strict superiority is not required there. Any unresolved material knowledge, continuity or authorship failure defeats advancement. Mere brevity, fewer speakers, source repair, or formatting changes do not establish a literary gain. No candidate selection without the existing substantial-session and held-out-probe protocol.",
+  "limits": "Low-confidence instruction ablation, not a claim that advice in general is harmful. C22 already weakened a broad instruction-simplification hypothesis but retained replacement literary guidance; the full Covenant still contains speech/behavior guidance. Same brief and dinner milieu, no generalization to other genres, accumulated proxy context, production API cost or model ceiling. Unfavorable first outputs and execution failures are retained without rerolls."
+}

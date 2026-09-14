@@ -1,0 +1,14 @@
+{
+  "trial": "candidate_35",
+  "context": "first_dinner",
+  "published_history_turns": [
+    0
+  ],
+  "current_input": "candidate_35/session_b/01.input.txt",
+  "source_files_sha256": {
+    "candidate_35/session_b/00.input.txt": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
+    "candidate_35/session_b/00.story.md": "6550c5f0ba8040162accfc5f91f699000a980a6b5a10fd887b5526b061723d79",
+    "candidate_35/session_b/01.input.txt": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031"
+  },
+  "later_outputs_or_reviews_in_author_packet": false
+}

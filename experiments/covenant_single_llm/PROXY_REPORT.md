@@ -364,10 +364,28 @@ of an earlier promise without a disclosed source. All full packet/task reads,
 Terra/max settings and exact public-final captures are verified. The two control
 openings match their authored files except for terminal newlines; the two control
 dinners differ in formatting but have the same words under declared comparison
-normalization. Originals remain unchanged. Blind review is running; there is no
-editor, selector or selected prompt. This tests a combined task/delivery obligation
-and within-task effects, not accumulated repetition across a persistent
-conversation or production API costs.
+normalization. Originals remain unchanged. The
+[blind review](proxy_trials/reviews/round36_blind_comparison.md) also rates all
+dinners3 and openings4. It prefers both return-only dinners and gives them
+distinction4, where the root gives3. The
+[response](proxy_trials/candidate_36/review_response.md) preserves that disagreement;
+the [decision](proxy_trials/candidate_36/decision.json) does not advance delivery
+as a literary improvement. This tests a combined task/delivery obligation and
+within-task effects, not accumulated repetition across a persistent conversation
+or production API costs.
+
+Candidate37 follows the [deletion advice](proxy_trials/reviews/round37_prompt_advice.md).
+It removes only the final81-word generic speech-craft paragraph, with no replacement
+cue. The remaining common instructions, complete Covenant and persona stay exact.
+Both arms share return-only capture as a delivery simplification. Two fresh repeats
+per condition use the first dinner introduction (C35 B00 with B01 input) and later
+quiet dinner (exact C36 B03 packet), yielding eight first continuations and no
+substantial sessions. The later dinner is the primary rescue test; both treatment
+repeats must be retainable and preferred to both controls by both reviewers. The
+first dinner must also remain retainable without a material loss of experience
+or boundaries. Authors are running. This is a low-confidence deletion hypothesis,
+with C22's negative simplification evidence and the Covenant's retained behavior
+guidance explicit; it is not a proposal to reduce the biographies.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

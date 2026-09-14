@@ -176,6 +176,19 @@ in a fresh-author screen, not accumulated earlier repetition. Any apparent gain
 still needs full trials and held-out boundary cases, including coherent activity
 resolution; a formatting-only improvement cannot pass the literary screen.
 
+Candidate37 removes only the final81-word generic speech-craft paragraph from
+C36's common prompt, adding no replacement wording. Complete Covenant biographies,
+behavior guidance, persona and remaining common rules are exact. Both conditions
+use return-only capture as a shared delivery simplification, not a literary result.
+Two fresh repeats per condition use B01's first dinner and B03's continuing dinner;
+all eight first continuations are retained. The primary B03 condition advances
+only if both reviewers give both treatment repeats prose4 or above and rank both
+ahead of both controls for substantive reasons. Both B01 treatment repeats must
+also be retainable without a material regression in the other dimensions. An
+unresolved material boundary failure defeats advancement. This is a small
+deletion test within one dinner route; it cannot select a prompt, diagnose the
+rich biographies, or establish that writing guidance in general is harmful.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

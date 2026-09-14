@@ -1,0 +1,153 @@
+{
+  "status": "screen_complete_no_literary_advancement",
+  "decided_at": "2026-09-14T10:12:09.590866+00:00",
+  "published_responses": 8,
+  "author_requests": 8,
+  "story_words": 5965,
+  "fresh_player_turns": 0,
+  "replayed_dinner_continuations": 4,
+  "fresh_opening_passages": 4,
+  "fresh_substantial_sessions": 0,
+  "root_scores": {
+    "opening_return_2": [
+      4,
+      null,
+      null,
+      4,
+      4
+    ],
+    "opening_save_1": [
+      4,
+      null,
+      null,
+      4,
+      4
+    ],
+    "opening_return_1": [
+      4,
+      null,
+      null,
+      4,
+      4
+    ],
+    "opening_save_2": [
+      4,
+      null,
+      null,
+      4,
+      4
+    ],
+    "dinner_save_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "dinner_return_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "dinner_return_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "dinner_save_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ]
+  },
+  "independent_scores": {
+    "opening_return_2": [
+      4,
+      null,
+      null,
+      4,
+      null
+    ],
+    "opening_save_1": [
+      4,
+      4,
+      null,
+      4,
+      null
+    ],
+    "opening_return_1": [
+      4,
+      null,
+      null,
+      4,
+      null
+    ],
+    "opening_save_2": [
+      4,
+      null,
+      null,
+      4,
+      null
+    ],
+    "dinner_save_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "dinner_return_1": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "dinner_return_2": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "dinner_save_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ]
+  },
+  "score_order": [
+    "prose/dialogue",
+    "distinction",
+    "independent interests",
+    "direction",
+    "adaptive initiative"
+  ],
+  "unobserved_score": null,
+  "pilot": "pilot_review.md",
+  "pilot_lock": "pilot_lock.json",
+  "independent_review": "../reviews/round36_blind_comparison.md",
+  "independent_review_sha256": "1a8acaa18605d7da617a9b9b925c519762d2165941855fbadbaf8c1a9bf366eb",
+  "review_response": "review_response.md",
+  "review_read_audit": "review_read_audit.json",
+  "findings": [
+    "Both reviews give every dinner prose3; the frozen return-only literary advancement rule fails. Both give every opening prose4 within limited introductory scope.",
+    "Independent review prefers both return-only dinners to controls and gives them distinction4; root distinction3 and no substantive literary preference remain locked.",
+    "Both identify Ashara exact-date source gap in dinner_save_2. Unseen table setting in opening_return_2 and unclear alarm mechanism in dinner_save_1 remain local repairs.",
+    "All first public finals captured exactly, with complete task/packet reads and Terra/max verified. Two control openings match files except terminal newline; two control dinners differ in formatting with the same words under comparison-only normalization."
+  ],
+  "limits": [
+    "Eight first passages, no substantial sessions and no production or direct API result.",
+    "Combined file-writing/repetition obligation tested; no isolated claim about accumulated history, inference segments, costs or model ceiling.",
+    "No prompt promotion, reroll, story repair or runtime change."
+  ],
+  "next_step": "C37 deletes only final81-word generic speech-craft paragraph, with complete Covenant and remaining rules held fixed. Both arms share return-only capture as a delivery simplification, not a prose finding."
+}

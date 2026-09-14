@@ -1,0 +1,15 @@
+{
+  "agent": "/root/terra_proxy_c37_first_dinner_without_1",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "first_dinner speech-guidance diagnostic",
+  "calls_per_player_submission": 1,
+  "condition": "without",
+  "delivery": "return_only",
+  "repeat": 1,
+  "review_feedback_supplied": false,
+  "primary_publication": "Exact first public final answer captured by root.",
+  "author_request_sha256": "9d209dd0403e56b535197881ec01abcee461367846f3f8d8dd361d949edccd81",
+  "launch_request_sha256": "39941c1d6cc8a8156bcf909ba8e62339a45f08b68c93d0e9432ca9def6673232"
+}
