@@ -1,0 +1,16 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031",
+      "story_sha256": "706de06b4153761733d9f76037e7ebf834e3f5b8af631485dd414d0d37c8c907",
+      "story_words": 874
+    }
+  ],
+  "player_turns": 1,
+  "session_kind": "first_dinner speech-guidance diagnostic",
+  "story_words": 874
+}

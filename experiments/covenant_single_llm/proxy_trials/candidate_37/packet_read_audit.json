@@ -1,0 +1,349 @@
+{
+  "scope": "Public tool call/output records and model/effort metadata only. Initial instructions and packets for each completed first public final. No private reasoning inspected.",
+  "all_completed_author_instructions_packets_and_later_submissions_read_in_full": true,
+  "cases": [
+    {
+      "case": "first_dinner_control_1",
+      "agent": "/root/terra_proxy_c37_first_dinner_control_1",
+      "session_id": "01a09f66-3e93-7111-bb13-94dc8e5cab44",
+      "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-11-13-01a09f66-3e93-7111-bb13-94dc8e5cab44.jsonl",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "files": [
+        {
+          "file": "author_request.txt",
+          "sha256": "e5738bbfa3f27fb21110c0d6bf0925632e64a43241dad49de22c281d7b48b604",
+          "lines": 53,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 53,
+              "call_id": "call_2eJe4i87UGs5D714rdB1xlov"
+            }
+          ]
+        },
+        {
+          "file": "packet.txt",
+          "sha256": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+          "lines": 443,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 150,
+              "call_id": "call_RTSasNVYLs0UNr2gBrlv4nMr"
+            },
+            {
+              "start": 151,
+              "end": 300,
+              "call_id": "call_zcZYHd9LjfGbssFvTEqxI85e"
+            },
+            {
+              "start": 301,
+              "end": 443,
+              "call_id": "call_4EXr353UVuxurKPiTPzuqHsn"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "first_dinner_control_2",
+      "agent": "/root/terra_proxy_c37_first_dinner_control_2",
+      "session_id": "01a09f6d-8598-7c80-889d-3e93d9c07ed7",
+      "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-19-10-01a09f6d-8598-7c80-889d-3e93d9c07ed7.jsonl",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "files": [
+        {
+          "file": "author_request.txt",
+          "sha256": "37b0d04d4b0882474e57aeaa9c12f212467636506a2a98640b8ae3160bcc3f43",
+          "lines": 53,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 53,
+              "call_id": "call_U9xmbQ5rqqTpwaepraNzeLJt"
+            }
+          ]
+        },
+        {
+          "file": "packet.txt",
+          "sha256": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+          "lines": 443,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 150,
+              "call_id": "call_tXeuSdgEXIfltIxUNSxE3Asx"
+            },
+            {
+              "start": 151,
+              "end": 300,
+              "call_id": "call_DUQwcOpRHD0PZ1VL5jfoLPL6"
+            },
+            {
+              "start": 301,
+              "end": 443,
+              "call_id": "call_uzkuD4zYJmru1YlYZFqmFZ5s"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "first_dinner_without_1",
+      "agent": "/root/terra_proxy_c37_first_dinner_without_1",
+      "session_id": "01a09f66-8283-70b0-b220-e122208cef46",
+      "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-11-30-01a09f66-8283-70b0-b220-e122208cef46.jsonl",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "files": [
+        {
+          "file": "author_request.txt",
+          "sha256": "9d209dd0403e56b535197881ec01abcee461367846f3f8d8dd361d949edccd81",
+          "lines": 45,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 45,
+              "call_id": "call_LGE19WWvzkBPkxuUicT43h18"
+            }
+          ]
+        },
+        {
+          "file": "packet.txt",
+          "sha256": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+          "lines": 443,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 260,
+              "call_id": "call_6vw79jmfjAceMLFkLHta6lcR"
+            },
+            {
+              "start": 261,
+              "end": 443,
+              "call_id": "call_23PoRxAk7m3d6h63jHkpdSic"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "first_dinner_without_2",
+      "agent": "/root/terra_proxy_c37_first_dinner_without_2",
+      "session_id": "01a09f6a-b742-71b2-8b77-cb7877855256",
+      "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-16-06-01a09f6a-b742-71b2-8b77-cb7877855256.jsonl",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "files": [
+        {
+          "file": "author_request.txt",
+          "sha256": "9ffcc1809f1455f03e118afb449eb4a782200f49cb78fd54714799c34e7cfbaf",
+          "lines": 45,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 45,
+              "call_id": "call_IG7n7gyubHeSM1D8Qqns5FH7"
+            }
+          ]
+        },
+        {
+          "file": "packet.txt",
+          "sha256": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+          "lines": 443,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 220,
+              "call_id": "call_ukh7BgYqFzufmNMsD3rFAsXq"
+            },
+            {
+              "start": 221,
+              "end": 443,
+              "call_id": "call_LaLf9rND18NuRcvpfSXwZuYE"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "later_dinner_control_1",
+      "agent": "/root/terra_proxy_c37_later_dinner_control_1",
+      "session_id": "01a09f69-9b23-7902-9a2c-6420c3ff8f9d",
+      "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-14-53-01a09f69-9b23-7902-9a2c-6420c3ff8f9d.jsonl",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "files": [
+        {
+          "file": "author_request.txt",
+          "sha256": "a8f6aecba980ff0f8652ee939fcca110b159f46391075af6a4360c04149c5dce",
+          "lines": 53,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 53,
+              "call_id": "call_lIteXWOqSHxzjbeuNt9HtrKY"
+            }
+          ]
+        },
+        {
+          "file": "packet.txt",
+          "sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+          "lines": 599,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 260,
+              "call_id": "call_qgWUL3RuAsAoAULn7MrNMrRS"
+            },
+            {
+              "start": 261,
+              "end": 520,
+              "call_id": "call_fTIVKLiP1BK1RSucF4RdCpMC"
+            },
+            {
+              "start": 521,
+              "end": 599,
+              "call_id": "call_0mxnUBwYPrEP38gHFieQYLvw"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "later_dinner_control_2",
+      "agent": "/root/terra_proxy_c37_later_dinner_control_2",
+      "session_id": "01a09f6a-db07-79a3-89b6-9c09470675df",
+      "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-16-15-01a09f6a-db07-79a3-89b6-9c09470675df.jsonl",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "files": [
+        {
+          "file": "author_request.txt",
+          "sha256": "c94c04e3baf83265e3d2c8a5fb4f7066a16474f615221b1b9c461568f2f5d239",
+          "lines": 53,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 53,
+              "call_id": "call_FwwLTeWZn2pU7sg6uRbOmFak"
+            }
+          ]
+        },
+        {
+          "file": "packet.txt",
+          "sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+          "lines": 599,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 260,
+              "call_id": "call_a5OlAsEAqXCd8Or3Gydt5IsB"
+            },
+            {
+              "start": 261,
+              "end": 520,
+              "call_id": "call_BXw5o6fjqwCMB5oNrYFVWIYr"
+            },
+            {
+              "start": 521,
+              "end": 599,
+              "call_id": "call_K2MxbFMgTfmVTwAp9seGO9qP"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "later_dinner_without_1",
+      "agent": "/root/terra_proxy_c37_later_dinner_without_1",
+      "session_id": "01a09f66-6148-78d1-9eb7-b2cb7f6ce0bd",
+      "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-11-22-01a09f66-6148-78d1-9eb7-b2cb7f6ce0bd.jsonl",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "files": [
+        {
+          "file": "author_request.txt",
+          "sha256": "9ab6f0e258f5756ce6f41c0d3d825787a2e96c0375d05af314513fa07b160d08",
+          "lines": 45,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 45,
+              "call_id": "call_YIykoEGIzQRuPoa0fyZyPonA"
+            }
+          ]
+        },
+        {
+          "file": "packet.txt",
+          "sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+          "lines": 599,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 240,
+              "call_id": "call_GIF27MrW408Wka5aE2gu6u8Z"
+            },
+            {
+              "start": 241,
+              "end": 480,
+              "call_id": "call_ICoBTYfJRBKa9FcCm1XOYniZ"
+            },
+            {
+              "start": 481,
+              "end": 599,
+              "call_id": "call_rnkSw8MXyR5tTDzRXRVjgz6u"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "later_dinner_without_2",
+      "agent": "/root/terra_proxy_c37_later_dinner_without_2",
+      "session_id": "01a09f6e-8892-73b2-a217-6969a5cb5500",
+      "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-20-16-01a09f6e-8892-73b2-a217-6969a5cb5500.jsonl",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "files": [
+        {
+          "file": "author_request.txt",
+          "sha256": "4d249387917c224a74916e0664bf2c40b2b265dc38377588c0a044ff8e46082a",
+          "lines": 45,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 45,
+              "call_id": "call_XE3yn96iyhgDZGH0DCFU33cI"
+            }
+          ]
+        },
+        {
+          "file": "packet.txt",
+          "sha256": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+          "lines": 599,
+          "exact_untruncated_chunks": [
+            {
+              "start": 1,
+              "end": 260,
+              "call_id": "call_1x1NLFyqsKw5B9wJ5LYL3eQ6"
+            },
+            {
+              "start": 261,
+              "end": 520,
+              "call_id": "call_FPLtdjrupp6vnJahKaSyRSYX"
+            },
+            {
+              "start": 521,
+              "end": 599,
+              "call_id": "call_yG7ynyvq3AwMW4FuqzEprMDn"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "limits": "File delivery and visible read coverage verified; not a plaintext comparison of encrypted collaboration relay payloads or proof of instruction adherence."
+}

@@ -24,6 +24,46 @@
       "model": "gpt-5.6-terra",
       "reasoning_effort": "max",
       "fork_turns": "none"
+    },
+    {
+      "case": "later_dinner_control_1",
+      "agent": "/root/terra_proxy_c37_later_dinner_control_1",
+      "recorded_at": "2026-09-14T10:15:07.833953+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "first_dinner_without_2",
+      "agent": "/root/terra_proxy_c37_first_dinner_without_2",
+      "recorded_at": "2026-09-14T10:16:33.329267+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "later_dinner_control_2",
+      "agent": "/root/terra_proxy_c37_later_dinner_control_2",
+      "recorded_at": "2026-09-14T10:16:33.329277+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "first_dinner_control_2",
+      "agent": "/root/terra_proxy_c37_first_dinner_control_2",
+      "recorded_at": "2026-09-14T10:19:24.714304+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "later_dinner_without_2",
+      "agent": "/root/terra_proxy_c37_later_dinner_without_2",
+      "recorded_at": "2026-09-14T10:20:32.196754+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
     }
   ]
 }

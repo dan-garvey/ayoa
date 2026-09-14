@@ -383,9 +383,26 @@ quiet dinner (exact C36 B03 packet), yielding eight first continuations and no
 substantial sessions. The later dinner is the primary rescue test; both treatment
 repeats must be retainable and preferred to both controls by both reviewers. The
 first dinner must also remain retainable without a material loss of experience
-or boundaries. Authors are running. This is a low-confidence deletion hypothesis,
-with C22's negative simplification evidence and the Covenant's retained behavior
-guidance explicit; it is not a proposal to reduce the biographies.
+or boundaries. All eight first outputs are complete, totaling6,378 story words;
+the [locked pilot](proxy_trials/candidate_37/pilot_review.md) rates all eight at
+3/3/4/4/4. The same prepared-correction pattern appears in both first and later
+dinners, with no treatment preference. Local reference/POV repairs remain, but
+the pilot establishes no definite new material secret-knowledge or authorship
+breach. All full reads, model settings, exact captures and frozen input hashes
+are verified. Independent review is running. This is a low-confidence deletion
+hypothesis, with C22's negative simplification evidence and the Covenant's retained
+behavior guidance explicit; it is not a proposal to reduce the biographies.
+
+The [original-biography audit](proxy_trials/reviews/original_biography_audit.md)
+compares the user-supplied chat prompt directly with the adapted Covenant.
+Central histories, relationships and motives are substantially retained. Some
+specific background is absent: Ysolde's upbringing and sensory tastes, Caelindra's
+dispersed childhood cohort, and Thessaly's witnessed hallway comfort. The audit
+supports examining a bounded restoration while preserving all current material;
+it does not establish that these omissions cause the dialogue pattern. Its
+source/presentation conflicts and limits are explicit. Recent trial references
+to complete backgrounds mean the complete adapted packet, not a claim that every
+detail in the longer original had been imported.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

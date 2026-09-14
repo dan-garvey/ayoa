@@ -1,0 +1,17 @@
+{
+  "agent": "/root/terra_proxy_c37_first_dinner_control_2",
+  "session_id": "01a09f6d-8598-7c80-889d-3e93d9c07ed7",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-19-10-01a09f6d-8598-7c80-889d-3e93d9c07ed7.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "public_final_message_id": "msg_05eebefe013cb370016aa7cac5d57887d18e09e6f04ced9713",
+  "public_final_phase": "final_answer",
+  "public_final_sha256": "3f30f61b6e22e284a524902c41c7bd607f773c796634acbb5494dcab9e6f9aab",
+  "publication_sha256": "3f30f61b6e22e284a524902c41c7bd607f773c796634acbb5494dcab9e6f9aab",
+  "root_capture_exact_unmodified": true,
+  "final_answer_count": 1,
+  "detected_mutation_tool_calls": [],
+  "author_written_file_exists": false,
+  "scope": "Public final messages, public tool-call records and model metadata only. No private reasoning inspected. No rewriting, normalization, selection or extra author request during capture.",
+  "assigned_delivery_steps_observed": true
+}
