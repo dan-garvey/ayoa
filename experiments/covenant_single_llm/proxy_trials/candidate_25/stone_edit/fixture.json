@@ -1,0 +1,9 @@
+{
+  "kind": "unreleased-draft editorial diagnostic",
+  "source_case": "candidate_23/stone_replay",
+  "source_draft_sha256": "ca5d8a0ed9de961927876a881d5ab89117f4b81960be85155c23feda80cc7b20",
+  "source_packet_sha256": "9e7be86394bc5427f9b26cb67b73091af9243e894fef3ae7014094af00dde96b",
+  "input_sha256": "f29a27f0c77670df32f5347ede5d6da28863baf53ddab6d865642dc556a057bb",
+  "packet_sha256": "4fc752dca6a6b9cc18d9cc779dd4642f0c3bf46fd5700f6334a1846e675ba895",
+  "limitation": "Editor receives public context and the completed C23 passage as a draft, not the original author hidden state. Both original and revision are retained. No fresh-session success may be inferred."
+}

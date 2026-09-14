@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-09-14T02:03:01.161009+00:00",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "source_commit": "f0d9c2ce6b4eb74f3d8168a7cc89dde5a7dbae96",
+  "derived_from": "candidate_23 original passages; C24 revision task replaced, originals not chained through C24",
+  "instruction_order": [
+    "system.txt",
+    "revision_task.txt",
+    "covenant.txt"
+  ],
+  "prompt_sha256": {
+    "system.txt": "58da9ad8293215efd147347fb251f1fede69c0464fdebf8bc781bb307d6cc00c",
+    "revision_task.txt": "51092d909aa92e7a2b081a3dd7650f994bacad397c868c87bf3e68c36eb904ff",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "wrapper_file": "proxy_wrapper.txt",
+  "wrapper_sha256": "a4b6e20fc3904552e5adbb5a0922c5ad12a252d455ac6eb34e755d6ebd986798",
+  "change": "Replace broad editing guidance with explicit structural redrafting, distinguishing fictional facts and useful information from removable rhetorical observations. Same original C23 drafts and complete context. No examples or character-background changes.",
+  "scope": "Two single-response editing diagnostics; zero fresh player turns."
+}

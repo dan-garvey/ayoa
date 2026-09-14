@@ -125,6 +125,14 @@ the troublesome rhetorical observations. Tool-read audits confirm that the
 editors received the full character context without truncation. These revisions
 are not live player turns and do not qualify a candidate for selection.
 
+Candidate25 explicitly distinguishes events and useful information from removable
+rhetorical observations. Its edits remove substantially more commentary while
+preserving the game result and the family lookup. The [independent review](proxy_trials/reviews/edit25_review.md)
+finds a material dialogue improvement in the game and an uneven improvement in
+the Stone passage. It also notes thin anecdotes and administrative conversation.
+This warrants testing the operations in normal generation; it does not establish
+that a private editing instruction can reproduce a supplied-draft revision.
+
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
 65,117 words of generated story. These counts include replays and rejected

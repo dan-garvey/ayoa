@@ -1,0 +1,22 @@
+{
+  "prompt_wrapper_hashes_verified": true,
+  "full_covenant_unchanged_from_C23": true,
+  "source_drafts_packets_and_submissions_exact_C24_controls": true,
+  "request_hashes_verified": true,
+  "export_hashes_and_zero_player_turn_counts_verified": true,
+  "cases": [
+    {
+      "case": "game_edit",
+      "draft_words": 800,
+      "revision_words": 624,
+      "fresh_player_turns": 0
+    },
+    {
+      "case": "stone_edit",
+      "draft_words": 1036,
+      "revision_words": 988,
+      "fresh_player_turns": 0
+    }
+  ],
+  "limitation": "Artifact integrity, not an automatic literary or semantic proof."
+}

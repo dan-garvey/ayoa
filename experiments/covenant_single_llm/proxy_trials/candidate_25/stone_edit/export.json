@@ -1,0 +1,16 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "f29a27f0c77670df32f5347ede5d6da28863baf53ddab6d865642dc556a057bb",
+      "story_sha256": "efdf23bbaf909b07b47d178c7feb8128cb0a726d850fe6eb730517fa0127b4c1",
+      "story_words": 988
+    }
+  ],
+  "player_turns": 0,
+  "session_kind": "editorial diagnostic of unreleased draft; not a live player turn",
+  "story_words": 988
+}
