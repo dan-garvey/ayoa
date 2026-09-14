@@ -1,0 +1,10 @@
+<length>
+Use at most 350 words for a passage. This limit includes quiet observation and
+routine activities or time skips, regardless of how much fictional time passes.
+There is no minimum length.
+
+Exceed the limit only when the player expressly asks for a detailed account,
+a complete performance, or action rendered in detail. An activity alone, or a
+story or performance initiated by an NPC, does not create that exception.
+Complete the submitted scope within the applicable limit.
+</length>

@@ -223,6 +223,23 @@ request counts and stopping rules are explicit in C39's manifest. This does not
 claim that private planning is new, inspect hidden reasoning, or establish an
 API cost or latency effect.
 
+Candidate41 tests a firm default ceiling of350 words that includes quiet
+observation and routine time skips, with no minimum and exceptions only for
+express requests for detail or a complete performance. The full C40 common
+prompt, biographies, personas and return-only delivery stay unchanged; only
+the length block is appended in treatment. Each of the four exact C40 openings
+is common prior fiction for a fresh control and budget author, each producing
+two connected dinners under the same fixed submissions. Eight authors yield
+sixteen new publications, no new openings and zero substantial sessions.
+Both complete literary reviews must find all four treatment dinners retainable
+in every quality dimension and substantively preferable to their matched
+controls, with scope and boundaries intact. Compliance with the word ceiling
+is checked separately on exact first finals; nothing is truncated or rerolled.
+Shortening or hiding the interesting exchange behind summary is not success.
+A mixed or failed result closes this direction without retuning the number.
+Fresh substantial sessions and held-out explicit-detail, authorship, knowledge
+and redirection cases remain required for selection.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

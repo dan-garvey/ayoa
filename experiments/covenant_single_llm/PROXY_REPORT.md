@@ -522,6 +522,22 @@ explanation while leaving the cause unidentified. The
 different, shared or mixed results, with no automatic promotion or claim that a
 stronger second setting repairs Covenant.
 
+Candidate41 is now a bounded test of publication length during quiet observation.
+Its [design](proxy_trials/candidate_41/design.md) follows a qualified
+[scope assessment](proxy_trials/reviews/round41_scope_design_assessment.md):
+append a350-word default ceiling that includes routine time skips, retaining the
+entire existing prompt and both rich briefs. There is no word minimum; expressly
+requested detail or complete performances can exceed the default. Each of the
+four C40 openings supplies common prior fiction for a fresh control and budget
+author, each producing two connected dinners. That is sixteen planned new
+publications, eight authors and zero substantial sessions. No result is yet
+claimed. Both reviewers must prefer all four complete treatment dinners for
+substantive literary reasons, with developed interaction, all quality dimensions
+retainable, and scope/boundaries intact. Word-count compliance is separate; no
+output is truncated or rerolled. A mixed or failed result closes this direction
+without trying another numerical target. Inputs and review criteria are frozen
+before launch, and no prompt is promoted.
+
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
 65,117 words of generated story. These counts include replays and rejected

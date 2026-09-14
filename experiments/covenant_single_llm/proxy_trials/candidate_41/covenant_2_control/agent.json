@@ -1,0 +1,13 @@
+{
+  "agent": "/root/terra_proxy_c41_covenant_2_control",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "calls_per_player_submission": 1,
+  "fresh_author": true,
+  "fresh_story_start": false,
+  "source_opening": "covenant_2",
+  "condition": "control",
+  "author_request_sha256": "7ea9bae240d2661eee51d98fd4f6d44bf5558643605f7d4181b053ffd8322948",
+  "launch_request_sha256": "9904a5efbb4cf223e311a5c3f78d10987c039b7d75479045f4c0a50e7eb24897"
+}

@@ -1,0 +1,13 @@
+{
+  "agent": "/root/terra_proxy_c41_covenant_2_budget",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "calls_per_player_submission": 1,
+  "fresh_author": true,
+  "fresh_story_start": false,
+  "source_opening": "covenant_2",
+  "condition": "budget",
+  "author_request_sha256": "00ff099c8441c073c483e8abdd294dbd7bf7d5dda505d7b0401da650ae61446e",
+  "launch_request_sha256": "7966aecd30d894f2e1c3f289c3f3f7a4c85e29e4d7625163d7b76ae517c7ecb7"
+}

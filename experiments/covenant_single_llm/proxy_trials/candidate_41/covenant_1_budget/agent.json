@@ -1,0 +1,13 @@
+{
+  "agent": "/root/terra_proxy_c41_covenant_1_budget",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "calls_per_player_submission": 1,
+  "fresh_author": true,
+  "fresh_story_start": false,
+  "source_opening": "covenant_1",
+  "condition": "budget",
+  "author_request_sha256": "944d1a68eab61a8602349938df3635d48be7c6e4b684703911bc79621ef02434",
+  "launch_request_sha256": "3a8b65acfbf904930e7d5534a05e9862497d176c96caeff8b8ddc679e81cd2e7"
+}
