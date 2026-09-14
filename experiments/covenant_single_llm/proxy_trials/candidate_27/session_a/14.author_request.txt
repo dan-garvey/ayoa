@@ -1,0 +1,6 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+"Not tonight, but thank you for the game." I collect my primer and turn in. In the morning I wash, dress and eat breakfast, then head to the covered court to see whether the inspection has finished.
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_a/14.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

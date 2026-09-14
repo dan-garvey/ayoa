@@ -1,10 +1,22 @@
 {
-  "scope": "Published snapshot only; any listed pending inputs are not counted as responses. Fresh sessions are ongoing.",
+  "scope": "Completed C27 snapshot: two fresh15-turn sessions, two-response matched game and three-response new constructed boundary case. No pending inputs.",
   "prompt_wrapper_hashes_verified": true,
   "full_Covenant_unchanged_from_C19": true,
   "previously_exported_raw_hashes_unchanged": true,
-  "saved_author_and_editor_requests_match_frozen_delivery": true,
+  "saved_author_and_editor_requests_match_frozen_delivery_except_documented_variations": true,
+  "delivery_variations_file": "delivery_variations.json",
   "cases": [
+    {
+      "case": "continuation_c",
+      "verified_published_indices": [
+        0,
+        1,
+        2
+      ],
+      "author_task_requests_for_verified_indices": 6,
+      "player_turns_in_verified_snapshot": 3,
+      "unpublished_input_indices": []
+    },
     {
       "case": "game_replay",
       "verified_published_indices": [
@@ -23,13 +35,21 @@
         2,
         3,
         4,
-        5
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
       ],
-      "author_task_requests_for_verified_indices": 12,
-      "player_turns_in_verified_snapshot": 5,
-      "unpublished_input_indices": [
-        "06"
-      ]
+      "author_task_requests_for_verified_indices": 32,
+      "player_turns_in_verified_snapshot": 15,
+      "unpublished_input_indices": []
     },
     {
       "case": "session_b",
@@ -41,12 +61,20 @@
         4,
         5,
         6,
-        7
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
       ],
-      "author_task_requests_for_verified_indices": 16,
-      "player_turns_in_verified_snapshot": 7,
+      "author_task_requests_for_verified_indices": 32,
+      "player_turns_in_verified_snapshot": 15,
       "unpublished_input_indices": []
     }
   ],
-  "limitations": "Artifact integrity, not a literary selection or complete semantic audit. Saved requests verified, not decrypted child task payloads. Root sees drafts; B driver sees generic editorial instructions for relay. Refresh after later responses."
+  "limitations": "Artifact integrity, not a literary pass or a full game-board proof. Saved requests match frozen delivery except two documented variations. Initial A/B packet tool reads are verified in packet_read_audit.json; child task payloads are not decrypted. Root sees drafts, B driver reads generic editorial requests. Raw drafts remain in author context."
 }

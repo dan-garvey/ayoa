@@ -199,3 +199,266 @@ Ashara looks toward the octagon. "Mera kept leaving the same lane because I kept
 "I can spare half an hour after lunch," she says. "South end of the ground. Wear boots you can turn in. Leave the signet in your room; it will catch on the grip. Take a wooden blade from the rack, and I will show you the first guard."
 
 Inside the rope, the referee calls for the next pair. Ashara takes the towel from her neck. "After lunch, then."
+
+## Turn 6
+
+**Player**
+
+"Half an hour would be very welcome. I'll be there." I spend the rest of the morning finding my way around the quadrangle, then eat lunch. Before going to the ground I put my signet in my desk drawer and change into boots I can turn in. I arrive at the south end on time, take a wooden blade from the rack and follow Ashara's instruction for the half-hour, practicing what she shows me.
+
+**Story**
+
+"Half an hour would be very welcome. I'll be there."
+
+You spend the rest of the morning walking the quadrangle's routes: pale garden paths, the chapel's open white doors, low dragon-carved arches toward the seminar rooms, and the passage behind the dueling ground that leads to faculty offices. At lunch, the storm presses against the high dining-hall windows.
+
+Before returning to the ground, you put the Garvey signet in the desk drawer and change into boots that will turn instead of catching. Ashara is waiting at the south end of the octagon beside the practice rack. She has changed into a dark sleeveless tunic; two wooden blades lean against the rail.
+
+She watches you take one from the rack. "Show me your hand."
+
+Ashara taps the grip with a blunt fingernail. "You're climbing the hilt. Slide back. Two fingers below the guard. Let your thumb rest; don't pinch it."
+
+She picks up the second blade. "Left foot forward. Bend that knee. Now put the point at the hollow of my throat."
+
+Her own blade rises into line. "Your elbow is too straight." She presses the flat of her sword to yours, and the point shifts. "There. Again."
+
+For the next part of the lesson, she keeps the work small. A turn of the front foot. Less space between your boots. The point held between you as she moves right, then left. When your blade follows too far toward her shoulder, she touches your free arm with the wooden flat.
+
+"You're watching my sword," she says. "Watch my shoulders. If I step, turn with me. Keep the point here."
+
+She repeats the short sequence until the next bouts have changed twice on the far side of the rope. Then she lets you take the guard without reaching in to adjust your grip.
+
+At the half-hour, Ashara lowers her blade. "That's enough. Put it back before the rain reaches the rack. When you take one up again, make the grip without looking down."
+
+The practice blade is warm from your palm as the storm darkens beyond the quadrangle.
+
+## Turn 7
+
+**Player**
+
+I lower the blade and offer a hopeful grin. "Could you spare ten more minutes? It's just beginning to make sense."
+
+**Story**
+
+You lower the blade and offer a hopeful grin. "Could you spare ten more minutes? It's just beginning to make sense."
+
+Ashara looks once at the darkening storm, then raises her wooden sword. "Ten. No strikes. Your point leaves me whenever your feet move."
+
+She brings her blade back to guard. "Forward. Still. Back. Still."
+
+For the extra minutes, she keeps the drill to that line. When she steps right or left, you turn with her and keep the wooden point between you. When it wanders toward her shoulder, she taps it aside and has you begin again. When it remains in place, she changes direction without warning.
+
+Rain begins to patter on the packed earth beyond the rope. At the end of the tenth minute, Ashara lowers her blade. "Enough. Twice, you took the guard without searching for it. Rack the sword before the rain gets into the grain."
+
+## Turn 8
+
+**Player**
+
+"Thank you for the extra time." I return the blade to the rack and go back to Garvey House. I wash, change my damp clothes and put my signet back on from the desk drawer. I spend the afternoon quietly reading my primer in the common room. At dinnertime I join the others, eat and listen without starting a conversation.
+
+**Story**
+
+"Thank you for the extra time."
+
+Ashara points the wooden blade toward the rack. "Dry it before you put it back."
+
+You return it and make your way through the rain to Garvey House. After washing and changing out of the damp clothes, you take the signet from the desk drawer and put it back on. The common room stays quiet through the afternoon, its fire low and its study tables empty. You read the primer there until the lamps come on: the Academy calendar, the public descriptions of each track, the rules for requesting passage across the bridges.
+
+At dinner, you take your place with the others and eat without beginning a conversation. Rashid arrives after the first bowls are set down, a folded paper under one arm. When a server has passed, he says, "I found out what happened at the court."
+
+Ysolde looks up. "The floor?"
+
+"A joining plate under one of the mats. It split during a turn. Facilities took the mat up."
+
+"Are they checking the others?" Ysolde asks.
+
+"At dawn. The instructor says the court can reopen for supervised groups after the replacement and inspection."
+
+Aldric sets down his spoon. "Then it should remain closed until then."
+
+"Yes," Rashid says. "But no one told the group it was a plate, or that there would be an inspection."
+
+Ashara tears off a piece of bread. "Then tell them that."
+
+"I asked for the reopening hour in writing. I am not collecting signatures tonight."
+
+Thessaly looks at the folded paper. "Did they give you an hour?"
+
+"Only 'after inspection.'"
+
+"That is not an hour."
+
+"No," Rashid says. "It isn't."
+
+The storm taps at the windows while the servers bring the next course. The petition stays folded beneath Rashid's hand.
+
+## Turn 9
+
+**Player**
+
+I keep eating while they finish discussing the court. When the conversation has moved on, I glance toward the storm-lit windows and turn to Ysolde. "Have you ever flown through weather like this?"
+
+**Story**
+
+You keep eating while the discussion of the court comes to an end.
+
+"I'll go to Facilities after the inspection," Rashid says. "If they give me an hour, I will take it to the group."
+
+"Ask them directly," Ashara says. "The instructor may be teaching."
+
+"I will."
+
+Aldric takes up his spoon again. "Then wait for the inspection."
+
+Rashid folds the paper beneath his hand as the servers clear the next course. The talk shifts to schedules, a late seminar room, and the rain that has driven everyone indoors. When there is a pause, you glance toward the storm-lit windows and turn to Ysolde.
+
+"Have you ever flown through weather like this?"
+
+Ysolde keeps her eyes on the white pulse beyond the glass. "Yes. Not from the Nexus. The air falls away too sharply beneath the plateau."
+
+She shifts in her chair. "Over the northern sea, I could climb until the wind leveled. Here it comes up from below, catches under one wing, then returns from the other side. You see the lightning afterward. First the rain starts moving across the scales of your shoulder. By the time it reaches the wing joint, you have already waited too long."
+
+Her fingers settle around the stem of her glass. "When I was sixty-one, a gust folded my left wing before I saw it. I tore the outer membrane and landed in a quarry pond."
+
+She looks at you then. "Have you ever been above a storm?"
+
+## Turn 10
+
+**Player**
+
+"No. The highest I've been is a warehouse roof, and I was looking down rather than up." I set my spoon down. "What happened after you landed in the quarry pond?"
+
+**Story**
+
+"No. The highest I've been is a warehouse roof, and I was looking down rather than up." You set your spoon down. "What happened after you landed in the quarry pond?"
+
+Ysolde looks back toward the window. "I struck slate before I reached the water. The left wing would not open."
+
+"The quarry manager came out in a narrow boat. She asked, 'Can you speak?' I said yes. She said, 'Then do not make another wave. The boat is new.'"
+
+She turns her glass once between her fingers. "She fetched a healer. The membrane was stitched, and I remained in human form for five weeks. My mother arrived on the third day. She waited for the healer to leave, then asked why I had crossed the storm front alone."
+
+Ysolde's mouth shifts slightly. "The manager sent a bill for the broken slate. My mother paid it."
+
+## Turn 11
+
+**Player**
+
+I laugh at the quarry manager's reply. "I'm glad she found you." After dinner I take my primer into the common room and sit by the fire with the book closed on my knee, waiting to see what the others get up to.
+
+**Story**
+
+You laugh at the quarry manager's reply. "I'm glad she found you."
+
+Ysolde lowers her glass. "She had a boat. The healer had a needle."
+
+After dinner, you take the primer into the common room and sit near the fire with the book closed on your knee. Low flames turn the edges of the room gold. Rain tracks down the tall windows beyond the leather chairs.
+
+Ysolde comes in a few minutes later with a grey-covered volume beneath one arm. She takes the chair near the window and opens it without speaking. Rashid chooses a study table farther from the fire, spreads several sheets of paper there, and begins making notes in a careful hand.
+
+Thessaly arrives last with a shallow wooden box. She sets it on the table nearest the hearth and lifts the lid. Inside are seven small black stones, seven white ones, and a board cut with interlocking paths.
+
+She looks at the closed primer on your knee. "Have you played pathstones?"
+
+## Turn 12
+
+**Player**
+
+"Not this one. I'd like to try." I set the primer aside and move to the table opposite Thessaly. "Show me how it works."
+
+**Story**
+
+"Not this one. I'd like to try." You set the primer aside and move to the table opposite Thessaly. "Show me how it works."
+
+Thessaly draws the board between you. "Good. White begins."
+
+She puts the black stones in a small pile by her hand and the white ones by yours. Two pale notches face each other at opposite edges of the board; the dark notches lie across from one another.
+
+"Put one stone on any open crossing. It stays there. Then I place one. You are making a line between the pale notches. I am making one between the dark."
+
+She sets two white stones on adjacent crossings and traces the carved line between them. "These join. Two stones that only meet at a corner do not."
+
+Thessaly clears the board, then sets one white stone beside it. "Not on a notch. Place your first."
+
+## Turn 13
+
+**Player**
+
+"Before I place one: what happens if we've both used all seven stones and neither of us has connected our notches?" Once she has explained, I play one complete game with her, trying to build my white path and block hers when I can, following the rules she's given me.
+
+**Story**
+
+"Before I place one: what happens if we've both used all seven stones and neither of us has connected our notches?"
+
+Thessaly rolls a black stone between her fingers. "Then nobody wins. We clear the board. A placed stone stays where it is."
+
+You put your first white stone beside a pale notch. Thessaly answers from the lower dark edge. Over the next turns, white begins reaching toward the middle along one route while black gathers at the crossings between Thessaly's dark notches.
+
+When her black stones open a line across the board, you close its next junction with white. Thessaly turns to a second route. Her next stone blocks one of the white paths you have been building, and you carry your own line toward the other pale notch.
+
+By the sixth pair of stones, short chains crowd the board. Your seventh white stone seals the last open crossing in Thessaly's route. She studies the remaining paths, then places her final black stone across your unfinished white chain.
+
+All fourteen stones remain where they were placed. Neither color reaches its notches.
+
+Thessaly taps a black stone. "Draw."
+
+She begins sorting the pieces into their separate piles. "Again?"
+
+## Turn 14
+
+**Player**
+
+"Not tonight, but thank you for the game." I collect my primer and turn in. In the morning I wash, dress and eat breakfast, then head to the covered court to see whether the inspection has finished.
+
+**Story**
+
+"Not tonight, but thank you for the game."
+
+Thessaly slides the sorted stones into their box. "Then I will put it away. Good night."
+
+You collect the primer and turn in. In the morning, after washing, dressing, and breakfast, you make your way to the covered court.
+
+The rain has thinned to a cold mist. Two Facilities workers roll their tools toward the quadrangle as you arrive. Inside the court, the lifted mat lies flat again, its joining plate covered by a fresh strip of canvas. A notice is pinned beside the entrance:
+
+> COVERED COURT  
+> Reopens for supervised practice at fourth bell.  
+> Instructor present.  
+> —Facilities
+
+Rashid stands beneath the awning with a copy of the notice. The instructor is speaking with the last of the workers.
+
+Rashid reads the paper once more. "The replacement held. Fourth bell. Signed."
+
+The instructor nods before returning inside. Rashid folds his copy along its creases and heads down the path toward the academic buildings. The court remains roped off until the stated hour.
+
+## Turn 15
+
+**Player**
+
+I spend the intervening time back at Garvey House. At fourth bell I return to the covered court and ask the instructor, "May I watch this first session?" If spectators are allowed, I take the place indicated and watch the supervised practice through to its end without interrupting.
+
+**Story**
+
+You spend the intervening hours back at Garvey House. At fourth bell, you return to the covered court.
+
+The rope has been taken from the entrance. Inside, the new canvas strip lies flat among the other mats, and an instructor in a grey Academy coat checks names against a small board. Rashid stands with six other students near the far wall, a bundle of padded practice batons at his feet.
+
+"May I watch this first session?"
+
+The instructor points to the west rail. "Behind the blue line. If I call halt, stay there."
+
+You take the indicated place. The instructor walks the group along the repaired mat, pressing each seam with the heel of a boot before bringing them back to the marked area.
+
+"Pairs out. Half speed. Turn before the canvas line."
+
+The students begin with footwork and short turns, then take up the padded batons. Rashid works with a taller student in a green Commerce sash. Their first passes remain slow while the instructor moves between pairs, correcting distance with a tap of the baton.
+
+A student with a splinted wrist stays at the west wall with the instructor's board, watching the drills and marking down the times when each pair changes. No one crosses the repaired mat at speed.
+
+When one baton slips from a student's hand, the instructor raises a palm. "Halt. Leave it. Step back."
+
+The baton is picked up after the pairs have separated, and the drill begins again from the first turn. At the end of the hour, the instructor calls time.
+
+"Batons in."
+
+The group returns them to the bundle. Rashid helps carry it toward the equipment cupboard, and the new canvas strip remains smooth beneath the court lamps.

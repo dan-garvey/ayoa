@@ -1,0 +1,6 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+"Not this one. I'd like to try." I set the primer aside and move to the table opposite Thessaly. "Show me how it works."
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_a/12.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

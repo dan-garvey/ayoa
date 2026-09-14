@@ -1,0 +1,12 @@
+{
+  "agent": "/root/terra_c27_continuation_c",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "review_feedback_supplied": false,
+  "planned_scope": "New constructed knowledge and player-authorship continuation; exact C27 two-request loop. Initial unequal-report response, disclosure, then owned-work/private-wish probe if warranted.",
+  "author_request_sha256": "cbb697633afe2cdda9aa6f662b2e0d19407c44945ae9e5cd556846b0ffd64a19",
+  "editor_request_sha256": "d401945d3901634077deff30576fad4ad8c6469409579334627cea7bc34dac8a",
+  "case_type": "new constructed private replacement reservation and outdated partial report",
+  "calls_per_player_submission": 2
+}

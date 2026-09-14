@@ -1,0 +1,6 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+When the Chancellor pauses, I raise my hand. "On declarations of war, does that mean the beastkin can be required to fight even when their representative says no?"
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_b/13.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

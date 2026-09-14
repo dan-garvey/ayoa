@@ -288,3 +288,177 @@ too short.
 made me look
 
 at the bottom of the page.”
+
+## Turn 8
+
+**Player**
+
+"I keep saying that last line as if it's a joke. I meant Ada to be asking an awkward, practical question." I hold the page where Seraphel can see it. "Would you try her lines with me? I'll take Nell. Just what's on this page; I want to hear it with two people."
+
+**Story**
+
+Seraphel leans close enough to read the page where you hold it. Her attention rests on Ada's final line.
+
+“I'd like to.
+
+But I can't speak Ada's words
+
+as you have written them.
+
+When I try,
+
+they come out as verse.
+
+I would change the scene.
+
+Read both parts again.
+
+I will listen.”
+
+## Turn 9
+
+**Player**
+
+"Then let's leave it for tonight. I don't fancy doing both voices again. Thank you for listening." I fold the page along its old crease and put it in my coat pocket. "Before I turn in, do you know who I should ask for a timetable in the morning? I'm not sure where I'm supposed to go."
+
+**Story**
+
+The old crease finds the page when you fold it, and the paper disappears into your coat pocket. Seraphel draws the blue cloth over her harp.
+
+“At eight, the Conclave clerk
+
+will be in the office
+
+beside the seminar room.
+
+It opens onto the quadrangle.
+
+Show your signet
+
+and ask for your first-year timetable.”
+
+## Turn 10
+
+**Player**
+
+"Eight, beside the seminar room. Thank you. Good night, Seraphel." I take my glass back and go upstairs to bed. In the morning I wash, dress, and come down early enough to have some breakfast before heading to the office on the quadrangle. When the clerk is available, I show my signet. "Good morning. I'm Rowan Garvey. I've come for my first-year timetable."
+
+**Story**
+
+Seraphel wraps the blue cloth around her harp.
+
+“Good night.
+
+Sleep well,
+
+Rowan.”
+
+Morning finds Garvey House quieter than it was at dinner. After washing and dressing, you have breakfast beneath the dining hall lamps while servers clear the first dishes. The quadrangle is cold beyond the doors, its mixed stone and marble damp with mist from the storm below.
+
+The Conclave office is a narrow room beside the seminar hall. At eight, a clerk in Academy blue sits behind a desk arranged with labelled trays. She compares your signet to a wax impression in an open ledger, then takes a cream card from the tray marked FIRST YEAR.
+
+“Mr Garvey. First-year Conclave. Your seminar begins at nine. Covenant Law with Professor Windwhisper is at eleven, and Professor vel Shaan has Practical Rhetoric after lunch. The room list is on the reverse.”
+
+She passes the timetable across the desk.
+
+## Turn 11
+
+**Player**
+
+"Thank you." I turn the card over and use the spare time to find the rooms on it. Then I go to the seminar room before nine. I greet anyone I recognise from dinner and look for an open seat near them, leaving the timetable in front of me while I wait for the session to begin.
+
+**Story**
+
+The reverse of the timetable carries a small quadrangle map and room numbers in narrow black type. With time to spare, you trace the route to the seminar room and arrive before nine.
+
+Morning lamps burn above the oval table. The framed Accords watch from the walls in seven scripts, and most of the fifteen seats have been claimed by students consulting their own cards. Thessaly and Seraphel sit along one side, with an open chair between Seraphel and Ysolde.
+
+Rashid answers your greeting from across the table. Ashara gives a short nod; Caelindra and Aldric return it in turn. Seraphel's wings shift lightly against her chair.
+
+“Morning, Rowan.
+
+The chair is free.”
+
+You take the open seat, leaving the timetable in front of you. Ysolde's card is set square with the table edge; Thessaly has written a small note in the margin of hers and covered it with one hand.
+
+At nine exactly, Chancellor Ashworth enters with a leather folio under one arm. He is an old angel in a dark academic robe, his white hair clipped close at the neck. He takes the far chair and opens the folio.
+
+“Cards on the table, please. We begin with the Council's voting structure.”
+
+## Turn 12
+
+**Player**
+
+I leave my card on the table as requested and give the Chancellor my attention. I listen through the opening explanation, paying particular attention to who has a vote and how a proposal reaches the Council.
+
+**Story**
+
+Ashworth lays seven brass counters along the centre of the table: angel, demon, elf, dragon, fae, beastkin, and human. The human counter is unmarked.
+
+“A sitting representative or a standing committee lodges a proposal. Secretariat records it, sends copies to the other seats, and assigns the subject committee. Trade goes to trade, border complaints to borders, and so on. When the committee returns its recommendation, a representative may move the matter at the Council table.”
+
+He sets one counter on its edge.
+
+“Four assents carry ordinary business. Treaty articles and declarations of war require ratification from every original signatory. The beastkin seat may lodge a measure, debate it, and vote on ordinary business. On those reserved matters, its assent is entered in the record. It does not ratify.”
+
+Rashid's pencil stops above his timetable. Across the table, Aldric writes without looking up.
+
+“That is the rule in force,” Ashworth says.
+
+He turns to a page headed COUNCIL COMMITTEES and begins setting out the separate routes for a trade petition, a border complaint, and a treaty amendment.
+
+## Turn 13
+
+**Player**
+
+When the Chancellor pauses, I raise my hand. "On declarations of war, does that mean the beastkin can be required to fight even when their representative says no?"
+
+**Story**
+
+Ashworth's hand rests on the edge of his folio. Around the table, the turning of pages stops.
+
+“Not directly. A declaration triggers the defense schedule in the accession treaty. The beastkin delegate cannot ratify it or stop it. If the other ratifications are present, the beastkin government must supply the contribution named in that schedule. Its own law decides whom it sends.”
+
+Rashid's pencil lies still beside his card.
+
+“The representative's objection is entered in the record,” Ashworth says. “It does not remove the obligation.”
+
+## Turn 14
+
+**Player**
+
+"Then I think their representative ought to have a ratifying vote. If they're required to supply a contribution, they should get to refuse the war." I glance at the treaty page in front of the Chancellor. "Has their government asked to amend that part of the treaty?"
+
+**Story**
+
+Ashworth glances down at the treaty page beneath his hand.
+
+“They have. The beastkin government has lodged equal-ratification amendments more than once. The current text went to the Treaty Committee in the spring session. It has not been put on the Council agenda.”
+
+Rashid's hand closes over his pencil.
+
+“Six months in committee,” he says.
+
+“Since spring,” Ashworth says. “Any treaty amendment needs ratification from every original signatory. This one asks them to change that provision.”
+
+## Turn 15
+
+**Player**
+
+I nod and settle back to listen for the rest of the seminar, leaving room for other people's questions. When the session ends, I collect my timetable and step outside for some air before the eleven o'clock class.
+
+**Story**
+
+Rashid waits until Ashworth turns the next page.
+
+“Can the beastkin delegate compel a report from the Treaty Committee?”
+
+“Not alone. The delegate may ask for one. Three ratifying seats can compel it.”
+
+Rashid writes that down without comment.
+
+The remaining questions range across committee referrals, record appeals, and the permission process for travel beyond the bridges. Ashworth answers each from the folio, then closes it when the hour ends.
+
+“Professor Windwhisper begins Covenant Law at eleven,” he says. “Be in her room before then.”
+
+Chairs scrape back. You collect your timetable and leave the seminar room with the other students. Outside, the quadrangle air is cold and sharp. Black demon stone holds a little of the morning's warmth beneath your shoes; the angel marble along the far colonnade is pale with mist. Beyond the low carved arches, slow lightning moves soundlessly through the storm below.

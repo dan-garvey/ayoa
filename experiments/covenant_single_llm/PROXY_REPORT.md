@@ -147,6 +147,24 @@ then receives a fixed editorial request before delivery. Both stages retain the
 full backgrounds. Its two requests are sequential, with originals preserved;
 they are not independent character-agent work or evidence of one-request cost.
 
+Both candidate27 fresh sessions now complete fifteen player turns. A reaches an
+actual bout, lesson, game and supervised court reopening; B completes music,
+manuscript sharing and a morning seminar. The locked pilot rates A3/4/4/4/4 and
+B3/4/4/3/4. The [independent B review](proxy_trials/reviews/round27_b_review.md)
+rates3/3/4/3/3: habitual maxims have receded, but ordinary exchanges too often
+contain only the minimum answer or permission. It credits the music and reading
+as real follow-through and finds no definite authorship or knowledge violation.
+The [independent A review](proxy_trials/reviews/round27_a_review.md) agrees with
+the pilot's3/4/4/4/4: the court dispute reaches a real outcome through NPC action,
+but settled positions repeat and some shared activities lack social texture.
+The [supplementary review](proxy_trials/reviews/round27_boundary_review.md)
+finds the new partial-report and private-reservation case respects the tested
+boundaries. The separate game replay leaves its final distance comparison
+inadequately explained; the incomplete board proves neither illegality nor a
+successful repair. All37 published passages and74 sequential author tasks are
+preserved. The [decision](proxy_trials/candidate_27/decision.json) rejects C27.
+No candidate is selected. The full Covenant remains byte-identical to candidate19.
+
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
 65,117 words of generated story. These counts include replays and rejected

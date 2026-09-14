@@ -1,0 +1,18 @@
+[
+  {
+    "case": "session_a",
+    "turn": 12,
+    "file": "12.editor_request.txt",
+    "change": "In the actual relayed task, the line Allow talk to move on was wrapped between talk and to. No words or other instructions changed. The saved request now preserves that exact delivered line break. No story rerun or correction request was sent.",
+    "assessment": "Whitespace-only delivery variation, not a content revision; byte identity across editor requests is not claimed for this turn."
+  },
+  {
+    "case": "continuation_c",
+    "turn": 2,
+    "file": "02.editor_request.txt",
+    "change": "Actual editorial Output path misspelled covenant_single_llm as covenant_single-llm. Immediate separate correction supplied the proper artifact path and explicitly forbade a second revision. Original request and correction are both retained.",
+    "correction_file": "continuation_c/02.delivery_correction.txt",
+    "assessment": "Artifact delivery correction only, no prompt-content change or story reroll requested. Verify final output and whether a stray file was written.",
+    "verification": "First revised passage exists at the corrected path. The actual misspelled experiment directory does not exist after delivery; no stray file remains."
+  }
+]

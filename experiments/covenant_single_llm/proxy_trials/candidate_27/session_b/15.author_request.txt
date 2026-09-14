@@ -1,0 +1,6 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+I nod and settle back to listen for the rest of the seminar, leaving room for other people's questions. When the session ends, I collect my timetable and step outside for some air before the eleven o'clock class.
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_b/15.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

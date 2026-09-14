@@ -1,0 +1,6 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+"Eight, beside the seminar room. Thank you. Good night, Seraphel." I take my glass back and go upstairs to bed. In the morning I wash, dress, and come down early enough to have some breakfast before heading to the office on the quadrangle. When the clerk is available, I show my signet. "Good morning. I'm Rowan Garvey. I've come for my first-year timetable."
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_b/10.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

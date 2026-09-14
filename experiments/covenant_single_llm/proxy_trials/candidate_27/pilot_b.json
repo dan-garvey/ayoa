@@ -1,0 +1,29 @@
+{
+  "locked_at": "2026-09-14T04:39:05.336395+00:00",
+  "scope": "Root pilot judgment of completed B, locked before independent review; A and held-out judgment pending.",
+  "transcript_sha256": "0ab163897d9309cc2ae4a4d95c2ff4033e0718fb7ac138fccde1d09ad374a92d",
+  "player_turns": 15,
+  "quality_order": [
+    "prose_dialogue",
+    "distinct_characters",
+    "independent_interests",
+    "direction",
+    "adaptive_initiative"
+  ],
+  "scores": [
+    3,
+    4,
+    4,
+    3,
+    4
+  ],
+  "evidence": {
+    "prose_dialogue": "B04-05 complete music and comic lyrics; B07 refers to the actual authored lines without inventing more. Nonetheless B02 is a round-robin subject inventory, B03 gives Caelindra an empty echo, and B12-15 remain unusually bloodless procedural questions and answers despite a consequential inequality. Fewer aphorisms have not consistently supplied engaging interaction. This is a judgment about the complete exchange, not a ban on classroom exposition or quiet scenes.",
+    "distinct_characters": "The principal recurring people have recognizable attention and conduct: Seraphel chooses music and listening and declines altered speech; Rashid pursues access and ratification procedure; Ashworth preserves institutional framing. The brief appearances of other diners are insufficient to demonstrate every background in depth, and are not treated as failures merely because the player chose Seraphel.",
+    "independent_interests": "Ashara keeps her booking in B00/B04; Rashid pursues report access and asks his own committee question in B15. Seraphel offers and performs music before Rowan shares his page. Political work predates Rowan and is not solved by his opinion.",
+    "direction": "Music reaches a real performance and the player reading happens. The paired reading refusal also has a real consequence. Beyond these, the morning becomes an itinerary and a procedural explanation; the court and treaty business stay pending. Completion of requested activities is strong, but the overall session still needs more consequential interpersonal development to meet the requested narrative-quality bar.",
+    "adaptive_initiative": "B04 accepts music, B05 completes the second song, B06 allows quiet, B08-09 accept refusal and redirection, B10-15 honor timetable and seminar scope. No forced petition signature, role performance or political commitment."
+  },
+  "boundaries": "No definite unsubmitted present player dialogue, invented manuscript text, inaccessible NPC fact or material logical contradiction found in the full published B transcript. The treaty page staging assumption was introduced by the player driver in B14 and is documented in its notes. Raw drafts are not player-visible canon.",
+  "status": "Not a candidate selection: prose and direction remain below the locked pilot bar. Independent review is being commissioned to assess the complete two-request result and inform further iteration."
+}

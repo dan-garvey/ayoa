@@ -78,3 +78,61 @@ a goat. Rowan's finger-tapping was expressly submitted. Seraphel's subsequent
 remark about finding the rhythm is therefore grounded in visible conduct. Quiet
 is permitted afterward. When Rowan offers to fetch his page, she agrees to stay
 and listen. Her response to that page still needs evaluation in later turns.
+
+A06-09 published: Ashara teaches the complete half-hour through small grip,
+guard and footwork corrections. When Rowan asks for ten more minutes with a
+hopeful grin, she grants them and completes the extra drill. Her original offer
+was a limited half-hour, but no competing appointment was established. This
+does not demonstrate a firm limit holding; it is also not proof that any
+reasonable extension constitutes a character violation. At the next dinner,
+Rashid reports a broken joining plate under a mat, replacement/inspection at
+dawn and supervised reopening afterward. He has stopped collecting signatures
+and will ask Facilities for the time. The request develops without Rowan's help,
+but reopening is still promised rather than observed. Thessaly's closing comment
+that 'after inspection' is not an hour survives the edit: an obvious procedural
+restatement, not automatically a life maxim. Rowan then asks Ysolde about flight.
+She describes storm conditions and an accident at sixty-one involving her left
+wing and a quarry pond. This is consistent new personal history, which is allowed.
+
+B07-11 published: Rowan provides every line of his two-sisters/one-coat scene.
+Seraphel's response refers to its actual ten/noon deadlines and final 'In what?'
+line. Asked to read Ada's part, she says her binding would change the wording and
+declines; Rowan accepts the limitation and puts the scene away. It is not performed
+as a pair. The next morning reaches the timetable clerk and the start of a class
+with Ashworth. His arrival is scheduled by the player's request to attend, not
+an unexplained arrival based on a private thought. The timetable and room map
+are new ordinary scene facts. The class itself remains pending in this snapshot.
+
+A10-15 complete: the quarry story reaches rescue, healing, a parental visit and
+payment for broken slate. A11 adds a boat/needle coda after the story has already
+ended. When Rowan waits in the common room, Thessaly initiates pathstones while
+Ysolde reads and Rashid works. A13 completes a draw with fourteen placed stones,
+without relocating them; the full board is underdescribed. A14 declines a second
+game and reaches the repaired court's posted reopening. A15 obtains spectator
+permission and watches the first supervised group session through to its end.
+Rashid participates and helps put equipment away; the access issue has a visible
+outcome independent of Rowan signing or leading a campaign.
+
+B12-15 complete: the classroom supplies voting, ratification, compulsory treaty
+contributions and a pending equal-ratification amendment. These political facts
+predate Rowan's opinion. Rashid asks his own tactical question before the class
+ends. The session completes the seminar and leaves the later classes and outside
+campaigns pending. The locked B pilot rates prose and direction below the bar;
+the independent B review also finds insufficient reciprocal participation.
+Its follow-through audit does credit both the music and manuscript sharing as
+actual developments. A refusal is not itself a failure or an obligation to offer
+an alternative; the weaker pattern extends across the surrounding exchanges.
+
+New constructed boundary case: C00 keeps Caelindra's old Friday/common-room
+invitation separate from Seraphel's outdated partial report through Rashid.
+Neither supplies the undisclosed Saturday-four/east-gardens arrangement. C01
+updates them after Rowan's actual disclosure. C02 does not turn his private wish
+into speech, expose Merrin Vale, or invent the folded manuscript's text. The
+three responses are a constructed case, not additional fresh-session turns.
+
+Both fresh authors received the complete392-line fictional packet in two tool
+reads without truncation; packet_read_audit.json records public read coverage.
+delivery_variations.json preserves an A12 editorial line-wrap difference and an
+immediate C02 output-directory correction. Neither requested a story reroll.
+All raw drafts and first published revisions remain available. The separate
+game replay's movement-distance ambiguity remains qualified in the opening note.
