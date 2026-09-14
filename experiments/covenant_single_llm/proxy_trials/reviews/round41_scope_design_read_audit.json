@@ -1,0 +1,162 @@
+{
+  "agent": "/root/proxy_c41_scope_assessment",
+  "session_id": "01a0a00d-04dd-73c0-a431-22d4a3a0a762",
+  "scope": "Exact complete allowed file content found in public tool outputs, including full JSON-escaped bodies in a truncated multi-file result. Each required file must be wholly present in at least one result. No private reasoning or attention claim.",
+  "all_required_files_returned_in_full": true,
+  "files": [
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_40/system.txt",
+      "sha256": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_CHuibfQsPuImTE47sYEkl8MK",
+          "whole_file_returned_exactly": true,
+          "representation": "Entire JSON-escaped file body is present unchanged inside a globally truncated multi-result response. Other files were clipped; this complete file was not.",
+          "same_call_has_truncation_marker": true
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_40/pilot_review.md",
+      "sha256": "2702788e0b07a806b06e77351edd77ab34e631d4c2e36f66c542d132307d1737",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_CHuibfQsPuImTE47sYEkl8MK",
+          "whole_file_returned_exactly": true,
+          "representation": "Entire JSON-escaped file body is present unchanged inside a globally truncated multi-result response. Other files were clipped; this complete file was not.",
+          "same_call_has_truncation_marker": true
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_40/covenant.txt",
+      "sha256": "1dbbc655a32ac2c8934882b9119424f8a09ae6fa4000c7619ab03f7d8bb33981",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_ZgcIUzCToRlNeF66c3XSpRgo",
+          "whole_file_returned_exactly": true,
+          "same_call_has_truncation_marker": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_40/second_story.txt",
+      "sha256": "0000b32ddc5c1cf43b7c237d6bd3ecb783c88c6d2247fe5a5e461fe0dc10c77a",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_ZgcIUzCToRlNeF66c3XSpRgo",
+          "whole_file_returned_exactly": true,
+          "same_call_has_truncation_marker": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_40/covenant_1/transcript.md",
+      "sha256": "dddddc6a5cc9718f0b8cba01894e43156d365aee2d9ddb5c1ef07e894e36aa7f",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_UEfV7dpEPBffmWaBPnU8hqn9",
+          "whole_file_returned_exactly": true,
+          "same_call_has_truncation_marker": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_40/covenant_2/transcript.md",
+      "sha256": "94566b6999217780eff798e03ec878c7c92f855992462f8df6e78c55b9c9ce28",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_UEfV7dpEPBffmWaBPnU8hqn9",
+          "whole_file_returned_exactly": true,
+          "same_call_has_truncation_marker": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_40/breakwater_1/transcript.md",
+      "sha256": "51447835c3177f2521e08e6cd5cf2636bf0189dd0af65c5a6a686dbf37ea0873",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_HXaeA7v8OPIDe9DyenHIRahL",
+          "whole_file_returned_exactly": true,
+          "same_call_has_truncation_marker": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_40/breakwater_2/transcript.md",
+      "sha256": "c4ef2c9e8accaac6bdc7ac10351ad2a332c99258c11bec413b26cf03b8d9872c",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_HXaeA7v8OPIDe9DyenHIRahL",
+          "whole_file_returned_exactly": true,
+          "same_call_has_truncation_marker": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_33/system_scene.txt",
+      "sha256": "9861563ff4444aa4fccbfa10398a16e18337d2de4308bd9f4685c34611441ff9",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_CHuibfQsPuImTE47sYEkl8MK",
+          "whole_file_returned_exactly": true,
+          "representation": "Entire JSON-escaped file body is present unchanged inside a globally truncated multi-result response. Other files were clipped; this complete file was not.",
+          "same_call_has_truncation_marker": true
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_33/decision.json",
+      "sha256": "d07138eb9aa0ed67aaf05f5afba928851ae8f44969a570308738128b9d31cfcc",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_E2xSmVZsjge3HNilohHaQUGD",
+          "whole_file_returned_exactly": true,
+          "same_call_has_truncation_marker": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_20/system.txt",
+      "sha256": "41fe474413112534509dc110b246295cb44b44ee068dbaf89e94f888b31fa7df",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_E2xSmVZsjge3HNilohHaQUGD",
+          "whole_file_returned_exactly": true,
+          "same_call_has_truncation_marker": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_21/system.txt",
+      "sha256": "c1d2045b7ed9525e53e95b7014c90e9d6cc194305fca2be69499449ff3d0f72e",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_E2xSmVZsjge3HNilohHaQUGD",
+          "whole_file_returned_exactly": true,
+          "same_call_has_truncation_marker": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/PROTOCOL.md",
+      "sha256": "f9117c97eca1778c7bf3f15c5ef93944b7bd076fb63a30257d36582f21401f4d",
+      "exact_full_file_hits": [
+        {
+          "call_id": "call_CHuibfQsPuImTE47sYEkl8MK",
+          "whole_file_returned_exactly": true,
+          "representation": "Entire JSON-escaped file body is present unchanged inside a globally truncated multi-result response. Other files were clipped; this complete file was not.",
+          "same_call_has_truncation_marker": true
+        }
+      ]
+    }
+  ],
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T08-13-22-01a0a00d-04dd-73c0-a431-22d4a3a0a762.jsonl",
+  "model_effort_metadata": [
+    [
+      "gpt-6-astra",
+      "max"
+    ]
+  ]
+}

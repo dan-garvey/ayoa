@@ -1,0 +1,59 @@
+{
+  "locked_at": "2026-09-14T13:21:15.039122+00:00",
+  "agent": "/root/proxy_c40_independent_review",
+  "first_complete_review_preserved": true,
+  "all_required_sources_read_in_full": true,
+  "reviewer_not_given_root_judgments_or_provenance": true,
+  "settings_identifiable": true,
+  "scores_by_case": {
+    "covenant_1": [
+      3,
+      3,
+      4,
+      3,
+      4
+    ],
+    "covenant_2": [
+      3,
+      3,
+      3,
+      3,
+      3
+    ],
+    "breakwater_1": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "breakwater_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ]
+  },
+  "opening_prose_scores": {
+    "covenant_1": 4,
+    "covenant_2": 3,
+    "breakwater_1": 4,
+    "breakwater_2": 4
+  },
+  "within_context_preference": {
+    "covenant": [
+      "covenant_1",
+      "covenant_2"
+    ],
+    "breakwater": [
+      "breakwater_1",
+      "breakwater_2"
+    ]
+  },
+  "file_sha256": {
+    "../reviews/round40_independent_comparison.md": "6985eb21cf87bfc2fce9b0a1ceea9230c7aa2856f10582b76028919276b533fc",
+    "review_read_audit.json": "d2e8d0a1ac5e2730870c765b75196381a3948061a3a2859b7adb76d2d65c29fd",
+    "pilot_lock.json": "93c3a8ebc6f241d5169190afe11fe27ccef34058153c982694cac5e8e92f1e36"
+  }
+}

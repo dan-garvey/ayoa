@@ -8,10 +8,11 @@ and, in some routes, helpful characters who leave too much initiative to the pla
 
 The latest completed generation is C40: four fresh short runs across Covenant
 and a contemporary cinema setting, with twelve publications in total. Root's
-[locked review](proxy_trials/candidate_40/pilot_review.md) gives all four connected
-dinners prose3. One cinema run develops a useful negotiation, but the familiar
-prepared repartee persists in both settings. The independent review is pending;
-no proxy candidate has been selected or promoted.
+[locked review](proxy_trials/candidate_40/pilot_review.md) and the
+[independent assessment](proxy_trials/reviews/round40_independent_comparison.md)
+give all four connected dinners prose3. One cinema run develops a useful
+negotiation, but the familiar prepared repartee persists in both settings.
+No proxy candidate has been selected or promoted.
 
 The user permits new history that fills gaps consistently. Inventing a relative,
 past incident, or an unshown but plausible action is not itself a failure.
@@ -506,8 +507,17 @@ connected dinner prose3 and prefers the first run within each setting.
 [Breakwater1](proxy_trials/candidate_40/breakwater_1/transcript.md) contains the
 strongest concrete interaction: existing room-booking holders and a technician
 agree to restricted shared use without recruiting Rowan to arbitrate. Its
-surrounding banter still needs material revision. The independent assessment is
-pending. The
+surrounding banter still needs material revision. The
+[independent assessment](proxy_trials/reviews/round40_independent_comparison.md)
+agrees on every prose score and within-setting preference. It gives Covenant2's
+independent interests3 instead of root's4 and adds a local seating discrepancy.
+The [response](proxy_trials/candidate_40/review_response.md) preserves those
+differences and accepts the need to correct Breakwater2's opening reference to
+boards being brought down when the source already places them in the auditorium.
+Other local repairs and unresolved ambiguities remain separate from the literary
+judgment. The [decision](proxy_trials/candidate_40/decision.json) closes the
+diagnostic without promotion. Its shared failure weakens a Covenant-only
+explanation while leaving the cause unidentified. The
 [manifest](proxy_trials/candidate_40/manifest.json) defines interpretations for
 different, shared or mixed results, with no automatic promotion or claim that a
 stronger second setting repairs Covenant.
