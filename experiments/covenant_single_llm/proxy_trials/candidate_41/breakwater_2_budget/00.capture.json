@@ -1,0 +1,72 @@
+{
+  "captured_at": "2026-09-14T13:44:34.861157+00:00",
+  "agent": "/root/terra_proxy_c41_breakwater_2_budget",
+  "session_id": "01a0a026-c30f-7200-9ca2-2099afb307d1",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T08-41-30-01a0a026-c30f-7200-9ca2-2099afb307d1.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "turn": 0,
+  "public_final_message_id": "msg_000f6e7491a2e6e5016aa7f9bee4b887d1845e2e634dcbeb84",
+  "final_count_at_capture": 1,
+  "root_capture_exact_unmodified": true,
+  "public_final_sha256": "29f080a5150210a25c5c4721642eedbfe8fa88235cdda68e2802cb636ad7fe3e",
+  "publication_sha256": "29f080a5150210a25c5c4721642eedbfe8fa88235cdda68e2802cb636ad7fe3e",
+  "words": 348,
+  "public_tool_calls_during_this_request": [
+    {
+      "call_id": "call_ELOpZnhTExbSQpyqcvP7kUGh",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "29cf6efff12a430b3b561797508030810aefba051076acd89791f0c83673bd9c",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_ZS8IaiKYCBmvUHGwrJbq0Zj5",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "9e0bca99ff26ec05f2a08e7d55642c3f75b7e3c85c1e45a684d05378e8806ef6",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_ahnzC6rVIzyKkyYLlIbyCZr8",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "e06a0af58db9263f883e9b90e69c5f62f97ffaf92a8a83a66c902f59fec2b2ed",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_VJ7wh1WzOlWNuS5ow4fjqXI7",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "3d5c0e8bf816341f402539981deedd5cc05634bb1b50a60be17c006d5a4a8c8f",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_StKAF7JmCSjbbXmmnCPhcg7r",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "7eb4aa8fc9b86586b1185ffb564d2fc83c7b1c70edd1544da346ca40f1d30843",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_xgHqdcUWIVARrBlp5bOlIEEG",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "83100b0e2593d40f763ffa0dccb93e871eb60fb62ee303664a15551f14beab7f",
+      "possible_write": false
+    }
+  ],
+  "possible_writes_during_this_request": [],
+  "root_dispatch_record_matches_frozen_followup": null,
+  "receiver_delivery_metadata": [
+    {
+      "message_id": "amsg_01a0a026-c808-72c2-9c9e-23031b699439",
+      "author": "/root",
+      "recipient": "/root/terra_proxy_c41_breakwater_2_budget",
+      "after_final_count": 0,
+      "payload_encrypted": true
+    }
+  ],
+  "receiver_plaintext_followup_verified": false,
+  "scope": "Public final, public task/tool metadata, fixed root-dispatch records, exact artifact hashes and model/effort only. Receiver task bodies are encrypted; no plaintext receiver-body comparison or private reasoning inspection is claimed."
+}

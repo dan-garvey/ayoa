@@ -1,0 +1,58 @@
+{
+  "captured_at": "2026-09-14T13:35:12.479590+00:00",
+  "agent": "/root/terra_proxy_c41_breakwater_1_control",
+  "session_id": "01a0a01d-5a46-7963-885b-91e34630fe57",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T08-31-13-01a0a01d-5a46-7963-885b-91e34630fe57.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "turn": 0,
+  "public_final_message_id": "msg_0bb7526d76b0fbc8016aa7f7cdeb5c87d1acae11d4e235c916",
+  "final_count_at_capture": 1,
+  "root_capture_exact_unmodified": true,
+  "public_final_sha256": "c2036915939927894063ea37e1e9fdd8e9c2ff0486a7b1b131a7e6512945e00e",
+  "publication_sha256": "c2036915939927894063ea37e1e9fdd8e9c2ff0486a7b1b131a7e6512945e00e",
+  "words": 713,
+  "public_tool_calls_during_this_request": [
+    {
+      "call_id": "call_x38vCY5NGRN1sCdoa1BII2B1",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "587cdfdccccf986ce42d5d935682a2a6f5eeb00f0402f0672383991626350e07",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_V52rprhowrbXuwi7wc6LHpue",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "f7cc6c084da652fb6f605a99f65f2ea54f0b0a23dc163f899b8e6dff9999ed74",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_6l2ktHRPHvLDc5oZFBSPyg4r",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "72f8015c979f70c1ef43c69939a351fb7d5680d6b133b99d0789181818fb9c98",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_qQtYmu9TEq4wxCqcQmhqFECw",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "e773408d4f2c0b0853b4d22231bb2594a8f64fb1fe9c97b91ab2a872d48c2583",
+      "possible_write": false
+    }
+  ],
+  "possible_writes_during_this_request": [],
+  "root_dispatch_record_matches_frozen_followup": null,
+  "receiver_delivery_metadata": [
+    {
+      "message_id": "amsg_01a0a01d-5f8c-77e2-8022-54ea82ea9764",
+      "author": "/root",
+      "recipient": "/root/terra_proxy_c41_breakwater_1_control",
+      "after_final_count": 0,
+      "payload_encrypted": true
+    }
+  ],
+  "receiver_plaintext_followup_verified": false,
+  "scope": "Public final, public task/tool metadata, fixed root-dispatch records, exact artifact hashes and model/effort only. Receiver task bodies are encrypted; no plaintext receiver-body comparison or private reasoning inspection is claimed."
+}

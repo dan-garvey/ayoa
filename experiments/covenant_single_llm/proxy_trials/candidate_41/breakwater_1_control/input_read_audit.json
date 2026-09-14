@@ -1,0 +1,53 @@
+{
+  "agent": "/root/terra_proxy_c41_breakwater_1_control",
+  "session_id": "01a0a01d-5a46-7963-885b-91e34630fe57",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T08-31-13-01a0a01d-5a46-7963-885b-91e34630fe57.jsonl",
+  "model_effort_metadata": [
+    [
+      "gpt-5.6-terra",
+      "max"
+    ]
+  ],
+  "scope": "Exact read coverage from public tool calls and outputs plus model/effort metadata. No private reasoning inspected. This verifies supplied files were returned in full, not compliance with every instruction or hidden cognition.",
+  "files": [
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_41/breakwater_1_control/author_request.txt",
+      "sha256": "8dda023cc52d02065c77aa2540cfac73bc2555e81c2b4e51e8c778271758660d",
+      "lines": 53,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 53,
+          "call_id": "call_x38vCY5NGRN1sCdoa1BII2B1",
+          "line_numbered": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_41/breakwater_1_control/packet.txt",
+      "sha256": "ec56334c35417da55981e678f2e5dee3145d1de8b0145c304855c4a616bd6338",
+      "lines": 475,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 180,
+          "call_id": "call_V52rprhowrbXuwi7wc6LHpue",
+          "line_numbered": false
+        },
+        {
+          "start": 181,
+          "end": 360,
+          "call_id": "call_6l2ktHRPHvLDc5oZFBSPyg4r",
+          "line_numbered": false
+        },
+        {
+          "start": 361,
+          "end": 475,
+          "call_id": "call_qQtYmu9TEq4wxCqcQmhqFECw",
+          "line_numbered": false
+        }
+      ]
+    }
+  ],
+  "all_required_files_read_in_full": true
+}

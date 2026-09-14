@@ -1,0 +1,59 @@
+{
+  "agent": "/root/terra_proxy_c41_covenant_2_control",
+  "session_id": "01a0a023-98b5-7d12-b594-2316e0fb43b4",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T08-38-02-01a0a023-98b5-7d12-b594-2316e0fb43b4.jsonl",
+  "model_effort_metadata": [
+    [
+      "gpt-5.6-terra",
+      "max"
+    ]
+  ],
+  "scope": "Exact read coverage from public tool calls and outputs plus model/effort metadata. No private reasoning inspected. This verifies supplied files were returned in full, not compliance with every instruction or hidden cognition.",
+  "files": [
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_41/covenant_2_control/author_request.txt",
+      "sha256": "7ea9bae240d2661eee51d98fd4f6d44bf5558643605f7d4181b053ffd8322948",
+      "lines": 53,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 53,
+          "call_id": "call_G93uHaIaWlwT8JYxL1yIyp1Q",
+          "line_numbered": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_41/covenant_2_control/packet.txt",
+      "sha256": "ec9b7cf32cd25c35598c0894d7e42200e6b78226da12b5c4e7990a83b51ca8ff",
+      "lines": 462,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 120,
+          "call_id": "call_tRkZ0yxxVSnCyyo3K0grUY89",
+          "line_numbered": false
+        },
+        {
+          "start": 121,
+          "end": 240,
+          "call_id": "call_0zMadibME9XcdY9NPgul3Ir0",
+          "line_numbered": false
+        },
+        {
+          "start": 241,
+          "end": 360,
+          "call_id": "call_ZR5ww7mELC153gtMZlxd2bha",
+          "line_numbered": false
+        },
+        {
+          "start": 361,
+          "end": 462,
+          "call_id": "call_x1qdN7al3lKcPvrxWuvQHSiA",
+          "line_numbered": false
+        }
+      ]
+    }
+  ],
+  "all_required_files_read_in_full": true
+}

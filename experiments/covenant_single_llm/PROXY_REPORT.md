@@ -6,12 +6,13 @@ met the complete selection bar across two fresh sessions. The remaining failures
 are predominantly literary: recurring polished lessons, stilted conversation,
 and, in some routes, helpful characters who leave too much initiative to the player.
 
-The latest completed generation is C40: four fresh short runs across Covenant
-and a contemporary cinema setting, with twelve publications in total. Root's
-[locked review](proxy_trials/candidate_40/pilot_review.md) and the
-[independent assessment](proxy_trials/reviews/round40_independent_comparison.md)
-give all four connected dinners prose3. One cinema run develops a useful
-negotiation, but the familiar prepared repartee persists in both settings.
+The latest completed generation is C41: sixteen new dinner continuations
+comparing the existing prompt with a350-word default ceiling. Root's
+[locked comparison](proxy_trials/candidate_41/pilot_review.md) gives all eight
+connected dinners prose3; the shorter passages retain the prepared dialogue
+and often summarize the interesting material. Six of eight budget passages
+obey the ceiling. Independent review is pending. C40's prior comparison across
+Covenant and a contemporary cinema also found the pattern in both rich settings.
 No proxy candidate has been selected or promoted.
 
 The user permits new history that fills gaps consistently. Inventing a relative,
@@ -529,9 +530,17 @@ append a350-word default ceiling that includes routine time skips, retaining the
 entire existing prompt and both rich briefs. There is no word minimum; expressly
 requested detail or complete performances can exceed the default. Each of the
 four C40 openings supplies common prior fiction for a fresh control and budget
-author, each producing two connected dinners. That is sixteen planned new
-publications, eight authors and zero substantial sessions. No result is yet
-claimed. Both reviewers must prefer all four complete treatment dinners for
+author, each producing two connected dinners. All sixteen new publications are
+complete, totaling8,799 words from eight authors and zero substantial sessions.
+The [locked root review](proxy_trials/candidate_41/pilot_review.md) rates every
+connected dinner prose3 and rejects advancement. It prefers the control in
+Covenant1 and Breakwater1, the budget condition in Covenant2 for preserving the
+player's scope, and finds Breakwater2 tied below the bar. Covenant2 control
+advances beyond the initial few dinner minutes and relocates Rowan unasked.
+Two budget passages exceed350 words:382 and370. Exact captures, full reads,
+matched inputs and source preservation pass their scoped
+[validation](proxy_trials/candidate_41/validation.json). Independent review is
+pending. Both reviewers must prefer all four complete treatment dinners for
 substantive literary reasons, with developed interaction, all quality dimensions
 retainable, and scope/boundaries intact. Word-count compliance is separate; no
 output is truncated or rerolled. A mixed or failed result closes this direction

@@ -32,6 +32,149 @@
       "model": "gpt-5.6-terra",
       "reasoning_effort": "max",
       "fork_turns": "none"
+    },
+    {
+      "case": "covenant_1_budget",
+      "turn": 1,
+      "agent": "/root/terra_proxy_c41_covenant_1_budget",
+      "request_file": "covenant_1_budget/01.request.txt",
+      "request_sha256": "6a1b3c0ece85efde99d6cbe88e122a072ed2e5b5c5f92815da9d8928139a55f3",
+      "recorded_at": "2026-09-14T13:33:18.159868+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "same_author_followup": true
+    },
+    {
+      "case": "breakwater_1_budget",
+      "turn": 0,
+      "agent": "/root/terra_proxy_c41_breakwater_1_budget",
+      "request_file": "breakwater_1_budget/launch_request.txt",
+      "request_sha256": "fa1e377a9fe3d186e44c12dff3be7c117cb41138c76eaf13ee29e8d5a6a455a5",
+      "recorded_at": "2026-09-14T13:34:36.469632+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "breakwater_1_control",
+      "turn": 1,
+      "agent": "/root/terra_proxy_c41_breakwater_1_control",
+      "request_file": "breakwater_1_control/01.request.txt",
+      "request_sha256": "6a1b3c0ece85efde99d6cbe88e122a072ed2e5b5c5f92815da9d8928139a55f3",
+      "recorded_at": "2026-09-14T13:35:32.241258+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "same_author_followup": true
+    },
+    {
+      "case": "covenant_1_control",
+      "turn": 1,
+      "agent": "/root/terra_proxy_c41_covenant_1_control",
+      "request_file": "covenant_1_control/01.request.txt",
+      "request_sha256": "6a1b3c0ece85efde99d6cbe88e122a072ed2e5b5c5f92815da9d8928139a55f3",
+      "recorded_at": "2026-09-14T13:35:32.432575+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "same_author_followup": true
+    },
+    {
+      "case": "breakwater_1_budget",
+      "turn": 1,
+      "agent": "/root/terra_proxy_c41_breakwater_1_budget",
+      "request_file": "breakwater_1_budget/01.request.txt",
+      "request_sha256": "6a1b3c0ece85efde99d6cbe88e122a072ed2e5b5c5f92815da9d8928139a55f3",
+      "recorded_at": "2026-09-14T13:38:21.260522+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "same_author_followup": true
+    },
+    {
+      "case": "covenant_2_control",
+      "turn": 0,
+      "agent": "/root/terra_proxy_c41_covenant_2_control",
+      "request_file": "covenant_2_control/launch_request.txt",
+      "request_sha256": "9904a5efbb4cf223e311a5c3f78d10987c039b7d75479045f4c0a50e7eb24897",
+      "recorded_at": "2026-09-14T13:38:21.440735+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "covenant_2_budget",
+      "turn": 0,
+      "agent": "/root/terra_proxy_c41_covenant_2_budget",
+      "request_file": "covenant_2_budget/launch_request.txt",
+      "request_sha256": "7966aecd30d894f2e1c3f289c3f3f7a4c85e29e4d7625163d7b76ae517c7ecb7",
+      "recorded_at": "2026-09-14T13:38:21.620471+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "covenant_2_budget",
+      "turn": 1,
+      "agent": "/root/terra_proxy_c41_covenant_2_budget",
+      "request_file": "covenant_2_budget/01.request.txt",
+      "request_sha256": "6a1b3c0ece85efde99d6cbe88e122a072ed2e5b5c5f92815da9d8928139a55f3",
+      "recorded_at": "2026-09-14T13:40:02.204491+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "same_author_followup": true
+    },
+    {
+      "case": "breakwater_2_control",
+      "turn": 0,
+      "agent": "/root/terra_proxy_c41_breakwater_2_control",
+      "request_file": "breakwater_2_control/launch_request.txt",
+      "request_sha256": "3d6c4dd28f4d444566082c060dfd52102bb9ad8d80476905406f89bf7b6b31c5",
+      "recorded_at": "2026-09-14T13:40:02.393282+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "breakwater_2_budget",
+      "turn": 0,
+      "agent": "/root/terra_proxy_c41_breakwater_2_budget",
+      "request_file": "breakwater_2_budget/launch_request.txt",
+      "request_sha256": "18ea8ee34f91b0079252e7231862192aa10a27df16edefc3c7de52aa11643e60",
+      "recorded_at": "2026-09-14T13:41:34.646088+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "breakwater_2_control",
+      "turn": 1,
+      "agent": "/root/terra_proxy_c41_breakwater_2_control",
+      "request_file": "breakwater_2_control/01.request.txt",
+      "request_sha256": "6a1b3c0ece85efde99d6cbe88e122a072ed2e5b5c5f92815da9d8928139a55f3",
+      "recorded_at": "2026-09-14T13:44:34.260498+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "same_author_followup": true
+    },
+    {
+      "case": "covenant_2_control",
+      "turn": 1,
+      "agent": "/root/terra_proxy_c41_covenant_2_control",
+      "request_file": "covenant_2_control/01.request.txt",
+      "request_sha256": "6a1b3c0ece85efde99d6cbe88e122a072ed2e5b5c5f92815da9d8928139a55f3",
+      "recorded_at": "2026-09-14T13:45:01.908970+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "same_author_followup": true
+    },
+    {
+      "case": "breakwater_2_budget",
+      "turn": 1,
+      "agent": "/root/terra_proxy_c41_breakwater_2_budget",
+      "request_file": "breakwater_2_budget/01.request.txt",
+      "request_sha256": "6a1b3c0ece85efde99d6cbe88e122a072ed2e5b5c5f92815da9d8928139a55f3",
+      "recorded_at": "2026-09-14T13:45:02.095238+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "same_author_followup": true
     }
   ]
 }

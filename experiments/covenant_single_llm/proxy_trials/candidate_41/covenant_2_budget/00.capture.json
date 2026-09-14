@@ -1,0 +1,58 @@
+{
+  "captured_at": "2026-09-14T13:39:38.298312+00:00",
+  "agent": "/root/terra_proxy_c41_covenant_2_budget",
+  "session_id": "01a0a023-b8f3-7cd3-9521-91abfadf9e4e",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T08-38-10-01a0a023-b8f3-7cd3-9521-91abfadf9e4e.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "turn": 0,
+  "public_final_message_id": "msg_039b4882ae81769a016aa7f8f7a2c887d1b0af1c228fef72f6",
+  "final_count_at_capture": 1,
+  "root_capture_exact_unmodified": true,
+  "public_final_sha256": "e861de3501ad83ef20c887b404c49449064e079aba1adb8111b208c00aa5d0a4",
+  "publication_sha256": "e861de3501ad83ef20c887b404c49449064e079aba1adb8111b208c00aa5d0a4",
+  "words": 310,
+  "public_tool_calls_during_this_request": [
+    {
+      "call_id": "call_B8jPSHQWLawxaFZ8Ttyvo2g1",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "19122c9be830e26a7f3d7777c343ba98cb49d2ada887e8000a813358f6f1fd3e",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_itD3zOphNWY5CXtGrSCGdfoU",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "6832fdb68fd30dd26a432604ba94186fdf5616a5af7674f53cdab8ee1342b430",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_N6TygjFhV4BWhQaLRvvcUZCj",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "f7a377cbfb9cd5e1962d613638dd94c4e1d70ab5e7b4cb201f5de3673d01f8ed",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_0vHJZVpeAnh9yLgT1m5OknGt",
+      "tool": "exec",
+      "after_final_count": 0,
+      "source_sha256": "646b12847043aa258b9d5159c9cf15473f565f50f9a141f27e87511751553b70",
+      "possible_write": false
+    }
+  ],
+  "possible_writes_during_this_request": [],
+  "root_dispatch_record_matches_frozen_followup": null,
+  "receiver_delivery_metadata": [
+    {
+      "message_id": "amsg_01a0a023-bdc6-7fe0-8f48-680c6703d463",
+      "author": "/root",
+      "recipient": "/root/terra_proxy_c41_covenant_2_budget",
+      "after_final_count": 0,
+      "payload_encrypted": true
+    }
+  ],
+  "receiver_plaintext_followup_verified": false,
+  "scope": "Public final, public task/tool metadata, fixed root-dispatch records, exact artifact hashes and model/effort only. Receiver task bodies are encrypted; no plaintext receiver-body comparison or private reasoning inspection is claimed."
+}
