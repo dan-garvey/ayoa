@@ -191,8 +191,61 @@ play but reverses the fourth moves in narration. An explicit OOC follow-up
 receives an admission and a coherent local correction. The
 [independent review](proxy_trials/reviews/round29_replays_review.md) finds the
 reading strong and the game socially engaging while retaining the initial error
-and limits of the repair. Fresh A is still a short ongoing screen. No candidate
-is selected from these replays.
+and limits of the repair.
+
+C29's [fresh A](proxy_trials/candidate_29/session_a/transcript.md) now completes
+sixteen player turns, including two observed bouts, an aptitude assessment that
+remains negative on retest, and an actual half-hour blade lesson. The
+[locked pilot](proxy_trials/candidate_29/pilot_session_a.md) rates it 3/4/4/4/4,
+with literary concerns and unresolved details of the lesson's footing and card
+handling. The [independent review](proxy_trials/reviews/round29_a_review.md)
+rates it 4/4/3/4/4: it finds the prose retainable but most NPC purposes less
+developed than Ashara's competition. It identifies a definite local continuity
+and authorship error when Ashara sees a card being pocketed that the player
+already put away before leaving the assessment office. Her knowledge of the
+result is independently supported by the player's submitted speech; this is
+not a secret-knowledge leak. The court petition has no observed institutional
+outcome in this session; no reopening is claimed. The two bout formats can be
+interpreted consistently, but their identical spoken announcement and the
+seller's inaccurate description of the displayed cards remain confusing.
+
+[B](proxy_trials/candidate_29/session_b/transcript.md) pauses after five player
+turns. The [locked pilot](proxy_trials/candidate_29/pilot_screen_b.md) rates the
+segment's prose and distinction 3/3; the [independent reviewer](proxy_trials/reviews/round29_b_screen_review.md)
+rates both 4, finding the ensemble's wit and quiet progression retainable with
+local tightening. Preserve this disagreement. Both assessments credit the
+player's chosen quiet, the garden view and independent relationships rather
+than demanding an urgent interruption. A [POV addendum](proxy_trials/reviews/round29_b_pov_addendum.md)
+finds definite localized narrator overreach in the opening under the explicit
+perception rule, without an NPC secret-knowledge breach. These are 27 published
+passages across A, B and the replays, produced by 54 sequential author requests
+plus one recorded technical path-correction message. B is not a substantial
+second trial. The [decision](proxy_trials/candidate_29/decision.json) rejects
+C29 as tested while preserving the reviewers' disagreements.
+
+A separate [edit diagnosis](proxy_trials/reviews/round29_edit_diagnosis.md)
+finds B03's revision removes a substantive textbook disagreement while preserving
+a familiar sequence of jokes. Candidate30 tests one proposed replacement editing
+paragraph against the unchanged C29 paragraph. Each fresh editor receives the
+complete background, published history, submission and original draft. Two
+cases and two repeats per variant yield eight saved revisions and zero fresh
+player turns. Both variants use the same explicit file-delegation wrapper;
+historical C29 publications are reference material, not the fresh control.
+The [locked pilot](proxy_trials/candidate_30/pilot_comparison.md) finds no
+consistent dinner improvement: the changed paragraph produces its most and
+least preferred dinner responses. It finds all four manuscript responses
+retainable. An independent comparison receives anonymous outputs and complete
+published context, without drafts, prompt variants or pilot ratings. Its review
+is pending; no live improvement or selection is claimed.
+
+Candidate31 separately tests exposure to earlier discarded drafts. Both
+conditions start with fresh whole-story Terra/max authors and unchanged C29
+prompts, complete backgrounds, published B00–02 and the same B03 submission.
+One condition also includes the exact B00–02 discarded fiction, explicitly
+marked as superseded. Each author generates a new draft and then receives the
+unchanged editorial task. Two repeats per condition produce four planned
+continuations and eight sequential requests. This tests additional fiction
+context under a matched setup, not persistence itself or production API cost.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

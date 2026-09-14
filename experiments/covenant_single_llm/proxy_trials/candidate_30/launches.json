@@ -1,0 +1,44 @@
+{
+  "launches": [
+    {
+      "case": "book_a1",
+      "agent": "/root/terra_c30_book_a1",
+      "launched_before_record_at": "2026-09-14T06:51:04.530858+00:00"
+    },
+    {
+      "case": "book_b1",
+      "agent": "/root/terra_c30_book_b1",
+      "launched_before_record_at": "2026-09-14T06:51:04.530868+00:00"
+    },
+    {
+      "case": "book_a2",
+      "agent": "/root/terra_c30_book_a2",
+      "launched_before_record_at": "2026-09-14T07:00:35.462944+00:00"
+    },
+    {
+      "case": "book_b2",
+      "agent": "/root/terra_c30_book_b2",
+      "launched_before_record_at": "2026-09-14T07:00:35.462954+00:00"
+    },
+    {
+      "case": "reading_a1",
+      "agent": "/root/terra_c30_reading_a1",
+      "launched_before_record_at": "2026-09-14T07:00:35.462957+00:00"
+    },
+    {
+      "case": "reading_b1",
+      "agent": "/root/terra_c30_reading_b1",
+      "launched_before_record_at": "2026-09-14T07:04:18.606309+00:00"
+    },
+    {
+      "case": "reading_a2",
+      "agent": "/root/terra_c30_reading_a2",
+      "launched_before_record_at": "2026-09-14T07:04:18.606319+00:00"
+    },
+    {
+      "case": "reading_b2",
+      "agent": "/root/terra_c30_reading_b2",
+      "launched_before_record_at": "2026-09-14T07:08:58.126052+00:00"
+    }
+  ]
+}

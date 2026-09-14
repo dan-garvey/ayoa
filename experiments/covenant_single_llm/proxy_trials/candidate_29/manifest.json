@@ -36,5 +36,16 @@
     "scope": "B driver asked after published turn02 to pause after first published turn05 revision for review. A continues toward15 and actual outcomes.",
     "basis": "Repeated ensemble chains of prepared comments in B00-02 persist despite revision. Review will assess the initial segment before any extension.",
     "limit": "A paused five-turn B screen does not satisfy the substantial-session selection requirement."
+  },
+  "fresh_session_snapshot": {
+    "recorded_at": "2026-09-14T07:00:35.463233+00:00",
+    "a_player_turns": 16,
+    "a_scope": "Complete sixteen-turn session with full independent review; root scores3/4/4/4/4 and independent4/4/3/4/4. Assessment and lesson completed; card placement continuity/authorship error unresolved.",
+    "b_player_turns": 5,
+    "b_scope": "Paused initial segment. Independent literary ratings4/4 differ from locked root3/3; no long-session B validation.",
+    "total_published_passages_including_replays": 27,
+    "sequential_author_task_requests": 54,
+    "additional_technical_delivery_messages": 1,
+    "status": "Not selected; independent A and B reviews complete. Matched editorial diagnostics proceed separately in C30."
   }
 }

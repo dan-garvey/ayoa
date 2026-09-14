@@ -1,0 +1,9 @@
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "delivery": "Coding-agent proxy; not direct API",
+  "responses": [],
+  "player_turns": 0,
+  "session_kind": "matched continuation diagnostic of superseded-draft exposure",
+  "story_words": 0
+}

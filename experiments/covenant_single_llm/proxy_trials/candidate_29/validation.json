@@ -4,8 +4,9 @@
   "full_Covenant_unchanged_from_C19": true,
   "initial_packets_exclude_unreleased_drafts": true,
   "previously_exported_raw_hashes_unchanged": true,
-  "saved_author_and_editor_requests_match_frozen_templates_except_documented_whitespace": true,
+  "saved_author_and_editor_requests_match_frozen_templates_except_documented_variations": true,
   "delivery_variations_file": "delivery_variations.json",
+  "extra_technical_delivery_messages": 1,
   "cases": [
     {
       "case": "game_replay",
@@ -44,10 +45,12 @@
         11,
         12,
         13,
-        14
+        14,
+        15,
+        16
       ],
-      "author_task_requests_for_verified_indices": 30,
-      "player_turns_in_verified_snapshot": 14,
+      "author_task_requests_for_verified_indices": 34,
+      "player_turns_in_verified_snapshot": 16,
       "unpublished_input_indices": []
     },
     {

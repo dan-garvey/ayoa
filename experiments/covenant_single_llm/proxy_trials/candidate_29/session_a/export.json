@@ -152,9 +152,29 @@
       "draft_words": 455,
       "editor_request_sha256": "f57461caf2620a041e8e8fdd874be5e930f20d05352683acdc58b6abcbbe8a3c",
       "author_task_requests": 2
+    },
+    {
+      "turn": 15,
+      "input_sha256": "1acff61854a31a935b458c1516fa5617388efbd616d11a27695b6ab4c2b096ac",
+      "story_sha256": "16194ae9cf1864ffb49ac5c6c90228b68e6fde7280b991eaa748e3eecfd0c42c",
+      "story_words": 168,
+      "draft_sha256": "66e7021bfff1daa6bc7db3dfb7e380fe07df82523a547059919b60825f0e19d9",
+      "draft_words": 169,
+      "editor_request_sha256": "95ed9ff92a75b2f2c2b1b839553c55b579830e6ac2e1970a98e61610929ed600",
+      "author_task_requests": 2
+    },
+    {
+      "turn": 16,
+      "input_sha256": "49b10561f1878b2c34c63f9dbbc8575f418a70e139beac6ef7665e8b973afbc9",
+      "story_sha256": "ed32d60352a486510d93e426833e0d186aca4fbbb78bb0da4aff3be2c197b92d",
+      "story_words": 560,
+      "draft_sha256": "66ad4493f7bc2ac97cc3ee2953a0a35fd8758b13fc9af579ae71f80a3748c8db",
+      "draft_words": 587,
+      "editor_request_sha256": "057a386c60e0d16ea954d0ae503eb8948eebe1f6e6f325d1943315ca4fb616e3",
+      "author_task_requests": 2
     }
   ],
-  "player_turns": 14,
+  "player_turns": 16,
   "session_kind": "fresh interactive session",
-  "story_words": 5815
+  "story_words": 6543
 }

@@ -75,6 +75,20 @@ relay, not draft files, background packets, prompts or reviews. Draft completion
 notifications can still reach it, so exposure is described rather than claiming
 strict blinding. Every first draft and revision is retained.
 
+Candidate30 is a matched editing screen, not a live continuation. It compares
+C29's revision task with a version replacing only its selection paragraph.
+Both variants retain the exact C29 common instructions, complete Covenant and
+persona. Two independent repeats of each variant edit the original C29 B03 draft
+and the original C29 complete-manuscript reading replay draft. Each fresh editor
+gets all prior published fiction and the current submission/draft, without older
+unreleased drafts, later publications or feedback. Eight one-request revisions
+count as zero fresh player turns. The fresh control prevents attributing a
+context-reset difference to the new paragraph. This tests a bounded instruction
+hypothesis, not the separate prior-draft-exposure proposal or a production loop.
+Both C30 variants use explicit direct delegation to their frozen instruction
+file and then its packet. This common delivery differs from C29's direct common
+rules; comparisons against the historical C29 publication are not controlled.
+
 Through candidate 08, the artifact wrapper also said not to "evaluate the prose"
 or "propose edits," intending to exclude reviewer output and repository work.
 Those words could conflict with private self-editing requested by the story
@@ -84,6 +98,19 @@ requiring fiction-only delivery. Its exact wrapper is preserved. Matched replay
 screens check this hypothesis; the wording ambiguity alone does not establish
 that it caused earlier literary weaknesses. Later results must identify which
 wrapper they used.
+
+Candidate31 isolates textual exposure to earlier discarded fiction at C29 B03.
+Both conditions use reset Terra/max whole-story authors, exact C29 prompts and
+complete Covenant/persona, the full published B00–02 and exact B03 submission.
+Both packets have the same superseded-proposals explanation before the published
+conversation; only the exposed condition contains the exact three earlier
+drafts in that block. Neither contains the source B03 draft, later publications,
+reviews or private reasoning. Each author generates a new draft and receives
+the fixed C29 revision in the same conversation. Two repeats per condition mean
+four continuation outputs and eight author requests, not fresh long sessions.
+Both stages explicitly delegate frozen request files in both conditions. This
+does not recreate old private state or establish that persistence itself causes
+a literary effect. C30's changed paragraph is not included in C31.
 
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and

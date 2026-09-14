@@ -1,0 +1,96 @@
+{
+  "created_at": "2026-09-14T06:46:24.617284+00:00",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "source_commit": "8f732a20462caf330701aa32395d81617db8d260",
+  "derived_from": "C29 and round29_edit_diagnosis test1; no prior-draft-exposure manipulation.",
+  "instruction_order": [
+    "system.txt",
+    "revision_task_for_variant",
+    "packet.txt"
+  ],
+  "prompt_sha256": {
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90",
+    "baseline_revision_task.txt": "4ad60ed2260230b0b6e07414f0cc696a3e8b86d043636d28f564a0dfabd5f872",
+    "revision_task.txt": "d00341b51cf4b5f636457d814e371eebf595a0d816d20645368e1a27742ced43"
+  },
+  "wrapper_file": "edit_wrapper.txt",
+  "wrapper_sha256": "a4b6e20fc3904552e5adbb5a0922c5ad12a252d455ac6eb34e755d6ebd986798",
+  "change": "Replace only the revision paragraph beginning Remove repeated positions with a whole-exchange selection criterion. Other instructions and complete biographies unchanged. Fresh C29 control uses the identical packet and loop.",
+  "planned_scope": "Two cases, two variants, two independent repeats per cell: eight one-request editing outputs, zero fresh player turns. Preserve every first output. Review complete responses without requiring any source argument, line or outcome to survive.",
+  "loop": "Each independent Terra/max editor receives complete Covenant/persona, all published prior fiction, current player submission and the same original unreleased draft. It makes one revision. No older drafts, later publications, other variants or feedback in its context.",
+  "variants": {
+    "a": "unchanged C29 revision",
+    "b": "replacement selection paragraph"
+  },
+  "cases": [
+    {
+      "case": "book_a1",
+      "kind": "book",
+      "variant": "a",
+      "repeat": 1,
+      "packet_sha256": "e9ed678d819616b8eec073cf2e822ee8c721a745ba9a0a4bb5937d16d5b0cf08",
+      "draft_sha256": "fd9011cb44d52e4b489359c9a13f8e19e3aa8c0b61e281eac55fd3fa27b1f2b1"
+    },
+    {
+      "case": "book_b1",
+      "kind": "book",
+      "variant": "b",
+      "repeat": 1,
+      "packet_sha256": "e9ed678d819616b8eec073cf2e822ee8c721a745ba9a0a4bb5937d16d5b0cf08",
+      "draft_sha256": "fd9011cb44d52e4b489359c9a13f8e19e3aa8c0b61e281eac55fd3fa27b1f2b1"
+    },
+    {
+      "case": "book_a2",
+      "kind": "book",
+      "variant": "a",
+      "repeat": 2,
+      "packet_sha256": "e9ed678d819616b8eec073cf2e822ee8c721a745ba9a0a4bb5937d16d5b0cf08",
+      "draft_sha256": "fd9011cb44d52e4b489359c9a13f8e19e3aa8c0b61e281eac55fd3fa27b1f2b1"
+    },
+    {
+      "case": "book_b2",
+      "kind": "book",
+      "variant": "b",
+      "repeat": 2,
+      "packet_sha256": "e9ed678d819616b8eec073cf2e822ee8c721a745ba9a0a4bb5937d16d5b0cf08",
+      "draft_sha256": "fd9011cb44d52e4b489359c9a13f8e19e3aa8c0b61e281eac55fd3fa27b1f2b1"
+    },
+    {
+      "case": "reading_a1",
+      "kind": "reading",
+      "variant": "a",
+      "repeat": 1,
+      "packet_sha256": "9bc2fd89289c8c1a79bca350a2d5608412d2cb7c15737b1f9889b01877b938db",
+      "draft_sha256": "84e8bc343ec0e0dc7688b6dac8dcd02cbcfff7f7e002221dcb97ae05cae1d558"
+    },
+    {
+      "case": "reading_b1",
+      "kind": "reading",
+      "variant": "b",
+      "repeat": 1,
+      "packet_sha256": "9bc2fd89289c8c1a79bca350a2d5608412d2cb7c15737b1f9889b01877b938db",
+      "draft_sha256": "84e8bc343ec0e0dc7688b6dac8dcd02cbcfff7f7e002221dcb97ae05cae1d558"
+    },
+    {
+      "case": "reading_a2",
+      "kind": "reading",
+      "variant": "a",
+      "repeat": 2,
+      "packet_sha256": "9bc2fd89289c8c1a79bca350a2d5608412d2cb7c15737b1f9889b01877b938db",
+      "draft_sha256": "84e8bc343ec0e0dc7688b6dac8dcd02cbcfff7f7e002221dcb97ae05cae1d558"
+    },
+    {
+      "case": "reading_b2",
+      "kind": "reading",
+      "variant": "b",
+      "repeat": 2,
+      "packet_sha256": "9bc2fd89289c8c1a79bca350a2d5608412d2cb7c15737b1f9889b01877b938db",
+      "draft_sha256": "84e8bc343ec0e0dc7688b6dac8dcd02cbcfff7f7e002221dcb97ae05cae1d558"
+    }
+  ],
+  "limitations": "Small matched editing screen, not long-session validation, statistical proof, or API latency/cost evidence. Original C29 publications are historical reference only, not the fresh controlled baseline.",
+  "instruction_delivery": "Each direct launch explicitly delegates the complete frozen author_request.txt, then its full packet. Both variants use the same file delivery. This differs from C29 direct common-rule delivery; only the new fresh controls support the within-screen paragraph comparison."
+}

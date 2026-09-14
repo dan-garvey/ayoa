@@ -606,3 +606,91 @@ She places a square of dark glass over the copper plate and sets a small white s
 She turns the card so its final line faces you: *Assessment: unchanneled.*
 
 The second bell has not rung yet.
+
+## Turn 15
+
+**Player**
+
+I look from the card to the glass rods. "Could we check once more? I don't know whether I'm doing it wrong." I put my hands back where she showed me, if she agrees to repeat it. I had hoped there would be something, however small; I keep that thought to myself.
+
+**Story**
+
+You look from the card to the glass rods.
+
+“Could we check once more? I don't know whether I'm doing it wrong.”
+
+Orr lifts the card, reads the final line again, and nods. “Yes. We can repeat the broad resonance.”
+
+She wipes the dark glass square with a soft cloth and sets it over the copper plate. The white stone goes back at its center.
+
+“Palms flat, where they were. Don't try to put anything into it. The instrument begins the response.”
+
+You put your hands back in place.
+
+Orr strikes the tuning fork. Its clear note travels through the table and thins away. Beneath your hands, the dark glass stays black; the white stone neither brightens nor shifts.
+
+She watches until the last tremor leaves the fork, then takes the stone up between two fingers.
+
+“No change,” she says. “You aren't doing it wrong. There is no channel response.”
+
+On the card, she adds *repeat: flat* beneath the first reading and slides it back across the table.
+
+## Turn 16
+
+**Player**
+
+I take the card and fold it into my coat pocket. "Thank you for checking." I leave the office and make my way promptly to the octagon for the lesson. If Ashara is there, I tell her, "Flat both times. I still want to learn the blade." I'm willing to spend half an hour following her basic instruction with a practice weapon, if her offer still stands.
+
+**Story**
+
+The last strokes of second bell are fading over the courts when you reach the octagon. A pale scuff of morning dust lies across the marked stone. Ashara waits beside the south weapons rack, two blunted ash blades propped against her boot, her sleeves rolled to the elbows.
+
+Her eyes catch the assessment card as it disappears into your coat pocket.
+
+“Flat both times. I still want to learn the blade.”
+
+“Then take the shorter one,” she says. “I offered you a blade lesson, not a channeling lesson.”
+
+The practice blade has a rounded, much-handled edge and a grip darkened by old sweat. Ashara takes the longer weapon and leads you onto the inner line of the octagon.
+
+“Use the hand you write with below the guard. The other stays at the base.” She watches you settle it, then turns the hilt a little between your hands. “Loose enough to move. You’re holding it as if it has somewhere to run.”
+
+Her own blade points past your hip. “Put one foot forward. No—less than that. If I lean on your shoulder, you should not have to recover from it.”
+
+She does lean, lightly. The adjustment of your feet is small, but it changes where the weight rests. Her tail draws a narrow line in the dust as she steps away.
+
+For the first several minutes, she has you travel the octagon’s pale seam: forward, back, and out to either side without crossing your feet. Her corrections come spare and prompt.
+
+“Again.”
+
+“Your heel.”
+
+“Don’t carry the blade with your shoulders.”
+
+At last she takes a square leather target from the rack and holds it near her chest.
+
+“Cut straight down. Stop at the leather. I’m interested in the line, not the noise.”
+
+The ash meets the target with a muffled knock. Ashara shifts it a thumb’s breadth for the next stroke, then lowers it. When the point begins to swing too far behind you, she catches it with her own blade.
+
+“There. It has already gone farther than your body did. Keep it where you can bring it home.”
+
+She puts the target aside and comes into guard.
+
+“Now look at my shoulders.”
+
+Her first attack travels slowly toward your upper arm. She stops a handspan short, then shows the line a second time. On the next pass, the wooden edge touches your sleeve before she withdraws it.
+
+“A mark. You watched the blade and gave me the arm.”
+
+She resets, giving you time to see the turn of her shoulder before the weapon moves. Your practice blade catches hers and sends it off the line. The contact travels as a clean jolt through the handle.
+
+Ashara’s mouth tightens in approval. “That one would count. Don’t be pleased with it; I showed you the opening.”
+
+She makes you find it twice more, changing the distance each time. The rest of the half hour goes in that rhythm: feet on the line, blades meeting, Ashara stepping close enough to alter an angle and then away again before the next motion begins.
+
+When she lowers her weapon at last, her breath barely shows in the cool air.
+
+“Enough.” She takes the practice blade by its guard. “Your feet are beginning to arrive before your hands. Keep that.”
+
+She puts both ash blades back on the rack. Their wooden edges knock together once.

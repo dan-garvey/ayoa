@@ -1,0 +1,40 @@
+{
+  "scope": "Frozen prompts, matched source context, and preserved first output files; no literary or statistical conclusion.",
+  "all_prompts_exact_C29": true,
+  "complete_Covenant_exact_C19": true,
+  "source_hashes_verified": true,
+  "only_old_draft_block_differs": true,
+  "saved_requests_verified": true,
+  "previous_outputs_unchanged": true,
+  "cases": [
+    {
+      "case": "published_1",
+      "raw_outputs_sha256": {
+        "00.draft.md": "cc23a0c31a445a41a02f2de420d3e75c24c22bc84999bf89c0dd0676fd5395f7"
+      },
+      "completed_author_requests": 1,
+      "published_continuations": 0
+    },
+    {
+      "case": "published_2",
+      "raw_outputs_sha256": {},
+      "completed_author_requests": 0,
+      "published_continuations": 0
+    },
+    {
+      "case": "exposed_1",
+      "raw_outputs_sha256": {
+        "00.draft.md": "39317b940378e63ffe0a37a5a8f19b63f74160eb6c868c75bcdc342ddbff9bcc"
+      },
+      "completed_author_requests": 1,
+      "published_continuations": 0
+    },
+    {
+      "case": "exposed_2",
+      "raw_outputs_sha256": {},
+      "completed_author_requests": 0,
+      "published_continuations": 0
+    }
+  ],
+  "limits": "Actual model/read coverage requires separate public tool-record audit. Four matched continuations are not fresh long sessions."
+}

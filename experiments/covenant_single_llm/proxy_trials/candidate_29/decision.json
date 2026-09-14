@@ -1,0 +1,60 @@
+{
+  "recorded_at": "2026-09-14T07:04:18.606516+00:00",
+  "status": "rejected as tested; no promotion",
+  "evidence_scope": {
+    "session_a_player_turns": 16,
+    "session_b_player_turns": 5,
+    "replay_continuations": 4,
+    "published_passages_including_openings": 27,
+    "sequential_author_requests": 54,
+    "additional_technical_delivery_messages": 1
+  },
+  "scores": {
+    "order": [
+      "prose_dialogue",
+      "character_distinction",
+      "independent_interests",
+      "direction",
+      "adaptive_initiative"
+    ],
+    "root_a": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "independent_a": [
+      4,
+      4,
+      3,
+      4,
+      4
+    ],
+    "root_b_initial_prose_distinction": [
+      3,
+      3
+    ],
+    "independent_b_initial_prose_distinction": [
+      4,
+      4
+    ]
+  },
+  "basis": [
+    "Both root and independent full-session A assessments contain a dimension below4, with disagreement retained about prose and development of independent NPC purposes.",
+    "A16 relocates the player-submitted pocketing of the assessment card into Ashara's presence. The error remains unrepaired. Her knowledge of the result is separately justified by submitted speech.",
+    "The five-turn B initial segment is not a substantial second session. Its positive independent literary assessment does not meet the two-session selection protocol."
+  ],
+  "retained_strengths": [
+    "The aptitude test stays negative on explicit retest; the offered half-hour blade lesson actually happens.",
+    "Ashara's independent bout, the complete ordinary letter, garden walk, and several refusals have concrete follow-through.",
+    "No definite leak of the two explicitly private thoughts in A; B opening narrator POV overreach is distinct from an NPC receiving a secret."
+  ],
+  "uncertainties": [
+    "Identical spoken clean-mark announcements obscure the two bout formats; the new explanation permits consistent results but misdescribes the displayed card wording.",
+    "Root retains an unresolved packed-earth versus stone-footing concern in A16. The independent review does not resolve it.",
+    "Independent B4/4 versus root3/3 remains an aesthetic disagreement, not a majority vote or a reason to erase either report."
+  ],
+  "next_evidence": "C30 matched editorial paragraph screen is separate, contains zero fresh player turns, and leaves all C29 first outputs intact.",
+  "limitations": "No claim that every future session with these prompts would fail, or that individual character agents are necessary. Main runtime and root experiment prompts unchanged."
+}

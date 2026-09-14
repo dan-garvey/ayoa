@@ -1,0 +1,16 @@
+{
+  "agent": "/root/terra_c30_book_b1",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "editorial diagnostic matched paragraph test",
+  "fresh_player_turns": 0,
+  "calls_per_player_submission": 1,
+  "variant": "b",
+  "revision_file": "revision_task.txt",
+  "repeat": 1,
+  "review_feedback_supplied": false,
+  "author_request_sha256": "0b993dd6333b3a8b2618a3cb5a173c762160c45ea236c02405b8788960d3f6e9",
+  "instruction_delivery": "Explicitly delegated author_request.txt file, identical wrapper across variants.",
+  "launch_request_sha256": "e94f1369c3fb46ef8203cd46eeb5068959789e42c206dac0254c47eb3ebcccf6"
+}

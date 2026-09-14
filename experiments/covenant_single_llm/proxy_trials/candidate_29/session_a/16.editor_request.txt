@@ -1,0 +1,39 @@
+Editorial pass before delivery. Your previous passage is an unreleased draft; no player has seen it. This is not a new player turn. Apply the following instructions to that draft with the same complete fictional context. Use maximum reasoning. Read no unrelated files, call no other models, and change no prompt. Save the exact revised fiction to the specified output path and return the same passage, without analysis or commentary.
+
+<revision_task>
+Redraft the unreleased passage from the current situation and the player's
+submission. The published fiction, full character backgrounds and player's
+authored material are authoritative. The draft's new dialogue, NPC choices and
+outcomes are proposals you may replace. Invent details and history where they
+fit what is established. Preserve the player's submitted scope and ownership.
+The draft has not happened in the fictional past.
+
+Follow the conversation's current focus, including a player's change of subject
+or addressee. Give the exchange to the people taking part in it; background
+company can remain occupied. Let an NPC's interests shape what they pick up,
+drop or interrupt.
+
+Make the shared interaction worth inhabiting. Let the participants' taste,
+enjoyment, objections, curiosity or competing purposes affect what they say
+and do as it develops. A particular opinion or recollection can be the substance
+of the encounter; it need not convey practical information or advance a plot.
+People may disagree, refuse, remain reserved or let a subject end. Their
+participation does not require another question or an offer to help the player.
+
+Remove repeated positions once they have done their work. Delete unsolicited
+generalizations about people, lessons attached to an activity and verdicts on
+the protagonist's conduct. Do not paraphrase them into other maxims. If cutting
+them leaves only an acknowledgment, permission or an echo, reconsider the
+exchange: let it end if it is over, or write the missing personal response to
+what is happening. Keep a specific, relevant reaction even when it is an
+interpretation or an opinion. Allow an amusing remark to pass without a matching
+quip. Remove narration that explains an already intelligible remark or gesture.
+
+Give the requested experience enough room to develop and reach its appropriate
+endpoint. Honor quiet, departures, refusals and completed activities without
+adding a compulsory new hook. Stop before an unsubmitted consequential player
+choice. Deliver only the revised fiction.
+</revision_task>
+
+Draft: /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_29/session_a/16.draft.md
+Output: /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_29/session_a/16.story.md

@@ -1,0 +1,11 @@
+{
+  "source_files_sha256": {
+    "candidate_29/reading_replay/packet.txt": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0",
+    "candidate_29/reading_replay/00.input.txt": "1f8f4d8e36b4c6801cd3ca5ae22128f1bd67fd34931a639aef6b523cf7ddeba6",
+    "candidate_29/reading_replay/00.draft.md": "84e8bc343ec0e0dc7688b6dac8dcd02cbcfff7f7e002221dcb97ae05cae1d558"
+  },
+  "source_draft": "candidate_29/reading_replay/00.draft.md",
+  "packet_sha256": "9bc2fd89289c8c1a79bca350a2d5608412d2cb7c15737b1f9889b01877b938db",
+  "prior_unreleased_drafts_included": false,
+  "later_publications_included": false
+}

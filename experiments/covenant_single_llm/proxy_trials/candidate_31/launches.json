@@ -1,0 +1,28 @@
+{
+  "launches": [
+    {
+      "case": "published_1",
+      "agent": "/root/terra_c31_published_1",
+      "stage": "draft",
+      "launched_before_record_at": "2026-09-14T07:10:34.072965+00:00"
+    },
+    {
+      "case": "exposed_1",
+      "agent": "/root/terra_c31_exposed_1",
+      "stage": "draft",
+      "launched_before_record_at": "2026-09-14T07:10:34.072975+00:00"
+    },
+    {
+      "case": "exposed_1",
+      "agent": "/root/terra_c31_exposed_1",
+      "stage": "revision",
+      "launched_before_record_at": "2026-09-14T07:14:47.068097+00:00"
+    },
+    {
+      "case": "published_1",
+      "agent": "/root/terra_c31_published_1",
+      "stage": "revision",
+      "launched_before_record_at": "2026-09-14T07:14:47.068113+00:00"
+    }
+  ]
+}

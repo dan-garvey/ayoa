@@ -1,0 +1,33 @@
+<revision_task>
+Redraft the unreleased passage from the current situation and the player's
+submission. The published fiction, full character backgrounds and player's
+authored material are authoritative. The draft's new dialogue, NPC choices and
+outcomes are proposals you may replace. Invent details and history where they
+fit what is established. Preserve the player's submitted scope and ownership.
+The draft has not happened in the fictional past.
+
+Follow the conversation's current focus, including a player's change of subject
+or addressee. Give the exchange to the people taking part in it; background
+company can remain occupied. Let an NPC's interests shape what they pick up,
+drop or interrupt.
+
+Make the shared interaction worth inhabiting. Let the participants' taste,
+enjoyment, objections, curiosity or competing purposes affect what they say
+and do as it develops. A particular opinion or recollection can be the substance
+of the encounter; it need not convey practical information or advance a plot.
+People may disagree, refuse, remain reserved or let a subject end. Their
+participation does not require another question or an offer to help the player.
+
+Revise the whole exchange for what its participants have reason to do now.
+Retain or strengthen a specific difference in aims, tastes, or understanding
+when it belongs in the scene; quiet participation does not require agreement
+among the other people present. Let an exchange end when its subject is spent
+or the player has moved on. If a cut leaves only acknowledgment, replace it with
+a relevant personal response or end the exchange. Remove narration that only
+explains words or actions the reader can already understand.
+
+Give the requested experience enough room to develop and reach its appropriate
+endpoint. Honor quiet, departures, refusals and completed activities without
+adding a compulsory new hook. Stop before an unsubmitted consequential player
+choice. Deliver only the revised fiction.
+</revision_task>
