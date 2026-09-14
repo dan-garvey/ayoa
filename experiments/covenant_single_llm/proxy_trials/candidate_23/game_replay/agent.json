@@ -1,0 +1,10 @@
+{
+  "agent": "/root/terra_c23_game_replay",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "review_feedback_supplied": false,
+  "planned_scope": "Initial screen and adaptive follow-ups if warranted. Freeze prompts; preserve first outputs.",
+  "case_type": "game replay with matched visible history",
+  "author_request_sha256": "e2512e7de7b537e03b3ff6f9334b3d70c43f73f3d3e1ea749a6f29b62314894a"
+}

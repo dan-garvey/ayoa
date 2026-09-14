@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-09-14T01:43:33.929575+00:00",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "source_commit": "27cad5b584b17c3c8fa657f5f2d52783cbd81874",
+  "derived_from": "candidate_22 exact common prompt and complete Covenant",
+  "instruction_order": [
+    "system.txt",
+    "covenant.txt"
+  ],
+  "prompt_sha256": {
+    "system.txt": "58da9ad8293215efd147347fb251f1fede69c0464fdebf8bc781bb307d6cc00c",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "wrapper_file": "proxy_wrapper.txt",
+  "wrapper_sha256": "39b9aeddfad81fec3d65d9801a4602cb0e08a5a9891c3822eae4381bcde3774a",
+  "proxy_delivery": "Common instructions appear once in the direct initial agent request; complete Covenant and turn data are read from packet.txt. This changes instruction placement/role/order, not a direct API system message. Exact author_request.txt files record assembled launch messages.",
+  "change": "Hold C22 common-instruction bytes, full Covenant, persona, visible histories and submissions fixed. Move common instructions out of the packet and into the direct author request, with the necessary wrapper reference change. No character dialogue examples, no further compression, no removed backstory. This is a proxy-delivery sensitivity screen, not a controlled API experiment."
+}

@@ -37,3 +37,9 @@ Keep Terra at maximum reasoning and retain the same artifact wrapper for this
 test. Proxy authors still have coding-agent instructions and tools; documentation
 about direct API verbosity, persisted reasoning or pro mode does not establish
 those settings for these proxy calls. No API or model change is part of this test.
+
+The [prompt engineering guide](https://developers.openai.com/api/docs/guides/prompt-engineering#message-roles-and-instruction-following)
+explains that API instruction placement affects authority. Our file-based proxy
+is a different arrangement: instructions are delegated through a read packet.
+Candidate23 therefore tests direct-request placement with all input content held
+fixed. This is our delivery hypothesis, not a documented Terra fiction remedy.

@@ -16,6 +16,14 @@ This is a proxy: coding-agent instructions and artifact-writing tools remain in
 context. It does not reproduce API token ceilings, cache behavior, hidden context,
 latency, or pricing. No direct model API calls are part of this iteration phase.
 
+Candidate23 tests instruction placement while preserving candidate22's complete
+Covenant, common rules, persona and visible turn data byte for byte. The common
+rules occur in the direct initial agent request; the file packet contains the
+Covenant and turn data. Each `author_request.txt` records that launch text. This
+changes role and order together and is a proxy sensitivity test, not a direct API
+system-message experiment. Earlier file instructions were explicitly delegated;
+a delivery hypothesis does not establish that the model ignored them.
+
 Through candidate 08, the artifact wrapper also said not to "evaluate the prose"
 or "propose edits," intending to exclude reviewer output and repository work.
 Those words could conflict with private self-editing requested by the story

@@ -1,0 +1,10 @@
+{
+  "agent": "/root/terra_c23_stone_replay",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "review_feedback_supplied": false,
+  "planned_scope": "Initial screen and adaptive follow-ups if warranted. Freeze prompts; preserve first outputs.",
+  "case_type": "stone replay with matched visible history",
+  "author_request_sha256": "a4a11778581f9886a69f28378906bbecdcd485a9c05df4b1c34675d128d91aae"
+}
