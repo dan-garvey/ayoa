@@ -1,0 +1,36 @@
+{
+  "scope": "Initial published snapshot only. Fresh sessions continue beyond01; later pending inputs/drafts are not counted here.",
+  "prompt_wrapper_hashes_verified": true,
+  "full_Covenant_unchanged_from_C19": true,
+  "source_and_published_response_hashes_verified": true,
+  "cases": [
+    {
+      "case": "game_replay",
+      "verified_published_indices": [
+        0,
+        1
+      ],
+      "author_task_requests_for_verified_indices": 4,
+      "player_turns_in_verified_snapshot": 2
+    },
+    {
+      "case": "session_a",
+      "verified_published_indices": [
+        0,
+        1
+      ],
+      "author_task_requests_for_verified_indices": 4,
+      "player_turns_in_verified_snapshot": 1
+    },
+    {
+      "case": "session_b",
+      "verified_published_indices": [
+        0,
+        1
+      ],
+      "author_task_requests_for_verified_indices": 4,
+      "player_turns_in_verified_snapshot": 1
+    }
+  ],
+  "limitations": "Artifact integrity, not a quality selection or complete semantic audit. Root sees both drafts and final prose; B driver reads generic editorial requests for relay. Further stages require refreshed validation."
+}

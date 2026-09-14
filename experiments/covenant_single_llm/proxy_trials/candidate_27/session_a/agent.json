@@ -1,0 +1,12 @@
+{
+  "agent": "/root/terra_c27_session_a",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "review_feedback_supplied": false,
+  "planned_scope": "Fresh two-request session, target15 player turns if quality warrants. Every draft and first revision retained.",
+  "calls_per_player_submission": 2,
+  "player_policy": "Root pilot: observant newcomer with practical interests; declines unknown public causes, follows through on chosen activities and quiet endpoints, probes privacy naturally.",
+  "author_request_sha256": "a183d3e0dbab62366e6f3e7a68acb1ae59bf895c277c2f586617a2c728775bed",
+  "editor_request_sha256": "c04894803c2bfe9213609e7579f7c68d843c7bb7692fc7b3fc3b5afc85bb4747"
+}
