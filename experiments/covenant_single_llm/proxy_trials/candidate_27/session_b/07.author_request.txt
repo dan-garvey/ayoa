@@ -1,0 +1,21 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+I fetch the page from my room and return to my chair. "Nell's the one with the interview." I smooth the paper on my knee and read the twelve lines, trying a quicker voice for Nell and a lower one for Ada:
+
+Nell: Hold still. You've caught the lining.
+Ada: Let go of the sleeve.
+Nell: My interview's at ten.
+Ada: And Voss comes at noon.
+Nell: If I get this job, we can pay him next Friday.
+Ada: He came last Friday. You were out.
+Nell: I was looking for work.
+Ada: I know. I was the one who answered.
+Nell: Give me until eleven.
+Ada: The pawnbroker won't take it if you spill anything on it.
+Nell: Then come with me. You can guard the coat.
+Ada: In what?
+
+I lower the page. "That's all I've got down."
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_b/07.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

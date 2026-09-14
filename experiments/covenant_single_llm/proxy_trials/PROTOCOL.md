@@ -44,8 +44,9 @@ requests remain available alongside the published transcript. There are no
 separate character agents. These are two author tasks, not a claim about direct
 API call counts, latency, or cache behavior. Unreleased drafts remain in the
 coding agent's conversation; this differs from an API implementation retaining
-only published fiction between player turns. The root pilots both fresh sessions
-and sees drafts, so the player trials are not blinded.
+only published fiction between player turns. The root pilots A, supplied B01,
+and sees drafts. A separate driver supplies B02 onward and reads the generic
+editorial requests for exact relay, so neither trial is strictly blinded.
 
 Through candidate 08, the artifact wrapper also said not to "evaluate the prose"
 or "propose edits," intending to exclude reviewer output and repository work.

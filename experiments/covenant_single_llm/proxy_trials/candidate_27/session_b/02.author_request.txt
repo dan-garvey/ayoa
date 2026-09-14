@@ -1,0 +1,6 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+"I worked at a printer's. I set type and did some binding, and the owner let me read things after hours. That was most of my schooling." I try the soup. "I write little scenes sometimes, though I haven't had anything printed. What are you studying here?"
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_b/02.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

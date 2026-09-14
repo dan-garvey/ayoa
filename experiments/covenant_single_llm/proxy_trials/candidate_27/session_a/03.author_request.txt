@@ -1,0 +1,6 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+"Ten, then. Thank you." I finish dinner with the others. Afterward I spend half an hour in the common room with my primer, then go upstairs and read the framed letter from its salutation to its signature before getting ready for bed. Privately, I remember delivering parcels to Jory Hale's fencing school and wonder whether I could have learned anything by staying to watch. I do not mention Jory or that thought to anyone.
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_a/03.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

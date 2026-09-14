@@ -1,0 +1,6 @@
+Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
+
+Player submission:
+"Thank you. I liked that." I sit quietly for a little while, looking at the fire. Then I ask Seraphel, "Are you staying down here? I could fetch the page of my scene, if you'd like to hear it. It's only a dozen lines."
+
+Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_b/06.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.
