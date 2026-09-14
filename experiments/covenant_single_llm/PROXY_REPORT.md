@@ -11,10 +11,15 @@ revision task. Six fresh edits compare short-only, augmented and long tasks on
 the identical C42 reading prefix and draft. The
 [locked root assessment](proxy_trials/candidate_43/pilot_review.md) finds one
 augmented edit achieves both plain dialogue and particular personal engagement;
-the other is comparatively explanatory. Fresh short and long controls also
-produce local successes, so a reliable advantage from the extra sentence is not
-yet demonstrated. All first outputs and four historical references are preserved.
-The independent comparison is pending.
+the other is comparatively explanatory. The
+[independent reviewer](proxy_trials/reviews/round43_independent_comparison.md)
+agrees on that local success, rating it 4/4/5 for prose, distinction and personal
+participation with reduced rhetoric. Both reviewers reject the second augmented
+edit's participation while crediting its dialogue cleanup. Fresh short and long
+controls also produce local successes, so a reliable advantage from the extra
+sentence is not yet demonstrated. The [final comparison](proxy_trials/candidate_43/review_response.md)
+preserves the 40-word prompt, one shared success in two repeats, all first outputs
+and all four historical references.
 
 The preceding experiment is C42: eight completed edits comparing the user's approved
 23-word revision request with C29's 312-word task on two fixed drafts. Both
@@ -657,7 +662,21 @@ retains plainness while giving the rereading a specific purpose: hearing whether
 Ada is angry or tired. Augmented 2 is plainer but mainly explains the text.
 Short-only 2 and long controls also produce engaging responses. Root therefore
 records one augmented local success while withholding a claim of reliable
-incremental improvement. Independent review is pending; no output was rerolled.
+incremental improvement. The independent reviewer gives augmented 1 4/4/5 and
+augmented 2 3/3/3, with reduced rhetoric in both. Both reviewers give short-only
+2 4/4/4 with reduced rhetoric. The independent favorite is fresh long 2 at
+4/5/5: Seraphel makes a personal joke about the goat song she just performed.
+Root retains it at 4/4/4 but is less enthusiastic about the joke's explanation.
+
+The [final comparison](proxy_trials/candidate_43/review_response.md) retains the
+reviewer's more favorable original-draft judgment and its lower prose score
+for the selected historical long reference. Earlier C42 assessments remain
+unchanged. The successful augmented edit and the fresh long favorite both rank
+above the original for the new reviewer. Full source reads are verified, and
+both first assessments are locked. The [decision](proxy_trials/candidate_43/decision.json)
+keeps the 40-word prompt as a concise candidate with one shared success in two
+repeats, without a reliability, transfer or full narrative-engine promotion
+claim. No output was rerolled and no editor received corrective feedback.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

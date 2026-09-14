@@ -1,0 +1,125 @@
+{
+  "locked_at": "2026-09-14T17:54:13.343428+00:00",
+  "agent": "/root/proxy_c43_independent_review",
+  "first_complete_review_preserved": true,
+  "all_required_sources_read_in_full": true,
+  "reviewer_not_given_root_judgments_or_condition_labels": true,
+  "perfect_blinding_claimed": false,
+  "scores_order": [
+    "prose_dialogue",
+    "character_distinction",
+    "engaging_personal_participation"
+  ],
+  "original_scores": [
+    4,
+    4,
+    4
+  ],
+  "scores_by_case": {
+    "01": [
+      3,
+      3,
+      3
+    ],
+    "02": [
+      4,
+      4,
+      5
+    ],
+    "03": [
+      4,
+      4,
+      4
+    ],
+    "04": [
+      4,
+      5,
+      5
+    ],
+    "05": [
+      3,
+      3,
+      3
+    ],
+    "06": [
+      4,
+      4,
+      4
+    ],
+    "c42_03": [
+      3,
+      3,
+      3
+    ],
+    "c42_04": [
+      4,
+      4,
+      4
+    ],
+    "c42_07": [
+      4,
+      4,
+      4
+    ],
+    "c42_08": [
+      3,
+      4,
+      4
+    ]
+  },
+  "aphorism_burden": {
+    "01": "reduced",
+    "02": "reduced",
+    "03": "reduced",
+    "04": "reduced",
+    "05": "reduced",
+    "06": "reduced",
+    "c42_03": "mixed",
+    "c42_04": "reduced",
+    "c42_07": "reduced",
+    "c42_08": "mixed"
+  },
+  "preferences_including_original": [
+    [
+      "04"
+    ],
+    [
+      "02"
+    ],
+    [
+      "03"
+    ],
+    [
+      "06",
+      "c42_04"
+    ],
+    [
+      "original"
+    ],
+    [
+      "c42_07"
+    ],
+    [
+      "c42_08"
+    ],
+    [
+      "05"
+    ],
+    [
+      "01"
+    ],
+    [
+      "c42_03"
+    ]
+  ],
+  "augmented_joint_successes": [
+    "02"
+  ],
+  "augmented_joint_successes_total": 1,
+  "file_sha256": {
+    "../reviews/round43_independent_comparison.md": "aa908e477a5715308294817d63e597fb0b3971399070901600d81394ef8e1bf8",
+    "review_read_audit.json": "30c7f3df16beafeb6ff0d45ec5efe1122852bc759612a9f772b2f40b1ddbe6ef",
+    "pilot_lock.json": "8b6e5c64102b1254905c59873a228265336dbc204d3df26a3387e176e8ebf1d9",
+    "review_key.json": "3a658455312011ced210aeb2cca9c72d42a1d2274cd01b31ddc84c944f81618b"
+  }
+}

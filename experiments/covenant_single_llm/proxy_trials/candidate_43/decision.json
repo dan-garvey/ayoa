@@ -1,0 +1,263 @@
+{
+  "status": "completed_one_shared_augmented_success_mixed_repeatability",
+  "decided_at": "2026-09-14T17:54:13.343428+00:00",
+  "fresh_editors": 6,
+  "author_requests": 6,
+  "new_revisions": 6,
+  "new_story_words": 567,
+  "reused_drafts": 1,
+  "reused_draft_words_excluded": 138,
+  "historical_revisions": 4,
+  "historical_revision_words_excluded": 378,
+  "fresh_player_turns": 0,
+  "substantial_sessions": 0,
+  "full_prefix_byte_identical_to_c42": true,
+  "full_biographies_preserved": true,
+  "only_change": "Append one 17-word sentence to the exact 23-word approved revision task.",
+  "instruction_words": {
+    "short": 23,
+    "augmented": 40,
+    "long": 312
+  },
+  "scores_order": [
+    "prose_dialogue",
+    "character_distinction",
+    "engaging_personal_participation"
+  ],
+  "root_original_scores": [
+    3,
+    3,
+    3
+  ],
+  "independent_original_scores": [
+    4,
+    4,
+    4
+  ],
+  "root_scores": {
+    "01": [
+      4,
+      3,
+      3
+    ],
+    "02": [
+      4,
+      4,
+      4
+    ],
+    "03": [
+      4,
+      4,
+      4
+    ],
+    "04": [
+      4,
+      4,
+      4
+    ],
+    "05": [
+      4,
+      3,
+      3
+    ],
+    "06": [
+      4,
+      4,
+      4
+    ],
+    "c42_03": [
+      4,
+      4,
+      4
+    ],
+    "c42_04": [
+      4,
+      3,
+      3
+    ],
+    "c42_07": [
+      4,
+      3,
+      3
+    ],
+    "c42_08": [
+      4,
+      4,
+      4
+    ]
+  },
+  "independent_scores": {
+    "01": [
+      3,
+      3,
+      3
+    ],
+    "02": [
+      4,
+      4,
+      5
+    ],
+    "03": [
+      4,
+      4,
+      4
+    ],
+    "04": [
+      4,
+      5,
+      5
+    ],
+    "05": [
+      3,
+      3,
+      3
+    ],
+    "06": [
+      4,
+      4,
+      4
+    ],
+    "c42_03": [
+      3,
+      3,
+      3
+    ],
+    "c42_04": [
+      4,
+      4,
+      4
+    ],
+    "c42_07": [
+      4,
+      4,
+      4
+    ],
+    "c42_08": [
+      3,
+      4,
+      4
+    ]
+  },
+  "root_preferences": [
+    [
+      "02",
+      "06",
+      "c42_08"
+    ],
+    [
+      "04",
+      "03",
+      "c42_03"
+    ],
+    [
+      "05",
+      "c42_04",
+      "c42_07"
+    ],
+    [
+      "01"
+    ]
+  ],
+  "independent_preferences_including_original": [
+    [
+      "04"
+    ],
+    [
+      "02"
+    ],
+    [
+      "03"
+    ],
+    [
+      "06",
+      "c42_04"
+    ],
+    [
+      "original"
+    ],
+    [
+      "c42_07"
+    ],
+    [
+      "c42_08"
+    ],
+    [
+      "05"
+    ],
+    [
+      "01"
+    ],
+    [
+      "c42_03"
+    ]
+  ],
+  "root_aphorism_burden": {
+    "01": "reduced",
+    "02": "reduced",
+    "03": "mixed",
+    "04": "reduced",
+    "05": "reduced",
+    "06": "reduced",
+    "c42_03": "similar",
+    "c42_04": "reduced",
+    "c42_07": "reduced",
+    "c42_08": "similar"
+  },
+  "independent_aphorism_burden": {
+    "01": "reduced",
+    "02": "reduced",
+    "03": "reduced",
+    "04": "reduced",
+    "05": "reduced",
+    "06": "reduced",
+    "c42_03": "mixed",
+    "c42_04": "reduced",
+    "c42_07": "reduced",
+    "c42_08": "mixed"
+  },
+  "root_augmented_joint_successes": [
+    "02"
+  ],
+  "independent_augmented_joint_successes": [
+    "02"
+  ],
+  "shared_augmented_joint_successes": [
+    "02"
+  ],
+  "shared_augmented_joint_successes_total": 1,
+  "augmented_repeats": 2,
+  "all_augmented_edits_reduce_rhetorical_burden_for_both_reviewers": true,
+  "reliable_incremental_improvement_demonstrated": false,
+  "retained_as_concise_candidate": true,
+  "findings": [
+    "Augmented repeat 1 achieves both requested benefits for both reviewers: reduced rhetorical display and a specific wish to hear whether Ada is angry or tired; root 4/4/4, independent 4/4/5.",
+    "Augmented repeat 2 reduces rhetoric but mostly explains the scene; root 4/3/3 and independent 3/3/3. This is one shared joint success in two repeats, not uniform success.",
+    "Fresh short-only repeat 2 also achieves both benefits with 4/4/4 from both reviewers. The extra sentence is not shown necessary or reliably superior.",
+    "Fresh long repeat 2 is the independent favorite, with 4/5/5, using the shared goat-song performance to make a personal joke. Root retains it at 4/4/4; both find reduced rhetoric.",
+    "The independent reviewer retains the original at 4/4/4 and criticizes the temporal thesis in the formerly preferred long reference. All historical outputs and earlier assessments remain unchanged; reviewer differences are preserved.",
+    "No new material authorship or knowledge violation is demonstrated. Fallible interpretations, advice and ordinary unshown positioning are distinguished from authoring new manuscript canon.",
+    "Every first output and both first assessments are preserved, with full read verification and no editor feedback, rerolls or private-reasoning inspection."
+  ],
+  "root_review": "pilot_review.md",
+  "independent_review": "../reviews/round43_independent_comparison.md",
+  "review_response": "review_response.md",
+  "validation": "validation.json",
+  "limits": [
+    "One deliberately selected complete prefix and supplied draft, two fresh repeats per condition, with four historical references that are not additional replicates.",
+    "Independent fresh editors revise a supplied draft; this is not an original author receiving its own immediately preceding live draft.",
+    "No long-session, cross-character or cross-setting validation; no direct API equivalence, latency, token or cost claim.",
+    "Condition labels and prompts were withheld from independent review; perfect blinding is not guaranteed.",
+    "Public model/effort/order metadata and frozen intended requests are verified; root dispatch text is encrypted and not plaintext-compared."
+  ],
+  "promoted": false,
+  "main_runtime_changed": false,
+  "broader_goal_complete": false,
+  "next_step": "Report the local success and its weaker repeat; preserve the 40-word prompt as a concise candidate without claiming a demonstrated reliable advantage over the short-only task.",
+  "file_sha256": {
+    "pilot_lock.json": "8b6e5c64102b1254905c59873a228265336dbc204d3df26a3387e176e8ebf1d9",
+    "independent_lock.json": "8686a76523fc052cdf926adb23e9cd95a647128b7fefc2fadef02366e9610fbc",
+    "review_response.md": "5525378eac967cb66bfdc09c09985abea3cc362a97fcef285142a91ab3635739",
+    "validation.json": "9b1371dfdfc4cccbda755bcc0a0d73728ebbb928db96088f81490fa9350bc1f6",
+    "review_read_audit.json": "30c7f3df16beafeb6ff0d45ec5efe1122852bc759612a9f772b2f40b1ddbe6ef"
+  }
+}
