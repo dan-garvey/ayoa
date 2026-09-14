@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-I applaud once the bout is over. When Ashara has finished with the referee and is clear of the rope, I approach. "Congratulations. I liked watching you work out how to get past that staff. I'd like to learn to use a sword, but I've never held one properly. Would you have time to show me the basics?"
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_a/05.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

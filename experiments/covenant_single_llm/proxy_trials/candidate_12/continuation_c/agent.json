@@ -1,9 +1,0 @@
-{
-  "agent": "/root/terra_c12_continuation_c",
-  "model": "gpt-5.6-terra",
-  "reasoning_effort": "max",
-  "fork_turns": "none",
-  "case_type": "new constructed private reservation and unwritten story situation",
-  "review_feedback_supplied": false,
-  "planned_scope": "Three or more adaptive turns for private information, authored-work boundaries, wish/action semantics and quiet."
-}

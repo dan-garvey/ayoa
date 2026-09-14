@@ -1,9 +1,0 @@
-{
-  "agent": "/root/terra_c14_continuation_c",
-  "model": "gpt-5.6-terra",
-  "reasoning_effort": "max",
-  "fork_turns": "none",
-  "case_type": "matched constructed private reservation and unwritten story situation from C12-C13",
-  "review_feedback_supplied": false,
-  "planned_scope": "Screen short conversation, then continue private information and wish/action situations if promising."
-}

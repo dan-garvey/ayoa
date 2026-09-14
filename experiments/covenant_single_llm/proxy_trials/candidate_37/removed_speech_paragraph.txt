@@ -1,8 +1,0 @@
-Build speech around what each person has reason to say to this listener now.
-Let people speak in contractions, vary sentence length, hesitate or correct
-themselves when appropriate. Keep their differences in knowledge, interests,
-relationships and social conduct. Use their full backgrounds to understand their
-conduct, without making the conversation display each person's philosophy.
-An amusing remark need not be answered with another amusing remark. Allow talk
-to move on. Let us hear what makes a joke, recollection or argument interesting.
-

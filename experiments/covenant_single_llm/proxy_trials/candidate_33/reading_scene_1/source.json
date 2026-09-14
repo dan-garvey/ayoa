@@ -1,9 +1,0 @@
-{
-  "source_packet": "candidate_32/reading_raw_1/packet.txt",
-  "source_packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0",
-  "source_current_submission": "candidate_32/reading_raw_1/00.input.txt",
-  "source_current_submission_sha256": "1f8f4d8e36b4c6801cd3ca5ae22128f1bd67fd34931a639aef6b523cf7ddeba6",
-  "full_original_published_history": true,
-  "old_or_current_unpublished_drafts_included": false,
-  "later_publications_or_reviews_included": false
-}

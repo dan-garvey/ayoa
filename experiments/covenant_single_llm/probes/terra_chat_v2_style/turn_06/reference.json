@@ -1,9 +1,0 @@
-{
-  "source_run": "runs/first_15_turns",
-  "turn": 6,
-  "source_attempt": "attempts/20260913T005241630150Z",
-  "baseline_response_id": "resp_0fb68c77fca635dc016aa5f3da4c8087d19d82211745eeab80",
-  "changed_request_fields": [
-    "instructions"
-  ]
-}

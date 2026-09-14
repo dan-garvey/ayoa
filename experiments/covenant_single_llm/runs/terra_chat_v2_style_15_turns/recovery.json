@@ -1,7 +1,0 @@
-{
-  "player_turn": 15,
-  "failed_attempt": "attempts/20260913T044642591757Z",
-  "reason": "max_output_tokens: all 12000 output tokens spent on reasoning; no story text returned",
-  "recovery": "Retry identical request once, retaining model, max effort, prompts, complete history, player input, and 12000-token ceiling.",
-  "scope": "Technical recovery after no accepted output, not a quality reroll. Failure remains in reliability, latency, and usage accounting."
-}

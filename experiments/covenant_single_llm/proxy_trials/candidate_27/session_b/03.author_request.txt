@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-"The one I'm working on has two sisters and one decent coat. One needs it for a job interview; the other wants to pawn it before the rent collector comes. I've only written the argument so far. I don't know how it ends yet." I take a piece of bread, then turn a little toward Seraphel. "You said music. Do you sing, or play something?"
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_b/03.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

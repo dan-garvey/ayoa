@@ -1,9 +1,0 @@
-{
-  "agent": "/root/terra_c15_family_replay",
-  "model": "gpt-5.6-terra",
-  "reasoning_effort": "max",
-  "fork_turns": "none",
-  "case_type": "matched visible-history family inquiry continuation from C14 B2",
-  "review_feedback_supplied": false,
-  "planned_scope": "Letter reading/Stone arrival followed by question about Miriam; no rerolls"
-}

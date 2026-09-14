@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-"No. The highest I've been is a warehouse roof, and I was looking down rather than up." I set my spoon down. "What happened after you landed in the quarry pond?"
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_a/10.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

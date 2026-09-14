@@ -1,9 +1,0 @@
-{
-  "agent": "/root/terra_c17_supper_replay",
-  "model": "gpt-5.6-terra",
-  "reasoning_effort": "max",
-  "fork_turns": "none",
-  "case_type": "matched visible-history supper continuation",
-  "review_feedback_supplied": false,
-  "planned_scope": "One initial reply, then an adaptive follow-up only if it tests a concrete development."
-}

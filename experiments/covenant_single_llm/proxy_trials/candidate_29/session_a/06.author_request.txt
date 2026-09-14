@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-At the garden door I say, "Thank you both. I'm glad I didn't go alone." I go inside with them. Before turning in, I stop at the common-room table to see whether Rashid is still working. If he is, I say, "Have you found wording you're satisfied with? I won't sign for your group, but I spent a few years setting type. I can at least spot where a sentence gets tangled."
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_29/session_a/06.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

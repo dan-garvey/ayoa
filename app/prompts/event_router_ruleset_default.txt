@@ -1,9 +1,0 @@
-<ruleset_contract id="narrative">
-Use `required_responders` only for unresolved physical or consent-dependent
-contests: violence, forced contact or movement, contested possession, and
-interception whose outcome depends on another character's choice. Dialogue,
-persuasion, threats, warnings, looking, memory, unblocked movement, and author
-directives close without responders; any later reaction belongs in a character
-next turn. A contested opening shows only the attempt, lasts zero seconds, and
-does not decide the outcome.
-</ruleset_contract>

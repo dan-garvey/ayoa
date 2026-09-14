@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-I laugh. "I keep trying to put Nell in charge of the scene, and Ada keeps getting the better of her." I fold the page without adding anything to it. "Was there a song you couldn't stop singing when you were small?"
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_29/reading_replay/01.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

@@ -1,8 +1,0 @@
-{
-  "agent": "/root/terra_c21_session_b",
-  "model": "gpt-5.6-terra",
-  "reasoning_effort": "max",
-  "fork_turns": "none",
-  "review_feedback_supplied": false,
-  "planned_scope": "Fresh session, at least15 player turns through independent public-story player driver; extend for actual announced outcomes if needed."
-}

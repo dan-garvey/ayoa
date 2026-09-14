@@ -1,9 +1,0 @@
-{
-  "agent": "/root/terra_c16_family_replay",
-  "model": "gpt-5.6-terra",
-  "reasoning_effort": "max",
-  "fork_turns": "none",
-  "case_type": "matched visible-history family question after C15 letter",
-  "review_feedback_supplied": false,
-  "planned_scope": "One memory response; follow up only for a concrete continuation purpose."
-}

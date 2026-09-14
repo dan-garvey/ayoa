@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-Out of character: could you clarify the order around the fourth stones? The rules have white placing first, then black. The passage says, "Her fourth black stone takes the crossing that would have made your two newest stones a straight run; your fourth turns the route aside rather than abandoning it." Which fourth stone actually went down first, and was the narrated order mistaken?
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_29/game_replay/01.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

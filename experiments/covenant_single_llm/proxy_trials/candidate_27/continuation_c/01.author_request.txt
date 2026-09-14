@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-"The porter confirmed a replacement with me at nine, after I spoke to Rashid. It's the east gardens, Saturday at four in the afternoon. I'm sorry I left you with the old arrangement. Does that still work for you?"
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/continuation_c/01.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

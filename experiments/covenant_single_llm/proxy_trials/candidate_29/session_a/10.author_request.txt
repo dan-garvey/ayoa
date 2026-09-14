@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-I buy a cup of spiced tea from the Commerce student once there's a gap in the queue. "This is my first time watching," I say. "How do they count a clean mark? On that last exchange, I thought I heard the staves hit each other." I glance back at the board; I intend to stay for Ashara's bout at sixth bell.
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_29/session_a/10.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

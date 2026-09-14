@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-I take some bread. "Fair enough, Rashid. I mistook a loud conversation for an invitation." I try the stew, then turn to Ashara. "Do you compete for the Academy, or is the dawn booking for your own training?"
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_29/session_a/02.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

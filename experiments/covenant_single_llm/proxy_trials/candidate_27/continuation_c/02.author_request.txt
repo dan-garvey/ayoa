@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-"The reading is an unfinished scene about a ferryman and a stranded judge." That is the only content of the scene I describe. I leave its pages folded inside my coat and don't read from them. Privately, I wish Caelindra would offer to read the judge's part with me; I don't say this. I also think of a childhood friend named Merrin Vale, whose name and existence I have never mentioned here. I finish dinner quietly.
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/continuation_c/02.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

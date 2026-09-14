@@ -1,9 +1,0 @@
-{
-  "source_packet": "candidate_32/book_raw_1/packet.txt",
-  "source_packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86",
-  "source_current_submission": "candidate_32/book_raw_1/00.input.txt",
-  "source_current_submission_sha256": "4452844237c7fe4014031511b0e97f5e5f66f71af82aceeceb4631ceb4440934",
-  "full_original_published_history": true,
-  "old_or_current_unpublished_drafts_included": false,
-  "later_publications_or_reviews_included": false
-}

@@ -1,9 +1,0 @@
-{
-  "agent": "/root/terra_c23_session_a",
-  "model": "gpt-5.6-terra",
-  "reasoning_effort": "max",
-  "fork_turns": "none",
-  "review_feedback_supplied": false,
-  "planned_scope": "Initial screen and adaptive follow-ups if warranted. Freeze prompts; preserve first outputs.",
-  "author_request_sha256": "292827e070e209e90be44839ab6b1d8535c64318bc2dc30fc5fd3198aa7e7833"
-}

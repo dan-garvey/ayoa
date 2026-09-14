@@ -1,6 +1,0 @@
-Next player turn. Compose the next passage under the frozen storytelling instructions; the preceding editorial task is complete.
-
-Player submission:
-"Then let's leave it for tonight. I don't fancy doing both voices again. Thank you for listening." I fold the page along its old crease and put it in my coat pocket. "Before I turn in, do you know who I should ask for a timetable in the morning? I'm not sure where I'm supposed to go."
-
-Save the exact new passage to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_27/session_b/09.draft.md and return the same fiction. This draft will receive its editorial pass before delivery.

@@ -1,7 +1,0 @@
-{
-  "source_commit": "6b566df696ec84f6a91981bf5e905f3eec623865",
-  "source_context_packet": "candidate_28/reading_edit/packet.txt",
-  "source_packet_sha256": "1ce89fa1453c456b70fb88e338a2212a43be0144d69fe24fed558fddb40c7c48",
-  "transformation": "Retain complete Covenant, persona, published prior fiction and player submission. Exclude the unreleased draft and all later source fiction.",
-  "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
-}
