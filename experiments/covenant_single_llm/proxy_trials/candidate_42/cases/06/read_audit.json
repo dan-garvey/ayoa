@@ -1,0 +1,46 @@
+{
+  "agent": "/root/terra_c42_06",
+  "session_id": "01a0a0a7-a7b9-71a1-ba82-897d5d38828b",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T11-02-17-01a0a0a7-a7b9-71a1-ba82-897d5d38828b.jsonl",
+  "model_effort_metadata": [
+    [
+      "gpt-5.6-terra",
+      "max"
+    ]
+  ],
+  "scope": "Exact read coverage from public tool calls and outputs plus model/effort metadata. No private reasoning inspected. This verifies supplied files were returned in full, not compliance with every instruction or hidden cognition.",
+  "files": [
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_42/contexts/book.txt",
+      "sha256": "4fa03dcb519e73e2907394eb069b6fee7af154b98ca8fce83ba1ec55371cda32",
+      "lines": 842,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 220,
+          "call_id": "call_x6hUdkC91q3qUA8YNlLBFF8j",
+          "line_numbered": false
+        },
+        {
+          "start": 221,
+          "end": 440,
+          "call_id": "call_LjGk35pgdr9HS8jEnf1GrykL",
+          "line_numbered": false
+        },
+        {
+          "start": 441,
+          "end": 660,
+          "call_id": "call_gau632ZJqYMsfW6ZHJPdXxPM",
+          "line_numbered": false
+        },
+        {
+          "start": 661,
+          "end": 842,
+          "call_id": "call_QaGKSvuNkxJvLDnLGtgC8MGD",
+          "line_numbered": false
+        }
+      ]
+    }
+  ],
+  "all_required_files_read_in_full": true
+}

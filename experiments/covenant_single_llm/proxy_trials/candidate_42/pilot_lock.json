@@ -1,0 +1,111 @@
+{
+  "locked_at": "2026-09-14T16:09:57.337732+00:00",
+  "before_independent_launch": true,
+  "scores_by_case": {
+    "01": [
+      3,
+      3
+    ],
+    "02": [
+      3,
+      3
+    ],
+    "03": [
+      4,
+      4
+    ],
+    "04": [
+      4,
+      3
+    ],
+    "05": [
+      3,
+      3
+    ],
+    "06": [
+      3,
+      3
+    ],
+    "07": [
+      4,
+      3
+    ],
+    "08": [
+      4,
+      4
+    ]
+  },
+  "scores_order": [
+    "prose_dialogue",
+    "character_distinction"
+  ],
+  "aphorism_burden": {
+    "01": "mixed",
+    "02": "reduced",
+    "03": "similar",
+    "04": "reduced",
+    "05": "reduced",
+    "06": "mixed",
+    "07": "reduced",
+    "08": "similar"
+  },
+  "preferences": {
+    "book": [
+      [
+        "02",
+        "05"
+      ],
+      [
+        "01",
+        "06"
+      ]
+    ],
+    "reading": [
+      [
+        "08"
+      ],
+      [
+        "03"
+      ],
+      [
+        "04",
+        "07"
+      ]
+    ]
+  },
+  "root_advancement_gate_passed": false,
+  "file_sha256": {
+    "pilot_review.md": "9cecf0a5795587e7248fcdab21df4d95c510c4a435bc49100a7645febec9d7b0",
+    "input_lock.json": "1f5d7942529be1c6082974efe4528c7f28853a0f48ec24d5d543202a9cca6fbd",
+    "manifest.json": "a5a4679593b5d54281a56751fe203740c3857244ffde40eb94d6216dec9c97bf",
+    "launches.json": "a06e6698a7c58ba6d6c971f67b9d73c16352e60871aa77ecd66f7257e862dab2",
+    "validation.json": "86e2c34cc47862c16e9d1240faaae4bc017e05ece143322e7a382bd054abcb03",
+    "review_request.txt": "810e3937dbbe44da5c09b689148451101c6ef0379ad52bcbcca358a14db37d9e",
+    "review_key.json": "3a60e99db39d3a53da42ae05faf81dd31d95448d89e5c929bcdb8ff255a2d8ae",
+    "review_material.txt": "67d8bd6907b0917521a461cf4b3ebf03568491cdca5807299a1e6d9340be483e",
+    "cases/01/00.story.md": "e781c92b53ba1398d8e2715075d63d51f37bab54050b51cf046662c1d6a11929",
+    "cases/01/capture.json": "e130c709296bb507043753c456c0c70920dad00ad8e021ad659be669d8aaec15",
+    "cases/01/read_audit.json": "97c43898aac0574715b6c6876861d4aaf98b9e67de8a3d4985b3524b8cf3875d",
+    "cases/02/00.story.md": "ec6806efdd90a3642e08ef53e68ffdf2fbc0e39d9ee64104a495a31aafcc279d",
+    "cases/02/capture.json": "a92064421408b9b8aaa14898576c8fb2418fedeb0e57156f66391fc79d06cfad",
+    "cases/02/read_audit.json": "932b32cc8f648cf468dc57429d7a88e8e85b6dee6fea55fcd9a4c6bfd093363c",
+    "cases/03/00.story.md": "4522165f8926344abd6bfa6daf2a151461e1be6a58d237fdcc44371ecbb12e16",
+    "cases/03/capture.json": "d4f5ad520ce28ee4d04823d3c4b95af4d796b1549b734d4f7b12f31d7bae4b5f",
+    "cases/03/read_audit.json": "56592b2f2567ed73c6731a36e0f6ecf6e63900812f485f3ec56d1384d962656d",
+    "cases/04/00.story.md": "5af24c3bbfe505519f6595ef99f7c54ab1c038fe4a5331960fb69d0dbbe79ed7",
+    "cases/04/capture.json": "b3e8d856e71dbb4c4ef1767e2d4a5c6c4cb0b4282f7a8720b5f5444e186cf615",
+    "cases/04/read_audit.json": "ec0dede5bd26e8e912555caeaa4a57d46da0a3671ea4ff69cc29cfe2b54aa986",
+    "cases/05/00.story.md": "fab0d090076481bb55f36c113c38486e53f6b67977c5b2ed37ff538acfa07494",
+    "cases/05/capture.json": "b805981fcbfb5d5eb2c2d97648492add8f30c38d0506c26e88d23373dc357ef2",
+    "cases/05/read_audit.json": "6a8dd56f27a92c0b36c6e8a9f38f550bc6e40c6b4671e51870cf19590c033406",
+    "cases/06/00.story.md": "301484d1f4aecdb2060635b635c8b7787d0ffcb728ee1caa640129f5f3472714",
+    "cases/06/capture.json": "8ca2fc10b4563738c77c9ab328ba527465db698bdc10c08fd9059b2f964b744e",
+    "cases/06/read_audit.json": "a6b405f6a6dd334333d9f3e759e508f8cd997ca26ae2dd4589c23bbd03f60dd4",
+    "cases/07/00.story.md": "20cfb18d6bcc8efed589eed4ab270cb600728e4630a6e6575a94dedc3b7e969e",
+    "cases/07/capture.json": "7446265d9004be244f44ba92b192c3af8127541b96a1ab076757f93d091be7bf",
+    "cases/07/read_audit.json": "bf21ec9a48ea583e7d99ed70be771f88f2f9aad6c9ae933097f5895a8643b3b3",
+    "cases/08/00.story.md": "4dc6ac3d72eb2a5ce86c6b46aed5675c8e53173059e1eae2e6cb132e4aad2fde",
+    "cases/08/capture.json": "46d4a04299097008b2538d461923da049bcfca51e8c6691e7c2d8d26e30fffff",
+    "cases/08/read_audit.json": "46475efe29e778536d6cbf5e1a4a0ff50d1a47df624e306d23c977f2ccce4ee5"
+  }
+}

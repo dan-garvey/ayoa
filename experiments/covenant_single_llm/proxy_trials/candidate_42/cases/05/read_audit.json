@@ -1,0 +1,70 @@
+{
+  "agent": "/root/terra_c42_05",
+  "session_id": "01a0a0a7-6151-77e1-90d8-c94d37ef20ac",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T11-01-59-01a0a0a7-6151-77e1-90d8-c94d37ef20ac.jsonl",
+  "model_effort_metadata": [
+    [
+      "gpt-5.6-terra",
+      "max"
+    ]
+  ],
+  "scope": "Exact read coverage from public tool calls and outputs plus model/effort metadata. No private reasoning inspected. This verifies supplied files were returned in full, not compliance with every instruction or hidden cognition.",
+  "files": [
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_42/contexts/book.txt",
+      "sha256": "4fa03dcb519e73e2907394eb069b6fee7af154b98ca8fce83ba1ec55371cda32",
+      "lines": 842,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 105,
+          "call_id": "call_uqUTMBumI9JEoYYintsOeXBf",
+          "line_numbered": false
+        },
+        {
+          "start": 106,
+          "end": 210,
+          "call_id": "call_uqUTMBumI9JEoYYintsOeXBf",
+          "line_numbered": false
+        },
+        {
+          "start": 211,
+          "end": 315,
+          "call_id": "call_uqUTMBumI9JEoYYintsOeXBf",
+          "line_numbered": false
+        },
+        {
+          "start": 316,
+          "end": 420,
+          "call_id": "call_gKGwoTVqHypqoPHTBTbfFQLK",
+          "line_numbered": false
+        },
+        {
+          "start": 421,
+          "end": 525,
+          "call_id": "call_gKGwoTVqHypqoPHTBTbfFQLK",
+          "line_numbered": false
+        },
+        {
+          "start": 526,
+          "end": 630,
+          "call_id": "call_gKGwoTVqHypqoPHTBTbfFQLK",
+          "line_numbered": false
+        },
+        {
+          "start": 631,
+          "end": 735,
+          "call_id": "call_8Nkb7KIDfLZd2W7ZOi3O4HLz",
+          "line_numbered": false
+        },
+        {
+          "start": 736,
+          "end": 842,
+          "call_id": "call_8Nkb7KIDfLZd2W7ZOi3O4HLz",
+          "line_numbered": false
+        }
+      ]
+    }
+  ],
+  "all_required_files_read_in_full": true
+}

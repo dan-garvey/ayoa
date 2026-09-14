@@ -1,0 +1,55 @@
+{
+  "captured_at": "2026-09-14T16:07:53.468999+00:00",
+  "agent": "/root/terra_c42_08",
+  "session_id": "01a0a0a9-8d36-7860-ae66-b21e8a25ffef",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T11-04-21-01a0a0a9-8d36-7860-ae66-b21e8a25ffef.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "public_final_message_id": "msg_089f63837f2e8abd016aa81b60fbac87d1a1ceb88a883212a5",
+  "first_final_sha256": "4dc6ac3d72eb2a5ce86c6b46aed5675c8e53173059e1eae2e6cb132e4aad2fde",
+  "words": 105,
+  "exact_unmodified_first_final": true,
+  "frozen_request_sha256": "0cae2e3a89f7b6657efa4c65dae6dc7e7a42ee8395ba93ec601459f0b9dbf58a",
+  "dispatch_metadata_verified": true,
+  "dispatch_plaintext_verified": false,
+  "public_tool_calls": [
+    {
+      "call_id": "call_QUeWjRYPklcSzahL7gXFQDqn",
+      "tool": "exec",
+      "source_sha256": "aa3fa96ae3611c7e5bbb29c802a534546e4117431e7c745df311eb6694288e4a",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_xTR5cbi0lFD6LCMneHaVOV9G",
+      "tool": "exec",
+      "source_sha256": "24a20134a4ca48467996550b1706728c24c3dc142676a794e21af578cc929868",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_YEHTl67jzJW05Uy33cvVsKWq",
+      "tool": "exec",
+      "source_sha256": "9688a733ed07d4591916a708ddd574744983889e197c5d40a960a3aaca511852",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_mN6HoWtLRaplAMYvVZN6eISH",
+      "tool": "exec",
+      "source_sha256": "0d65d0c03d8f28979957ce1809255c14a1ec1684b10e2d167417842c4f41aac5",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_urrzvzUmawc33zSKWl2UzONS",
+      "tool": "exec",
+      "source_sha256": "757d1c1aa90cf1da1291aeef7434e39314d3e1b96ba5e7272edd87b7415554a1",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_SNUe02HjwE6I19Js3opJSLRz",
+      "tool": "exec",
+      "source_sha256": "589a66715138d5f16bde1f4269965f877921f3726564c58ec3928eb75a91749d",
+      "possible_write": false
+    }
+  ],
+  "possible_writes": [],
+  "scope": "Exact public final, public tool/call metadata, frozen intended request and model/effort only. The root log encrypts dispatched message text, so no dispatch/receiver plaintext comparison is claimed. No private reasoning inspected."
+}

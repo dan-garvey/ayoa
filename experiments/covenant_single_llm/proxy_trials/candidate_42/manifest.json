@@ -1,0 +1,104 @@
+{
+  "created_at": "2026-09-14T15:58:11.896190+00:00",
+  "source_commit": "a5c14a0c7d40c2d118826e526c0895cb10a9d260",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "change": "Replace complete C29 revision task with the exact user-approved 23-word instruction.",
+  "instruction_words": {
+    "short": 23,
+    "long_including_tags": 312
+  },
+  "shared_common_instruction_words": 393,
+  "loop": "Fresh editor reads shared complete context and original draft, then returns one revision. No new draft generation, persistent prior-draft context, intermediate critique or editor feedback.",
+  "wrapper": "Read only {context_path} in full, using untruncated chunks. [revision request] Return only the revised fiction.",
+  "contexts": {
+    "book": {
+      "source_packet": "../candidate_30/book_a1/packet.txt",
+      "source_packet_sha256": "e9ed678d819616b8eec073cf2e822ee8c721a745ba9a0a4bb5937d16d5b0cf08",
+      "source_draft": "../candidate_30/book_a1/00.draft.md",
+      "draft_sha256": "fd9011cb44d52e4b489359c9a13f8e19e3aa8c0b61e281eac55fd3fa27b1f2b1",
+      "draft_words": 604,
+      "common_context_words": 7301
+    },
+    "reading": {
+      "source_packet": "../candidate_30/reading_a1/packet.txt",
+      "source_packet_sha256": "9bc2fd89289c8c1a79bca350a2d5608412d2cb7c15737b1f9889b01877b938db",
+      "source_draft": "../candidate_30/reading_a1/00.draft.md",
+      "draft_sha256": "84e8bc343ec0e0dc7688b6dac8dcd02cbcfff7f7e002221dcb97ae05cae1d558",
+      "draft_words": 138,
+      "common_context_words": 6172
+    }
+  },
+  "cases": [
+    {
+      "case": "01",
+      "context": "book",
+      "condition": "long",
+      "repeat": 1,
+      "agent": "/root/terra_c42_01",
+      "request_sha256": "96c9598a9634c97724a69e2bfcc7a0a250b30f13ff672542dcb2b1eba2e6e1b9"
+    },
+    {
+      "case": "02",
+      "context": "book",
+      "condition": "short",
+      "repeat": 1,
+      "agent": "/root/terra_c42_02",
+      "request_sha256": "a1e3c999875ba3e61feac5ddb508263a2375121089f9628bcfbce88c65f1b8e5"
+    },
+    {
+      "case": "03",
+      "context": "reading",
+      "condition": "long",
+      "repeat": 1,
+      "agent": "/root/terra_c42_03",
+      "request_sha256": "0cae2e3a89f7b6657efa4c65dae6dc7e7a42ee8395ba93ec601459f0b9dbf58a"
+    },
+    {
+      "case": "04",
+      "context": "reading",
+      "condition": "short",
+      "repeat": 1,
+      "agent": "/root/terra_c42_04",
+      "request_sha256": "02268286be60d42b92f63c686d449808573075622e5fa2ff522641d33da969f2"
+    },
+    {
+      "case": "05",
+      "context": "book",
+      "condition": "short",
+      "repeat": 2,
+      "agent": "/root/terra_c42_05",
+      "request_sha256": "a1e3c999875ba3e61feac5ddb508263a2375121089f9628bcfbce88c65f1b8e5"
+    },
+    {
+      "case": "06",
+      "context": "book",
+      "condition": "long",
+      "repeat": 2,
+      "agent": "/root/terra_c42_06",
+      "request_sha256": "96c9598a9634c97724a69e2bfcc7a0a250b30f13ff672542dcb2b1eba2e6e1b9"
+    },
+    {
+      "case": "07",
+      "context": "reading",
+      "condition": "short",
+      "repeat": 2,
+      "agent": "/root/terra_c42_07",
+      "request_sha256": "02268286be60d42b92f63c686d449808573075622e5fa2ff522641d33da969f2"
+    },
+    {
+      "case": "08",
+      "context": "reading",
+      "condition": "long",
+      "repeat": 2,
+      "agent": "/root/terra_c42_08",
+      "request_sha256": "0cae2e3a89f7b6657efa4c65dae6dc7e7a42ee8395ba93ec601459f0b9dbf58a"
+    }
+  ],
+  "planned_author_requests": 8,
+  "planned_revisions": 8,
+  "fresh_player_turns": 0,
+  "all_full_biographies_preserved": true,
+  "main_runtime_changed": false,
+  "limits": "Small fixed-draft editing comparison. Shared minimal return-only wrapper differs from older runs; only fresh controls isolate this instruction change. No API token, latency, cost or long-term guarantee."
+}

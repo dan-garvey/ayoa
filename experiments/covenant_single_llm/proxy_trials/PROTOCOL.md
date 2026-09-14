@@ -240,6 +240,28 @@ A mixed or failed result closes this direction without retuning the number.
 Fresh substantial sessions and held-out explicit-detail, authorship, knowledge
 and redirection cases remain required for selection.
 
+Candidate42 tests the user's exact approved 23-word revision request against
+the full 312-word C29 revision task. Both use the same minimal read/return
+wrapper, unchanged 393-word common instructions, complete C29 Covenant/persona
+and original published histories. Two supplied drafts, C29 B03 dinner and its
+complete-manuscript reading replay, each receive two fresh Terra/max edits per
+condition: eight first revisions and zero new player turns. The C30 source
+packets and original drafts remain exact. No word ceiling, character dialogue
+example, extra editorial rule or corrective feedback is added to treatment.
+
+This is a fixed-draft editing screen, not a new live generation/revision session.
+Root and a fresh independent reviewer compare each complete revision with the
+original, including aphorism burden, natural and distinct dialogue, useful
+interaction retained or lost, and boundaries. The independent reviewer receives
+anonymized revisions and complete source/draft context without conditions or
+root judgments; root locks first. A tie with the long prompt may support a useful
+simplification. Advancing to substantial trials still requires both short repeats
+in both contexts to be retainable for both reviewers, match or improve on controls,
+reduce unwanted rhetoric without flattening interaction and preserve boundaries.
+Only fresh controls support the instruction comparison; the shared return-only
+delivery differs from older runs. Frozen intended requests and actual task/model
+metadata are preserved, while encrypted dispatch bodies limit plaintext auditing.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

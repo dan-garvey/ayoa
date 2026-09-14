@@ -1,0 +1,49 @@
+{
+  "captured_at": "2026-09-14T16:04:34.495164+00:00",
+  "agent": "/root/terra_c42_03",
+  "session_id": "01a0a0a4-c825-7f80-8b60-9c8793b9b9c2",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T10-59-08-01a0a0a4-c825-7f80-8b60-9c8793b9b9c2.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "public_final_message_id": "msg_089aaa440f81e5f8016aa81a026b0887d1956d746a70e955c6",
+  "first_final_sha256": "4522165f8926344abd6bfa6daf2a151461e1be6a58d237fdcc44371ecbb12e16",
+  "words": 93,
+  "exact_unmodified_first_final": true,
+  "frozen_request_sha256": "0cae2e3a89f7b6657efa4c65dae6dc7e7a42ee8395ba93ec601459f0b9dbf58a",
+  "dispatch_metadata_verified": true,
+  "dispatch_plaintext_verified": false,
+  "public_tool_calls": [
+    {
+      "call_id": "call_0ASrT0w9nNDZGqBVGsbznAmQ",
+      "tool": "exec",
+      "source_sha256": "3efed2ae3de060c31b31d67a7757209cb20093f33434dd164bbb938ff1e172c8",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_lLR7IWy0ZUqahVnvgepmfYmN",
+      "tool": "exec",
+      "source_sha256": "96776334ad13f335bc7f9e181396cad0d6770b9aabff3c94e573a6f094c3beac",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_1mMyGSUsPfHp6ISTewdNhrdp",
+      "tool": "exec",
+      "source_sha256": "e5be58260ad5b89610a0ab085a54be5e3ed4bfe9a787c8edc979c3a78ae4dfec",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_q90hUxhDz9u3RlmPy8e5lku8",
+      "tool": "exec",
+      "source_sha256": "ff500ef9f593d1436ec1da7e5325cc5c38a4626e79ce38821cd52707653daa67",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_ATpbICJbtb4PVqhyjLQ8Z4aX",
+      "tool": "exec",
+      "source_sha256": "5970cea4f7ec2d0919cfeccd392e0f8e3c652ebb80cc5b3bb403a65c253b28f3",
+      "possible_write": false
+    }
+  ],
+  "possible_writes": [],
+  "scope": "Exact public final, public tool/call metadata, frozen intended request and model/effort only. The root log encrypts dispatched message text, so no dispatch/receiver plaintext comparison is claimed. No private reasoning inspected."
+}

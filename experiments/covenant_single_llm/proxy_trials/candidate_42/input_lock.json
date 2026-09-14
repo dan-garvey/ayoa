@@ -1,0 +1,29 @@
+{
+  "locked_at": "2026-09-14T15:58:11.899883+00:00",
+  "before_all_author_launches": true,
+  "file_sha256": {
+    "cases/01/request.txt": "96c9598a9634c97724a69e2bfcc7a0a250b30f13ff672542dcb2b1eba2e6e1b9",
+    "cases/02/request.txt": "a1e3c999875ba3e61feac5ddb508263a2375121089f9628bcfbce88c65f1b8e5",
+    "cases/03/request.txt": "0cae2e3a89f7b6657efa4c65dae6dc7e7a42ee8395ba93ec601459f0b9dbf58a",
+    "cases/04/request.txt": "02268286be60d42b92f63c686d449808573075622e5fa2ff522641d33da969f2",
+    "cases/05/request.txt": "a1e3c999875ba3e61feac5ddb508263a2375121089f9628bcfbce88c65f1b8e5",
+    "cases/06/request.txt": "96c9598a9634c97724a69e2bfcc7a0a250b30f13ff672542dcb2b1eba2e6e1b9",
+    "cases/07/request.txt": "02268286be60d42b92f63c686d449808573075622e5fa2ff522641d33da969f2",
+    "cases/08/request.txt": "0cae2e3a89f7b6657efa4c65dae6dc7e7a42ee8395ba93ec601459f0b9dbf58a",
+    "contexts/book.txt": "4fa03dcb519e73e2907394eb069b6fee7af154b98ca8fce83ba1ec55371cda32",
+    "contexts/reading.txt": "dc8cf2f3e76c3f21d76a16fae16f2737a65e8ede438ae76ff55740c9acecfb01",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "design.md": "07ec103c13d860371665213fdb5f834835876a803cb8afef807cc9e26053dc79",
+    "drafts/book.md": "fd9011cb44d52e4b489359c9a13f8e19e3aa8c0b61e281eac55fd3fa27b1f2b1",
+    "drafts/reading.md": "84e8bc343ec0e0dc7688b6dac8dcd02cbcfff7f7e002221dcb97ae05cae1d558",
+    "manifest.json": "a5a4679593b5d54281a56751fe203740c3857244ffde40eb94d6216dec9c97bf",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90",
+    "review_context/book.txt": "f256de31b4ec4ac94cdea7dd4dfdcc7c289562da54f0b7adb30db70d47d3d916",
+    "review_context/reading.txt": "ee7f910bfa3f9efd11130effc444f13d7067debb324176919f4d6bcb48a6762f",
+    "review_key.json": "3a60e99db39d3a53da42ae05faf81dd31d95448d89e5c929bcdb8ff255a2d8ae",
+    "review_request.txt": "810e3937dbbe44da5c09b689148451101c6ef0379ad52bcbcca358a14db37d9e",
+    "revision_long.txt": "4ad60ed2260230b0b6e07414f0cc696a3e8b86d043636d28f564a0dfabd5f872",
+    "revision_short.txt": "984c7a5b73a0cb6467f02af9434d7d9e57c6f6a23b98253894a9a6b6615b5799",
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73"
+  }
+}

@@ -6,7 +6,17 @@ met the complete selection bar across two fresh sessions. The remaining failures
 are predominantly literary: recurring polished lessons, stilted conversation,
 and, in some routes, helpful characters who leave too much initiative to the player.
 
-The latest completed comparison is C41: sixteen new dinner continuations
+The latest experiment is C42: eight completed edits comparing the user's approved
+23-word revision request with C29's 312-word task on two fixed drafts. Both
+conditions retain identical full story context and common instructions. The
+[locked root comparison](proxy_trials/candidate_42/pilot_review.md) prefers both
+short dinner edits to both long controls: they reduce ornate dialogue and retain
+the substantive disagreement. The reading comparison is mixed; the longer task
+produces more particular personal reactions. Independent comparison is pending.
+All first drafts, edits and requests are preserved; there are no new live player
+turns or promotion claims in this screen.
+
+The previous completed comparison was C41: sixteen new dinner continuations
 testing the existing prompt against a 350-word default ceiling. Both the
 [root review](proxy_trials/candidate_41/pilot_review.md) and
 [independent review](proxy_trials/reviews/round41_independent_comparison.md)
@@ -562,6 +572,34 @@ the ceiling. The [decision](proxy_trials/candidate_41/decision.json) rejects
 advancement on literary quality and compliance separately, closing this direction
 without another numerical target. No substantial trials or promotion follow
 this failed screen, and no C42 intervention is selected by the result.
+
+Candidate42 uses the exact user-approved concise instruction:
+
+> Revise the previous draft to remove aphorisms from character dialogue. Preserve each character’s individual voice and make the dialogue natural for the situation.
+
+Its [design](proxy_trials/candidate_42/design.md) compares that 23-word request
+with the complete 312-word C29 revision task, including its tags. Both conditions
+share only a minimal read/return wrapper beyond the unchanged common story
+instructions. The C30 dinner and manuscript packets, including the complete
+source Covenant and original drafts, are unchanged. Two fresh Terra/max editors
+per context/condition yield eight first revisions, 2,802 new words and zero new
+player turns. Eight full context reads and exact first finals pass the scoped
+[validation](proxy_trials/candidate_42/validation.json). The root log encrypts
+dispatch text; frozen intended requests and call metadata are preserved without
+claiming a plaintext dispatch comparison.
+
+The [root review](proxy_trials/candidate_42/pilot_review.md) prefers both short
+dinner edits to both long controls. The short instruction reduces several
+unwanted formulations and preserves the treaty disagreement, although the
+literal complaint exchange and editing-as-work joke remain. Both long controls
+replace that discussion with another petition review and new generalizations.
+For the manuscript, the short edits give plainer responses and actual requests
+to hear part again; the long alternatives offer more distinct interpretation
+and personal interest. Root gives all dinners prose/distinction 3/3, the long
+readings 4/4 and the short readings 4/3. The reviewer receives original drafts
+alongside anonymized revisions to assess editing effects directly. Independent
+findings are pending; the locked root already rejects advancement to substantial
+trials while retaining the useful targeted dinner improvement.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
