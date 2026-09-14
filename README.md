@@ -11,20 +11,57 @@ research live on **`archive/covenant-prompt-trials`**. Read the
 The concise editor is a working baseline; sustained literary quality remains an
 open research objective.
 
-## Start a story
+## Browser chat
 
 Use Python 3.10+ on Linux, macOS or WSL. From this checkout's root:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m narrative chat
+```
+
+Open **http://localhost:8765**. Choose a saved story or select **New story**.
+The conversation shows your turns and published passages, with Markdown emphasis,
+headings, quotations, lists, tables, and preserved verse line breaks. Reading
+preferences offer light/dark appearance and adjustable text size. New passages
+open at their beginning; incoming responses preserve your position when you are
+reading earlier text. You can copy a passage or download the published transcript.
+
+Write in the multiline composer. **Ctrl+Enter** (or **Cmd+Enter**) sends;
+**Enter** inserts a line break. Unsent text and reading preferences survive reloads
+in the same browser. Accepted turns are saved to the session files. An unfinished
+or failed response offers **Continue response** without resubmitting your turn.
+
+For automatic responses, start the chat with an API key available to the server:
+
+```bash
+.venv/bin/python -m narrative chat --transport api --env-file .env
+```
+
+The default is `proxy`: **Response handoff** lets you copy/download the current
+request and paste or load the complete reply. Supply the author's draft first,
+then the editor's response to publish the passage. The handoff contains story
+secrets and stays separate from the conversation. Existing CLI proxy commands
+also work; their results appear in the chat automatically.
+
+`--port` changes the local port, and `--sessions DIRECTORY` selects a different
+session directory. Nested existing sessions are listed automatically. Model,
+reasoning and transport options set defaults for **new** sessions; existing ones
+retain their frozen configuration. The defaults remain `gpt-5.6-terra` and `max`.
+The server binds only to loopback; it is a local, single-user interface.
+
+## Terminal workflow
+
+The original commands remain available:
+
+```bash
 .venv/bin/python -m narrative init --story covenant --session sessions/my-story
 .venv/bin/python -m narrative turn --session sessions/my-story --text 'Begin the story.'
 ```
 
-Initialization makes no model calls. The default transport is `proxy`, and the
-default model configuration is `gpt-5.6-terra` with `max` reasoning. `breakwater`
-is a second bundled story: a contemporary coastal cinema with a rich ensemble.
+Initialization makes no model calls. `breakwater` is a second bundled story:
+a contemporary coastal cinema with a rich ensemble.
 
 The turn command returns a request id and paths to exact JSON and readable text
 requests. Give the complete text request to a fresh Terra coding agent at maximum
@@ -93,7 +130,16 @@ There is no automatic rewriting of a story when the player file changes.
 [AGENTS.md](AGENTS.md) describes contribution and evidence practices.
 
 ```bash
+.venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pytest -q
 .venv/bin/ruff check narrative tests
 .venv/bin/ruff format --check narrative tests
+```
+
+Browser checks use local fake responses and make no model or external network
+calls. Install Chromium once, then include them in the suite:
+
+```bash
+.venv/bin/python -m playwright install chromium
+.venv/bin/pytest -q --with-browser
 ```

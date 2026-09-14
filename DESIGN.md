@@ -72,7 +72,44 @@ token usage and proxy latency are null, not invented estimates.
 
 Complete text history grows with play. Context-limit failures remain explicit;
 there is no automatic compaction, background simulation or hidden planning log.
-This foundation is a local, single-player terminal workflow on Linux/macOS/WSL.
+This foundation is a local, single-player workflow on Linux/macOS/WSL.
 It retires the former engine, per-character agents, schemas, adapters, media and
 UI infrastructure from this branch. The archived implementation and all earlier
 trial evidence remain available through docs/findings.md.
+
+## Browser chat
+
+`python -m narrative chat` serves local HTML, CSS and JavaScript with a small
+loopback HTTP server. There is no frontend build step, CDN or second story store.
+The browser submits a turn; its HTTP request waits for the ordinary author/editor
+loop. Separate read requests keep progress visible while those sequential calls
+run. Closing or reloading the page does not cancel an executing server request.
+Stopping the server still uses the core's existing interrupted-attempt recovery.
+
+An in-memory guard identifies active HTTP operations and rejects simultaneous
+requests for the same session. The core's file lock remains authoritative across
+CLI and browser processes. Browser submissions include the published turn count
+they were composed against; the core checks it under that lock to reject a stale
+tab or a repeated submission after publication. This adds no prompt content or
+persisted history fields. Failed reads and actions leave the saved turn explicit.
+
+The conversation projection includes only published exchanges, the current player
+submission and response status. Drafts, canon, provider output and credentials are
+excluded. Proxy handoffs are a separate, explicitly opened operator surface that
+returns the actual prepared request and accepts a response by its pending id.
+The UI stores unsent composer text and reading preferences in browser storage;
+canonical history continues to live in the session directory.
+
+Formatting uses Markdown with raw HTML disabled, following the
+[parser's security guidance](https://markdown-it-py.readthedocs.io/en/latest/security.html).
+Images are disabled and intentional line breaks are preserved. Original strings
+remain unchanged in session storage and future model context. The server serves
+only named UI assets and explicit endpoints, restricts session paths to its root,
+checks local Host/Origin headers, and requires a per-process token for mutations.
+Content security policy excludes inline scripts and framing. Browser requests
+never receive an API key. This is not a public deployment or multi-user service.
+
+Offline HTTP and Chromium checks cover publication, formatting, proxy acceptance,
+concurrent progress reads, stale submissions, recovery after a failed edit,
+reload during generation, saved composer text, mobile navigation and reading
+position. Live narrative quality remains evaluated through the separate playtests.

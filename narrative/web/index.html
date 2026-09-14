@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Ayoa · Your stories</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <button class="scrim" id="scrim" aria-label="Close story list" hidden></button>
+  <aside class="sidebar" id="sidebar" aria-label="Your stories">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">a</span><span>Ayoa<span class="brand-caption">A story, together.</span></span></div>
+    <button class="new-story button" id="new-story"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> New story</button>
+    <div class="sidebar-label">YOUR STORIES</div>
+    <nav class="session-list" id="session-list" aria-label="Saved stories"></nav>
+    <div class="sidebar-bottom"><span class="save-dot" aria-hidden="true"></span> Saved on this device</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-button mobile-menu" id="menu" aria-label="Open story list" aria-controls="sidebar" aria-expanded="false">☰</button>
+      <div class="story-heading"><span class="eyebrow" id="story-kicker">YOUR NEXT CHAPTER</span><h1 id="story-title">Your stories</h1></div>
+      <div class="header-actions">
+        <span class="status-chip" id="status-chip" hidden></span>
+        <button class="icon-button" id="export" aria-label="Download story" title="Download story" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5"/></svg></button>
+        <details class="reading-menu" id="reading-menu">
+          <summary class="icon-button" aria-label="Reading preferences" title="Reading preferences">Aa</summary>
+          <div class="reading-popover">
+            <span>Text size</span><div class="size-controls"><button id="smaller" aria-label="Smaller story text">A−</button><span id="text-size">20</span><button id="larger" aria-label="Larger story text">A＋</button></div>
+            <button class="theme-button" id="theme">Use dark appearance</button>
+          </div>
+        </details>
+      </div>
+    </header>
+
+    <div class="notice" id="notice" role="alert" hidden><span id="notice-text"></span><button class="icon-button" id="dismiss-notice" aria-label="Dismiss message">×</button></div>
+    <div class="reader" id="reader" tabindex="0" aria-label="Story conversation">
+      <div class="welcome" id="welcome">
+        <div class="welcome-flourish" aria-hidden="true">✧</div>
+        <span class="eyebrow">ROOM FOR A GOOD STORY</span>
+        <h2>A world to step into.<br>A part that’s yours.</h2>
+        <p>Choose a story, say what you do,<br>and see what happens next.</p>
+        <button class="button primary" id="welcome-start">Begin a story <span aria-hidden="true">↗</span></button>
+        <div class="welcome-note">Take your time. Your place is saved.</div>
+      </div>
+      <div class="conversation" id="conversation" hidden></div>
+    </div>
+
+    <button class="latest button" id="latest" hidden>↓ Latest passage</button>
+    <footer class="composer-area" id="composer-area" hidden>
+      <div class="response-status" id="response-status" role="status" aria-live="polite" hidden>
+        <span class="activity-dot" id="activity-dot" aria-hidden="true"></span><span id="response-status-text"></span>
+        <button class="text-button" id="resume" hidden>Continue response</button>
+        <button class="text-button" id="handoff" hidden>Response handoff</button>
+      </div>
+      <form class="composer" id="composer-form">
+        <label class="sr-only" for="turn-text">Your next turn</label>
+        <textarea id="turn-text" rows="2" placeholder="What do you say or do?" spellcheck="true"></textarea>
+        <div class="composer-tools"><span class="composer-prompt" id="composer-prompt">Your words. Your choices.</span><button class="send-button" id="send" type="submit" aria-label="Send turn" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div>
+      </form>
+      <div class="composer-caption"><details class="format-help"><summary>Formatting help</summary><p><code>*emphasis*</code> · <code>**bold**</code> · <code>&gt; quotation</code><br>Blank lines separate paragraphs. Line breaks are preserved.</p></details><span><kbd id="send-shortcut">Ctrl</kbd> + <kbd>Enter</kbd> to send</span></div>
+    </footer>
+  </main>
+
+  <dialog id="new-dialog" class="dialog">
+    <form id="new-form">
+      <div class="dialog-heading"><span class="eyebrow">A FRESH PAGE</span><button class="icon-button" type="button" data-close="new-dialog" aria-label="Close new story">×</button></div>
+      <h2>Where shall we begin?</h2><p class="muted">Choose a world. Each story keeps its own place.</p>
+      <label class="field-label" for="story-choice">Story</label><select id="story-choice" required></select>
+      <div class="character-note">You’ll play as <strong id="new-player"></strong>.</div>
+      <p class="mode-note" id="mode-note"></p>
+      <p class="dialog-error" id="new-error" role="alert" hidden></p>
+      <button class="button primary full-width" id="create-story" type="submit">Begin story <span aria-hidden="true">↗</span></button>
+    </form>
+  </dialog>
+
+  <dialog id="handoff-dialog" class="dialog handoff-dialog">
+    <form id="handoff-form">
+      <div class="dialog-heading"><span class="eyebrow" id="handoff-stage">RESPONSE HANDOFF</span><button class="icon-button" type="button" data-close="handoff-dialog" aria-label="Close response handoff">×</button></div>
+      <h2>Bring the next passage back.</h2><p class="muted">Give the complete request to a fresh response agent, then paste its complete reply here. The request includes story secrets.</p>
+      <div class="handoff-buttons"><button type="button" class="button" id="copy-request">Copy request</button><button type="button" class="text-button" id="download-request">Download request</button></div>
+      <details class="packet-details"><summary>View complete request</summary><textarea id="request-text" readonly aria-label="Complete model request" rows="8"></textarea></details>
+      <label class="field-label" for="response-text">Complete response</label><textarea id="response-text" rows="7" required placeholder="Paste the full response, with its formatting…"></textarea>
+      <label class="file-label">Or load a text file <input id="response-file" type="file" accept=".txt,.md,text/plain,text/markdown"></label>
+      <p class="dialog-error" id="handoff-error" role="alert" hidden></p><p class="mode-note" id="handoff-note" role="status"></p>
+      <button class="button primary full-width" id="accept-response" type="submit">Accept response</button>
+    </form>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

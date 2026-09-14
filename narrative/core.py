@@ -351,11 +351,15 @@ def _drive(session: Path, manifest: dict, state: dict, client: Any, *, retry: bo
     return {"status": "idle", "published_turns": len(state["turns"])}
 
 
-def submit(session: Path, text: str, client: Any = None) -> dict:
+def submit(
+    session: Path, text: str, client: Any = None, *, expected_turns: int | None = None
+) -> dict:
     if not isinstance(text, str) or not text.strip():
         raise ValueError("A player submission cannot be empty")
     with locked(session):
         manifest, state = load_session(session)
+        if expected_turns is not None and expected_turns != len(state["turns"]):
+            raise NarrativeError("The story changed; refresh before submitting this turn")
         if state["pending"] is not None:
             raise NarrativeError("A turn is pending; accept its response or resume it first")
         state["pending"] = {"input": text, "author": None, "request_id": None}

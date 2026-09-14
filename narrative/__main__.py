@@ -1,4 +1,4 @@
-"""Terminal entry point; proxy execution never imports an API client."""
+"""Local entry points; proxy execution never imports an API client."""
 
 import argparse
 import json
@@ -13,6 +13,14 @@ from . import core
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description="Write, revise, and resume an interactive story")
     commands = result.add_subparsers(dest="command", required=True)
+    chat = commands.add_parser("chat", help="Open the local browser chat")
+    chat.add_argument("--sessions", type=Path, default=core.ROOT / "sessions")
+    chat.add_argument("--port", type=int, default=8765)
+    chat.add_argument("--transport", choices=("api", "proxy"), default="proxy")
+    chat.add_argument("--model", default="gpt-5.6-terra")
+    chat.add_argument("--reasoning", default="max")
+    chat.add_argument("--max-output-tokens", type=int, default=12000)
+    chat.add_argument("--env-file", type=Path)
     for name in ("init", "turn", "accept", "resume", "export"):
         command = commands.add_parser(name)
         command.add_argument("--session", type=Path, required=True)
@@ -50,8 +58,21 @@ def api_client(env_file: Path | None):
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    session = args.session.resolve()
     try:
+        if args.command == "chat":
+            from .chat import serve
+
+            serve(
+                args.sessions,
+                port=args.port,
+                transport=args.transport,
+                model=args.model,
+                reasoning=args.reasoning,
+                max_output_tokens=args.max_output_tokens,
+                client_factory=lambda: api_client(args.env_file),
+            )
+            return 0
+        session = args.session.resolve()
         if args.command == "init":
             story = Path(args.story)
             if not story.is_dir():
