@@ -7,23 +7,83 @@
   "cases": [
     {
       "case": "session_a",
-      "player_turns_completed": 0,
+      "player_turns_completed": 5,
       "responses": [
         {
           "turn": 0,
           "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
           "story_sha256": "f963e7ab6f02d3f3181b944ed3c81d65eb86e132379f0dad243030a3c8041375"
+        },
+        {
+          "turn": 1,
+          "input_sha256": "15fa11df4984fe12353981267370711e7336c368bef968d858846e37a368811c",
+          "story_sha256": "0ce198220bbd0915f00de3e2b2221c0eaf63c2212d2aa65acd30e333fcf6c540",
+          "author_turn_request_sha256": "9703659731d1359e921c639801157825c731d4be8b862be7efd8f02ff787aa0a"
+        },
+        {
+          "turn": 2,
+          "input_sha256": "9aa43d9e58bfccd9b0b89bd880eec5e86583391973f27b5a6907a7331d8e0835",
+          "story_sha256": "62a8eb5b13c25145139b8e3c09a7cb5a3d9e388e87901565af7583fd152751af",
+          "author_turn_request_sha256": "05eea43ffd6bcaa4276a3b6bda2dbf95f55c90b4cbda520441c9b6696ab91e50"
+        },
+        {
+          "turn": 3,
+          "input_sha256": "2582a56999cd34dec084d213f254effd15f20908688bec45378f59e1bddd8b46",
+          "story_sha256": "cbdcfcf5e0da881708e9c2bf9b1be9bec28252d79192044fb94874769b5008d5",
+          "author_turn_request_sha256": "f088147414245290f032f2eb1ad9deb44867c560ab41825a7c0597bd1412072f"
+        },
+        {
+          "turn": 4,
+          "input_sha256": "44ab09ad62aba3b3f740a1ffe7b6c94f37207a3dc0717d94b99029609b72a24c",
+          "story_sha256": "951f5d094a677397886c37a752de3b1559b278de4980fc97c556b4a44013c5f1",
+          "author_turn_request_sha256": "4c073a059f11684626cc1e5aabbff4dc7c6b8635c487b662aa53bf8a8870bfb9"
+        },
+        {
+          "turn": 5,
+          "input_sha256": "8de73dc490a01739a145ce4fd5e3b0525cff8a9cece6029b9330b5653f3c4ea5",
+          "story_sha256": "72f153091707286eb7b3d7300b3a72e39b2130e4894df6e33e81af19f7f66637",
+          "author_turn_request_sha256": "5879d8148caa29d85d989d2f41ab3a293c00fa2e91ab7a33884dce7cec57ac54"
         }
       ]
     },
     {
       "case": "session_b",
-      "player_turns_completed": 0,
+      "player_turns_completed": 5,
       "responses": [
         {
           "turn": 0,
           "input_sha256": "765b42ff6cf4efb8868ebff138105cc9b1332c7353fc72c092acda488c4e5e72",
           "story_sha256": "6550c5f0ba8040162accfc5f91f699000a980a6b5a10fd887b5526b061723d79"
+        },
+        {
+          "turn": 1,
+          "input_sha256": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031",
+          "story_sha256": "47161f65e62a4ab4d10789baff9445628c578053a15badbc98480a5b760b6828",
+          "author_turn_request_sha256": "50b5fc2711236c539c9e693122e1accf41dd49278278dbad6532ead8f8fe3f3b"
+        },
+        {
+          "turn": 2,
+          "input_sha256": "1789537eb4512bd3b38612bd64d9414caf445fd0136917c9aa52c190eba1f578",
+          "story_sha256": "875dd0264165103c94a1c9debd1f67e0d1bbb140df7e48fbc3e615ba6a1fa619",
+          "author_turn_request_sha256": "c41cb675caeea98d9c43008a87525df562446ca5630904cdadf3b896130a9876"
+        },
+        {
+          "turn": 3,
+          "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+          "story_sha256": "e999970467b325d862e0a19eecdfeeb51d66cebb7772f6d506827a9cb594c29b",
+          "author_turn_request_sha256": "db8af6a7fed5b81779f3ba4f01cc481ccecbfaeb92b0f214c3c0aab1acb3c4b9"
+        },
+        {
+          "turn": 4,
+          "input_sha256": "41cd5d65e8d21200b739e9c1cebf4ce8a894b626d35f7d24814f93caef24e774",
+          "story_sha256": "86e451dc2f6e808272047770b665d410946c7f8e9376f0e916977fb73004ed4f",
+          "author_turn_request_sha256": "33d9a7ef2177e94b3f71caed011623f1a882afd6d0279165887220ceadc67a29"
+        },
+        {
+          "turn": 5,
+          "input_sha256": "0d1d254c29918bdea2d5f6e18a33daca8d444cf30e9ee11c13b48d0bb7333b24",
+          "story_sha256": "37c0f3c6dfe3a81a87e7ab41c43d28ce80d45b21348fee799f5a7777ef45bee1",
+          "author_turn_request_sha256": "3a0ec580e516238ee816c80075fe5924946a62f8e459ea3e34ab25568c58acfd"
         }
       ]
     }

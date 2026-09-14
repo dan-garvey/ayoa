@@ -321,9 +321,26 @@ material outside current_business remains byte-identical, including the full
 character backgrounds and Dena's paragraph. An active root-driven player and a
 separate observant player driver follow the same opening and persona. Each
 session uses one persistent Terra/max whole-story author with one first passage
-per submission. The initial five-turn screen is underway; this broadens situation
-coverage and does not itself demonstrate improved generic prompting. No candidate
-is selected.
+per submission. Both [A](proxy_trials/candidate_35/session_a/transcript.md) and
+[B](proxy_trials/candidate_35/session_b/transcript.md) complete five player turns,
+with twelve first publications totaling 11,209 story words. The
+[locked pilot](proxy_trials/candidate_35/pilot_review.md) rates A at 3/3/4/4/4 and
+B at 3/3/4/3/4. A follows the scheduling dispute through actual drills and Rashid's
+return, while B stays with dinner and cards. The shared dialogue rhythm persists
+even among the new friends. A's last game both denies and relies on Dena having
+displayed a banner; B's last game supplies an unsupported winning total including
+an apparent transfer of Rowan's crossing. These material state concerns prevent
+selection independently of the prose scores. Independent review is pending.
+
+The [delivery audit](proxy_trials/candidate_35/publication_delivery_audit.json)
+finds the public final answers have the same words as the saved story files after
+declared formatting normalization. Nine files differ in quotation typography or
+literal line-break escapes; none of the originals is changed. The dialogue and
+state defects exist in both surfaces. The next advisory task considers a
+return-only author, whose exact final fiction would be captured by the root,
+as a possible task/delivery experiment. That hypothesis is not a demonstrated
+literary improvement. C35 broadens situation coverage and does not establish a
+generic prompt-quality gain. No candidate is selected.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

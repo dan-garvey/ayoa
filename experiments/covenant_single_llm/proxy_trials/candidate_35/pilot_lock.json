@@ -1,0 +1,30 @@
+{
+  "locked_at": "2026-09-14T09:23:29.643827+00:00",
+  "before_independent_review_launch": true,
+  "pilot_scores": {
+    "session_a": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "session_b": [
+      3,
+      3,
+      4,
+      3,
+      4
+    ]
+  },
+  "file_sha256": {
+    "pilot_review.md": "57e513743f66ae5797a8612ea549061107fc7fb707273c901175d6b544c11f81",
+    "review_request.txt": "c945f6af6a41801c7436cfcf932eee9711271fcbdf2d23392569ecf776678aac",
+    "covenant.txt": "1d38f11c017430101d0d8ccef701d43968ed9cb6b930d43ce1631c9c29819bc5",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90",
+    "session_a/transcript.md": "f68806c7cd36521bfd4bc19c5f51fb92d15f4fb6aaecca61431f3752d4afce93",
+    "session_b/transcript.md": "97f68c326781b1ff0120a06da2d93c3bbfc7bf2f94bc102c8a6181d9401757d5",
+    "validation.json": "68f2f5590e141bc823c3753172f71a4a6c76cb114b49a0e005865f8a03f439c6",
+    "packet_read_audit.json": "91189419394e20a6eace983cfb0bb15c81c8beee3686917d2878fdf67d29dc66"
+  }
+}
