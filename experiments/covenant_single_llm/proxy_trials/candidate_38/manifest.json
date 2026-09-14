@@ -1,0 +1,65 @@
+{
+  "created_at": "2026-09-14T10:36:18.943019+00:00",
+  "source_commit": "51809606aa0aa9977ae68bbe8f315d91b15f21e2",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "prompt_sha256": {
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "covenant.txt": "1d38f11c017430101d0d8ccef701d43968ed9cb6b930d43ce1631c9c29819bc5",
+    "covenant_restored.txt": "1dbbc655a32ac2c8934882b9119424f8a09ae6fa4000c7619ab03f7d8bb33981",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90",
+    "proxy_wrapper.txt": "179246ea68d39221c6a5ee630849c727cfc51d2a5de95518098deb87d9753b82",
+    "restored_background.json": "2040a66f9cd5e5852bb8584e417a82fa273a0b0b00121818893e5c4520fce917"
+  },
+  "cases": [
+    {
+      "case": "first_dinner_restored_1",
+      "context": "first_dinner",
+      "condition": "restored",
+      "repeat": 1,
+      "packet_sha256": "28dc7e0fd6d99d376a3064a9cdadd761599a00b1e049bd2a65b43a661ee448d6",
+      "input_sha256": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031"
+    },
+    {
+      "case": "first_dinner_restored_2",
+      "context": "first_dinner",
+      "condition": "restored",
+      "repeat": 2,
+      "packet_sha256": "28dc7e0fd6d99d376a3064a9cdadd761599a00b1e049bd2a65b43a661ee448d6",
+      "input_sha256": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031"
+    },
+    {
+      "case": "later_dinner_restored_1",
+      "context": "later_dinner",
+      "condition": "restored",
+      "repeat": 1,
+      "packet_sha256": "4b2331239f7e5ac9771411610288aea8f6e4ccf626cb3cadff005c997a5e1b4c",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+    },
+    {
+      "case": "later_dinner_restored_2",
+      "context": "later_dinner",
+      "condition": "restored",
+      "repeat": 2,
+      "packet_sha256": "4b2331239f7e5ac9771411610288aea8f6e4ccf626cb3cadff005c997a5e1b4c",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+    }
+  ],
+  "comparators": "comparators.json",
+  "comparators_sha256": "155a283fd11624df7ef5f74216b12a3c62e78cb930ee7eb5be743cb0d5e50c93",
+  "launch_order": [
+    "first_dinner_restored_1",
+    "later_dinner_restored_1",
+    "first_dinner_restored_2",
+    "later_dinner_restored_2"
+  ],
+  "advice": "../reviews/original_biography_audit.md",
+  "advice_sha256": "c6893dc234aeee433efc23ff986ceee5488180b179c40eaf4725f9411ffadb07",
+  "change": "Three additive, nonsexual restorations from original source: Ysolde upbringing/tastes, Caelindra education/dispersed cohort, Thessaly hallway comfort memory. Every existing Covenant byte remains after removing only these additions. Full C37 control system and return-only wrapper unchanged; no speech examples or prescribed outcomes.",
+  "loop": "Four fresh whole-story Terra/max author tasks, one first public final each. Root captures exact final after completion. Compare against all four already frozen C37 full-system controls, not regenerated controls. No editor, selector, per-character agents or reviewer feedback.",
+  "scope": "Four new first continuations plus four prior control publications; two dinner contexts and two repeats per new condition. Zero new substantial sessions. Contexts and submissions unchanged except the three declared biography additions.",
+  "screening_rule": "Both root and independent review must rate all four new publications prose4 or higher, prefer each restored repeat to both prior controls in its context for substantive literary reasons, and find no material loss in the other four quality dimensions or unresolved material knowledge/continuity/authorship failure. Facts merely recited, forced confidences, fewer speakers, fewer words or new aphorisms about the added history are not success. A pass warrants the existing two fresh substantial different-policy sessions and held-out probes; it selects no prompt by itself.",
+  "review_plan": "Lock the root before independent review. Give the independent reviewer all eight complete anonymous outputs, both complete Covenant versions and exact source conversation, identifying the applicable authoritative brief for each output. Do not provide root scores, model provenance, the intervention rationale or which controls are historical. Different biographies may reveal condition membership, so describe this as an independent context-aware comparison with anonymized provenance rather than perfect condition blinding.",
+  "limits": "Historical controls and a narrow shared dinner route limit causal attribution and generalization. Restoration changes information availability and length together. A null rejects this particular addition set as a demonstrated literary rescue, not rich biographies, the original prompt, free invention or a model capability ceiling. No direct story API call, runtime change or production performance claim.",
+  "prelaunch_requirement": "Complete factual consistency/read-fidelity audit of the three additions against original source and both exact continuation contexts. Resolve input mistakes before any story author launches; do not change a prompt after launch."
+}

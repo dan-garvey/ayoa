@@ -189,6 +189,21 @@ unresolved material boundary failure defeats advancement. This is a small
 deletion test within one dinner route; it cannot select a prompt, diagnose the
 rich biographies, or establish that writing guidance in general is harmful.
 
+Candidate38 restores three specific background additions from the original
+Covenant: Ysolde's birthplace/upbringing/tastes, Caelindra's education and dispersed
+cohort, and Thessaly's hallway memory. Every current Covenant passage remains,
+with the full control common prompt and return-only wrapper. Four new first
+continuations are compared with all four C37 full-system controls, not a selected
+subset or regenerated control set. This historical comparison limits attribution.
+The additions require factual consistency verification before any author launch;
+the initial raised-to-born source correction and proposed inputs are preserved.
+All new passages must be retainable and substantively preferred in their contexts
+by both reviewers, without material loss or boundary failure, before substantial
+trials. The independent reviewer receives each output's correct complete brief;
+different biographies may reveal the condition despite anonymized provenance.
+No recitation of the new facts, forced confidence or new maxim about them counts
+as a literary gain. Rich backgrounds and all player-authorship rules remain.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

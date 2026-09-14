@@ -1,0 +1,74 @@
+{
+  "selection": "All four C37 full-system control first publications: both contexts and both repeats. No selection among their outputs and no reuse of C37 deletion treatments.",
+  "limits": "Historical controls were generated earlier and are not randomized contemporaneously with the new additions. This is a bounded screening comparison, not an isolated causal estimate.",
+  "cases": [
+    {
+      "case": "first_dinner_control_1",
+      "context": "first_dinner",
+      "condition": "prior_control",
+      "repeat": 1,
+      "source_trial": "candidate_37",
+      "source_commit": "51809606aa0aa9977ae68bbe8f315d91b15f21e2",
+      "paths_sha256": {
+        "candidate_37/first_dinner_control_1/00.input.txt": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031",
+        "candidate_37/first_dinner_control_1/00.story.md": "706de06b4153761733d9f76037e7ebf834e3f5b8af631485dd414d0d37c8c907",
+        "candidate_37/first_dinner_control_1/packet.txt": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+        "candidate_37/first_dinner_control_1/author_request.txt": "e5738bbfa3f27fb21110c0d6bf0925632e64a43241dad49de22c281d7b48b604",
+        "candidate_37/first_dinner_control_1/capture.json": "c5942d61dadd29565c05a8553a5c1627c11d07a3c7806b14ec1d61f1d21e725d",
+        "candidate_37/first_dinner_control_1/agent.json": "eef849588078622526d5337f797a19f0f40446845357f402ae35c4e5ae897f8f"
+      },
+      "new_generation": false
+    },
+    {
+      "case": "first_dinner_control_2",
+      "context": "first_dinner",
+      "condition": "prior_control",
+      "repeat": 2,
+      "source_trial": "candidate_37",
+      "source_commit": "51809606aa0aa9977ae68bbe8f315d91b15f21e2",
+      "paths_sha256": {
+        "candidate_37/first_dinner_control_2/00.input.txt": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031",
+        "candidate_37/first_dinner_control_2/00.story.md": "3f30f61b6e22e284a524902c41c7bd607f773c796634acbb5494dcab9e6f9aab",
+        "candidate_37/first_dinner_control_2/packet.txt": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+        "candidate_37/first_dinner_control_2/author_request.txt": "37b0d04d4b0882474e57aeaa9c12f212467636506a2a98640b8ae3160bcc3f43",
+        "candidate_37/first_dinner_control_2/capture.json": "8b97d0e8471d32b61b8ed8f5c3dfb878827f1c24738ac24f65fd5f4630a9b815",
+        "candidate_37/first_dinner_control_2/agent.json": "b229016f9fd3ba8763dbf50960faf8bd16c6c9c7466109ebbc836230b3effdab"
+      },
+      "new_generation": false
+    },
+    {
+      "case": "later_dinner_control_1",
+      "context": "later_dinner",
+      "condition": "prior_control",
+      "repeat": 1,
+      "source_trial": "candidate_37",
+      "source_commit": "51809606aa0aa9977ae68bbe8f315d91b15f21e2",
+      "paths_sha256": {
+        "candidate_37/later_dinner_control_1/00.input.txt": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+        "candidate_37/later_dinner_control_1/00.story.md": "12d1f57ce647b86beaa690b8b528c5373a4d932f6b5f498d9238b0ad85b4fbc5",
+        "candidate_37/later_dinner_control_1/packet.txt": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+        "candidate_37/later_dinner_control_1/author_request.txt": "a8f6aecba980ff0f8652ee939fcca110b159f46391075af6a4360c04149c5dce",
+        "candidate_37/later_dinner_control_1/capture.json": "22537de2366ac63e19fb5f85820f5c33e72495bec5eee354e483d40bfc0e7cf6",
+        "candidate_37/later_dinner_control_1/agent.json": "efaaf3150cb372d3a87ee2ed712ce7be858015207842f7f3da888ed4750afbf5"
+      },
+      "new_generation": false
+    },
+    {
+      "case": "later_dinner_control_2",
+      "context": "later_dinner",
+      "condition": "prior_control",
+      "repeat": 2,
+      "source_trial": "candidate_37",
+      "source_commit": "51809606aa0aa9977ae68bbe8f315d91b15f21e2",
+      "paths_sha256": {
+        "candidate_37/later_dinner_control_2/00.input.txt": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+        "candidate_37/later_dinner_control_2/00.story.md": "c85395e434631cd69a42cef84c3e915a5ee158a2dcdc7d561286626a57a12bcc",
+        "candidate_37/later_dinner_control_2/packet.txt": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+        "candidate_37/later_dinner_control_2/author_request.txt": "c94c04e3baf83265e3d2c8a5fb4f7066a16474f615221b1b9c461568f2f5d239",
+        "candidate_37/later_dinner_control_2/capture.json": "5b6a1febce5098594938a2be080725c0b4d3640337b222f6da92de9522b74586",
+        "candidate_37/later_dinner_control_2/agent.json": "e0a564b5e761f035eaa68cb9c0dc2489b8504c076c0856d0ce56e87de72a6f32"
+      },
+      "new_generation": false
+    }
+  ]
+}

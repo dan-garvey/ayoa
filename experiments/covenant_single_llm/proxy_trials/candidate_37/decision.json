@@ -1,0 +1,151 @@
+{
+  "status": "screen_complete_no_advancement",
+  "decided_at": "2026-09-14T10:41:25.152528+00:00",
+  "published_responses": 8,
+  "author_requests": 8,
+  "story_words": 6378,
+  "fresh_player_turns": 0,
+  "replayed_continuations": 8,
+  "fresh_substantial_sessions": 0,
+  "root_scores": {
+    "first_dinner_without_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "first_dinner_control_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "first_dinner_without_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "first_dinner_control_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_dinner_control_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_dinner_without_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_dinner_control_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_dinner_without_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ]
+  },
+  "independent_scores": {
+    "first_dinner_without_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "first_dinner_control_1": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "first_dinner_without_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "first_dinner_control_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_dinner_control_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_dinner_without_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_dinner_control_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_dinner_without_2": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ]
+  },
+  "score_order": [
+    "prose/dialogue",
+    "distinction",
+    "independent interests",
+    "direction",
+    "adaptive initiative"
+  ],
+  "pilot": "pilot_review.md",
+  "pilot_lock": "pilot_lock.json",
+  "independent_review": "../reviews/round37_blind_comparison.md",
+  "independent_review_sha256": "8bf37c2474d437cfdc921973e580876fb89446635464d8ba513b995f720081e9",
+  "review_response": "review_response.md",
+  "review_read_audit": "review_read_audit.json",
+  "findings": [
+    "Both reviews give every output prose3; the frozen deletion advancement rule fails.",
+    "Independent review distinction4 for first_dinner_control_1 and later_dinner_without_2 differs from root3; mixed within-context preferences are retained.",
+    "No definite new material knowledge, continuity or player-authorship breach established. Local POV/reference/notification ambiguities remain explicit.",
+    "All exact first public finals, complete reads, Terra/max settings, frozen source identities and eight launches verified."
+  ],
+  "limits": [
+    "Two positions in one observant dinner route, not substantial independent sessions or a general model-capability result.",
+    "Deleting this81-word paragraph does not remove the full Covenant behavior guidance or establish that rich backstories cause the style.",
+    "No reroll, prompt promotion, direct story API call, runtime edit or repaired fiction."
+  ],
+  "next_step": "C38 source-backed additions to three biographies, all existing material preserved, four new outputs compared to all four C37 full-system controls. Prelaunch factual audit required; original proposed wording and any correction preserved."
+}

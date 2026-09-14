@@ -1,0 +1,12 @@
+Verify the proposed C38 restoration before any author launches. Read only the complete files named here, using untruncated chunks where needed:
+
+/home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_38/restored_background.json
+/home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_38/covenant.txt
+/home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_38/covenant_restored.txt
+/home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_38/first_dinner_restored_1/packet.txt
+/home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_38/later_dinner_restored_1/packet.txt
+/mnt/c/Users/danim/Pictures/Ayoa/covenant_prompt_v2.md (only original lines409-445,500-526,680-708; do not read sensuality sections or dialogue examples)
+
+Compare every added factual claim with those exact original passages and both continuation histories. Check that all current Covenant content remains when the declared additions are removed, that the persona, submitted player actions and published stories remain intact, and that no biography is reduced or source presentation prescription/example is restored. Do not add narrator/player omniscience, identify the unnamed students as established characters without evidence, or treat an omitted fact as a current public disclosure. Distinguish a supported paraphrase from a newly invented detail and a actual conflict from a speculative one. The current socially experienced Thessaly, unrhymed Seraphel, adult cast and nonpredetermined relationships remain controlling.
+
+Save the first complete factual audit to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/reviews/round38_restoration_fidelity.md. Report pass only if the proposed input is consistent as written; identify exact text for any required correction. You are not judging literary quality or approving a deployment. Do not contact story authors, inspect their logs/private reasoning, call other models, edit a prompt or create fiction. Use maximum reasoning.

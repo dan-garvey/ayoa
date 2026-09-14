@@ -1,0 +1,15 @@
+{
+  "agent": "/root/terra_proxy_c38_first_dinner_restored_1",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "first_dinner background restoration diagnostic",
+  "calls_per_player_submission": 1,
+  "condition": "restored",
+  "delivery": "return_only",
+  "repeat": 1,
+  "review_feedback_supplied": false,
+  "primary_publication": "Exact first public final answer captured by root.",
+  "author_request_sha256": "bcacfbc678210ec62d06278d256c498ba5a1563e2c91cd96a7606cb73dc6f451",
+  "launch_request_sha256": "53437ebc1047d15ed6c06bd0dd8b98be1db59d77f236c26fbdedc12c8bc17d51"
+}

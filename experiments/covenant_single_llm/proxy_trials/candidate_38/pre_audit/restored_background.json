@@ -1,0 +1,37 @@
+{
+  "source_path": "/mnt/c/Users/danim/Pictures/Ayoa/covenant_prompt_v2.md",
+  "source_sha256": "8c2f6d90d7cb356df2aeeacf620a22c4efb3630679de442c5cf7611aaf7971f5",
+  "source_bytes": 93564,
+  "restorations": [
+    {
+      "character": "Ysolde",
+      "source_lines": [
+        412,
+        414,
+        438
+      ],
+      "before_anchor": "Caelindra Vaeyn is the 153-year-old adult third daughter of the Amber Court.",
+      "text": "Ysolde was raised among the peaks and ice of the Thornmantle range, claimed by\nher family for millennia. As a hatchling she was taught to hunt, fight and claim\nterritory. At thirty, her mother required her to begin learning how to interact\nwith other races. Cold water, high altitudes and the taste of raw meat are small\nsensory pleasures she keeps to herself.\n\n"
+    },
+    {
+      "character": "Caelindra",
+      "source_lines": [
+        505,
+        521
+      ],
+      "before_anchor": "Seraphel Dawnquill is an adult angel of a politically reduced house.",
+      "text": "Caelindra's foundational education included history, magic, art, philosophy,\nthree centuries of poetry and sciences that require elven patience. Most of her\nchildhood cohort have dispersed into projects lasting a century. Their absence\nis part of a loneliness she seldom admits.\n\n"
+    },
+    {
+      "character": "Thessaly",
+      "source_lines": [
+        703
+      ],
+      "before_anchor": "Aldric Verantus is the adult angel seat heir and Lord Verantus's son.",
+      "text": "Thessaly once stood in a hallway watching a beastkin student put an arm around\na crying friend. The comfort was freely given, with no debt incurred, favor\nexchanged or terms established. The memory stays with her as a kind of connection\nshe has never experienced; she cannot quite name what she felt.\n\n"
+    }
+  ],
+  "all_existing_Covenant_text_preserved": true,
+  "character_dialogue_examples_added": false,
+  "explicit_sensuality_profiles_added": false
+}

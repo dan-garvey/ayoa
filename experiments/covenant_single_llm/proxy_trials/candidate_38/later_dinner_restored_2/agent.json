@@ -1,0 +1,15 @@
+{
+  "agent": "/root/terra_proxy_c38_later_dinner_restored_2",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "later_dinner background restoration diagnostic",
+  "calls_per_player_submission": 1,
+  "condition": "restored",
+  "delivery": "return_only",
+  "repeat": 2,
+  "review_feedback_supplied": false,
+  "primary_publication": "Exact first public final answer captured by root.",
+  "author_request_sha256": "cfe4a06c65a03deb9770fe1039663ff50e88710980e22b98d9070589f7a11dfd",
+  "launch_request_sha256": "03c3048b0f654736a9ee1fea2837f5b28b9e13771f9ec50bcb1aede35933b67b"
+}

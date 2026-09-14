@@ -389,9 +389,14 @@ the [locked pilot](proxy_trials/candidate_37/pilot_review.md) rates all eight at
 dinners, with no treatment preference. Local reference/POV repairs remain, but
 the pilot establishes no definite new material secret-knowledge or authorship
 breach. All full reads, model settings, exact captures and frozen input hashes
-are verified. Independent review is running. This is a low-confidence deletion
-hypothesis, with C22's negative simplification evidence and the Covenant's retained
-behavior guidance explicit; it is not a proposal to reduce the biographies.
+are verified. The [independent review](proxy_trials/reviews/round37_blind_comparison.md)
+also gives every passage prose3, with distinction4 for first_dinner_control_1 and
+later_dinner_without_2 where the root gives3. Its mixed preferences and the
+local repairs remain in the [response](proxy_trials/candidate_37/review_response.md).
+The [decision](proxy_trials/candidate_37/decision.json) closes this deletion
+without advancement. C22's negative simplification evidence and the Covenant's
+retained behavior guidance remain explicit; this was not a proposal to reduce
+the biographies.
 
 The [original-biography audit](proxy_trials/reviews/original_biography_audit.md)
 compares the user-supplied chat prompt directly with the adapted Covenant.
@@ -403,6 +408,18 @@ it does not establish that these omissions cause the dialogue pattern. Its
 source/presentation conflicts and limits are explicit. Recent trial references
 to complete backgrounds mean the complete adapted packet, not a claim that every
 detail in the longer original had been imported.
+
+Candidate38 prepares three additions totaling155 words, preserving all existing
+Covenant material and the full control common prompt. It will compare four new
+restoration continuations with all four C37 full-system controls, retaining both
+contexts and both repeats. These are explicitly historical controls, so the
+screen does not isolate a contemporaneous randomized effect. The
+[first fidelity audit](proxy_trials/reviews/round38_restoration_fidelity.md) finds
+one attribution correction: the original specifies where Ysolde was born, not
+raised. That single-word correction and every original proposed packet are
+preserved in [the correction record](proxy_trials/candidate_38/prelaunch_correction.json).
+Existing biographies, persona and all published-history/submission bytes remain
+intact. Final factual confirmation is pending; no C38 author has launched.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
