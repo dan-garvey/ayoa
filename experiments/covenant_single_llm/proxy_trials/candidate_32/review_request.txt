@@ -1,0 +1,14 @@
+Independently compare eight anonymous continuations across two interactive-fiction contexts. Use maximum reasoning. Read only these complete files, using untruncated chunks:
+
+/home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_32/covenant.txt
+/home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_32/review_material.txt
+
+The second file contains the persona, complete published conversation, current player submission, and four mutually exclusive proposed continuations for each of the two contexts. Evaluate each only against the shared prior context. Labels are shuffled. You have no condition key, prompts, source drafts, pilot judgments or other reviews. Do not inspect them, private model reasoning, or other files. Do not call other models.
+
+Judge engaging prose/dialogue, distinguishable participants with particular independent interests, meaningful social participation, adaptation to this player's actual behavior, knowledge, continuity and authorship. Narration is limited to what the player character can perceive. The player owns present speech, private reactions, consequential voluntary choices and manuscript text; submitted or expressly delegated activities permit routine actions. New coherent history is allowed. Inferences and teasing may be mistaken without being omniscient. Do not invent an unseen relay to excuse an actual source gap.
+
+The intended reader dislikes recurring aphorisms, prepared verdicts and an ensemble exchanging similarly poised rejoinders. Assess whole exchanges, including source saturation; do not treat every joke, observation, disagreement or metaphor as forbidden. Quiet company and ordinary NPC business are legitimate. No political dispute, compulsory plot hook, new player question, specific word count or number of speakers is required. Preserve all rich backstories. Do not write alternative fiction or character-specific example dialogue.
+
+Give each output a concise evidence-based assessment and a 1–5 prose/dialogue score: 3 means a material weakness needs revision; 4 means strong enough to retain without material rewriting; 5 is exceptional. Rank preferences with ties or mixed judgments allowed. Discuss character distinction and independent interests only to the extent this scene demonstrates them. Separate aesthetic preferences, local repair items, ambiguities and definite material boundary/continuity failures. Distinguish inherited source defects from new output defects. Do not infer long-term campaign reliability from these eight passages.
+
+Save your first complete assessment to /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/reviews/round32_blind_comparison.md. Return its path and a concise summary. Change no source or output files.

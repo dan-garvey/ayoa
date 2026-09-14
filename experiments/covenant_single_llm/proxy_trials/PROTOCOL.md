@@ -112,6 +112,20 @@ Both stages explicitly delegate frozen request files in both conditions. This
 does not recreate old private state or establish that persistence itself causes
 a literary effect. C30's changed paragraph is not included in C31.
 
+Candidate32 compares raw published prose with an independently audited semantic
+record of the same prior conversation. Full C29/C19 Covenant biographies, world
+and hidden facts, persona, exact player submissions and authored text remain.
+The auditor identified local fidelity errors; root applied every listed
+correction before freezing packets. Pre-audit records and the first audit are
+preserved. Two contexts and two repeats per representation yield eight first
+continuations with one author task each and no editorial stage. All authors are
+fresh Terra/max proxies with the same file-delivery wrapper and C29 generation
+instructions. They receive no old/current drafts, future publications or review
+feedback. Full original published history remains the blind evaluator's reference.
+This changes style, size, salience, comprehension and texture together; it is
+not a pure cadence or compression test, a runtime summarizer, or a long-session
+quality result. Biography reduction is not part of the intervention.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

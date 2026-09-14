@@ -264,10 +264,19 @@ The [first-pair diagnosis](proxy_trials/reviews/round31_first_pair_diagnosis.md)
 recommends testing the representation of published history next. Candidate32
 prepares raw-history and semantic-record conditions while keeping the entire
 Covenant, persona, player submissions and authored material unchanged. The
-records require an independent fidelity audit before authors run; reviewers
-will assess every output against the complete original conversation. This is
-an isolated context diagnostic, not a runtime summarization feature. No
-candidate is selected.
+records received an [independent fidelity audit](proxy_trials/reviews/round32_history_fidelity.md)
+before authors ran. It caught weakened refusal language, an altered access
+condition, lost fairness reasoning, and smaller attribution/ownership issues.
+The [resolution](proxy_trials/candidate_32/fidelity_resolution.json) records all
+corrections, retains the pre-audit records, and states the remaining presentation
+losses. All eight one-pass continuations are saved, with no editorial stage.
+The [locked pilot](proxy_trials/candidate_32/pilot_comparison.md) rates every
+dinner at3; it retains one raw-history reading at4 and rates the other readings
+at3. It finds no dependable remedy in the record representation. A fresh blind
+review is underway against the complete original conversation. Public tool
+records verify all eight authors read their complete instructions and packets
+with Terra/max. This is an isolated context diagnostic, not a runtime
+summarization feature. No candidate is selected.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

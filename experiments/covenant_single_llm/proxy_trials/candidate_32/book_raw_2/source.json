@@ -1,0 +1,11 @@
+{
+  "source_packet": "candidate_30/book_a1/packet.txt",
+  "source_packet_sha256": "e9ed678d819616b8eec073cf2e822ee8c721a745ba9a0a4bb5937d16d5b0cf08",
+  "raw_history_sha256": "5807e8852d7bb97be2cce7d67e8bb3fb5fdafcabf42c55f36e391eece84f3c16",
+  "provided_history_sha256": "5807e8852d7bb97be2cce7d67e8bb3fb5fdafcabf42c55f36e391eece84f3c16",
+  "source_current_submission_sha256": "4452844237c7fe4014031511b0e97f5e5f66f71af82aceeceb4631ceb4440934",
+  "superseded_drafts_included": false,
+  "current_source_draft_included": false,
+  "later_publications_included": false,
+  "private_reasoning_or_reviews_included": false
+}

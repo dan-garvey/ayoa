@@ -1,0 +1,89 @@
+{
+  "created_at": "2026-09-14T07:46:47.427027+00:00",
+  "source_commit": "9dcaf165c0b7f2cf7313b3a98d99d39480fdc895",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "derived_from": "C29 unchanged generation instructions; round31_first_pair_diagnosis experiment1. No editorial step.",
+  "prompt_sha256": {
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90"
+  },
+  "wrapper_file": "proxy_wrapper.txt",
+  "wrapper_sha256": "39b9aeddfad81fec3d65d9801a4602cb0e08a5a9891c3822eae4381bcde3774a",
+  "history_files_sha256": {
+    "book_current.txt": "30bb107105f338dc641e5475487f13f6de7a025321b3e318f4ee542a509a204c",
+    "book_raw.txt": "5807e8852d7bb97be2cce7d67e8bb3fb5fdafcabf42c55f36e391eece84f3c16",
+    "book_record.pre_audit.txt": "95864f836541fa48cd756e7e06f11d799080bccbf3ae68c9c0b515f0f842445a",
+    "book_record.txt": "5aed1abb8da88a2af6a6fec313aa22f2ff84a5551674c9596e5f5dafb4979dc7",
+    "reading_current.txt": "0586999eb133ba1dc3c972f200fe07b2667803878a1b3c74938657136d864645",
+    "reading_raw.txt": "16099e1e43efe56d6ce6d11520fca25479073ef7d008172b07077ef7ad5318fc",
+    "reading_record.pre_audit.txt": "3134ce8dba1a0b2ae2b2c2a2506b5cf62bf4bca51af768e386d4db750185d4b4",
+    "reading_record.txt": "b82d7413d80584925e92caed1d337ba04a26b8e2dca1fd555cac91feb2f0288e"
+  },
+  "fidelity_resolution_sha256": "ac9ccefb5cd94485552768fc8d733232c02128f4e69ab2bba39a448e32f4cc99",
+  "planned_scope": "Two contexts, two history representations, two independent repeats: eight first continuations, eight author tasks, zero fresh long sessions.",
+  "change": "Replace only prior published story blocks with an independently audited semantic record. All full biographies/world/hidden facts and exact player submissions/artifacts retained. No prior drafts or later outputs supplied.",
+  "loop": "A fresh whole-story Terra/max author reads common instructions, complete Covenant/persona, raw or recorded prior conversation and exact current submission. It produces one finished continuation. No subsequent editorial task or feedback.",
+  "review_contract": "Lock root assessment before a fresh anonymous comparison. Review all outputs against complete original published history and full Covenant, not merely the semantic record. Preserve every first output.",
+  "instruction_delivery": "Explicit delegated task files with identical wrapper and common instructions across representations. Prior C31 publications are not the fresh matched controls.",
+  "cases": [
+    {
+      "case": "book_raw_1",
+      "kind": "book",
+      "variant": "raw",
+      "repeat": 1,
+      "packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86"
+    },
+    {
+      "case": "book_raw_2",
+      "kind": "book",
+      "variant": "raw",
+      "repeat": 2,
+      "packet_sha256": "61dcddd7be31c4a30ca99553fa932eadf07a96b9fe351dde69f8c9a1ad584a86"
+    },
+    {
+      "case": "book_record_1",
+      "kind": "book",
+      "variant": "record",
+      "repeat": 1,
+      "packet_sha256": "6c554befb181257e7211f6da5fe81582f58f7bc2d54022b3f0cb88bef19d4fe9"
+    },
+    {
+      "case": "book_record_2",
+      "kind": "book",
+      "variant": "record",
+      "repeat": 2,
+      "packet_sha256": "6c554befb181257e7211f6da5fe81582f58f7bc2d54022b3f0cb88bef19d4fe9"
+    },
+    {
+      "case": "reading_raw_1",
+      "kind": "reading",
+      "variant": "raw",
+      "repeat": 1,
+      "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
+    },
+    {
+      "case": "reading_raw_2",
+      "kind": "reading",
+      "variant": "raw",
+      "repeat": 2,
+      "packet_sha256": "baf2ed599a56e798cd48e660bf90403c4f32fc8fe0e22b7ccdd081118a1f8de0"
+    },
+    {
+      "case": "reading_record_1",
+      "kind": "reading",
+      "variant": "record",
+      "repeat": 1,
+      "packet_sha256": "00c492ed9fd72587edebb47d7762375b91b56a1eccf7f06772325bbe20de23fa"
+    },
+    {
+      "case": "reading_record_2",
+      "kind": "reading",
+      "variant": "record",
+      "repeat": 2,
+      "packet_sha256": "00c492ed9fd72587edebb47d7762375b91b56a1eccf7f06772325bbe20de23fa"
+    }
+  ],
+  "limits": "History style, word count, salience, comprehension and conversational texture differ together. A result tests this practical presentation change, not pure stylistic imitation or compression alone. No runtime summarizer, API equivalence, latency/cost or long-session quality claim."
+}

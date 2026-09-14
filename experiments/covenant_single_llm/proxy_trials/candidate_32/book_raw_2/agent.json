@@ -1,0 +1,15 @@
+{
+  "agent": "/root/terra_c32_book_raw_2",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "matched continuation history-presentation diagnostic",
+  "fresh_sessions": 0,
+  "calls_per_player_submission": 1,
+  "variant": "raw",
+  "repeat": 2,
+  "review_feedback_supplied": false,
+  "instruction_delivery": "Explicit file delegation, identical wrapper across all conditions.",
+  "author_request_sha256": "3504cacb53717831f1be36a4f641d7709ce499796c70473fc13383a852c46c14",
+  "launch_request_sha256": "fb368f92bc60cc808ab69d811d6d8d9fe0fbfc2d265b44eb566ae4fa8ee4a983"
+}
