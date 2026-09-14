@@ -1,0 +1,123 @@
+# Terra coding-agent proxy transcript
+
+Published fiction after two sequential requests to the same author. The first unpublished prose or synopsis artifact is preserved in 00.preliminary.snapshot.md; the fixed final-composition request is ../final_request.txt. Preliminary artifacts are not player-visible turns.
+
+## Continuation 0: matched replay
+
+**Player**
+
+I nod, relieved. "Thank you. Four years sounds rather more manageable than a Council meeting tonight."
+
+I take some of the fresh bread and settle back into the meal. For the next quarter hour I'm content to eat and enjoy the company, listening to the talk around me and smiling at the exchanges that amuse me.
+
+**Story**
+
+“Four years sounds rather more manageable than a Council meeting tonight.”
+
+Rashid’s smile shows one canine. “That is a very low standard, but a sensible one.”
+
+“Four years is longer than it sounds,” Ashara says.
+
+“Thank you, Ashara,” Caelindra says. “We were in danger of making the newcomer comfortable.”
+
+Ashara turns her glass a fraction on the tablecloth. “Comfortable enough to eat. Not comfortable enough to mistake this place for a holiday.”
+
+“A useful distinction,” Thessaly says. “Holidays have terms people conceal until after you have arrived.”
+
+Seraphel lowers her eyes to keep from laughing, but the effort only makes the corners of her mouth move.
+
+“Then may the hidden terms be few,  
+the bread be warm,  
+and the tutors merciful.”
+
+“The first two are within reach,” Rashid says, reaching for the bread basket. “The third is a matter for religious faith, which I will leave to Aldric.”
+
+Aldric receives this with a look of patient disapproval that lasts only until the server sets a fresh dish of glazed roots near his elbow. “Mercy and lenience are not the same thing. Professor Windwhisper is quite capable of mercy.”
+
+“She assigned an essay on whether mercy can be reconciled with treaty enforcement,” Rashid says.
+
+“That sounds lenient,” Caelindra says. “It only requires you to write about one incompatibility.”
+
+The table’s attention disperses from you without leaving you outside it. You break off a piece of the dark bread, steam softening the crust under your fingers, and let the talk carry on around the dishes. The rice has gone almost gold in the candlelight; pepper lingers at the back of the sauce, and someone has put preserved lemon into the carrots. Across the room, one of the lamps gives a faint electric hum whenever lightning moves beneath the plateau.
+
+For a while the conversation concerns the essay only in the way a dinner conversation can concern an essay: as evidence that a particular instructor has unreasonable ideas about the amount of reading a person ought to do before breakfast. Caelindra says Windwhisper has been assigning the same question in altered clothing for eighty years. Aldric says that cannot possibly be true. Caelindra tells him that possibility is not the relevant category.
+
+“Did you take it eighty years ago?” Rashid asks.
+
+Her ears tilt sharply back against her silver hair. “Do not be tiresome.”
+
+“I wasn’t. I was impressed.”
+
+“That makes it worse.”
+
+Even Ysolde’s expression changes by the smallest visible degree. She has been watching the garden windows rather than the argument, her plate set neatly before her. A flare of white opens below the western bridge, not a jagged strike but a slow branching brightness that turns the rain to silver threads. She looks at it until it fades.
+
+“The weather has shifted,” she says.
+
+Rashid glances over his shoulder. “It is always weather.”
+
+“It is usually moving east.” Ysolde leans forward. “This has turned north. The octagon will hold water on the lower side by morning.”
+
+Ashara follows her gaze to the window. “The ground drains.”
+
+“Not when the west channel is already full.”
+
+“It will be damp,” Rashid says. “The whole Academy needn’t be told that civilization is ending.”
+
+“You are the one who complained about the rankings board becoming pulp,” Ashara says.
+
+“That was an argument about maintenance. This is an argument about your preferred terrain.”
+
+“Mud is terrain.”
+
+“Mud is an excuse people make after stepping badly.”
+
+Ashara’s tail shifts once behind her chair. “You have been told what you think.”
+
+The words might have landed hard from anyone else. Rashid only tears a strip from his bread and considers it with exaggerated seriousness. “Then I will have to develop a better thought before tomorrow. A difficult night ahead.”
+
+Ysolde looks between them. “The bell is the only stated condition for postponement. I checked when the board was posted. If the bell can be heard, the bout proceeds.”
+
+Thessaly’s spoon stops halfway to her mouth. “That is the entire condition?”
+
+“For weather,” Aldric says. “There are other provisions for injury.”
+
+“Naturally.” Thessaly sets the spoon down. “And who determines whether it can be heard?”
+
+“The match clerk,” Rashid says.
+
+“A person selected by whom?”
+
+“The Military faculty.”
+
+Her black eyes narrow with an interest more exact than suspicion. “So a person chosen by the people with an interest in holding the match decides whether the condition has occurred.”
+
+“The faculty has an interest in not having students break their necks in a storm,” Aldric says.
+
+“Those interests may coincide. That does not make the arrangement elegant.”
+
+“Nothing involving the Military faculty is elegant,” Caelindra says. “It is built to produce a winner before lunch.”
+
+Ashara looks across the table at her. “You object to a result?”
+
+“I object to most results. It saves time.”
+
+Seraphel’s wings give a small, involuntary rustle.
+
+“Let the rain attend,  
+if it wishes.  
+It should not claim points.”
+
+This time the laugh reaches around the table without anyone having to make room for it. Rashid dips his head toward Seraphel as if she has settled a serious legal question. Ashara does not laugh aloud, but the line of her mouth eases before she reaches for the sauce.
+
+The serving dish passes on. By the time it has made its circuit again, the subject has slipped from tomorrow’s match to the older question of why the octagon has no awning. Aldric says an awning would obscure the view from the public terrace. Rashid says the public terrace has never improved anyone’s footwork. Caelindra suggests that perhaps this is why the terrace is popular.
+
+Ysolde, who has stopped treating the weather as a passing remark, explains that the rain comes up the western wall when the low clouds catch on the Nexus. Her voice stays quiet, but it gathers details as it goes: where the runoff cuts the packed earth, how the bridge-light looks from above a storm bank, the way the wind changes temperature two breaths before a real downpour. She seems to notice only after several sentences that everyone has been listening.
+
+“It is not difficult,” she says.
+
+“No,” Caelindra says, with unusual gentleness. “Only very specific.”
+
+Ysolde considers that. “Yes.”
+
+The clock above the dining-hall sideboard marks the quarter hour with a low chime. The candles have burned a little lower, and the first plates stand empty beneath the pools of lamplight. Outside, the storm resumes its quiet work below the windows. At the table, the argument has become a story, the story has become a joke, and the evening continues.

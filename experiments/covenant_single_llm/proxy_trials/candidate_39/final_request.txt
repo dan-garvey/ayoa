@@ -1,0 +1,11 @@
+<final_composition>
+Write the finished next passage of fiction. The preliminary material is an
+unpublished proposal: its actions, disclosures, outcomes and player responses
+have not happened. You may develop, replace or discard any of its new choices.
+The authoritative brief, published fiction and submitted player material retain
+their authority. A discarded proposal must not become an unexplained premise
+of the finished passage. Preserve the player's authorship and each character's
+sources of knowledge. Return only the finished fiction, with no preliminary
+material, rationale, review or commentary. Do not write the passage through tools
+or into a file.
+</final_composition>

@@ -1,0 +1,100 @@
+{
+  "locked_at": "2026-09-14T11:27:56.451264+00:00",
+  "before_independent_review_launch": true,
+  "before_intermediate_text_inspection": true,
+  "reviewer_condition_informed": true,
+  "root_scores": {
+    "later_direct_1": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "later_synopsis_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_prose_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_direct_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_prose_2": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "later_synopsis_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ]
+  },
+  "root_preference": [
+    "later_prose_2",
+    "later_direct_1",
+    [
+      "later_direct_2",
+      "later_prose_1"
+    ],
+    "later_synopsis_2",
+    "later_synopsis_1"
+  ],
+  "file_sha256": {
+    "pilot_review.md": "463f08a7cef36d1a012f8394d08095e113ecd7c2280f66aa7f12d496da380d27",
+    "input_lock.json": "61d178453e8db1072685124849c1a1c76f9174bfde737343ac53c7c566f02fd3",
+    "manifest.json": "376ce703b1ca3e77f9f7dda2a12bdef9c1051fa9b9b26f6c2e0ccea2930a7165",
+    "review_key.json": "1f172420f0be2ed8a59695506f411352e0c13ab4e59bbb143aab43d988a10eb5",
+    "review_material_lock.json": "190c3ba566b02d6457abc465e61354d9e614e40da79f37ff0f34fd6bbe1b45e5",
+    "review_request.txt": "c2fd8263f797faf9f61cba743f8e3624c74d7830c3886758fc57aac2c6c988ee",
+    "review_material.txt": "b9a9f088d8cafcf1646a440fb9a04b0b4ae61db9e2a6ac5a019bd2dd470b25e9",
+    "packet_read_audit.json": "545072027425c7bf075213a4af3ed0a69e937df1001b884a461a5d8710922095",
+    "validation.json": "a73cab5dfbe20c1f2f7785e78f83668377da7fb5409072a0ec7e200c469c306a",
+    "launches.json": "195b3995c5ffcabea289889dba1182923191587266265f5ab4f50d4f1349a898",
+    "later_direct_1/00.story.md": "70e7ac970270d6b6e246b834ac82b48d5d36c1577506968a5f637a910fbfe1d4",
+    "later_direct_1/capture.json": "f729a188edea1ab205d68cfc034f56f5672898a91c380836ce494769e522f954",
+    "later_direct_1/transcript.md": "1cd363c0eed3f7ac7574fd3c6c42f3e9f3a8ff4cd54ea8af4fa409b0d3ef0573",
+    "later_direct_1/input_read_audit.json": "91ad603a1a7986264185d9ea29fc865ef7f15f3dac9203c61983b74e70d5c7e5",
+    "later_synopsis_1/00.story.md": "738bcf9e9b3c7f28dba558bbe91f8b0ccafb987a7b196b9f68aafb40283d0d2e",
+    "later_synopsis_1/capture.json": "4db5c61095ec7dd785d0906de1f4e4a5ecc5128bed4889f5764b03aac1d42abb",
+    "later_synopsis_1/transcript.md": "ca28a14f10d619e81cf360e1a4a51aee386bf40adbd1ec9f91663fdaeda86b29",
+    "later_synopsis_1/input_read_audit.json": "97ada7324a90b12cbbeb6c12a726371207fad4026ab0d8601dbfccd930811784",
+    "later_synopsis_1/preliminary_capture.json": "5f0283e38a01cd19ef92347a7448959e03c27e6f8af7b69b46c3c8bc18fbfbd3",
+    "later_prose_1/00.story.md": "1c668efd848b19ec80b991cf3b3c136dd021959ff25c79f02c152b705dff2daf",
+    "later_prose_1/capture.json": "710a96795b155d048acfee5d290963e980d3e9cc0a8ef3dda497ce15326c05fa",
+    "later_prose_1/transcript.md": "11de7f93677ed1a111b020e086c8764ba997b66d6583a4bd2a9ae0e80c4b80a1",
+    "later_prose_1/input_read_audit.json": "6e71960986984b16108905573ca42b36015897d33630313413f622c5f700ded6",
+    "later_prose_1/preliminary_capture.json": "bb27e002df0a394cffdd087440c992c8a1250d25ebd51be0314492b5321fdc8b",
+    "later_direct_2/00.story.md": "3b6bf0eede3fecb21390c734c49ae40190b57e42254ebe8a53cc431132a5c67a",
+    "later_direct_2/capture.json": "c45b7833639145f1caeaa35d823dd5c068d3729d587a3dcd8282be9bdd74dce3",
+    "later_direct_2/transcript.md": "af2ec93fcea93b8d0efea67fbe6a61b124bd32be485c9f50174dd2f98163f9f8",
+    "later_direct_2/input_read_audit.json": "3614a7337a42247d451470e39deb3a04e1de960c1be7d8bf4320019af6f0b26c",
+    "later_prose_2/00.story.md": "ff0392047891300515058d6e724f127a75c73dca1ac59755eed433ae72c1f1db",
+    "later_prose_2/capture.json": "132ef927286842e1fbcf1f296a7e45e5cc10348ca2e0081a96a1f12bf50ad6b8",
+    "later_prose_2/transcript.md": "d9f25f0f731fb68561facd35aee638ae6bf1c52d43ad1199ffd1f0062476f9cd",
+    "later_prose_2/input_read_audit.json": "e98f0cf4e4d98c3253e084ce26b3995682a410f714d6e523d1245f22d705ec5e",
+    "later_prose_2/preliminary_capture.json": "3deb569ce7d4d890c9232b39ef4344732438412e2af651b7e200d7f20932f769",
+    "later_synopsis_2/00.story.md": "84f32ffc5a630c5e1c51e63794b4ce70a3c47883d5473fb07311f86c007102bc",
+    "later_synopsis_2/capture.json": "d9e9c6d7021ae2614477c71be61229c357aff893e5056225524dc62fb013354f",
+    "later_synopsis_2/transcript.md": "f1ee9a47ee55c002c44f2b9b8f130b4cf0c38534eefb76a82f66c30d5b5659f0",
+    "later_synopsis_2/input_read_audit.json": "9e6e0fc5931ce5ccda61ac9bfa7e7757485e782cc449d26c1503cb02389db933",
+    "later_synopsis_2/preliminary_capture.json": "b08fa0e0b7a84a6d6b850b55b1be3ccdc587006f5de6af3cdd2c666ce094d3d4"
+  }
+}

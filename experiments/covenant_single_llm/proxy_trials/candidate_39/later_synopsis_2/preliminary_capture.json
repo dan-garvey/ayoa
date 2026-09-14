@@ -1,0 +1,32 @@
+{
+  "agent": "/root/terra_proxy_c39_later_synopsis_2",
+  "session_id": "01a09fa4-097c-7a32-9de9-fcf4e1d86749",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T06-18-42-01a09fa4-097c-7a32-9de9-fcf4e1d86749.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "captured_at": "2026-09-14T11:20:53.132111+00:00",
+  "scope": "Public final messages, model metadata and mutation-call hashes only; preliminary artifact bytes hashed/copied without displaying content. No hidden reasoning inspected, no editing or selection.",
+  "public_final_message_id": "msg_0ef0083c9165fc8f016aa7d85f074c87d1ae682ceb485f782a",
+  "final_answer_count_at_capture": 1,
+  "path_only_final_observed": true,
+  "root_exposure_to_intermediate_contents": false,
+  "detected_mutation_tool_calls": [
+    {
+      "call_id": "call_EaQzhRL6kbZ7iZydbBaRhW7S",
+      "tool": "exec",
+      "tool_input_sha256": "9fd9fc4d0ae3fafd2f71b250901b9283a68635281689d4f067f83962fd8185bf",
+      "after_final_count": 0
+    },
+    {
+      "call_id": "call_NwGaZVcy0KuikFYMKBWXH1BM",
+      "tool": "exec",
+      "tool_input_sha256": "ee67f6633ca902a861d5150f7f62189fec5a04877e842e413fa5cf60b6ee6aeb",
+      "after_final_count": 0
+    }
+  ],
+  "artifact_sha256": {
+    "00.preliminary.md": "ba720ce8e0f68f20772111edbdc5c878c63644fc06f97b7e74ecf8d5405a699b",
+    "00.preliminary.snapshot.md": "ba720ce8e0f68f20772111edbdc5c878c63644fc06f97b7e74ecf8d5405a699b",
+    "00.preliminary_delivery.txt": "83b98d2c315a1d2e5be6e8aa2b19a39bf076f781f6a8dabb8175f1a5db392067"
+  }
+}

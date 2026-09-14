@@ -1,0 +1,15 @@
+{
+  "agent": "/root/terra_proxy_c39_later_prose_1",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "case_type": "matched replay",
+  "condition": "prose",
+  "repeat": 1,
+  "calls_per_player_submission": 2,
+  "delivery": "return_only_final",
+  "intermediate_delivery": "save_once_then_path_only",
+  "author_request_sha256": "84e82ce010d0791b91a4a1e8fc47837a12732134312fe46af18f8572dbc230db",
+  "launch_request_sha256": "03a0c4c63341a0dfc75c5769dbc34cc5b65f4befc5cd0bec41fbe09453dafb7f",
+  "followup_request_sha256": "b8499705b9600ba23087dd916755526f0a2bb738197102c8c02540be7e647db0"
+}

@@ -1,0 +1,11 @@
+{
+  "source_trial": "candidate_38",
+  "source_case": "later_dinner_restored_1",
+  "current_input": "candidate_38/later_dinner_restored_1/00.input.txt",
+  "packet": "candidate_38/later_dinner_restored_1/packet.txt",
+  "source_files_sha256": {
+    "candidate_38/later_dinner_restored_1/packet.txt": "4b2331239f7e5ac9771411610288aea8f6e4ccf626cb3cadff005c997a5e1b4c",
+    "candidate_38/later_dinner_restored_1/00.input.txt": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401"
+  },
+  "scope": "Exact restored full Covenant/persona/C35 B00-B02 published conversation and B03 player submission. No C38 continuation, preliminary, review or other future output included."
+}

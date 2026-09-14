@@ -1,0 +1,91 @@
+{
+  "created_at": "2026-09-14T11:10:18.622808+00:00",
+  "source_commit": "15ee206478d65a5cce1416d3dd5c206cf46996da",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "advice": "../reviews/round39_planning_design_audit.md",
+  "advice_sha256": "5ec3f1b3152a290c20341df8b226ddb44834407923563a3a3954e9452a69470d",
+  "prompt_sha256": {
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "covenant.txt": "1dbbc655a32ac2c8934882b9119424f8a09ae6fa4000c7619ab03f7d8bb33981",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90",
+    "proxy_wrapper.txt": "179246ea68d39221c6a5ee630849c727cfc51d2a5de95518098deb87d9753b82",
+    "preliminary_wrapper.txt": "31a85cece9c7bb24352b66f2d1d611882dafcc4bfc13de77f28c3e0994146fa7",
+    "preliminary_selection.txt": "d45e91debaef3499a3c2049905ec9799aa0a72b4ca56ee3ed5c0ee62fb67fee0",
+    "prose_task.txt": "a754fc61626701678b041b1b4ed3b19ac6eb3f164a9b4036dc18b5c6f6cf9069",
+    "synopsis_task.txt": "78d8ba96de102cfc27437c10732a9cb690fbae2f568104c4514c90c7686ca32c",
+    "final_request.txt": "bb0d7f4f8af9a386f787537b46a29ff397ae3fa4c509dc63165ff50a7319a278"
+  },
+  "cases": [
+    {
+      "case": "later_direct_1",
+      "context": "later_dinner",
+      "condition": "direct",
+      "repeat": 1,
+      "packet_sha256": "4b2331239f7e5ac9771411610288aea8f6e4ccf626cb3cadff005c997a5e1b4c",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+      "requests": 1
+    },
+    {
+      "case": "later_synopsis_1",
+      "context": "later_dinner",
+      "condition": "synopsis",
+      "repeat": 1,
+      "packet_sha256": "4b2331239f7e5ac9771411610288aea8f6e4ccf626cb3cadff005c997a5e1b4c",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+      "requests": 2
+    },
+    {
+      "case": "later_prose_1",
+      "context": "later_dinner",
+      "condition": "prose",
+      "repeat": 1,
+      "packet_sha256": "4b2331239f7e5ac9771411610288aea8f6e4ccf626cb3cadff005c997a5e1b4c",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+      "requests": 2
+    },
+    {
+      "case": "later_direct_2",
+      "context": "later_dinner",
+      "condition": "direct",
+      "repeat": 2,
+      "packet_sha256": "4b2331239f7e5ac9771411610288aea8f6e4ccf626cb3cadff005c997a5e1b4c",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+      "requests": 1
+    },
+    {
+      "case": "later_prose_2",
+      "context": "later_dinner",
+      "condition": "prose",
+      "repeat": 2,
+      "packet_sha256": "4b2331239f7e5ac9771411610288aea8f6e4ccf626cb3cadff005c997a5e1b4c",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+      "requests": 2
+    },
+    {
+      "case": "later_synopsis_2",
+      "context": "later_dinner",
+      "condition": "synopsis",
+      "repeat": 2,
+      "packet_sha256": "4b2331239f7e5ac9771411610288aea8f6e4ccf626cb3cadff005c997a5e1b4c",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+      "requests": 2
+    }
+  ],
+  "launch_order": [
+    "later_direct_1",
+    "later_synopsis_1",
+    "later_prose_1",
+    "later_direct_2",
+    "later_prose_2",
+    "later_synopsis_2"
+  ],
+  "scope": "Primary later-dinner screen: six fresh final continuations, four first preliminary artifacts, ten author requests, zero substantial sessions. All six finals must complete before comparison. No historical publications serve as controls.",
+  "change": "Same full restored C38 Covenant and exact later context in every arm. Direct is the exact current one-pass return-only contract. Both two-request arms share preliminary wrapper/selection/save-once path-only delivery and exactly the same second composition request; only first product prose versus concise no-dialogue synopsis differs. Preliminary content is provisional and adds no canonical history.",
+  "loop": "Direct author returns one first final. Each preliminary author saves its first artifact once and returns only a path; root hashes without displaying it and sends a fixed second request after completion. The same whole-story author returns final fiction. No editor model, per-character agent, selector, tailored feedback or extra repair request. Independent cases can run concurrently, but each second request waits for its first.",
+  "screening_rule": "Both synopsis finals must receive prose/dialogue>=4 and be preferred by both root and independent reviewer to each of the two direct and two prose-preliminary controls for substantive literary reasons, without material loss of distinction, independent interests, direction or adaptive initiative and without unresolved material knowledge, continuity or player-authorship failure. Fewer words, speakers or maxims alone cannot pass. Ties with equally good direct fiction do not justify the extra stage under this rescue hypothesis. Preserve reviewer disagreement; do not average away failure.",
+  "conditional_next_check": "Only if primary passes, freeze first-dinner checkpoint using the same three conditions and two repeats, adding six finals/four intermediates/ten requests. Both synopsis introductions must remain retainable across dimensions without material loss or boundary failure. No first-dinner cases launched now. Even both screens passing requires two fresh substantial different-policy sessions and held-out probes before selection.",
+  "review_plan": "Root knows conditions but reads only final fiction before locking literary assessment. Independent reviewer sees full authoritative context and all six anonymized finals without intermediates, root scores, treatment labels or provenance. Lock both final-only judgments before reading the authored intermediate artifacts. Premature intermediate content in agent final is preserved and reported as exposure; no reroll. Public input-read audits must not display intermediate content before locks.",
+  "process_audit_after_locks": "Inspect deliberately authored preliminary text, not private reasoning, after literary locks. Distinguish weak scene selection, material lost or turned into repartee during final composition, ignored plan, and discarded choices leaking into unexplained final premises. An unpublished mistake corrected in final is not itself a committed violation; coherent new final details need not occur in the preliminary.",
+  "limits": "One familiar dinner checkpoint; short screening and not long-term proof. Two preliminary arms match request count/save obligation but differ in representation, length and hidden work. Relative to direct, extra request, preliminary instructions and save/tool obligation change together. No pure internal-planning claim, API latency/cost/cache inference, production schema or runtime change. All rich backgrounds preserved. Future persistent proxies retain prior intermediates unless context is actually rebuilt; noncanonical labeling does not remove them."
+}

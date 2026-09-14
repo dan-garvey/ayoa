@@ -428,11 +428,39 @@ dinners3/3/4/4/4 and both later dinners3/4/4/4/4. The later scenes improve enact
 consequences: Rashid attends the promised cards while Ashara practices alone.
 The repeated ensemble repartee still needs revision, and first_dinner_restored_2
 has Ashara assert the undisclosed card commitment before Rashid reveals it.
-The root screen therefore fails. Independent comparison is running with all
-eight publications and each output's correct complete authoritative brief;
-different biographies can reveal condition membership despite anonymized
-provenance. There are four new continuations, four historical comparators, and
-zero substantial sessions. No candidate is promoted.
+The [independent comparison](proxy_trials/reviews/round38_independent_comparison.md)
+also gives every new passage prose below4 and identifies the same knowledge
+failure. Both reviewers prefer the restored later passages for their enacted
+consequences, without establishing the additions as the cause. Their score and
+preference disagreements remain in the
+[response](proxy_trials/candidate_38/review_response.md) and
+[decision](proxy_trials/candidate_38/decision.json). Each output receives its
+correct complete authoritative brief; different biographies can reveal condition
+membership despite anonymized provenance. There are four new continuations,
+four historical comparators, and zero substantial sessions. No candidate is promoted.
+
+Candidate39 begins a distinct, low-confidence composition screen supported by
+the [design audit](proxy_trials/reviews/round39_planning_design_audit.md). At the
+same later dinner, two fresh direct authors are compared with two authors who
+first draft prose and two who first compose a concise synopsis without dialogue.
+Each preliminary author saves its first artifact and returns only its path, then
+receives the identical fixed final-composition request. Root hashes those
+artifacts without reading them before final-only literary review. Every arm
+retains the full restored Covenant and exact source conversation. This is six
+new finals and ten author requests when complete; the first-dinner check is
+conditional on a primary pass. It is not six completed long sessions or evidence
+that private planning was previously absent. All six authors have launched;
+all six final passages are complete, totaling5,860 final story words. The
+[locked final-only root review](proxy_trials/candidate_39/pilot_review.md) gives
+every publication prose3, with distinction4 only for direct1 and prose2. Its
+preferred prose2 develops a real discussion of weather and contest rules, while
+both synopsis outputs still organize the ensemble around prepared conclusions.
+The root primary gate fails. All required full reads and exact final captures
+are verified; intermediate save sequences remain for the post-review audit.
+No synopsis or draft contents have been displayed to root. Independent
+final-only comparison is running before intermediate inspection. No conditional
+first-dinner cases are launched. The full scope and stopping rule remain frozen
+in the manifest.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

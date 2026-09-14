@@ -204,6 +204,25 @@ different biographies may reveal the condition despite anonymized provenance.
 No recitation of the new facts, forced confidence or new maxim about them counts
 as a literary gain. Rich backgrounds and all player-authorship rules remain.
 
+Candidate39 tests direct fiction against a prose preliminary and a no-dialogue
+synopsis preliminary, using the same full restored C38 context. The primary
+later-dinner screen has two fresh authors per condition: six final passages,
+four preliminary artifacts, ten requests. Each two-request author saves its
+first preliminary once and returns only its path; root hashes without displaying
+it and sends the same frozen second request. Only final fiction is returned for
+publication. Proposals can be replaced and have no canonical authority. Both
+final-only literary reviews are locked before inspecting authored preliminary
+content; root knows conditions, while the independent review sees anonymized
+finals. A premature content return is preserved and recorded as exposure.
+Both synopsis finals must be retainable and preferred to every control by both
+reviewers for substantive reasons with preserved boundaries. Only a primary
+pass warrants the same six-case first-dinner check, followed by the existing
+substantial trials if that succeeds. Fresh controls, representation/length and
+save-obligation confounds, retained intermediate context, actual dependent
+request counts and stopping rules are explicit in C39's manifest. This does not
+claim that private planning is new, inspect hidden reasoning, or establish an
+API cost or latency effect.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

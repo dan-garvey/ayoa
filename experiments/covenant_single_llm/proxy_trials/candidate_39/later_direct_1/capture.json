@@ -1,0 +1,21 @@
+{
+  "agent": "/root/terra_proxy_c39_later_direct_1",
+  "session_id": "01a09f9d-a308-7dd1-9858-1774076c0ca0",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T06-11-43-01a09f9d-a308-7dd1-9858-1774076c0ca0.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "captured_at": "2026-09-14T11:18:13.461085+00:00",
+  "scope": "Public final messages, model metadata and mutation-call hashes only; preliminary artifact bytes hashed/copied without displaying content. No hidden reasoning inspected, no editing or selection.",
+  "public_final_message_id": "msg_06d6eaa549464fa5016aa7d761fb2887d1bc3d4f0d9f292455",
+  "public_final_phase": "final_answer",
+  "public_final_sha256": "70e7ac970270d6b6e246b834ac82b48d5d36c1577506968a5f637a910fbfe1d4",
+  "publication_sha256": "70e7ac970270d6b6e246b834ac82b48d5d36c1577506968a5f637a910fbfe1d4",
+  "root_capture_exact_unmodified": true,
+  "final_answer_count": 1,
+  "first_publication_is_final_answer_number": 1,
+  "detected_mutation_tool_calls_during_publication_task": [],
+  "return_only_publication_observed": true,
+  "artifact_sha256": {
+    "00.story.md": "70e7ac970270d6b6e246b834ac82b48d5d36c1577506968a5f637a910fbfe1d4"
+  }
+}

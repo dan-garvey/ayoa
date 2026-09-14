@@ -1,0 +1,31 @@
+{
+  "created_at": "2026-09-14T11:21:54.044588+00:00",
+  "seed": 39,
+  "scope": "Deterministic shuffle using trial number; root knows conditions. Prepared after first repeats were published; no selection of outputs. Not provided to reviewer.",
+  "cases": [
+    {
+      "label": "A",
+      "case": "later_synopsis_2"
+    },
+    {
+      "label": "B",
+      "case": "later_prose_2"
+    },
+    {
+      "label": "C",
+      "case": "later_direct_1"
+    },
+    {
+      "label": "D",
+      "case": "later_direct_2"
+    },
+    {
+      "label": "E",
+      "case": "later_prose_1"
+    },
+    {
+      "label": "F",
+      "case": "later_synopsis_1"
+    }
+  ]
+}

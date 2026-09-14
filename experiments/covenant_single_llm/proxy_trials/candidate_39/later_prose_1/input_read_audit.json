@@ -1,0 +1,66 @@
+{
+  "agent": "/root/terra_proxy_c39_later_prose_1",
+  "session_id": "01a09f9d-e6f5-7a83-a069-5547a42e8c55",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T06-12-00-01a09f9d-e6f5-7a83-a069-5547a42e8c55.jsonl",
+  "model_effort_metadata": [
+    [
+      "gpt-5.6-terra",
+      "max"
+    ]
+  ],
+  "scope": "Exact read coverage from public tool calls and outputs plus model/effort metadata. No private reasoning inspected. This verifies supplied files were returned in full, not compliance with every instruction or hidden cognition.",
+  "files": [
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_39/later_prose_1/author_request.txt",
+      "sha256": "84e82ce010d0791b91a4a1e8fc47837a12732134312fe46af18f8572dbc230db",
+      "lines": 61,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 61,
+          "call_id": "call_y79cLQAvBRrh0QOqHlQYX2hk",
+          "line_numbered": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_39/later_prose_1/packet.txt",
+      "sha256": "4b2331239f7e5ac9771411610288aea8f6e4ccf626cb3cadff005c997a5e1b4c",
+      "lines": 615,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 220,
+          "call_id": "call_JRuk784ATL1avG37pqEEG3F4",
+          "line_numbered": false
+        },
+        {
+          "start": 221,
+          "end": 440,
+          "call_id": "call_M34GPijRCV8qmjtp2KsDuYCq",
+          "line_numbered": false
+        },
+        {
+          "start": 441,
+          "end": 615,
+          "call_id": "call_D8Q5L1raxFwwDRq1TeW6zhF8",
+          "line_numbered": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_39/final_request.txt",
+      "sha256": "bb0d7f4f8af9a386f787537b46a29ff397ae3fa4c509dc63165ff50a7319a278",
+      "lines": 11,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 11,
+          "call_id": "call_bFn5ffk2odL70PwmLbYoIm4n",
+          "line_numbered": false
+        }
+      ]
+    }
+  ],
+  "all_required_files_read_in_full": true
+}
