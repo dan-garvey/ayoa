@@ -37,5 +37,7 @@
   },
   "review_packet_sha256": "34084003ad4d3b6c491624b22b3161fc73a1921fbbb5cd39aa28d8722513815e",
   "locked_pilot_sha256": "57231e6abcaee92084486754c6dca799d76fc26a54398fdc60e7b03a00ba6e44",
-  "scope": "Artifact integrity only; no automated claim about literary quality or semantic continuity."
+  "scope": "Artifact integrity only; no automated claim about literary quality or semantic continuity.",
+  "independent_review_sha256": "a97977f814fa3184341d52c49d66ac94be8e05d05c81f5a963d69098f3888494",
+  "locked_pilot_and_packet_unchanged_after_review": true
 }

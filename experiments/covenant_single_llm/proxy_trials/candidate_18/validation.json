@@ -1,0 +1,20 @@
+{
+  "prompt_and_wrapper_hashes_match": true,
+  "sessions": {
+    "family_replay": {
+      "responses": 1,
+      "story_words": 267,
+      "contiguous_pairs": true,
+      "export_matches_raw_hashes": true,
+      "packet_has_frozen_instructions_in_manifest_order": true
+    },
+    "chess_replay": {
+      "responses": 1,
+      "story_words": 463,
+      "contiguous_pairs": true,
+      "export_matches_raw_hashes": true,
+      "packet_has_frozen_instructions_in_manifest_order": true
+    }
+  },
+  "scope": "Artifact integrity only; narrative judgments are in decision.json."
+}

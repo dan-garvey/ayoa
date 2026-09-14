@@ -1,0 +1,104 @@
+# Terra proxy iteration: current evidence
+
+The single-author approach has produced sustained, coherent social scenes with
+different character interests and plausible limits on knowledge. It has not yet
+met the complete selection bar across two fresh sessions. The remaining failures
+are predominantly literary: recurring polished lessons, stilted conversation,
+and, in some routes, helpful characters who leave too much initiative to the player.
+
+The user permits new history that fills gaps consistently. Inventing a relative,
+past incident, or an unshown but plausible action is not itself a failure.
+Contradicting established events or giving an NPC inaccessible information is a
+different issue. The [assessment amendment](proxy_trials/ASSESSMENT_AMENDMENTS.md)
+records this distinction and its effect on earlier judgments.
+
+## What is being tested
+
+Each session has one Terra coding agent at maximum reasoning. Its initial packet
+contains the complete Covenant brief, including secrets, followed by the frozen
+storytelling instructions and player description. A player submission produces
+one passage from that same agent, which authors adjudication, every NPC and the
+narration together. Subsequent turns retain its story conversation. There is no
+router-to-character-to-narrator cascade, separate character memory, private
+planning model, or semantic validator in the story loop.
+
+Separate sessions can run in parallel. A player driver chooses submissions in
+some sessions; an independent reviewer evaluates completed transcripts afterward.
+Neither supplies NPC dialogue or story direction to the author. Exact inputs,
+outputs, packets, prompt hashes and reviews are preserved. Unfavorable prose is
+not rerolled. Technical artifact recoveries and context-exposure limitations are
+recorded where they occur.
+
+This is a coding-agent proxy, with its surrounding instructions and file-writing
+tools. It does not reproduce direct API hidden context, response ceilings, cache,
+cost or latency. The earlier direct Terra and Sol trials are separate evidence;
+their prompts and conditions differ. These results are not a controlled comparison
+with Ayoa's existing architecture or a demonstration of unlimited coherence.
+
+## Recent complete trials
+
+Scores below are reviewer opinions in this order: prose/dialogue, character
+distinction, independent interests, direction, adaptive initiative. Four means
+strong enough to retain without a material rewrite; five means exceptional.
+Selection requires both the pilot and independent review to meet four in all
+five dimensions in two fresh substantial sessions, with no unresolved material
+boundary failure. Supplementary replays and constructed cases cannot replace
+those sessions. The full [protocol](proxy_trials/PROTOCOL.md) predates selection.
+
+| Candidate | Fresh player turns A / B | Locked pilot A / B | Independent A / B | Outcome |
+| --- | --- | --- | --- | --- |
+| 14 | 15 / 22 | 4/4/4/4/4; 3/4/4/4/4 | 4/4/4/4/4; 3/4/4/4/4 | Family anecdotes and letters remain didactic. |
+| 16 | 15 / 20 | 4/4/4/4/4; 4/4/4/4/4 | 4/4/4/4/4; 4/3/3/3/3 | B completes an itinerary but lacks sufficient reciprocal initiative. |
+| 17 | 18 / 21 | 4/4/4/4/4; 3/4/4/4/4 | 3/3/4/4/4; 4/3/4/4/4 | More reciprocal presence; character voices and dramatization remain weak. |
+
+Candidate17's [A transcript](proxy_trials/candidate_17/session_a/transcript.md)
+develops Thessaly's game into a shared reading appointment and a book loan. A
+separate access campaign reaches an actual hearing, a change in court access and
+the first supervised session. Rowan can observe without becoming its spokesman.
+The [B transcript](proxy_trials/candidate_17/session_b/transcript.md) follows a
+declined petition into family letters, quiet company, a completed walk and a
+second visit with Stone. Stone's chess anecdote initially muddles the players;
+when asked, he explicitly corrects himself. That repair resolves the conflicting
+testimony but does not make the original anecdote well written.
+
+The B player driver saw unrelated completed snippets once through an unfiltered
+agent-status response and reports not using them. Its author remained isolated.
+This limits any claim that B was a strictly blinded player trial. Root supplied
+the final clarification after the driver stopped at20. The [locked pilot](proxy_trials/candidate_17/pilot_review.json)
+and [artifact audit](proxy_trials/candidate_17/validation.json) retain further
+counterexamples and validation limits.
+
+The [independent review](proxy_trials/reviews/round17_review.md) values B's family
+letters more highly than the pilot, while finding A's game and reading too often
+summarized. It rates character engagement below the pilot in both sessions:
+different interests still share too much of the same restrained, politely witty
+register. Both judgments are retained. The reviewer also identifies a localized
+source gap when Aldric mentions a letter discussed upstairs with Ashara; no
+unshown relay is treated as observed evidence to dismiss that concern.
+
+Earlier candidates and rejected screens remain under `proxy_trials/`. Through
+candidate17 there are47 exported sessions or short cases,304 saved responses and
+65,117 words of generated story. These counts include replays and rejected
+screens; they are not47 successful independent playtests.
+
+## Implication for the original premise
+
+Plausible character knowledge is an important narrative constraint. These trials
+do not support treating an individual agent per character as a demonstrated
+necessity for satisfying it. A single author can preserve unequal reports and
+private thoughts while carrying NPC business through to consequences. The
+constructed reschedule cases are particularly direct evidence: one character
+retains the old arrangement, another knows only that it moved, and both acquire
+the replacement details only after disclosure.
+
+Structural separation provides a different kind of protection: an agent cannot
+use a secret absent from its input. A shared author receives all the secrets and
+must refrain from using them inappropriately. A few successful conversations do
+not turn that behavioral discipline into a privacy guarantee. Nor does combining
+the roles automatically produce good direction: the early proxy trials frequently
+stalled in questions, lectures or promises. The useful improvement so far comes
+from specific character interests, reciprocal initiative and completing events
+within the scope the player requested.
+
+The experiment remains separate from the main runtime. No proxy candidate has
+yet replaced the root experiment prompts.

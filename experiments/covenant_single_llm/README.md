@@ -14,7 +14,8 @@ original story seed.
 
 Further prompt iteration uses Terra coding agents at maximum reasoning as proxies
 for story calls. The [protocol](proxy_trials/PROTOCOL.md) records the evaluation
-bar and proxy limitations. Frozen candidates, exact player submissions, responses,
+bar and proxy limitations; the [proxy report](PROXY_REPORT.md) summarizes current
+findings and rejected candidates. Frozen candidates, exact player submissions, responses,
 and independent reviews are under `proxy_trials/`. No proxy candidate has yet
 replaced the root prompt files. Consistent invented background is permitted;
 the [assessment amendment](proxy_trials/ASSESSMENT_AMENDMENTS.md) distinguishes
