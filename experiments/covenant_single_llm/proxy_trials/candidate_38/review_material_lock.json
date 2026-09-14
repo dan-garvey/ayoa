@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-09-14T10:58:20.795546+00:00",
+  "scope": "Provenance-anonymized, context-aware independent comparison. Complete differing briefs are required and may reveal condition membership. Four historical controls plus four new publications, not eight new generations.",
+  "source_sha256": {
+    "candidate_37/first_dinner_control_1/packet.txt": "a246766c901b9bd0f70ab44836c7fa104d75f1a3bbef1412d35a2c075a6f708b",
+    "candidate_38/first_dinner_restored_1/00.story.md": "694b49cad3102824bd9de5d1ef06a4ddca6f989d5a32a5d01ea4f59958b07389",
+    "candidate_37/first_dinner_control_1/00.story.md": "706de06b4153761733d9f76037e7ebf834e3f5b8af631485dd414d0d37c8c907",
+    "candidate_37/first_dinner_control_2/00.story.md": "3f30f61b6e22e284a524902c41c7bd607f773c796634acbb5494dcab9e6f9aab",
+    "candidate_38/first_dinner_restored_2/00.story.md": "1689ce0867b313e9a0fbf310280c18d8d6c0cce020ad2552c4c9794e7e2c5966",
+    "candidate_37/later_dinner_control_1/packet.txt": "0d25bf1e6038bfe8344575b4569bdfd53256487327a2a66e618de80c374fb4ff",
+    "candidate_38/later_dinner_restored_2/00.story.md": "3b8fb01b160979d279a8ef584dd96a924f9ecf9397c77d848fb0e396947c2864",
+    "candidate_38/later_dinner_restored_1/00.story.md": "3db371c5497275b446ca7a3fd6c9295a967bd79457c4a298da63b1a1d179324e",
+    "candidate_37/later_dinner_control_2/00.story.md": "c85395e434631cd69a42cef84c3e915a5ee158a2dcdc7d561286626a57a12bcc",
+    "candidate_37/later_dinner_control_1/00.story.md": "12d1f57ce647b86beaa690b8b528c5373a4d932f6b5f498d9238b0ad85b4fbc5"
+  },
+  "review_input_sha256": {
+    "review_covenants.txt": "26f7fae120996bf17320b7a53b34f08e5a3ef8987b328230c973a9d20b76eed1",
+    "review_material.txt": "0e4a0652116955954791701e62780a286e187d75373b78263b85a37e6cc090c0",
+    "review_request.txt": "0a2690f2a6c37170405cfa0abe1886e62942be66c8cf600a39d529335da3e98c",
+    "review_key.json": "57b873d1259304fc893a3aff87df8ef6963fa7e8f606880ff909aaeb8f405404"
+  }
+}

@@ -6,7 +6,32 @@
   "all_four_prior_controls_preserved_without_selection": true,
   "new_frozen_cases": 4,
   "historical_control_publications": 4,
-  "completed_cases": [],
+  "completed_cases": [
+    {
+      "case": "first_dinner_restored_1",
+      "public_final_sha256": "694b49cad3102824bd9de5d1ef06a4ddca6f989d5a32a5d01ea4f59958b07389",
+      "input_sha256": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031",
+      "assigned_delivery_steps_observed": true
+    },
+    {
+      "case": "first_dinner_restored_2",
+      "public_final_sha256": "1689ce0867b313e9a0fbf310280c18d8d6c0cce020ad2552c4c9794e7e2c5966",
+      "input_sha256": "18b6f49d3a2ebd2a09bcab379f78c53584f1efcf22bcf3173cf18825bffdc031",
+      "assigned_delivery_steps_observed": true
+    },
+    {
+      "case": "later_dinner_restored_1",
+      "public_final_sha256": "3db371c5497275b446ca7a3fd6c9295a967bd79457c4a298da63b1a1d179324e",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+      "assigned_delivery_steps_observed": true
+    },
+    {
+      "case": "later_dinner_restored_2",
+      "public_final_sha256": "3b8fb01b160979d279a8ef584dd96a924f9ecf9397c77d848fb0e396947c2864",
+      "input_sha256": "f2507beaad94a7bf3ce81d5f887f3f3af16bb1fc5a2b32086f052830bed38401",
+      "assigned_delivery_steps_observed": true
+    }
+  ],
   "fresh_substantial_sessions": 0,
-  "prelaunch_fidelity_lock_present": false
+  "prelaunch_fidelity_lock_present": true
 }

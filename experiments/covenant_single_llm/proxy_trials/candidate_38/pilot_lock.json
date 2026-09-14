@@ -1,0 +1,58 @@
+{
+  "locked_at": "2026-09-14T11:00:00.192462+00:00",
+  "before_independent_review_launch": true,
+  "root_scores": {
+    "first_dinner_restored_1": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "first_dinner_restored_2": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "later_dinner_restored_1": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "later_dinner_restored_2": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ]
+  },
+  "file_sha256": {
+    "pilot_review.md": "213e7eb498df8bf0b9da3d4fe43f38527cfd4985e33d9625cac43ed82347bfac",
+    "manifest.json": "b61ed34af940a3a558c910ba3390fc6236c9349c9375a3346ba897cf6c02457a",
+    "fidelity_lock.json": "1645e2f745e8b512f11a262b2c75a8758b3793036b34a8993cf7c2db84f85173",
+    "review_key.json": "57b873d1259304fc893a3aff87df8ef6963fa7e8f606880ff909aaeb8f405404",
+    "review_material_lock.json": "8fa99801f4faf909720454484a32577a792e5add1776f82bffa95fbd7dcffccd",
+    "review_request.txt": "0a2690f2a6c37170405cfa0abe1886e62942be66c8cf600a39d529335da3e98c",
+    "review_material.txt": "0e4a0652116955954791701e62780a286e187d75373b78263b85a37e6cc090c0",
+    "review_covenants.txt": "26f7fae120996bf17320b7a53b34f08e5a3ef8987b328230c973a9d20b76eed1",
+    "packet_read_audit.json": "30e5790c4caaf3d8729cc828108552db3499702ab3e51079703517261438a0e3",
+    "validation.json": "1cb0a96c1453935d2ef56a885850236fcc57ea4eb8fe6614cd3559ef2f885990",
+    "first_dinner_restored_1/00.story.md": "694b49cad3102824bd9de5d1ef06a4ddca6f989d5a32a5d01ea4f59958b07389",
+    "first_dinner_restored_1/capture.json": "4748deaf9e159499a72f839535de00d05e01436ed674fa4654261cd87425b266",
+    "first_dinner_restored_1/transcript.md": "b625d0b6dff450535d81d0900e22315ba838dc490a54adf603b0709da5070166",
+    "first_dinner_restored_2/00.story.md": "1689ce0867b313e9a0fbf310280c18d8d6c0cce020ad2552c4c9794e7e2c5966",
+    "first_dinner_restored_2/capture.json": "f68faee8db6768e419208f5d28229386e1cf4678b1ceab0a0352c8e4abd67ad5",
+    "first_dinner_restored_2/transcript.md": "cbe7073bf8bc83c96cec3849eb1ecf4f404cb6d02c6e46ce485ca5fbcc30dadb",
+    "later_dinner_restored_1/00.story.md": "3db371c5497275b446ca7a3fd6c9295a967bd79457c4a298da63b1a1d179324e",
+    "later_dinner_restored_1/capture.json": "7429770df6adea5b2a19eeca6dd47a5d672a3136ca3de75c733de2e517620888",
+    "later_dinner_restored_1/transcript.md": "062fc877fd7fad6ce3c934d65a498410fc57fd27ffa5122513109fa93a71a18f",
+    "later_dinner_restored_2/00.story.md": "3b8fb01b160979d279a8ef584dd96a924f9ecf9397c77d848fb0e396947c2864",
+    "later_dinner_restored_2/capture.json": "0640b18b7c2e85344e258ba9abf099533104192102ea53bea56fa1366cdda2cf",
+    "later_dinner_restored_2/transcript.md": "e2791bd3f2f367b034b4139838783e8b434d073bba69871f9bf430ddbb84c5a7"
+  }
+}

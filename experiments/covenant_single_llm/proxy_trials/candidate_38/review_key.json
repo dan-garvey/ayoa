@@ -1,0 +1,63 @@
+{
+  "created_at": "2026-09-14T10:52:40.505248+00:00",
+  "order_seed": 38,
+  "scope": "Fixed before any new C38 output was received or captured. For root provenance only; not provided to independent reviewer.",
+  "cases": [
+    {
+      "label": "FIRST1",
+      "context": "first_dinner",
+      "source_trial": "candidate_38",
+      "case": "first_dinner_restored_1",
+      "brief": "M"
+    },
+    {
+      "label": "FIRST2",
+      "context": "first_dinner",
+      "source_trial": "candidate_37",
+      "case": "first_dinner_control_1",
+      "brief": "K"
+    },
+    {
+      "label": "FIRST3",
+      "context": "first_dinner",
+      "source_trial": "candidate_37",
+      "case": "first_dinner_control_2",
+      "brief": "K"
+    },
+    {
+      "label": "FIRST4",
+      "context": "first_dinner",
+      "source_trial": "candidate_38",
+      "case": "first_dinner_restored_2",
+      "brief": "M"
+    },
+    {
+      "label": "LATER1",
+      "context": "later_dinner",
+      "source_trial": "candidate_38",
+      "case": "later_dinner_restored_2",
+      "brief": "M"
+    },
+    {
+      "label": "LATER2",
+      "context": "later_dinner",
+      "source_trial": "candidate_38",
+      "case": "later_dinner_restored_1",
+      "brief": "M"
+    },
+    {
+      "label": "LATER3",
+      "context": "later_dinner",
+      "source_trial": "candidate_37",
+      "case": "later_dinner_control_2",
+      "brief": "K"
+    },
+    {
+      "label": "LATER4",
+      "context": "later_dinner",
+      "source_trial": "candidate_37",
+      "case": "later_dinner_control_1",
+      "brief": "K"
+    }
+  ]
+}

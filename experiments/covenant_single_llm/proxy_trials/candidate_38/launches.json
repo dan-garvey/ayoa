@@ -1,0 +1,37 @@
+{
+  "scope": "Actual spawn calls; recorded_at is root record time after launch, not backend inference timing.",
+  "launches": [
+    {
+      "case": "first_dinner_restored_1",
+      "agent": "/root/terra_proxy_c38_first_dinner_restored_1",
+      "recorded_at": "2026-09-14T10:50:45.281392+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "later_dinner_restored_1",
+      "agent": "/root/terra_proxy_c38_later_dinner_restored_1",
+      "recorded_at": "2026-09-14T10:50:45.281400+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "first_dinner_restored_2",
+      "agent": "/root/terra_proxy_c38_first_dinner_restored_2",
+      "recorded_at": "2026-09-14T10:50:45.281402+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "later_dinner_restored_2",
+      "agent": "/root/terra_proxy_c38_later_dinner_restored_2",
+      "recorded_at": "2026-09-14T10:54:37.492970+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    }
+  ]
+}

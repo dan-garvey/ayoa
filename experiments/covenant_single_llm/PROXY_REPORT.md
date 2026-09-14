@@ -409,8 +409,8 @@ source/presentation conflicts and limits are explicit. Recent trial references
 to complete backgrounds mean the complete adapted packet, not a claim that every
 detail in the longer original had been imported.
 
-Candidate38 prepares three additions totaling155 words, preserving all existing
-Covenant material and the full control common prompt. It will compare four new
+Candidate38 tests three additions totaling155 words, preserving all existing
+Covenant material and the full control common prompt. It compares four new
 restoration continuations with all four C37 full-system controls, retaining both
 contexts and both repeats. These are explicitly historical controls, so the
 screen does not isolate a contemporaneous randomized effect. The
@@ -419,7 +419,20 @@ one attribution correction: the original specifies where Ysolde was born, not
 raised. That single-word correction and every original proposed packet are
 preserved in [the correction record](proxy_trials/candidate_38/prelaunch_correction.json).
 Existing biographies, persona and all published-history/submission bytes remain
-intact. Final factual confirmation is pending; no C38 author has launched.
+intact. The [factual confirmation](proxy_trials/reviews/round38_restoration_confirmation.md)
+passes, and its input lock predates every author launch. All four first outputs
+are now captured exactly, totaling3,858 new words; all full instruction/packet
+reads and frozen hashes pass their scoped audits. The
+[locked root review](proxy_trials/candidate_38/pilot_review.md) gives both first
+dinners3/3/4/4/4 and both later dinners3/4/4/4/4. The later scenes improve enacted
+consequences: Rashid attends the promised cards while Ashara practices alone.
+The repeated ensemble repartee still needs revision, and first_dinner_restored_2
+has Ashara assert the undisclosed card commitment before Rashid reveals it.
+The root screen therefore fails. Independent comparison is running with all
+eight publications and each output's correct complete authoritative brief;
+different biographies can reveal condition membership despite anonymized
+provenance. There are four new continuations, four historical comparators, and
+zero substantial sessions. No candidate is promoted.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
