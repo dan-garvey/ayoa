@@ -477,6 +477,24 @@ evidence that another deletion or a larger source import would repair the prose.
 Any semantic cleanup must preserve the psychology, history and knowledge limits
 mixed into those passages. No C40 intervention is selected by that audit.
 
+Candidate40 follows the separate
+[next-direction assessment](proxy_trials/reviews/round40_next_direction_assessment.md)
+with a context-sensitivity diagnostic, keeping the generic one-pass prompt and
+full Covenant unchanged. Its second source is a new3,756-word contemporary
+cinema brief with seven substantial adult biographies, independent relationships,
+competing plans and explicitly unequal knowledge. The
+[suitability review](proxy_trials/candidate_40/suitability_review.md) accepts the
+first proposal unchanged and records the unmatched variables, including the new
+source author's knowledge of prior failures. This is not a replacement campaign
+or a blind held-out source. Two fresh authors per setting each produce an opening
+and two connected dinner continuations under identical quiet-player submissions:
+twelve planned publications and zero substantial sessions. Both complete inputs
+and the review criteria/order are frozen before any author output. The first
+three authors have launched; the fourth awaits a free slot. The
+[manifest](proxy_trials/candidate_40/manifest.json) defines interpretations for
+different, shared or mixed results, with no automatic promotion or claim that a
+stronger second setting repairs Covenant.
+
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
 65,117 words of generated story. These counts include replays and rejected

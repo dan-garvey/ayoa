@@ -1,0 +1,96 @@
+{
+  "created_at": "2026-09-14T12:27:25.814333+00:00",
+  "source_commit": "d0e46625f426d364823f4503300548310dc8f3ed",
+  "kind": "context-sensitivity diagnostic; no new generic prompt intervention",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "scope": "Four fresh authors, two settings, two repeats per setting, opening plus two social continuations each. Twelve publications and twelve requests, zero substantial sessions.",
+  "loop": "Each fresh whole-story author receives complete brief/persona and returns a first opening. Root captures exact first final, then sends each frozen social submission to the same author. One publication per request; no editor, selector, outline or tailored feedback.",
+  "prompt_sha256": {
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73",
+    "proxy_wrapper.txt": "179246ea68d39221c6a5ee630849c727cfc51d2a5de95518098deb87d9753b82",
+    "covenant.txt": "1dbbc655a32ac2c8934882b9119424f8a09ae6fa4000c7619ab03f7d8bb33981",
+    "second_story.txt": "0000b32ddc5c1cf43b7c237d6bd3ecb783c88c6d2247fe5a5e461fe0dc10c77a",
+    "covenant_player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90",
+    "breakwater_player.json": "15590e06d5acee8daf90f9cddc419a932e9f271303fb9f4d92fac8291c5ab802"
+  },
+  "cases": [
+    {
+      "case": "covenant_1",
+      "context": "covenant",
+      "repeat": 1,
+      "requests": 3,
+      "brief_file": "covenant.txt",
+      "persona_file": "covenant_player.json",
+      "packet_sha256": "3e9894eccec7b844c9351443cae12fd87571c5b5941152c9d5552c5e92cbc51e",
+      "inputs_sha256": {
+        "00.input.txt": "4f2b05dedcedbf9be1c14a7671ba4da9aa44a48cd06f69b06c3f111dbd22357d",
+        "01.input.txt": "c9b83ba945ad547a40cbcd646be1fe0cbcef4e786d48345a4134570c981d8cb4",
+        "02.input.txt": "95f81ef0337ab0fa64ff988681f81ab7d20ad6f7f19a52d8b40ab120354b484e"
+      }
+    },
+    {
+      "case": "breakwater_1",
+      "context": "breakwater",
+      "repeat": 1,
+      "requests": 3,
+      "brief_file": "second_story.txt",
+      "persona_file": "breakwater_player.json",
+      "packet_sha256": "a981fa8826ccd8eaa4fce832ec273762212ab8f20e5293311dbd482f67680ed2",
+      "inputs_sha256": {
+        "00.input.txt": "b1ddff1fc99df037bc82a0b0d8e2d7da73326ba151cdcc7bca3cb728d38bacfe",
+        "01.input.txt": "c9b83ba945ad547a40cbcd646be1fe0cbcef4e786d48345a4134570c981d8cb4",
+        "02.input.txt": "95f81ef0337ab0fa64ff988681f81ab7d20ad6f7f19a52d8b40ab120354b484e"
+      }
+    },
+    {
+      "case": "covenant_2",
+      "context": "covenant",
+      "repeat": 2,
+      "requests": 3,
+      "brief_file": "covenant.txt",
+      "persona_file": "covenant_player.json",
+      "packet_sha256": "3e9894eccec7b844c9351443cae12fd87571c5b5941152c9d5552c5e92cbc51e",
+      "inputs_sha256": {
+        "00.input.txt": "4f2b05dedcedbf9be1c14a7671ba4da9aa44a48cd06f69b06c3f111dbd22357d",
+        "01.input.txt": "c9b83ba945ad547a40cbcd646be1fe0cbcef4e786d48345a4134570c981d8cb4",
+        "02.input.txt": "95f81ef0337ab0fa64ff988681f81ab7d20ad6f7f19a52d8b40ab120354b484e"
+      }
+    },
+    {
+      "case": "breakwater_2",
+      "context": "breakwater",
+      "repeat": 2,
+      "requests": 3,
+      "brief_file": "second_story.txt",
+      "persona_file": "breakwater_player.json",
+      "packet_sha256": "a981fa8826ccd8eaa4fce832ec273762212ab8f20e5293311dbd482f67680ed2",
+      "inputs_sha256": {
+        "00.input.txt": "b1ddff1fc99df037bc82a0b0d8e2d7da73326ba151cdcc7bca3cb728d38bacfe",
+        "01.input.txt": "c9b83ba945ad547a40cbcd646be1fe0cbcef4e786d48345a4134570c981d8cb4",
+        "02.input.txt": "95f81ef0337ab0fa64ff988681f81ab7d20ad6f7f19a52d8b40ab120354b484e"
+      }
+    }
+  ],
+  "required_outputs": 12,
+  "conditional_outputs": 0,
+  "review": "Root reads complete sources and all four complete three-publication sequences, then locks scores before a fresh provenance-anonymized independent review with complete sources and player inputs. Primary comparison is the two connected dinner continuations, not openings alone. Preserve all first outputs, score disagreements, local failures and ambiguities.",
+  "success_interpretation": "No automatic advancement or promotion. Retainable dinner sequences in both second-setting repeats for both reviewers while Covenant remains below4 support context dependence, not a Covenant repair. Both improve: fresh starts/route variation remain plausible. Both weak: Covenant-only explanation weakens, no model-ceiling claim. Mixed repeats: inconclusive.",
+  "selection_bar_unchanged": "Two substantial different-policy sessions and held-out boundary tests with retained prose/dialogue, distinction, interests, direction and initiative still required before promoting a prompt.",
+  "unmatched_variables": [
+    "genre",
+    "world complexity",
+    "institutional status",
+    "character ages and roles",
+    "supernatural speech constraints",
+    "source authorship and embedded portrayal guidance",
+    "available topic and relationship material",
+    "brief and persona length"
+  ],
+  "limits": "New Breakwater brief is an experiment-authored fixture, not an existing user-approved campaign. Setting is identifiable in fiction; labels only anonymize run provenance. Narrative/context differences are bundled, not causal isolation of any one feature. No API equivalence, latency, cache, cost or private cognition claim.",
+  "design_proposal_sha256": "81bdcfb7784e0bf645b0bfb87688bc2b07b0e64c7bb55d8831b874aba840e919",
+  "suitability_review_sha256": "0c4b88e8396a58bd40df2ce6a952fc8cc7a1c7fe8946741e5e3ab461c41abd68",
+  "advice": "../reviews/round40_next_direction_assessment.md",
+  "advice_sha256": "697a5c3c29668c6a38ea41d6534a98829b811e18908f636fbe74698f38338472"
+}

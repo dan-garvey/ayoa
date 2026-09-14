@@ -1,0 +1,46 @@
+{
+  "proposal_sha256": "0000b32ddc5c1cf43b7c237d6bd3ecb783c88c6d2247fe5a5e461fe0dc10c77a",
+  "accepted_source_sha256": "0000b32ddc5c1cf43b7c237d6bd3ecb783c88c6d2247fe5a5e461fe0dc10c77a",
+  "proposal_accepted_without_edits": true,
+  "full_root_read_before_launch": true,
+  "source_words": 3756,
+  "present_biographies": [
+    {
+      "name": "Nell Ward",
+      "age": 44,
+      "words": 268
+    },
+    {
+      "name": "Martin Vale",
+      "age": 66,
+      "words": 274
+    },
+    {
+      "name": "Owen Vale",
+      "age": 27,
+      "words": 287
+    },
+    {
+      "name": "Jo Salcedo",
+      "age": 52,
+      "words": 287
+    },
+    {
+      "name": "Dev Malik",
+      "age": 35,
+      "words": 289
+    },
+    {
+      "name": "Rosa Chen",
+      "age": 31,
+      "words": 293
+    },
+    {
+      "name": "Bea Finch",
+      "age": 59,
+      "words": 296
+    }
+  ],
+  "xml_and_calendar_checks_pass": true,
+  "limits": "Substantive suitability is a human-readable qualitative preflight, not proved by word counts or XML validation."
+}

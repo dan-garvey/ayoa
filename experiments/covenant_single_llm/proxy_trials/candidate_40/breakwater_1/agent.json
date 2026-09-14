@@ -1,0 +1,12 @@
+{
+  "agent": "/root/terra_proxy_c40_breakwater_1",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "fork_turns": "none",
+  "calls_per_player_submission": 1,
+  "fresh_story_start": true,
+  "context": "breakwater",
+  "repeat": 1,
+  "author_request_sha256": "b3581e3b9de17068ef100a0fcc9d584fb9a1f37225f4a4eae227bfd9f3831349",
+  "launch_request_sha256": "15bb9e90663b781af324b0443e81e8f7c8da9dcc4188b33ffa2bb34f798f1233"
+}

@@ -1,0 +1,10 @@
+{
+  "seed": 40,
+  "before_all_author_launches": true,
+  "case_by_letter": {
+    "A": "breakwater_1",
+    "B": "covenant_1",
+    "C": "covenant_2",
+    "D": "breakwater_2"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "timestamp_semantics": "Root bookkeeping time after successful launch, not an inference timestamp.",
+  "requests": [
+    {
+      "case": "covenant_1",
+      "turn": 0,
+      "agent": "/root/terra_proxy_c40_covenant_1",
+      "request_file": "covenant_1/launch_request.txt",
+      "request_sha256": "9986ab4c885f94ff1eab1c6acae15456984cd83140a18e0d46c42dc38459e4a9",
+      "recorded_at": "2026-09-14T12:29:01.678927+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "breakwater_1",
+      "turn": 0,
+      "agent": "/root/terra_proxy_c40_breakwater_1",
+      "request_file": "breakwater_1/launch_request.txt",
+      "request_sha256": "15bb9e90663b781af324b0443e81e8f7c8da9dcc4188b33ffa2bb34f798f1233",
+      "recorded_at": "2026-09-14T12:29:01.679006+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "covenant_2",
+      "turn": 0,
+      "agent": "/root/terra_proxy_c40_covenant_2",
+      "request_file": "covenant_2/launch_request.txt",
+      "request_sha256": "ac58dcb2f6d14ad4e2d602317d28c6e9e5c15851a3f1deda137ac93ab6931b43",
+      "recorded_at": "2026-09-14T12:29:01.679119+00:00",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    }
+  ]
+}
