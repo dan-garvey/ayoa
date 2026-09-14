@@ -2,8 +2,19 @@
   "model": "gpt-5.6-terra",
   "reasoning_effort": "max",
   "delivery": "Coding-agent proxy; not direct API",
-  "responses": [],
-  "player_turns": 0,
+  "responses": [
+    {
+      "turn": 0,
+      "input_sha256": "4452844237c7fe4014031511b0e97f5e5f66f71af82aceeceb4631ceb4440934",
+      "story_sha256": "36c436b0c31d8298f6f7414ff79a9bed05d7267e068af0bf5400494bc883f9c6",
+      "story_words": 811,
+      "draft_sha256": "39317b940378e63ffe0a37a5a8f19b63f74160eb6c868c75bcdc342ddbff9bcc",
+      "draft_words": 1224,
+      "editor_request_sha256": "f5b5f7301e4c79b53e137554da18a3463ba883f242eef05a0592a9b9d3dd4e03",
+      "author_task_requests": 2
+    }
+  ],
+  "player_turns": 1,
   "session_kind": "matched continuation diagnostic of superseded-draft exposure",
-  "story_words": 0
+  "story_words": 811
 }

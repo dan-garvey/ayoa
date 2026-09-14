@@ -10,30 +10,38 @@
     {
       "case": "published_1",
       "raw_outputs_sha256": {
-        "00.draft.md": "cc23a0c31a445a41a02f2de420d3e75c24c22bc84999bf89c0dd0676fd5395f7"
+        "00.draft.md": "cc23a0c31a445a41a02f2de420d3e75c24c22bc84999bf89c0dd0676fd5395f7",
+        "00.story.md": "114df40450e112d8408230deafca4bea543149cfd127b81dd092ef340728c516"
       },
-      "completed_author_requests": 1,
-      "published_continuations": 0
+      "completed_author_requests": 2,
+      "published_continuations": 1
     },
     {
       "case": "published_2",
-      "raw_outputs_sha256": {},
-      "completed_author_requests": 0,
-      "published_continuations": 0
+      "raw_outputs_sha256": {
+        "00.draft.md": "e0ac519f459d4950e67f1cb3ad8acc214f9859cb35f5900f5600686b31b4cb19",
+        "00.story.md": "67f89f493142771ba61be45b9d3733c50497f79184ca1036ed00dedf05d009f0"
+      },
+      "completed_author_requests": 2,
+      "published_continuations": 1
     },
     {
       "case": "exposed_1",
       "raw_outputs_sha256": {
-        "00.draft.md": "39317b940378e63ffe0a37a5a8f19b63f74160eb6c868c75bcdc342ddbff9bcc"
+        "00.draft.md": "39317b940378e63ffe0a37a5a8f19b63f74160eb6c868c75bcdc342ddbff9bcc",
+        "00.story.md": "36c436b0c31d8298f6f7414ff79a9bed05d7267e068af0bf5400494bc883f9c6"
       },
-      "completed_author_requests": 1,
-      "published_continuations": 0
+      "completed_author_requests": 2,
+      "published_continuations": 1
     },
     {
       "case": "exposed_2",
-      "raw_outputs_sha256": {},
-      "completed_author_requests": 0,
-      "published_continuations": 0
+      "raw_outputs_sha256": {
+        "00.draft.md": "bba8bb8237ab9760cfc89a7b74a28af702f6427f5436721674e78eea8c21e145",
+        "00.story.md": "f81d84aee73728351e7cc037c58e1d9bda67aa1ab2e50eacc23eb2c712ff8fca"
+      },
+      "completed_author_requests": 2,
+      "published_continuations": 1
     }
   ],
   "limits": "Actual model/read coverage requires separate public tool-record audit. Four matched continuations are not fresh long sessions."

@@ -234,18 +234,40 @@ historical C29 publications are reference material, not the fresh control.
 The [locked pilot](proxy_trials/candidate_30/pilot_comparison.md) finds no
 consistent dinner improvement: the changed paragraph produces its most and
 least preferred dinner responses. It finds all four manuscript responses
-retainable. An independent comparison receives anonymous outputs and complete
-published context, without drafts, prompt variants or pilot ratings. Its review
-is pending; no live improvement or selection is claimed.
+retainable. The [independent comparison](proxy_trials/reviews/round30_blind_comparison.md)
+receives anonymous outputs and complete published context, without drafts,
+prompt variants or pilot ratings. It rates book_b2 at4 and the other dinners
+at3; it rates reading_b2 at3 for serial literary appraisals and the other
+readings at4. These differ from the locked pilot and remain intact. The
+[decision](proxy_trials/candidate_30/decision.json) records an inconsistent local
+gain and a possible reading over-correction; the paragraph is not promoted.
 
 Candidate31 separately tests exposure to earlier discarded drafts. Both
 conditions start with fresh whole-story Terra/max authors and unchanged C29
 prompts, complete backgrounds, published B00–02 and the same B03 submission.
 One condition also includes the exact B00–02 discarded fiction, explicitly
 marked as superseded. Each author generates a new draft and then receives the
-unchanged editorial task. Two repeats per condition produce four planned
-continuations and eight sequential requests. This tests additional fiction
-context under a matched setup, not persistence itself or production API cost.
+unchanged editorial task. Two repeats per condition now produce four saved
+continuations and eight sequential requests. The
+[locked pilot](proxy_trials/candidate_31/pilot_comparison.md) rates the revisions
+4/3 without old drafts and3/3 with them, with no consistent remedy established.
+The second revision without old drafts removes its own draft's unsupported Dena
+reference and makes separate endorsements coherent. The first leaves a
+four-minute deadline without its removed negotiation. The
+[blind comparison](proxy_trials/reviews/round31_blind_comparison.md) rates one
+repeat in each condition4 and the other3, retaining exposed_2 where the root
+does not. The [decision](proxy_trials/candidate_31/decision.json) records no
+reliable old-draft exposure advantage. This tests additional fiction context
+under a matched setup, not persistence itself or production API cost.
+
+The [first-pair diagnosis](proxy_trials/reviews/round31_first_pair_diagnosis.md)
+recommends testing the representation of published history next. Candidate32
+prepares raw-history and semantic-record conditions while keeping the entire
+Covenant, persona, player submissions and authored material unchanged. The
+records require an independent fidelity audit before authors run; reviewers
+will assess every output against the complete original conversation. This is
+an isolated context diagnostic, not a runtime summarization feature. No
+candidate is selected.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

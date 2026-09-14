@@ -1,0 +1,36 @@
+{
+  "recorded_at": "2026-09-14T07:36:56.858676+00:00",
+  "status": "diagnostic complete; no reliable old-draft exposure advantage established",
+  "scope": "Four first drafts and four first revisions. Two reset authors per condition. One common continuation checkpoint, not fresh long sessions.",
+  "root_revision_prose_dialogue": {
+    "published_1": 4,
+    "published_2": 3,
+    "exposed_1": 3,
+    "exposed_2": 3
+  },
+  "independent_revision_prose_dialogue": {
+    "published_1": 4,
+    "published_2": 3,
+    "exposed_1": 3,
+    "exposed_2": 4
+  },
+  "independent_preference": [
+    "exposed_2",
+    "published_1",
+    "exposed_1",
+    "published_2"
+  ],
+  "independent_review_sha256": "a55b92be4c5f7239b12f20d943a7a07fa17c107060169ea231ea9be8f0274df9",
+  "findings": [
+    "The independent reviewer rates one repeat in each condition4 and the other3. Both conditions still produce the ensemble-rejoinder pattern. No reliable directional effect is established by this small screen.",
+    "Root and independent review agree published_1 is locally retainable with a deadline clarification. The independent reviewer also retains exposed_2; root rates it3. Preserve that disagreement.",
+    "No new material authorship or character-knowledge breach identified in final publications. Published_2 repairs its draft's unsupported Dena reference and inconsistent signature arrangement without extra driver feedback.",
+    "Published_1 retains a four-minute reminder after dropping the current draft's negotiation. This is a local missing-premise problem, not evidence that every invented shared history is forbidden."
+  ],
+  "limits": [
+    "No statistical equivalence or causal effect of persistence itself. Both reset conditions retained raw published history and their current draft during revision.",
+    "No API latency/cost or long-session quality claim. Full Covenant stays exact C19; C29 system and revision unchanged.",
+    "The first-pair advisory is a separate, informed diagnosis and did not inspect the second repeats. The blind review sees final publications only, so the deadline's exact draft source comes from the separate draft comparison."
+  ],
+  "next": "C32 will compare raw published history with independently audited semantic records, preserving complete biographies, exact player submissions and authored material. No live prompt or runtime promotion."
+}
