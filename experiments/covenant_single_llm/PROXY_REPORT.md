@@ -6,14 +6,18 @@ met the complete selection bar across two fresh sessions. The remaining failures
 are predominantly literary: recurring polished lessons, stilted conversation,
 and, in some routes, helpful characters who leave too much initiative to the player.
 
-The latest completed generation is C41: sixteen new dinner continuations
-comparing the existing prompt with a350-word default ceiling. Root's
-[locked comparison](proxy_trials/candidate_41/pilot_review.md) gives all eight
-connected dinners prose3; the shorter passages retain the prepared dialogue
-and often summarize the interesting material. Six of eight budget passages
-obey the ceiling. Independent review is pending. C40's prior comparison across
-Covenant and a contemporary cinema also found the pattern in both rich settings.
-No proxy candidate has been selected or promoted.
+The latest completed comparison is C41: sixteen new dinner continuations
+testing the existing prompt against a 350-word default ceiling. Both the
+[root review](proxy_trials/candidate_41/pilot_review.md) and
+[independent review](proxy_trials/reviews/round41_independent_comparison.md)
+judge every complete dinner below the literary retain threshold. Shorter
+passages retain the prepared dialogue and often summarize interesting material.
+The independent reviewer prefers controls in three pairs and the shorter
+Covenant2 for respecting player scope; root finds Breakwater2 tied. Six of
+eight budget passages obey the ceiling. The [decision](proxy_trials/candidate_41/decision.json)
+closes this numeric-budget direction without another target. C40 also found
+the dialogue pattern across Covenant and a contemporary cinema, both with rich
+histories. No proxy candidate has been selected or promoted.
 
 The user permits new history that fills gaps consistently. Inventing a relative,
 past incident, or an unshown but plausible action is not itself a failure.
@@ -523,29 +527,41 @@ explanation while leaving the cause unidentified. The
 different, shared or mixed results, with no automatic promotion or claim that a
 stronger second setting repairs Covenant.
 
-Candidate41 is now a bounded test of publication length during quiet observation.
-Its [design](proxy_trials/candidate_41/design.md) follows a qualified
+Candidate41 completes a bounded test of publication length during quiet
+observation. Its [design](proxy_trials/candidate_41/design.md) follows a qualified
 [scope assessment](proxy_trials/reviews/round41_scope_design_assessment.md):
-append a350-word default ceiling that includes routine time skips, retaining the
+append a 350-word default ceiling including routine time skips, retaining the
 entire existing prompt and both rich briefs. There is no word minimum; expressly
-requested detail or complete performances can exceed the default. Each of the
-four C40 openings supplies common prior fiction for a fresh control and budget
-author, each producing two connected dinners. All sixteen new publications are
-complete, totaling8,799 words from eight authors and zero substantial sessions.
-The [locked root review](proxy_trials/candidate_41/pilot_review.md) rates every
-connected dinner prose3 and rejects advancement. It prefers the control in
-Covenant1 and Breakwater1, the budget condition in Covenant2 for preserving the
-player's scope, and finds Breakwater2 tied below the bar. Covenant2 control
-advances beyond the initial few dinner minutes and relocates Rowan unasked.
-Two budget passages exceed350 words:382 and370. Exact captures, full reads,
-matched inputs and source preservation pass their scoped
-[validation](proxy_trials/candidate_41/validation.json). Independent review is
-pending. Both reviewers must prefer all four complete treatment dinners for
-substantive literary reasons, with developed interaction, all quality dimensions
-retainable, and scope/boundaries intact. Word-count compliance is separate; no
-output is truncated or rerolled. A mixed or failed result closes this direction
-without trying another numerical target. Inputs and review criteria are frozen
-before launch, and no prompt is promoted.
+requested detail or complete performances can exceed the default. Each of four
+C40 openings supplies identical prior fiction for a fresh control and budget
+author, each producing two new passages. All sixteen publications are complete:
+8,799 new words from eight Terra/max authors, sixteen author requests and zero
+substantial sessions. The inherited 1,822 opening words are excluded.
+
+The [locked root review](proxy_trials/candidate_41/pilot_review.md) gives every
+connected dinner prose 3. The
+[independent review](proxy_trials/reviews/round41_independent_comparison.md)
+gives seven dinners prose 3 and Breakwater2 budget prose 2. Both weakly prefer
+Covenant1 control, substantively prefer Breakwater1 control, and prefer Covenant2
+budget for preserving scope while allowing the NPCs an inconsiderate choice.
+Root finds Breakwater2 tied; the independent reviewer substantively prefers
+its control because the recollection develops through actual replies. All
+scores and disagreements remain preserved in the
+[review response](proxy_trials/candidate_41/review_response.md).
+
+Covenant2 control advances beyond the initial few dinner minutes and relocates
+Rowan unasked. The independent review adds a missed interval in Breakwater1
+budget and a local place-setting discrepancy in Covenant1 budget. Two budget
+passages exceed 350 words: 382 and 370. Exact captures, full reads, matched inputs
+and source preservation pass their scoped
+[validation](proxy_trials/candidate_41/validation.json). No publication was
+truncated, rerolled or repaired with another author call. All four treatment
+dinners had to be retainable and substantively preferred by both reviewers,
+with scope and boundaries intact; every ordinary publication also had to obey
+the ceiling. The [decision](proxy_trials/candidate_41/decision.json) rejects
+advancement on literary quality and compliance separately, closing this direction
+without another numerical target. No substantial trials or promotion follow
+this failed screen, and no C42 intervention is selected by the result.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and

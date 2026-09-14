@@ -1,0 +1,181 @@
+{
+  "status": "rejected_numeric_budget_direction_closed",
+  "decided_at": "2026-09-14T14:16:20.139394+00:00",
+  "fresh_authors": 8,
+  "published_passages": 16,
+  "author_requests": 16,
+  "new_story_words": 8799,
+  "inherited_openings": 4,
+  "inherited_story_words_excluded": 1822,
+  "substantial_sessions": 0,
+  "full_biographies_preserved": true,
+  "only_prompt_change": "Append 79-word default length rule to the unchanged 393-word common prompt.",
+  "root_scores": {
+    "covenant_1_control": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "covenant_1_budget": [
+      3,
+      3,
+      3,
+      3,
+      4
+    ],
+    "breakwater_1_control": [
+      3,
+      4,
+      4,
+      4,
+      4
+    ],
+    "breakwater_1_budget": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "covenant_2_control": [
+      3,
+      3,
+      4,
+      4,
+      2
+    ],
+    "covenant_2_budget": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "breakwater_2_control": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "breakwater_2_budget": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ]
+  },
+  "independent_scores": {
+    "covenant_1_control": [
+      3,
+      2,
+      3,
+      3,
+      4
+    ],
+    "covenant_2_control": [
+      3,
+      2,
+      3,
+      2,
+      2
+    ],
+    "breakwater_2_budget": [
+      2,
+      2,
+      3,
+      3,
+      3
+    ],
+    "breakwater_1_budget": [
+      3,
+      3,
+      3,
+      4,
+      3
+    ],
+    "covenant_2_budget": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "covenant_1_budget": [
+      3,
+      2,
+      3,
+      3,
+      4
+    ],
+    "breakwater_1_control": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ],
+    "breakwater_2_control": [
+      3,
+      3,
+      4,
+      4,
+      4
+    ]
+  },
+  "root_matched_preferences": {
+    "covenant_1": "control_weak",
+    "breakwater_1": "control",
+    "covenant_2": "budget_scope_advantage",
+    "breakwater_2": "tie_below_bar"
+  },
+  "independent_matched_preferences": {
+    "covenant_1": "control_slight",
+    "covenant_2": "budget_substantive",
+    "breakwater_1": "control_substantive",
+    "breakwater_2": "control_substantive"
+  },
+  "literary_advancement_gate_passed": false,
+  "length_compliance_gate_passed": false,
+  "budget_publications_compliant": 6,
+  "budget_publications_total": 8,
+  "over_limit_publications": {
+    "breakwater_1_budget/00.story.md": 382,
+    "breakwater_2_budget/01.story.md": 370
+  },
+  "findings": [
+    "Every complete dinner remains below prose 4 for both reviewers; the limit does not reliably improve developed dialogue.",
+    "Both prefer Covenant1 control slightly, Breakwater1 control substantively, and Covenant2 budget substantively. Root finds Breakwater2 tied; the independent reviewer prefers its control.",
+    "Covenant2 budget handles disclosure, imperfect NPC priorities and quiet player scope usefully, but its prose still needs material revision.",
+    "Covenant2 control first passage overruns the submitted initial minutes and moves Rowan to the dining-room threshold without a submitted move.",
+    "Independent review adds a missed interval in Breakwater1 budget and an eight-versus-seventeen place-setting discrepancy in Covenant1 budget; root accepts these in review_response.md while preserving its original scores.",
+    "Shorter passages often report interesting social material while retaining poised reactions in actual dialogue.",
+    "All first outputs are retained, including two length failures; there was no trim, reroll, corrective author request or private-reasoning inspection."
+  ],
+  "root_review": "pilot_review.md",
+  "independent_review": "../reviews/round41_independent_comparison.md",
+  "review_response": "review_response.md",
+  "validation": "validation.json",
+  "limits": [
+    "Four matched opening groups under one quiet-player policy, each with two new passages; not substantial sessions or held-out selection passes.",
+    "The explicit-detail and complete-performance length exceptions were not exercised.",
+    "Condition labels were withheld from the independent reviewer, but lengths may reveal conditions.",
+    "Exact root dispatch records and public receiver metadata/order are verified; encrypted receiver task bodies are not plaintext-verified.",
+    "Coding-agent proxy findings do not establish direct API equivalence, costs, latency, private cognition, long-term reliability or a model ceiling."
+  ],
+  "numeric_budget_direction_closed": true,
+  "promoted": false,
+  "main_runtime_changed": false,
+  "broader_goal_complete": false,
+  "next_step": "No C42 intervention is selected. Preserve the rejected screen and do not retune the numerical ceiling. Any later prompt intervention needs a distinct, evidence-supported hypothesis with full biographies and no character-specific example dialogue.",
+  "file_sha256": {
+    "pilot_lock.json": "495a29bb3f09f9fe657cc079f2efeca45bfcac8a8d58aa69c04d9db421aed5ea",
+    "independent_lock.json": "c42620c8989c08a88b8060616942601a467b5e597d794bddfba315772d850a21",
+    "review_response.md": "52a54c7c0dc1a374cd9206e56fb85b9eb36b90d7ce4ab414896ed985f9840683",
+    "validation.json": "578918b4a783c4da37cf7dd969173312ac36f9867c1b62837e0132e74ae37d44",
+    "review_read_audit.json": "5585f481265c98c5cff93050523378eed26e5b626789d0c92b3dc4406ef1138f"
+  }
+}

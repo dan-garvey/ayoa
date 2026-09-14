@@ -1,0 +1,121 @@
+{
+  "agent": "/root/proxy_c41_independent_review",
+  "session_id": "01a0a02f-1ede-70e1-9cb4-3cd0660ebeff",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T08-50-37-01a0a02f-1ede-70e1-9cb4-3cd0660ebeff.jsonl",
+  "model_effort_metadata": [
+    [
+      "gpt-6-astra",
+      "max"
+    ]
+  ],
+  "scope": "Exact read coverage from public tool calls and outputs plus model/effort metadata. No private reasoning inspected. This verifies supplied files were returned in full, not compliance with every instruction or hidden cognition.",
+  "files": [
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_41/review_request.txt",
+      "sha256": "7ba03a873e29bbf141c82ccabc57b49d173bb398d25e5c427c4cb14eb96d7a2a",
+      "lines": 17,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 17,
+          "call_id": "call_YxQ3jrg4VsXJorw6IZRMyfLM",
+          "line_numbered": false
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_41/covenant.txt",
+      "sha256": "1dbbc655a32ac2c8934882b9119424f8a09ae6fa4000c7619ab03f7d8bb33981",
+      "lines": 390,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 200,
+          "call_id": "call_OAKW8CKejpFuEnhuEPoIFmHG",
+          "line_numbered": true
+        },
+        {
+          "start": 201,
+          "end": 390,
+          "call_id": "call_cKb0o6K6HqEoqXltxgN2gdDt",
+          "line_numbered": true
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_41/second_story.txt",
+      "sha256": "0000b32ddc5c1cf43b7c237d6bd3ecb783c88c6d2247fe5a5e461fe0dc10c77a",
+      "lines": 402,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 201,
+          "call_id": "call_DjpEG9RHJgMRjytTjfBUbYMC",
+          "line_numbered": true
+        },
+        {
+          "start": 202,
+          "end": 402,
+          "call_id": "call_otnLNk5rVXBcHCcrESYOJh3r",
+          "line_numbered": true
+        }
+      ]
+    },
+    {
+      "file": "experiments/covenant_single_llm/proxy_trials/candidate_41/review_material.txt",
+      "sha256": "f992848e4163a9fa05d1c3d3bb37c8772e5dca1d09bd98818bc27a5100af56e9",
+      "lines": 1629,
+      "exact_untruncated_chunks": [
+        {
+          "start": 1,
+          "end": 210,
+          "call_id": "call_iUnw9u9Qts2uJuIcIKEudfdn",
+          "line_numbered": true
+        },
+        {
+          "start": 211,
+          "end": 420,
+          "call_id": "call_xnFXhIqCbA3qLALAuuAR92KJ",
+          "line_numbered": true
+        },
+        {
+          "start": 421,
+          "end": 630,
+          "call_id": "call_Hm4AtfbZW3CfqPEfmam68lZH",
+          "line_numbered": true
+        },
+        {
+          "start": 631,
+          "end": 840,
+          "call_id": "call_QbWpuH0MPoh8ag4QSyM5ISqk",
+          "line_numbered": true
+        },
+        {
+          "start": 841,
+          "end": 1050,
+          "call_id": "call_fsQJc1vRUODQAGbGQ7KjZOyK",
+          "line_numbered": true
+        },
+        {
+          "start": 1051,
+          "end": 1260,
+          "call_id": "call_190Xd0xJMIs6z7f36WyY5jly",
+          "line_numbered": true
+        },
+        {
+          "start": 1261,
+          "end": 1470,
+          "call_id": "call_gYSatt1oA9jyrsxchmqPoAnE",
+          "line_numbered": true
+        },
+        {
+          "start": 1471,
+          "end": 1629,
+          "call_id": "call_V6vQZvS5EIpyKWWkgnaH4aoK",
+          "line_numbered": true
+        }
+      ]
+    }
+  ],
+  "all_required_files_read_in_full": true
+}
