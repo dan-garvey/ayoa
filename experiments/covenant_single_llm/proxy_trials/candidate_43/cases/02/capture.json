@@ -1,0 +1,61 @@
+{
+  "captured_at": "2026-09-14T17:36:58.759593+00:00",
+  "agent": "/root/terra_c43_02",
+  "session_id": "01a0a0fc-db0e-7063-8643-56ce2d236d5e",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T12-35-20-01a0a0fc-db0e-7063-8643-56ce2d236d5e.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "public_final_message_id": "msg_05379d7f082cdd16016aa8308c812c87d186e935603bf4428f",
+  "first_final_sha256": "7ed94ce204a4a344bdb37fea4048d16f7dc89732d33ab137e98858abd8175dc1",
+  "words": 82,
+  "exact_unmodified_first_final": true,
+  "frozen_request_sha256": "140d109a5f4385da82484347cee4c419beed8007a673342f27da37db509c758d",
+  "dispatch_metadata_verified": true,
+  "dispatch_plaintext_verified": false,
+  "public_tool_calls": [
+    {
+      "call_id": "call_QprimftdjIBcsDIGevgtaX6W",
+      "tool": "exec",
+      "source_sha256": "d4c94e3afe606e7111b3254ee8f54748c873b6a7ef1f661dde645da58cbcf7ec",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_VLT9I6PkQqJTpUaHkIHEtGvQ",
+      "tool": "exec",
+      "source_sha256": "150fdf4ca5c1062b0ff7b30cb6a8a028cd7c0d5f49b6d7b6697cb4b2d1cd5046",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_eYj4dLZBVbkqgHbRufnkkSh4",
+      "tool": "exec",
+      "source_sha256": "845be7d5f88b28bfd29306f7d364b33e74121b4fa221e5a71b0e7b266b4c0a16",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_ZCp25enwr9AggDmdKrZ32EGd",
+      "tool": "exec",
+      "source_sha256": "289dc1a4455c089e1676ff8b96df6ce1623d2b59561a760f61ac3b3989f2ec87",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_PaE46dnYzMgD3f954JA8ExVO",
+      "tool": "exec",
+      "source_sha256": "fd5cb2f29c0ba95b9544f33f1a76a6445ec60babf20e52b6af6ff8f1006228ae",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_8JYlmbROXa4ImM51sDhWQ2LV",
+      "tool": "exec",
+      "source_sha256": "966358fe32338b678d501ae414651ad04486cf14355cf8364766546c7d6c42a0",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_EG9w03akg5hsSs7DnyNSsByb",
+      "tool": "exec",
+      "source_sha256": "2ed69efc5e912a3b52b795319f353fe375f49307324e04c7e4443f2f0cfd8e98",
+      "possible_write": false
+    }
+  ],
+  "possible_writes": [],
+  "scope": "Exact public final, public tool/call metadata, frozen intended request and model/effort only. The root log encrypts dispatched message text, so no dispatch/receiver plaintext comparison is claimed. No private reasoning inspected."
+}

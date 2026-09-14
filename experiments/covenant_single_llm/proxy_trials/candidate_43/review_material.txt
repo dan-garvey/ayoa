@@ -1,0 +1,576 @@
+<player_persona>
+{
+  "name": "Rowan Garvey",
+  "description": "A twenty-three-year-old human man with brown skin, unruly dark hair, and ink-stained fingers, wearing a carefully mended charcoal coat and the inherited Garvey signet. Newly arrived and unsure of Conclave customs. He grew up unaware of his heritage, lost his parents young, and does not know whether he has any magic.",
+  "opening": "Begin the story shortly before the welcome dinner, in my room at Garvey House. I play Rowan Garvey."
+}
+</player_persona>
+
+<published_conversation>
+
+<turn index="0">
+<player_submission>
+My character: Rowan Garvey. A twenty-three-year-old human man with brown skin, unruly dark hair, and ink-stained fingers, wearing a carefully mended charcoal coat and the inherited Garvey signet. Newly arrived and unsure of Conclave customs. He grew up unaware of his heritage, lost his parents young, and does not know whether he has any magic.
+
+Begin the story shortly before the welcome dinner, in my room at Garvey House. I play Rowan Garvey.
+</player_submission>
+<story>
+Evening has blued the garden paths below your window. Beyond their pale walls, a bridge of hard light reaches over the storm and vanishes into cloud. The careful repair at the cuff of your charcoal coat catches the lamp in a dull silver line. Your inherited signet has caught a stripe of light against the ink on your fingers. Beside the desk, a framed letter hangs in its gilt frame, close handwriting addressed to a Garvey great-nephew with another name.
+
+The dinner bell sounds once below. A chair shifts across the dining hall floor.
+
+“Will you sign the request, Ashara?”
+
+“I agree the restriction is too broad. I won't sign a draft that uses my booking tomorrow.”
+
+“It shows the court can be supervised.”
+
+“It shows I have a ranked bout.”
+
+“I have statements from six students.”
+
+“You do not have the instructor's report.”
+
+“They won't release it.”
+
+“Then ask them again.”
+
+Two taps sound at your door.
+
+“Rowan Garvey?” says a young woman's voice. “I'm Thessaly Morrow. The dining hall is downstairs, left at the stair. Would you like me to show you?”
+</story>
+</turn>
+
+<turn index="1">
+<player_submission>
+"Yes, please. I've been upstairs long enough." I open the door and introduce myself to Thessaly. I walk down with her and greet the people at dinner. "I'm Rowan. I'm glad to meet you all." I look for my place and sit when the others do.
+</player_submission>
+<story>
+Thessaly steps back from the doorway while you open it, her blue-black hair moving slowly around her shoulders. Her black eyes touch on the Garvey signet, then lift again.
+
+“Good. The dining hall is left at the bottom of the stairs. The library is to the right. The doors look nearly identical from the landing.”
+
+She walks downstairs beside you. The common room opens below the portrait-lined wall, firelight catching on leather chair arms and the rims of abandoned tea cups. Warm bread and lamp oil meet you at the dining hall door.
+
+The long table is set for seventeen. Seven places are occupied by glasses, folded napkins, and people paused around a covered tureen. Rashid has pressed the sheet from before into a neat square beneath his water glass. Across from him, Ashara's tail follows the line of her chair leg, its spade held just above the floor.
+
+When you greet them, “I'm Rowan. I'm glad to meet you all,” Rashid rises.
+
+“Rashid vel Amara. Welcome. You made it before the soup.”
+
+“Ashara vel Kothren.”
+
+The white-haired woman by the window inclines her head. “Ysolde Thornmantle.”
+
+“Caelindra Vaeyn,” says the silver-haired elf.
+
+An angel in white and gold steps away from his chair. “Aldric Verantus. It is a pleasure to meet you.”
+
+The other angel's small wings shift against her sleeves.
+
+“Seraphel Dawnquill.
+
+Dinner has waited.
+
+Please sit.”
+
+Thessaly moves to the place beside a narrow ivory card lettered ROWAN GARVEY. Her own card waits to its left; Seraphel's is on the other side. When the servers lift the tureen lids, chairs draw back around the table, and you take your seat with the others.
+
+Steam rises from bowls of pale broth scattered with herbs. Caelindra lays her spoon across the rim of hers.
+
+“Before the Garvey verification, what did you study?”
+</story>
+</turn>
+
+<turn index="2">
+<player_submission>
+"I worked at a printer's. I set type and did some binding, and the owner let me read things after hours. That was most of my schooling." I try the soup. "I write little scenes sometimes, though I haven't had anything printed. What are you studying here?"
+</player_submission>
+<story>
+The broth is pale and clear, sharpened with herbs and a trace of citrus. Caelindra glances at the ink on your fingers.
+
+“Hand-set type leaves a particular stain,” she says.
+
+Aldric answers your question first. “Covenant law, chiefly. I read theology beside it.”
+
+“Military history and negotiation,” Ashara says. “Combat theory takes the mornings.”
+
+Rashid sets his bread down. “Procedure. Voting qualifications, admissions, committee rules. I brought that request because I want the rules read closely.”
+
+“Maps,” Ysolde says. “Mountain passes and air routes.”
+
+“Time-bindings and court archives,” Caelindra says.
+
+“Contracts,” says Thessaly. “The syllabus begins with obligations.”
+
+Seraphel folds her hands beside her spoon.
+
+“Covenant history,
+
+music,
+
+formal debate.”
+
+Caelindra tastes the soup at last. Her violet eyes return to you.
+
+“What do your scenes concern?”
+</story>
+</turn>
+
+<turn index="3">
+<player_submission>
+"The one I'm working on has two sisters and one decent coat. One needs it for a job interview; the other wants to pawn it before the rent collector comes. I've only written the argument so far. I don't know how it ends yet." I take a piece of bread, then turn a little toward Seraphel. "You said music. Do you sing, or play something?"
+</player_submission>
+<story>
+The bread cracks softly under your fingers. Caelindra leaves her spoon at the edge of her bowl.
+
+“Two sisters and one coat,” she says. “That is clear.”
+
+Rashid refolds the loose corner of the request beneath his glass. Ashara reaches for her water. Thessaly studies the surface of her broth without speaking.
+
+When you turn toward Seraphel, she sets her spoon down beside the bowl. Her small white wings brush the back of her chair.
+
+“I sing.
+
+I play a small harp.
+
+It is in my room.
+
+After dinner, I could bring it down.
+
+Would you like to hear it?”
+</story>
+</turn>
+
+<turn index="4">
+<player_submission>
+"Yes, I'd like that. I'll be in the common room after we eat." I smile at Seraphel, then return to my dinner. I listen to the conversation around the table without trying to keep it on myself, and when I've finished eating I take my glass through to the common room.
+</player_submission>
+<story>
+At your smile and answer, Seraphel inclines her head.
+
+“After dinner,
+
+I will fetch it.”
+
+The servers clear the soup bowls and set out the next course. Rashid slides the folded request out from beneath his glass.
+
+“I'll ask for the instructor's report tomorrow. In writing. I won't circulate the request before I see it.”
+
+“And it doesn't mention my bout,” Ashara says.
+
+“It won't.”
+
+“Ask for the accident record in the same letter,” Aldric says. “It may be separate.”
+
+“All right.”
+
+The talk moves through morning timetables and the Arcana lecturer's three-hundred-page assignment for the first seminar. Ysolde describes a mountain map that gives one pass three names.
+
+“The oldest is wrong,” Caelindra says.
+
+“It was used when the map was made,” Ysolde replies.
+
+By the time the plates have been cleared, the candles have shortened in their sconces. When you have finished eating, you carry your glass through to the common room. The fire is low behind its iron screen, and the painted Garveys above it look down over the empty chairs.
+
+A few minutes later, Seraphel comes down the stairs with a small dark-wood harp wrapped in blue cloth. She settles on the hearthrug, unwraps it, and tests two strings with her thumb.
+
+“This is short.
+
+It comes from the river roads
+
+south of my mother's house.”
+
+The melody moves quickly, bright at first, then circles through a low, lingering phrase. Seraphel's voice enters after the second turn: clear above the fire, softer when the tune narrows, then rising once before the final chord. When the sound has faded, she rests her palm across the strings.
+
+“The next has a courier
+
+and a goat.
+
+It isn't dignified.
+
+Would you like it?”
+</story>
+</turn>
+
+<turn index="5">
+<player_submission>
+"Yes, please." I put my glass safely beside the chair and settle in to listen. I let her sing the whole song without interrupting, tapping one finger against my knee when I catch the rhythm.
+</player_submission>
+<story>
+You put your glass safely beside the chair and settle in to listen. Seraphel takes the next tune faster than the first, her fingers setting a bright, skipping rhythm beneath the melody. When you catch it, one finger begins to tap against your knee.
+
+“At Bellford Gate a courier came
+
+with letters sealed in blue;
+
+a piebald goat came down the hill
+
+and followed after too.
+
+At Fordside Inn it stole his bread,
+
+at market, chewed his twine;
+
+the courier saved the letters, and
+
+the goat drank half his wine.
+
+The mayor struck his brass bell twice
+
+and named the goat his clerk;
+
+the courier took his double fare
+
+and went back to his work.”
+
+Seraphel lets the final chord hang in the room until it disappears beneath her palm. The fire gives a low pop behind its screen. She looks down at the harp without speaking.
+</story>
+</turn>
+
+<turn index="6">
+<player_submission>
+"Thank you. I liked that." I sit quietly for a little while, looking at the fire. Then I ask Seraphel, "Are you staying down here? I could fetch the page of my scene, if you'd like to hear it. It's only a dozen lines."
+</player_submission>
+<story>
+“You found the rhythm,” Seraphel says.
+
+The harp lies quiet across her knees, one hand resting over the strings. For a little while, the fire moves behind its iron screen and pale lightning shifts in the cloud beyond the high windows. The common room remains empty.
+
+When you ask about the page, Seraphel lifts her eyes from the harp.
+
+“I won't go yet.
+
+Bring your page.
+
+Read it here.”
+</story>
+</turn>
+
+</published_conversation>
+
+<player_submission>
+I fetch the page from my room and return to my chair. "Nell's the one with the interview." I smooth the paper on my knee and read the twelve lines, trying a quicker voice for Nell and a lower one for Ada:
+
+Nell: Hold still. You've caught the lining.
+Ada: Let go of the sleeve.
+Nell: My interview's at ten.
+Ada: And Voss comes at noon.
+Nell: If I get this job, we can pay him next Friday.
+Ada: He came last Friday. You were out.
+Nell: I was looking for work.
+Ada: I know. I was the one who answered.
+Nell: Give me until eleven.
+Ada: The pawnbroker won't take it if you spill anything on it.
+Nell: Then come with me. You can guard the coat.
+Ada: In what?
+
+I lower the page. "That's all I've got down."
+</player_submission>
+
+<unreleased_draft>
+The last line leaves a clean little silence behind it. A log settles in the fireplace; somewhere beyond the open dining-room door, china clicks softly as the staff clear the table.
+
+Seraphel looks at the page for a moment rather than at you. One hand rests on the dark wood of her harp.
+
+“Nell counts to ten.
+
+Ada counts to noon.
+
+They are standing in the same room,
+
+but they are not living
+
+in the same amount of time.”
+
+She plucks one low string. The note barely forms before her palm quiets it.
+
+“I liked the coat becoming
+
+a third person in their argument.
+
+And I liked that Ada gets
+
+the last line.
+
+It is funny,
+
+but she is not made foolish.
+
+Would you read the last four lines
+
+again?
+
+This time, leave a breath
+
+before Ada answers.”
+
+</unreleased_draft>
+
+<alternative_revisions>
+
+<revision label="A">
+The last line hangs in the room. A log shifts behind the fire screen; china clicks faintly in the dining hall.
+
+Seraphel looks down at the page.
+
+“Ada sounds afraid of Voss.
+
+She wants the coat safe,
+
+but she does not know
+
+how to help Nell.”
+
+Her thumb brushes one harp string.
+
+“I liked the last line.
+
+It made me laugh.
+
+Read the part about last Friday again.
+
+Then the end.
+
+Let Ada wait a moment
+
+before she says it.”
+</revision>
+
+<revision label="B">
+Seraphel’s mouth tips into a smile at Ada’s last line. She sets the harp carefully on its blue cloth beside the hearth.
+
+“‘In what?’ was good.
+
+I laughed there.
+
+Nell speaks as if the coat
+will carry her through the door.
+
+Ada has heard the Friday promise
+before, I think.
+
+I kept looking at the coat.
+
+Would you read the last four lines again?
+Leave a little space
+before Ada answers.
+
+I want to hear
+whether she is angry
+or only tired.”
+</revision>
+
+<revision label="C">
+The last line draws a quick laugh from Seraphel. She shifts the harp carefully against the side of her chair.
+
+“The coat works.
+
+Nell needs it for the morning.
+
+Ada needs the money from it.
+
+I thought Ada would agree
+to go with her.
+
+Then she says, ‘In what?’”
+
+Seraphel looks down at the page, then back at you.
+
+“I liked that.
+
+Your lower voice suited Ada.
+
+Would you read her last two lines
+again?”
+</revision>
+
+<revision label="D">
+The paper gives a soft crackle as you smooth it across your knee. Seraphel sets her harp beside the hearth and listens without looking away while Nell and Ada take shape in your two voices.
+
+When you lower the page, the fire shifts behind its screen.
+
+Seraphel's thumb rests against a string.
+
+“‘In what?’
+
+That is where I laughed.
+
+Not because Ada is cruel.
+
+Because Nell asks her to come
+
+as though there is no cost
+
+to being asked.”
+
+Her gaze drops to the page.
+
+“I want to know whether Nell hears it.”
+</revision>
+
+<revision label="E">
+The last line leaves a small, clean silence. Seraphel’s fingers rest across the harp strings until a quiet laugh escapes her.
+
+“‘In what?’
+
+That is very good.”
+
+She looks at the page again.
+
+“At first I thought the coat  
+was the important thing.
+
+Then Ada makes it clear  
+that time is worse.
+
+Nell still has ten o’clock.  
+Ada has noon.”
+
+She plucks one low string and lets it fade.
+
+“Your lower voice made Ada sound  
+as if she has already argued this  
+once today.
+
+I was angry with her.
+
+Then I was sorry for her.
+
+I would like to know  
+whether the coat gets home.”
+</revision>
+
+<revision label="F">
+The last line leaves a clean little silence behind it. A log settles in the fireplace; somewhere beyond the open dining-room door, china clicks softly as the staff clear the table.
+
+Seraphel looks at the page for a moment rather than at you. One hand rests on the dark wood of her harp.
+
+“I liked it.
+
+Nell sounds frightened.
+
+Ada has already had Voss
+at the door.
+
+And the last line made me laugh.”
+
+Her fingers brush the strings without making them sound.
+
+“Could you read from
+‘He came last Friday’ again?
+
+I want to hear that part
+once more.”
+</revision>
+
+<revision label="G">
+The page gives a soft crackle as it settles against your knee. Seraphel’s thumb rests on the harp’s frame; she does not reach for a string.
+
+“Voss is where it changes.
+
+‘I was the one who answered.’
+
+Before that, I thought Ada
+was only trying to win the coat.
+After that, I thought Nell
+had asked her to carry too much.”
+
+A brief smile finds her mouth.
+
+“Then: ‘In what?’
+
+Your Ada is funnier
+than my goat.
+
+That is praise.
+
+I would leave her there.”
+</revision>
+
+<revision label="H">
+The page settles against your knee with a dry little sound. Seraphel keeps the harp across her lap, looking at the lines while the fire shifts behind its screen.
+
+“‘In what?’
+
+That is a cruel line.
+
+I was glad Ada had it.”
+
+Her thumb rests on a string without sounding it.
+
+“At first, I wanted Nell
+
+to take the coat and run.
+
+Then Ada says she answered the door.
+
+She has been waiting
+
+with Voss in the room
+
+all week.”
+
+Seraphel glances up.
+
+“I do not know whose side I am on.
+
+That makes me want
+
+the next page.”
+
+The common room grows quiet again around the unfinished argument, the harp, and the low fire.
+</revision>
+
+<revision label="I">
+The last line leaves a brief silence by the fire. Seraphel’s mouth curves before she looks down at the harp across her knees.
+
+“‘In what?’ is good.
+
+Nell has offered a plan  
+that requires a second coat,  
+and Ada notices at once.
+
+I laughed.”
+
+Her thumb brushes a string without sounding it.
+
+“Ada also says  
+she answered the door last Friday.
+
+She knows where Nell was.  
+She knows why Nell was out.  
+Then she keeps arguing about the coat.
+
+Could you read from there again?  
+Start with ‘He came last Friday.’  
+I want to hear the pause  
+before Ada answers the invitation.”
+</revision>
+
+<revision label="J">
+The last line leaves a small silence behind it. A log settles in the fireplace; beyond the dining-room door, china clicks softly as the staff clear the table.
+
+Seraphel looks at the page rather than at you. One hand rests on the dark wood of her harp.
+
+“I like the way Nell
+keeps trying to make a plan
+while Ada is worried
+about Voss coming back.
+
+And the coat gives them
+something to fuss with
+while they argue.
+
+Ada's last line made me laugh.
+She has nowhere to go
+in the coat.
+
+Would you read the last four lines
+once more?
+
+Leave a little pause
+before Ada answers.”
+</revision>
+
+</alternative_revisions>

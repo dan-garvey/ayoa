@@ -1,0 +1,131 @@
+{
+  "locked_at": "2026-09-14T17:42:20.193061+00:00",
+  "before_independent_launch": true,
+  "scores_order": [
+    "prose_dialogue",
+    "character_distinction",
+    "engaging_personal_participation"
+  ],
+  "original_scores": [
+    3,
+    3,
+    3
+  ],
+  "scores_by_case": {
+    "01": [
+      4,
+      3,
+      3
+    ],
+    "02": [
+      4,
+      4,
+      4
+    ],
+    "03": [
+      4,
+      4,
+      4
+    ],
+    "04": [
+      4,
+      4,
+      4
+    ],
+    "05": [
+      4,
+      3,
+      3
+    ],
+    "06": [
+      4,
+      4,
+      4
+    ],
+    "c42_03": [
+      4,
+      4,
+      4
+    ],
+    "c42_04": [
+      4,
+      3,
+      3
+    ],
+    "c42_07": [
+      4,
+      3,
+      3
+    ],
+    "c42_08": [
+      4,
+      4,
+      4
+    ]
+  },
+  "aphorism_burden": {
+    "01": "reduced",
+    "02": "reduced",
+    "03": "mixed",
+    "04": "reduced",
+    "05": "reduced",
+    "06": "reduced",
+    "c42_03": "similar",
+    "c42_04": "reduced",
+    "c42_07": "reduced",
+    "c42_08": "similar"
+  },
+  "preferences": [
+    [
+      "02",
+      "06",
+      "c42_08"
+    ],
+    [
+      "04",
+      "03",
+      "c42_03"
+    ],
+    [
+      "05",
+      "c42_04",
+      "c42_07"
+    ],
+    [
+      "01"
+    ]
+  ],
+  "augmented_joint_successes": [
+    "02"
+  ],
+  "augmented_joint_successes_total": 1,
+  "reliable_incremental_improvement_demonstrated": false,
+  "file_sha256": {
+    "pilot_review.md": "8dbfc4dec23a2d24a26f08120f48496aa45759d24204aa80184cc8fa2595326d",
+    "input_lock.json": "7d352cc4ec34363e2bc3caa163d56a9f8657979f998317d361a9ee146af66080",
+    "manifest.json": "f657859fe415beda273148b9d2d09d662bc1c106f1189d504dd74d103065354d",
+    "launches.json": "af6a0afe6f9ef7d72d1c9484177ea722d04cd0fb7abcf63f463975b36cd9e461",
+    "validation.json": "9b1371dfdfc4cccbda755bcc0a0d73728ebbb928db96088f81490fa9350bc1f6",
+    "review_request.txt": "2b6c71bbb6ab57b149aa4774c7eb368e5e6488e0a5a374db38b807da7147c3f2",
+    "review_key.json": "3a658455312011ced210aeb2cca9c72d42a1d2274cd01b31ddc84c944f81618b",
+    "review_material.txt": "3d12743891e055533a224af1da5662e43cb374967f4d88e4317542305af75b48",
+    "cases/01/00.story.md": "7fea475a5fd2e4498ba614c01bb7ef82614c637d24e8cf3325225d5eecfd6b35",
+    "cases/01/capture.json": "3cc4f7b1d25af5f5c221b57aa0071e504529c7112584fb8fdde15b77d0c79dca",
+    "cases/01/read_audit.json": "2b5b4a9114cb5782eba8845c1ecd790dc5a5783df2ed75d39abd35a86fdd5bdd",
+    "cases/02/00.story.md": "7ed94ce204a4a344bdb37fea4048d16f7dc89732d33ab137e98858abd8175dc1",
+    "cases/02/capture.json": "e1fd32c4b2eb2aac538af247efb6c6ab3b9e49eecf9d97f88ef6e063707f6c28",
+    "cases/02/read_audit.json": "882446e04a0af3479a1af3b8b49385a0fbf28fb5e6849b18adb7184bb78a28b7",
+    "cases/03/00.story.md": "641bbacbadc090a0b80d563c118925b72c9da8b9f4ea191435165dda52a1e938",
+    "cases/03/capture.json": "ffd464eccee4d02e5718914fe1662b7b15b6d71dd6ae7843b637d344ad6b2ff4",
+    "cases/03/read_audit.json": "33302725c12aa254a18fb0932b8b82b11f4d0fcc2ea852dfb7a3644dfd7e608e",
+    "cases/04/00.story.md": "04d41757d9a56f8e678a308871bf40b0aa212e929929da9b9c79c3faec03382d",
+    "cases/04/capture.json": "0d3cf27a294476f9f97e0629baf4e3b94f3602f59f70bbc3d0930ae704719caa",
+    "cases/04/read_audit.json": "04d9ff1ac37a714771bc7da936a27ffe08c8678534fdf9c3fa63f8edcb841494",
+    "cases/05/00.story.md": "d77948f54f57df21a81f29b702c382288e828c5edd40d1d3505be83ae27a3cd2",
+    "cases/05/capture.json": "48c87c2091bf072448aa945c5f0a41807b47e07f5195f8fab20b5ee4468e4430",
+    "cases/05/read_audit.json": "5d05229bf26386d6b45fb1f57c125f67beeaf438de7247d565d97ba86c2af8e8",
+    "cases/06/00.story.md": "47f224145126901b6204f1c3f15677c0dcf174a2ede8363dd0eecb52b9ee7cf1",
+    "cases/06/capture.json": "6aa147ef701ca2f9dff57d95c2e22d4c06d433d22de94c8cd4081a831b28bfdb",
+    "cases/06/read_audit.json": "a9abd0cdea9fdff1679000885e8bb3778e6b2b65b884f7b2c777a3dd572865a7"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "requests": [
+    {
+      "case": "01",
+      "agent": "/root/terra_c43_01",
+      "timestamp": "2026-09-14T17:35:11.202Z",
+      "root_tool_call_id": "call_x4zxcmJGdKQrpoaIBBwjgRMQ",
+      "request_sha256": "805827bfd9342c3cfb523fc97561b701ddf2dd2891da494e91c4bae5e25395b4",
+      "dispatch_metadata_verified": true,
+      "root_log_message_encrypted": true,
+      "dispatch_plaintext_verified": false,
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "02",
+      "agent": "/root/terra_c43_02",
+      "timestamp": "2026-09-14T17:35:20.834Z",
+      "root_tool_call_id": "call_N3XFqOeg5fFTLz19Bgwghtps",
+      "request_sha256": "140d109a5f4385da82484347cee4c419beed8007a673342f27da37db509c758d",
+      "dispatch_metadata_verified": true,
+      "root_log_message_encrypted": true,
+      "dispatch_plaintext_verified": false,
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "03",
+      "agent": "/root/terra_c43_03",
+      "timestamp": "2026-09-14T17:35:38.760Z",
+      "root_tool_call_id": "call_O2dfM6Z7LycBpTN7H0htlpSn",
+      "request_sha256": "bbc7be41c6d4a429e36de1c32f14a8a022af1ebcde9ce9767a86d7258eab2d21",
+      "dispatch_metadata_verified": true,
+      "root_log_message_encrypted": true,
+      "dispatch_plaintext_verified": false,
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "04",
+      "agent": "/root/terra_c43_04",
+      "timestamp": "2026-09-14T17:36:17.588Z",
+      "root_tool_call_id": "call_BTFMV0R9cbdvWruj1rcYQdWH",
+      "request_sha256": "bbc7be41c6d4a429e36de1c32f14a8a022af1ebcde9ce9767a86d7258eab2d21",
+      "dispatch_metadata_verified": true,
+      "root_log_message_encrypted": true,
+      "dispatch_plaintext_verified": false,
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "05",
+      "agent": "/root/terra_c43_05",
+      "timestamp": "2026-09-14T17:36:31.324Z",
+      "root_tool_call_id": "call_7N5S0JfRQJmOM1FeZHhTgFuY",
+      "request_sha256": "140d109a5f4385da82484347cee4c419beed8007a673342f27da37db509c758d",
+      "dispatch_metadata_verified": true,
+      "root_log_message_encrypted": true,
+      "dispatch_plaintext_verified": false,
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    },
+    {
+      "case": "06",
+      "agent": "/root/terra_c43_06",
+      "timestamp": "2026-09-14T17:37:28.052Z",
+      "root_tool_call_id": "call_aG4ZZgZuuyurHBAIr4LpQpmY",
+      "request_sha256": "805827bfd9342c3cfb523fc97561b701ddf2dd2891da494e91c4bae5e25395b4",
+      "dispatch_metadata_verified": true,
+      "root_log_message_encrypted": true,
+      "dispatch_plaintext_verified": false,
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "fork_turns": "none"
+    }
+  ]
+}

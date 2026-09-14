@@ -1,0 +1,96 @@
+{
+  "checked_at": "2026-09-14T17:42:20.189875+00:00",
+  "frozen_files_verified": 25,
+  "fresh_editors": 6,
+  "author_requests": 6,
+  "new_revisions": 6,
+  "new_story_words": 567,
+  "reused_drafts": 1,
+  "reused_draft_words": 138,
+  "historical_revisions": 4,
+  "historical_revision_words_excluded": 378,
+  "new_player_turns": 0,
+  "substantial_sessions": 0,
+  "instruction_words": {
+    "short": 23,
+    "augmented": 40,
+    "long": 312
+  },
+  "full_prefix_byte_identical_to_c42": true,
+  "all_first_finals_exact": true,
+  "all_full_context_reads": true,
+  "all_terra_max": true,
+  "editor_write_candidates": 0,
+  "dispatch_metadata_verified": true,
+  "dispatch_plaintext_verified": false,
+  "private_reasoning_inspected": false,
+  "main_runtime_changed": false,
+  "cases": [
+    {
+      "case": "01",
+      "context": "reading",
+      "condition": "short",
+      "repeat": 1,
+      "agent": "/root/terra_c43_01",
+      "request_sha256": "805827bfd9342c3cfb523fc97561b701ddf2dd2891da494e91c4bae5e25395b4",
+      "words": 108,
+      "complete_read": true,
+      "exact_first_final": true
+    },
+    {
+      "case": "02",
+      "context": "reading",
+      "condition": "augmented",
+      "repeat": 1,
+      "agent": "/root/terra_c43_02",
+      "request_sha256": "140d109a5f4385da82484347cee4c419beed8007a673342f27da37db509c758d",
+      "words": 82,
+      "complete_read": true,
+      "exact_first_final": true
+    },
+    {
+      "case": "03",
+      "context": "reading",
+      "condition": "long",
+      "repeat": 1,
+      "agent": "/root/terra_c43_03",
+      "request_sha256": "bbc7be41c6d4a429e36de1c32f14a8a022af1ebcde9ce9767a86d7258eab2d21",
+      "words": 115,
+      "complete_read": true,
+      "exact_first_final": true
+    },
+    {
+      "case": "04",
+      "context": "reading",
+      "condition": "long",
+      "repeat": 2,
+      "agent": "/root/terra_c43_04",
+      "request_sha256": "bbc7be41c6d4a429e36de1c32f14a8a022af1ebcde9ce9767a86d7258eab2d21",
+      "words": 85,
+      "complete_read": true,
+      "exact_first_final": true
+    },
+    {
+      "case": "05",
+      "context": "reading",
+      "condition": "augmented",
+      "repeat": 2,
+      "agent": "/root/terra_c43_05",
+      "request_sha256": "140d109a5f4385da82484347cee4c419beed8007a673342f27da37db509c758d",
+      "words": 102,
+      "complete_read": true,
+      "exact_first_final": true
+    },
+    {
+      "case": "06",
+      "context": "reading",
+      "condition": "short",
+      "repeat": 2,
+      "agent": "/root/terra_c43_06",
+      "request_sha256": "805827bfd9342c3cfb523fc97561b701ddf2dd2891da494e91c4bae5e25395b4",
+      "words": 75,
+      "complete_read": true,
+      "exact_first_final": true
+    }
+  ]
+}

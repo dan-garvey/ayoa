@@ -1,0 +1,5 @@
+Read only /home/dan/ayoa-worktrees/covenant-single-llm/experiments/covenant_single_llm/proxy_trials/candidate_43/contexts/reading.txt in full, using untruncated chunks.
+
+Revise the previous draft to remove aphorisms from character dialogue. Preserve each character’s individual voice and make the dialogue natural for the situation.
+
+Return only the revised fiction.

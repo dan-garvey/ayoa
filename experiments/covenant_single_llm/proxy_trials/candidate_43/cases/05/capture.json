@@ -1,0 +1,43 @@
+{
+  "captured_at": "2026-09-14T17:39:01.464385+00:00",
+  "agent": "/root/terra_c43_05",
+  "session_id": "01a0a0fd-ee6a-7850-98e0-3c33565bc21c",
+  "log_path": "/home/dan/.codex/sessions/2026/09/14/rollout-2026-09-14T12-36-31-01a0a0fd-ee6a-7850-98e0-3c33565bc21c.jsonl",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "public_final_message_id": "msg_0c9f93d2a4b11f42016aa830c4fca487d19e3a46edc92279cf",
+  "first_final_sha256": "d77948f54f57df21a81f29b702c382288e828c5edd40d1d3505be83ae27a3cd2",
+  "words": 102,
+  "exact_unmodified_first_final": true,
+  "frozen_request_sha256": "140d109a5f4385da82484347cee4c419beed8007a673342f27da37db509c758d",
+  "dispatch_metadata_verified": true,
+  "dispatch_plaintext_verified": false,
+  "public_tool_calls": [
+    {
+      "call_id": "call_MMkE5bFM8nFZKdkzjLgyNwpm",
+      "tool": "exec",
+      "source_sha256": "4a88eee9aa092f949729730d7b6e325b77a3e05e03d48d08a20cf313e3d765d3",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_oHvA2I6yIvb144CwNVAJ5wj1",
+      "tool": "exec",
+      "source_sha256": "a844129ebfc99664ae561680162b4cd1c55f459a5ce9c906a695ba248518884b",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_wAPUZIZ7bzsuRcPlYx5OFWns",
+      "tool": "exec",
+      "source_sha256": "c2a29f943a1211961a2bb156477446af58fea2ec1850e1c957e35f67d6ec6bce",
+      "possible_write": false
+    },
+    {
+      "call_id": "call_M9KBblCQsn7iBE0kmvIijDcB",
+      "tool": "exec",
+      "source_sha256": "5fab76fbe68df540c058de946d4f8bc4c029761cdf4510e362089368ad0c7624",
+      "possible_write": false
+    }
+  ],
+  "possible_writes": [],
+  "scope": "Exact public final, public tool/call metadata, frozen intended request and model/effort only. The root log encrypts dispatched message text, so no dispatch/receiver plaintext comparison is claimed. No private reasoning inspected."
+}

@@ -262,6 +262,25 @@ Only fresh controls support the instruction comparison; the shared return-only
 delivery differs from older runs. Frozen intended requests and actual task/model
 metadata are preserved, while encrypted dispatch bodies limit plaintext auditing.
 
+Candidate43 follows the user's request to combine C42's successful dialogue
+cleanup with the stronger personal engagement of a long-prompt edit. One shared
+prefix and draft are selected: the unchanged C42 complete-manuscript reading
+fixture. Append exactly one 17-word sentence to the approved 23-word task,
+making 40 words; retain the 312-word long task and short-only task as controls.
+Two fresh Terra/max editors per condition produce six first revisions. The
+four prior reading edits are preserved references, not fresh replicates. No
+character examples, changed backgrounds, new wrappers or output ceiling are used.
+
+Assess the original and all ten alternatives against the same complete source;
+root locks before a fresh reviewer receives anonymous outputs without conditions
+or root judgments. Evaluate irritation reduction and engaging personal response
+separately. One augmented edit achieving both is a local success; two repeats
+give stronger evidence. Report whether controls also succeed and preserve mixed
+results without allowing an unfinished broader goal to erase a successful edit.
+This selected single-prefix comparison cannot establish transfer or long-session
+reliability. The user's new request authorizes this experiment despite C42's
+earlier advancement gate; no full prompt promotion follows automatically.
+
 Preserve every prompt revision and response. Revise between sessions, never
 inside an existing story. A technically failed delivery may be recovered and
 recorded; no unfavorable story passage is silently replaced. Early rejected

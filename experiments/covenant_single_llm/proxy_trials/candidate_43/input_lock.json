@@ -1,0 +1,31 @@
+{
+  "locked_at": "2026-09-14T17:34:51.969089+00:00",
+  "before_all_author_launches": true,
+  "file_sha256": {
+    "addition.txt": "2f0de36647d7a6c163416f8b70926c50a816babda489234ed172a4c6134aba39",
+    "cases/01/request.txt": "805827bfd9342c3cfb523fc97561b701ddf2dd2891da494e91c4bae5e25395b4",
+    "cases/02/request.txt": "140d109a5f4385da82484347cee4c419beed8007a673342f27da37db509c758d",
+    "cases/03/request.txt": "bbc7be41c6d4a429e36de1c32f14a8a022af1ebcde9ce9767a86d7258eab2d21",
+    "cases/04/request.txt": "bbc7be41c6d4a429e36de1c32f14a8a022af1ebcde9ce9767a86d7258eab2d21",
+    "cases/05/request.txt": "140d109a5f4385da82484347cee4c419beed8007a673342f27da37db509c758d",
+    "cases/06/request.txt": "805827bfd9342c3cfb523fc97561b701ddf2dd2891da494e91c4bae5e25395b4",
+    "contexts/reading.txt": "dc8cf2f3e76c3f21d76a16fae16f2737a65e8ede438ae76ff55740c9acecfb01",
+    "covenant.txt": "3f2ce7e5a3905052a8223a8fa5999e7fec2f0eef336f0b7b19d7047e75a60c1b",
+    "design.md": "86e4f2e256203637cfc6ff5be40dd2f40b09e350c611f832a403b0f0b55f84b2",
+    "documentation_check.md": "db2d9cebe945304c20b39e7432dd464ba569665a3ddb083d470bd73df13307af",
+    "drafts/reading.md": "84e8bc343ec0e0dc7688b6dac8dcd02cbcfff7f7e002221dcb97ae05cae1d558",
+    "manifest.json": "f657859fe415beda273148b9d2d09d662bc1c106f1189d504dd74d103065354d",
+    "player.json": "ee8b42992e49f46b9789d009f27f2954d38434b560b8b972a948a1ea72dc6a90",
+    "references/c42_03.md": "4522165f8926344abd6bfa6daf2a151461e1be6a58d237fdcc44371ecbb12e16",
+    "references/c42_04.md": "5af24c3bbfe505519f6595ef99f7c54ab1c038fe4a5331960fb69d0dbbe79ed7",
+    "references/c42_07.md": "20cfb18d6bcc8efed589eed4ab270cb600728e4630a6e6575a94dedc3b7e969e",
+    "references/c42_08.md": "4dc6ac3d72eb2a5ce86c6b46aed5675c8e53173059e1eae2e6cb132e4aad2fde",
+    "review_context/reading.txt": "ee7f910bfa3f9efd11130effc444f13d7067debb324176919f4d6bcb48a6762f",
+    "review_key.json": "3a658455312011ced210aeb2cca9c72d42a1d2274cd01b31ddc84c944f81618b",
+    "review_request.txt": "2b6c71bbb6ab57b149aa4774c7eb368e5e6488e0a5a374db38b807da7147c3f2",
+    "revision_augmented.txt": "0e0ad0436bcf0456f3d67e6d90644ce3aa804fc0f069d2441e58edc7ac62cb68",
+    "revision_long.txt": "4ad60ed2260230b0b6e07414f0cc696a3e8b86d043636d28f564a0dfabd5f872",
+    "revision_short.txt": "984c7a5b73a0cb6467f02af9434d7d9e57c6f6a23b98253894a9a6b6615b5799",
+    "system.txt": "d6971f86933c0b999f6cf6fac95f10543c249fd0028315f31ad060c1324fac73"
+  }
+}

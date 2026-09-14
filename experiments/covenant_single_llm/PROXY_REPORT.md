@@ -6,7 +6,17 @@ met the complete selection bar across two fresh sessions. The remaining failures
 are predominantly literary: recurring polished lessons, stilted conversation,
 and, in some routes, helpful characters who leave too much initiative to the player.
 
-The latest experiment is C42: eight completed edits comparing the user's approved
+The latest experiment is C43: one 17-word sentence added to the approved 23-word
+revision task. Six fresh edits compare short-only, augmented and long tasks on
+the identical C42 reading prefix and draft. The
+[locked root assessment](proxy_trials/candidate_43/pilot_review.md) finds one
+augmented edit achieves both plain dialogue and particular personal engagement;
+the other is comparatively explanatory. Fresh short and long controls also
+produce local successes, so a reliable advantage from the extra sentence is not
+yet demonstrated. All first outputs and four historical references are preserved.
+The independent comparison is pending.
+
+The preceding experiment is C42: eight completed edits comparing the user's approved
 23-word revision request with C29's 312-word task on two fixed drafts. Both
 conditions retain identical full story context and common instructions. The
 [locked root comparison](proxy_trials/candidate_42/pilot_review.md) prefers both
@@ -629,6 +639,25 @@ truncated batch's missing middle before its assessment. These eight edits are a
 fixed-draft comparison, not a new two-stage live session. The 23-versus-312 figures
 are instruction words, not measured API tokens, cost or latency. No substantial
 trial or promotion follows automatically, and the main runtime remains unchanged.
+
+Candidate43 selects that reading prefix because both C42 reviewers preferred the
+long edit that responded to the actual performed voice, while the short edits
+reduced irritating rhetorical display. The disputed first long edit remains in
+the comparison alongside that strong reference. The added sentence is:
+
+> Make the exchange engaging through the characters’ particular tastes, feelings, interests, and reactions to what is happening.
+
+The [design](proxy_trials/candidate_43/design.md) freezes the full 6,172-word
+context and 138-word original draft, changing only the revision task. Six fresh
+Terra/max editors produce two edits each under the 23-, 40- and 312-word tasks,
+567 new words in total. The [validation](proxy_trials/candidate_43/validation.json)
+verifies all six complete reads, exact first finals and unchanged input hashes.
+The [root review](proxy_trials/candidate_43/pilot_review.md) finds augmented 1
+retains plainness while giving the rereading a specific purpose: hearing whether
+Ada is angry or tired. Augmented 2 is plainer but mainly explains the text.
+Short-only 2 and long controls also produce engaging responses. Root therefore
+records one augmented local success while withholding a claim of reliable
+incremental improvement. Independent review is pending; no output was rerolled.
 
 Earlier candidates and rejected screens remain under `proxy_trials/`. Through
 candidate17 there are47 exported sessions or short cases,304 saved responses and
