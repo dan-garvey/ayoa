@@ -9,8 +9,9 @@ characters could remain recognizable while the overall conversation felt prepare
 didactic or socially thin. These were not controlled comparisons against the former
 engine, nor proof of coherence over an unlimited history.
 
-The active branch banks a small author/editor loop and the best supported prompt
-lessons while keeping the remaining literary objective open.
+The active branch now publishes one author response directly. Explicit player-requested
+regeneration replaces the automatic editor. The prompt lessons and prior editorial
+experiments remain preserved while the literary objective stays open.
 
 ## Evidence archive
 
@@ -25,11 +26,11 @@ API trials and their reports also remain in that archived experiment directory.
 
 ## Findings and their practical consequences
 
-| Finding | What this foundation does | Evidence and limits |
+| Finding | Experimental lesson | Evidence and limits |
 | --- | --- | --- |
 | Explicit revision can remove rhetoric that defensive author instructions leave intact. | Give the editor an actual draft; preserve that intermediate output. | [C25](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/reviews/edit25_review.md) found a material game-dialogue improvement and an uneven second result. [C27](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/candidate_27/decision.json) sustained the two-call loop across two 15-turn sessions, but did not meet the overall literary bar. |
-| A concise editor can remove aphorisms while retaining substantive conversation. | Keep the short editing contract instead of the original 312-word review instructions. | [C42 comparison](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/candidate_42/review_response.md): both reviewers found reduced rhetoric in all four short edits. Two drafts and two repeats per condition are a targeted result, not a long-session guarantee. |
-| Particular personal engagement can survive the concise cleanup. | Use the selected 40-word editor as the working baseline. | [C43 comparison](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/candidate_43/review_response.md): one shared joint success in two augmented repeats; the second was too explanatory. Short-only and long controls also succeeded. The added sentence has no demonstrated repeatable advantage. |
+| A concise editor can remove aphorisms while retaining substantive conversation. | Short editing instructions can match a longer review on selected examples. | [C42 comparison](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/candidate_42/review_response.md): both reviewers found reduced rhetoric in all four short edits. Two drafts and two repeats per condition are a targeted result, not a long-session guarantee. |
+| Particular personal engagement can survive the concise cleanup. | The 40-word editor was a working trial, not a demonstrated reliable improvement. | [C43 comparison](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/candidate_43/review_response.md): one shared joint success in two augmented repeats; the second was too explanatory. Short-only and long controls also succeeded. The added sentence has no demonstrated repeatable advantage. |
 | Revision can remove useful interaction or replace it with a writing workshop. | Review whole exchanges, including what was lost; retain both versions. | [C29 edit diagnosis](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/reviews/round29_edit_diagnosis.md) and [C30 comparison](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/candidate_30/decision.json) preserve these failures and mixed preferences. |
 | Rich biography remains essential; shortening or changing its presentation is not an established prose remedy. | Keep the restored Covenant biographies and a second rich ensemble in Breakwater. | [C38](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/candidate_38/decision.json) improved source fidelity without establishing a literary rescue. The [cast audit](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/reviews/round40_cast_instruction_audit.md) distinguishes genuine psychology from portrayal instructions. |
 | Extra history representations and numerical ceilings did not demonstrate a reliable remedy. | Replay published prose directly and impose no visible-word quota. | [C31](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/candidate_31/decision.json) found no consistent discarded-draft exposure effect; published-only history is a clean canon contract, not a proven prose intervention. [C41](https://github.com/dan-garvey/ayoa/blob/d6865cbd6c3b7c9775a57fecb1f8c34adfd1db2b/experiments/covenant_single_llm/proxy_trials/candidate_41/decision.json) found shorter dinners still weak and sometimes less interesting. |
@@ -40,11 +41,24 @@ even though it does not settle the quality of the entire scene.
 
 ## Current source choices
 
-The reusable author prompt is the unchanged 393-word C43 common prompt. The editor
-now uses the user's exact two-sentence review-pass instruction in
-`prompts/revision.txt`, targeting habitual aphorism, character voice and specific
-dialogue rules. This is the current trial prompt. Its short form is deliberate;
-no extra hidden review criteria or character dialogue examples are appended at runtime.
+The reusable author prompt keeps the C43 common instructions and adds the user's
+sentence: "Avoid excessive aphorism in character dialogue." The automatic editor
+and its revision prompt have been removed. After comparing the current Sol playtest,
+the user judged the unedited writing better overall and selected direct publication.
+This choice retains ordinary situational humor and avoids a mandatory second pass
+that can flatten voice or remove interaction. It does not establish that every
+individual edit was worse or that the new prompt has passed a fresh literary trial.
+
+Explicit regeneration uses the original player action, the current passage and
+the user's new instructions. The new passage replaces the current one atomically.
+Later turns contain neither the rejected passage nor regeneration feedback; both
+remain saved for evaluation. This also addresses the demonstrated case where an
+ordinary chat request to rewrite an opening left superseded events in later context.
+Earlier ordinary chat messages are not automatically reinterpreted as regenerations.
+
+Before retirement, the editor used the user's exact 36-word review-pass instruction,
+targeting habitual aphorism, character voice and specific dialogue rules. The
+following results describe those preserved experiments.
 
 The previous editor used the 40-word C43 augmented instruction. Adding
 “Ensure your edits don't break character-specific dialogue rules” did not fix a

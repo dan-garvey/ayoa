@@ -11,18 +11,14 @@ def begin(page):
     page.get_by_role("dialog").get_by_role("button", name="Begin story", exact=True).click()
 
 
-def publish_proxy(page, draft, final):
+def publish_proxy(page, final):
     page.get_by_role("button", name="Response handoff", exact=True).click()
-    page.get_by_label("Complete response", exact=True).fill(draft)
-    page.get_by_role("button", name="Accept response", exact=True).click()
-    expect(page.locator("#handoff-stage")).to_have_text("FINAL RESPONSE HANDOFF")
-    assert draft in page.get_by_label("Complete model request").input_value()
     page.get_by_label("Complete response", exact=True).fill(final)
     page.get_by_role("button", name="Accept response", exact=True).click()
     expect(page.locator("#handoff-dialog")).not_to_be_visible()
 
 
-def test_browser_proxy_turns_markdown_drafts_copy_download_and_reload(browser, chat_service):
+def test_browser_proxy_turns_markdown_copy_download_and_reload(browser, chat_service):
     service = chat_service()
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = context.new_page()
@@ -34,20 +30,19 @@ def test_browser_proxy_turns_markdown_drafts_copy_download_and_reload(browser, c
         expect(page.get_by_role("button", name="Response handoff", exact=True)).to_be_visible()
         assert "SECRET_CANON" not in page.locator("main").inner_text()
         final = "The **bell** rings.\nOne clear note.\n\n> A folded letter.\n\n*Still sealed.*\n\n<script>window.leaked = true</script>"
-        publish_proxy(page, "DISCARDED_DRAFT", final)
+        publish_proxy(page, final)
         expect(page.locator(".message.story")).to_have_count(1)
         expect(page.locator(".message.story strong")).to_have_text("bell")
         expect(page.locator(".message.story blockquote")).to_have_text("A folded letter.")
         assert page.locator(".message.story br").count() == 1
         assert page.evaluate("window.leaked === undefined")
-        assert "DISCARDED_DRAFT" not in page.locator("main").inner_text()
         page.get_by_role("button", name="Copy passage 1").click()
         expect(page.locator("#toast")).to_have_text("Copied to clipboard")
         assert page.evaluate("navigator.clipboard.readText()") == final
         with page.expect_download() as download:
             page.get_by_role("button", name="Download story", exact=True).click()
         exported = Path(download.value.path()).read_text()
-        assert final in exported and "DISCARDED_DRAFT" not in exported
+        assert final in exported
 
         composer = page.get_by_role("textbox", name="Your next turn")
         composer.fill("I wait.")
@@ -60,27 +55,23 @@ def test_browser_proxy_turns_markdown_drafts_copy_download_and_reload(browser, c
         composer.press("Control+Enter")
         expect(composer).to_be_disabled()
         expect(page.get_by_role("button", name="Response handoff", exact=True)).to_be_visible()
-        publish_proxy(page, "SECOND_DRAFT", "The tide reaches the last step.")
+        publish_proxy(page, "The tide reaches the last step.")
         expect(page.locator(".message.story")).to_have_count(2)
         expect(composer).to_have_value("")
         page.reload()
         expect(page.locator(".message.story")).to_have_count(2)
         expect(composer).to_be_enabled()
-        assert "SECOND_DRAFT" not in page.locator("main").inner_text()
         assert not errors
     finally:
         context.close()
 
 
 @pytest.mark.parametrize("transport", ["api", "proxy"])
-def test_browser_reload_during_generation_preserves_turn_and_hides_draft(
-    browser, chat_service, transport
-):
+def test_browser_reload_during_generation_preserves_turn(browser, chat_service, transport):
     service = chat_service(
-        "HIDDEN_DRAFT",
         "The door opens.",
         transport=transport,
-        pause_at=2,
+        pause_at=1,
         auto_proxy=transport == "proxy",
     )
     page = browser.new_page()
@@ -91,15 +82,14 @@ def test_browser_reload_during_generation_preserves_turn_and_hides_draft(
         expect(page.get_by_role("textbox", name="Your next turn")).to_be_disabled()
         page.reload()
         expect(page.locator("#status-chip")).to_have_text("Writing…")
-        expect(page.locator("#response-status-text")).to_have_text("Refining the passage…")
+        expect(page.locator("#response-status-text")).to_have_text("Writing the next passage…")
         expect(page.get_by_role("button", name="Response handoff", exact=True)).not_to_be_visible()
-        assert "HIDDEN_DRAFT" not in page.locator("main").inner_text()
-        assert len(service.model.requests) == 2
+        assert len(service.model.requests) == 1
         service.model.release.set()
         expect(page.locator(".message.story")).to_have_count(1)
         expect(page.get_by_role("textbox", name="Your next turn")).to_be_enabled()
         expect(page.get_by_role("textbox", name="Your next turn")).to_have_value("")
-        assert len(service.model.requests) == 2
+        assert len(service.model.requests) == 1
     finally:
         service.model.release.set()
         page.close()
@@ -110,7 +100,6 @@ def test_browser_failure_can_resume_without_resubmitting_player_turn(
     browser, chat_service, transport
 ):
     service = chat_service(
-        "saved draft",
         TimeoutError(),
         "At last, an answer.",
         transport=transport,
@@ -127,8 +116,8 @@ def test_browser_failure_can_resume_without_resubmitting_player_turn(
         expect(page.locator(".message.story")).to_have_count(1)
         expect(page.locator(".message.player")).to_have_count(1)
         expect(page.get_by_role("textbox", name="Your next turn")).to_be_enabled()
-        assert len(service.model.requests) == 3
-        assert service.model.requests[1] == service.model.requests[2]
+        assert len(service.model.requests) == 2
+        assert service.model.requests[0] == service.model.requests[1]
     finally:
         page.close()
 
@@ -144,7 +133,7 @@ def test_mobile_navigation_reading_preferences_and_unsent_text(browser, chat_ser
         expect(page.locator("#menu")).to_have_attribute("aria-expanded", "true")
         begin(page)
         expect(page.locator("#menu")).to_have_attribute("aria-expanded", "false")
-        publish_proxy(page, "draft", "The light moves across the **water**.\n\nA quiet morning.")
+        publish_proxy(page, "The light moves across the **water**.\n\nA quiet morning.")
         page.get_by_label("Reading preferences").click()
         page.get_by_role("button", name="Larger story text").click()
         page.get_by_role("button", name="Use dark appearance").click()
@@ -173,7 +162,7 @@ def test_long_passages_open_at_start_and_do_not_interrupt_earlier_reading(browse
     long_passage = "The opening of the passage.\n\n" + "\n\n".join(
         f"A long paragraph numbered {number}. " * 12 for number in range(30)
     )
-    service = chat_service("draft", long_passage, "next draft", long_passage, transport="api")
+    service = chat_service(long_passage, long_passage, transport="api")
     page = browser.new_page(viewport={"width": 1280, "height": 900})
     try:
         page.goto(service.url)
@@ -215,7 +204,7 @@ def test_browser_choose_and_rename_protagonist_preserves_prose_and_unsent_turn(
         name = service.app.session_list()[0]["id"]
         packet = service.app.handoff(name)
         assert "My character: Éloi Vale." in packet["text"]
-        publish_proxy(page, "draft", "Éloi Vale waits by the **water**.")
+        publish_proxy(page, "Éloi Vale waits by the **water**.")
         composer = page.get_by_role("textbox", name="Your next turn")
         composer.fill("I listen.\nAnd wait.")
         page.get_by_role("button", name="Rename protagonist", exact=True).click()
@@ -235,7 +224,7 @@ def test_browser_choose_and_rename_protagonist_preserves_prose_and_unsent_turn(
         packet = service.app.handoff(name)
         assert "My character: Renée O'Vale." in packet["text"]
         assert '"Éloi Vale"' in packet["text"]
-        publish_proxy(page, "next draft", "A reply.")
+        publish_proxy(page, "A reply.")
         expect(page.locator(".message.story")).to_have_count(2)
     finally:
         page.close()
@@ -272,13 +261,14 @@ def test_browser_stale_rename_does_not_overwrite_a_new_name(browser, chat_servic
 
 
 @pytest.mark.parametrize("width", [1280, 390])
-def test_browser_comparison_formats_both_versions_and_preserves_turns(browser, chat_service, width):
-    draft = "**Unedited** verse.\nA second line.\n\n<script>window.draftLeak = true</script>"
-    revised = "**Revised** verse.\nAnother line.\n\n> A quiet reply."
-    service = chat_service(draft, revised, "Second draft.", "Second revision.", auto_proxy=True)
+def test_browser_regeneration_comparison_formats_versions_and_preserves_turns(
+    browser, chat_service, width
+):
+    original = "**Original** verse.\nA second line.\n\n<script>window.draftLeak = true</script>"
+    revised = "**Replacement** verse.\nAnother line.\n\n> A quiet reply."
+    service = chat_service(original, revised, "Next passage.", auto_proxy=True)
     context = browser.new_context(
-        viewport={"width": width, "height": 900},
-        permissions=["clipboard-read", "clipboard-write"],
+        viewport={"width": width, "height": 900}, permissions=["clipboard-read", "clipboard-write"]
     )
     page = context.new_page()
     errors = []
@@ -288,66 +278,74 @@ def test_browser_comparison_formats_both_versions_and_preserves_turns(browser, c
         if width <= 700:
             page.get_by_role("button", name="Open story list", exact=True).click()
         begin(page)
+        expect(page.locator(".message.story")).to_have_count(1)
+        expect(page.locator(".comparison.story")).to_have_count(0)
+        composer = page.get_by_role("textbox", name="Your next turn")
+        composer.fill("REGENERATION_FEEDBACK")
+        if width > 700:
+            composer.press("Control+Shift+Enter")
+        else:
+            page.get_by_role("button", name="Regenerate latest response", exact=True).click()
         pair = page.locator(".comparison.story")
-        expect(pair).to_have_count(1)
-        expect(pair.locator(".draft strong")).to_have_text("Unedited")
-        expect(pair.locator(".revision strong")).to_have_text("Revised")
-        assert pair.locator(".draft br").count() == 1
-        assert pair.locator(".revision br").count() == 1
+        expect(pair.locator(".replacement strong")).to_have_text("Replacement")
+        expect(pair.locator(".previous strong")).to_have_text("Original")
+        expect(page.locator(".message.player")).to_have_count(1)
+        expect(page.locator(".message.regeneration")).to_have_count(0)
+        expect(composer).to_have_value("")
+        assert (
+            pair.locator(".previous br").count() == 1
+            and pair.locator(".replacement br").count() == 1
+        )
         assert page.evaluate("window.draftLeak === undefined")
         assert "SECRET_CANON" not in page.locator("main").inner_text()
-        left = pair.locator(".draft").bounding_box()
-        right = pair.locator(".revision").bounding_box()
-        assert left and right
+        left = pair.locator(".previous").bounding_box()
+        right = pair.locator(".replacement").bounding_box()
         if width > 1000:
-            assert left["x"] + left["width"] <= right["x"]
-            assert abs(left["y"] - right["y"]) < 1
-            assert abs(left["width"] - right["width"]) < 1
+            assert left["x"] + left["width"] <= right["x"] and abs(left["y"] - right["y"]) < 1
         else:
             assert left["y"] + left["height"] <= right["y"]
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-        page.get_by_role("button", name="Copy draft 1", exact=True).click()
+        page.get_by_role("button", name="Copy previous version 1", exact=True).click()
         expect(page.locator("#toast")).to_have_text("Copied to clipboard")
-        assert page.evaluate("navigator.clipboard.readText()") == draft
-        page.get_by_role("button", name="Copy revision 1", exact=True).click()
+        assert page.evaluate("navigator.clipboard.readText()") == original
+        page.get_by_role("button", name="Copy current version 1", exact=True).click()
         assert page.evaluate("navigator.clipboard.readText()") == revised
-        composer = page.get_by_role("textbox", name="Your next turn")
+        with page.expect_download() as download:
+            page.get_by_role("button", name="Download story", exact=True).click()
+        exported = Path(download.value.path()).read_text()
+        assert (
+            revised in exported
+            and original not in exported
+            and "REGENERATION_FEEDBACK" not in exported
+        )
         composer.fill("I listen.")
         page.reload()
         expect(pair).to_have_count(1)
         expect(composer).to_have_value("I listen.")
-        toggle = page.get_by_role("button", name="Compare drafts", exact=True)
-        expect(toggle).to_have_attribute("aria-pressed", "true")
+        toggle = page.get_by_role("button", name="Compare versions", exact=True)
         toggle.click()
         expect(pair).to_have_count(0)
-        expect(page.locator(".message.story strong")).to_have_text("Revised")
-        assert "Unedited" not in page.locator("main").inner_text()
+        assert "Original" not in page.locator("main").inner_text()
         toggle.click()
-        expect(pair.locator(".draft strong")).to_have_text("Unedited")
-        name = service.app.session_list()[0]["id"]
-        page.goto(f"{service.url}/#{name}")  # The browser preference also works without a query.
-        expect(toggle).to_have_attribute("aria-pressed", "true")
-        expect(pair.locator(".draft strong")).to_have_text("Unedited")
-        expect(composer).to_have_value("I listen.")
-        assert len(service.model.requests) == 2
+        expect(pair.locator(".previous strong")).to_have_text("Original")
         composer.press("Control+Enter")
-        expect(pair).to_have_count(2)
-        expect(pair.nth(1).locator(".draft .prose")).to_have_text("Second draft.")
-        expect(pair.nth(1).locator(".revision .prose")).to_have_text("Second revision.")
-        assert len(service.model.requests) == 4
-        assert draft not in str(service.model.requests[2:])
+        expect(page.locator(".message.story")).to_have_count(2)
+        expect(page.locator(".message.story").last.locator(".prose")).to_have_text("Next passage.")
+        assert len(service.model.requests) == 3
+        assert original not in str(service.model.requests[2:])
+        assert "REGENERATION_FEEDBACK" not in str(service.model.requests[2:])
         assert not errors
     finally:
         context.close()
 
 
 @pytest.mark.parametrize("transport", ["api", "proxy"])
-def test_browser_can_enable_comparison_during_an_existing_response(
+def test_browser_reload_during_regeneration_preserves_old_passage_and_clears_instructions(
     browser, chat_service, transport
 ):
     service = chat_service(
-        "Saved draft.\nA line of verse.",
-        "Published revision.",
+        "Saved original.\nA line of verse.",
+        "Replacement.",
         transport=transport,
         auto_proxy=transport == "proxy",
         pause_at=2,
@@ -356,22 +354,61 @@ def test_browser_can_enable_comparison_during_an_existing_response(
     try:
         page.goto(service.url)
         begin(page)
+        expect(page.locator(".message.story")).to_have_count(1)
+        composer = page.get_by_role("textbox", name="Your next turn")
+        composer.fill("PRIVATE_REWRITE_INSTRUCTIONS")
+        composer.press("Meta+Shift+Enter")
         assert service.model.started.wait(5)
-        assert "Saved draft." not in page.locator("main").inner_text()
-        page.get_by_role("button", name="Compare drafts", exact=True).click()
-        expect(page.locator(".pending-comparison .draft .prose")).to_contain_text("Saved draft.")
-        expect(page.locator(".pending-comparison .revision .prose")).to_have_text(
-            "Revising the draft…"
+        expect(page.locator(".message.story .prose")).to_contain_text("Saved original.")
+        page.get_by_role("button", name="Compare versions", exact=True).click()
+        expect(page.locator(".pending-comparison .previous .prose")).to_contain_text(
+            "Saved original."
+        )
+        expect(page.locator(".pending-comparison .replacement .prose")).to_have_text(
+            "Regenerating the passage…"
         )
         page.reload()
-        expect(page.locator(".pending-comparison .draft .prose")).to_contain_text("Saved draft.")
-        expect(page.get_by_role("textbox", name="Your next turn")).to_be_disabled()
-        service.model.release.set()
-        expect(page.locator(".comparison.story")).to_have_count(1)
-        expect(page.locator(".comparison .revision .prose")).to_have_text("Published revision.")
-        expect(page.locator(".pending-comparison")).to_have_count(0)
+        expect(page.locator(".pending-comparison .previous .prose")).to_contain_text(
+            "Saved original."
+        )
+        expect(composer).to_be_disabled()
         expect(page.locator(".message.player")).to_have_count(1)
+        service.model.release.set()
+        expect(page.locator(".comparison .replacement .prose")).to_have_text("Replacement.")
+        expect(page.locator(".pending-comparison")).to_have_count(0)
+        expect(page.locator(".message.regeneration")).to_have_count(0)
+        expect(composer).to_have_value("")
+        expect(composer).to_be_enabled()
         assert len(service.model.requests) == 2
     finally:
         service.model.release.set()
+        page.close()
+
+
+def test_rejected_stale_regeneration_keeps_composer_feedback(browser, chat_service):
+    service = chat_service("Original.", "Changed in another tab.", auto_proxy=True)
+    page = browser.new_page()
+    try:
+        page.goto(service.url)
+        begin(page)
+        expect(page.locator(".message.story")).to_have_count(1)
+        session = service.app.session_path(service.app.session_list()[0]["id"])
+
+        def change_before_submission(route):
+            core.regenerate(session, "Another tab's correction.", service.model)
+            route.continue_()
+
+        page.route("**/api/regenerate", change_before_submission, times=1)
+        composer = page.get_by_role("textbox", name="Your next turn")
+        composer.fill("MY_UNSENT_CORRECTION")
+        composer.press("Control+Shift+Enter")
+        expect(page.locator("#notice")).to_contain_text("story changed")
+        expect(page.locator(".message.story .prose")).to_have_text("Changed in another tab.")
+        expect(composer).to_have_value("MY_UNSENT_CORRECTION")
+        expect(composer).to_be_enabled()
+        page.reload()
+        expect(composer).to_have_value("MY_UNSENT_CORRECTION")
+        assert len(service.model.requests) == 2
+        assert "MY_UNSENT_CORRECTION" not in str(service.model.requests)
+    finally:
         page.close()

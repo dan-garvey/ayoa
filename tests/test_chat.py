@@ -17,31 +17,25 @@ def version(service, name):
     return service.client.get("/api/session", params={"id": name}).json()["version"]
 
 
-def test_proxy_chat_preserves_sources_but_only_displays_published_story(chat_service):
+def test_proxy_chat_publishes_once_and_only_displays_active_story(chat_service):
     service = chat_service()
     client = service.client
     name = create(service)
-    turn = "I wait.\n\n*Quietly.*"
     sent = client.post(
-        "/api/turn", json={"id": name, "text": turn, "expected_version": version(service, name)}
+        "/api/turn",
+        json={
+            "id": name,
+            "text": "I wait.\n\n*Quietly.*",
+            "expected_version": version(service, name),
+        },
     )
-    assert sent.status_code == 200
-    assert sent.json()["turns"] == []
-    assert sent.json()["pending"]["input"] == turn
+    assert sent.status_code == 200 and sent.json()["turns"] == []
     assert "<em>Quietly.</em>" in sent.json()["pending"]["input_html"]
     packet = client.get("/api/handoff", params={"id": name}).json()
-    assert "SECRET_CANON" in packet["text"]  # Explicit operator-only disclosure.
-    assert packet["stage"] == "draft"
-    draft = "PRIVATE_DRAFT with an unfinished idea."
-    accepted = client.post(
-        "/api/accept", json={"id": name, "request_id": packet["request_id"], "text": draft}
-    )
-    assert accepted.status_code == 200 and accepted.json()["turns"] == []
-    next_packet = client.get("/api/handoff", params={"id": name}).json()
-    assert next_packet["stage"] == "revision" and draft in next_packet["text"]
+    assert "SECRET_CANON" in packet["text"] and packet["kind"] == "turn"
     final = "The **bell** rings.\nA second line.\n\n> An old promise.\n\n<script>alert(1)</script>"
     published = client.post(
-        "/api/accept", json={"id": name, "request_id": next_packet["request_id"], "text": final}
+        "/api/accept", json={"id": name, "request_id": packet["request_id"], "text": final}
     )
     assert published.status_code == 200
     view = published.json()
@@ -52,17 +46,10 @@ def test_proxy_chat_preserves_sources_but_only_displays_published_story(chat_ser
     assert "<script>" not in html and "&lt;script&gt;" in html
     for route in ("/api/session", "/api/sessions", "/api/bootstrap"):
         response = client.get(route, params={"id": name})
-        assert response.status_code == 200
-        assert "PRIVATE_DRAFT" not in response.text and "SECRET_CANON" not in response.text
-    saved = core.load_session(service.app.session_path(name))[1]
-    attempt = service.app.session_path(name) / "attempts" / saved["turns"][0]["author"]
-    assert core.read_json(attempt / "response.json")["raw"] == draft
-    transcript = client.get("/api/transcript", params={"id": name})
-    assert final in transcript.text and draft not in transcript.text
-    assert "attachment" in transcript.headers["Content-Disposition"]
+        assert response.status_code == 200 and "SECRET_CANON" not in response.text
+    assert final in client.get("/api/transcript", params={"id": name}).text
     duplicate = client.post(
-        "/api/accept",
-        json={"id": name, "request_id": next_packet["request_id"], "text": "replacement"},
+        "/api/accept", json={"id": name, "request_id": packet["request_id"], "text": "replacement"}
     )
     assert duplicate.status_code == 409
 
@@ -132,7 +119,7 @@ def test_markdown_keeps_formatting_without_executable_html_or_images():
 
 
 def test_progress_reads_stay_responsive_and_stale_tabs_cannot_duplicate_turns(chat_service):
-    service = chat_service("PRIVATE_DRAFT", "Published response.", transport="api", pause_at=2)
+    service = chat_service("Published response.", transport="api", pause_at=1)
     name = create(service)
     payload = {"id": name, "text": "I open the door.", "expected_version": version(service, name)}
     with ThreadPoolExecutor() as pool:
@@ -153,30 +140,31 @@ def test_progress_reads_stay_responsive_and_stale_tabs_cannot_duplicate_turns(ch
             service.model.release.set()
         assert future.result().status_code == 200
     assert service.client.post("/api/turn", json=payload).status_code == 409
-    assert len(service.model.requests) == 2
+    assert len(service.model.requests) == 1
     assert service.model.requests[0]["input"][-1]["content"] == payload["text"]
     assert "expected_version" not in json.dumps(service.model.requests)
     assert payload["expected_version"] not in json.dumps(service.model.requests)
     assert service.app.token not in json.dumps(service.model.requests)
 
 
-def test_browser_resume_reuses_successful_draft_after_editor_failure(chat_service):
-    service = chat_service("saved draft", TimeoutError(), "Published after retry.", transport="api")
+def test_browser_resume_retries_failed_response(chat_service):
+    service = chat_service(TimeoutError(), "Published after retry.", transport="api")
     name = create(service)
     result = service.client.post(
         "/api/turn",
         json={"id": name, "text": "I wait.", "expected_version": version(service, name)},
     )
     assert result.status_code == 409
-    paused = service.client.get("/api/session", params={"id": name}).json()
+    paused = service.app.view(name)
     assert paused["pending"]["failed"] and not paused["busy"] and paused["turns"] == []
     resumed = service.client.post("/api/resume", json={"id": name})
     assert (
         resumed.status_code == 200
         and resumed.json()["turns"][0]["output"] == "Published after retry."
     )
-    assert len(service.model.requests) == 3
-    assert service.model.requests[1] == service.model.requests[2]
+    assert (
+        len(service.model.requests) == 2 and service.model.requests[0] == service.model.requests[1]
+    )
 
 
 def test_proxy_updates_from_cli_are_visible_in_chat(chat_service):
@@ -188,14 +176,13 @@ def test_proxy_updates_from_cli_are_visible_in_chat(chat_service):
         service.client.get("/api/session", params={"id": name}).json()["pending"]["request_id"]
         == author["request_id"]
     )
-    editor = core.accept(session, author["request_id"], "draft")
-    core.accept(session, editor["request_id"], "Final from the command line.")
+    core.accept(session, author["request_id"], "Final from the command line.")
     view = service.client.get("/api/session", params={"id": name}).json()
     assert view["pending"] is None and view["turns"][0]["output"] == "Final from the command line."
 
 
 def test_chat_name_selection_and_renaming_use_shared_identity_and_guard_stale_tabs(chat_service):
-    service = chat_service("draft", "published", transport="api")
+    service = chat_service("published", transport="api")
     client = service.client
     view = client.post(
         "/api/sessions", json={"story": "harbor", "player_name": " Éloi   Vale "}
@@ -250,10 +237,9 @@ def test_chat_rejects_invalid_name_before_creation_and_rename_while_pending(chat
     assert (session / "state.json").read_bytes() == before
 
 
-def test_automatic_proxy_resumes_existing_handoff_and_retries_only_failed_revision(chat_service):
+def test_automatic_proxy_resumes_existing_handoff_and_retries_failed_attempt(chat_service):
     service = chat_service(
-        "saved draft",
-        {"status": "failed", "exit_code": 7, "raw": "unfinished revision"},
+        {"status": "failed", "exit_code": 7, "raw": "unfinished response"},
         "Published passage.",
         auto_proxy=True,
     )
@@ -261,35 +247,25 @@ def test_automatic_proxy_resumes_existing_handoff_and_retries_only_failed_revisi
     session = service.app.session_path(name)
     prepared = core.submit(session, "Begin the story.")
     request = core.read_json(core.attempt_dir(session, prepared["request_id"]) / "request.json")
-    manifest = (session / "manifest.json").read_bytes()
-    assert service.client.get("/api/bootstrap").json()["automatic"]
-    result = service.client.post("/api/resume", json={"id": name})
-    assert result.status_code == 409
+    assert service.client.post("/api/resume", json={"id": name}).status_code == 409
     assert service.model.requests[0] == request
-    _, state = core.load_session(session)
-    assert state["turns"] == [] and state["pending"]["author"] == prepared["request_id"]
-    failed = core.attempt_dir(session, state["pending"]["request_id"])
-    assert core.read_json(failed / "response.json")["raw"] == "unfinished revision"
     view = service.app.view(name)
     assert view["pending"]["failed"] and not view["pending"]["handoff_ready"]
-    assert "unfinished revision" not in json.dumps(view)
+    assert "unfinished response" not in json.dumps(view)
     result = service.client.post("/api/resume", json={"id": name})
     assert result.status_code == 200 and result.json()["turn_count"] == 1
-    assert result.json()["turns"][0]["input"] == "Begin the story."
     assert result.json()["turns"][0]["output"] == "Published passage."
-    assert len(service.model.requests) == 3
-    assert service.model.requests[1] == service.model.requests[2]
-    assert (session / "manifest.json").read_bytes() == manifest
+    assert (
+        len(service.model.requests) == 2 and service.model.requests[0] == service.model.requests[1]
+    )
     summary = core.export(session)
-    assert summary["api_calls_started"] == 0 and summary["proxy_calls_started"] == 3
-    assert summary["reported_usage"] is None and summary["recorded_api_seconds"] is None
-    assert summary["recorded_proxy_seconds"] >= 0
+    assert summary["api_calls_started"] == 0 and summary["proxy_calls_started"] == 2
     core.resume(session, service.model)
-    assert len(service.model.requests) == 3
+    assert len(service.model.requests) == 2
 
 
 def test_chat_detects_a_coding_agent_started_from_the_cli_without_blocking_reads(chat_service):
-    service = chat_service("draft", "final", auto_proxy=True, pause_at=2)
+    service = chat_service("final", auto_proxy=True, pause_at=1)
     name = create(service)
     session = service.app.session_path(name)
     with ThreadPoolExecutor() as pool:
@@ -299,7 +275,7 @@ def test_chat_detects_a_coding_agent_started_from_the_cli_without_blocking_reads
             response = service.client.get("/api/session", params={"id": name}, timeout=1)
             assert response.status_code == 200
             view = response.json()
-            assert view["busy"] and view["pending"]["stage"] == "revision"
+            assert view["busy"] and view["pending"]["kind"] == "turn"
             assert not view["pending"]["handoff_ready"]
         finally:
             service.model.release.set()
@@ -308,28 +284,24 @@ def test_chat_detects_a_coding_agent_started_from_the_cli_without_blocking_reads
 
 
 @pytest.mark.parametrize("transport", ["api", "proxy"])
-def test_comparison_reads_exact_drafts_without_changing_history(chat_service, transport):
-    draft = "PRIVATE_DRAFT **verse**\r\nAnother line.\n\n<script>alert(1)</script>"
+def test_comparison_reads_exact_previous_versions_without_changing_history(chat_service, transport):
+    original = "OLD_SCENE **verse**\r\nAnother line.\n\n<script>alert(1)</script>"
     final = "A **published** passage."
     service = chat_service(
-        draft,
-        final,
-        "next draft",
-        "next revision",
-        transport=transport,
-        auto_proxy=transport == "proxy",
+        original, final, "following", transport=transport, auto_proxy=transport == "proxy"
     )
     name = create(service)
-    response = service.client.post(
-        "/api/turn?compare=1",
-        json={"id": name, "text": "Begin.", "expected_version": version(service, name)},
-    )
-    assert response.status_code == 200
-    assert response.json()["compare"]
-    assert response.json()["turns"][0]["draft"] == draft
+    for action, text in (("turn", "Begin."), ("regenerate", "PRIVATE_FEEDBACK")):
+        response = service.client.post(
+            "/api/" + action + "?compare=1",
+            json={"id": name, "text": text, "expected_version": version(service, name)},
+        )
+        assert response.status_code == 200
+    view = response.json()
+    assert view["turn_count"] == 1 and view["turns"][0]["previous"] == original
     session = service.app.session_path(name)
     _, state = core.load_session(session)
-    path = core.attempt_dir(session, state["turns"][0]["author"]) / "response.json"
+    path = core.attempt_dir(session, state["turns"][0]["responses"][0]) / "response.json"
     raw = core.read_json(path)
     raw["internal_metadata"] = "PRIVATE_METADATA"
     if transport == "api":
@@ -342,87 +314,103 @@ def test_comparison_reads_exact_drafts_without_changing_history(chat_service, tr
     core.write_json(path, raw)
     before = {p: p.read_bytes() for p in session.rglob("*") if p.is_file()}
     compared = service.client.get("/api/session", params={"id": name, "compare": "1"})
-    view = compared.json()
-    assert view["turns"][0]["draft"] == draft
-    assert view["turns"][0]["output"] == final
-    html = view["turns"][0]["draft_html"]
-    assert "<strong>verse</strong>" in html and "<br" in html
-    assert "<script>" not in html and "&lt;script&gt;" in html
-    for hidden in ("SECRET_CANON", "PRIVATE_METADATA", "PRIVATE_REASONING"):
+    html = compared.json()["turns"][0]["previous_html"]
+    assert "<strong>verse</strong>" in html and "<br" in html and "<script>" not in html
+    for hidden in ("SECRET_CANON", "PRIVATE_METADATA", "PRIVATE_REASONING", "PRIVATE_FEEDBACK"):
         assert hidden not in compared.text
     assert {p: p.read_bytes() for p in session.rglob("*") if p.is_file()} == before
-    assert len(service.model.requests) == 2
     normal = service.client.get("/api/session", params={"id": name})
-    assert not normal.json()["compare"] and "PRIVATE_DRAFT" not in normal.text
-    assert "draft" not in normal.json()["turns"][0]
-    exported = service.client.get("/api/transcript", params={"id": name, "compare": "1"})
-    assert final in exported.text and "PRIVATE_DRAFT" not in exported.text
-    following = service.client.post(
-        "/api/turn?compare=1",
-        json={"id": name, "text": "Continue.", "expected_version": view["version"]},
+    assert "OLD_SCENE" not in normal.text and "previous" not in normal.json()["turns"][0]
+    exported = service.client.get("/api/transcript", params={"id": name})
+    assert (
+        final in exported.text
+        and "OLD_SCENE" not in exported.text
+        and "PRIVATE_FEEDBACK" not in exported.text
     )
-    assert following.status_code == 200
-    assert [turn["draft"] for turn in following.json()["turns"]] == [draft, "next draft"]
+    following = service.client.post(
+        "/api/turn", json={"id": name, "text": "Continue.", "expected_version": view["version"]}
+    )
+    assert following.status_code == 200 and len(service.model.requests) == 3
     assert service.model.requests[2]["input"][2] == {"role": "assistant", "content": final}
-    assert "PRIVATE_DRAFT" not in json.dumps(service.model.requests[2:])
-    assert "compare" not in json.dumps(service.model.requests)
-    assert all("draft" not in turn for turn in core.load_session(session)[1]["turns"])
+    for hidden in ("PRIVATE_FEEDBACK", "OLD_SCENE", "compare"):
+        assert hidden not in json.dumps(service.model.requests[2])
 
 
-def test_comparison_shows_pending_draft_without_waiting_for_editor(chat_service):
-    service = chat_service("saved draft", "published revision", auto_proxy=True, pause_at=2)
+def test_regeneration_progress_keeps_existing_passage_and_rejects_concurrent_or_stale_actions(
+    chat_service,
+):
+    service = chat_service("original", "replacement", auto_proxy=True, pause_at=2)
     name = create(service)
-    payload = {"id": name, "text": "Begin.", "expected_version": version(service, name)}
+    core.submit(service.app.session_path(name), "Begin.", service.model)
+    payload = {
+        "id": name,
+        "text": "Change it.",
+        "expected_version": version(service, name),
+        "submission_id": "a" * 32,
+    }
+    assert (
+        service.client.post(
+            "/api/regenerate", json={"id": name, "text": "Missing version"}
+        ).status_code
+        == 409
+    )
     with ThreadPoolExecutor() as pool:
-        future = pool.submit(service.client.post, "/api/turn?compare=1", json=payload)
+        future = pool.submit(service.client.post, "/api/regenerate", json=payload)
         try:
             assert service.model.started.wait(5)
-            progress = service.client.get(
+            view = service.client.get(
                 "/api/session", params={"id": name, "compare": "1"}, timeout=1
+            ).json()
+            assert (
+                view["busy"]
+                and view["turn_count"] == 1
+                and view["turns"][0]["output"] == "original"
             )
-            assert progress.status_code == 200
-            view = progress.json()
-            assert view["busy"] and view["turns"] == []
-            assert view["pending"]["draft"] == "saved draft"
-            assert view["pending"]["stage"] == "revision"
-            normal = service.client.get("/api/session", params={"id": name})
-            assert "saved draft" not in normal.text
+            assert (
+                view["pending"]["kind"] == "regenerate"
+                and view["pending"]["submission_id"] == "a" * 32
+            )
+            for action in ("turn", "regenerate"):
+                assert service.client.post("/api/" + action, json=payload).status_code == 409
         finally:
             service.model.release.set()
-        assert future.result().json()["turns"][0]["draft"] == "saved draft"
+        view = future.result().json()
+    assert view["turn_count"] == 1 and view["turns"][0]["input"] == "Begin."
+    assert view["turns"][0]["submission_id"] == "a" * 32 and view["pending"] is None
+    assert service.client.post("/api/regenerate", json=payload).status_code == 409
+    assert len(service.model.requests) == 2
 
 
-def test_comparison_keeps_failed_revision_unpublished_and_reuses_its_draft(chat_service):
+def test_failed_regeneration_keeps_previous_passage_until_successful_resume(chat_service):
     service = chat_service(
-        "saved draft",
-        {"status": "failed", "raw": "FAILED_REVISION"},
-        "final",
-        auto_proxy=True,
+        "original", {"status": "failed", "raw": "FAILED_OUTPUT"}, "replacement", auto_proxy=True
     )
     name = create(service)
-    response = service.client.post(
-        "/api/turn?compare=1",
-        json={"id": name, "text": "Begin.", "expected_version": version(service, name)},
+    session = service.app.session_path(name)
+    core.submit(session, "Begin.", service.model)
+    result = service.client.post(
+        "/api/regenerate?compare=1",
+        json={"id": name, "text": "Fix it.", "expected_version": version(service, name)},
     )
-    assert response.status_code == 409
+    assert result.status_code == 409
     paused = service.client.get("/api/session", params={"id": name, "compare": "1"})
-    assert paused.json()["pending"]["draft"] == "saved draft"
-    assert paused.json()["pending"]["failed"] and paused.json()["turns"] == []
-    assert "FAILED_REVISION" not in paused.text
+    assert paused.json()["pending"]["failed"]
+    assert paused.json()["turns"][0]["output"] == "original"
+    assert "FAILED_OUTPUT" not in paused.text
     resumed = service.client.post("/api/resume?compare=1", json={"id": name})
     assert resumed.status_code == 200
-    assert resumed.json()["turns"][0]["draft"] == "saved draft"
-    assert resumed.json()["turns"][0]["output"] == "final"
+    assert resumed.json()["turns"][0]["previous"] == "original"
+    assert resumed.json()["turns"][0]["output"] == "replacement"
     assert service.model.requests[1] == service.model.requests[2]
 
 
-def test_missing_draft_is_explicit_in_comparison_but_does_not_break_reading(chat_service):
-    service = chat_service("draft", "final", auto_proxy=True)
+def test_missing_previous_version_is_explicit_without_breaking_current_reading(chat_service):
+    service = chat_service("original", "replacement", auto_proxy=True)
     name = create(service)
     session = service.app.session_path(name)
     turn = core.submit(session, "Begin.", service.model)
-    (core.attempt_dir(session, turn["author"]) / "response.json").unlink()
+    core.regenerate(session, "Fix it.", service.model)
+    (core.attempt_dir(session, turn["responses"][0]) / "response.json").unlink()
     assert service.client.get("/api/session", params={"id": name}).status_code == 200
     result = service.client.get("/api/session", params={"id": name, "compare": "1"})
-    assert result.status_code == 409
-    assert str(session) not in result.text
+    assert result.status_code == 409 and str(session) not in result.text

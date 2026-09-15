@@ -54,7 +54,9 @@ def chat_service(tmp_path):
     prompts = tmp_path / "prompts"
     prompts.mkdir()
     (prompts / "author.txt").write_text("Write the next passage.")
-    (prompts / "revision.txt").write_text("Revise the draft.")
+    (prompts / "regenerate.txt").write_text(
+        "Rewrite the previous passage using these instructions."
+    )
     services = []
     with ExitStack() as stack:
 

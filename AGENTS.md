@@ -6,12 +6,14 @@ Keep work on this branch unless the user explicitly requests integration elsewhe
 
 ## Runtime and prompts
 
-- One author writes world, NPCs and narration; one concise editor revises its draft.
-  API and proxy execution use the same context builder and persisted turn loop.
-- Only published revisions enter future history. Preserve exact submissions,
-  drafts, revisions and failed attempts; never silently publish a failed draft.
-- Treat prompts as reviewed source. Trace a prose problem to its actual draft,
-  revision or input before editing instructions. Keep reusable writing rules out
+- One author writes world, NPCs and narration in one call. Regeneration is an
+  explicit player action, not an automatic editing stage. API and proxy execution
+  use the same context builder and persisted turn loop.
+- Only active passages and original player inputs enter future history. Preserve
+  exact attempts, replaced passages and regeneration instructions as evidence;
+  never publish a failed response or replay discarded feedback.
+- Treat prompts as reviewed source. Trace a prose problem to its actual response
+  or input before editing instructions. Keep reusable writing rules out
   of story canon, and maintain full character histories when moving source text.
 - NPC knowledge is bounded by plausible acquisition. Consistent invented history
   is welcome; contradictions and inaccessible knowledge are failures.

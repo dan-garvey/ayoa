@@ -11,7 +11,9 @@ from . import core
 
 
 def parser() -> argparse.ArgumentParser:
-    result = argparse.ArgumentParser(description="Write, revise, and resume an interactive story")
+    result = argparse.ArgumentParser(
+        description="Write, regenerate, and resume an interactive story"
+    )
     commands = result.add_subparsers(dest="command", required=True)
     chat = commands.add_parser("chat", help="Open the local browser chat")
     chat.add_argument("--sessions", type=Path, default=core.ROOT / "sessions")
@@ -22,7 +24,7 @@ def parser() -> argparse.ArgumentParser:
     chat.add_argument("--max-output-tokens", type=int, default=12000)
     chat.add_argument("--env-file", type=Path)
     chat.add_argument("--manual", action="store_true", help="Use pasted replies for proxy sessions")
-    for name in ("init", "turn", "accept", "resume", "export", "rename"):
+    for name in ("init", "turn", "regenerate", "accept", "resume", "export", "rename"):
         command = commands.add_parser(name)
         command.add_argument("--session", type=Path, required=True)
         if name == "init":
@@ -34,7 +36,7 @@ def parser() -> argparse.ArgumentParser:
             command.add_argument("--model", default="gpt-5.6-terra")
             command.add_argument("--reasoning", default="max")
             command.add_argument("--max-output-tokens", type=int, default=12000)
-        if name == "turn":
+        if name in {"turn", "regenerate"}:
             inputs = command.add_mutually_exclusive_group(required=True)
             inputs.add_argument("--text")
             inputs.add_argument("--input-file", type=Path)
@@ -43,7 +45,7 @@ def parser() -> argparse.ArgumentParser:
             command.add_argument("--output-file", type=Path, required=True)
         if name == "rename":
             command.add_argument("--player-name", required=True)
-        if name in {"turn", "resume"}:
+        if name in {"turn", "regenerate", "resume"}:
             command.add_argument("--env-file", type=Path)
             command.add_argument("--auto", action="store_true", help="Run proxy replies with Codex")
     return result
@@ -114,13 +116,14 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 context = nullcontext()
             with context as client:
-                if args.command == "turn":
+                if args.command in {"turn", "regenerate"}:
                     text = (
                         args.input_file.read_text(encoding="utf-8")
                         if args.input_file
                         else args.text
                     )
-                    value = core.submit(session, text, client)
+                    action = core.regenerate if args.command == "regenerate" else core.submit
+                    value = action(session, text, client)
                 else:
                     value = core.resume(session, client)
         if value.get("status") == "published":

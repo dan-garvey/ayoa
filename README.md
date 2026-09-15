@@ -1,15 +1,14 @@
 # Narrative foundation
 
-One model authors the world, narration and every supporting character. A second,
-sequential call revises its draft with a short instruction. Only the revised
-passage becomes published history. Characters retain individual interests and
+One model authors the world, narration and every supporting character in one call.
+Its response publishes directly. Characters retain individual interests and
 plausible knowledge boundaries through the writing contract and full biographies.
 
 This work continues on **`codex/covenant-single-llm`**. The old engine and raw
 research live on **`archive/covenant-prompt-trials`**. Read the
 [findings](docs/findings.md) for the improvements, counterexamples and exact evidence.
-The concise editor is a working baseline; sustained literary quality remains an
-open research objective.
+The automatic editor has been retired following playtest review; sustained literary
+quality remains an open research objective.
 
 ## Browser chat
 
@@ -23,9 +22,8 @@ python3 -m venv .venv
 
 The default chat runs **Terra coding agents automatically**, using your existing
 Codex CLI login. Install a current Codex CLI and run `codex login` first if needed;
-this integration is verified with version 0.154.0. Each turn gets a fresh author
-call followed by a fresh editor call, both at `max` reasoning. The chat shows
-whether the passage is being written or refined.
+this integration is verified with version 0.154.0. Each turn gets one fresh author
+call at `max` reasoning. The chat shows when a passage is being written.
 
 Open **http://localhost:8765**. Choose a saved story or select **New story**.
 Choose your protagonist’s name before beginning. To rename them between turns,
@@ -38,19 +36,25 @@ preferences offer light/dark appearance and adjustable text size. New passages
 open at their beginning; incoming responses preserve your position when you are
 reading earlier text. You can copy a passage or download the published transcript.
 
-For temporary evaluation, enable **Compare drafts** in the header, or open
-**http://localhost:8765/?compare=1**. Each passage shows its saved unedited draft
-on the left and its revision on the right, with the same text formatting and
-separate copy buttons. Narrow screens stack the draft above the revision. A
-completed draft is also visible while its revision is running or paused. The
-toggle persists in the browser; turn it off to return to reading. Comparison
-makes no model calls, and only published revisions enter future story history
-and transcript downloads.
+For temporary evaluation, enable **Compare versions** in the header, or open
+**http://localhost:8765/?compare=1**. Passages with multiple versions show the previous
+one on the left and the current one on the right, with separate copy buttons.
+Narrow screens stack the columns. Older playtests retain their draft/edit comparisons.
+The toggle persists in the browser. Comparison makes no model calls; only active
+passages enter future story history and transcript downloads.
 
 Write in the multiline composer. **Ctrl+Enter** (or **Cmd+Enter**) sends;
 **Enter** inserts a line break. Unsent text and reading preferences survive reloads
 in the same browser. Accepted turns are saved to the session files. An unfinished
 or failed response offers **Continue response** without resubmitting your turn.
+
+To replace the latest response, write your correction instructions in the composer
+and press **Ctrl+Shift+Enter** (or **Cmd+Shift+Enter**), or click **Regenerate**.
+The original player action stays in place. The replacement becomes the active
+passage; the rejected version and correction instructions are excluded from later
+model history and transcript downloads. Instructions apply only to that regeneration.
+All versions and exact requests remain saved for evaluation. A failed regeneration
+keeps the existing passage until **Continue response** succeeds.
 
 For direct API responses, start the chat with an API key available to the server:
 
@@ -60,9 +64,8 @@ For direct API responses, start the chat with an API key available to the server
 
 For experiments with manually supplied replies, start with `--manual`.
 **Response handoff** then lets you copy/download the current request and paste or
-load the complete reply. Supply the author's draft first, then the editor's
-response to publish the passage. The handoff contains story secrets and stays
-separate from the conversation. Existing CLI proxy commands also work; their
+load the complete reply. Accept it once to publish the passage. The handoff contains
+story secrets and stays separate from the conversation. Existing CLI proxy commands also work; their
 results appear in the chat automatically.
 
 `--port` changes the local port, and `--sessions DIRECTORY` selects a different
@@ -93,10 +96,11 @@ after completing any pending response:
 Names allow 1–80 characters, including Unicode; extra whitespace is normalized.
 Renaming makes no model call and preserves the transcript and saved attempts.
 
-Add `--auto` to `turn` or `resume` to run both proxy responses with Codex:
+Add `--auto` to `turn`, `regenerate` or `resume` to run the response with Codex:
 
 ```bash
 .venv/bin/python -m narrative turn --session sessions/my-story --auto --text 'Begin the story.'
+.venv/bin/python -m narrative regenerate --session sessions/my-story --auto --text 'Keep the response within the room.'
 .venv/bin/python -m narrative resume --session sessions/my-story --auto
 ```
 
@@ -112,9 +116,8 @@ reasoning effort. Save its complete response to a UTF-8 file, then accept it:
 .venv/bin/python -m narrative accept --session sessions/my-story --request-id REQUEST_ID --output-file response.txt
 ```
 
-Accepting the author's draft returns the editor's request. Give that complete
-request to another fresh agent, then accept its response with its new request id.
-The published passage is printed. Submit the next player action with `turn`.
+Accepting the response publishes and prints the passage. Submit the next player
+action with `turn`, or request a replacement with `regenerate`.
 Fresh proxies receive all necessary context; do not give them other trials,
 assessments, discarded historical drafts or additional writing instructions.
 
@@ -128,7 +131,7 @@ Choose API transport when initializing a separate session:
 ```
 
 Set `OPENAI_API_KEY` in the environment or the explicitly supplied environment
-file. Both sequential calls then execute automatically. `--model`, `--reasoning`
+file. One call executes automatically. `--model`, `--reasoning`
 and `--max-output-tokens` are initialization options; the 12,000-token default is
 a per-call output budget including reasoning, not a visible-prose target. Settings
 are frozen for the session. The API adapter is tested offline with the real SDK;
@@ -143,16 +146,17 @@ does not impose a separate limit on those calls.
 .venv/bin/python -m narrative export --session sessions/my-story
 ```
 
-Resume reuses saved responses, retries a failed API stage explicitly, or returns
+Resume reuses saved responses, retries a failed attempt explicitly, or returns
 the pending proxy request. Add `--env-file .env` for API sessions when needed.
-An editor failure never publishes the draft or requires resubmitting the player
-action. A new action is rejected while a turn remains pending.
+A failed regeneration never replaces the existing passage or requires resubmitting
+the original player action. A new action is rejected while a response remains pending.
 
 Each session contains frozen sources and settings, `state.json`, a directory per
 attempt with its exact request and raw response/error, and derived
-`transcript.md`/`summary.json` exports. Published turn records identify their
-author and editor attempts. The transcript contains only player inputs and
-published prose. Usage includes unsuccessful API responses where reported;
+`transcript.md`/`summary.json` exports. Published turn records identify
+all their successful response versions, with the current version last. The transcript
+contains only original player inputs and active prose. Usage includes unsuccessful
+API responses where reported;
 unavailable proxy usage is shown as null. Sessions are ignored by Git.
 Automatic proxy attempts record CLI exit status and elapsed time separately from
 API usage. Only final agent messages are saved; coding-agent progress and reasoning
@@ -169,9 +173,9 @@ Create a directory with these three files and pass its name or path to `--story`
 - `direction.md`: the story's genre, tone, portrayal and opening instructions.
 - `player.json`: `{"name": "...", "description": "..."}` for its default protagonist.
 
-Reusable author/editor instructions live in `prompts/`. Select an experimental
-pair with `--prompts DIRECTORY` when initializing a new session. `--player-file`
-selects another description; it must remain consistent with the story's premise.
+Reusable writing instructions and the brief regeneration instruction live in
+`prompts/`. Select another set with `--prompts DIRECTORY` when initializing a new
+session. `--player-file` selects another description; it must remain consistent with the story's premise.
 `--player-name` overrides its default name. Naming preserves the story’s family
 history, places and other characters: Covenant’s Garvey ancestry and estate,
 for example, remain part of the premise even when you choose another surname.

@@ -142,9 +142,9 @@ function message(role, html, label) {
 }
 
 function passage(text, html, number, role = "story") {
-  const label = role === "draft" ? "UNEDITED DRAFT" : role === "revision" ? "REVISION" : "THE STORY";
+  const label = role === "previous" ? "PREVIOUS VERSION" : role === "replacement" ? "CURRENT VERSION" : "THE STORY";
   const article = message(role, html, label);
-  const kind = role === "story" ? "passage" : role;
+  const kind = role === "story" ? "passage" : role === "previous" ? "previous version" : "current version";
   if (role !== "story") article.setAttribute("aria-label", `${label.toLocaleLowerCase()} ${number + 1}`);
   const tools = node("div", "message-tools");
   const copyButton = node("button", "copy-passage", `Copy ${kind}`);
@@ -155,22 +155,17 @@ function passage(text, html, number, role = "story") {
   return article;
 }
 
-function comparison(turn, number, pending = false) {
-  const pair = node("section", `message comparison ${pending ? "pending-comparison" : "story"}`);
+function comparison(turn, number, pending = null) {
+  const pair = node("section", `message comparison story${pending ? " pending-comparison" : ""}`);
   pair.setAttribute("aria-label", `Passage ${number + 1} comparison`);
-  let draft;
-  if (typeof turn.draft === "string") draft = passage(turn.draft, turn.draft_html, number, "draft");
+  const previous = pending ? passage(turn.output, turn.output_html, number, "previous") : passage(turn.previous, turn.previous_html, number, "previous");
+  let replacement;
+  if (!pending) replacement = passage(turn.output, turn.output_html, number, "replacement");
   else {
-    draft = message("draft", "", "UNEDITED DRAFT");
-    draft.querySelector(".prose").append(node("p", "comparison-waiting", pending && turn.stage === "draft" ? (turn.failed ? "Draft paused." : "Writing the draft…") : "Loading saved draft…"));
+    replacement = message("replacement", "", "NEW VERSION");
+    replacement.querySelector(".prose").append(node("p", "comparison-waiting", pending.failed ? "Regeneration paused. The existing passage is saved." : "Regenerating the passage…"));
   }
-  let revision;
-  if (!pending) revision = passage(turn.output, turn.output_html, number, "revision");
-  else {
-    revision = message("revision", "", "REVISION");
-    revision.querySelector(".prose").append(node("p", "comparison-waiting", turn.stage === "draft" ? "The revision follows the draft." : turn.failed ? "Revision paused. Continue the response to retry." : "Revising the draft…"));
-  }
-  pair.append(draft, revision);
+  pair.append(previous, replacement);
   return pair;
 }
 
@@ -195,8 +190,8 @@ function confirmSubmission(view) {
   if (!saved) return;
   let submission;
   try { submission = JSON.parse(saved); } catch { storage.remove(`submission:${view.id}`); return; }
-  const accepted = (view.pending && view.turn_count === submission.expected_turns && view.pending.input === submission.text)
-    || view.turns[submission.expected_turns]?.input === submission.text;
+  const accepted = submission.submission_id && (view.pending?.submission_id === submission.submission_id
+    || view.turns.some((turn) => turn.submission_id === submission.submission_id));
   if (accepted) {
     if (storage.get(`draft:${view.id}`) === submission.text) storage.remove(`draft:${view.id}`);
     storage.remove(`submission:${view.id}`);
@@ -209,6 +204,7 @@ function renderView(view) {
   if (Boolean(view.compare) !== comparing) return;
   if (current && view.turn_count < current.turn_count) return;
   const previousCount = current?.turn_count || 0;
+  const replaced = current && view.turn_count === current.turn_count && view.turns.at(-1)?.submission_id !== current.turns.at(-1)?.submission_id;
   current = view;
   confirmSubmission(view);
   $("welcome").hidden = true;
@@ -217,7 +213,7 @@ function renderView(view) {
   $("story-title").textContent = view.title;
   $("story-kicker").textContent = `PLAYING AS ${view.player.toLocaleUpperCase()}`;
   document.title = `${view.title} · Ayoa`;
-  const signature = JSON.stringify([view.id, comparing, view.turns, comparing ? view.pending : view.pending?.input]);
+  const signature = JSON.stringify([view.id, comparing, view.turns, view.pending]);
   if (signature !== rendered) {
     const initial = !rendered;
     const follow = nearBottom() || initial;
@@ -235,15 +231,15 @@ function renderView(view) {
     }
     for (const turn of view.turns) {
       const player = message("player", turn.input_html, "YOU");
-      const story = comparing ? comparison(turn, turn.number) : passage(turn.output, turn.output_html, turn.number);
+      const regenerating = view.pending?.kind === "regenerate" && turn.number === view.turn_count - 1 ? view.pending : null;
+      const story = comparing && (typeof turn.previous === "string" || regenerating) ? comparison(turn, turn.number, regenerating) : passage(turn.output, turn.output_html, turn.number);
       conversation.append(player, story, node("div", "turn-divider"));
     }
     if (view.pending) {
-      conversation.append(message("player", view.pending.input_html, "YOU"));
-      if (comparing) conversation.append(comparison(view.pending, view.turn_count, true));
+      conversation.append(message(view.pending.kind === "regenerate" ? "regeneration" : "player", view.pending.input_html, view.pending.kind === "regenerate" ? "REGENERATION INSTRUCTIONS" : "YOU"));
     }
     if (view.pending && sending.has(view.id)) reader.scrollTop = reader.scrollHeight;
-    else if (follow && view.turn_count && (initial || view.turn_count > previousCount)) goLatest();
+    else if (follow && view.turn_count && (initial || replaced || view.turn_count > previousCount)) goLatest();
     else if (follow) reader.scrollTop = reader.scrollHeight;
     else reader.scrollTop = oldTop;
     updateLatest();
@@ -258,6 +254,7 @@ function updateControls() {
   const waiting = Boolean(pending || busy);
   input.disabled = waiting;
   $("send").disabled = waiting || !input.value.trim();
+  $("regenerate").disabled = waiting || !current.turn_count || !input.value.trim();
   $("export").disabled = !current.turn_count || waiting;
   $("rename-player").disabled = waiting;
   $("response-status").hidden = !waiting;
@@ -266,7 +263,7 @@ function updateControls() {
   $("resume").hidden = !pending || busy || pending.handoff_ready;
   $("handoff").hidden = !pending?.handoff_ready || busy;
   let status = "Your turn";
-  if (busy) status = pending?.stage === "revision" ? "Refining the passage…" : "Writing the next passage…";
+  if (busy) status = pending?.kind === "regenerate" ? "Regenerating the passage…" : "Writing the next passage…";
   else if (pending?.failed) status = "The response paused. Your turn is saved.";
   else if (pending?.handoff_ready) status = "Manual response needed. Open the handoff to add it.";
   else if (pending) status = "A response is unfinished. Your turn is saved.";
@@ -315,6 +312,7 @@ async function selectSession(id) {
   input.value = storage.get(`draft:${id}`) || "";
   input.disabled = true;
   $("send").disabled = true;
+  $("regenerate").disabled = true;
   storage.set("selected", id);
   history.replaceState(null, "", `#${encodeURIComponent(id)}`);
   notice("");
@@ -323,17 +321,18 @@ async function selectSession(id) {
   resizeInput();
 }
 
-async function sendTurn(text = input.value) {
+async function sendTurn(text = input.value, kind = "turn") {
   if (!current || current.pending || current.busy || sending.has(selected) || !text.trim()) return;
+  if (kind === "regenerate" && !current.turn_count) return;
   const id = selected;
-  const submission = { id, text, expected_turns: current.turn_count, expected_version: current.version };
+  const submission = { id, text, submission_id: crypto.randomUUID().replaceAll("-", ""), expected_version: current.version };
   input.value = text;
   storage.set(`draft:${id}`, text);
   storage.set(`submission:${id}`, JSON.stringify(submission));
   sending.add(id);
   notice("");
   updateControls();
-  const request = api("/api/turn", { id, text, expected_version: submission.expected_version });
+  const request = api(`/api/${kind}`, submission);
   refresh();
   try {
     const view = await request;
@@ -419,13 +418,13 @@ async function loadHandoff(id) {
   $("request-text").value = packet.text;
   $("response-text").value = "";
   $("response-file").value = "";
-  $("handoff-stage").textContent = packet.stage === "revision" ? "FINAL RESPONSE HANDOFF" : "DRAFT RESPONSE HANDOFF";
+  $("handoff-stage").textContent = packet.kind === "regenerate" ? "REGENERATION HANDOFF" : "RESPONSE HANDOFF";
 }
 async function openHandoff() {
   try {
     await loadHandoff(selected);
     $("handoff-error").hidden = true;
-    $("handoff-note").textContent = "Only the final response becomes part of the published story.";
+    $("handoff-note").textContent = "Accepting the response publishes this passage.";
     $("handoff-dialog").showModal();
     $("copy-request").focus();
   } catch (error) { notice(error.message); }
@@ -439,15 +438,8 @@ async function acceptResponse(event) {
   try {
     const view = await api("/api/accept", { id: packet.id, request_id: packet.request_id, text: $("response-text").value });
     renderView(view);
-    if (view.pending?.handoff_ready) {
-      await loadHandoff(packet.id);
-      $("handoff-note").textContent = "Draft received. Complete this final response to publish the passage.";
-      $("copy-request").focus();
-    } else {
-      $("handoff-dialog").close();
-      if (view.pending) toast("Response saved. Continue the unfinished turn.");
-      else toast("Passage saved");
-    }
+    $("handoff-dialog").close();
+    toast("Passage saved");
     await refresh();
   } catch (error) {
     $("handoff-error").textContent = `${error.message} Close and reopen the handoff to load its current request.`;
@@ -480,9 +472,10 @@ $("story-choice").addEventListener("change", chooseStory);
 $("rename-player").addEventListener("click", openRename);
 $("rename-form").addEventListener("submit", renamePlayer);
 $("composer-form").addEventListener("submit", (event) => { event.preventDefault(); sendTurn(); });
+$("regenerate").addEventListener("click", () => sendTurn(input.value, "regenerate"));
 input.addEventListener("input", () => { if (selected) storage.set(`draft:${selected}`, input.value); resizeInput(); updateControls(); });
 input.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); sendTurn(); }
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); sendTurn(input.value, event.shiftKey ? "regenerate" : "turn"); }
 });
 $("resume").addEventListener("click", resume);
 $("handoff").addEventListener("click", openHandoff);

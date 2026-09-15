@@ -32,6 +32,8 @@ player choice.
 </instructions>
 
 <prose>
+Avoid excessive aphorism in character dialogue.
+
 Use concrete observations that place the people and the activity. Let dialogue
 run without requiring a gesture between every line. Let the exchange take the
 space it needs within the player's submitted scope. Give a shared activity

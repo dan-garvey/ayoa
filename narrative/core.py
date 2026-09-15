@@ -17,7 +17,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 PREFIX_ORDER = ["author.txt", "direction.md", "canon.md"]
-SNAPSHOT_FILES = {*PREFIX_ORDER, "revision.txt", "player.json"}
+SNAPSHOT_FILES = {*PREFIX_ORDER, "regenerate.txt", "player.json"}
 
 
 class NarrativeError(RuntimeError):
@@ -134,7 +134,7 @@ def init_session(
         raise ValueError("max_output_tokens must be positive")
     sources = {
         "author.txt": prompts / "author.txt",
-        "revision.txt": prompts / "revision.txt",
+        "regenerate.txt": prompts / "regenerate.txt",
         "direction.md": story / "direction.md",
         "canon.md": story / "canon.md",
         "player.json": player_file or story / "player.json",
@@ -156,7 +156,7 @@ def init_session(
     for name, data in contents.items():
         atomic_write(session / "snapshot" / name, data)
     manifest = {
-        "version": 1,
+        "version": 2,
         "created_at": now(),
         "story": story.name,
         "transport": transport,
@@ -184,7 +184,7 @@ def load_session(session: Path) -> tuple[dict, dict]:
     state = read_json(session / "state.json")
     if digest((session / "manifest.json").read_bytes()) != state["manifest_sha256"]:
         raise NarrativeError("Frozen session settings changed; initialize a new session")
-    if manifest.get("version") != 1 or manifest.get("prefix_order") != PREFIX_ORDER:
+    if manifest.get("version") != 2 or manifest.get("prefix_order") != PREFIX_ORDER:
         raise NarrativeError("Unsupported session format; initialize a new session")
     if set(manifest["source_sha256"]) != SNAPSHOT_FILES:
         raise NarrativeError("Incomplete source snapshot")
@@ -194,6 +194,16 @@ def load_session(session: Path) -> tuple[dict, dict]:
     for index, turn in enumerate(state["turns"]):
         if turn["turn"] != index or not turn["input"].strip() or not turn["output"].strip():
             raise NarrativeError("Invalid published history")
+        if not isinstance(turn["responses"], list) or not turn["responses"]:
+            raise NarrativeError("Missing response history")
+        for request_id in turn["responses"]:
+            attempt_dir(session, request_id)
+    pending = state["pending"]
+    if pending is not None:
+        if pending["kind"] not in {"turn", "regenerate"} or not pending["input"].strip():
+            raise NarrativeError("Invalid pending submission")
+        if pending["kind"] == "regenerate" and not state["turns"]:
+            raise NarrativeError("No passage to regenerate")
     if "player_names" in state:
         names = state["player_names"]
         if not isinstance(names, list) or not names:
@@ -258,18 +268,12 @@ def make_request(session: Path, manifest: dict, state: dict) -> dict:
                 {"role": "assistant", "content": turn["output"]},
             ]
         )
-    messages.append({"role": "user", "content": pending["input"]})
-    if pending["author"]:
-        draft = response_text(read_json(attempt_dir(session, pending["author"]) / "response.json"))
-        messages.extend(
-            [
-                {"role": "assistant", "content": draft},
-                {
-                    "role": "user",
-                    "content": (snapshot / "revision.txt").read_text(encoding="utf-8").strip(),
-                },
-            ]
+    instruction = pending["input"]
+    if pending["kind"] == "regenerate":
+        instruction = (
+            (snapshot / "regenerate.txt").read_text(encoding="utf-8").strip() + "\n\n" + instruction
         )
+    messages.append({"role": "user", "content": instruction})
     return {
         "model": manifest["model"],
         "reasoning": {"effort": manifest["reasoning_effort"]},
@@ -305,8 +309,9 @@ def _prepare(session: Path, manifest: dict, state: dict) -> Path:
         path / "meta.json",
         {
             "request_id": request_id,
-            "turn": len(state["turns"]),
-            "stage": "editor" if pending["author"] else "author",
+            "turn": len(state["turns"]) - (pending["kind"] == "regenerate"),
+            "kind": pending["kind"],
+            "submission_id": pending["submission_id"],
             "transport": manifest["transport"],
             "prepared_at": now(),
         },
@@ -382,20 +387,19 @@ def _drive(session: Path, manifest: dict, state: dict, client: Any, *, retry: bo
                 retry = False
                 continue
             request_id = pending["request_id"]
-            if pending["author"] is None:
-                pending["author"] = request_id
-                pending["request_id"] = None
-                write_json(session / "state.json", state)
-                continue
+            previous = state["turns"][-1] if pending["kind"] == "regenerate" else None
             turn = {
-                "turn": len(state["turns"]),
-                "input": pending["input"],
+                "turn": previous["turn"] if previous else len(state["turns"]),
+                "input": previous["input"] if previous else pending["input"],
                 "output": text,
-                "author": pending["author"],
-                "editor": request_id,
+                "responses": [*(previous["responses"] if previous else []), request_id],
+                "submission_id": pending["submission_id"],
                 "published_at": now(),
             }
-            state["turns"].append(turn)
+            if previous:
+                state["turns"][-1] = turn
+            else:
+                state["turns"].append(turn)
             state["pending"] = None
             write_json(session / "state.json", state)
             _export(session, manifest, state)
@@ -403,7 +407,7 @@ def _drive(session: Path, manifest: dict, state: dict, client: Any, *, retry: bo
         if manifest["transport"] == "proxy" and client is None:
             return {
                 "status": "pending",
-                "stage": "editor" if pending["author"] else "author",
+                "kind": pending["kind"],
                 "request_id": pending["request_id"],
                 "request_json": str((path / "request.json").resolve()),
                 "request_text": str((path / "request.txt").resolve()),
@@ -422,16 +426,54 @@ def _drive(session: Path, manifest: dict, state: dict, client: Any, *, retry: bo
 
 
 def submit(
-    session: Path, text: str, client: Any = None, *, expected_version: str | None = None
+    session: Path,
+    text: str,
+    client: Any = None,
+    *,
+    expected_version: str | None = None,
+    submission_id: str | None = None,
+) -> dict:
+    return _submit(session, text, client, "turn", expected_version, submission_id)
+
+
+def regenerate(
+    session: Path,
+    text: str,
+    client: Any = None,
+    *,
+    expected_version: str | None = None,
+    submission_id: str | None = None,
+) -> dict:
+    return _submit(session, text, client, "regenerate", expected_version, submission_id)
+
+
+def _submit(
+    session: Path,
+    text: str,
+    client: Any,
+    kind: str,
+    expected_version: str | None,
+    submission_id: str | None,
 ) -> dict:
     if not isinstance(text, str) or not text.strip():
         raise ValueError("A player submission cannot be empty")
+    try:
+        identifier = uuid.uuid4().hex if submission_id is None else uuid.UUID(submission_id).hex
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise ValueError("Invalid submission id") from exc
     with locked(session):
         manifest, state = load_session(session)
         check_version(state, expected_version)
         if state["pending"] is not None:
             raise NarrativeError("A turn is pending; accept its response or resume it first")
-        state["pending"] = {"input": text, "author": None, "request_id": None}
+        if kind == "regenerate" and not state["turns"]:
+            raise NarrativeError("There is no passage to regenerate yet")
+        state["pending"] = {
+            "kind": kind,
+            "input": text,
+            "submission_id": identifier,
+            "request_id": None,
+        }
         write_json(session / "state.json", state)
         return _drive(session, manifest, state, client, retry=False)
 
@@ -530,9 +572,7 @@ def _export(session: Path, manifest: dict, state: dict) -> dict:
     proxy_started = automatic_started if manifest["transport"] == "proxy" else 0
     summary = {
         "published_turns": len(state["turns"]),
-        "pending_stage": ("editor" if state["pending"]["author"] else "author")
-        if state["pending"]
-        else None,
+        "pending_kind": state["pending"]["kind"] if state["pending"] else None,
         "requests_prepared": prepared,
         "api_calls_started": api_started,
         "proxy_calls_started": proxy_started,

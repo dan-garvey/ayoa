@@ -3,7 +3,8 @@
 The model sees the whole fictional world. Individual NPCs must act only on
 plausibly acquired knowledge. These are prompt obligations, not structural
 secrecy guarantees. The implementation has one story author, covering world
-action, NPC dialogue and narration, and a subsequent prose edit.
+action, NPC dialogue and narration. A successful response publishes directly;
+there is no automatic editorial call.
 
 ## Sources and context
 
@@ -17,25 +18,31 @@ chosen name out of the stable instruction prefix. A story may prescribe a
 protagonist premise; choosing a name or overriding the player description does
 not rewrite their ancestry, other characters or named places.
 
-Initialization freezes these files plus `prompts/revision.txt` and model settings.
+Initialization freezes these files plus `prompts/regenerate.txt` and model settings.
 It makes no model call. The first submitted input requests the opening. Source
 and settings hashes are checked on subsequent operations; changed snapshots
-require a new session. This is an experimental format without save migration.
+require a new session. This is an experimental format without automatic save migration.
 
 The instruction prefix is author instructions, story direction, then canon.
 The user-message tail begins with the player description, followed by all
-published player/assistant exchanges and the current submission. The author
-produces a draft. The editor receives exactly that context, then the draft as
-an assistant message and the concise revision task as a user message. Both calls
-use the same model and reasoning settings. They are sequential: the editor waits
-for the draft. Discarded drafts and revision requests never enter later turns.
+active player/assistant exchanges and the current submission. One author call
+returns the published passage. On an explicit regeneration, the same author sees
+that history including the current final passage, then the short regeneration
+instruction and the player's requested changes in the user tail. Its response
+replaces only the final passage, retaining that passage's original player input.
+Future calls receive only the replacement; discarded responses and regeneration
+instructions remain in saved attempts and never enter subsequent history.
+
+Regeneration instructions apply once. Repeated regeneration sees the current
+version and the new instructions without accumulating earlier feedback. The base
+writing contract remains the place for enduring prompt preferences.
 
 Protagonist name choices are stored in `state.json` as `player_names`, with the
 latest choice last. A session without a name choice uses its frozen default.
 Both browser and CLI use the same validation and atomic rename operation. Names
 are 1–80 characters after whitespace normalization and exclude control characters.
-A rename is rejected while a response remains pending, keeping prepared author
-and editor requests valid. When names change, the player-description message
+A rename is rejected while a response remains pending, keeping prepared requests
+valid. When names change, the player-description message
 identifies earlier names as the same protagonist and treats this as a naming
 correction. Published text, frozen sources and raw attempts remain unchanged.
 
@@ -43,9 +50,12 @@ correction. Published text, frozen sources and raw attempts remain unchanged.
 
 `state.json` is the single publication record: completed turns and at most one
 pending submission. Each attempt has an exact JSON request, its readable text
-projection, metadata, and a raw response or error when available. Drafts remain
-in their attempt records. Completing the editor atomically publishes its exact
-text and clears the pending submission in one state replacement.
+projection, metadata, and a raw response or error when available. Each turn keeps
+an ordered list of successful response attempt ids; its final id identifies the
+active passage. Completing generation atomically publishes its exact text and
+clears the pending submission in one state replacement. Completing regeneration
+replaces the last turn's output and appends its attempt id in that same write.
+The preceding passage remains published throughout a failed or interrupted attempt.
 
 An exclusive POSIX file lock serializes operations on a session, including model
 calls. File replacements are flushed and synced before advancing. A response
@@ -55,8 +65,9 @@ without saving a response, the remote outcome is unknown. Explicit resume may
 repeat that call; there is no claim of exactly-once remote execution.
 
 Transport failures, refusals, incomplete responses and empty outputs do not
-publish a turn. Resume retries only the failed stage, preserving a successful
-draft. A new submission is rejected while one is pending. Proxy acceptance is
+publish a turn. Resume retries the failed attempt while preserving the original
+submission and any existing passage. A new submission is rejected while one is
+pending. Proxy acceptance is
 bound to a request id and rejects stale or duplicate responses. Text-only proxy
 acceptance cannot distinguish a prose refusal from ordinary prose; the complete
 final message is preserved for human inspection. Empty proxy outputs
@@ -70,7 +81,7 @@ No API credential is needed for initialization, proxy work, exports or tests.
 
 Proxy mode exports the same request as JSON and role-delimited text. The browser
 automatically supplies that exact text to a fresh `codex exec` process for each
-stage, using the frozen model and reasoning settings. It uses the CLI's existing
+response, using the frozen model and reasoning settings. It uses the CLI's existing
 login, an empty temporary workspace, a read-only sandbox, and disabled repository
 instruction discovery, memory, plugins, shell, image/browser tools and delegation.
 The command uses stdin for the complete request and reads only the final-message
@@ -86,7 +97,7 @@ retained. Timed-out process groups are stopped. A prepared manual request can be
 continued automatically without changing its identity, snapshots or manifest.
 
 `chat --manual` keeps copy/paste handoffs. Terminal proxy commands remain manual
-unless `turn` or `resume` receives `--auto`; `accept` still records manual replies.
+unless `turn`, `regenerate` or `resume` receives `--auto`; `accept` records manual replies.
 Coding-agent system wrappers and context/output limits differ from direct API
 execution, and the API's `max_output_tokens` is not a CLI output control. This is
 a narrative-testing proxy, not an assertion of identical model behavior.
@@ -95,7 +106,7 @@ a narrative-testing proxy, not an assertion of identical model behavior.
 
 Transcripts contain published fiction and player inputs. Exports are derived
 and can be rebuilt after a failure; publication does not depend on their being
-present. Usage summaries include both stages and unsuccessful API responses with
+present. Usage summaries include all attempts and unsuccessful API responses with
 reported usage. Prepared proxy requests are not billed API calls; unavailable
 token usage and manual proxy latency are null, not invented estimates. Automatic
 proxy invocation counts and elapsed time are recorded separately from API calls.
@@ -111,33 +122,38 @@ trial evidence remain available through docs/findings.md.
 
 `python -m narrative chat` serves local HTML, CSS and JavaScript with a small
 loopback HTTP server. There is no frontend build step, CDN or second story store.
-The browser submits a turn; its HTTP request waits for the ordinary author/editor
-loop. Separate read requests keep progress visible while those sequential calls
-run. Closing or reloading the page does not cancel an executing server request.
+The browser submits a turn or regeneration; its HTTP request waits for one author
+call. Separate read requests keep progress visible while it runs. Closing or
+reloading the page does not cancel an executing server request.
 Stopping the server still uses the core's existing interrupted-attempt recovery.
 
 An in-memory guard identifies active HTTP operations and rejects simultaneous
 requests for the same session. The core's file lock remains authoritative across
 CLI and browser processes; progress reads probe that lock without blocking so an
-external CLI response also appears busy. Browser turns and renames include a
+external CLI response also appears busy. Browser turns, regenerations and renames include a
 version derived from the state they were composed against; the core checks it
 under that lock.
-This replaces the former turn-count check so stale tabs cannot overwrite a name
-or submit a turn after an identity change. The version never enters model context
-and needs no separate persisted counter. Failed reads and actions leave the saved
+This prevents stale tabs from overwriting a name or regenerating a passage that
+has already changed. The version never enters model context
+and needs no separate persisted counter. A submission UUID lets the browser
+recognize its own accepted operation after reload, including when regeneration
+leaves the turn count unchanged. It lives in pending state, attempt metadata and
+the resulting turn, and never enters model context. A rejected stale submission
+cannot clear the composer's unsent text. Failed reads and actions leave the saved
 turn explicit.
 
 The normal conversation projection includes only published exchanges, the current player
-submission and response status. Drafts, canon, provider output and credentials are
+submission and response status. Replaced passages, canon, provider output and credentials are
 excluded. Proxy handoffs are a separate, explicitly opened operator surface that
 returns the actual prepared request and accepts a response by its pending id.
 The UI stores unsent composer text and reading preferences in browser storage;
 canonical history continues to live in the session directory.
 
 The optional evaluation view uses `compare=1` on the same chat endpoints to include
-the saved author text alongside each published revision. A successful pending
-draft is available while its editor runs or retries; failed revision text remains
-unpublished. The projection extracts only the final text, excluding requests,
+the previous saved version alongside the active passage. A passage without an
+earlier version appears normally. During regeneration the existing passage remains
+visible while the replacement is pending; failed output remains unpublished.
+The projection extracts only the final text, excluding requests,
 canon and response metadata. It reads the original attempt records without
 changing them or invoking a model. Browser preferences and the URL control the
 view; no comparison setting enters session state, model context or transcript
@@ -153,15 +169,22 @@ Content security policy excludes inline scripts and framing. Browser requests
 never receive an API key. This is not a public deployment or multi-user service.
 
 Offline HTTP and Chromium checks cover publication, formatting, proxy acceptance,
-concurrent progress reads, stale submissions, recovery after a failed edit,
+concurrent progress reads, stale submissions, recovery after a failed response,
 reload during generation, saved composer text, mobile navigation and reading
-position. Naming checks also cover both model calls, unchanged raw history,
-concurrent and pending edits, stale tabs, Unicode and mobile layout. Live narrative
+position. Naming checks also cover generation and regeneration, unchanged raw history,
+concurrent and pending operations, stale tabs, Unicode and mobile layout. Live narrative
 quality remains evaluated through the separate playtests.
 
 Automatic proxy validation covers the default CLI wiring, exact stdin requests,
 fresh workspaces, final-only output, failed/timeout results, resuming saved manual
-requests, preserving successful drafts on retry, and browser reload during both
+requests, preserving existing passages on retry, and browser reload during both
 API and proxy execution. The user's previously pending Covenant opening was
-completed with two real Terra/max CLI calls; its private raw artifacts remain in
-the user's session directory.
+completed with two real Terra/max CLI calls before the editor was retired; its
+private raw artifacts remain in the user's session directory. Current single-call
+and regeneration checks run offline against both transports and Chromium.
+
+Format 2 replaces the author/editor fields with one response-history list and
+retires the revision snapshot. The runtime accepts only the current format.
+Existing local playtests were backed up before their one-time conversion; their
+published prose, identities, story canon and raw attempts were preserved. This
+does not reinterpret earlier ordinary chat messages as regeneration operations.

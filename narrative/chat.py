@@ -31,12 +31,12 @@ def title(name: str) -> str:
     return name.replace("_", " ").replace("-", " ").title()
 
 
-def draft_view(session: Path, request_id: str | None) -> dict:
+def previous_view(session: Path, request_id: str | None) -> dict:
     if request_id is None:
-        return {"draft": None, "draft_html": None}
+        return {"previous": None, "previous_html": None}
     response = core.read_json(core.attempt_dir(session, request_id) / "response.json")
     text = core.response_text(response)
-    return {"draft": text, "draft_html": format_text(text)}
+    return {"previous": text, "previous_html": format_text(text)}
 
 
 class ChatApp:
@@ -181,15 +181,14 @@ class ChatApp:
                     except core.ResponseError:
                         failure = True
             waiting = {
+                "kind": pending["kind"],
+                "submission_id": pending["submission_id"],
                 "input": pending["input"],
                 "input_html": format_text(pending["input"]),
                 "request_id": request_id,
                 "handoff_ready": ready,
                 "failed": failure,
-                "stage": "revision" if pending["author"] else "draft",
             }
-            if compare:
-                waiting.update(draft_view(session, pending["author"]))
         return {
             "id": name,
             "title": title(manifest["story"]),
@@ -206,7 +205,14 @@ class ChatApp:
                     "input_html": format_text(turn["input"]),
                     "output": turn["output"],
                     "output_html": format_text(turn["output"]),
-                    **(draft_view(session, turn["author"]) if compare else {}),
+                    "submission_id": turn["submission_id"],
+                    **(
+                        previous_view(
+                            session, turn["responses"][-2] if len(turn["responses"]) > 1 else None
+                        )
+                        if compare
+                        else {}
+                    ),
                 }
                 for turn in state["turns"]
             ],
@@ -218,7 +224,7 @@ class ChatApp:
         session = self.session_path(name)
         with self.operation(session):
             manifest, _ = core.load_session(session)
-            if command in {"turn", "rename"}:
+            if command in {"turn", "regenerate", "rename"}:
                 if (
                     not isinstance(body.get("expected_version"), str)
                     or not body["expected_version"]
@@ -237,7 +243,7 @@ class ChatApp:
                     session, body.get("player_name"), expected_version=body["expected_version"]
                 )
             else:
-                if command == "turn":
+                if command in {"turn", "regenerate"}:
                     if not isinstance(body.get("text"), str) or not body["text"].strip():
                         raise ValueError("Write a turn before sending it")
                 context = (
@@ -246,9 +252,14 @@ class ChatApp:
                     else nullcontext(self.proxy_runner)
                 )
                 with context as client:
-                    if command == "turn":
-                        core.submit(
-                            session, body["text"], client, expected_version=body["expected_version"]
+                    if command in {"turn", "regenerate"}:
+                        action = core.regenerate if command == "regenerate" else core.submit
+                        action(
+                            session,
+                            body["text"],
+                            client,
+                            expected_version=body["expected_version"],
+                            submission_id=body.get("submission_id"),
                         )
                     elif command == "resume":
                         core.resume(session, client)
@@ -269,7 +280,7 @@ class ChatApp:
         request = core._check_request(session, manifest, state, path)
         return {
             "request_id": pending["request_id"],
-            "stage": "revision" if pending["author"] else "draft",
+            "kind": pending["kind"],
             "text": core.render_request(request),
         }
 
@@ -399,7 +410,13 @@ class ChatHandler(BaseHTTPRequestHandler):
                 self.json(
                     201, app.create(body.get("story"), body.get("player_name"), compare=compare)
                 )
-            elif route in {"/api/turn", "/api/resume", "/api/accept", "/api/rename"}:
+            elif route in {
+                "/api/turn",
+                "/api/regenerate",
+                "/api/resume",
+                "/api/accept",
+                "/api/rename",
+            }:
                 self.json(
                     200,
                     app.action(body.get("id"), route.removeprefix("/api/"), body, compare=compare),
