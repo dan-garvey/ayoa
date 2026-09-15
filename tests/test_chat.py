@@ -305,3 +305,124 @@ def test_chat_detects_a_coding_agent_started_from_the_cli_without_blocking_reads
             service.model.release.set()
         assert future.result()["status"] == "published"
     assert not service.app.view(name)["busy"]
+
+
+@pytest.mark.parametrize("transport", ["api", "proxy"])
+def test_comparison_reads_exact_drafts_without_changing_history(chat_service, transport):
+    draft = "PRIVATE_DRAFT **verse**\r\nAnother line.\n\n<script>alert(1)</script>"
+    final = "A **published** passage."
+    service = chat_service(
+        draft,
+        final,
+        "next draft",
+        "next revision",
+        transport=transport,
+        auto_proxy=transport == "proxy",
+    )
+    name = create(service)
+    response = service.client.post(
+        "/api/turn?compare=1",
+        json={"id": name, "text": "Begin.", "expected_version": version(service, name)},
+    )
+    assert response.status_code == 200
+    assert response.json()["compare"]
+    assert response.json()["turns"][0]["draft"] == draft
+    session = service.app.session_path(name)
+    _, state = core.load_session(session)
+    path = core.attempt_dir(session, state["turns"][0]["author"]) / "response.json"
+    raw = core.read_json(path)
+    raw["internal_metadata"] = "PRIVATE_METADATA"
+    if transport == "api":
+        raw["raw"]["output"].append(
+            {
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "PRIVATE_REASONING"}],
+            }
+        )
+    core.write_json(path, raw)
+    before = {p: p.read_bytes() for p in session.rglob("*") if p.is_file()}
+    compared = service.client.get("/api/session", params={"id": name, "compare": "1"})
+    view = compared.json()
+    assert view["turns"][0]["draft"] == draft
+    assert view["turns"][0]["output"] == final
+    html = view["turns"][0]["draft_html"]
+    assert "<strong>verse</strong>" in html and "<br" in html
+    assert "<script>" not in html and "&lt;script&gt;" in html
+    for hidden in ("SECRET_CANON", "PRIVATE_METADATA", "PRIVATE_REASONING"):
+        assert hidden not in compared.text
+    assert {p: p.read_bytes() for p in session.rglob("*") if p.is_file()} == before
+    assert len(service.model.requests) == 2
+    normal = service.client.get("/api/session", params={"id": name})
+    assert not normal.json()["compare"] and "PRIVATE_DRAFT" not in normal.text
+    assert "draft" not in normal.json()["turns"][0]
+    exported = service.client.get("/api/transcript", params={"id": name, "compare": "1"})
+    assert final in exported.text and "PRIVATE_DRAFT" not in exported.text
+    following = service.client.post(
+        "/api/turn?compare=1",
+        json={"id": name, "text": "Continue.", "expected_version": view["version"]},
+    )
+    assert following.status_code == 200
+    assert [turn["draft"] for turn in following.json()["turns"]] == [draft, "next draft"]
+    assert service.model.requests[2]["input"][2] == {"role": "assistant", "content": final}
+    assert "PRIVATE_DRAFT" not in json.dumps(service.model.requests[2:])
+    assert "compare" not in json.dumps(service.model.requests)
+    assert all("draft" not in turn for turn in core.load_session(session)[1]["turns"])
+
+
+def test_comparison_shows_pending_draft_without_waiting_for_editor(chat_service):
+    service = chat_service("saved draft", "published revision", auto_proxy=True, pause_at=2)
+    name = create(service)
+    payload = {"id": name, "text": "Begin.", "expected_version": version(service, name)}
+    with ThreadPoolExecutor() as pool:
+        future = pool.submit(service.client.post, "/api/turn?compare=1", json=payload)
+        try:
+            assert service.model.started.wait(5)
+            progress = service.client.get(
+                "/api/session", params={"id": name, "compare": "1"}, timeout=1
+            )
+            assert progress.status_code == 200
+            view = progress.json()
+            assert view["busy"] and view["turns"] == []
+            assert view["pending"]["draft"] == "saved draft"
+            assert view["pending"]["stage"] == "revision"
+            normal = service.client.get("/api/session", params={"id": name})
+            assert "saved draft" not in normal.text
+        finally:
+            service.model.release.set()
+        assert future.result().json()["turns"][0]["draft"] == "saved draft"
+
+
+def test_comparison_keeps_failed_revision_unpublished_and_reuses_its_draft(chat_service):
+    service = chat_service(
+        "saved draft",
+        {"status": "failed", "raw": "FAILED_REVISION"},
+        "final",
+        auto_proxy=True,
+    )
+    name = create(service)
+    response = service.client.post(
+        "/api/turn?compare=1",
+        json={"id": name, "text": "Begin.", "expected_version": version(service, name)},
+    )
+    assert response.status_code == 409
+    paused = service.client.get("/api/session", params={"id": name, "compare": "1"})
+    assert paused.json()["pending"]["draft"] == "saved draft"
+    assert paused.json()["pending"]["failed"] and paused.json()["turns"] == []
+    assert "FAILED_REVISION" not in paused.text
+    resumed = service.client.post("/api/resume?compare=1", json={"id": name})
+    assert resumed.status_code == 200
+    assert resumed.json()["turns"][0]["draft"] == "saved draft"
+    assert resumed.json()["turns"][0]["output"] == "final"
+    assert service.model.requests[1] == service.model.requests[2]
+
+
+def test_missing_draft_is_explicit_in_comparison_but_does_not_break_reading(chat_service):
+    service = chat_service("draft", "final", auto_proxy=True)
+    name = create(service)
+    session = service.app.session_path(name)
+    turn = core.submit(session, "Begin.", service.model)
+    (core.attempt_dir(session, turn["author"]) / "response.json").unlink()
+    assert service.client.get("/api/session", params={"id": name}).status_code == 200
+    result = service.client.get("/api/session", params={"id": name, "compare": "1"})
+    assert result.status_code == 409
+    assert str(session) not in result.text

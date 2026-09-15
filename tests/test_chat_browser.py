@@ -269,3 +269,109 @@ def test_browser_stale_rename_does_not_overwrite_a_new_name(browser, chat_servic
         assert page.locator(".session-list").evaluate("el => el.scrollWidth <= el.clientWidth")
     finally:
         page.close()
+
+
+@pytest.mark.parametrize("width", [1280, 390])
+def test_browser_comparison_formats_both_versions_and_preserves_turns(browser, chat_service, width):
+    draft = "**Unedited** verse.\nA second line.\n\n<script>window.draftLeak = true</script>"
+    revised = "**Revised** verse.\nAnother line.\n\n> A quiet reply."
+    service = chat_service(draft, revised, "Second draft.", "Second revision.", auto_proxy=True)
+    context = browser.new_context(
+        viewport={"width": width, "height": 900},
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    try:
+        page.goto(service.url + "/?compare=1")
+        if width <= 700:
+            page.get_by_role("button", name="Open story list", exact=True).click()
+        begin(page)
+        pair = page.locator(".comparison.story")
+        expect(pair).to_have_count(1)
+        expect(pair.locator(".draft strong")).to_have_text("Unedited")
+        expect(pair.locator(".revision strong")).to_have_text("Revised")
+        assert pair.locator(".draft br").count() == 1
+        assert pair.locator(".revision br").count() == 1
+        assert page.evaluate("window.draftLeak === undefined")
+        assert "SECRET_CANON" not in page.locator("main").inner_text()
+        left = pair.locator(".draft").bounding_box()
+        right = pair.locator(".revision").bounding_box()
+        assert left and right
+        if width > 1000:
+            assert left["x"] + left["width"] <= right["x"]
+            assert abs(left["y"] - right["y"]) < 1
+            assert abs(left["width"] - right["width"]) < 1
+        else:
+            assert left["y"] + left["height"] <= right["y"]
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        page.get_by_role("button", name="Copy draft 1", exact=True).click()
+        expect(page.locator("#toast")).to_have_text("Copied to clipboard")
+        assert page.evaluate("navigator.clipboard.readText()") == draft
+        page.get_by_role("button", name="Copy revision 1", exact=True).click()
+        assert page.evaluate("navigator.clipboard.readText()") == revised
+        composer = page.get_by_role("textbox", name="Your next turn")
+        composer.fill("I listen.")
+        page.reload()
+        expect(pair).to_have_count(1)
+        expect(composer).to_have_value("I listen.")
+        toggle = page.get_by_role("button", name="Compare drafts", exact=True)
+        expect(toggle).to_have_attribute("aria-pressed", "true")
+        toggle.click()
+        expect(pair).to_have_count(0)
+        expect(page.locator(".message.story strong")).to_have_text("Revised")
+        assert "Unedited" not in page.locator("main").inner_text()
+        toggle.click()
+        expect(pair.locator(".draft strong")).to_have_text("Unedited")
+        name = service.app.session_list()[0]["id"]
+        page.goto(f"{service.url}/#{name}")  # The browser preference also works without a query.
+        expect(toggle).to_have_attribute("aria-pressed", "true")
+        expect(pair.locator(".draft strong")).to_have_text("Unedited")
+        expect(composer).to_have_value("I listen.")
+        assert len(service.model.requests) == 2
+        composer.press("Control+Enter")
+        expect(pair).to_have_count(2)
+        expect(pair.nth(1).locator(".draft .prose")).to_have_text("Second draft.")
+        expect(pair.nth(1).locator(".revision .prose")).to_have_text("Second revision.")
+        assert len(service.model.requests) == 4
+        assert draft not in str(service.model.requests[2:])
+        assert not errors
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("transport", ["api", "proxy"])
+def test_browser_can_enable_comparison_during_an_existing_response(
+    browser, chat_service, transport
+):
+    service = chat_service(
+        "Saved draft.\nA line of verse.",
+        "Published revision.",
+        transport=transport,
+        auto_proxy=transport == "proxy",
+        pause_at=2,
+    )
+    page = browser.new_page()
+    try:
+        page.goto(service.url)
+        begin(page)
+        assert service.model.started.wait(5)
+        assert "Saved draft." not in page.locator("main").inner_text()
+        page.get_by_role("button", name="Compare drafts", exact=True).click()
+        expect(page.locator(".pending-comparison .draft .prose")).to_contain_text("Saved draft.")
+        expect(page.locator(".pending-comparison .revision .prose")).to_have_text(
+            "Revising the draft…"
+        )
+        page.reload()
+        expect(page.locator(".pending-comparison .draft .prose")).to_contain_text("Saved draft.")
+        expect(page.get_by_role("textbox", name="Your next turn")).to_be_disabled()
+        service.model.release.set()
+        expect(page.locator(".comparison.story")).to_have_count(1)
+        expect(page.locator(".comparison .revision .prose")).to_have_text("Published revision.")
+        expect(page.locator(".pending-comparison")).to_have_count(0)
+        expect(page.locator(".message.player")).to_have_count(1)
+        assert len(service.model.requests) == 2
+    finally:
+        service.model.release.set()
+        page.close()

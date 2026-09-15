@@ -21,8 +21,15 @@ let refreshAgain = false;
 let toastTimer;
 const sending = new Set();
 const mobile = matchMedia("(max-width: 700px)");
+const compareParam = new URLSearchParams(location.search).get("compare");
+let comparing = compareParam === null ? storage.get("compare") === "true" : compareParam === "1";
 
 async function api(path, body) {
+  if (comparing) {
+    const url = new URL(path, location.origin);
+    url.searchParams.set("compare", "1");
+    path = url.pathname + url.search;
+  }
   const response = await fetch(path, {
     method: body === undefined ? "GET" : "POST",
     headers: body === undefined ? {} : { "Content-Type": "application/json", "X-Chat-Token": token },
@@ -134,6 +141,55 @@ function message(role, html, label) {
   return article;
 }
 
+function passage(text, html, number, role = "story") {
+  const label = role === "draft" ? "UNEDITED DRAFT" : role === "revision" ? "REVISION" : "THE STORY";
+  const article = message(role, html, label);
+  const kind = role === "story" ? "passage" : role;
+  if (role !== "story") article.setAttribute("aria-label", `${label.toLocaleLowerCase()} ${number + 1}`);
+  const tools = node("div", "message-tools");
+  const copyButton = node("button", "copy-passage", `Copy ${kind}`);
+  copyButton.setAttribute("aria-label", `Copy ${kind} ${number + 1}`);
+  copyButton.addEventListener("click", () => copy(text));
+  tools.append(copyButton, node("span", "passage-number", `Passage ${number + 1}`));
+  article.append(tools);
+  return article;
+}
+
+function comparison(turn, number, pending = false) {
+  const pair = node("section", `message comparison ${pending ? "pending-comparison" : "story"}`);
+  pair.setAttribute("aria-label", `Passage ${number + 1} comparison`);
+  let draft;
+  if (typeof turn.draft === "string") draft = passage(turn.draft, turn.draft_html, number, "draft");
+  else {
+    draft = message("draft", "", "UNEDITED DRAFT");
+    draft.querySelector(".prose").append(node("p", "comparison-waiting", pending && turn.stage === "draft" ? (turn.failed ? "Draft paused." : "Writing the draft…") : "Loading saved draft…"));
+  }
+  let revision;
+  if (!pending) revision = passage(turn.output, turn.output_html, number, "revision");
+  else {
+    revision = message("revision", "", "REVISION");
+    revision.querySelector(".prose").append(node("p", "comparison-waiting", turn.stage === "draft" ? "The revision follows the draft." : turn.failed ? "Revision paused. Continue the response to retry." : "Revising the draft…"));
+  }
+  pair.append(draft, revision);
+  return pair;
+}
+
+function setComparison(enabled) {
+  comparing = enabled;
+  storage.set("compare", String(enabled));
+  $("compare").setAttribute("aria-pressed", String(enabled));
+  $("comparison-note").hidden = !enabled;
+  $("conversation").classList.toggle("comparing", enabled);
+  const url = new URL(location.href);
+  if (enabled) url.searchParams.set("compare", "1");
+  else url.searchParams.delete("compare");
+  history.replaceState(null, "", url);
+  if (current) {
+    renderView({ ...current, compare: enabled });
+    refresh();
+  }
+}
+
 function confirmSubmission(view) {
   const saved = storage.get(`submission:${view.id}`);
   if (!saved) return;
@@ -150,6 +206,7 @@ function confirmSubmission(view) {
 
 function renderView(view) {
   if (view.id !== selected) return;
+  if (Boolean(view.compare) !== comparing) return;
   if (current && view.turn_count < current.turn_count) return;
   const previousCount = current?.turn_count || 0;
   current = view;
@@ -160,7 +217,7 @@ function renderView(view) {
   $("story-title").textContent = view.title;
   $("story-kicker").textContent = `PLAYING AS ${view.player.toLocaleUpperCase()}`;
   document.title = `${view.title} · Ayoa`;
-  const signature = JSON.stringify([view.id, view.turns, view.pending?.input]);
+  const signature = JSON.stringify([view.id, comparing, view.turns, comparing ? view.pending : view.pending?.input]);
   if (signature !== rendered) {
     const initial = !rendered;
     const follow = nearBottom() || initial;
@@ -178,16 +235,13 @@ function renderView(view) {
     }
     for (const turn of view.turns) {
       const player = message("player", turn.input_html, "YOU");
-      const story = message("story", turn.output_html, "THE STORY");
-      const tools = node("div", "message-tools");
-      const copyButton = node("button", "copy-passage", "Copy passage");
-      copyButton.setAttribute("aria-label", `Copy passage ${turn.number + 1}`);
-      copyButton.addEventListener("click", () => copy(turn.output));
-      tools.append(copyButton, node("span", "passage-number", `Passage ${turn.number + 1}`));
-      story.append(tools);
+      const story = comparing ? comparison(turn, turn.number) : passage(turn.output, turn.output_html, turn.number);
       conversation.append(player, story, node("div", "turn-divider"));
     }
-    if (view.pending) conversation.append(message("player", view.pending.input_html, "YOU"));
+    if (view.pending) {
+      conversation.append(message("player", view.pending.input_html, "YOU"));
+      if (comparing) conversation.append(comparison(view.pending, view.turn_count, true));
+    }
     if (view.pending && sending.has(view.id)) reader.scrollTop = reader.scrollHeight;
     else if (follow && view.turn_count && (initial || view.turn_count > previousCount)) goLatest();
     else if (follow) reader.scrollTop = reader.scrollHeight;
@@ -447,6 +501,7 @@ $("latest").addEventListener("click", () => goLatest());
 reader.addEventListener("scroll", updateLatest);
 $("dismiss-notice").addEventListener("click", () => notice(""));
 $("theme").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+$("compare").addEventListener("click", () => setComparison(!comparing));
 $("smaller").addEventListener("click", () => setSize(Number($("text-size").textContent) - 2));
 $("larger").addEventListener("click", () => setSize(Number($("text-size").textContent) + 2));
 for (const button of document.querySelectorAll("[data-close]")) button.addEventListener("click", () => $(button.dataset.close).close());
@@ -458,6 +513,7 @@ for (const dialog of document.querySelectorAll("dialog")) dialog.addEventListene
 });
 setTheme(storage.get("theme") || "light");
 setSize(Number(storage.get("size")) || 20);
+setComparison(comparing);
 toggleSidebar(false);
 if (/Mac|iPhone|iPad/.test(navigator.platform)) $("send-shortcut").textContent = "⌘";
 

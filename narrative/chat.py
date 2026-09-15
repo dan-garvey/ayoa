@@ -31,6 +31,14 @@ def title(name: str) -> str:
     return name.replace("_", " ").replace("-", " ").title()
 
 
+def draft_view(session: Path, request_id: str | None) -> dict:
+    if request_id is None:
+        return {"draft": None, "draft_html": None}
+    response = core.read_json(core.attempt_dir(session, request_id) / "response.json")
+    text = core.response_text(response)
+    return {"draft": text, "draft_html": format_text(text)}
+
+
 class ChatApp:
     def __init__(
         self,
@@ -87,7 +95,9 @@ class ChatApp:
                 )
         return result
 
-    def create(self, story_id: str, player_name: str | None = None) -> dict:
+    def create(
+        self, story_id: str, player_name: str | None = None, *, compare: bool = False
+    ) -> dict:
         if story_id not in {story["id"] for story in self.story_list()}:
             raise ValueError("Choose one of the available stories")
         name = f"{story_id}-{uuid.uuid4().hex[:12]}"
@@ -98,7 +108,7 @@ class ChatApp:
             player_name=player_name,
             **self.defaults,
         )
-        return self.view(name)
+        return self.view(name, compare=compare)
 
     @contextmanager
     def operation(self, session: Path):
@@ -145,7 +155,7 @@ class ChatApp:
                 result.append({"id": name, "title": title(session.name), "unavailable": True})
         return sorted(result, key=lambda item: item.get("updated_at", ""), reverse=True)
 
-    def view(self, name: str) -> dict:
+    def view(self, name: str, *, compare: bool = False) -> dict:
         session = self.session_path(name)
         # State replacement is atomic. Reading it does not wait on a model call's
         # file lock, so reload and progress remain available during generation.
@@ -178,12 +188,15 @@ class ChatApp:
                 "failed": failure,
                 "stage": "revision" if pending["author"] else "draft",
             }
+            if compare:
+                waiting.update(draft_view(session, pending["author"]))
         return {
             "id": name,
             "title": title(manifest["story"]),
             "player": player["name"],
             "created_at": manifest["created_at"],
             "transport": manifest["transport"],
+            "compare": compare,
             "turn_count": len(state["turns"]),
             "version": core.state_version(state),
             "turns": [
@@ -193,6 +206,7 @@ class ChatApp:
                     "input_html": format_text(turn["input"]),
                     "output": turn["output"],
                     "output_html": format_text(turn["output"]),
+                    **(draft_view(session, turn["author"]) if compare else {}),
                 }
                 for turn in state["turns"]
             ],
@@ -200,7 +214,7 @@ class ChatApp:
             "busy": self.busy(session),
         }
 
-    def action(self, name: str, command: str, body: dict) -> dict:
+    def action(self, name: str, command: str, body: dict, *, compare: bool = False) -> dict:
         session = self.session_path(name)
         with self.operation(session):
             manifest, _ = core.load_session(session)
@@ -240,7 +254,7 @@ class ChatApp:
                         core.resume(session, client)
                     else:
                         raise ValueError("Unknown story action")
-        return self.view(name)
+        return self.view(name, compare=compare)
 
     def handoff(self, name: str) -> dict:
         session = self.session_path(name)
@@ -341,7 +355,7 @@ class ChatHandler(BaseHTTPRequestHandler):
             elif url.path == "/api/sessions":
                 self.json(200, {"sessions": app.session_list()})
             elif url.path == "/api/session":
-                self.json(200, app.view(name))
+                self.json(200, app.view(name, compare=query.get("compare") == ["1"]))
             elif url.path == "/api/handoff":
                 self.json(200, app.handoff(name))
             elif url.path == "/api/transcript":
@@ -378,11 +392,18 @@ class ChatHandler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length))
             if not isinstance(body, dict):
                 raise ValueError("Invalid story action")
-            route = urlsplit(self.path).path
+            url = urlsplit(self.path)
+            route = url.path
+            compare = parse_qs(url.query).get("compare") == ["1"]
             if route == "/api/sessions":
-                self.json(201, app.create(body.get("story"), body.get("player_name")))
+                self.json(
+                    201, app.create(body.get("story"), body.get("player_name"), compare=compare)
+                )
             elif route in {"/api/turn", "/api/resume", "/api/accept", "/api/rename"}:
-                self.json(200, app.action(body.get("id"), route.removeprefix("/api/"), body))
+                self.json(
+                    200,
+                    app.action(body.get("id"), route.removeprefix("/api/"), body, compare=compare),
+                )
             else:
                 self.json(404, {"error": "Unknown story action"})
         except (ValueError, core.NarrativeError) as exc:

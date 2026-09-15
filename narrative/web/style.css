@@ -80,6 +80,10 @@ svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width:
 .icon-button::-webkit-details-marker { display: none; }
 .icon-button:hover:not(:disabled) { background: var(--soft); color: var(--ink); }
 .status-chip { font-size: 11px; padding: 6px 10px; background: var(--soft); color: var(--accent); border-radius: 20px; white-space: nowrap; }
+.compare-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 36px; height: 36px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: transparent; font-size: 11px; white-space: nowrap; }
+.compare-button svg { width: 18px; height: 18px; }
+.compare-button:hover, .compare-button[aria-pressed="true"] { background: var(--soft); color: var(--accent); border-color: var(--accent); }
+.comparison-note { padding: 10px 38px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .reading-menu { position: relative; }
 .reading-menu > summary { font: 18px Georgia, serif; }
 .reading-popover { position: absolute; top: 44px; right: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); width: 212px; z-index: 5; font-size: 12px; }
@@ -88,6 +92,15 @@ svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width:
 .theme-button { border: 0; background: var(--soft); border-radius: 6px; width: 100%; padding: 10px 5px; font-size: 11px; margin-top: 18px; }
 .reader { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; scrollbar-gutter: stable; scroll-behavior: auto; }
 .conversation { width: min(100%, 790px); margin: 0 auto; padding: 38px 40px 20px; }
+.conversation.comparing { width: min(100%, 1480px); }
+.comparing .message.player { max-width: 710px; margin-left: auto; margin-right: auto; }
+.comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.comparison > .message { min-width: 0; margin: 0; padding: 8px 22px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; }
+.comparison .message-meta { position: sticky; top: 0; z-index: 1; background: var(--surface); padding: 15px 0; margin-bottom: 8px; }
+.comparison .revision .message-meta { color: var(--accent); }
+.comparison .prose { flex: 1; }
+.comparison .message-tools { margin-top: 18px; }
+.comparison-waiting { color: var(--muted); font: 13px/1.8 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .message { margin-bottom: 35px; }
 .message-meta { display: flex; align-items: center; gap: 9px; font-size: 10px; letter-spacing: 1.6px; color: var(--muted); font-weight: 600; margin-bottom: 16px; }
 .message-mark { font: 19px Georgia, serif; color: var(--accent); letter-spacing: 0; }
@@ -163,11 +176,13 @@ select, .dialog textarea, .dialog input[type="text"] { color: var(--ink); backgr
 .mobile-menu { display: none; }.scrim { position: fixed; inset: 0; background: #1119; border: 0; z-index: 9; }
 @keyframes breathe { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
 @media (max-width: 900px) { .sidebar { width: 225px; padding-left: 13px; padding-right: 13px; }.topbar { padding: 18px 25px; }.conversation { padding-left: 28px; padding-right: 28px; }.composer-area { padding-left: 28px; padding-right: 28px; } }
+@media (max-width: 1000px) { .comparison { grid-template-columns: minmax(0, 1fr); }.comparison-note { padding-left: 25px; padding-right: 25px; } }
 @media (max-width: 700px) {
   .sidebar { position: fixed; z-index: 10; top: 0; bottom: 0; width: min(290px, 85vw); transform: translateX(-100%); transition: transform .2s ease; padding: 25px 19px; }
   .sidebar.open { transform: translateX(0); }.mobile-menu { display: flex; flex-shrink: 0; }
   .topbar { min-height: 78px; padding: 14px 15px; gap: 11px; }.story-heading { flex: 1; }.story-heading h1 { font-size: 21px; }.story-heading .eyebrow { font-size: 8px; letter-spacing: 1.3px; }
   .header-actions { gap: 3px; }.status-chip { display: none; }
+  .compare-button { padding: 7px; }.compare-button span { display: none; }.comparison-note { padding: 9px 22px; font-size: 10px; }.comparison > .message { padding-left: 16px; padding-right: 16px; }
   .conversation { padding: 28px 22px 12px; }.prose { font-size: calc(var(--story-size) - 1px); line-height: 1.8; }
   .message.player { margin-left: 18px; }.message.player .prose { padding: 15px 17px; font-size: calc(var(--story-size) - 2px); }
   .composer-area { padding: 8px 15px max(10px, env(safe-area-inset-bottom)); }.composer textarea { font-size: 16px; padding-left: 16px; padding-right: 16px; max-height: 160px; }.composer-tools { padding-left: 16px; }

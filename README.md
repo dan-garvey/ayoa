@@ -38,6 +38,15 @@ preferences offer light/dark appearance and adjustable text size. New passages
 open at their beginning; incoming responses preserve your position when you are
 reading earlier text. You can copy a passage or download the published transcript.
 
+For temporary evaluation, enable **Compare drafts** in the header, or open
+**http://localhost:8765/?compare=1**. Each passage shows its saved unedited draft
+on the left and its revision on the right, with the same text formatting and
+separate copy buttons. Narrow screens stack the draft above the revision. A
+completed draft is also visible while its revision is running or paused. The
+toggle persists in the browser; turn it off to return to reading. Comparison
+makes no model calls, and only published revisions enter future story history
+and transcript downloads.
+
 Write in the multiline composer. **Ctrl+Enter** (or **Cmd+Enter**) sends;
 **Enter** inserts a line break. Unsent text and reading preferences survive reloads
 in the same browser. Accepted turns are saved to the session files. An unfinished

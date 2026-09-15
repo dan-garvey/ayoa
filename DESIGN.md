@@ -127,12 +127,21 @@ or submit a turn after an identity change. The version never enters model contex
 and needs no separate persisted counter. Failed reads and actions leave the saved
 turn explicit.
 
-The conversation projection includes only published exchanges, the current player
+The normal conversation projection includes only published exchanges, the current player
 submission and response status. Drafts, canon, provider output and credentials are
 excluded. Proxy handoffs are a separate, explicitly opened operator surface that
 returns the actual prepared request and accepts a response by its pending id.
 The UI stores unsent composer text and reading preferences in browser storage;
 canonical history continues to live in the session directory.
+
+The optional evaluation view uses `compare=1` on the same chat endpoints to include
+the saved author text alongside each published revision. A successful pending
+draft is available while its editor runs or retries; failed revision text remains
+unpublished. The projection extracts only the final text, excluding requests,
+canon and response metadata. It reads the original attempt records without
+changing them or invoking a model. Browser preferences and the URL control the
+view; no comparison setting enters session state, model context or transcript
+exports. Both columns use the same Markdown renderer and stack on narrow screens.
 
 Formatting uses Markdown with raw HTML disabled, following the
 [parser's security guidance](https://markdown-it-py.readthedocs.io/en/latest/security.html).

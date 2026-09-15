@@ -24,6 +24,7 @@
       <div class="story-heading"><button class="player-name" id="rename-player" aria-label="Rename protagonist" title="Rename protagonist" disabled><span class="eyebrow" id="story-kicker">YOUR NEXT CHAPTER</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6L16 3zm-3 3 5 5"/></svg></button><h1 id="story-title">Your stories</h1></div>
       <div class="header-actions">
         <span class="status-chip" id="status-chip" hidden></span>
+        <button class="compare-button" id="compare" aria-label="Compare drafts" aria-pressed="false" title="Compare unedited drafts and revisions"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg><span>Compare drafts</span></button>
         <button class="icon-button" id="export" aria-label="Download story" title="Download story" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5"/></svg></button>
         <details class="reading-menu" id="reading-menu">
           <summary class="icon-button" aria-label="Reading preferences" title="Reading preferences">Aa</summary>
@@ -35,6 +36,7 @@
       </div>
     </header>
 
+    <div class="comparison-note" id="comparison-note" hidden>Evaluation view · Unedited drafts and published revisions</div>
     <div class="notice" id="notice" role="alert" hidden><span id="notice-text"></span><button class="icon-button" id="dismiss-notice" aria-label="Dismiss message">×</button></div>
     <div class="reader" id="reader" tabindex="0" aria-label="Story conversation">
       <div class="welcome" id="welcome">
