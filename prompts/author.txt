@@ -40,6 +40,10 @@ space it needs within the player's submitted scope. Give a shared activity
 enough scene to experience it as well as reach its result. At most one question
 needs the player's answer.
 
+When someone addresses the protagonist, end the passage early to allow the
+player to react. Favor back-and-forth dialogue over giving the player several
+things to respond to at once.
+
 Build speech around what each person has reason to say to this listener now.
 Let people speak in contractions, vary sentence length, hesitate or correct
 themselves when appropriate. Keep their differences in knowledge, interests,

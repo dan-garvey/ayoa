@@ -49,6 +49,12 @@ This choice retains ordinary situational humor and avoids a mandatory second pas
 that can flatten voice or remove interaction. It does not establish that every
 individual edit was worse or that the new prompt has passed a fresh literary trial.
 
+The user's opening correction is now also a standing author instruction: end the
+passage early when someone addresses the protagonist, leaving room for the player
+to react instead of accumulating several things to answer. This preference lives
+in the reusable prompt and the current Sol playtest's updated snapshot, so it does
+not depend on retaining a regeneration request in story history.
+
 Explicit regeneration uses the original player action, the current passage and
 the user's new instructions. The new passage replaces the current one atomically.
 Later turns contain neither the rejected passage nor regeneration feedback; both
