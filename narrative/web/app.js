@@ -212,9 +212,9 @@ function updateControls() {
   $("resume").hidden = !pending || busy || pending.handoff_ready;
   $("handoff").hidden = !pending?.handoff_ready || busy;
   let status = "Your turn";
-  if (busy) status = "Writing the next passage…";
+  if (busy) status = pending?.stage === "revision" ? "Refining the passage…" : "Writing the next passage…";
   else if (pending?.failed) status = "The response paused. Your turn is saved.";
-  else if (pending?.handoff_ready) status = "Waiting for a response.";
+  else if (pending?.handoff_ready) status = "Manual response needed. Open the handoff to add it.";
   else if (pending) status = "A response is unfinished. Your turn is saved.";
   $("response-status-text").textContent = status;
   $("status-chip").textContent = busy ? "Writing…" : pending ? "Waiting" : "Your turn";
@@ -471,7 +471,7 @@ async function start() {
     }));
     chooseStory();
     $("create-story").disabled = !storyChoices.length;
-    $("mode-note").textContent = boot.transport === "proxy" ? "This session uses response handoffs. You can copy each request and bring the reply back here." : "The story will respond automatically after each turn.";
+    $("mode-note").textContent = boot.automatic ? "The story will respond automatically after each turn." : "Manual mode: you must provide each response through the handoff controls.";
     const list = await api("/api/sessions");
     renderSessions(list.sessions);
     let hash = "";

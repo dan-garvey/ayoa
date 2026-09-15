@@ -19,7 +19,7 @@ class StoryClient:
         self.started = threading.Event()
         self.release = threading.Event()
 
-    def create(self, **request):
+    def reply(self, request):
         self.requests.append(copy.deepcopy(request))
         if len(self.requests) == self.pause_at:
             self.started.set()
@@ -28,6 +28,14 @@ class StoryClient:
         reply = next(self.replies)
         if isinstance(reply, Exception):
             raise reply
+        return reply
+
+    def __call__(self, request):
+        reply = self.reply(request)
+        return reply if isinstance(reply, dict) else {"status": "completed", "raw": reply}
+
+    def create(self, **request):
+        reply = self.reply(request)
         value = {
             "status": "completed",
             "output": [{"type": "message", "content": [{"type": "output_text", "text": reply}]}],
@@ -50,7 +58,7 @@ def chat_service(tmp_path):
     services = []
     with ExitStack() as stack:
 
-        def start(*replies, transport="proxy", pause_at=None):
+        def start(*replies, transport="proxy", pause_at=None, auto_proxy=False):
             model = StoryClient(replies, pause_at)
             app = ChatApp(
                 tmp_path / f"sessions-{len(services)}",
@@ -58,6 +66,7 @@ def chat_service(tmp_path):
                 prompts=prompts,
                 transport=transport,
                 client_factory=lambda: nullcontext(model),
+                proxy_runner=model if auto_proxy else None,
             )
             server = ChatServer(app, 0)
             thread = threading.Thread(target=server.serve_forever, daemon=True)

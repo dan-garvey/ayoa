@@ -47,10 +47,10 @@ projection, metadata, and a raw response or error when available. Drafts remain
 in their attempt records. Completing the editor atomically publishes its exact
 text and clears the pending submission in one state replacement.
 
-An exclusive POSIX file lock serializes operations on a session, including API
+An exclusive POSIX file lock serializes operations on a session, including model
 calls. File replacements are flushed and synced before advancing. A response
 saved before a process failure is consumed on resume; it is not regenerated.
-API attempts have a durable start marker. When a process dies after dispatch
+Automatic attempts have a durable start marker. When a process dies after dispatch
 without saving a response, the remote outcome is unknown. Explicit resume may
 repeat that call; there is no claim of exactly-once remote execution.
 
@@ -58,8 +58,8 @@ Transport failures, refusals, incomplete responses and empty outputs do not
 publish a turn. Resume retries only the failed stage, preserving a successful
 draft. A new submission is rejected while one is pending. Proxy acceptance is
 bound to a request id and rejects stale or duplicate responses. Text-only proxy
-acceptance cannot distinguish a prose refusal from ordinary prose; the operator
-must supply the agent's complete final output and inspect it. Empty proxy outputs
+acceptance cannot distinguish a prose refusal from ordinary prose; the complete
+final message is preserved for human inspection. Empty proxy outputs
 are preserved and rejected.
 
 The API transport uses Responses with full text history, `store=false`, disabled
@@ -68,10 +68,28 @@ loaded from an explicit environment file. The request/response contract follows
 the [official Responses reference](https://developers.openai.com/api/reference/python/resources/responses/methods/create).
 No API credential is needed for initialization, proxy work, exports or tests.
 
-Proxy mode exports the same request as JSON and role-delimited text. A coding
-agent reads the text and supplies a final response through `accept`. Tool access,
-system wrappers and reasoning controls differ from direct API execution: this
-is a narrative-testing proxy, not an assertion of identical model behavior.
+Proxy mode exports the same request as JSON and role-delimited text. The browser
+automatically supplies that exact text to a fresh `codex exec` process for each
+stage, using the frozen model and reasoning settings. It uses the CLI's existing
+login, an empty temporary workspace, a read-only sandbox, and disabled repository
+instruction discovery, memory, plugins, shell, image/browser tools and delegation.
+The command uses stdin for the complete request and reads only the final-message
+file. Progress and reasoning streams are discarded. The
+[official non-interactive CLI reference](https://learn.chatgpt.com/docs/non-interactive-mode)
+documents stdin, isolated runs and final-message output; this runner was verified
+with Codex CLI 0.154.0.
+
+Automatic proxy responses use the same start markers, request validation, raw
+response records, publication and retry loop as direct API calls. A nonzero CLI
+exit, timeout or empty final message cannot publish; any available final text is
+retained. Timed-out process groups are stopped. A prepared manual request can be
+continued automatically without changing its identity, snapshots or manifest.
+
+`chat --manual` keeps copy/paste handoffs. Terminal proxy commands remain manual
+unless `turn` or `resume` receives `--auto`; `accept` still records manual replies.
+Coding-agent system wrappers and context/output limits differ from direct API
+execution, and the API's `max_output_tokens` is not a CLI output control. This is
+a narrative-testing proxy, not an assertion of identical model behavior.
 
 ## Operating limits
 
@@ -79,7 +97,8 @@ Transcripts contain published fiction and player inputs. Exports are derived
 and can be rebuilt after a failure; publication does not depend on their being
 present. Usage summaries include both stages and unsuccessful API responses with
 reported usage. Prepared proxy requests are not billed API calls; unavailable
-token usage and proxy latency are null, not invented estimates.
+token usage and manual proxy latency are null, not invented estimates. Automatic
+proxy invocation counts and elapsed time are recorded separately from API calls.
 
 Complete text history grows with play. Context-limit failures remain explicit;
 there is no automatic compaction, background simulation or hidden planning log.
@@ -99,8 +118,10 @@ Stopping the server still uses the core's existing interrupted-attempt recovery.
 
 An in-memory guard identifies active HTTP operations and rejects simultaneous
 requests for the same session. The core's file lock remains authoritative across
-CLI and browser processes. Browser turns and renames include a version derived
-from the state they were composed against; the core checks it under that lock.
+CLI and browser processes; progress reads probe that lock without blocking so an
+external CLI response also appears busy. Browser turns and renames include a
+version derived from the state they were composed against; the core checks it
+under that lock.
 This replaces the former turn-count check so stale tabs cannot overwrite a name
 or submit a turn after an identity change. The version never enters model context
 and needs no separate persisted counter. Failed reads and actions leave the saved
@@ -128,3 +149,10 @@ reload during generation, saved composer text, mobile navigation and reading
 position. Naming checks also cover both model calls, unchanged raw history,
 concurrent and pending edits, stale tabs, Unicode and mobile layout. Live narrative
 quality remains evaluated through the separate playtests.
+
+Automatic proxy validation covers the default CLI wiring, exact stdin requests,
+fresh workspaces, final-only output, failed/timeout results, resuming saved manual
+requests, preserving successful drafts on retry, and browser reload during both
+API and proxy execution. The user's previously pending Covenant opening was
+completed with two real Terra/max CLI calls; its private raw artifacts remain in
+the user's session directory.

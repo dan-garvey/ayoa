@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from playwright.sync_api import expect
 
 from narrative import core
@@ -71,8 +72,17 @@ def test_browser_proxy_turns_markdown_drafts_copy_download_and_reload(browser, c
         context.close()
 
 
-def test_browser_reload_during_generation_preserves_turn_and_hides_draft(browser, chat_service):
-    service = chat_service("HIDDEN_DRAFT", "The door opens.", transport="api", pause_at=2)
+@pytest.mark.parametrize("transport", ["api", "proxy"])
+def test_browser_reload_during_generation_preserves_turn_and_hides_draft(
+    browser, chat_service, transport
+):
+    service = chat_service(
+        "HIDDEN_DRAFT",
+        "The door opens.",
+        transport=transport,
+        pause_at=2,
+        auto_proxy=transport == "proxy",
+    )
     page = browser.new_page()
     try:
         page.goto(service.url)
@@ -81,6 +91,8 @@ def test_browser_reload_during_generation_preserves_turn_and_hides_draft(browser
         expect(page.get_by_role("textbox", name="Your next turn")).to_be_disabled()
         page.reload()
         expect(page.locator("#status-chip")).to_have_text("Writing…")
+        expect(page.locator("#response-status-text")).to_have_text("Refining the passage…")
+        expect(page.get_by_role("button", name="Response handoff", exact=True)).not_to_be_visible()
         assert "HIDDEN_DRAFT" not in page.locator("main").inner_text()
         assert len(service.model.requests) == 2
         service.model.release.set()
@@ -93,8 +105,17 @@ def test_browser_reload_during_generation_preserves_turn_and_hides_draft(browser
         page.close()
 
 
-def test_browser_failure_can_resume_without_resubmitting_player_turn(browser, chat_service):
-    service = chat_service("saved draft", TimeoutError(), "At last, an answer.", transport="api")
+@pytest.mark.parametrize("transport", ["api", "proxy"])
+def test_browser_failure_can_resume_without_resubmitting_player_turn(
+    browser, chat_service, transport
+):
+    service = chat_service(
+        "saved draft",
+        TimeoutError(),
+        "At last, an answer.",
+        transport=transport,
+        auto_proxy=transport == "proxy",
+    )
     page = browser.new_page()
     try:
         page.goto(service.url)

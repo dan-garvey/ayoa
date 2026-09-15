@@ -102,6 +102,20 @@ def locked(session: Path):
         yield
 
 
+def is_busy(session: Path) -> bool:
+    """Read the existing lock without waiting or creating files."""
+    try:
+        handle = (session / ".lock").open("r")
+    except FileNotFoundError:
+        return False
+    with handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+    return False
+
+
 def init_session(
     session: Path,
     story: Path,
@@ -191,6 +205,11 @@ def load_session(session: Path) -> tuple[dict, dict]:
 
 def response_text(response: dict) -> str:
     if response["transport"] == "proxy":
+        if response.get("status", "completed") != "completed":
+            raise ResponseError(
+                f"Coding-agent response {response['status']} (exit {response.get('exit_code')}); "
+                "raw output preserved. Check codex login status and resume to retry."
+            )
         text = response["raw"]
     else:
         raw = response["raw"]
@@ -301,25 +320,29 @@ def _check_request(session: Path, manifest: dict, state: dict, path: Path) -> di
     request = read_json(path / "request.json")
     if request != make_request(session, manifest, state):
         raise NarrativeError("Pending request no longer matches its frozen context")
-    if (path / "request.txt").read_text(encoding="utf-8") != render_request(request):
+    if (path / "request.txt").read_bytes().decode("utf-8") != render_request(request):
         raise NarrativeError("Pending text request was changed")
     return request
 
 
-def _call_api(path: Path, request: dict, client: Any) -> None:
+def _call_model(path: Path, request: dict, client: Any, transport: str) -> None:
     if client is None:
-        raise NarrativeError("API execution requires a client")
+        raise NarrativeError("Automatic execution requires a client")
     write_json(path / "started.json", {"started_at": now()})
     started = time.monotonic()
     try:
-        response = client.responses.create(**request)
+        response = (
+            {"raw": client.responses.create(**request).model_dump(mode="json")}
+            if transport == "api"
+            else client(request)
+        )
         write_json(
             path / "response.json",
             {
-                "transport": "api",
+                **response,
+                "transport": transport,
                 "received_at": now(),
                 "duration_s": time.monotonic() - started,
-                "raw": response.model_dump(mode="json"),
             },
         )
     except Exception as exc:
@@ -332,8 +355,10 @@ def _call_api(path: Path, request: dict, client: Any) -> None:
                 "duration_s": time.monotonic() - started,
             },
         )
+        if isinstance(exc, NarrativeError):
+            raise
         raise NarrativeError(
-            f"API attempt failed ({type(exc).__name__}); use resume to retry explicitly"
+            f"Automatic response failed ({type(exc).__name__}); use resume to retry explicitly"
         ) from exc
 
 
@@ -375,7 +400,7 @@ def _drive(session: Path, manifest: dict, state: dict, client: Any, *, retry: bo
             write_json(session / "state.json", state)
             _export(session, manifest, state)
             return {"status": "published", **turn}
-        if manifest["transport"] == "proxy":
+        if manifest["transport"] == "proxy" and client is None:
             return {
                 "status": "pending",
                 "stage": "editor" if pending["author"] else "author",
@@ -385,13 +410,13 @@ def _drive(session: Path, manifest: dict, state: dict, client: Any, *, retry: bo
             }
         if (path / "started.json").exists():
             if not retry:
-                raise NarrativeError("Interrupted API attempt; use resume to retry explicitly")
+                raise NarrativeError("Interrupted model attempt; use resume to retry explicitly")
             pending["request_id"] = None
             write_json(session / "state.json", state)
             retry = False
             continue
         retry = False
-        _call_api(path, request, client)
+        _call_model(path, request, client, manifest["transport"])
     _export(session, manifest, state)
     return {"status": "idle", "published_turns": len(state["turns"])}
 
@@ -476,13 +501,13 @@ def _export(session: Path, manifest: dict, state: dict) -> dict:
             ]
         )
     totals = {"input_tokens": 0, "output_tokens": 0, "cached_tokens": 0, "reasoning_tokens": 0}
-    prepared = received = api_started = usage_reported = 0
+    prepared = received = automatic_started = usage_reported = 0
     seconds = 0.0
     for path in (session / "attempts").iterdir():
         if not path.is_dir() or not (path / "meta.json").exists():
             continue
         prepared += 1
-        api_started += (path / "started.json").exists()
+        automatic_started += (path / "started.json").exists()
         response_path = path / "response.json"
         response = read_json(response_path) if response_path.exists() else None
         if response is not None:
@@ -501,6 +526,8 @@ def _export(session: Path, manifest: dict, state: dict) -> dict:
                 )
         elif (path / "error.json").exists():
             seconds += read_json(path / "error.json").get("duration_s") or 0
+    api_started = automatic_started if manifest["transport"] == "api" else 0
+    proxy_started = automatic_started if manifest["transport"] == "proxy" else 0
     summary = {
         "published_turns": len(state["turns"]),
         "pending_stage": ("editor" if state["pending"]["author"] else "author")
@@ -508,10 +535,12 @@ def _export(session: Path, manifest: dict, state: dict) -> dict:
         else None,
         "requests_prepared": prepared,
         "api_calls_started": api_started,
+        "proxy_calls_started": proxy_started,
         "responses_received": received,
         "responses_with_usage": usage_reported,
         "reported_usage": totals if usage_reported else None,
         "recorded_api_seconds": round(seconds, 3) if api_started else None,
+        "recorded_proxy_seconds": round(seconds, 3) if proxy_started else None,
         "visible_words": sum(len(turn["output"].split()) for turn in state["turns"]),
     }
     atomic_write(session / "transcript.md", "\n".join(lines).encode())

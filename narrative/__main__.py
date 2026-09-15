@@ -21,6 +21,7 @@ def parser() -> argparse.ArgumentParser:
     chat.add_argument("--reasoning", default="max")
     chat.add_argument("--max-output-tokens", type=int, default=12000)
     chat.add_argument("--env-file", type=Path)
+    chat.add_argument("--manual", action="store_true", help="Use pasted replies for proxy sessions")
     for name in ("init", "turn", "accept", "resume", "export", "rename"):
         command = commands.add_parser(name)
         command.add_argument("--session", type=Path, required=True)
@@ -44,6 +45,7 @@ def parser() -> argparse.ArgumentParser:
             command.add_argument("--player-name", required=True)
         if name in {"turn", "resume"}:
             command.add_argument("--env-file", type=Path)
+            command.add_argument("--auto", action="store_true", help="Run proxy replies with Codex")
     return result
 
 
@@ -64,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "chat":
             from .chat import serve
+            from .codex import CodexProxy
 
             serve(
                 args.sessions,
@@ -73,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
                 reasoning=args.reasoning,
                 max_output_tokens=args.max_output_tokens,
                 client_factory=lambda: api_client(args.env_file),
+                proxy_runner=None if args.manual else CodexProxy(),
             )
             return 0
         session = args.session.resolve()
@@ -101,7 +105,14 @@ def main(argv: list[str] | None = None) -> int:
             value = core.rename_player(session, args.player_name)
         else:
             manifest, _ = core.load_session(session)
-            context = api_client(args.env_file) if manifest["transport"] == "api" else nullcontext()
+            if manifest["transport"] == "api":
+                context = api_client(args.env_file)
+            elif args.auto:
+                from .codex import CodexProxy
+
+                context = nullcontext(CodexProxy())
+            else:
+                context = nullcontext()
             with context as client:
                 if args.command == "turn":
                     text = (

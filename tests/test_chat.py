@@ -248,3 +248,60 @@ def test_chat_rejects_invalid_name_before_creation_and_rename_while_pending(chat
     )
     assert result.status_code == 409 and "pending response" in result.json()["error"]
     assert (session / "state.json").read_bytes() == before
+
+
+def test_automatic_proxy_resumes_existing_handoff_and_retries_only_failed_revision(chat_service):
+    service = chat_service(
+        "saved draft",
+        {"status": "failed", "exit_code": 7, "raw": "unfinished revision"},
+        "Published passage.",
+        auto_proxy=True,
+    )
+    name = create(service)
+    session = service.app.session_path(name)
+    prepared = core.submit(session, "Begin the story.")
+    request = core.read_json(core.attempt_dir(session, prepared["request_id"]) / "request.json")
+    manifest = (session / "manifest.json").read_bytes()
+    assert service.client.get("/api/bootstrap").json()["automatic"]
+    result = service.client.post("/api/resume", json={"id": name})
+    assert result.status_code == 409
+    assert service.model.requests[0] == request
+    _, state = core.load_session(session)
+    assert state["turns"] == [] and state["pending"]["author"] == prepared["request_id"]
+    failed = core.attempt_dir(session, state["pending"]["request_id"])
+    assert core.read_json(failed / "response.json")["raw"] == "unfinished revision"
+    view = service.app.view(name)
+    assert view["pending"]["failed"] and not view["pending"]["handoff_ready"]
+    assert "unfinished revision" not in json.dumps(view)
+    result = service.client.post("/api/resume", json={"id": name})
+    assert result.status_code == 200 and result.json()["turn_count"] == 1
+    assert result.json()["turns"][0]["input"] == "Begin the story."
+    assert result.json()["turns"][0]["output"] == "Published passage."
+    assert len(service.model.requests) == 3
+    assert service.model.requests[1] == service.model.requests[2]
+    assert (session / "manifest.json").read_bytes() == manifest
+    summary = core.export(session)
+    assert summary["api_calls_started"] == 0 and summary["proxy_calls_started"] == 3
+    assert summary["reported_usage"] is None and summary["recorded_api_seconds"] is None
+    assert summary["recorded_proxy_seconds"] >= 0
+    core.resume(session, service.model)
+    assert len(service.model.requests) == 3
+
+
+def test_chat_detects_a_coding_agent_started_from_the_cli_without_blocking_reads(chat_service):
+    service = chat_service("draft", "final", auto_proxy=True, pause_at=2)
+    name = create(service)
+    session = service.app.session_path(name)
+    with ThreadPoolExecutor() as pool:
+        future = pool.submit(core.submit, session, "Start", service.model)
+        try:
+            assert service.model.started.wait(5)
+            response = service.client.get("/api/session", params={"id": name}, timeout=1)
+            assert response.status_code == 200
+            view = response.json()
+            assert view["busy"] and view["pending"]["stage"] == "revision"
+            assert not view["pending"]["handoff_ready"]
+        finally:
+            service.model.release.set()
+        assert future.result()["status"] == "published"
+    assert not service.app.view(name)["busy"]

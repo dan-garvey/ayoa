@@ -43,6 +43,7 @@ class ChatApp:
         reasoning: str = "max",
         max_output_tokens: int = 12000,
         client_factory: Callable = nullcontext,
+        proxy_runner: Callable | None = None,
     ):
         self.sessions = sessions.resolve()
         self.stories = stories.resolve()
@@ -54,6 +55,7 @@ class ChatApp:
             max_output_tokens=max_output_tokens,
         )
         self.client_factory = client_factory
+        self.proxy_runner = proxy_runner
         self.token = secrets.token_urlsafe(32)
         self._active: set[Path] = set()
         self._guard = threading.Lock()
@@ -114,7 +116,9 @@ class ChatApp:
 
     def busy(self, session: Path) -> bool:
         with self._guard:
-            return session in self._active
+            if session in self._active:
+                return True
+        return core.is_busy(session)
 
     def session_list(self) -> list[dict]:
         result = []
@@ -156,7 +160,9 @@ class ChatApp:
             if request_id:
                 attempt = core.attempt_dir(session, request_id)
                 ready = (
-                    manifest["transport"] == "proxy" and not (attempt / "response.json").exists()
+                    manifest["transport"] == "proxy"
+                    and self.proxy_runner is None
+                    and not (attempt / "response.json").exists()
                 )
                 failure = (attempt / "error.json").exists()
                 if (attempt / "response.json").exists():
@@ -170,6 +176,7 @@ class ChatApp:
                 "request_id": request_id,
                 "handoff_ready": ready,
                 "failed": failure,
+                "stage": "revision" if pending["author"] else "draft",
             }
         return {
             "id": name,
@@ -219,7 +226,11 @@ class ChatApp:
                 if command == "turn":
                     if not isinstance(body.get("text"), str) or not body["text"].strip():
                         raise ValueError("Write a turn before sending it")
-                context = self.client_factory() if manifest["transport"] == "api" else nullcontext()
+                context = (
+                    self.client_factory()
+                    if manifest["transport"] == "api"
+                    else nullcontext(self.proxy_runner)
+                )
                 with context as client:
                     if command == "turn":
                         core.submit(
@@ -323,6 +334,8 @@ class ChatHandler(BaseHTTPRequestHandler):
                         "token": app.token,
                         "stories": app.story_list(),
                         "transport": app.defaults["transport"],
+                        "automatic": app.defaults["transport"] == "api"
+                        or app.proxy_runner is not None,
                     },
                 )
             elif url.path == "/api/sessions":

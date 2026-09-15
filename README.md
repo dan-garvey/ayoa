@@ -21,6 +21,12 @@ python3 -m venv .venv
 .venv/bin/python -m narrative chat
 ```
 
+The default chat runs **Terra coding agents automatically**, using your existing
+Codex CLI login. Install a current Codex CLI and run `codex login` first if needed;
+this integration is verified with version 0.154.0. Each turn gets a fresh author
+call followed by a fresh editor call, both at `max` reasoning. The chat shows
+whether the passage is being written or refined.
+
 Open **http://localhost:8765**. Choose a saved story or select **New story**.
 Choose your protagonist’s name before beginning. To rename them between turns,
 click the name above the story title. Their background stays the same, and
@@ -37,17 +43,18 @@ Write in the multiline composer. **Ctrl+Enter** (or **Cmd+Enter**) sends;
 in the same browser. Accepted turns are saved to the session files. An unfinished
 or failed response offers **Continue response** without resubmitting your turn.
 
-For automatic responses, start the chat with an API key available to the server:
+For direct API responses, start the chat with an API key available to the server:
 
 ```bash
 .venv/bin/python -m narrative chat --transport api --env-file .env
 ```
 
-The default is `proxy`: **Response handoff** lets you copy/download the current
-request and paste or load the complete reply. Supply the author's draft first,
-then the editor's response to publish the passage. The handoff contains story
-secrets and stays separate from the conversation. Existing CLI proxy commands
-also work; their results appear in the chat automatically.
+For experiments with manually supplied replies, start with `--manual`.
+**Response handoff** then lets you copy/download the current request and paste or
+load the complete reply. Supply the author's draft first, then the editor's
+response to publish the passage. The handoff contains story secrets and stays
+separate from the conversation. Existing CLI proxy commands also work; their
+results appear in the chat automatically.
 
 `--port` changes the local port, and `--sessions DIRECTORY` selects a different
 session directory. Nested existing sessions are listed automatically. Model,
@@ -76,6 +83,17 @@ after completing any pending response:
 
 Names allow 1–80 characters, including Unicode; extra whitespace is normalized.
 Renaming makes no model call and preserves the transcript and saved attempts.
+
+Add `--auto` to `turn` or `resume` to run both proxy responses with Codex:
+
+```bash
+.venv/bin/python -m narrative turn --session sessions/my-story --auto --text 'Begin the story.'
+.venv/bin/python -m narrative resume --session sessions/my-story --auto
+```
+
+An already prepared manual request can be resumed automatically, with its saved
+context and player input intact. No session conversion is needed. Without
+`--auto`, terminal proxy commands retain the manual workflow below.
 
 The turn command returns a request id and paths to exact JSON and readable text
 requests. Give the complete text request to a fresh Terra coding agent at maximum
@@ -106,6 +124,8 @@ and `--max-output-tokens` are initialization options; the 12,000-token default i
 a per-call output budget including reasoning, not a visible-prose target. Settings
 are frozen for the session. The API adapter is tested offline with the real SDK;
 the foundation's narrative validation uses coding-agent proxies.
+Codex proxies use the CLI's own output limits; the API `max_output_tokens` setting
+does not impose a separate limit on those calls.
 
 ## Resume and inspect
 
@@ -125,6 +145,9 @@ attempt with its exact request and raw response/error, and derived
 author and editor attempts. The transcript contains only player inputs and
 published prose. Usage includes unsuccessful API responses where reported;
 unavailable proxy usage is shown as null. Sessions are ignored by Git.
+Automatic proxy attempts record CLI exit status and elapsed time separately from
+API usage. Only final agent messages are saved; coding-agent progress and reasoning
+streams are discarded.
 
 ## Write another story
 

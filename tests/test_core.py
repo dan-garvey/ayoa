@@ -418,7 +418,7 @@ def test_renaming_preserves_evidence_and_reaches_both_calls(setup, transport):
     client = FakeClient(
         raw_response("discarded draft"), raw_response("Éloi Vale opens the letter.")
     )
-    result = core.submit(session, "I, Éloi, open it.\n", client)
+    result = core.submit(session, "I, Éloi, open it.\n", client if transport == "api" else None)
     if transport == "proxy":
         result = core.accept(session, result["request_id"], "discarded draft")
         core.accept(session, result["request_id"], "Éloi Vale opens the letter.")
@@ -448,7 +448,7 @@ def test_renaming_preserves_evidence_and_reaches_both_calls(setup, transport):
     assert (session / "state.json").read_bytes() == before
 
     client = FakeClient(raw_response("new draft"), raw_response("new passage"))
-    author = core.submit(session, "I read on.", client)
+    author = core.submit(session, "I read on.", client if transport == "api" else None)
     if transport == "proxy":
         editor = core.accept(session, author["request_id"], "new draft")
         requests = [core.read_json(Path(attempt["request_json"])) for attempt in (author, editor)]
@@ -540,6 +540,22 @@ def test_prompt_hygiene():
     assert paths
     for path in paths:
         assert not banned.search(path.read_text()), path
+
+
+def test_automatic_proxy_preserves_line_endings_in_inputs_drafts_and_publication(setup):
+    create, _, _ = setup
+    session = create()
+    outputs = iter(["Draft.\r\nAnother line.", "Published.\r\nAnother line."])
+    requests = []
+
+    def proxy(request):
+        requests.append(request)
+        return {"raw": next(outputs), "status": "completed"}
+
+    result = core.submit(session, "My turn.\r\nAnother line.", proxy)
+    assert result["output"] == "Published.\r\nAnother line."
+    assert requests[0]["input"][-1]["content"] == "My turn.\r\nAnother line."
+    assert requests[1]["input"][-2]["content"] == "Draft.\r\nAnother line."
 
 
 def test_cli_proxy_never_requires_credentials(setup, tmp_path, monkeypatch, capsys):
