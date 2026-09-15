@@ -1,7 +1,7 @@
 # Narrative foundation
 
 One model authors the world, narration and every supporting character. A second,
-sequential call revises its draft with a 40-word instruction. Only the revised
+sequential call revises its draft with a short instruction. Only the revised
 passage becomes published history. Characters retain individual interests and
 plausible knowledge boundaries through the writing contract and full biographies.
 

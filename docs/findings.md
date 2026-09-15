@@ -41,9 +41,17 @@ even though it does not settle the quality of the entire scene.
 ## Current source choices
 
 The reusable author prompt is the unchanged 393-word C43 common prompt. The editor
-is the exact 40-word C43 augmented instruction selected by the user. Its short
-form is deliberate; no extra hidden review criteria or character dialogue examples
-are appended at runtime.
+builds on the 40-word C43 augmented instruction selected by the user, adding:
+“Ensure your edits don't break character-specific dialogue rules.” This addresses
+a Covenant opening where the editor replaced Seraphel's drafted verse with prose
+despite receiving her verse-only constraint. Its short form is deliberate; no
+extra hidden review criteria or character dialogue examples are appended at runtime.
+
+A single Terra/max replay of that exact opening draft with the added sentence
+kept Seraphel's speech in two short, unrhymed lines. It also substantially rewrote
+the dinner conversation. Only the final revision instruction changed between
+requests; this is a local result, not evidence of reliable rule preservation.
+Both private opening sessions retain their exact requests, drafts and revisions.
 
 Covenant starts from C41's restored source, including Ysolde's early life and
 sensory tastes, Caelindra's education and dispersed childhood cohort, Thessaly's
