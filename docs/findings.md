@@ -41,17 +41,35 @@ even though it does not settle the quality of the entire scene.
 ## Current source choices
 
 The reusable author prompt is the unchanged 393-word C43 common prompt. The editor
-builds on the 40-word C43 augmented instruction selected by the user, adding:
-“Ensure your edits don't break character-specific dialogue rules.” This addresses
-a Covenant opening where the editor replaced Seraphel's drafted verse with prose
-despite receiving her verse-only constraint. Its short form is deliberate; no
-extra hidden review criteria or character dialogue examples are appended at runtime.
+now uses the user's exact two-sentence review-pass instruction in
+`prompts/revision.txt`, targeting habitual aphorism, character voice and specific
+dialogue rules. This is the current trial prompt. Its short form is deliberate;
+no extra hidden review criteria or character dialogue examples are appended at runtime.
 
-A single Terra/max replay of that exact opening draft with the added sentence
-kept Seraphel's speech in two short, unrhymed lines. It also substantially rewrote
-the dinner conversation. Only the final revision instruction changed between
-requests; this is a local result, not evidence of reliable rule preservation.
-Both private opening sessions retain their exact requests, drafts and revisions.
+The previous editor used the 40-word C43 augmented instruction. Adding
+“Ensure your edits don't break character-specific dialogue rules” did not fix a
+Covenant opening where revision flattened Seraphel's verse. The replay retained
+a line break while losing the draft's cadence and poetic phrasing. The initial
+assessment overstated that result; user review correctly identified the failed
+repair. The editor also substantially rewrote the dinner conversation. The
+private opening sessions retain their exact requests, drafts and revisions.
+
+The 36-word review-pass replacement also flattened Seraphel's verse in a single
+Terra/max replay of the same draft. Most narration remained intact, but the edit
+added a "Revised passage:" preamble and moved Thessaly's counting retort ahead of
+the line it originally answered. Only the final revision instruction changed
+between the three requests. This candidate remains a tested trial, with no
+demonstrated improvement on the verse failure.
+
+Sol/max then authored and edited a fresh opening using the same story snapshots
+and review prompt. It left the player at the doorway with a clear choice to join
+dinner. The edit removed staged banter but shifted the conversation toward routine
+housekeeping; Seraphel did not speak. A separate editor-only comparison changed
+only the model on the original Terra draft. Sol gave the correction/counting
+exchange a coherent question and answer, but again converted Seraphel's verse
+into ordinary sentences split over two lines. The verse failure persisted, and
+the overall narrative comparison remains mixed. All three Sol calls are preserved
+locally alongside the earlier private opening sessions.
 
 Covenant starts from C41's restored source, including Ysolde's early life and
 sensory tastes, Caelindra's education and dispersed childhood cohort, Thessaly's
