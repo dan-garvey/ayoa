@@ -66,6 +66,40 @@ def test_browser_proxy_turns_markdown_copy_download_and_reload(browser, chat_ser
         context.close()
 
 
+def test_password_protected_mobile_chat_can_read_send_and_reload(browser, chat_service):
+    service = chat_service(
+        "The morning is quiet.",
+        "The door opens.",
+        auto_proxy=True,
+        password="browser-test-password",
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        http_credentials={"username": "chat", "password": "browser-test-password"},
+        is_mobile=True,
+        has_touch=True,
+    )
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    try:
+        page.goto(service.url)
+        page.get_by_role("button", name="Open story list").click()
+        begin(page)
+        expect(page.locator(".message.story")).to_have_count(1)
+        composer = page.get_by_role("textbox", name="Your next turn")
+        composer.fill("I open the door.")
+        page.locator("#send").click()
+        expect(page.locator(".message.story")).to_have_count(2)
+        page.reload()
+        expect(page.locator(".message.story").last).to_contain_text("The door opens.")
+        assert len(service.model.requests) == 2
+        assert "browser-test-password" not in str(service.model.requests)
+        assert not errors
+    finally:
+        context.close()
+
+
 @pytest.mark.parametrize("transport", ["api", "proxy"])
 def test_browser_reload_during_generation_preserves_turn(browser, chat_service, transport):
     service = chat_service(

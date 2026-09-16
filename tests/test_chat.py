@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from narrative import core
-from narrative.chat import format_text
+from narrative.chat import ChatServer, format_text
 
 
 def create(service):
@@ -104,6 +104,140 @@ def test_http_requires_local_host_origin_and_request_token(chat_service):
     assert response.headers["Cache-Control"] == "no-store"
     assert service.client.post("/api/turn", content="not-json").status_code == 409
     assert service.client.post("/api/sessions", json=[]).status_code == 409
+
+
+@pytest.mark.parametrize(
+    ("configured", "origin"),
+    [
+        ("https://Story.Example:443/", "https://story.example"),
+        ("https://story.example:8443", "https://story.example:8443"),
+    ],
+)
+def test_proxy_preserves_host_origin_and_token_checks(chat_service, configured, origin):
+    service = chat_service(proxy_origin=configured, password="test-password")
+    service.client.auth = ("chat", "test-password")
+    assert service.server.server_address[0] == "127.0.0.1"
+    headers = {"Host": origin.removeprefix("https://"), "Origin": origin}
+    response = service.client.get("/api/bootstrap", headers=headers)
+    assert response.status_code == 200
+    headers["X-Chat-Token"] = response.json()["token"]
+    for changed in (
+        {"Host": "attacker.example"},
+        {"Host": headers["Host"] + ".attacker.example"},
+        {"Origin": "https://attacker.example"},
+        {"Origin": origin.replace("https://", "http://")},
+        {"Origin": service.url},
+        {"Origin": "null"},
+        {"X-Chat-Token": ""},
+    ):
+        assert (
+            service.client.post(
+                "/api/sessions", json={"story": "harbor"}, headers={**headers, **changed}
+            ).status_code
+            == 403
+        )
+    assert service.client.get("/api/sessions").json()["sessions"] == []
+    created = service.client.post("/api/sessions", json={"story": "harbor"}, headers=headers)
+    assert created.status_code == 201
+    # Both addresses read the same persisted session; no model call is needed.
+    for address_headers in ({}, headers):
+        assert (
+            service.client.get(
+                "/api/session", params={"id": created.json()["id"]}, headers=address_headers
+            ).json()["id"]
+            == created.json()["id"]
+        )
+    assert service.model.requests == []
+
+
+def test_forwarded_headers_do_not_authorize_an_unconfigured_proxy(chat_service):
+    service = chat_service()
+    response = service.client.get(
+        "/api/bootstrap",
+        headers={
+            "Host": "story.example",
+            "Origin": "https://story.example",
+            "X-Forwarded-Host": service.url.removeprefix("http://"),
+            "X-Forwarded-Proto": "http",
+        },
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://story.example",
+        "story.example",
+        "https://",
+        "https://*.example",
+        "https://user:password@story.example",
+        "https://story.example/chat",
+        "https://story.example?token=value",
+        "https://story.example#chat",
+        "https://story.example:65536",
+        "https://story.example:0",
+        "https://story.example\n",
+    ],
+)
+def test_invalid_proxy_origin_is_rejected_before_listening(origin):
+    with pytest.raises(ValueError, match="HTTPS proxy origin"):
+        ChatServer(None, 0, proxy_origin=origin)
+
+
+def test_password_protects_reads_and_actions_without_replacing_csrf_checks(chat_service):
+    service = chat_service(proxy_origin="https://story.example", password="test-password")
+    headers = {"Host": "story.example", "Origin": "https://story.example"}
+    for route in ("/", "/app.js", "/api/bootstrap", "/api/sessions", "/api/handoff"):
+        response = service.client.get(route, headers=headers)
+        assert response.status_code == 401
+        assert response.headers["WWW-Authenticate"].startswith('Basic realm="Story chat"')
+        assert service.app.token not in response.text and "SECRET_CANON" not in response.text
+    for credentials in (None, ("chat", "wrong"), ("wrong", "test-password")):
+        assert (
+            service.client.post(
+                "/api/sessions", json={"story": "harbor"}, headers=headers, auth=credentials
+            ).status_code
+            == 401
+        )
+    credentials = ("chat", "test-password")
+    bootstrap = service.client.get("/api/bootstrap", headers=headers, auth=credentials)
+    assert bootstrap.status_code == 200 and "test-password" not in bootstrap.text
+    assert (
+        service.client.post(
+            "/api/sessions",
+            json={"story": "harbor"},
+            auth=credentials,
+            headers={**headers, "X-Chat-Token": ""},
+        ).status_code
+        == 403
+    )
+    assert (
+        service.client.post(
+            "/api/sessions",
+            json={"story": "harbor"},
+            auth=credentials,
+            headers={**headers, "Origin": "https://attacker.example"},
+        ).status_code
+        == 403
+    )
+    assert (
+        service.client.post(
+            "/api/sessions", json={"story": "harbor"}, headers=headers, auth=credentials
+        ).status_code
+        == 201
+    )
+    assert service.model.requests == []
+
+
+def test_empty_password_fails_closed():
+    with pytest.raises(ValueError, match="password must not be empty"):
+        ChatServer(None, 0, password=" ")
+
+
+def test_proxy_access_requires_authentication():
+    with pytest.raises(ValueError, match="requires a password"):
+        ChatServer(None, 0, proxy_origin="https://story.example")
 
 
 def test_markdown_keeps_formatting_without_executable_html_or_images():

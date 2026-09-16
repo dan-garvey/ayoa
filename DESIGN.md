@@ -173,7 +173,16 @@ Formatting uses Markdown with raw HTML disabled, following the
 Images are disabled and intentional line breaks are preserved. Original strings
 remain unchanged in session storage and future model context. The server serves
 only named UI assets and explicit endpoints, restricts session paths to its root,
-checks local Host/Origin headers, and requires a per-process token for mutations.
+checks configured Host/Origin pairs, and requires a per-process token for mutations.
+Localhost HTTP origins are allowed by default. `chat --proxy-origin` explicitly
+adds one HTTPS browser origin for a reverse proxy or tunnel. Proxy access requires
+`--password-file`; HTTP Basic authentication with username `chat` protects every
+page and API route, including localhost. Passwords are read from a private file,
+compared in constant time, and excluded from browser projections and model settings.
+The application still binds only to loopback, and forwarded headers cannot expand
+the allowed origins. Phone browsers
+use the HTTPS proxy address, including the secure context needed for submission
+UUIDs and clipboard access. Both addresses share the same session files.
 Content security policy excludes inline scripts and framing. Browser requests
 never receive an API key. This is not a public deployment or multi-user service.
 

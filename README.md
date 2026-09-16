@@ -77,6 +77,31 @@ reasoning and transport options set defaults for **new** sessions; existing ones
 retain their frozen configuration. The defaults remain `gpt-5.6-terra` and `max`.
 The server binds only to loopback; it is a local, single-user interface.
 
+To open the chat on your phone, use an HTTPS tunnel. For example,
+[Cloudflare Quick Tunnels](https://try.cloudflare.com/) are free and need no
+account. With `cloudflared` installed, run:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:8765
+```
+
+Create a password file outside the checkout, readable only by your user, containing
+the password you want to use. Restart the chat with that file and the exact HTTPS
+address the tunnel prints (replace the example address and password path below):
+
+```bash
+.venv/bin/python -m narrative chat \
+  --proxy-origin https://your-address.trycloudflare.com \
+  --password-file /path/to/private/chat-password
+```
+
+Open the HTTPS address on the phone and sign in with username **chat** and your
+password. `localhost` on the phone refers to the phone itself. The computer,
+chat process and tunnel must remain running; a new Quick Tunnel gets a new address.
+Proxy access requires a password, and every chat page and API endpoint requires
+sign-in, including localhost on the computer. Configured address checks and
+action tokens still apply. This remains a single-user interface to your saved stories.
+
 ## Terminal workflow
 
 The original commands remain available:
