@@ -1,0 +1,10 @@
+{
+  "session": "/home/dan/ayoa-evaluations/reasoning-summaries-20260916T000435Z/covenant-terra",
+  "status": "published",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "max",
+  "summary_count": 1,
+  "summary_characters": 124,
+  "prose_characters": 794,
+  "duration_s": 15.414063661999535
+}

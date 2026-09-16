@@ -1,0 +1,19 @@
+{
+  "manifest_sha256": "eef7b67c74a7efc60212ef04113202ae4e994f5e7cf5c4195dbb05c0ab71434e",
+  "player_names": [
+    "Dan Garvey"
+  ],
+  "turns": [
+    {
+      "turn": 0,
+      "input": "Begin the story.",
+      "output": "The dinner bell reaches your room as a soft brass note, then a second, firmer strike from somewhere below. Ink from the primer has smudged the side of your thumb. Its account of the Covenant lies open across the desk beside the framed letter addressed to a Garvey great-nephew you have never heard of.\n\nBeyond the window, garden lamps come alive along pale paths. Farther out, one of the hard-light bridges glows through the dark, its end swallowed by the storm circling beneath the plateau.\n\nA knock sounds.\n\nWhen the door opens, a server in Academy blue stands with a covered tray tucked under one arm. Steam slips from beneath the lid, carrying the smell of pepper and roasted onions.\n\n“Mr. Garvey,” she says, “the other first-years are assembling in the dining hall. Shall I show you down?”",
+      "responses": [
+        "39bcc86f933648e3a19c4381ed22b157"
+      ],
+      "submission_id": "2ad81e708e0d4390b2be26c62efbddbb",
+      "published_at": "2026-09-16T00:07:01.416249+00:00"
+    }
+  ],
+  "pending": null
+}

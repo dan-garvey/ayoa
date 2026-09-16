@@ -1,0 +1,19 @@
+{
+  "manifest_sha256": "ff1b200cca2423fd48eb6b0aea6f0c356b730f8049da72786ec786abc7ec8571",
+  "player_names": [
+    "Dan Garvey"
+  ],
+  "turns": [
+    {
+      "turn": 0,
+      "input": "Begin the story.",
+      "output": "The storm below the Academy turns the window glass faintly violet. Lightning crawls through the clouds three hundred feet beneath you, slow as roots searching dark soil, and the inherited Garvey signet flashes in answer whenever your hand passes the pane.\n\nSomeone has laid out a silver-backed clothes brush beside the bed. Your carefully mended charcoal coat has already defeated it; one stubborn thread still lifts at the cuff.\n\nBeyond your door, Garvey House is waking for dinner. Footsteps cross the landing. A chair scrapes in the dining hall below, followed by a woman’s laugh and the measured clink of seventeen place settings. Roasted spice and hot bread rise through the stairwell. The route is simple: down one flight, past the common room with its oversized fireplace, then through the paneled arch where lamplight spills across the floorboards.\n\nThe desk holds the primer supplied by the Academy, open beneath a brass lamp. Its final pages concern tonight’s welcome: first-year Conclave students dine together; formal dress is customary; precedence follows Council seating except where no Council representative currently exists. A handwritten note in the margin, probably from some harried administrator, adds:\n\n**The Garvey heir may be seated wherever his place card has been set. Do not improvise.**\n\nBeside it stands a framed letter, browned with age. It invites a Garvey great-nephew named Edwin to visit during the winter recess and promises skating if the garden pool freezes. Edwin, apparently, never came. The lawyers have preserved the letter, the frame, and even a pressed sprig of rosemary tucked behind the glass.\n\nThree firm knocks sound at your door.\n\n“Garvey?” a man calls from the landing. “Dinner in five minutes.”\n\nAfter a pause, he adds, “Rashid vel Amara. I’m across the landing. I can show you down, unless you’d prefer to arrive alone.”",
+      "responses": [
+        "e0f70f8d6b374e33b62e786f100615c6"
+      ],
+      "submission_id": "6417a1f7a70d43c9af4b9c928b6f1120",
+      "published_at": "2026-09-16T00:05:21.719272+00:00"
+    }
+  ],
+  "pending": null
+}

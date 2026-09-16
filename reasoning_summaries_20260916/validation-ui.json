@@ -1,0 +1,9 @@
+{
+  "offline_tests_passed": 84,
+  "desktop_and_mobile_summary_rendering": "passed",
+  "raw_html_execution": "blocked",
+  "summaries_in_normal_view_or_future_context": false,
+  "existing_sessions_preserved": 7,
+  "current_playtest_passages_preserved": 10,
+  "live_server_port": 8765
+}
