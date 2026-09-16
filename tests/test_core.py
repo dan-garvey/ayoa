@@ -456,20 +456,34 @@ def test_real_sdk_serialization_with_offline_transport(setup):
 
     def respond(request):
         sent.append(json.loads(request.content))
-        return httpx.Response(200, json=raw_response("final"))
+        response = raw_response("final")
+        response["output"].insert(
+            0,
+            {
+                "id": "rs_example",
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "EXPOSED_SUMMARY"}],
+            },
+        )
+        return httpx.Response(200, json=response)
 
     with OpenAI(
         api_key="offline-example",
         max_retries=0,
         http_client=httpx.Client(transport=httpx.MockTransport(respond)),
     ) as client:
-        assert core.submit(session, "Start", client)["output"] == "final"
+        turn = core.submit(session, "Start", client)
+        assert turn["output"] == "final"
     assert len(sent) == 1
     assert sent[0]["model"] == "gpt-5.6-terra"
-    assert sent[0]["reasoning"] == {"effort": "max"}
+    assert sent[0]["reasoning"] == {"effort": "max", "summary": "auto"}
     assert sent[0]["store"] is False
     assert sent[0]["truncation"] == "disabled"
     assert "tools" not in sent[0]
+    saved = core.read_json(core.attempt_dir(session, turn["responses"][0]) / "response.json")
+    assert core.response_summary(saved) == "EXPOSED_SUMMARY"
+    assert "EXPOSED_SUMMARY" not in (session / "state.json").read_text()
+    assert "EXPOSED_SUMMARY" not in (session / "transcript.md").read_text()
 
 
 @pytest.mark.parametrize("story", ["covenant", "breakwater"])

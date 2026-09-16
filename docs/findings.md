@@ -146,3 +146,19 @@ problems. It does not establish reliable overall improvement, long-term coherenc
 or an advantage over the former engine. Proxy usage, latency and hidden context
 cannot establish direct API cost, performance or behavioral equivalence. The
 broader narrative-quality task remains open.
+
+## Reasoning summary capture
+
+Automatic responses now request exposed reasoning summaries. The optional
+**Inspect responses** view displays each summary with its corresponding saved
+version. Summaries never enter published history, subsequent model input or
+transcript downloads; older responses cannot acquire a summary retroactively.
+
+Two isolated Covenant openings verified capture with fresh Codex CLI 0.154.0
+processes at maximum reasoning effort: Sol returned two summary entries, Terra
+returned one. These were compact planning headings, so capture alone does not
+establish their value for diagnosing narrative decisions. The
+[preserved requests, responses and browser proofs](https://github.com/dan-garvey/ayoa/tree/4dd10075303a0c7e32fd9138caaa2db6b8bc49ee/reasoning_summaries_20260916)
+retain both first results. No private reasoning was inspected, and the user's
+existing playtests were preserved. All 84 offline tests pass, including browser
+coverage and API summary serialization; the API check used an offline transport.

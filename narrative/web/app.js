@@ -120,6 +120,17 @@ function renderSessions(sessions) {
   }
 }
 
+function proseContent(html, className = "prose") {
+  const prose = node("div", className);
+  // Only the server's HTML-disabled Markdown renderer supplies these fragments.
+  prose.innerHTML = html;
+  for (const link of prose.querySelectorAll("a")) {
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+  }
+  return prose;
+}
+
 function message(role, html, label) {
   const article = node("article", `message ${role}`);
   article.setAttribute("aria-label", role === "player" ? "Your turn" : "Story passage");
@@ -130,18 +141,11 @@ function message(role, html, label) {
     meta.append(mark);
   }
   meta.append(node("span", "", label));
-  const prose = node("div", "prose");
-  // Only the server's HTML-disabled Markdown renderer supplies these fragments.
-  prose.innerHTML = html;
-  for (const link of prose.querySelectorAll("a")) {
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-  }
-  article.append(meta, prose);
+  article.append(meta, proseContent(html));
   return article;
 }
 
-function passage(text, html, number, role = "story") {
+function passage(text, html, number, role = "story", summaryHtml = null) {
   const label = role === "previous" ? "PREVIOUS VERSION" : role === "replacement" ? "CURRENT VERSION" : "THE STORY";
   const article = message(role, html, label);
   const kind = role === "story" ? "passage" : role === "previous" ? "previous version" : "current version";
@@ -152,15 +156,24 @@ function passage(text, html, number, role = "story") {
   copyButton.addEventListener("click", () => copy(text));
   tools.append(copyButton, node("span", "passage-number", `Passage ${number + 1}`));
   article.append(tools);
+  if (comparing) {
+    if (summaryHtml) {
+      const details = node("details", "reasoning-summary");
+      details.append(node("summary", "", "Reasoning summary"), proseContent(summaryHtml, "prose reasoning-prose"));
+      article.append(details);
+    } else {
+      article.append(node("p", "summary-unavailable", "No reasoning summary was captured for this response."));
+    }
+  }
   return article;
 }
 
 function comparison(turn, number, pending = null) {
   const pair = node("section", `message comparison story${pending ? " pending-comparison" : ""}`);
   pair.setAttribute("aria-label", `Passage ${number + 1} comparison`);
-  const previous = pending ? passage(turn.output, turn.output_html, number, "previous") : passage(turn.previous, turn.previous_html, number, "previous");
+  const previous = pending ? passage(turn.output, turn.output_html, number, "previous", turn.summary_html) : passage(turn.previous, turn.previous_html, number, "previous", turn.previous_summary_html);
   let replacement;
-  if (!pending) replacement = passage(turn.output, turn.output_html, number, "replacement");
+  if (!pending) replacement = passage(turn.output, turn.output_html, number, "replacement", turn.summary_html);
   else {
     replacement = message("replacement", "", "NEW VERSION");
     replacement.querySelector(".prose").append(node("p", "comparison-waiting", pending.failed ? "Regeneration paused. The existing passage is saved." : "Regenerating the passage…"));
@@ -232,7 +245,7 @@ function renderView(view) {
     for (const turn of view.turns) {
       const player = message("player", turn.input_html, "YOU");
       const regenerating = view.pending?.kind === "regenerate" && turn.number === view.turn_count - 1 ? view.pending : null;
-      const story = comparing && (typeof turn.previous === "string" || regenerating) ? comparison(turn, turn.number, regenerating) : passage(turn.output, turn.output_html, turn.number);
+      const story = comparing && (typeof turn.previous === "string" || regenerating) ? comparison(turn, turn.number, regenerating) : passage(turn.output, turn.output_html, turn.number, "story", turn.summary_html);
       conversation.append(player, story, node("div", "turn-divider"));
     }
     if (view.pending) {

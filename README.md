@@ -36,12 +36,15 @@ preferences offer light/dark appearance and adjustable text size. New passages
 open at their beginning; incoming responses preserve your position when you are
 reading earlier text. You can copy a passage or download the published transcript.
 
-For temporary evaluation, enable **Compare versions** in the header, or open
+For evaluation, enable **Inspect responses** in the header, or open
 **http://localhost:8765/?compare=1**. Passages with multiple versions show the previous
 one on the left and the current one on the right, with separate copy buttons.
 Narrow screens stack the columns. Older playtests retain their draft/edit comparisons.
-The toggle persists in the browser. Comparison makes no model calls; only active
-passages enter future story history and transcript downloads.
+Expand **Reasoning summary** beneath a response to read its captured summary,
+including passages with only one version. New automatic responses request exposed
+summaries; older responses and models that return none show an unavailable message.
+The toggle persists in the browser. Inspection makes no model calls. Summaries stay
+in response records; only active passages enter future story history and downloads.
 
 Write in the multiline composer. **Ctrl+Enter** (or **Cmd+Enter**) sends;
 **Enter** inserts a line break. Unsent text and reading preferences survive reloads
@@ -159,8 +162,9 @@ contains only original player inputs and active prose. Usage includes unsuccessf
 API responses where reported;
 unavailable proxy usage is shown as null. Sessions are ignored by Git.
 Automatic proxy attempts record CLI exit status and elapsed time separately from
-API usage. Only final agent messages are saved; coding-agent progress and reasoning
-streams are discarded.
+API usage. Final agent messages and exposed reasoning summaries are saved separately.
+Other coding-agent events are discarded. These are provider-generated summaries,
+not a complete record of internal reasoning.
 
 ## Write another story
 

@@ -84,9 +84,13 @@ automatically supplies that exact text to a fresh `codex exec` process for each
 response, using the frozen model and reasoning settings. It uses the CLI's existing
 login, an empty temporary workspace, a read-only sandbox, and disabled repository
 instruction discovery, memory, plugins, shell, image/browser tools and delegation.
-The command uses stdin for the complete request and reads only the final-message
-file. Progress and reasoning streams are discarded. The
-[official non-interactive CLI reference](https://learn.chatgpt.com/docs/non-interactive-mode)
+The command uses stdin for the complete request, reads the final-message file and
+captures completed public reasoning-summary items from the CLI's JSON event stream.
+Each attempt retains the exact summary strings separately from final prose; other
+events are discarded. Both API and proxy requests opt in with `reasoning.summary=auto`.
+The API retains the summary items in its raw response. No summary enters publication,
+subsequent model input or transcript exports, and absent summaries are not synthesized.
+The [official non-interactive CLI reference](https://learn.chatgpt.com/docs/non-interactive-mode)
 documents stdin, isolated runs and final-message output; this runner was verified
 with Codex CLI 0.154.0.
 
@@ -149,12 +153,17 @@ returns the actual prepared request and accepts a response by its pending id.
 The UI stores unsent composer text and reading preferences in browser storage;
 canonical history continues to live in the session directory.
 
-The optional evaluation view uses `compare=1` on the same chat endpoints to include
-the previous saved version alongside the active passage. A passage without an
-earlier version appears normally. During regeneration the existing passage remains
-visible while the replacement is pending; failed output remains unpublished.
-The projection extracts only the final text, excluding requests,
-canon and response metadata. It reads the original attempt records without
+The optional **Inspect responses** view uses `compare=1` on the same chat endpoints
+to include the previous saved version alongside the active passage and exposed
+reasoning summaries from their respective response records. A passage without an
+earlier version displays alone with its summary. During regeneration the existing
+passage remains visible while the replacement is pending; failed output remains unpublished.
+The projection extracts final text and explicitly exposed summary text, excluding
+requests, raw reasoning, opaque reasoning data and other response metadata. Summaries
+can discuss story secrets, so they appear only in this explicitly opened evaluation
+view. Expandable summaries use the same safe Markdown renderer as prose. A missing
+summary is identified without inferring whether it was disabled or the model omitted it.
+The view reads the original attempt records without
 changing them or invoking a model. Browser preferences and the URL control the
 view; no comparison setting enters session state, model context or transcript
 exports. Both columns use the same Markdown renderer and stack on narrow screens.
@@ -176,8 +185,8 @@ concurrent and pending operations, stale tabs, Unicode and mobile layout. Live n
 quality remains evaluated through the separate playtests.
 
 Automatic proxy validation covers the default CLI wiring, exact stdin requests,
-fresh workspaces, final-only output, failed/timeout results, resuming saved manual
-requests, preserving existing passages on retry, and browser reload during both
+fresh workspaces, separate final and summary output, failed/timeout results, resuming
+saved manual requests, preserving existing passages on retry, and browser reload during both
 API and proxy execution. The user's previously pending Covenant opening was
 completed with two real Terra/max CLI calls before the editor was retired; its
 private raw artifacts remain in the user's session directory. Current single-call

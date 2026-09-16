@@ -322,7 +322,7 @@ def test_browser_regeneration_comparison_formats_versions_and_preserves_turns(
         page.reload()
         expect(pair).to_have_count(1)
         expect(composer).to_have_value("I listen.")
-        toggle = page.get_by_role("button", name="Compare versions", exact=True)
+        toggle = page.get_by_role("button", name="Inspect responses", exact=True)
         toggle.click()
         expect(pair).to_have_count(0)
         assert "Original" not in page.locator("main").inner_text()
@@ -337,6 +337,65 @@ def test_browser_regeneration_comparison_formats_versions_and_preserves_turns(
         assert not errors
     finally:
         context.close()
+
+
+@pytest.mark.parametrize("width", [1280, 390])
+def test_browser_inspects_each_summary_without_publishing_or_replaying_it(
+    browser, chat_service, width
+):
+    summary = "FIRST_SUMMARY **with emphasis**.\n\n<script>window.summaryLeak = true</script>"
+    service = chat_service(
+        {"raw": "Original passage.", "reasoning_summaries": [summary]},
+        {"raw": "Replacement passage.", "reasoning_summaries": ["SECOND_SUMMARY"]},
+        "A passage without a summary.",
+        auto_proxy=True,
+    )
+    page = browser.new_page(viewport={"width": width, "height": 900})
+    try:
+        page.goto(service.url)
+        if width <= 700:
+            page.get_by_role("button", name="Open story list", exact=True).click()
+        begin(page)
+        expect(page.locator(".message.story")).to_have_count(1)
+        expect(page.locator(".reasoning-summary")).to_have_count(0)
+        toggle = page.get_by_role("button", name="Inspect responses", exact=True)
+        toggle.click()
+        expect(page.locator(".reasoning-summary")).to_have_count(1)
+        page.locator(".reasoning-summary > summary").click()
+        expect(page.locator(".reasoning-prose strong")).to_have_text("with emphasis")
+        assert page.evaluate("window.summaryLeak === undefined")
+        assert page.locator(".reasoning-prose script").count() == 0
+        assert len(service.model.requests) == 1
+        composer = page.get_by_role("textbox", name="Your next turn")
+        composer.fill("Rewrite it.")
+        composer.press("Control+Shift+Enter")
+        pair = page.locator(".comparison.story")
+        expect(pair.locator(".replacement > .prose")).to_have_text("Replacement passage.")
+        pair.locator(".previous .reasoning-summary > summary").click()
+        pair.locator(".replacement .reasoning-summary > summary").click()
+        expect(pair.locator(".previous .reasoning-prose")).to_contain_text("FIRST_SUMMARY")
+        expect(pair.locator(".replacement .reasoning-prose")).to_have_text("SECOND_SUMMARY")
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        with page.expect_download() as download:
+            page.get_by_role("button", name="Download story", exact=True).click()
+        exported = Path(download.value.path()).read_text()
+        assert "Replacement passage." in exported and "SUMMARY" not in exported
+        page.reload()
+        expect(toggle).to_have_attribute("aria-pressed", "true")
+        expect(pair.locator(".reasoning-summary")).to_have_count(2)
+        toggle.click()
+        expect(page.locator(".reasoning-summary")).to_have_count(0)
+        assert "SUMMARY" not in page.locator("main").inner_text()
+        composer.fill("I listen.")
+        composer.press("Control+Enter")
+        expect(page.locator(".message.story")).to_have_count(2)
+        toggle.click()
+        expect(page.locator(".message.story").last.locator(".summary-unavailable")).to_be_visible()
+        assert len(service.model.requests) == 3
+        for request in service.model.requests:
+            assert "SUMMARY" not in core.render_request(request)
+    finally:
+        page.close()
 
 
 @pytest.mark.parametrize("transport", ["api", "proxy"])
@@ -360,7 +419,7 @@ def test_browser_reload_during_regeneration_preserves_old_passage_and_clears_ins
         composer.press("Meta+Shift+Enter")
         assert service.model.started.wait(5)
         expect(page.locator(".message.story .prose")).to_contain_text("Saved original.")
-        page.get_by_role("button", name="Compare versions", exact=True).click()
+        page.get_by_role("button", name="Inspect responses", exact=True).click()
         expect(page.locator(".pending-comparison .previous .prose")).to_contain_text(
             "Saved original."
         )

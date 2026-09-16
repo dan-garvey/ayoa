@@ -31,12 +31,29 @@ def title(name: str) -> str:
     return name.replace("_", " ").replace("-", " ").title()
 
 
-def previous_view(session: Path, request_id: str | None) -> dict:
-    if request_id is None:
-        return {"previous": None, "previous_html": None}
-    response = core.read_json(core.attempt_dir(session, request_id) / "response.json")
-    text = core.response_text(response)
-    return {"previous": text, "previous_html": format_text(text)}
+def inspection_view(session: Path, turn: dict) -> dict:
+    def read_response(request_id):
+        return core.read_json(core.attempt_dir(session, request_id) / "response.json")
+
+    def summary_html(response):
+        summary = core.response_summary(response)
+        return format_text(summary) if summary else None
+
+    view = {
+        "previous": None,
+        "previous_html": None,
+        "previous_summary_html": None,
+        "summary_html": summary_html(read_response(turn["responses"][-1])),
+    }
+    if len(turn["responses"]) > 1:
+        response = read_response(turn["responses"][-2])
+        text = core.response_text(response)
+        view.update(
+            previous=text,
+            previous_html=format_text(text),
+            previous_summary_html=summary_html(response),
+        )
+    return view
 
 
 class ChatApp:
@@ -206,13 +223,7 @@ class ChatApp:
                     "output": turn["output"],
                     "output_html": format_text(turn["output"]),
                     "submission_id": turn["submission_id"],
-                    **(
-                        previous_view(
-                            session, turn["responses"][-2] if len(turn["responses"]) > 1 else None
-                        )
-                        if compare
-                        else {}
-                    ),
+                    **(inspection_view(session, turn) if compare else {}),
                 }
                 for turn in state["turns"]
             ],

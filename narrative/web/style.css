@@ -93,12 +93,13 @@ svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width:
 .reader { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; scrollbar-gutter: stable; scroll-behavior: auto; }
 .conversation { width: min(100%, 790px); margin: 0 auto; padding: 38px 40px 20px; }
 .conversation.comparing { width: min(100%, 1480px); }
+.comparing > article.message.story { max-width: 710px; margin-left: auto; margin-right: auto; }
 .comparing .message.player { max-width: 710px; margin-left: auto; margin-right: auto; }
 .comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .comparison > .message { min-width: 0; margin: 0; padding: 8px 22px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; }
 .comparison .message-meta { position: sticky; top: 0; z-index: 1; background: var(--surface); padding: 15px 0; margin-bottom: 8px; }
 .comparison .replacement .message-meta { color: var(--accent); }
-.comparison .prose { flex: 1; }
+.comparison > .message > .prose { flex: 1; }
 .comparison .message-tools { margin-top: 18px; }
 .comparison-waiting { color: var(--muted); font: 13px/1.8 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .message { margin-bottom: 35px; }
@@ -128,6 +129,10 @@ svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width:
 .copy-passage { border: 0; background: transparent; color: var(--muted); font-size: 10px; cursor: pointer; padding: 4px 0; }
 .copy-passage:hover { color: var(--accent); }
 .passage-number { color: var(--muted); font-size: 10px; }
+.reasoning-summary { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
+.reasoning-summary > summary { cursor: pointer; color: var(--accent); font-size: 12px; }
+.reasoning-summary .reasoning-prose { margin-top: 14px; font: 14px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.summary-unavailable { margin: 20px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .turn-divider { width: 38px; height: 1px; background: var(--line); margin: 35px auto; }
 .welcome { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 55px 25px 75px; }
 .welcome-flourish { font-size: 54px; font-weight: 300; color: var(--accent); margin-bottom: 23px; line-height: 1; }

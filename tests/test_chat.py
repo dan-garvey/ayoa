@@ -301,39 +301,76 @@ def test_comparison_reads_exact_previous_versions_without_changing_history(chat_
     assert view["turn_count"] == 1 and view["turns"][0]["previous"] == original
     session = service.app.session_path(name)
     _, state = core.load_session(session)
-    path = core.attempt_dir(session, state["turns"][0]["responses"][0]) / "response.json"
-    raw = core.read_json(path)
-    raw["internal_metadata"] = "PRIVATE_METADATA"
-    if transport == "api":
-        raw["raw"]["output"].append(
-            {
-                "type": "reasoning",
-                "summary": [{"type": "summary_text", "text": "PRIVATE_REASONING"}],
-            }
-        )
-    core.write_json(path, raw)
+    for index, request_id in enumerate(state["turns"][0]["responses"]):
+        path = core.attempt_dir(session, request_id) / "response.json"
+        raw = core.read_json(path)
+        raw["internal_metadata"] = "PRIVATE_METADATA"
+        summary = f"EXPOSED_SUMMARY_{index} **formatted**\n<script>alert(2)</script>"
+        if transport == "api":
+            raw["raw"]["output"].append(
+                {
+                    "type": "reasoning",
+                    "summary": [{"type": "summary_text", "text": summary}],
+                    "content": [{"type": "reasoning_text", "text": "PRIVATE_REASONING"}],
+                    "encrypted_content": "OPAQUE_CONTENT",
+                }
+            )
+        else:
+            raw["reasoning_summaries"] = [summary]
+            raw["reasoning"] = "PRIVATE_REASONING"
+        core.write_json(path, raw)
     before = {p: p.read_bytes() for p in session.rglob("*") if p.is_file()}
     compared = service.client.get("/api/session", params={"id": name, "compare": "1"})
     html = compared.json()["turns"][0]["previous_html"]
     assert "<strong>verse</strong>" in html and "<br" in html and "<script>" not in html
-    for hidden in ("SECRET_CANON", "PRIVATE_METADATA", "PRIVATE_REASONING", "PRIVATE_FEEDBACK"):
+    turn = compared.json()["turns"][0]
+    assert "EXPOSED_SUMMARY_0" in turn["previous_summary_html"]
+    assert "EXPOSED_SUMMARY_1" not in turn["previous_summary_html"]
+    assert "EXPOSED_SUMMARY_1" in turn["summary_html"]
+    assert "EXPOSED_SUMMARY_0" not in turn["summary_html"]
+    for key in ("summary_html", "previous_summary_html"):
+        assert "<strong>formatted</strong>" in turn[key] and "<script>" not in turn[key]
+    for hidden in (
+        "SECRET_CANON",
+        "PRIVATE_METADATA",
+        "PRIVATE_REASONING",
+        "PRIVATE_FEEDBACK",
+        "OPAQUE_CONTENT",
+    ):
         assert hidden not in compared.text
     assert {p: p.read_bytes() for p in session.rglob("*") if p.is_file()} == before
     normal = service.client.get("/api/session", params={"id": name})
     assert "OLD_SCENE" not in normal.text and "previous" not in normal.json()["turns"][0]
+    assert "EXPOSED_SUMMARY" not in normal.text and "summary_html" not in normal.text
     exported = service.client.get("/api/transcript", params={"id": name})
     assert (
         final in exported.text
         and "OLD_SCENE" not in exported.text
         and "PRIVATE_FEEDBACK" not in exported.text
+        and "EXPOSED_SUMMARY" not in exported.text
     )
     following = service.client.post(
         "/api/turn", json={"id": name, "text": "Continue.", "expected_version": view["version"]}
     )
     assert following.status_code == 200 and len(service.model.requests) == 3
     assert service.model.requests[2]["input"][2] == {"role": "assistant", "content": final}
-    for hidden in ("PRIVATE_FEEDBACK", "OLD_SCENE", "compare"):
+    for hidden in (
+        "PRIVATE_FEEDBACK",
+        "OLD_SCENE",
+        "compare",
+        "EXPOSED_SUMMARY",
+        "PRIVATE_REASONING",
+    ):
         assert hidden not in json.dumps(service.model.requests[2])
+
+
+def test_inspection_without_summaries_does_not_invent_them(chat_service):
+    service = chat_service("A single passage.", auto_proxy=True)
+    name = create(service)
+    core.submit(service.app.session_path(name), "Begin.", service.model)
+    turn = service.app.view(name, compare=True)["turns"][0]
+    assert turn["summary_html"] is None
+    assert turn["previous_summary_html"] is None and turn["previous"] is None
 
 
 def test_regeneration_progress_keeps_existing_passage_and_rejects_concurrent_or_stale_actions(

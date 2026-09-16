@@ -240,6 +240,21 @@ def response_text(response: dict) -> str:
     return text
 
 
+def response_summary(response: dict) -> str:
+    """Project only exposed summary text for inspection, never narrative context."""
+    if response["transport"] == "proxy":
+        parts = response.get("reasoning_summaries", [])
+    else:
+        parts = [
+            block["text"]
+            for item in response["raw"].get("output", [])
+            if item.get("type") == "reasoning"
+            for block in item.get("summary", [])
+            if block.get("type") == "summary_text"
+        ]
+    return "\n\n".join(part for part in parts if isinstance(part, str) and part.strip())
+
+
 def attempt_dir(session: Path, request_id: str) -> Path:
     if len(request_id) != 32 or any(c not in "0123456789abcdef" for c in request_id):
         raise NarrativeError("Invalid request id")
@@ -276,7 +291,7 @@ def make_request(session: Path, manifest: dict, state: dict) -> dict:
     messages.append({"role": "user", "content": instruction})
     return {
         "model": manifest["model"],
-        "reasoning": {"effort": manifest["reasoning_effort"]},
+        "reasoning": {"effort": manifest["reasoning_effort"], "summary": "auto"},
         "instructions": "\n\n".join(
             (snapshot / name).read_text(encoding="utf-8").strip()
             for name in manifest["prefix_order"]

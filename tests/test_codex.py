@@ -19,13 +19,13 @@ def executable(tmp_path, source):
 def request():
     return {
         "model": "gpt-5.6-terra",
-        "reasoning": {"effort": "max"},
+        "reasoning": {"effort": "max", "summary": "auto"},
         "instructions": "STORY_CANON",
         "input": [{"role": "user", "content": "PLAYER_SUBMISSION"}],
     }
 
 
-def test_codex_receives_exact_packet_in_fresh_workspace_and_only_returns_final_text(tmp_path):
+def test_codex_keeps_final_text_and_exposed_summaries_from_a_fresh_workspace(tmp_path):
     binary = executable(
         tmp_path,
         """
@@ -33,7 +33,11 @@ import json, os, sys
 from pathlib import Path
 args = sys.argv[1:]
 result = {'args': args, 'input': sys.stdin.read(), 'cwd': os.getcwd(), 'files': os.listdir('.')}
-print('DISCARDED_PROGRESS')
+print(json.dumps({'type': 'item.updated', 'item': {'type': 'reasoning', 'text': 'DISCARDED_PARTIAL'}}))
+print(json.dumps({'type': 'item.completed', 'item': {'type': 'reasoning', 'text': 'First summary.\\r\\nSecond line.'}}))
+print(json.dumps({'type': 'item.completed', 'item': {'type': 'reasoning', 'text': 'Another summary.'}}))
+print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'DISCARDED_PROGRESS'}}))
+print(json.dumps({'type': 'raw_reasoning', 'text': 'DISCARDED_RAW_CONTENT'}))
 print('DISCARDED_DIAGNOSTIC', file=sys.stderr)
 Path(args[args.index('--output-last-message') + 1]).write_bytes(json.dumps(result).encode() + bytes([13, 10]))
 """,
@@ -43,6 +47,7 @@ Path(args[args.index('--output-last-message') + 1]).write_bytes(json.dumps(resul
     second = runner(request())
     assert first["status"] == "completed" and first["exit_code"] == 0
     assert first["raw"].endswith("\r\n")
+    assert first["reasoning_summaries"] == ["First summary.\r\nSecond line.", "Another summary."]
     value = json.loads(first["raw"])
     assert value["input"] == core.render_request(request())
     assert value["files"] == []
@@ -51,6 +56,8 @@ Path(args[args.index('--output-last-message') + 1]).write_bytes(json.dumps(resul
     args = value["args"]
     assert args[args.index("--model") + 1] == "gpt-5.6-terra"
     assert 'model_reasoning_effort="max"' in args
+    assert 'model_reasoning_summary="auto"' in args
+    assert "--json" in args
     assert args[args.index("--sandbox") + 1] == "read-only"
     for flag in ("--ephemeral", "--ignore-user-config", "--strict-config", "--skip-git-repo-check"):
         assert flag in args
@@ -73,17 +80,20 @@ def test_codex_failure_preserves_partial_output_but_cannot_publish_it(tmp_path, 
     binary = executable(
         tmp_path,
         """
-import sys, time
+import json, sys, time
 from pathlib import Path
 args = sys.argv[1:]
 sys.stdin.read()
+print(json.dumps({'type': 'item.completed', 'item': {'type': 'reasoning', 'text': 'Completed summary before failure.'}}), flush=True)
 Path(args[args.index('--output-last-message') + 1]).write_text('Unfinished reply.')
+print('{"type":"item.updated","item":', end='', flush=True)
 """
         + ("sys.exit(7)\n" if failure == "exit" else "time.sleep(30)\n"),
     )
     response = CodexProxy(binary, timeout=0.5)(request())
     assert response["status"] == ("failed" if failure == "exit" else "timeout")
     assert response["raw"] == "Unfinished reply."
+    assert response["reasoning_summaries"] == ["Completed summary before failure."]
     with pytest.raises(core.ResponseError):
         core.response_text({"transport": "proxy", **response})
 
