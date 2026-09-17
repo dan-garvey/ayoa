@@ -1,0 +1,13 @@
+covenant: submitting '"Mostly things like, will food and clothes be provided?" I look down at the brown volume, "Thanks professor. " '
+covenant: published, passage 20
+covenant: submitting 'I pull out the chair next to mine and gesture invitingly before returning my attention to the book'
+covenant: published, passage 21
+covenant: submitting 'I keep reading until the end of the chapter.'
+covenant: published, passage 22
+{"published_turns": 22, "completed_checkups": 1, "pending_kind": null, "requests_prepared": 26, "api_calls_started": 0, "proxy_calls_started": 26, "responses_received": 26, "responses_with_usage": 0, "reported_usage": null, "recorded_api_seconds": null, "recorded_proxy_seconds": 1002.421, "visible_words": 3475}
+breakwater: submitting 'Begin the story.'
+breakwater: published, passage 1
+breakwater: submitting 'I introduce myself and ask what is most urgent before the screening.'
+breakwater: published, passage 2
+{"published_turns": 2, "completed_checkups": 1, "pending_kind": null, "requests_prepared": 3, "api_calls_started": 0, "proxy_calls_started": 3, "responses_received": 3, "responses_with_usage": 0, "reported_usage": null, "recorded_api_seconds": null, "recorded_proxy_seconds": 134.603, "visible_words": 584}
+All first results saved; original session unchanged.

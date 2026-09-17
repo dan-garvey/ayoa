@@ -1,0 +1,22 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Ashara swings her practice jacket over one shoulder. “Fine. Orientation starts at eight. The Academy doesn’t care whether you’ve had time to prepare.”\n\nRashid is already crossing into the common room. Dena deals him a hand without looking up.\n\n“You’re late,” she says.\n\n“I’m aware.”\n\n“Good. It saves time.”\n\nAshara heads out through the front doors toward the quadrangle, her boots sharp against the stone. The moment she is gone, the dining hall feels less arranged around her.\n\nThe library is quieter than the rest of the house: lamp-oil, paper, old wood, and the faint metallic smell of rain carried in whenever someone uses the garden door. Blue-spined course volumes fill one low shelf beneath a sign marked **FIRST-YEAR CONCLAVE**.\n\nYou find procedure, comparative arcana, and a calendar dense with seminars, assessments, meals, and formal obligations. *Procedures and Precedents* is mostly about who speaks when, how objections are recorded, and the many ways a Council argument can become official without anyone raising their voice. The arcana survey devotes chapters to life-force discipline, ritual, consent, and the slower workings of elven spellcraft.\n\nIts human chapter is four pages long.\n\nMost of it concerns arbitration and translation. The final paragraph notes that human comparative-magic instruction is “pending restoration of qualified faculty and students.”\n\nAt a central table beneath the spiral stair, a man in a dark coat works through a stack of brittle papers with a magnifying lens. A small brass plaque identifies him as **Professor Gareth Stone — Human Covenant History**.\n\nThe card game rises and falls faintly through the wall: Dena accusing someone of inventing rules, then several people laughing at once.\n\nProfessor Stone closes his folder. He looks at the Garvey signet, then at the blue-spined book open before you.\n\n“Mr. Garvey,” he says. “Did the Academy give you the reading list for my seminar?”",
+  "reasoning_summaries": [
+    "**Planning narrative transition and NPC response**\n**Detailing library study scene and Ashara’s reply**\n**Narrating NPC departures and Ashara’s offer**",
+    "**Planning character departure narration**\n**Detailing student handbook and library scene**\n**Integrating academy primer and core seminars**",
+    "**Planning player study scenario**\n**Designing subtle Stone interaction**\n**Refining study scene dialogue**",
+    "**Describing library scene details**\n**Cataloging library book contents**\n**Introducing Stone’s procedural correction**",
+    "**Refining narrative decision point**\n**Planning NPC activity narration**\n**Clarifying spatial layout for narration**",
+    "**Drafting concise story continuation**\n**Describing library scene and professor**\n**Summarizing key textbook contents**",
+    "**Outlining cultural context through materials**\n**Refining library scene and dialogue timing**\n**Characterizing faculty correction interaction**",
+    "**Refining story introduction approach**\n**Drafting nuanced character dialogue**\n**Refining Ashara's terse orientation dialogue**",
+    "**Planning dialogue and scene details**\n**Drafting library scene and dialogue**\n**Summarizing in-world book content**",
+    "**Confirming note-taking implications**\n**Refining Professor Stone dialogue**\n**Finalizing seminar invitation dialogue**",
+    "**Planning classroom dialogue setup**\n**Refining dialogue to introduce plot hooks**\n**Preparing narrative transition**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-16T22:13:40.921667+00:00",
+  "duration_s": 120.90167111100163
+}

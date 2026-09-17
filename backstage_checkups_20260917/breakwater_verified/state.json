@@ -1,0 +1,35 @@
+{
+  "manifest_sha256": "fe3725d7274ea84783b1a1f6d9b0962577cef0a007dd2b4c0382de00040b56a0",
+  "player_names": [
+    "Rowan Garvey"
+  ],
+  "turns": [
+    {
+      "turn": 0,
+      "input": "Begin the story.",
+      "output": "The room is smaller than it seemed when Nell showed it to you twenty minutes ago. Now the luggage is inside, it has acquired edges: the narrow bed beneath its clean blue cover, the wardrobe with a brass handle, the desk pressed under the window.\n\nYour charcoal coat hangs over the chair back. The lamp lights the ink caught around your fingers and the welcome sheet lying squarely on the desk.\n\n**Supper, 18:30 — foyer**  \n**Staff staircase beside office**  \n**Induction, 09:00 tomorrow**\n\nBelow, crockery touches down on tabletops. A man laughs once, loudly enough to carry up the stairwell, then another voice says something too low to make out. The building has the unsettled, occupied sound of a place not yet used to having people in it: a door opening, a drawer shoved closed, footsteps crossing old floorboards above no one at all.\n\nThrough the window, Harbour Street slopes toward a strip of pale water between the roofs. The cinema’s frontage sits directly below: glazed doors, faded gold lettering newly cleaned but not yet lit. A gull lands on the bus-stop sign opposite and regards the street with the concentration of a landlord.\n\nAt the bottom of the stairs, someone calls from the foyer.\n\n“Jo, do you want these programmes moved before people start eating on them?”\n\n“That depends,” a woman answers. “Are you offering to move them or merely identifying a problem?”\n\nA pause follows. Then the first voice, older and amused: “Offering.”\n\nThe smell that reaches the landing is tomato, warm bread, and something buttery from the oven. From farther up the building comes a brief mechanical click, then a low electronic tone—someone testing equipment in the projection booth.\n\nThe staff staircase stands open beside your door, its painted banister worn smooth by decades of hands.",
+      "responses": [
+        "17267805cbf14d5ca90745b1ad87e516"
+      ],
+      "submission_id": "13af81d67f3b4f59b526ca66cf3c21a0",
+      "published_at": "2026-09-17T23:45:41.834553+00:00"
+    },
+    {
+      "turn": 1,
+      "input": "I introduce myself and ask what is most urgent before the screening.",
+      "output": "You take the staff staircase down to the foyer and introduce yourself to the people gathered around the pushed-together tables. Your question about the most urgent thing before the screening earns a brief pause.\n\n“There isn’t a screening tonight,” Nell says, stepping out of the office with a pencil behind one ear. “Reopening’s the twenty-sixth. Tonight is mostly food and pretending we all know where the teaspoons have gone.”\n\nFrom the kitchen doorway, Jo raises a wooden spoon. “The urgent thing is that the pie wants serving before it turns into roof insulation.”\n\nA young man by the counter—Owen, from the name Nell uses—starts laying out plates. Across the foyer, Rosa has a camera bag at her feet beside a stack of folded programmes, while Martin stands near six painted boards propped securely against the auditorium wall. Bea sits with a mug between both hands, watching the room fill.\n\n“We’ve got the auditorium at seven,” Rosa says. “Martin’s helping me document those before I send the exhibition layout off this week.”\n\n“Helping,” Martin repeats. “I’m correcting the historical record.”\n\n“You’re supplying one version of it,” Rosa says, without looking up from the board nearest her.\n\nNell gestures toward the empty chairs. “Your archive induction is nine tomorrow. For now, sit down before Jo decides you’re surplus to requirements.”\n\nThe cheese-and-onion pie arrives at the table in a deep tin, its browned top split at one corner.",
+      "responses": [
+        "fa73dcb98eec41c2974c8d0c284e00f5"
+      ],
+      "submission_id": "c0d9691f10e34b12a5a88b457636e52d",
+      "published_at": "2026-09-17T23:50:58.054263+00:00"
+    }
+  ],
+  "checkups": [
+    {
+      "before_turn": 1,
+      "request_id": "c0943042433f48118eadbf6b04a03e56"
+    }
+  ],
+  "pending": null
+}

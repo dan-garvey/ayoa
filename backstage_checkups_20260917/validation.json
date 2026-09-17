@@ -1,0 +1,98 @@
+{
+  "covenant": {
+    "calls": [
+      {
+        "stage": "checkup",
+        "passage": 20,
+        "request_id": "98cf12657e5c47218a1a6191bc507398",
+        "duration_s": 139.7928754389868,
+        "words": 469,
+        "summary_characters": 1856
+      },
+      {
+        "stage": "author",
+        "passage": 20,
+        "request_id": "c670f4b8d8424e05b0b1dc694f90d8ff",
+        "duration_s": 44.60259389001294,
+        "words": 182,
+        "summary_characters": 528
+      },
+      {
+        "stage": "author",
+        "passage": 21,
+        "request_id": "9ad1ea0845b746899a4951edf41f3d84",
+        "duration_s": 16.595442749996437,
+        "words": 159,
+        "summary_characters": 121
+      },
+      {
+        "stage": "author",
+        "passage": 22,
+        "request_id": "3b1ce82936bc48bc832c101d05653a71",
+        "duration_s": 30.02928234200226,
+        "words": 147,
+        "summary_characters": 384
+      }
+    ],
+    "request_reconstruction": true,
+    "publication_exact": true,
+    "notes_only_in_inspection": true,
+    "no_pending": true
+  },
+  "breakwater": {
+    "calls": [
+      {
+        "stage": "author",
+        "passage": 1,
+        "request_id": "17267805cbf14d5ca90745b1ad87e516",
+        "duration_s": 19.273907497001346,
+        "words": 298,
+        "summary_characters": 121
+      },
+      {
+        "stage": "checkup",
+        "passage": 2,
+        "request_id": "d9a14fcb0aad49d791b57c975cc795f0",
+        "duration_s": 68.23070230899611,
+        "words": 304,
+        "summary_characters": 974
+      },
+      {
+        "stage": "author",
+        "passage": 2,
+        "request_id": "8e5c9700668b47918a870752ecdd2535",
+        "duration_s": 47.09887891198741,
+        "words": 286,
+        "summary_characters": 584
+      }
+    ],
+    "request_reconstruction": true,
+    "publication_exact": true,
+    "notes_only_in_inspection": true,
+    "no_pending": true
+  },
+  "breakwater_verified": {
+    "calls": [
+      {
+        "stage": "checkup",
+        "passage": 2,
+        "request_id": "c0943042433f48118eadbf6b04a03e56",
+        "duration_s": 102.49815148999915,
+        "words": 359,
+        "summary_characters": 1501
+      },
+      {
+        "stage": "author",
+        "passage": 2,
+        "request_id": "fa73dcb98eec41c2974c8d0c284e00f5",
+        "duration_s": 17.932105436979327,
+        "words": 236,
+        "summary_characters": 111
+      }
+    ],
+    "request_reconstruction": true,
+    "publication_exact": true,
+    "notes_only_in_inspection": true,
+    "no_pending": true
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "You come down the staff stairs into the foyer as the older man finishes carrying a stack of opening programmes to an empty table.\n\n“I’m Rowan Garvey,” you say. “What’s most urgent before the screening?”\n\nNell looks up from the office doorway, a paper diary tucked under one arm.\n\n“There isn’t a screening tonight,” she says. “The public reopening starts on Saturday the twenty-sixth. And nothing’s urgent from you this evening. Tomorrow, at nine, we’ll go through the archive procedure and the loan records before you begin handling anything.”\n\nFrom the kitchen, a woman’s voice carries over the clink of dishes. “What is urgent is that the pie has a short and glorious life outside the oven.”\n\nNell smiles briefly. “That’s Jo. She has the café concession. Owen’s helping her in the kitchen. This is Martin, Bea, and Rosa.”\n\nThe older man gives you a small nod. “Martin. Welcome.”\n\nRosa, in a paint-flecked navy work jacket, lifts a hand from beside the programmes. “Hi, Rowan.”\n\nBea sits at the end of the pushed-together tables, sorting cutlery into small, exact piles. “It’s good to meet you properly.”\n\nNell glances towards the ceiling as another muted electronic tone sounds from the projection booth. “Dev’s upstairs finishing a check. He’ll be down when he can be persuaded food is real.”\n\nJo emerges through the kitchen door with a broad ceramic dish in both hands. Steam rises from its browned crust. A younger man follows with a salad bowl and sets it down beside the bread.\n\n“Right,” Jo says. “Nobody needs to earn supper. There’s an empty chair there, Rowan.”\n\nThe eighth place waits at the table, beside a carton of unopened crockery and within reach of the tomato stew.",
+  "reasoning_summaries": [
+    "**Finalizing Rowan's introductory dialogue**\n**Clarifying no screening and setting supper scene**\n**Confirming Rowan’s introduction and dialogue phrasing**",
+    "**Planning group introduction**\n**Staging foyer scene with introductions**\n**Refining supper scene with natural choices**",
+    "**Planning seamless story continuation**\n**Outlining precise character introductions and dialogue**\n**Refining character voice introductions**",
+    "**Confirming booth access and schedule adjustments**\n**Clarifying event schedule and communication details**\n**Refining character actions and dialogue details**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-17T23:47:37.255421+00:00",
+  "duration_s": 47.09887891198741
+}

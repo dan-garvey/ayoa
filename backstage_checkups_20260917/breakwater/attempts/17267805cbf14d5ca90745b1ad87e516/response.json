@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "The room is smaller than it seemed when Nell showed it to you twenty minutes ago. Now the luggage is inside, it has acquired edges: the narrow bed beneath its clean blue cover, the wardrobe with a brass handle, the desk pressed under the window.\n\nYour charcoal coat hangs over the chair back. The lamp lights the ink caught around your fingers and the welcome sheet lying squarely on the desk.\n\n**Supper, 18:30 — foyer**  \n**Staff staircase beside office**  \n**Induction, 09:00 tomorrow**\n\nBelow, crockery touches down on tabletops. A man laughs once, loudly enough to carry up the stairwell, then another voice says something too low to make out. The building has the unsettled, occupied sound of a place not yet used to having people in it: a door opening, a drawer shoved closed, footsteps crossing old floorboards above no one at all.\n\nThrough the window, Harbour Street slopes toward a strip of pale water between the roofs. The cinema’s frontage sits directly below: glazed doors, faded gold lettering newly cleaned but not yet lit. A gull lands on the bus-stop sign opposite and regards the street with the concentration of a landlord.\n\nAt the bottom of the stairs, someone calls from the foyer.\n\n“Jo, do you want these programmes moved before people start eating on them?”\n\n“That depends,” a woman answers. “Are you offering to move them or merely identifying a problem?”\n\nA pause follows. Then the first voice, older and amused: “Offering.”\n\nThe smell that reaches the landing is tomato, warm bread, and something buttery from the oven. From farther up the building comes a brief mechanical click, then a low electronic tone—someone testing equipment in the projection booth.\n\nThe staff staircase stands open beside your door, its painted banister worn smooth by decades of hands.",
+  "reasoning_summaries": [
+    "**Planning narrative style and setting**\n**Outlining detailed scene elements**\n**Finalizing scene conclusion and prompt**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-17T23:45:41.825811+00:00",
+  "duration_s": 19.273907497001346
+}

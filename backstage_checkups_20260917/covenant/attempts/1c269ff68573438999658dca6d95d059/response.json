@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Ashara looks you over once: ink-stained fingers, mended coat, no weapon at your belt.\n\n“I don’t need someone to take hits,” she says. “I need someone who can make me miss.”\n\nRashid’s mouth tightens, though whether at her answer or your offer is hard to tell.\n\nAshara reaches for her water. “Have you ever held a practice blade?”",
+  "reasoning_summaries": [
+    "**Planning Ashara's cautious dialogue**\n**Designing Ashara's blunt refusal and challenge**\n**Composing Ashara's measured reply and question**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-16T01:00:18.463669+00:00",
+  "duration_s": 14.871226891998958
+}

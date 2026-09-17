@@ -1,0 +1,35 @@
+{
+  "manifest_sha256": "6c7e6e77d40fa1dd08b2b2603131b5374a287b4cb3f9ddde6e94622f01af5345",
+  "player_names": [
+    "Rowan Garvey"
+  ],
+  "turns": [
+    {
+      "turn": 0,
+      "input": "Begin the story.",
+      "output": "The room is smaller than it seemed when Nell showed it to you twenty minutes ago. Now the luggage is inside, it has acquired edges: the narrow bed beneath its clean blue cover, the wardrobe with a brass handle, the desk pressed under the window.\n\nYour charcoal coat hangs over the chair back. The lamp lights the ink caught around your fingers and the welcome sheet lying squarely on the desk.\n\n**Supper, 18:30 — foyer**  \n**Staff staircase beside office**  \n**Induction, 09:00 tomorrow**\n\nBelow, crockery touches down on tabletops. A man laughs once, loudly enough to carry up the stairwell, then another voice says something too low to make out. The building has the unsettled, occupied sound of a place not yet used to having people in it: a door opening, a drawer shoved closed, footsteps crossing old floorboards above no one at all.\n\nThrough the window, Harbour Street slopes toward a strip of pale water between the roofs. The cinema’s frontage sits directly below: glazed doors, faded gold lettering newly cleaned but not yet lit. A gull lands on the bus-stop sign opposite and regards the street with the concentration of a landlord.\n\nAt the bottom of the stairs, someone calls from the foyer.\n\n“Jo, do you want these programmes moved before people start eating on them?”\n\n“That depends,” a woman answers. “Are you offering to move them or merely identifying a problem?”\n\nA pause follows. Then the first voice, older and amused: “Offering.”\n\nThe smell that reaches the landing is tomato, warm bread, and something buttery from the oven. From farther up the building comes a brief mechanical click, then a low electronic tone—someone testing equipment in the projection booth.\n\nThe staff staircase stands open beside your door, its painted banister worn smooth by decades of hands.",
+      "responses": [
+        "17267805cbf14d5ca90745b1ad87e516"
+      ],
+      "submission_id": "13af81d67f3b4f59b526ca66cf3c21a0",
+      "published_at": "2026-09-17T23:45:41.834553+00:00"
+    },
+    {
+      "turn": 1,
+      "input": "I introduce myself and ask what is most urgent before the screening.",
+      "output": "You come down the staff stairs into the foyer as the older man finishes carrying a stack of opening programmes to an empty table.\n\n“I’m Rowan Garvey,” you say. “What’s most urgent before the screening?”\n\nNell looks up from the office doorway, a paper diary tucked under one arm.\n\n“There isn’t a screening tonight,” she says. “The public reopening starts on Saturday the twenty-sixth. And nothing’s urgent from you this evening. Tomorrow, at nine, we’ll go through the archive procedure and the loan records before you begin handling anything.”\n\nFrom the kitchen, a woman’s voice carries over the clink of dishes. “What is urgent is that the pie has a short and glorious life outside the oven.”\n\nNell smiles briefly. “That’s Jo. She has the café concession. Owen’s helping her in the kitchen. This is Martin, Bea, and Rosa.”\n\nThe older man gives you a small nod. “Martin. Welcome.”\n\nRosa, in a paint-flecked navy work jacket, lifts a hand from beside the programmes. “Hi, Rowan.”\n\nBea sits at the end of the pushed-together tables, sorting cutlery into small, exact piles. “It’s good to meet you properly.”\n\nNell glances towards the ceiling as another muted electronic tone sounds from the projection booth. “Dev’s upstairs finishing a check. He’ll be down when he can be persuaded food is real.”\n\nJo emerges through the kitchen door with a broad ceramic dish in both hands. Steam rises from its browned crust. A younger man follows with a salad bowl and sets it down beside the bread.\n\n“Right,” Jo says. “Nobody needs to earn supper. There’s an empty chair there, Rowan.”\n\nThe eighth place waits at the table, beside a carton of unopened crockery and within reach of the tomato stew.",
+      "responses": [
+        "8e5c9700668b47918a870752ecdd2535"
+      ],
+      "submission_id": "a0ff0c0bbd004928a035e47c0c7dbca8",
+      "published_at": "2026-09-17T23:47:37.262834+00:00"
+    }
+  ],
+  "checkups": [
+    {
+      "before_turn": 1,
+      "request_id": "d9a14fcb0aad49d791b57c975cc795f0"
+    }
+  ],
+  "pending": null
+}

@@ -1,0 +1,21 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "## Backstage notes\n\n- No consequential drift so far. The opening is grounded in the stated time/place, preserves Rowan’s unsupplied thoughts and manuscript, and gives Jo and the older foyer speaker distinct, practical voices without forcing interaction.\n\n- Rowan’s submitted introduction and question remain pending; pick them up next without inventing more exact dialogue than supplied. The group already knows his name, role, and six-week stay from Nell’s email, though they have not met him.\n\n- “Before the screening” should not establish a screening tonight. The public reopening is 26 September; tonight has supper, Rosa and Martin’s 19:00–19:40 auditorium booking, and Dev’s proposed—not booked—19:05 receiver test. Someone can naturally clarify this.\n\n- Timing is consistent if read as an advance booking: Nell entered Rosa and Martin’s booking on Friday 11 September, for use today, Monday 14 September. Dev and Hana alone know about the proposed test; Nell knows only that Dev is working in the booth. Keep that knowledge separation intact.\n\n- The auditorium collision is the strongest immediate conditional development. If Dev seeks access or begins arranging Hana’s arrival, Nell can discover the overlap through the diary or Rosa’s appointment. Rowan may observe or be asked for help, but should not be made responsible for choosing between the projects.\n\n- Let supper remain supper rather than become a full staff meeting because Rowan asked one practical question. Rosa’s board documentation and Jo getting food out are the most visible immediate priorities; a few people answering is enough.\n\n- Do not leak Owen’s interview through Jo, Martin, Nell, Rosa, or Rowan. Only Owen and Jo know it. If Owen later chooses to tell Martin or Nell, the Wednesday reply deadline and Thursday rota create genuine stakes.\n\n- Keep Bea’s album out of reach until induction: it is locked, and its loan permits inventory/condition notes only—not scanning, publication, or display. Rosa’s current work concerns programme boards, not the album.\n\n- Potential longer development: Rosa’s need for accurate painter credits can bring out Martin’s fond but fallible recollections, especially if printed evidence later differs. Let that be a shared working tension, not a reason to make either of them broadly unreliable.",
+  "reasoning_summaries": [
+    "**Analyzing dialogue context for screening**\n**Flagging timeline inconsistencies and event ambiguities**\n**Clarifying date inconsistencies without altering narrative**",
+    "**Identifying timeline conflict in booking dates**\n**Clarifying booking timeline and event details**\n**Distinguishing equipment test from screening**",
+    "**Interpreting ambiguous environmental sound**\n**Clarifying sound source and character perspectives**\n**Detailing character awareness and interactions**",
+    "**Planning character introductions and event timing**\n**Designing natural group interactions and pacing**\n**Clarifying backstage notes and pending actions**",
+    "**Verifying welcome sheet details**\n**Confirming dialogue and setting consistency**\n**Planning auditorium booking reveal**",
+    "**Identifying scheduling conflicts and information sensitivity**\n**Clarifying access restrictions and role boundaries**\n**Confirming testing assistant identity and availability**",
+    "**Clarifying meaning of screening**\n**Verifying booking timing consistency**\n**Confirming natural interpretation of booking date**",
+    "**Clarifying character knowledge and dialogue styles**\n**Clarifying player dialogue narration rules**\n**Planning indirect player dialogue narration**",
+    "**Planning concise player reply**\n**Assessing building topology for consistency**\n**Clarifying event timing and character knowledge**",
+    "**Clarifying booking authority and confidentiality**\n**Establishing character interaction boundaries**\n**Planning concise backstage notes summary**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-17T23:50:40.073617+00:00",
+  "duration_s": 102.49815148999915
+}
