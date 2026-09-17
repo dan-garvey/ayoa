@@ -6,9 +6,9 @@ import json
 import secrets
 import threading
 import uuid
-from base64 import b64encode
 from contextlib import contextmanager, nullcontext
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlsplit
@@ -297,57 +297,27 @@ class ChatApp:
         }
 
 
-def https_origin(value: str) -> str:
-    """Accept one HTTPS origin, without widening trust to forwarded headers."""
-    try:
-        url = urlsplit(value)
-        if (
-            url.scheme != "https"
-            or not url.hostname
-            or url.username is not None
-            or url.password is not None
-            or url.path not in {"", "/"}
-            or url.query
-            or url.fragment
-            or any(c.isspace() or c in "\\*?#" for c in value)
-            or url.port == 0
-        ):
-            raise ValueError
-        host = f"[{url.hostname}]" if ":" in url.hostname else url.hostname
-        if url.port is not None and url.port != 443:
-            host += f":{url.port}"
-        return f"https://{host}"
-    except ValueError:
-        raise ValueError("Use an HTTPS proxy origin without a path, credentials or query") from None
-
-
 class ChatServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(
-        self,
-        app: ChatApp,
-        port: int = 8765,
-        *,
-        proxy_origin: str | None = None,
-        password: str | None = None,
-    ):
-        origin = https_origin(proxy_origin) if proxy_origin is not None else None
-        if origin is not None and password is None:
-            raise ValueError("Proxy access requires a password; pass --password-file")
-        if password is not None and not password.strip():
-            raise ValueError("The chat password must not be empty")
-        self.authorization = (
-            b"Basic " + b64encode(f"chat:{password}".encode()) if password is not None else None
-        )
+    def __init__(self, app: ChatApp, port: int = 8765, *, lan_address: str | None = None):
+        self.lan_address = None
+        if lan_address is not None:
+            address = IPv4Address(lan_address)
+            if not any(
+                address in IPv4Network(network)
+                for network in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+            ):
+                raise ValueError("Use this computer's private LAN IPv4 address")
+            self.lan_address = str(address)
         self.app = app
-        super().__init__(("127.0.0.1", port), ChatHandler)
+        super().__init__(("0.0.0.0" if self.lan_address else "127.0.0.1", port), ChatHandler)
         self.origins = {
             f"http://127.0.0.1:{self.server_port}",
             f"http://localhost:{self.server_port}",
         }
-        if origin is not None:
-            self.origins.add(origin)
+        if self.lan_address:
+            self.origins.add(f"http://{self.lan_address}:{self.server_port}")
 
 
 class ChatHandler(BaseHTTPRequestHandler):
@@ -384,23 +354,12 @@ class ChatHandler(BaseHTTPRequestHandler):
 
     def allowed(self) -> bool:
         host = self.headers.get("Host", "")
-        origins = {f"http://{host}", f"https://{host}"} & self.server.origins
-        if not origins:
+        if f"http://{host}" not in self.server.origins:
             self.json(403, {"error": "Open the chat using one of its configured addresses"})
             return False
         origin = self.headers.get("Origin")
-        if origin and origin not in origins:
+        if origin and origin != f"http://{host}":
             self.json(403, {"error": "This request did not come from this chat address"})
-            return False
-        if self.server.authorization is not None and not secrets.compare_digest(
-            self.headers.get("Authorization", "").encode(), self.server.authorization
-        ):
-            self.respond(
-                401,
-                b"Sign in to open your stories.",
-                "text/plain; charset=utf-8",
-                WWW_Authenticate='Basic realm="Story chat", charset="UTF-8"',
-            )
             return False
         return True
 
@@ -505,24 +464,12 @@ class ChatHandler(BaseHTTPRequestHandler):
             )
 
 
-def serve(
-    sessions: Path,
-    *,
-    port: int = 8765,
-    proxy_origin: str | None = None,
-    password_file: Path | None = None,
-    **settings,
-):
-    password = password_file.read_text(encoding="utf-8").strip() if password_file else None
+def serve(sessions: Path, *, port: int = 8765, lan_address: str | None = None, **settings):
     app = ChatApp(sessions, **settings)
-    with ChatServer(app, port, proxy_origin=proxy_origin, password=password) as server:
+    with ChatServer(app, port, lan_address=lan_address) as server:
         print(f"Story chat: http://localhost:{server.server_port}", flush=True)
-        if proxy_origin is not None:
-            print(f"Phone address: {https_origin(proxy_origin)}", flush=True)
-        if password is not None:
-            print(
-                "Sign in with username chat and the password from your password file.", flush=True
-            )
+        if server.lan_address:
+            print(f"On your Wi-Fi: http://{server.lan_address}:{server.server_port}", flush=True)
         print("Press Ctrl+C to stop. Sessions are saved as you play.", flush=True)
         try:
             server.serve_forever()

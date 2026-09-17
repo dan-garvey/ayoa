@@ -338,7 +338,12 @@ async function sendTurn(text = input.value, kind = "turn") {
   if (!current || current.pending || current.busy || sending.has(selected) || !text.trim()) return;
   if (kind === "regenerate" && !current.turn_count) return;
   const id = selected;
-  const submission = { id, text, submission_id: crypto.randomUUID().replaceAll("-", ""), expected_version: current.version };
+  // UUID v4 also works on plain HTTP over a home network.
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const submissionId = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  const submission = { id, text, submission_id: submissionId, expected_version: current.version };
   input.value = text;
   storage.set(`draft:${id}`, text);
   storage.set(`submission:${id}`, JSON.stringify(submission));

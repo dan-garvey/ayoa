@@ -1,4 +1,6 @@
 from pathlib import Path
+from urllib.parse import urlsplit
+from uuid import UUID
 
 import pytest
 from playwright.sync_api import expect
@@ -66,24 +68,30 @@ def test_browser_proxy_turns_markdown_copy_download_and_reload(browser, chat_ser
         context.close()
 
 
-def test_password_protected_mobile_chat_can_read_send_and_reload(browser, chat_service):
+def test_mobile_lan_chat_can_submit_and_reload_without_login_or_https(browser, chat_service):
     service = chat_service(
-        "The morning is quiet.",
-        "The door opens.",
-        auto_proxy=True,
-        password="browser-test-password",
+        "The morning is quiet.", "The door opens.", auto_proxy=True, lan_address="192.168.86.25"
     )
+    origin = f"http://192.168.86.25:{service.server.server_port}"
     context = browser.new_context(
-        viewport={"width": 390, "height": 844},
-        http_credentials={"username": "chat", "password": "browser-test-password"},
-        is_mobile=True,
-        has_touch=True,
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
     )
+
+    def local_network(route):
+        headers = {**route.request.all_headers(), "Host": urlsplit(origin).netloc}
+        response = route.fetch(
+            url=route.request.url.replace(origin, service.url, 1), headers=headers
+        )
+        route.fulfill(response=response)
+
+    context.route(origin + "/**", local_network)
     page = context.new_page()
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     try:
-        page.goto(service.url)
+        assert page.goto(origin).status == 200
+        assert page.evaluate("window.isSecureContext") is False
+        assert page.evaluate("typeof crypto.randomUUID") == "undefined"
         page.get_by_role("button", name="Open story list").click()
         begin(page)
         expect(page.locator(".message.story")).to_have_count(1)
@@ -94,7 +102,9 @@ def test_password_protected_mobile_chat_can_read_send_and_reload(browser, chat_s
         page.reload()
         expect(page.locator(".message.story").last).to_contain_text("The door opens.")
         assert len(service.model.requests) == 2
-        assert "browser-test-password" not in str(service.model.requests)
+        session = next(service.app.sessions.iterdir())
+        turns = core.load_session(session)[1]["turns"]
+        assert all(UUID(turn["submission_id"]).version == 4 for turn in turns)
         assert not errors
     finally:
         context.close()

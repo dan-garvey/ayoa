@@ -75,32 +75,33 @@ results appear in the chat automatically.
 session directory. Nested existing sessions are listed automatically. Model,
 reasoning and transport options set defaults for **new** sessions; existing ones
 retain their frozen configuration. The defaults remain `gpt-5.6-terra` and `max`.
-The server binds only to loopback; it is a local, single-user interface.
+The server binds only to loopback by default; it is a single-user interface.
 
-To open the chat on your phone, use an HTTPS tunnel. For example,
-[Cloudflare Quick Tunnels](https://try.cloudflare.com/) are free and need no
-account. With `cloudflared` installed, run:
-
-```bash
-cloudflared tunnel --url http://127.0.0.1:8765
-```
-
-Create a password file outside the checkout, readable only by your user, containing
-the password you want to use. Restart the chat with that file and the exact HTTPS
-address the tunnel prints (replace the example address and password path below):
+To use your phone on the same Wi-Fi, start the chat with the computer's private
+LAN IPv4 address (replace this example with yours):
 
 ```bash
-.venv/bin/python -m narrative chat \
-  --proxy-origin https://your-address.trycloudflare.com \
-  --password-file /path/to/private/chat-password
+.venv/bin/python -m narrative chat --lan-address 192.168.86.25
 ```
 
-Open the HTTPS address on the phone and sign in with username **chat** and your
-password. `localhost` on the phone refers to the phone itself. The computer,
-chat process and tunnel must remain running; a new Quick Tunnel gets a new address.
-Proxy access requires a password, and every chat page and API endpoint requires
-sign-in, including localhost on the computer. Configured address checks and
-action tokens still apply. This remains a single-user interface to your saved stories.
+Open **http://192.168.86.25:8765** on your phone. This uses your home network
+directly, with no password or third-party service. The computer must stay on.
+Localhost access on the computer still works. Address and action-token checks
+remain in place, and turn submission works over plain HTTP.
+
+With WSL's default localhost forwarding, Windows also needs a LAN listener and
+firewall rule. Run these once in **PowerShell as Administrator**, using your
+Windows LAN address and home subnet:
+
+```powershell
+netsh interface portproxy add v4tov4 listenaddress=192.168.86.25 listenport=8765 connectaddress=127.0.0.1 connectport=8765
+New-NetFirewallRule -Name AyoaStoryChatLAN8765 -DisplayName 'Ayoa story chat on home Wi-Fi' -Direction Inbound -Action Allow -Protocol TCP -LocalAddress 192.168.86.25 -LocalPort 8765 -RemoteAddress 192.168.86.0/24 -Profile Private
+```
+
+The listener forwards to the existing Windows localhost connection to WSL, so
+it does not depend on WSL's changing internal IP. The firewall rule allows the
+home subnet on the private Windows network profile. See Microsoft's
+[WSL networking documentation](https://learn.microsoft.com/en-us/windows/wsl/networking).
 
 ## Terminal workflow
 

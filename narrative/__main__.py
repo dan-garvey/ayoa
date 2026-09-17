@@ -18,12 +18,7 @@ def parser() -> argparse.ArgumentParser:
     chat = commands.add_parser("chat", help="Open the local browser chat")
     chat.add_argument("--sessions", type=Path, default=core.ROOT / "sessions")
     chat.add_argument("--port", type=int, default=8765)
-    chat.add_argument(
-        "--proxy-origin", help="HTTPS browser origin served by a reverse proxy or tunnel"
-    )
-    chat.add_argument(
-        "--password-file", type=Path, help="Require sign-in as chat with this password"
-    )
+    chat.add_argument("--lan-address", help="This computer's private IPv4 address for Wi-Fi access")
     chat.add_argument("--transport", choices=("api", "proxy"), default="proxy")
     chat.add_argument("--model", default="gpt-5.6-terra")
     chat.add_argument("--reasoning", default="max")
@@ -79,8 +74,7 @@ def main(argv: list[str] | None = None) -> int:
             serve(
                 args.sessions,
                 port=args.port,
-                proxy_origin=args.proxy_origin,
-                password_file=args.password_file,
+                lan_address=args.lan_address,
                 transport=args.transport,
                 model=args.model,
                 reasoning=args.reasoning,

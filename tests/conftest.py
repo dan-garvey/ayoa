@@ -60,14 +60,7 @@ def chat_service(tmp_path):
     services = []
     with ExitStack() as stack:
 
-        def start(
-            *replies,
-            transport="proxy",
-            pause_at=None,
-            auto_proxy=False,
-            proxy_origin=None,
-            password=None,
-        ):
+        def start(*replies, transport="proxy", pause_at=None, auto_proxy=False, lan_address=None):
             model = StoryClient(replies, pause_at)
             app = ChatApp(
                 tmp_path / f"sessions-{len(services)}",
@@ -77,7 +70,7 @@ def chat_service(tmp_path):
                 client_factory=lambda: nullcontext(model),
                 proxy_runner=model if auto_proxy else None,
             )
-            server = ChatServer(app, 0, proxy_origin=proxy_origin, password=password)
+            server = ChatServer(app, 0, lan_address=lan_address)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             url = f"http://127.0.0.1:{server.server_port}"

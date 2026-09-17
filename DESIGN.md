@@ -125,7 +125,7 @@ trial evidence remain available through docs/findings.md.
 ## Browser chat
 
 `python -m narrative chat` serves local HTML, CSS and JavaScript with a small
-loopback HTTP server. There is no frontend build step, CDN or second story store.
+HTTP server, bound to loopback by default. There is no frontend build step, CDN or second story store.
 The browser submits a turn or regeneration; its HTTP request waits for one author
 call. Separate read requests keep progress visible while it runs. Closing or
 reloading the page does not cancel an executing server request.
@@ -174,15 +174,11 @@ Images are disabled and intentional line breaks are preserved. Original strings
 remain unchanged in session storage and future model context. The server serves
 only named UI assets and explicit endpoints, restricts session paths to its root,
 checks configured Host/Origin pairs, and requires a per-process token for mutations.
-Localhost HTTP origins are allowed by default. `chat --proxy-origin` explicitly
-adds one HTTPS browser origin for a reverse proxy or tunnel. Proxy access requires
-`--password-file`; HTTP Basic authentication with username `chat` protects every
-page and API route, including localhost. Passwords are read from a private file,
-compared in constant time, and excluded from browser projections and model settings.
-The application still binds only to loopback, and forwarded headers cannot expand
-the allowed origins. Phone browsers
-use the HTTPS proxy address, including the secure context needed for submission
-UUIDs and clipboard access. Both addresses share the same session files.
+`chat --lan-address` accepts one private LAN IPv4 address, listens on IPv4 interfaces,
+and permits that HTTP origin alongside localhost. It provides direct home-network
+access without a tunnel or login. On WSL, a Windows port forward and firewall rule
+connect the home subnet to the application. Browser submission UUIDs use
+`crypto.getRandomValues` so sending and recovery also work over plain HTTP.
 Content security policy excludes inline scripts and framing. Browser requests
 never receive an API key. This is not a public deployment or multi-user service.
 
