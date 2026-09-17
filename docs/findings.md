@@ -122,8 +122,8 @@ events, dates, abilities and disclosures; invention alone is not an error.
 All 27 offline tests pass, covering context separation, API/proxy request
 equivalence, exact draft preservation, publication, restart recovery and failures,
 including the real SDK with an in-memory HTTP transport. Ruff and formatting
-checks pass. The foundation's direct API transport has not been exercised with
-a live call.
+checks pass. At that initial validation, the foundation's direct API transport
+had not been exercised with a live call.
 
 The implementation playtests produced eight published passages: an opening plus
 three player turns in Covenant and Breakwater, using 16 fresh Terra/max proxies.
@@ -162,3 +162,41 @@ establish their value for diagnosing narrative decisions. The
 retain both first results. No private reasoning was inspected, and the user's
 existing playtests were preserved. All 84 offline tests pass, including browser
 coverage and API summary serialization; the API check used an offline transport.
+
+## Conversational closure and transport comparison
+
+The latest Covenant playtest preserves NPC refusals but repeatedly supplies a
+replacement invitation or question when an exchange could end. Fifteen of its
+22 published passages end in direct questions. The prompt already protects NPC
+independence and quiet; its engagement and turn-taking instructions may nevertheless
+encourage a repeated conversational handoff. This is a hypothesis about interacting
+instructions and history, not an isolated causal result for any one sentence.
+
+The [prompt audit and live comparison](https://github.com/dan-garvey/ayoa/tree/1ef8fc1a81110cf55dab2c832a7497b5e09e9135/forced_engagement_20260917)
+preserve three exact request checkpoints with two Terra/max samples each under
+normal Responses message roles, the proxy's tagged text sent directly to Responses,
+and the existing fresh Codex proxy. All 18 first calls completed; none was retried
+or replaced. The direct calls used the existing request/response functions without
+publishing to the original session, whose bytes were verified unchanged.
+
+Explicit new questions or invitations appeared in 3/6 normal API responses,
+4/6 tagged API responses, and 5/6 proxy responses. These are descriptive manual
+counts, not automatic failure scores or reliable population estimates. Five of six
+dinner replays let Ashara pursue practice, then moved the closing invitation to
+Dena's card game. One normal API library replay asked about the protagonist's
+parents after he thanked Stone and looked back at the book. Both normal API
+continuations of the next reading turn avoided another question, though they
+still added comments and retained some didactic prose.
+
+The current coding wrapper is therefore unnecessary to reproduce the problem.
+All conditions inherit proxy-written history, so this does not rule out earlier
+wrapper influence or establish identical serving behavior. The unblinded sample
+is small, and message roles and output controls differ. The
+[complete passages](https://github.com/dan-garvey/ayoa/blob/1ef8fc1a81110cf55dab2c832a7497b5e09e9135/forced_engagement_20260917/TRANSCRIPTS.md)
+and per-response assessments include the counterexamples.
+
+The next candidate should clarify natural conversational endings and chosen quiet
+activity while retaining independent NPC initiative and the full biographies.
+The [analysis](https://github.com/dan-garvey/ayoa/blob/1ef8fc1a81110cf55dab2c832a7497b5e09e9135/forced_engagement_20260917/ANALYSIS.md)
+proposes replacing overlapping direction/handoff wording. That change remains
+untested and has not been applied to live prompts or story snapshots.
