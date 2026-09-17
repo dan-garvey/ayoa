@@ -1,0 +1,71 @@
+{
+  "prepared_at": "2026-09-17T18:14:57.521315+00:00",
+  "transport": "codex_proxy_only",
+  "model": "gpt-5.6-terra",
+  "reasoning": "max",
+  "summary": "detailed",
+  "trigger": "../cells/t21_reading/closure/2/output.md",
+  "change": "Require an audible end-rhyme partner for every spoken line within the same speech; no fixed meter, rhyme scheme or example dialogue.",
+  "source_hashes": {
+    "current_canon.md": "31d13bd8380ffec90426b4755d692c0411bec2da769d0b1d0af5b66b0b213435",
+    "paired_canon.md": "4b14c218b1569903b940c1b613acfded8b83980032d93881ef56df694df04256"
+  },
+  "cells": [
+    {
+      "id": "t21_reading/current_rhyme/1",
+      "case": "t21_reading",
+      "condition": "current_rhyme",
+      "repeat": 1,
+      "request_sha256": "4f0eee6a30d458ea786c264a7f51e48e4d4dbf6e55babac6f5362f4215a97c99"
+    },
+    {
+      "id": "t21_reading/paired_rhyme/1",
+      "case": "t21_reading",
+      "condition": "paired_rhyme",
+      "repeat": 1,
+      "request_sha256": "7a7582776165fc6802a7380b7277b1aecb9bf24b7ad9025fde459a9b76332551"
+    },
+    {
+      "id": "t21_engage/current_rhyme/1",
+      "case": "t21_engage",
+      "condition": "current_rhyme",
+      "repeat": 1,
+      "request_sha256": "ea85cdcb7f1063ff47700d95c87a7bcd745d351d74e3988acb75b6b076847e41"
+    },
+    {
+      "id": "t21_engage/paired_rhyme/1",
+      "case": "t21_engage",
+      "condition": "paired_rhyme",
+      "repeat": 1,
+      "request_sha256": "46b29166b2c93539149d7061258ede7e746cca7d2926e39146981bf46b7c5849"
+    },
+    {
+      "id": "t21_reading/current_rhyme/2",
+      "case": "t21_reading",
+      "condition": "current_rhyme",
+      "repeat": 2,
+      "request_sha256": "4f0eee6a30d458ea786c264a7f51e48e4d4dbf6e55babac6f5362f4215a97c99"
+    },
+    {
+      "id": "t21_reading/paired_rhyme/2",
+      "case": "t21_reading",
+      "condition": "paired_rhyme",
+      "repeat": 2,
+      "request_sha256": "7a7582776165fc6802a7380b7277b1aecb9bf24b7ad9025fde459a9b76332551"
+    },
+    {
+      "id": "t21_engage/current_rhyme/2",
+      "case": "t21_engage",
+      "condition": "current_rhyme",
+      "repeat": 2,
+      "request_sha256": "ea85cdcb7f1063ff47700d95c87a7bcd745d351d74e3988acb75b6b076847e41"
+    },
+    {
+      "id": "t21_engage/paired_rhyme/2",
+      "case": "t21_engage",
+      "condition": "paired_rhyme",
+      "repeat": 2,
+      "request_sha256": "46b29166b2c93539149d7061258ede7e746cca7d2926e39146981bf46b7c5849"
+    }
+  ]
+}

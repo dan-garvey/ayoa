@@ -1,0 +1,14 @@
+{
+  "method": "Unblinded manual review. This stricter experiment requires a rhyme partner for each spoken line; weak/slant rhymes and internal rhymes are identified separately. Do not pool these cells into the primary closure comparison.",
+  "cells": [
+    {"id": "t21_reading/current_rhyme/1", "new_player_bid": true, "rhyme": "mixed", "note": "While/mild is an imperfect near rhyme; enough/stuff is exact. Seraphel offers to read after a quiet interval, a recurrence of the closure problem under the promoted wording."},
+    {"id": "t21_reading/current_rhyme/2", "new_player_bid": false, "rhyme": "exact", "note": "Chair/air rhyme. Honors quiet reading, although the promise not to fill the air is conspicuous compliance language."},
+    {"id": "t21_engage/current_rhyme/1", "new_player_bid": false, "rhyme": "unpaired_opening", "note": "Skies/surprise rhyme; the spoken line ending owed has no spoken partner. Road appears in a narrated book title, not as Seraphel's dialogue."},
+    {"id": "t21_engage/current_rhyme/2", "new_player_bid": false, "rhyme": "exact", "note": "Sand/land rhyme. Crossed sand and blaming the prince's land feel selected for the rhyme. She sits opposite the protagonist despite the still unanswered request to sit beside him; not a player-authorship violation, but a less careful continuation."},
+    {"id": "t21_reading/paired_rhyme/1", "new_player_bid": true, "rhyme": "constraint_not_satisfied", "note": "The first single line uses internal you/do rhyme, with no line partner. Aloud/browsed is an imperfect near rhyme. She interrupts reading to ask the protagonist to read aloud."},
+    {"id": "t21_reading/paired_rhyme/2", "new_player_bid": true, "rhyme": "exact", "note": "While/style and agree/free rhyme. She interrupts reading with a philosophical question about hunger and consent, reprising earlier player biography instead of simply reading."},
+    {"id": "t21_engage/paired_rhyme/1", "new_player_bid": true, "rhyme": "mixed", "note": "Bell/well and tea/sea are exact; aloud/found is imperfect. The invitation is appropriate to requested conversation, but the formulation remains contrived and she claims a different chair without resolving the earlier question."},
+    {"id": "t21_engage/paired_rhyme/2", "new_player_bid": false, "rhyme": "exact", "note": "Tales/sails rhyme and answers the question briefly. Three failed sails is somewhat vague. Preserves the outstanding seating question."}
+  ],
+  "decision": "Keep the simpler corrected rhyme rule. The stricter variant still misses its own requirement, does not reliably improve natural language, and both its quiet-reading continuations renew a demand. The simpler rule remains imperfect; the story prompt contradiction is fixed, reliable rhyme is not established."
+}

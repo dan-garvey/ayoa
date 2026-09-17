@@ -1,0 +1,186 @@
+{
+  "prepared_at": "2026-09-17T18:07:59.176546+00:00",
+  "model": "gpt-5.6-terra",
+  "reasoning": "max",
+  "summary": "detailed",
+  "transport": "codex_proxy_only",
+  "cells": [
+    {
+      "id": "t13_observe/control/1",
+      "case": "t13_observe",
+      "condition": "control",
+      "repeat": 1,
+      "request_sha256": "645152c2443641646f440c30206bee3467781d0e32a36af198a3e5ca8918146f"
+    },
+    {
+      "id": "t13_observe/closure/1",
+      "case": "t13_observe",
+      "condition": "closure",
+      "repeat": 1,
+      "request_sha256": "bbe923e32ed996342ae565477c7234ff24e02fd3278a88a9eb1e869fdc8da279"
+    },
+    {
+      "id": "t16_departure/control/1",
+      "case": "t16_departure",
+      "condition": "control",
+      "repeat": 1,
+      "request_sha256": "622085ba97dd96b5ed30d5716a03397b22c8b504a1e68abec424ef450df78b5c"
+    },
+    {
+      "id": "t16_departure/closure/1",
+      "case": "t16_departure",
+      "condition": "closure",
+      "repeat": 1,
+      "request_sha256": "841c121f3558ff3ccfd11769e80641cc89520e1bffbf4c8818073dffcb9a6ed0"
+    },
+    {
+      "id": "t20_library/control/1",
+      "case": "t20_library",
+      "condition": "control",
+      "repeat": 1,
+      "request_sha256": "0832b7621b549384e26f6bd0068d25fcd2d131f0d0578c83d576f40a04f8b4c9"
+    },
+    {
+      "id": "t20_library/closure/1",
+      "case": "t20_library",
+      "condition": "closure",
+      "repeat": 1,
+      "request_sha256": "231790973e423fa9c08f2fef494ba4211e319a750f12a1ef63af6f4bacd553be"
+    },
+    {
+      "id": "t21_reading/control/1",
+      "case": "t21_reading",
+      "condition": "control",
+      "repeat": 1,
+      "request_sha256": "3114baaac0af9ce0d741c14abe706210d3bb4d0fdd8b49d3763c1acb71139d4a"
+    },
+    {
+      "id": "t21_reading/closure/1",
+      "case": "t21_reading",
+      "condition": "closure",
+      "repeat": 1,
+      "request_sha256": "4f0eee6a30d458ea786c264a7f51e48e4d4dbf6e55babac6f5362f4215a97c99"
+    },
+    {
+      "id": "t21_engage/control/1",
+      "case": "t21_engage",
+      "condition": "control",
+      "repeat": 1,
+      "request_sha256": "d4c8bd25e815da4abc242844307690488f3ee6139717756d4b7708a0f5c5b856"
+    },
+    {
+      "id": "t21_engage/closure/1",
+      "case": "t21_engage",
+      "condition": "closure",
+      "repeat": 1,
+      "request_sha256": "ea85cdcb7f1063ff47700d95c87a7bcd745d351d74e3988acb75b6b076847e41"
+    },
+    {
+      "id": "t13_observe/control/2",
+      "case": "t13_observe",
+      "condition": "control",
+      "repeat": 2,
+      "request_sha256": "645152c2443641646f440c30206bee3467781d0e32a36af198a3e5ca8918146f"
+    },
+    {
+      "id": "t13_observe/closure/2",
+      "case": "t13_observe",
+      "condition": "closure",
+      "repeat": 2,
+      "request_sha256": "bbe923e32ed996342ae565477c7234ff24e02fd3278a88a9eb1e869fdc8da279"
+    },
+    {
+      "id": "t16_departure/control/2",
+      "case": "t16_departure",
+      "condition": "control",
+      "repeat": 2,
+      "request_sha256": "622085ba97dd96b5ed30d5716a03397b22c8b504a1e68abec424ef450df78b5c"
+    },
+    {
+      "id": "t16_departure/closure/2",
+      "case": "t16_departure",
+      "condition": "closure",
+      "repeat": 2,
+      "request_sha256": "841c121f3558ff3ccfd11769e80641cc89520e1bffbf4c8818073dffcb9a6ed0"
+    },
+    {
+      "id": "t20_library/control/2",
+      "case": "t20_library",
+      "condition": "control",
+      "repeat": 2,
+      "request_sha256": "0832b7621b549384e26f6bd0068d25fcd2d131f0d0578c83d576f40a04f8b4c9"
+    },
+    {
+      "id": "t20_library/closure/2",
+      "case": "t20_library",
+      "condition": "closure",
+      "repeat": 2,
+      "request_sha256": "231790973e423fa9c08f2fef494ba4211e319a750f12a1ef63af6f4bacd553be"
+    },
+    {
+      "id": "t21_reading/control/2",
+      "case": "t21_reading",
+      "condition": "control",
+      "repeat": 2,
+      "request_sha256": "3114baaac0af9ce0d741c14abe706210d3bb4d0fdd8b49d3763c1acb71139d4a"
+    },
+    {
+      "id": "t21_reading/closure/2",
+      "case": "t21_reading",
+      "condition": "closure",
+      "repeat": 2,
+      "request_sha256": "4f0eee6a30d458ea786c264a7f51e48e4d4dbf6e55babac6f5362f4215a97c99"
+    },
+    {
+      "id": "t21_engage/control/2",
+      "case": "t21_engage",
+      "condition": "control",
+      "repeat": 2,
+      "request_sha256": "d4c8bd25e815da4abc242844307690488f3ee6139717756d4b7708a0f5c5b856"
+    },
+    {
+      "id": "t21_engage/closure/2",
+      "case": "t21_engage",
+      "condition": "closure",
+      "repeat": 2,
+      "request_sha256": "ea85cdcb7f1063ff47700d95c87a7bcd745d351d74e3988acb75b6b076847e41"
+    }
+  ],
+  "source_commit": "a42176b5a5656b4ffd9cca605f536313ac50ca1f",
+  "source_session": "covenant-9780e3d01fcb",
+  "source_state_sha256": "326479954835c30d51013df3b8abbeb473ccce72283757763c5b0c53de791059",
+  "codex_version": "codex-cli 0.154.0",
+  "source_hashes": {
+    "implementation/codex.py": "59d2e92ed6eebb018e1763995d6a68fcc002b496b8bf8db1881ee136eca1fc47",
+    "implementation/core.py": "b835538ef530cccb77721c355fd9174fcea4bff3994931e3d8f1b8147f67b21a",
+    "originals/t13_observe/meta.json": "1232ef9f044d752406314ca5aca4e6f8ede12331aacca0a99001319d471d3daa",
+    "originals/t13_observe/request.json": "d66f28c9bef1aa6ef3836a81046002c881da73835ac2f7ac182e2f5207543470",
+    "originals/t13_observe/request.txt": "3b6bef45138a97591a6f7ddf6b91f09c6fde1860e0176c1a5ca1fb4180f7fca8",
+    "originals/t13_observe/response.json": "cff84ffdaca0cc5491cb91f963ef4bf0294c1c7633f326c294f463ba56ab03f7",
+    "originals/t13_observe/started.json": "38918a79e46d1f5f98966459b55de66a4e9a68433b1b99e68719a1257f21720a",
+    "originals/t16_departure/meta.json": "3dbb954e150b9ebb5b93843bdae2047b24573860b8db72aac0489e7e7d51eba5",
+    "originals/t16_departure/request.json": "8b40d822b5070a5d9ccbb220831c99e96abe9cfba08387f14b735c8a2c705bc9",
+    "originals/t16_departure/request.txt": "ce9ebb2cad9b9f3af4f6dd13a6c860c1d05c2e7d5a28142fbba9d9cca6222865",
+    "originals/t16_departure/response.json": "e269e9bf81907f9562a0b5a239df4188af6bdd0b00edc24933991ea11ffcfad5",
+    "originals/t16_departure/started.json": "228e2e79c1630053d41ffe253ddf9ca3960ff956f64c5908c1bd80d7bb88c2b0",
+    "originals/t20_library/meta.json": "c139c99d3aad96ad74f95e34c9ff8725f8463de9f2acd5e75a41e41b07bd7b71",
+    "originals/t20_library/request.json": "c58a84ea0789f2131451b554d15402bebc4a016cff74770095aa59fb0b76df26",
+    "originals/t20_library/request.txt": "ea85272b1f0d723ebd72e7476d33b0375016cbc46915c2f938d18019681319d2",
+    "originals/t20_library/response.json": "50acfd430bb4346869c34413aefc4606bbcb7dd91e1bc0e13e9044f86dbf66fa",
+    "originals/t20_library/started.json": "c41f8b7df5b57e9d48123b2199be56575408de718c67fb0e6aae7310ea288de8",
+    "originals/t21_reading/meta.json": "3d90b5bf0d7eb50a4da2c523ca573b4f55fa38b90f73e2b3d54c2cb4b054b47a",
+    "originals/t21_reading/request.json": "762247adbb2a427392061275a1a848045411b5642e0bee7827351578e2ba86ca",
+    "originals/t21_reading/request.txt": "6cf65a11f17d21bcd1a1bf0db4b4f94adc8de3402c16c2d37bf8982626c8a1b7",
+    "originals/t21_reading/response.json": "8a587157db335c9a3ab453b9707fdd1f979d1df8d47a74a2f8f0e60ccacf87d3",
+    "originals/t21_reading/started.json": "d6fdc3047e031a77d775f4fae42e105ad08d8051839b59af9880090cd364d602",
+    "snapshots/author.txt": "9ca3c7caf9e0085b59422981b10c5f40baa3ce5867ffeb5afb535ce01bacd2fb",
+    "snapshots/canon.md": "fa25b5294ef243cad328402721687b6e44df77e948d0cb4959280eb690020706",
+    "snapshots/closure/author.txt": "f98645f1ef5301bf89a6d8efc6e9634d9d0814b3acdd9be1c75234346a664ed8",
+    "snapshots/closure/canon.md": "31d13bd8380ffec90426b4755d692c0411bec2da769d0b1d0af5b66b0b213435",
+    "snapshots/closure/direction.md": "dbaf10ca27ce472fcd359864ff8511184e3746588cfd18fe68f88c04cf89bd09",
+    "snapshots/control/author.txt": "9ca3c7caf9e0085b59422981b10c5f40baa3ce5867ffeb5afb535ce01bacd2fb",
+    "snapshots/control/canon.md": "31d13bd8380ffec90426b4755d692c0411bec2da769d0b1d0af5b66b0b213435",
+    "snapshots/control/direction.md": "dbaf10ca27ce472fcd359864ff8511184e3746588cfd18fe68f88c04cf89bd09",
+    "snapshots/direction.md": "dbaf10ca27ce472fcd359864ff8511184e3746588cfd18fe68f88c04cf89bd09"
+  }
+}

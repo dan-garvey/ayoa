@@ -1,0 +1,3 @@
+**Continuing interactive fiction with NPC dynamics**
+**Planning natural NPC conflict resolution**
+**Developing NPC dialogue leading to player choice**

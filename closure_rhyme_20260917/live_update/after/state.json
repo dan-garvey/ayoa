@@ -1,0 +1,235 @@
+{
+  "manifest_sha256": "5b2729f96d28be9968ba28feb11b41f43a434ccc50cf867a396b51f25448a08b",
+  "player_names": [
+    "Bing Bong"
+  ],
+  "turns": [
+    {
+      "turn": 0,
+      "input": "Begin the story.",
+      "output": "The lamp on your desk wakes before the sky has decided whether it is evening. Its globe fills with amber light, catching in the ink beneath your fingernails and along the careful stitches at your charcoal cuff.\n\nBeyond the window, the gardens lie pale and orderly between high walls. Farther out, one of the hard-light bridges runs from the plateau into the storm: a white line suspended over blue lightning, disappearing into cloud.\n\nThe room contains the sort of things someone thinks a young heir ought to own. A made bed. A wardrobe full of clothes selected by lawyers who have never met you. A desk with good pens arranged in a tray.\n\nAbove it hangs one thing that feels less newly supplied: a handwritten letter in a narrow dark frame. Your dead aunt writes warmly about airing these rooms for a planned visit from her named great-nephew. The letter never explains why the visit mattered, or why someone chose to preserve it here.\n\nFrom below, the house is beginning to fill itself with dinner. Chairs scrape over the dining hall floor. A serving cover clinks. Several voices travel up the stairwell, too blurred by distance to sort out, followed by a burst of laughter that someone immediately tries and fails to suppress.\n\nA brief knock sounds at your door.\n\nWarm gold light lies beneath it, brighter than the lamps in the corridor.\n\n“Mr. Garvey,” a young woman says from the hall, each phrase falling with an odd, deliberate rhythm. “Dinner is set. / They have saved you a place.”",
+      "responses": [
+        "6f2bd2022e46417cac6054f673844552"
+      ],
+      "submission_id": "503265aae3a4448a8a8c35fc4793eafe",
+      "published_at": "2026-09-15T17:01:35.704012+00:00"
+    },
+    {
+      "turn": 1,
+      "input": "I open the door",
+      "output": "The door opens on a young woman in white and gold, one hand still lifted from the knock. Warm light seems to rest against her skin rather than fall on it; small white wings fold neatly behind her shoulders.\n\nHer blue eyes take in the Garvey signet, then return to your face.\n\n“Seraphel Dawnquill.  \nFirst year, as you are.  \nThe dining hall is downstairs—  \nthey have kept you a place.\n\n“Shall I walk with you?”",
+      "responses": [
+        "1fa322fd83874e14bb60ba8df12f565f",
+        "9d68a9064c0349c59b9e21330f729e66"
+      ],
+      "submission_id": "a571c8d2efa642d58e81dae7bb3b7944",
+      "published_at": "2026-09-15T17:20:17.307266+00:00"
+    },
+    {
+      "turn": 2,
+      "input": "I tilt my head slightly at her odd way of speaking. \"Do angels... normally talk like that? I apologize for my ignorance.\" ",
+      "output": "Seraphel’s mouth tilts, not quite a smile.\n\n“Not angels as a rule.  \nOnly Dawnquills speak in verse.  \nYou needn’t apologize  \nfor noticing it.”\n\nFrom the stairwell comes the buttery smell of roasted root vegetables and something sharply spiced. Seraphel steps aside, leaving the corridor clear between you and the warm noise below.\n\n“Most ask after deciding  \nI’m performing for them.  \nYou asked plainly. That is easier.\n\n“Come downstairs with me, if you like.”",
+      "responses": [
+        "0564b70731ae4da28b3d8aff0b64a185"
+      ],
+      "submission_id": "475f4f2d781f497d99c060f0d247adea",
+      "published_at": "2026-09-15T17:28:01.304396+00:00"
+    },
+    {
+      "turn": 3,
+      "input": "I do as she asks. \"That's certainly an interesting family trait.\" I pause... \"Does it give reason for many to berate?\" I screw my face up, my obvious lack of poetic skill showing clearly",
+      "output": "Seraphel’s smile comes properly this time.\n\n“At times it does.  \nThough poor rhymes are harmless.  \nPoor manners have sharper teeth.”\n\nShe leads you down the stairs. The common room opens briefly at the landing: firelight on dark leather, portraits watching from above the mantel, a card table folded against one wall. Voices and the smell of peppered roast carry from the dining hall beyond.\n\nThe long table is set beneath working lamps and candles, though only one end is occupied. A tall demon woman with black-red horns sits with one boot hooked around her chair leg, studying the serving platters as if they have made tactical errors. Beside her, a carefully dressed beastkin man is saying something low enough that only she hears; his dark-furred hand rests flat beside his plate. Across from them, a white-haired woman sits very still, a glass of water beading untouched before her.\n\nAt the nearer end, an elf with silver hair looks up from the menu card she has apparently been reading for flaws. A small fae woman has claimed a chair sideways and is peeling the paper from a wrapped sweet. The angel in white and gold at the head of the table turns as you enter, his posture immediately formal.\n\nThe demon woman’s gold eyes settle on your signet, then your face.\n\n“Bing Bong Garvey,” she says. “I’m Ashara vel Kothren. Sit down before Rashid starts introducing everyone by ancestry and voting record.”",
+      "responses": [
+        "f8c67285174e49b8a3f19597ec91e738"
+      ],
+      "submission_id": "8988ecd2e500457081fdac1c93af8d7a",
+      "published_at": "2026-09-15T18:24:20.648665+00:00"
+    },
+    {
+      "turn": 4,
+      "input": "I raise my left eyebrow about a half inch, and then grin conspiratorially. \"An odd way to handle standing people. I'm tempted to enable it. \" ",
+      "output": "Ashara gives a brief laugh, low and unguarded. “Enable him. I’d like to see how far he gets before the soup.”\n\nRashid’s mouth curves despite himself. “Rashid vel Amara. I do own a sense of proportion, however inconveniently.”\n\nThe fae woman looks up from her sweet. “He did say *tempted*. That isn’t an agreement.”\n\n“Thank you, Thessaly,” Rashid says. “Your defense is very reassuring.”\n\nAt the far side of the table, the silver-haired elf closes her menu. “If we are cataloguing one another, do it before the squash cools.”\n\nA server in Academy blue draws back the empty chair between Seraphel and Thessaly. A place card reads simply: **GARVEY**.\n\nRashid rests his furred fingertips beside his glass and looks directly at you. “Would you prefer the ancestry-and-voting-record version, or may we introduce ourselves like people?”",
+      "responses": [
+        "f3c6614fd7cc4de4b38b16bd1fb31d1f"
+      ],
+      "submission_id": "dceefceff9674abb93987fc0a353dea5",
+      "published_at": "2026-09-15T18:57:10.368017+00:00"
+    },
+    {
+      "turn": 5,
+      "input": "I sit. \"Bing Bong, person.\" ",
+      "output": "Ashara’s tail gives a small approving flick against her chair. “Useful distinction.”\n\nRashid inclines his head. “Fair correction. Rashid vel Amara, person.”\n\n“I’m Thessaly Morrow,” says the fae woman. “Also a person. The sweet is mine.”\n\nSeraphel takes the chair at your right.\n\n“Seraphel Dawnquill,  \nas established upstairs.  \nAnd this is Ysolde Thornmantle.”\n\nThe white-haired woman looks from her untouched water to you. “Hello.”\n\n“Caelindra Vaeyn,” says the elf, with the air of supplying an item that ought already to have been known.\n\nAt the head of the table, the angel rises just enough to make the gesture feel ceremonial. “Aldric Verantus. Welcome to Garvey House, Bing Bong.”\n\nServers begin setting down shallow bowls of squash soup, its surface bright with red oil and toasted seeds. Ashara waits until hers is in reach before picking up her spoon.\n\n“You arrive on a good night,” she says. “No speeches from faculty. No seating chart beyond this one. We eat, and tomorrow they begin explaining what they expect us to become.”\n\nRashid glances toward the place card bearing your family name.\n\n“And tonight,” he says, “we get to hear what brought the first human Conclave student in sixty years to our table.”",
+      "responses": [
+        "481b217a1b464c21bed9b316fca7f278"
+      ],
+      "submission_id": "f881555e5a694523b4eaed4308968c9e",
+      "published_at": "2026-09-15T19:26:32.729927+00:00"
+    },
+    {
+      "turn": 6,
+      "input": "\"A little presumptuous, but I'll grant it. I was contacted by lawyers about my \"inheritance.\"  My history is rather humble, so I'll spare you the details, but suffice it to say accepting this position is a great opportunity for me, deserved or otherwise. \" I savor the food, as its better than almost anything I've eaten up to this point. ",
+      "output": "The soup is thick with roasted squash, pepper, and a little smoke. A server has folded warm bread into a linen-lined basket beside your elbow. For a moment, the table’s attention loosens enough for you to taste it properly.\n\nAshara sets down her spoon. “You know it wasn’t earned. Good. That’s a better beginning than pretending it was.”\n\nRashid’s courtesy sharpens by a degree. “It’s also not merely an opportunity. The human chair has been empty for sixty years. People will attach hopes to you whether you invited them or not.”\n\n“Everyone here has something attached to them,” Thessaly says, brushing sugar from one thumb. “Some of us have it written down.”\n\nAldric looks along the table. “Bing Bong has been here less than an hour. Perhaps we can permit him one dinner before assigning him the failures of the Council.”\n\n“That would be generous,” Caelindra says, lifting her spoon. “Though it won’t make the failures disappear.”\n\nSeraphel breaks a piece of bread in two.\n\n“The house has waited long.  \nIt may survive one meal  \nwithout a verdict.”\n\nAshara’s mouth twitches. Rashid looks briefly toward Seraphel, then returns to his soup.\n\nAcross the table, Ysolde has finally taken a sip of water. Her grey eyes settle on the neat repair at your cuff.\n\n“The lawyers selected the other clothes?” she asks. “What did you do before they found you?”",
+      "responses": [
+        "4468027c5aab4e9bb2576f7e53fe93e9"
+      ],
+      "submission_id": "5648ec36b36941d8bd49d801ca92ccbc",
+      "published_at": "2026-09-15T19:49:19.430177+00:00"
+    },
+    {
+      "turn": 7,
+      "input": "(OOC: Ysolde's question is a character omniscience breach, probably) \n\"Most recently I was an apprentice scribe, copying books for a library.\" ",
+      "output": "OOC: You’re right—Ysolde had no basis to know what the lawyers selected. Retconning that to her noticing the repairs and ink, then asking what you did before they found you.\n\nYsolde glances at your stained fingers. “A scribe. That explains the ink.”\n\n“It also explains the coat,” Thessaly says. “Books do not generally pay well.”\n\n“They sometimes pay very well,” Caelindra says. “Just not to the person copying them.”\n\nRashid lets out a quiet breath through his nose. “What sort of library?”\n\nCaelindra’s eyes shift to you over her spoon. “And what did they trust an apprentice to copy?”",
+      "responses": [
+        "38d1dc7909114e4a91a6b0c110f4d008"
+      ],
+      "submission_id": "887bd147cc35448e8a5998a4c3198b2e",
+      "published_at": "2026-09-15T20:09:53.390348+00:00"
+    },
+    {
+      "turn": 8,
+      "input": "\"A Faen one. Not much. It turns out Fae don't like it when you paraphrase or take other literally liberties. \" I say wryly. ",
+      "output": "Thessaly pauses with the sweet halfway to her mouth.\n\n“That’s correct,” she says. “Paraphrase is how a sentence becomes someone else’s problem.”\n\nAshara laughs into her soup. “At least the library taught you something useful.”\n\nCaelindra studies you with a new, narrower interest. “Copying Fae texts without altering them is more demanding than most people expect.”\n\nRashid tears off a piece of bread. “And a better preparation for Conclave records than it sounds.”\n\nSeraphel’s wings shift softly behind her chair.\n\n“Words kept precise  \ncan outlive those who write them.”\n\nThessaly sets down her sweet. “Which Fae library?”",
+      "responses": [
+        "bf1b69c1ce174d96aaf47506917e003c"
+      ],
+      "submission_id": "85b8eaa2e53d44aba9c876a678e2ab05",
+      "published_at": "2026-09-15T21:09:47.246971+00:00"
+    },
+    {
+      "turn": 9,
+      "input": "(OOC: Avoid being sycophantic in replies. The other characters exist to challenge and interest the protagonist, not flatter him for unearned behavior) \nI shrug. \"It was in my contract that I not know the name. \" ",
+      "output": "Thessaly sets down her sweet.\n\n“That’s a poor term,” she says. “It keeps you from judging the agreement you made.”\n\nCaelindra rests her spoon against the bowl. “Or from knowing whom to blame if it proved inconvenient.”\n\nAshara looks across the table at you. “You signed it?”",
+      "responses": [
+        "a61c733abd4643f1a9e26b04b46d78cb"
+      ],
+      "submission_id": "101c3301a9da4c768c1760b3a09a22df",
+      "published_at": "2026-09-16T00:22:22.251468+00:00"
+    },
+    {
+      "turn": 10,
+      "input": "\"Between starvation and a shady contract, I'll pick the latter any day. \" I say, enjoying another mouthful",
+      "output": "Rashid’s expression does not soften. “It’s a reasonable choice. It doesn’t make the term less ugly.”\n\n“A contract can be ugly and enforceable,” Ashara says. “Those are different problems.”\n\nThessaly considers this. “If you weren’t permitted to know the library’s name, you weren’t given much way to complain about it afterward. That was likely deliberate.”\n\nCaelindra reaches for the bread basket. “A library that hides its own name sounds exhausting.”\n\n“It was a job,” Rashid says. “Not a courtship.”\n\n“That does not make obscurity charming.”\n\nA server replaces the empty soup bowls with plates of peppered roast and glazed roots. Aldric waits until the server has moved away before speaking.\n\n“The Academy keeps counsel for Conclave students. They may not be able to undo an outside agreement, but they can tell you what it requires of you here.” He looks at you steadily. “Do you still have a copy of the contract?”",
+      "responses": [
+        "0d24ed42b95f4f0c95bb1818a39ce169"
+      ],
+      "submission_id": "08c338d5349d4e2dae97fc5fce04b861",
+      "published_at": "2026-09-16T00:24:32.142563+00:00"
+    },
+    {
+      "turn": 11,
+      "input": "\"Probably, but all of its terms were voided on the end of my employment, so it hardly seems relevant.\" ",
+      "output": "Thessaly folds the sweet wrapper into a narrow strip.\n\n“Then the obligation ended when the work ended. Fine. A finished contract can still be useful, though. It tells you who thought an unnamed library was worth paying for.”\n\n“Keep it,” Aldric says. “If only so Academy counsel can confirm that the terms ended as you understand them.”\n\nAshara reaches for another piece of bread. “Enough paperwork. He’s trying to eat.”\n\nCaelindra samples a glazed root vegetable and makes a faint face. “The kitchen appears to have mistaken sweetness for seasoning.”\n\nYsolde considers her own forkful. “It is sweet.”\n\n“That is not a defense.”\n\n“It was not intended as one.”\n\nAshara’s laugh catches Rashid’s, brief and unwilling. Then she turns to him.\n\n“Octagon after dinner. Half an hour.”\n\n“Yes,” Rashid says. “I remember.”\n\n“Useful faculty.”\n\n“Rarely appreciated.”\n\nFrom the common room comes the crisp snap of cards being shuffled. A moment later, a young demon woman appears in the dining-hall arch with her splinted wrist tucked close to her side. Two other students linger behind her near the firelit doorway.\n\nHer eyes settle on Rashid.\n\n“Cards are out,” she says. “You said you’d be there right after dinner.”",
+      "responses": [
+        "f133227425de4b78941a74d204eadbe7"
+      ],
+      "submission_id": "6966fb719637488981077ca55e50895c",
+      "published_at": "2026-09-16T00:40:41.503572+00:00"
+    },
+    {
+      "turn": 12,
+      "input": "I don't react.",
+      "output": "You leave the exchange alone, keeping your attention on the roast.\n\nThe demon woman in the archway shifts her splinted wrist closer to her side. “I know. We’ve got cards out. You said right after dinner.”\n\nRashid’s hand stills beside his plate. “Dena, I said I’d be there.”\n\n“Not after a drill.”\n\nHe glances toward Ashara. “Ashara asked for half an hour at the octagon.”\n\nAshara sets down her fork. “You had another arrangement?”\n\n“An earlier one.”\n\n“Then you should’ve said no to one of them.”\n\nDena’s expression tightens. “Don’t make me arbitrate it. I came because you hadn’t told us.”\n\nFor a moment Rashid looks at neither of them. Then he nods once. “You’re right. I said cards first. I’ll be there when I’m done eating.”\n\nAshara leans back in her chair. Her tail taps once against the wood. “Fine. I’ll find another partner.”\n\n“Your bout is tomorrow,” Rashid says.\n\n“And Dena’s evening is tonight.”\n\nDena exhales through her nose, some of the edge leaving her face. “It’s cards, Rashid. Not a tribunal. Eat before the potatoes congeal, then come lose at something.”\n\n“I don’t play for money.”\n\n“That’s what you say before you lose.”\n\nOne of the students behind her snorts. Dena turns and heads back toward the common room, the others following; the soft, papery shuffle of cards begins again beyond the arch.\n\nAshara takes another bite of roast. “You make a very elaborate hobby of making your own life difficult.”\n\nRashid’s smile is brief. “I’m told I have range.”\n\nSeraphel tears her bread in half.\n\n“Eat while it is warm.  \nRegret keeps poorly.”\n\nCaelindra has been watching the exchange with an expression that gives nothing away. She finally looks back to you.\n\n“You had access to a Fae library,” she says. “What was the least boring thing you copied?”",
+      "responses": [
+        "aec57874692f46ed8fc9b72c0bc2b0a4"
+      ],
+      "submission_id": "fe407c294a25416db433f90d174d6620",
+      "published_at": "2026-09-16T00:54:21.779122+00:00"
+    },
+    {
+      "turn": 13,
+      "input": "\"It was largely very dry, but a student once put another student's homework in my pile without me noticing anything. I thought the 'document' was strange, but I copied it anyway. It was only when I caught him sneaking it out of the pile did I realize I aided one of the laziest cheaters imaginable.\" I turn to Ashara. \"I understand combat prowess is something to be valued here. I doubt I can stand in effectively for Rashid, but I can at least take a hit.\" I shrug. \"If you need a substitute.\" ",
+      "output": "Ashara looks you over once: ink-stained fingers, mended coat, no weapon at your belt.\n\n“I don’t need someone to take hits,” she says. “I need someone who can make me miss.”\n\nRashid’s mouth tightens, though whether at her answer or your offer is hard to tell.\n\nAshara reaches for her water. “Have you ever held a practice blade?”",
+      "responses": [
+        "1c269ff68573438999658dca6d95d059"
+      ],
+      "submission_id": "de641e89f8844cff9e3e2d207ce67122",
+      "published_at": "2026-09-16T01:00:18.471152+00:00"
+    },
+    {
+      "turn": 14,
+      "input": "I laugh. \"No, nor the real thing. Only knives and fisticuffs.\" I deftly twirl a steak knife in a cheesy demonstration.\n",
+      "output": "The steak knife circles once above your plate, catches the lamp’s light, and settles neatly back into your hand.\n\nAshara watches it without much expression. “Don’t do that with the dinner knives. I need a partner who knows the drills well enough to test my timing.”\n\nRashid nods. “You can learn. But volunteering to be hit isn’t much of a starting qualification.”\n\n“Accurate,” Thessaly says. “A little severe.”\n\n“I have a ranked bout tomorrow,” Ashara says. “I’m not spending tonight teaching someone how to stand.”\n\nCaelindra cuts another piece of roast. “A remarkably sensible decision.”\n\nAshara gives her a flat look, then turns back to you. “Watch tomorrow’s bout. If you still want lessons afterward, ask.”",
+      "responses": [
+        "13e50043cde747f093784038e439cd74",
+        "ec4b261a46514a1381b2a707f9c60abc"
+      ],
+      "submission_id": "e91b31b3f1ac48fea3c9637f943fdb1b",
+      "published_at": "2026-09-16T15:15:18.320346+00:00"
+    },
+    {
+      "turn": 15,
+      "input": "\"Suit yourself.\" I put the knife down with an equal amount of nonchalance. ",
+      "output": "Ashara gives a short nod and returns to her plate.\n\nThe conversation drifts with the meal. Thessaly wins an argument with Aldric over whether a spilled drink counts as an accident if someone has been warned three times not to gesticulate near it. Caelindra continues her quiet war against the glazed roots. Ysolde asks the server for the remaining rare slices of roast, and receives them without comment.\n\nWhen the last plates are cleared, Rashid rises and smooths his cuffs.\n\n“I owe people cards,” he says to Ashara.\n\n“You do.”\n\nHe heads for the common room. Dena’s voice carries from beyond the arch: “There he is. Deal him in before he invents another obligation.”\n\nAshara stands more slowly, collecting the practice jacket she left over the back of her chair. “I’ll use the empty octagon.”\n\nSeraphel looks toward the firelit room.\n\n“The cards appear loud.  \nI may prefer to listen  \nfrom somewhere else.”\n\nThen Ashara looks at you.\n\n“Are you coming to watch, or staying here?”",
+      "responses": [
+        "9e4b73c34be843ae9414f7b91db7f753",
+        "c9d71fda988647328be8b37f4949bae0"
+      ],
+      "submission_id": "9264575d8cf7425d9346672494fb78b9",
+      "published_at": "2026-09-16T18:22:00.100889+00:00"
+    },
+    {
+      "turn": 16,
+      "input": "\"Neither, I'm going to study the textbooks a bit, I imagine I'm quite behind. See you all tomorrow, I expect. \"",
+      "output": "Ashara swings her practice jacket over one shoulder. “Fine. Orientation starts at eight. The Academy doesn’t care whether you’ve had time to prepare.”\n\nRashid is already crossing into the common room. Dena deals him a hand without looking up.\n\n“You’re late,” she says.\n\n“I’m aware.”\n\n“Good. It saves time.”\n\nAshara heads out through the front doors toward the quadrangle, her boots sharp against the stone. The moment she is gone, the dining hall feels less arranged around her.\n\nThe library is quieter than the rest of the house: lamp-oil, paper, old wood, and the faint metallic smell of rain carried in whenever someone uses the garden door. Blue-spined course volumes fill one low shelf beneath a sign marked **FIRST-YEAR CONCLAVE**.\n\nYou find procedure, comparative arcana, and a calendar dense with seminars, assessments, meals, and formal obligations. *Procedures and Precedents* is mostly about who speaks when, how objections are recorded, and the many ways a Council argument can become official without anyone raising their voice. The arcana survey devotes chapters to life-force discipline, ritual, consent, and the slower workings of elven spellcraft.\n\nIts human chapter is four pages long.\n\nMost of it concerns arbitration and translation. The final paragraph notes that human comparative-magic instruction is “pending restoration of qualified faculty and students.”\n\nAt a central table beneath the spiral stair, a man in a dark coat works through a stack of brittle papers with a magnifying lens. A small brass plaque identifies him as **Professor Gareth Stone — Human Covenant History**.\n\nThe card game rises and falls faintly through the wall: Dena accusing someone of inventing rules, then several people laughing at once.\n\nProfessor Stone closes his folder. He looks at the Garvey signet, then at the blue-spined book open before you.\n\n“Mr. Garvey,” he says. “Did the Academy give you the reading list for my seminar?”",
+      "responses": [
+        "ff0ad504ba9e4535adb178469dc1735c"
+      ],
+      "submission_id": "0f8fad3c4ddc498ab86b9318a6c7dd0a",
+      "published_at": "2026-09-16T22:13:40.928749+00:00"
+    },
+    {
+      "turn": 17,
+      "input": "\"Ah, I think so? This is it right? You're the first human I've seen in ages.\" ",
+      "output": "Professor Stone looks at the open book, then gives a small, humorless smile.\n\n“At this Academy, perhaps. Elsewhere, we’re less decorative than people suppose.”\n\nHe crosses to the shelf and draws out a thinner volume bound in worn brown cloth. Its title is stamped in fading gilt: *Records of the Human Seat, 211–Present*.\n\n“This is mine. The reading list is inside the cover.” He sets it beside your textbook but keeps two fingers on it a moment longer. “Have the lawyers told you anything useful about your family beyond the word inheritance?”",
+      "responses": [
+        "b8f20ef6c5c5403eadc5db18679e5512"
+      ],
+      "submission_id": "bcd57f2e5b1d407998b89a6076cf6d06",
+      "published_at": "2026-09-16T22:23:52.492999+00:00"
+    },
+    {
+      "turn": 18,
+      "input": "\"Something about being the heir to the human seat, which this academy is meant to prepare me for. not much else.\" ",
+      "output": "Professor Stone’s fingers ease off the book, though he does not yet slide it across the table.\n\n“That is scarcely an orientation,” he says. “It is a summons.”\n\nHe taps the four-page human chapter in your arcana survey.\n\n“This will teach you the Academy’s version of why the human seat is empty. It will not tell you much about what a Garvey was expected to do when the seat was occupied.”\n\nHe opens the brown volume to a marked page. The first heading reads: **THE HUMAN SEAT: MEDIATION, RECORD, AND CONSENT**.\n\n“My seminar begins there. Read the first section before Thursday. It is dry, but at least it is dry honestly.”\n\nFor a moment he studies you over the rim of his spectacles, the card game’s laughter faint through the wall.\n\n“When the lawyers contacted you, what did you ask them?”",
+      "responses": [
+        "3c13fb5b084c40b6aabc7b243b064a9e"
+      ],
+      "submission_id": "e2beac7a82e14734bae9c44a1ead4ee7",
+      "published_at": "2026-09-16T22:28:25.812764+00:00"
+    },
+    {
+      "turn": 19,
+      "input": "\"Mostly things like, will food and clothes be provided?\" I look down at the brown volume, \"Thanks professor. \" ",
+      "output": "Professor Stone nods once.\n\n“Food and clothes are practical questions. The Academy provides both. The rest of your inheritance will come with forms, invoices, and people claiming urgency. Read those more carefully.”\n\nHe slides the brown volume across the table. “Keep it until Thursday. Don’t write in it.”\n\nFor a while, the library gives you only lamp-oil, paper, and procedure. The first section describes the human seat less as a throne than a working office: recording consent in negotiations, carrying translations between delegations, and challenging terms that had not been fully explained. Nothing in it says a seat-holder must be a mage.\n\nFrom the common room, Dena’s voice rises over a dispute about cards.\n\nThe library door opens. Seraphel steps in with a slim book tucked beneath one arm, pauses beside the table, and glances toward the noise.\n\n“May I sit here?  \nTheir game has become  \nmore argument than cards.”",
+      "responses": [
+        "f356b73111124cd9b7346ef4c0d2a8a6"
+      ],
+      "submission_id": "8f03174392304bcf96caa2c66bb8f34b",
+      "published_at": "2026-09-16T22:50:37.906956+00:00"
+    },
+    {
+      "turn": 20,
+      "input": "I pull out the chair next to mine and gesture invitingly before returning my attention to the book",
+      "output": "“Thank you for the chair beside;  \nthe cards have turned a noisy tide.”\n\nSeraphel takes the chair beside yours, folding her wings close so their tips do not brush the table. Her own book is a narrow collection of travel accounts, its cover worn pale at the corners. Professor Stone returns to his papers beneath the magnifying lens.\n\nFor several quiet minutes, there is only the turn of pages and the distant uproar from the card table. Someone in the common room says, “That is not a rule,” followed by Dena’s immediate, triumphant “It is now.”\n\nSeraphel glances at the brown volume before you.\n\n“The old records say, in years gone by,  \na human seat made terms less sly—  \nwhen others let the meaning blur  \nfor those who had less power to stir.”\n\nShe opens her book, then looks back to you.\n\n“Did copying books suit you well,  \nor was it just a wage to swell?”",
+      "responses": [
+        "b98598905f8f4b3bb851c3b38c607cb6",
+        "c8c16ee95374479f9c8979cfb924a0ec"
+      ],
+      "submission_id": "68cdeb1f08d94934aea4965d0bb2732f",
+      "published_at": "2026-09-16T23:11:58.991393+00:00"
+    },
+    {
+      "turn": 21,
+      "input": "\"Sounds like a troublesome responsibility. \" ",
+      "output": "Seraphel lowers her eyes to the heading in your book.\n\n“Troublesome, yes. A seat’s old art  \nis finding where the meanings part.  \nWhen someone calls a bargain fair,  \nyou look for what they’ve buried there.”\n\nProfessor Stone adjusts the lens over his papers. “That is an uncharitable description.”\n\n“Perhaps,” Seraphel says. “Yet not untrue—  \nthe records make it plain to view.”\n\nShe opens her travel account again. An ink drawing shows a crowded river ferry and, on the far bank, a tollhouse with a queue of carts.\n\n“This author spent four chapters sore  \ncomplaining of a riverside toll.  \nThen later he admits, in shame,  \nhe brought six trunks and paid the same.”\n\nHer eyes brighten over the page.\n\n“Would you like the worst part of his tale?”",
+      "responses": [
+        "11e61a6de2a74a81a4e19704d43d5216",
+        "fc9435120b4e42a0b452bf012c28ede0",
+        "6104a4eb5c2e424f8d47667508f32e75"
+      ],
+      "submission_id": "4f66f340e24843fa91046b77812fd9e2",
+      "published_at": "2026-09-17T03:37:41.138920+00:00"
+    }
+  ],
+  "pending": null
+}

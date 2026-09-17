@@ -1,0 +1,25 @@
+{
+  "method": "Unblinded manual review of complete primary passages. New questions/invitations are descriptive; context determines appropriateness. Rhyme observations do not count silence as compliance.",
+  "primary": [
+    {"id": "t13_observe/control/1", "new_player_bid": true, "npc_action": true, "note": "Rashid chooses drills despite Dena's objection. Dena then invites the protagonist to cards."},
+    {"id": "t13_observe/control/2", "new_player_bid": false, "npc_action": true, "note": "Rashid honors cards and Ashara finds another partner. Caelindra's closing question is a general table remark, not a clear demand for the protagonist's answer."},
+    {"id": "t13_observe/closure/1", "new_player_bid": false, "npc_action": true, "note": "NPCs negotiate a delay to cards and leave the protagonist out. Dena yields relatively easily, but the action continues without player intervention."},
+    {"id": "t13_observe/closure/2", "new_player_bid": false, "npc_action": true, "note": "Rashid leaves for cards, apologizes to Ashara, and takes responsibility for replacement drills. No new demand on the protagonist; some explanatory psychology and stock gestures remain."},
+    {"id": "t16_departure/control/1", "new_player_bid": true, "note": "Repeats the suggestion to watch the bouts, then Dena offers a card seat."},
+    {"id": "t16_departure/control/2", "new_player_bid": true, "note": "Ashara leaves independently, then Dena offers cards."},
+    {"id": "t16_departure/closure/1", "new_player_bid": false, "note": "Completes dinner and NPC departures. The opening pile-on about knife competence is excessive and the 311-word passage is longer than needed. Seraphel uses night/fight, with two other unpaired lines."},
+    {"id": "t16_departure/closure/2", "new_player_bid": false, "note": "Closes dinner and sends NPCs toward their own plans. Seraphel's end/unbend rhymes, but sounds like the narrator announcing scene closure."},
+    {"id": "t20_library/control/1", "new_player_bid": true, "note": "Stone renews the interview with a question about the estate inventory."},
+    {"id": "t20_library/control/2", "new_player_bid": true, "note": "Stone asks whether the lawyers supplied personal items from the protagonist's parents."},
+    {"id": "t20_library/closure/1", "new_player_bid": false, "note": "Stone gives practical information and returns to his work, leaving a quiet reading interval."},
+    {"id": "t20_library/closure/2", "new_player_bid": false, "note": "Stone leaves the protagonist to read; the passage supplies concrete duties and advances to a new section. New institutional detail is consistent invention, not a failure in itself."},
+    {"id": "t21_reading/control/1", "new_player_bid": true, "seraphel_rhyme": "present", "note": "Seraphel asks how much reading Stone assigned; start/heart and art/start rhyme, but repeat the same sound and provide thin content."},
+    {"id": "t21_reading/control/2", "new_player_bid": true, "seraphel_rhyme": "present", "note": "Seraphel asks about the assigned book. Loud/crowd and hand/land rhyme; older land is strained."},
+    {"id": "t21_reading/closure/1", "new_player_bid": false, "seraphel_rhyme": "present", "note": "Both read; a short humorous observation from Seraphel does not demand a response. Still/shrill and fog/dog rhyme. Some closing narration is awkward."},
+    {"id": "t21_reading/closure/2", "new_player_bid": false, "seraphel_rhyme": "absent", "note": "Respects reading and quiet but completely fails rhyme: still/yet and enough/blood. This prompted the separately recorded refinement."},
+    {"id": "t21_engage/control/1", "new_player_bid": false, "answers_requested_conversation": true, "seraphel_rhyme": "present_with_unpaired_line", "note": "Answers about the travel book and waits for the outstanding chair permission. Meal/real rhyme; the first line ending tale is unpaired."},
+    {"id": "t21_engage/control/2", "new_player_bid": false, "answers_requested_conversation": true, "seraphel_rhyme": "present", "note": "Answers the book question in wrong/long and foe/grow pairs with concrete travel complaints."},
+    {"id": "t21_engage/closure/1", "new_player_bid": true, "answers_requested_conversation": true, "seraphel_rhyme": "present_with_unpaired_line", "note": "Answers the explicit book question and reciprocates with a question about the protagonist's reading, appropriate to his requested conversation. Week/meek and confess/mess rhyme; the first line has internal prose/knows rhyme."},
+    {"id": "t21_engage/closure/2", "new_player_bid": false, "answers_requested_conversation": true, "seraphel_rhyme": "present", "note": "Answers with a particular travelogue, then waits for the unaddressed request to sit. Crew/through and pass/alas rhyme, though the ending is contrived."}
+  ]
+}
