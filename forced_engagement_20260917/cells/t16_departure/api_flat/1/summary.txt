@@ -1,0 +1,3 @@
+**Considering narrative flow**
+
+I think it’s important to develop NPC actions that allow the player character (PC) to have a choice, but in a simple way. For instance, maybe Dena appears after dinner, but the player has already made choices. I should avoid overloading with social questions. The user's request to rewrite suggests focusing on pushing the story forward, avoiding unnecessary history creation from the player and letting the previous subject fade naturally.

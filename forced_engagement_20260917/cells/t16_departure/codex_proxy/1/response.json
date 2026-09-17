@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Ashara nods once. “I will.”\n\nThe subject drops. Servers clear the plates and bring out a pear tart dusted with spice. Caelindra takes one bite, then quietly claims a second slice before anyone else reaches for it.\n\nRashid finishes first. He stands, smoothing his cuff. “Dena has waited long enough.”\n\nAshara rises as well. “I’ll use the practice wall.”\n\n“You’ll bruise your knuckles.”\n\n“I have other knuckles.”\n\nThat earns a small laugh from Seraphel. Rashid shakes his head and heads toward the common room, where Dena’s voice carries over the cards. Ashara leaves by the garden doors, her footsteps firm on the stone path beyond.\n\nThe dining hall grows quieter around the remains of dessert.",
+  "reasoning_summaries": [
+    "**Crafting replacement narrative passage**\n**Revising dinner scene with subtle NPC reactions**\n**Concluding dinner with NPCs shifting focus**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-17T16:57:00.573114+00:00",
+  "duration_s": 15.3127698120079
+}

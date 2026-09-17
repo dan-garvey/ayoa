@@ -1,0 +1,128 @@
+{
+  "raw": {
+    "id": "resp_08783b3d7c48f7a8016aac1c5420f087d19ae0430087d351ae",
+    "created_at": 1789664340.0,
+    "error": null,
+    "incomplete_details": null,
+    "instructions": null,
+    "metadata": {},
+    "model": "gpt-5.6-terra",
+    "object": "response",
+    "output": [
+      {
+        "id": "rs_08783b3d7c48f7a8016aac1c54965487d19ca69d1a4c6bf877",
+        "summary": [],
+        "type": "reasoning",
+        "content": [],
+        "encrypted_content": "gAAAAABqrBxoCsyp3w25-bJ8F0J_aQOvOxtw1pbK6TrlBIPPN2WGhd-VCMlZzcBk5zxfyuAWsf4VNb81Yl6B4ZsEljQUYId8N7lj1ViWaon-_cTABq10S5KEjChaKEI0ZtGfOw2emoNICL1SqtWi-EIr2xNpz1h-Wvox1CBnL18ogeXP3RqSLRB6HsPZ5RRZB7VdMQsbsicbClrpX4MtKyy95a-5ftLtx8wTQxpDVkDqA6vv3SdBSpTnyIxFtZU7xVfE7zU3UI4Vu09mofo_GoEAEUxXBcT0ZL7-BNRu1fvRXvIO4sStHWPDgywczVzMSC8A-VG4TxgIjELkRbD1NwF0uMfR4rylVP0D0lY9Yfnmb-B3x4FCEEYfFezfAzLmFcAQt75RzoDeOREXE1mEFBh1QiQSiFxO0jvqTgHyX43zhOOCZmV0vaZDLRWIa6pVudMp8tVmFLxf3SkV__xgY1q75Bhh3h1QicYt0_a4CiC0BJ-Vs_6I80MeVuSr2VVXNETHS4dnb1g0XddGtKnjUtFquSsf5Sew8fTkdBZ5_5LuLj1NH7gZTOfOWVFpcEeUG0Nk_LshlXyxT8IbAc7AMIBtCuUfmSMqmr7sNREOsXeczt504QS61LyOuzCKtmW2c1DzDSGKPmgOXdkGc5o7CX7JCB0yOGNV44epdxeuM4LyYCdezR8AR3ibisyuYo6vIl8zRgFTS_erbwXOhpB7DYObJYlhB1HGWRpnUABiDUGgcAc79APoimNjOax1YcftRIY5yHZCmWa9HiQcSkk3GjCMgL7Ao9y6Lenfi4RikgVjs62CpZJaalHfFmg--WXBOtKVdK6QMvzNfg4vo0WerFrqPHoeJYMPPmlLc19ai42IQGuFafvBsRmL-8pKWT7opwyitXPYzVFqHGQr9czxUW5jp8o12fDbdzmfLweNZnudbrlAsg6D7eMqHv8X2o63feAWykLpr_DPt1IzQ9nKIPvb1m6CvhgnTRmoImazzZBWLixJ9ysBqVMVsz7Sw7Xh6-OdiAz6fuHma-1uFuX1DR1Cc_gV3a5047H78vs3PDBWZpiowmwcXAZ5VjweAiw4p8zokBjfVpCW7IvJNAfn7nE_9RYT2P2a_H7aFC6xuv_HeimUI2eQz_d_S9boYZdt_j5YPyEAGRykgFXR5Hz2NSnRZMbwViUpaXHvCX7mrbJpM-urbDQLxsPS9AAJ6VBO1MCNq0SGeSq0sggJm_GGsEXLb0bkT0vwbuma_EBFw6qvnlWtrNepkK1Cqj8qqy6cvTUYtovNvlvdX6_1q9ez7kabujAe2eyul6iUx4AU0b04KHaYGE6FfhmrD8k4-p8PMP0wCtHCSQJr0VSwjV6CkN85aOtYab1kSZzwCFc_nTqo8APCcsDbTnfuVqfdIDGyIl2ktZvRwrsnZpCwVpECvr3YDhpHbgSdHi0aKyH7Ow2Eb1EdbDk7hVgSZzVWdeCn8juGeOH8390hfUZUY-81KEnj6UeOOr6jkUKYijqJ5nsi4iYtAB5qQDhFAC1P02WvXkIet-moZheGDuRwHZLoY-VAr7bau6EjqY2fzqSM4We8XZUcvz_xFBkt0bZ5lJvzz_T5ckUJ_RRLBnHIbpI0YJyaBP7JLIX9U3V7bK-wCswSdxrqCmmKQ410MH1nSpl1IPxFy4W3Sp3CJjIxNV5vbYhHtCGvuhcX5PrfBFHJVZzodGnBoSkP4zEQq5BnBSTSW3Mj9ph3HABgdVp2I8ppTYAXH1oM_KR_AJPZG2gkdmSGSe6UsIeIjueRk1A4du45tygXECEVf01Sk_nD8iQvof0UwTHKeC8EyyeVgfHMirhBTqBmNi-r8dao0V_PKZE26v4jrzebyMdUtkfI9V1mHk6Z4f73pnv5Zj1MJCc3k5DfpJ9bEAVuOftrur-HdYBO0DmLoDAXYQkEvGKs0I0bur4_HXPdYUB_zt-Bq-m57v7IUop5lz0fauuaKElPlX7eLjb7B-18OvGTqzg3IwF3TM6soGLlbj8nziqev5PCVXnbSdPOsHxPaMwIRPp3xRYLcdxNrELj840yEhntBmz1tG6YG4L_nZ2IrDh3YcRHF0oghAkrf7kfTpB1OnRS3qKl5TN1vRsWPj0Vw7HsaNFpD0GNxjDVrUr7ylf2_6N9HzkvlmqTqitlsU18M_tczpNQZjjkqALOIsmHeZzwjDW_pBlmwEIkrpPX2bTZz__z_uVM1kDC_0bGEb40o3q05IX-_ezo_TnTjhP8qsvEfbU3SO1kDI36Ke4vgAlDcf1_RapMA9WxSWiQemgF_HLsiywIq04ItTr0ApK5iiqut3k4ZmhyMzE90XtKVm_45RWKSgkoqD97479SB5cZN9_hTrnXvMRGnAlN9jPb-mpowSD7-UM1GICrjuWVwmbW_XuIw5boYdfi_mhLZ_hKz5hZICMrhknBa7OqlktlzswMbf0e3h5VcdR_XDBbD95YFujf-5So63b37WkGmb3FNO4I9t1x1WvwsGQmcI-z59p01oTnF-uCDE-_B_U2HF_3Rtzq1YvhjGvZKmURJsRZAbuc54hlPLpyeHfKZ-Jbmk3CNaYzdcUA33o-3paeHEOwbt_UQdhaVF605NRxu21NzaZmTGPpYcHam7YY-h8Xb1R4TtLEuVoobrNp0m-YRdmA1dzKe-kdWc9eSS4PlSWlN46ExyTEIDapw6vOuA1uQtTdayg6sAYr5ZPoReTgTKi7nIoZVO8SEKqyDY5F88hQMguu3bcz3WZ1kbfUil3cQQP9NdyVlhN70yf5adSSfheG1XsIFN1enxjQAtG3Y60KrTTWhOxQSG40sPrWwMC5CSIBCkHR_ZvUN_hKyDis9ZmDXZmptFRgJn4xi9QLe6pbMr0AacO22JdUqn0qkJ6t6fEwiXCQAuqQ8DXDZ-7LzY7WOtt2nKyt3_F1K5CG541wbhLkJy9dlis3UQhGZn8DDPU3rJ405_-dI6c2GxDIQYHR6ODqcYGIZSgS8ZJxHWkOPDhQpPTciktsP6heP8TSn6-F6qKpnSghJyYOV7sgyWu6p_i8vSSbrZ9MobKs_GqPluRlKP8Z4c4ugpWfqg6c-lR055_SyjcMsamF5WwLDhTFx2uRiCYqgusFY4m6GbLGIcUnfyNwgPr1xjZH-klHuR9K2dTTMb661seMTlEUkeEcaixs3bs_I-fDCj4j_8wQHA_ZLacCZLvStYQJEJVmjBth46f_5ZTIS0u_poxh7J-CM8CX6uSLA3Wl1eZ-I8ZSb6dxNlxiuyFY7hmtC1DR6z67wz_qz6lj8rHWfO_PC1Kxxu84R54FIDiF2NrLrYvyh4g3NES6u9KAJKXBQdO7BtLd_Od_Zdu9jLEoy4DfgfrS50rz4youtV_bA7Pz9F0yfoRVDxoSp9ForyvXp9JWw6MaVQRsrsJ7Mii5AlFMZNaavk5PTr-ZTCcZqV7wrWVu5FKrINs_v12G2_Ybqxxf_01WwaIJXLzjjTz_g0GlxXMQTBQw3qRmljtlBIR8Z7o_vM8QfBK7NLIolI3jnVLFwezbVylCOYz8v7U5FICWy8f2afFrOBiLNeXs4usBeLKqGPtxIVPf9mBJQ6czwHgvAY6IbSGFEMO8q1cYZCLNuo2NkCzFuOMzwVKGWFWURAL5enPAT16a3-QgXIcj6t5obqo5Q0FlEJQfWF3z1P-0ZUtxbUqQ-wplE1dRlovO8AY7nAmlkN2WsYpcrznqYQRKWtRZF3wi0REyoMmx4YA4lXDeupKCueB-0kuUvwFgu3BIgUeO1HKuW6E_M2CTZTZ6W3Dl8YKNL8_sBvxNq0HX0kinaDpniTqGTulLhd_-nNZaJHu3vLXRu7SeubUOIN2c6IaAQhnEaVpp4c0hstw0shDvtpdMCrBNSG-OMoNiHv078T3jz6_WNiPhx03OTDNala9zmCeVphvzWyOMfPw__HnxL_s1mjxn19UFtcDVpw4F1xwcsGkSduzRAFpXhSKKmyjBuuYIScMNoKO_5MZo6Yvoh746l-Ube96GapClC8Jc6GygRcvm9DeGFkcFICvjozXL96948JUJE_5lqAW1OfCKJWJUrezk6KmVt659A6PCDBBHbAQ8qSAvTaE68mIh6yIPqg_lVPBEElTlbkkMgJvZiAA0bnF3Q42SEkfBD-8YwP8PnnxS9ClH3hvWpLwjEMHBjQiNoqFbu1o9mdmkxi_sUU4kvqEqSWkZbB6Ax8jigkz8xhZvaq-arMJ_VdtjHjjvgcb8417VUw8JMzsGXBrul8dmRMwLmrGRjtkZZeg2x_NsFK4VZcUAGBoM5IgBoHH0rxA6nlYOiylg35r9pnH5bae4CNuXGgQNrBfGINQkf1LF7ktNBqquUF27e5B_D8EXH_g1tNvXrrycXZDbfDAoRTo83IosL7u_ky4dKePHZyryGRMOJDAlm04ZnIxDlAAiCO7SwAr5TsTAONuT3s4_V4q1yrVNmcg4_bE4W7q7tRCh867hMXt5KnFSKtO-8mkj7o3-kR1Kj4Yax-i4I3OwrUqeEtQT6Q54gzo2AXzXQN-e_eicxJHwBuJWsdmOU979sezWTaqU3mWp-TkNFroFmHh46r8BwLWaAWceeBMagjP4s9aTutn_4yena3Aq",
+        "status": null
+      },
+      {
+        "id": "rs_08783b3d7c48f7a8016aac1c5ccb7c87d1a8fa529cb95046be",
+        "summary": [
+          {
+            "text": "**Writing character actions**\n\nI could write that Seraphel takes the offered chair, tucking one wing close. She thanks them and decides to be quiet while opening a slim book, maybe *Pilgrims' Songs of the Western Bridge.* I don’t want to draw too much attention to an unknown book, so I could say she lays it down and turns pages. For a few minutes, the only sound is the turning of the pages. Meanwhile, a card game fades in the background. Bing reads that an old human seat \"may not cast a deciding vote.\"",
+            "type": "summary_text"
+          },
+          {
+            "text": "**Continuing the dialogue**\n\nSeraphel glances at the heading and says in a low voice, \"That section is better than the survey text. Does it explain what they expect of you?” This opens the floor for a response. I think it might be nice for the player to have some room to explore. Professor Stone’s hand could hover nearby, but he shouldn’t overhear anything. Seraphel might read \"Collected Travel Accounts\" and could ask about Bing's book, but I don't need to delve into that. I need to ensure the writing remains straightforward yet monitored.",
+            "type": "summary_text"
+          }
+        ],
+        "type": "reasoning",
+        "content": [],
+        "encrypted_content": "gAAAAABqrBxoDMIsN5T19yIN5Y8h7kU7tMH7GepeHBixgnEs9vOaYZkzzPdFOzVt5CMSVf8ndedk71Jy47A0P-vStA3H6b2rkNeQw5zZcBN0JLkO5r6D3SQHORQkFFtdIjhu_piZ44vW9mLkg0Qhp2qQPj3jnleThnrbrj5AtBz0yWXeYQD0JJrDOOOZHzUjc53NuBmGXtPncoR3K9PT5H0dnzsJr3w0BSte3Nxy_UWu24P-xMbOwWoNACJUFFaUo_OLnVXbEcgEZ_Xpw9o1QjtYplwTbKQ3dlkwtMd_3hdSK5_rUy8iWJdheY6tU5cAK0uflFWGTN2NlyLtGfI7q_7abhrXxPe9CbCcIGGjnSkDADcrUSTB9sNtcOyucwIKqNVtsT3-RADvl4t81FdL14icCwARPKQWINRkZXYUfCAz4UiI8Ybb_CPGYbVpD0kYjvbVmkZ7wrumSmOdmOo9n-10fg2vhn4mC0F3L098_CIZqPB6aHKuhlhay7ASOhVl4sG8YVc4FZTduden-fW5ZJrKQzDdKozE7Zcg941NUk-mOuIedHs7xpD6PbKwuOj0QcDyAdliBpRt6sXr80rpaBzwHOYDKOGFpMSpY3T9NNV-h5O_6DjYj2ZY0YyjqkztDTaSmQGJAFNwnt53b9Xm1OA3HfpJdgU2CjYDCyNICGQuOTwgWT1-gjSQQhY7elKKHYsviD8nOpzlq6iTevItWUa10AYEvKz7lL6dif8w9Lz470fmnyf8tmmR1sCRLDCkRrdb6Qpv5njHb97JCUgvY7Tkynusg7GuAlvPwtYCYFhhw84Zq61DeZjmVaV0WfI2s334j0VxIYXygxFQ9cQuQ8s70m_lbaQbvq9eelhFTVJ1AFc10oWJiO1qy2uoW_RYbgUYleivRiliOkVLh9daYCtY2-9feg7ThcQrP5s2ObWEi0OKs4NrP-tiGltli_sczXhpFN86VWDYSVot0N1XxR4DXd7Cd2-8auVT8iLiDNaXQNw2-jBSLrZfOW9l6NyZp_RCND_NYRNCaxrWNPbEilGpQ959QZHcFf06YybNp_jMMPzNKFz8x3iPLOC6pz97jXQvEExIJRSPAw0WuKm9DV7bdIpXPvP6ftSuThbt4xiOrYwooPvz7hf0hV-9TnJ5JRopSnCzUskuNnWon275a5y1qX-PMUrlQ-VCR75UOUDIZe-TC0Nm814ipwaOoOJbftF7Ob57X9xmz2cXNWs2Lb4NjRiTdGhr47Kpimw7AhmStMaWhHj-aOl4sbT5WwMeC3Beg7aTInAo0t9jywL-uPM6LJK4tz4AXXSTy_X02hD-3p12b27hp3-ivbK5DlDpBi8a-7WvQ78x_vi4GpVaVDvWK5RaeMdtSo7ZE7i13OMJtfHQVhZvitvWf3tTQRItUCFlFwbSSeL9s1Pi-AMghEVPbSY4HR9IbxvFCTFAcgDlRZCWDPqbnfKiKFrrhq5o0e4LJorjy8xX4tFKCky7tV4ghh40WN5YNke0N15QcsZr35LsFZbIses_Ky6hcCGoARavdJDaW8HNb8AgW4xm0Rx0JileePS-UM1DJ30QDZo95f8KWzMXdqiw5D8PBRLoRIh8zIpjTDfhvQDDExnR9ycaX3GvtN_pQh43PpFeJ66m2-GMaEiuStnru4yO_wgnd9qK5ry40sIG0B1xttHYLJXQCk7wsHilmCfRHjMYpZJ1dgvBfFIlS_pUmHqZRTEm-mqVcNvYKJzZOTMSIvZ4wCNBeX1qD4brQmy9mF0YbljRDsrwt3_aeHJb4Lmza-Jq6d0vkUXjaa_b2gcfg9b0Txf1fk5oXlGcfdZClGlHkXBRINEbg-1tqhb640aoF8R-7TjV6vsKEgkRnH1sZFYkyB6gBjLWVuIOoTc4Bsj-21V1HteCbrrGrJOT4QUN2vysPechvhstvucbKAn_lZldfVidHKCho1mLmUyuht5dKTwK43b2KdwHiT7v05C-H6F-bhIQ-ZDIg_gI2-clOr86vKgoO11b8C1JT81A2qaLiDPj1xRREYV1UCQCLbmQqRJy3wLuiK2xXaFZF8TcOHr2jv5QYQXgsSSv1a6o-_vRw_BRFi25CVEvExO-2S18BGKwg4JmYNZ4kxOdRrBT3tBeuuKUcIvqTtCTVKF1VvEsBo1h_Y7-y0dNQm05Zt_Grq04GclZyUcNfxsJXaL2q29tnhkLBHuQ_sWwrwe5Yu5VGw3fMo9unMo1b9gysiXKI95_OBjLrmztviYZ_f2flYa8cvCUtq41ECn6rKGO6gTXeIQQe55Wgb1gZj-ZqJylgSztvCBR4AtTdE-dndjjGaaM7-oP_nVsu_Lr-NZMRJH7xU2bgKMFKRLp4e7_AUjHmdEzIci5x8YnKwY8kGpLqQMgYTy_wQTIT_GPOLOJwVQO_uiDT4Fo6oejE9pv2U6qfV7etjEixl4IAsb8Dz4wOI47sJE9Zem2iBoG0tQlHhb4FwV165w42rrfJHmEANvr9F4rf6ZgHHF-Erx-QUyASzK-9guIV23hscHdcPhXVXyEIQUxpQn0MdmIM8YMMw_yVjhTBhghipNQaKbsLVAkGpjxIl2NT2VN5wTVC1ckFvloS4ybRejGbqr8TsBI-FKZ4TKA1cj7Q26zW9CqknY9k2FaHSgODV4cZJx4VR-LsDk0DTH0EGRT1B9HD_IeRSdb9G2kZsEEXAlXfQ5aOKH0N6Oy_phhLbcLSWEk186bPiGkgLDjNK69e-HP-QtMJZrzvad_6MJZQn0Hvlh_KR8UyeQM_Tei1Nh9P6LwZtSQ-lnLMUe05W-kciG5PRAmQsOesRAPE28QMvfOtslintnrZ4RRLq2hh-XfuymzREQbfRzG4UrYKChqQU5UaemTEwhPfYhlrhcE6Xv5bjBOwYGGskYhO3bioFKecFSzYKTE93_byT2LXxEL794t3OwcFa-p30airfZGfWWfYoxVBT-KCWx0HIzBmnOuDcQ51sGXe6nSt2GxsWgiE4lkYPGCrQhk0fAfqKWnZMsEKp83MlmyYfaDaWJQoyl0hYDd2r_4Oq1PhYtAmkuJM5dKs0pMgFQAr8CajgFR4bZ4O4MdbHsMAu3xS2VuTB6isOzzVE3AgNZjrpeVRCMajwRsmu_YttJ-tl8xUYz-pBUtfz09AV0ypQCd-LyceQ1g0YFCECsDtICRvAa161AWOVGpiU0peiD6L9LZgWXaxr8RvIMvxy94zCBhyQ1l-JUBnHq6mtHuhHwgJISkhUiIpgTDoqO1ChFb5rACuWRRVEX_kU3e6zfGASXyb8woikOC9bafEEsABCHyrEeio9bUrzDyL9j5ilG_ENtRx6DQcI0UwFG2mks3YCRNRoAUxKd53_RFzgwHft9v3mQO52vVEIxEmJFb3qJxdYtXJ-mwiw9XP6PYJLnkIyaWeuIo6Ti0-Ujg_lnxyplPNDigrCCZT4s-FNqeeXc7auKYVS6qwGvrp71UsUcHtMSH6eAIvNBYmQf3g9XqE0GITrlZqssrgt2XS5L8P7hdKctoybfeF-XuxAB6lAR2AdEAAmlVoADAtxis65m4VWlF6QBvKEyqAOLi_f_WjkRzFslJaucdLV0vcROQjgEYbTK-UI5wfTWIf6DxUvXDoyv1e7LpT58L0cXIjKyrK1-bWDLkzyCpP32pshL_aOv0fIFwPAKNpt46Ll7gxc4yaNnB48xNniLHX-l74MXxBX9ul9qX67kmFCOgQE3CxeKzZLRWkiSYCW4hbk4Qu9CygXQuh3MOa7Ido6qLkFKMokCA0ec7JQFMLrb1PQJl8Mpkb-AWfL4GVYWhxcpXqWFict1GX0dEfCXwJDFzXjg_dljqvKctW38diTNmmYSIi6NQk1ghRi1f2l7f0WaJDA1CggDJjvTmiwNAPk8buxzy3e1bglYSvtBCt-psUylFK2y_Gl6LAFq7Obap1d4s80kH7_55O9RPevTkjXerX0D8QdZg5E4tUt_BnshGFAmrw-3Uj5URJ2lwO_QqElfX3Xcw2cG3mWP5AVA3_rfmzmtYakYjLVQWzTnZT9OYkoAsNTVfoQFl8gpSEIuROkfEvgXIcEnZp-dsxpwL2cklwOQTgNTfBzdeKVXjv1cIY3Xddfpf-vhFyVISmWeH6cVITRei-K2daMkl6UhKgOEk6D9bNIhS23aSrc50gQjsTsJzut-AVSS-UOcrduG5nbwKu-e0I-boAVVNgA1xAHpRzBkada48zC7wnOr5vKJqPswYyf6aB8NN1Avwd1RxRzUxHYnezzCYXmwR7-SD3L7KpNPIuICBwIsLRJz3dDybgLa_ideqoZVEffHMd0xTZ74bxPX_C_-g4NVzE_lfZFlxlsA-4O3Y_D4OL2Gj2akhOd5IXKTqSrl3GoPojnjXzfXIQ1tRxniEJHd-R0TOhuI6gJI=",
+        "status": null
+      },
+      {
+        "id": "msg_08783b3d7c48f7a8016aac1c65f59887d188a946492af81e94",
+        "content": [
+          {
+            "annotations": [],
+            "text": "Seraphel takes the chair, folding her small wings close so their feathers do not brush the table.\n\n“Thank you.  \nI can be quiet  \nwhen quiet is wanted.”\n\nShe opens her slim book beside the lamplight. Its pages are filled with narrow musical notation and handwritten notes in several inks. For a few minutes, the library settles around the soft work of turning pages.\n\nIn Stone’s volume, the human seat’s old duties are set out with more bluntness than the survey text: witness negotiations, preserve exact records, identify terms no party has understood in the same way, and register dissent before an agreement becomes binding. There is no mention of great magical power. There is, however, a great deal about being difficult to ignore politely.\n\nAcross the table, Seraphel reads a line twice, then looks at the heading on your page.\n\n“That section is better  \nthan the Academy survey.  \nDoes it say what they expect of you?”",
+            "type": "output_text",
+            "logprobs": []
+          }
+        ],
+        "role": "assistant",
+        "status": "completed",
+        "type": "message",
+        "phase": "final_answer"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "temperature": 1.0,
+    "tool_choice": "auto",
+    "tools": [],
+    "top_p": 0.98,
+    "background": false,
+    "completed_at": 1789664360.0,
+    "conversation": null,
+    "max_output_tokens": 12000,
+    "max_tool_calls": null,
+    "moderation": null,
+    "previous_response_id": null,
+    "prompt": null,
+    "prompt_cache_key": null,
+    "prompt_cache_options": null,
+    "prompt_cache_retention": "24h",
+    "reasoning": {
+      "context": "all_turns",
+      "effort": "max",
+      "generate_summary": null,
+      "mode": "standard",
+      "summary": "detailed"
+    },
+    "safety_identifier": null,
+    "service_tier": "default",
+    "status": "completed",
+    "text": {
+      "format": {
+        "type": "text"
+      },
+      "verbosity": "medium"
+    },
+    "top_logprobs": 0,
+    "truncation": "disabled",
+    "usage": {
+      "input_tokens": 11226,
+      "input_tokens_details": {
+        "cache_write_tokens": 11223,
+        "cached_tokens": 0
+      },
+      "output_tokens": 1233,
+      "output_tokens_details": {
+        "reasoning_tokens": 1034
+      },
+      "total_tokens": 12459
+    },
+    "user": null,
+    "billing": {
+      "payer": "openai"
+    },
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+    "store": false,
+    "tool_usage": {
+      "image_gen": {
+        "input_tokens": 0,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 0
+        },
+        "output_tokens": 0,
+        "output_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 0
+        },
+        "total_tokens": 0
+      },
+      "web_search": {
+        "num_requests": 0
+      }
+    }
+  },
+  "transport": "api",
+  "received_at": "2026-09-17T16:59:19.786502+00:00",
+  "duration_s": 20.639292264997493
+}

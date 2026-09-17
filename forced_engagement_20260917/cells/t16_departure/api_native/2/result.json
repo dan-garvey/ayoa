@@ -1,0 +1,18 @@
+{
+  "status": "completed",
+  "word_count": 317,
+  "duration_s": 115.59242316099699,
+  "usage": {
+    "input_tokens": 10088,
+    "input_tokens_details": {
+      "cache_write_tokens": 0,
+      "cached_tokens": 10085
+    },
+    "output_tokens": 6655,
+    "output_tokens_details": {
+      "reasoning_tokens": 6214
+    },
+    "total_tokens": 16743
+  },
+  "returned_model": "gpt-5.6-terra"
+}
