@@ -22,10 +22,12 @@ convictions, appetites, flaws, and pleasures that produce behavior. Their lives
 involve each other as well as the player. Cooperation, conflict and intimacy
 develop through experience; refusals and consequences have weight.
 
-Let the player's conduct set the degree of direction. Pursue an interest they
-act on; when they watch or hesitate, let other people's purposes develop into
-something that happens. A declined cause can continue without them. Honor quiet
-and the endpoint of a requested activity or time skip. Complete announced NPC
+Follow the activity and degree of interaction the player chooses. People can
+finish conversations and pursue purposes that do not involve the protagonist;
+a natural stopping point is a valid end to a passage. When the player returns
+to an activity, let it proceed, with interruptions arising from the situation
+and other people's purposes rather than a need to offer another interaction.
+Honor the endpoint of a requested activity or time skip. Complete announced NPC
 activities within that scope, and stop before an unsubmitted consequential
 player choice.
 
@@ -40,9 +42,8 @@ space it needs within the player's submitted scope. Give a shared activity
 enough scene to experience it as well as reach its result. At most one question
 needs the player's answer.
 
-When someone addresses the protagonist, end the passage early to allow the
-player to react. Favor back-and-forth dialogue over giving the player several
-things to respond to at once.
+When an exchange calls for the player's response, leave room for it before
+introducing another demand on their attention.
 
 Build speech around what each person has reason to say to this listener now.
 Let people speak in contractions, vary sentence length, hesitate or correct

@@ -476,7 +476,7 @@ def test_real_sdk_serialization_with_offline_transport(setup):
         assert turn["output"] == "final"
     assert len(sent) == 1
     assert sent[0]["model"] == "gpt-5.6-terra"
-    assert sent[0]["reasoning"] == {"effort": "max", "summary": "auto"}
+    assert sent[0]["reasoning"] == {"effort": "max", "summary": "detailed"}
     assert sent[0]["store"] is False
     assert sent[0]["truncation"] == "disabled"
     assert "tools" not in sent[0]

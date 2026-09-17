@@ -49,11 +49,11 @@ This choice retains ordinary situational humor and avoids a mandatory second pas
 that can flatten voice or remove interaction. It does not establish that every
 individual edit was worse or that the new prompt has passed a fresh literary trial.
 
-The user's opening correction is now also a standing author instruction: end the
-passage early when someone addresses the protagonist, leaving room for the player
-to react instead of accumulating several things to answer. This preference lives
-in the reusable prompt and the current Sol playtest's updated snapshot, so it does
-not depend on retaining a regeneration request in story history.
+The user's opening correction keeps exchanges short enough for the player to
+respond. The reusable prompt now applies that handoff when an exchange calls for
+the player's response, allowing other passages to end naturally without another
+question. This replaces the broader instruction to stop whenever someone addresses
+the protagonist, after the closure comparison described below.
 
 Explicit regeneration uses the original player action, the current passage and
 the user's new instructions. The new passage replaces the current one atomically.
@@ -198,5 +198,49 @@ and per-response assessments include the counterexamples.
 The next candidate should clarify natural conversational endings and chosen quiet
 activity while retaining independent NPC initiative and the full biographies.
 The [analysis](https://github.com/dan-garvey/ayoa/blob/1ef8fc1a81110cf55dab2c832a7497b5e09e9135/forced_engagement_20260917/ANALYSIS.md)
-proposes replacing overlapping direction/handoff wording. That change remains
-untested and has not been applied to live prompts or story snapshots.
+proposed replacing overlapping direction/handoff wording. It was subsequently
+tested and adopted in the coding-agent-only comparison below.
+
+## Tested closure wording and Seraphel correction
+
+The [coding-agent comparison](https://github.com/dan-garvey/ayoa/tree/40ca05c495e316e3edf75d22239d5dd7f8237588/closure_rhyme_20260917)
+used 20 fresh Terra/max calls: two samples of the previous and candidate author
+prompts at five checkpoints. Both conditions received the same corrected Seraphel
+canon and detailed-summary setting, so the author wording was the controlled
+difference. Full biographies and original history were preserved. All first
+results were retained; no direct API calls or editorial passes were used.
+
+At the dinner-departure, library-thanks and return-to-reading checkpoints, the
+previous prompt added a new question or invitation in 6/6 responses; the candidate
+did so in 0/6. Both candidate observation samples still advanced independent NPC
+plans, and both explicit-engagement samples answered the player's question. The
+candidate is now the reusable author prompt. It permits conversations to end and
+follows chosen activity while preserving room for NPC initiative and short replies.
+Some passages remain too long or contain unnecessary rebukes and didactic lines.
+These targeted, unblinded results do not establish consistently strong prose.
+
+Seraphel's story canon now requires rhyming dialogue, including brief replies and
+questions, and removes the contradictory permission for unrhymed verse and
+preference against couplets. The initial correction produced audible rhyme in
+9/10 passages where she spoke, with some unpaired lines and one wholly unrhymed
+response. A separate eight-call follow-up tested a stricter requirement for an
+end-rhyme partner on every spoken line. It did not consistently improve naturalness
+or compliance and renewed demands in both quiet-reading samples, so it was not
+adopted. A repeat with the simpler rule also renewed an invitation once, showing
+that the closure improvement is not a guarantee. The
+[complete responses](https://github.com/dan-garvey/ayoa/blob/40ca05c495e316e3edf75d22239d5dd7f8237588/closure_rhyme_20260917/TRANSCRIPTS.md)
+and separate primary/refinement judgments preserve these limitations.
+
+Automatic requests now set `reasoning.summary=detailed`, mapped to
+`model_reasoning_summary="detailed"` in the proxy. All 28 live calls returned exposed
+summaries, ranging from 110 to 1,158 characters; many still consist of short headings.
+The Inspect responses UI displays these existing summary records. Summaries remain
+outside published history, subsequent prompts and transcript exports.
+
+The latest Covenant playtest received the promoted author wording and simpler
+Seraphel correction through an explicit one-time snapshot update after a full
+backup. All 22 passages, player inputs, response versions, raw attempts and
+transcript bytes were preserved; other sessions were unchanged. The server was
+restarted at the same local/LAN address. Evidence validation checked all 28 exact
+requests and outputs. All 78 non-browser and 17 browser tests passed, along with
+prompt rendering/hygiene and Ruff checks.

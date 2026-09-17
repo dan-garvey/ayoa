@@ -19,7 +19,7 @@ def executable(tmp_path, source):
 def request():
     return {
         "model": "gpt-5.6-terra",
-        "reasoning": {"effort": "max", "summary": "auto"},
+        "reasoning": {"effort": "max", "summary": "detailed"},
         "instructions": "STORY_CANON",
         "input": [{"role": "user", "content": "PLAYER_SUBMISSION"}],
     }
@@ -56,7 +56,7 @@ Path(args[args.index('--output-last-message') + 1]).write_bytes(json.dumps(resul
     args = value["args"]
     assert args[args.index("--model") + 1] == "gpt-5.6-terra"
     assert 'model_reasoning_effort="max"' in args
-    assert 'model_reasoning_summary="auto"' in args
+    assert 'model_reasoning_summary="detailed"' in args
     assert "--json" in args
     assert args[args.index("--sandbox") + 1] == "read-only"
     for flag in ("--ephemeral", "--ignore-user-config", "--strict-config", "--skip-git-repo-check"):

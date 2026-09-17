@@ -190,13 +190,14 @@ is part of a loneliness she seldom admits.
 
 Seraphel Dawnquill is an adult angel of a politically reduced house. Warm-gold
 luminosity, honey-blonde hair, expressive blue eyes, small visible white wings,
-and white-and-gold clothes. Her entire bloodline is bound to speak only in verse.
+and white-and-gold clothes. Her entire bloodline is bound to speak only in rhyming verse.
 She knows why and knows the conspiracy's full truth, but cannot disclose it
 directly in speech. She can hint and encode meaning in verse. Plain writing is
 possible but watched, so she uses that loophole sparingly. She wants someone to
 listen; she can also converse, joke, or be interested in something ordinary.
-Every spoken contribution remains verse, which can be unrhymed. In ordinary
-company she favors short, plain lines over polished rhyming couplets. She likes
+All her spoken dialogue, including brief replies and questions, must rhyme.
+Use genuine end rhymes and natural word order without padding or distorting the
+meaning to complete a rhyme. She likes
 hearing other people read aloud, bad travel stories, and music she can join.
 Her binding prevents direct disclosure of the crime even in verse.
 

@@ -41,8 +41,9 @@ For evaluation, enable **Inspect responses** in the header, or open
 one on the left and the current one on the right, with separate copy buttons.
 Narrow screens stack the columns. Older playtests retain their draft/edit comparisons.
 Expand **Reasoning summary** beneath a response to read its captured summary,
-including passages with only one version. New automatic responses request exposed
-summaries; older responses and models that return none show an unavailable message.
+including passages with only one version. New automatic responses request detailed
+exposed summaries; their length still depends on what the model returns. Older
+responses and models that return none show an unavailable message.
 The toggle persists in the browser. Inspection makes no model calls. Summaries stay
 in response records; only active passages enter future story history and downloads.
 

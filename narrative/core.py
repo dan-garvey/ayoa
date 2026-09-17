@@ -291,7 +291,7 @@ def make_request(session: Path, manifest: dict, state: dict) -> dict:
     messages.append({"role": "user", "content": instruction})
     return {
         "model": manifest["model"],
-        "reasoning": {"effort": manifest["reasoning_effort"], "summary": "auto"},
+        "reasoning": {"effort": manifest["reasoning_effort"], "summary": "detailed"},
         "instructions": "\n\n".join(
             (snapshot / name).read_text(encoding="utf-8").strip()
             for name in manifest["prefix_order"]

@@ -87,7 +87,9 @@ instruction discovery, memory, plugins, shell, image/browser tools and delegatio
 The command uses stdin for the complete request, reads the final-message file and
 captures completed public reasoning-summary items from the CLI's JSON event stream.
 Each attempt retains the exact summary strings separately from final prose; other
-events are discarded. Both API and proxy requests opt in with `reasoning.summary=auto`.
+events are discarded. Both API and proxy requests opt in with `reasoning.summary=detailed`,
+which the proxy maps to `model_reasoning_summary="detailed"`. This requests a detailed
+exposed summary; the model may still return a short summary or none.
 The API retains the summary items in its raw response. No summary enters publication,
 subsequent model input or transcript exports, and absent summaries are not synthesized.
 The [official non-interactive CLI reference](https://learn.chatgpt.com/docs/non-interactive-mode)
