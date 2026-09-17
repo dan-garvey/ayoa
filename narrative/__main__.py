@@ -23,6 +23,9 @@ def parser() -> argparse.ArgumentParser:
     chat.add_argument("--model", default="gpt-5.6-terra")
     chat.add_argument("--reasoning", default="max")
     chat.add_argument("--max-output-tokens", type=int, default=12000)
+    chat.add_argument(
+        "--checkup-every", type=int, default=5, help="Player messages per checkup; 0 disables"
+    )
     chat.add_argument("--env-file", type=Path)
     chat.add_argument("--manual", action="store_true", help="Use pasted replies for proxy sessions")
     for name in ("init", "turn", "regenerate", "accept", "resume", "export", "rename"):
@@ -37,6 +40,12 @@ def parser() -> argparse.ArgumentParser:
             command.add_argument("--model", default="gpt-5.6-terra")
             command.add_argument("--reasoning", default="max")
             command.add_argument("--max-output-tokens", type=int, default=12000)
+            command.add_argument(
+                "--checkup-every",
+                type=int,
+                default=5,
+                help="Player messages per checkup; 0 disables",
+            )
         if name in {"turn", "regenerate"}:
             inputs = command.add_mutually_exclusive_group(required=True)
             inputs.add_argument("--text")
@@ -79,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
                 model=args.model,
                 reasoning=args.reasoning,
                 max_output_tokens=args.max_output_tokens,
+                checkup_every=args.checkup_every,
                 client_factory=lambda: api_client(args.env_file),
                 proxy_runner=None if args.manual else CodexProxy(),
             )
@@ -98,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
                 model=args.model,
                 reasoning=args.reasoning,
                 max_output_tokens=args.max_output_tokens,
+                checkup_every=args.checkup_every,
             )
         elif args.command == "accept":
             value = core.accept(

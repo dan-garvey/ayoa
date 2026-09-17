@@ -54,19 +54,28 @@ def chat_service(tmp_path):
     prompts = tmp_path / "prompts"
     prompts.mkdir()
     (prompts / "author.txt").write_text("Write the next passage.")
+    (prompts / "checkup.txt").write_text("CHECKUP_TASK: review adherence and plan possibilities.")
     (prompts / "regenerate.txt").write_text(
         "Rewrite the previous passage using these instructions."
     )
     services = []
     with ExitStack() as stack:
 
-        def start(*replies, transport="proxy", pause_at=None, auto_proxy=False, lan_address=None):
+        def start(
+            *replies,
+            transport="proxy",
+            pause_at=None,
+            auto_proxy=False,
+            lan_address=None,
+            checkup_every=0,
+        ):
             model = StoryClient(replies, pause_at)
             app = ChatApp(
                 tmp_path / f"sessions-{len(services)}",
                 stories=stories,
                 prompts=prompts,
                 transport=transport,
+                checkup_every=checkup_every,
                 client_factory=lambda: nullcontext(model),
                 proxy_runner=model if auto_proxy else None,
             )

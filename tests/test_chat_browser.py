@@ -20,6 +20,85 @@ def publish_proxy(page, final):
     expect(page.locator("#handoff-dialog")).not_to_be_visible()
 
 
+@pytest.mark.parametrize("width", [1280, 390])
+def test_browser_checkups_are_inspection_only_and_survive_reload(browser, chat_service, width):
+    service = chat_service(
+        {
+            "raw": "PRIVATE_PLAN **emphasis**\n<script>window.planLeak=true</script>",
+            "reasoning_summaries": ["CHECKUP_SUMMARY"],
+        },
+        "Visible first passage.",
+        "PRIVATE_NEXT_PLAN",
+        "Visible second passage.",
+        checkup_every=1,
+        auto_proxy=True,
+        pause_at=2,
+    )
+    page = browser.new_page(viewport={"width": width, "height": 900})
+    try:
+        page.goto(service.url)
+        if width <= 700:
+            page.get_by_role("button", name="Open story list", exact=True).click()
+        begin(page)
+        assert service.model.started.wait(5)
+        page.reload()
+        expect(page.get_by_role("textbox", name="Your next turn")).to_be_disabled()
+        expect(page.locator(".backstage-checkup")).to_have_count(0)
+        assert "PRIVATE_PLAN" not in page.locator("main").inner_text()
+        toggle = page.get_by_role("button", name="Inspect responses", exact=True)
+        toggle.click()
+        checkup = page.locator(".backstage-checkup")
+        expect(checkup).to_have_count(1)
+        checkup.locator(":scope > summary").click()
+        expect(checkup.locator(".checkup-prose strong")).to_have_text("emphasis")
+        assert page.evaluate("window.planLeak === undefined")
+        assert checkup.locator("script").count() == 0
+        checkup.get_by_text("Checkup reasoning summary", exact=True).click()
+        expect(checkup.locator(".reasoning-prose")).to_have_text("CHECKUP_SUMMARY")
+        service.model.release.set()
+        expect(page.locator(".message.story > .prose")).to_have_text("Visible first passage.")
+        page.reload()
+        expect(checkup).to_have_count(1)
+        toggle.click()
+        expect(checkup).to_have_count(0)
+        assert "PRIVATE_PLAN" not in page.locator("main").inner_text()
+        composer = page.get_by_role("textbox", name="Your next turn")
+        composer.fill("Continue.")
+        composer.press("Control+Enter")
+        expect(page.locator(".message.story")).to_have_count(2)
+        with page.expect_download() as download:
+            page.get_by_role("button", name="Download story", exact=True).click()
+        text = Path(download.value.path()).read_text()
+        assert "PRIVATE" not in text and "SUMMARY" not in text
+        toggle.click()
+        expect(checkup).to_have_count(2)
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert len(service.model.requests) == 4
+    finally:
+        service.model.release.set()
+        page.close()
+
+
+def test_browser_manual_checkup_then_author_handoffs(browser, chat_service):
+    service = chat_service(checkup_every=1)
+    page = browser.new_page()
+    try:
+        page.goto(service.url)
+        begin(page)
+        page.get_by_role("button", name="Response handoff", exact=True).click()
+        expect(page.locator("#handoff-stage")).to_have_text("BACKSTAGE CHECKUP HANDOFF")
+        expect(page.locator("#handoff-note")).to_contain_text("stay out of the story")
+        page.get_by_label("Complete response", exact=True).fill("PRIVATE_MANUAL_PLAN")
+        page.get_by_role("button", name="Accept response", exact=True).click()
+        expect(page.locator("#handoff-dialog")).not_to_be_visible()
+        expect(page.locator(".message.story")).to_have_count(0)
+        publish_proxy(page, "Actual story.")
+        expect(page.locator(".message.story > .prose")).to_have_text("Actual story.")
+        assert "PRIVATE_MANUAL_PLAN" not in page.locator("main").inner_text()
+    finally:
+        page.close()
+
+
 def test_browser_proxy_turns_markdown_copy_download_and_reload(browser, chat_service):
     service = chat_service()
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])

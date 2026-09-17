@@ -17,7 +17,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 PREFIX_ORDER = ["author.txt", "direction.md", "canon.md"]
-SNAPSHOT_FILES = {*PREFIX_ORDER, "regenerate.txt", "player.json"}
+SNAPSHOT_FILES = {*PREFIX_ORDER, "regenerate.txt", "checkup.txt", "player.json"}
 
 
 class NarrativeError(RuntimeError):
@@ -127,14 +127,18 @@ def init_session(
     model: str = "gpt-5.6-terra",
     reasoning: str = "max",
     max_output_tokens: int = 12000,
+    checkup_every: int = 5,
 ) -> dict:
     if transport not in {"api", "proxy"} or not model.strip() or not reasoning.strip():
         raise ValueError("Specify a transport, model, and reasoning effort")
     if max_output_tokens <= 0:
         raise ValueError("max_output_tokens must be positive")
+    if type(checkup_every) is not int or checkup_every < 0:
+        raise ValueError("checkup_every must be a nonnegative integer (0 disables checkups)")
     sources = {
         "author.txt": prompts / "author.txt",
         "regenerate.txt": prompts / "regenerate.txt",
+        "checkup.txt": prompts / "checkup.txt",
         "direction.md": story / "direction.md",
         "canon.md": story / "canon.md",
         "player.json": player_file or story / "player.json",
@@ -156,13 +160,14 @@ def init_session(
     for name, data in contents.items():
         atomic_write(session / "snapshot" / name, data)
     manifest = {
-        "version": 2,
+        "version": 3,
         "created_at": now(),
         "story": story.name,
         "transport": transport,
         "model": model,
         "reasoning_effort": reasoning,
         "max_output_tokens": max_output_tokens,
+        "checkup_every": checkup_every,
         "prefix_order": PREFIX_ORDER.copy(),
         "source_sha256": {name: digest(data) for name, data in contents.items()},
     }
@@ -173,6 +178,7 @@ def init_session(
             "manifest_sha256": digest((session / "manifest.json").read_bytes()),
             "player_names": [chosen_name],
             "turns": [],
+            "checkups": [],
             "pending": None,
         },
     )
@@ -184,8 +190,10 @@ def load_session(session: Path) -> tuple[dict, dict]:
     state = read_json(session / "state.json")
     if digest((session / "manifest.json").read_bytes()) != state["manifest_sha256"]:
         raise NarrativeError("Frozen session settings changed; initialize a new session")
-    if manifest.get("version") != 2 or manifest.get("prefix_order") != PREFIX_ORDER:
+    if manifest.get("version") != 3 or manifest.get("prefix_order") != PREFIX_ORDER:
         raise NarrativeError("Unsupported session format; initialize a new session")
+    if type(manifest["checkup_every"]) is not int or manifest["checkup_every"] < 0:
+        raise NarrativeError("Invalid checkup interval")
     if set(manifest["source_sha256"]) != SNAPSHOT_FILES:
         raise NarrativeError("Incomplete source snapshot")
     for name, expected in manifest["source_sha256"].items():
@@ -204,6 +212,21 @@ def load_session(session: Path) -> tuple[dict, dict]:
             raise NarrativeError("Invalid pending submission")
         if pending["kind"] == "regenerate" and not state["turns"]:
             raise NarrativeError("No passage to regenerate")
+        if pending["stage"] not in {"author", "checkup"} or (
+            pending["stage"] == "checkup" and pending["kind"] != "turn"
+        ):
+            raise NarrativeError("Invalid pending stage")
+    previous_turn = -1
+    for checkup in state["checkups"]:
+        before_turn = checkup["before_turn"]
+        if type(before_turn) is not int or not previous_turn < before_turn <= len(state["turns"]):
+            raise NarrativeError("Invalid checkup history")
+        if before_turn == len(state["turns"]) and (
+            not pending or pending["kind"] != "turn" or pending["stage"] != "author"
+        ):
+            raise NarrativeError("Checkup is ahead of the active story")
+        attempt_dir(session, checkup["request_id"])
+        previous_turn = before_turn
     if "player_names" in state:
         names = state["player_names"]
         if not isinstance(names, list) or not names:
@@ -283,12 +306,25 @@ def make_request(session: Path, manifest: dict, state: dict) -> dict:
                 {"role": "assistant", "content": turn["output"]},
             ]
         )
+    if state["checkups"]:
+        path = attempt_dir(session, state["checkups"][-1]["request_id"])
+        guidance = response_text(read_json(path / "response.json"))
+        messages.append(
+            {"role": "user", "content": f"<backstage_guidance>\n{guidance}\n</backstage_guidance>"}
+        )
     instruction = pending["input"]
     if pending["kind"] == "regenerate":
         instruction = (
             (snapshot / "regenerate.txt").read_text(encoding="utf-8").strip() + "\n\n" + instruction
         )
     messages.append({"role": "user", "content": instruction})
+    if pending["stage"] == "checkup":
+        messages.append(
+            {
+                "role": "user",
+                "content": (snapshot / "checkup.txt").read_text(encoding="utf-8").strip(),
+            }
+        )
     return {
         "model": manifest["model"],
         "reasoning": {"effort": manifest["reasoning_effort"], "summary": "detailed"},
@@ -326,6 +362,7 @@ def _prepare(session: Path, manifest: dict, state: dict) -> Path:
             "request_id": request_id,
             "turn": len(state["turns"]) - (pending["kind"] == "regenerate"),
             "kind": pending["kind"],
+            "stage": pending["stage"],
             "submission_id": pending["submission_id"],
             "transport": manifest["transport"],
             "prepared_at": now(),
@@ -402,6 +439,14 @@ def _drive(session: Path, manifest: dict, state: dict, client: Any, *, retry: bo
                 retry = False
                 continue
             request_id = pending["request_id"]
+            if pending["stage"] == "checkup":
+                state["checkups"].append(
+                    {"before_turn": len(state["turns"]), "request_id": request_id}
+                )
+                pending.update(stage="author", request_id=None)
+                write_json(session / "state.json", state)
+                retry = False
+                continue
             previous = state["turns"][-1] if pending["kind"] == "regenerate" else None
             turn = {
                 "turn": previous["turn"] if previous else len(state["turns"]),
@@ -423,6 +468,7 @@ def _drive(session: Path, manifest: dict, state: dict, client: Any, *, retry: bo
             return {
                 "status": "pending",
                 "kind": pending["kind"],
+                "stage": pending["stage"],
                 "request_id": pending["request_id"],
                 "request_json": str((path / "request.json").resolve()),
                 "request_text": str((path / "request.txt").resolve()),
@@ -485,6 +531,11 @@ def _submit(
             raise NarrativeError("There is no passage to regenerate yet")
         state["pending"] = {
             "kind": kind,
+            "stage": "checkup"
+            if kind == "turn"
+            and manifest["checkup_every"]
+            and (len(state["turns"]) + 1) % manifest["checkup_every"] == 0
+            else "author",
             "input": text,
             "submission_id": identifier,
             "request_id": None,
@@ -587,6 +638,7 @@ def _export(session: Path, manifest: dict, state: dict) -> dict:
     proxy_started = automatic_started if manifest["transport"] == "proxy" else 0
     summary = {
         "published_turns": len(state["turns"]),
+        "completed_checkups": len(state["checkups"]),
         "pending_kind": state["pending"]["kind"] if state["pending"] else None,
         "requests_prepared": prepared,
         "api_calls_started": api_started,

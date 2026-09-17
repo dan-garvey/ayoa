@@ -244,3 +244,51 @@ transcript bytes were preserved; other sessions were unchanged. The server was
 restarted at the same local/LAN address. Evidence validation checked all 28 exact
 requests and outputs. All 78 non-browser and 17 browser tests passed, along with
 prompt rendering/hygiene and Ruff checks.
+
+## Periodic backstage checkups
+
+The runtime now makes a private adherence/development call before the response
+to every fifth ordinary player message by default. `--checkup-every` changes the
+interval for new sessions, including disabling it with zero. The opening counts;
+regenerations and retries do not. Both stages use the same frozen author rules,
+story direction, full canon, model and effort. Checkup notes are advisory and
+conditional, with only the latest notes added to future requests. They are neither
+published events nor NPC knowledge. The author still publishes directly without
+an editor. Notes and their exposed summaries are available in Inspect responses,
+outside normal chat data and transcript exports.
+
+The [nine-call coding-agent smoke test](https://github.com/dan-garvey/ayoa/tree/26d6da690632c05b7c4f0f6cb7eab2e8940f92c9/backstage_checkups_20260917)
+preserves three checkups and six author outputs, all fresh Terra/max calls with
+detailed exposed summaries. Covenant replays a saved 19-passage prefix followed
+by three turns. Breakwater tests a fresh opening and a due checkup, then repeats
+the same checkpoint with one prompt refinement. These are unblinded smoke tests,
+with no author-only control or evidence of long-term improvement.
+
+The Covenant notes identify rhyme violations, excessive questions and overpraise,
+while keeping NPC activities independent and permitting quiet. The first following
+passage closes naturally; the next still introduces a tutoring demand after the
+player returns to reading. An explicit chapter-reading request then reaches its
+endpoint without another question. Seraphel does not speak, so the reminder's
+effect on rhyme remains untested.
+
+The first Breakwater checkup invents a date conflict by confusing when a reservation
+was entered with when the room would be used. The final prompt requires verifying
+statements and temporal references before flagging contradictions. One replay
+reads the dates correctly, preserves the genuine scheduling overlap, and lets the
+author mention an NPC's reservation without leaking another NPC's private plan.
+Both reviews miss a smaller elapsed-time discrepancy; polished quips remain in
+the prose. The [complete review](https://github.com/dan-garvey/ayoa/blob/26d6da690632c05b7c4f0f6cb7eab2e8940f92c9/backstage_checkups_20260917/review.md)
+records these limitations. A checkup can introduce mistaken advice as well as
+catch drift; longer controlled evaluation remains open in `ayoa-h5s0`.
+
+Every new request was reconstructed from its frozen sources, active history and
+latest notes. All first outputs were retained. All 94 non-browser and 20 Chromium
+tests passed, covering repeated cadence, private projections, exact publication,
+regeneration, manual handoffs and recovery between stages. Checkup failures pause
+the author; successful notes survive an author failure without another checkup.
+
+Seven local sessions, including the nested foundation playtests, were fully backed
+up before an explicit format-3 conversion. Their prose, player inputs, identities,
+response versions and raw attempts were preserved. No checkups were backfilled.
+The current 22-passage Covenant story's first due checkup is message 25. The
+restarted chat retains its existing localhost and private-LAN addresses.

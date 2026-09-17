@@ -3,8 +3,9 @@
 The model sees the whole fictional world. Individual NPCs must act only on
 plausibly acquired knowledge. These are prompt obligations, not structural
 secrecy guarantees. The implementation has one story author, covering world
-action, NPC dialogue and narration. A successful response publishes directly;
-there is no automatic editorial call.
+action, NPC dialogue and narration. A successful author response publishes directly;
+there is no automatic editorial call. A periodic backstage call reviews adherence
+and proposes development before the author writes the due turn.
 
 ## Sources and context
 
@@ -18,7 +19,8 @@ chosen name out of the stable instruction prefix. A story may prescribe a
 protagonist premise; choosing a name or overriding the player description does
 not rewrite their ancestry, other characters or named places.
 
-Initialization freezes these files plus `prompts/regenerate.txt` and model settings.
+Initialization freezes these files plus `prompts/regenerate.txt`, `prompts/checkup.txt`
+and model settings, including `checkup_every` (default 5; 0 disables checkups).
 It makes no model call. The first submitted input requests the opening. Source
 and settings hashes are checked on subsequent operations; changed snapshots
 require a new session. This is an experimental format without automatic save migration.
@@ -32,6 +34,31 @@ instruction and the player's requested changes in the user tail. Its response
 replaces only the final passage, retaining that passage's original player input.
 Future calls receive only the replacement; discarded responses and regeneration
 instructions remain in saved attempts and never enter subsequent history.
+
+Before responding to every Nth ordinary player submission, including the opening,
+the same model first receives a checkup request. It shares the stable author,
+direction and canon prefix and active conversation with the author. The latest
+private guidance, if any, appears in a tagged user message after the conversation;
+the current submission follows it. A checkup adds its frozen task instruction at
+the end. Its response is saved as private guidance, then the author receives the
+same story and submission with those new notes. These calls are sequential; the
+author waits for the checkup. Other turns make only the author call. Both use the
+session's model, effort, transport and detailed exposed-summary setting.
+
+The checkup reviews adherence and suggests conditional plot and character
+development, without rewriting published passages. Suggestions do not create
+fictional events, grant NPC knowledge or decide player choices. Consistent new
+history is allowed. The notes should support NPC independence, chosen quiet and
+conversational closure as well as meaningful developments. Only the latest notes
+enter subsequent requests, including the next checkup; old notes remain evidence.
+Exposed reasoning summaries are separate from these intentionally authored notes
+and never enter model context.
+
+Scheduling derives from the published turn count; failed submissions, renames and
+regenerations do not advance it. Checkups happen before the due passage exists, so
+regenerating the latest passage cannot invalidate the history used to produce its
+guidance. The original player input is retained and current regeneration feedback
+comes after the notes. No checkup sees rejected prose or regeneration feedback.
 
 Regeneration instructions apply once. Repeated regeneration sees the current
 version and the new instructions without accumulating earlier feedback. The base
@@ -49,13 +76,22 @@ correction. Published text, frozen sources and raw attempts remain unchanged.
 ## Persistence and transport
 
 `state.json` is the single publication record: completed turns and at most one
-pending submission. Each attempt has an exact JSON request, its readable text
+pending submission, plus ordered references to completed checkup attempts with
+the turn they precede. The pending submission identifies its current stage
+(`checkup` or `author`). Each attempt has an exact JSON request, its readable text
 projection, metadata, and a raw response or error when available. Each turn keeps
 an ordered list of successful response attempt ids; its final id identifies the
 active passage. Completing generation atomically publishes its exact text and
 clears the pending submission in one state replacement. Completing regeneration
 replaces the last turn's output and appends its attempt id in that same write.
 The preceding passage remains published throughout a failed or interrupted attempt.
+A successful checkup atomically records its attempt id and advances the pending
+stage to author without publishing anything. Its text lives only in the original
+response record. If the author then fails, resume reuses that saved guidance.
+A failed checkup stops before author generation and requires explicit resume.
+Manual acceptance of checkup notes prepares a second handoff for the author;
+it cannot publish those notes as a passage. Saved responses at either stage are
+consumed after a crash without another call when their outcome is available.
 
 An exclusive POSIX file lock serializes operations on a session, including model
 calls. File replacements are flushed and synced before advancing. A response
@@ -118,7 +154,8 @@ token usage and manual proxy latency are null, not invented estimates. Automatic
 proxy invocation counts and elapsed time are recorded separately from API calls.
 
 Complete text history grows with play. Context-limit failures remain explicit;
-there is no automatic compaction, background simulation or hidden planning log.
+there is no automatic compaction or background simulation. Checkup notes are a
+private planning surface, not a second record of canonical events.
 This foundation is a local, single-player workflow on Linux/macOS/WSL.
 It retires the former engine, per-character agents, schemas, adapters, media and
 UI infrastructure from this branch. The archived implementation and all earlier
@@ -128,8 +165,9 @@ trial evidence remain available through docs/findings.md.
 
 `python -m narrative chat` serves local HTML, CSS and JavaScript with a small
 HTTP server, bound to loopback by default. There is no frontend build step, CDN or second story store.
-The browser submits a turn or regeneration; its HTTP request waits for one author
-call. Separate read requests keep progress visible while it runs. Closing or
+The browser submits a turn or regeneration; its HTTP request waits for the author
+and, when due, the preceding checkup. Separate read requests keep progress visible
+while it runs. Closing or
 reloading the page does not cancel an executing server request.
 Stopping the server still uses the core's existing interrupted-attempt recovery.
 
@@ -170,6 +208,15 @@ changing them or invoking a model. Browser preferences and the URL control the
 view; no comparison setting enters session state, model context or transcript
 exports. Both columns use the same Markdown renderer and stack on narrow screens.
 
+The same inspection toggle reveals completed checkups in expandable panels before
+their associated passages, including a saved checkup while its author response is
+pending. It displays the interval and exposes the current stage for progress.
+Checkup notes and their captured summaries use the safe Markdown renderer. None
+of these fields are returned in the normal conversation projection or transcript.
+This is a developer view that may reveal story secrets, not an authorization
+boundary for a separate user account. The runtime can exclude notes from chat
+data; keeping their discussion out of generated fiction remains a prompt obligation.
+
 Formatting uses Markdown with raw HTML disabled, following the
 [parser's security guidance](https://markdown-it-py.readthedocs.io/en/latest/security.html).
 Images are disabled and intentional line breaks are preserved. Original strings
@@ -196,11 +243,17 @@ fresh workspaces, separate final and summary output, failed/timeout results, res
 saved manual requests, preserving existing passages on retry, and browser reload during both
 API and proxy execution. The user's previously pending Covenant opening was
 completed with two real Terra/max CLI calls before the editor was retired; its
-private raw artifacts remain in the user's session directory. Current single-call
-and regeneration checks run offline against both transports and Chromium.
+private raw artifacts remain in the user's session directory. Author, periodic
+checkup and regeneration checks run offline against both transports and Chromium.
 
-Format 2 replaces the author/editor fields with one response-history list and
-retires the revision snapshot. The runtime accepts only the current format.
+Format 2 replaced the author/editor fields with one response-history list and
+retired the revision snapshot.
 Existing local playtests were backed up before their one-time conversion; their
 published prose, identities, story canon and raw attempts were preserved. This
 does not reinterpret earlier ordinary chat messages as regeneration operations.
+
+Format 3 adds the frozen checkup prompt and interval, the checkup attempt references,
+and the pending stage. It is the sole supported format. Existing local sessions
+receive an explicit backed-up conversion, preserving original turns, identities,
+response versions and attempt files. No checkups are backfilled; scheduling starts
+at the next due ordinary submission using the existing turn count.

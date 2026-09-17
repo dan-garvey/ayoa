@@ -17,6 +17,76 @@ def version(service, name):
     return service.client.get("/api/session", params={"id": name}).json()["version"]
 
 
+def test_checkup_handoff_is_private_and_cannot_publish_notes(chat_service):
+    service = chat_service(checkup_every=1)
+    client = service.client
+    name = create(service)
+    sent = client.post(
+        "/api/turn", json={"id": name, "text": "Start.", "expected_version": version(service, name)}
+    ).json()
+    assert "stage" not in sent["pending"] and "checkups" not in sent
+    packet = client.get("/api/handoff", params={"id": name}).json()
+    assert packet["stage"] == "checkup" and "CHECKUP_TASK" in packet["text"]
+    accepted = client.post(
+        "/api/accept", json={"id": name, "request_id": packet["request_id"], "text": "PRIVATE_PLAN"}
+    ).json()
+    assert accepted["turns"] == [] and accepted["pending"] is not None
+    assert "PRIVATE_PLAN" not in json.dumps(accepted)
+    inspection = client.get("/api/session", params={"id": name, "compare": 1}).json()
+    assert inspection["checkup_every"] == 1
+    assert inspection["pending"]["stage"] == "author"
+    assert "PRIVATE_PLAN" in inspection["checkups"][0]["output_html"]
+    next_packet = client.get("/api/handoff", params={"id": name}).json()
+    assert next_packet["stage"] == "author" and "PRIVATE_PLAN" in next_packet["text"]
+    assert next_packet["request_id"] != packet["request_id"]
+    stale = client.post(
+        "/api/accept", json={"id": name, "request_id": packet["request_id"], "text": "Duplicate"}
+    )
+    assert stale.status_code == 409
+    final = client.post(
+        "/api/accept", json={"id": name, "request_id": next_packet["request_id"], "text": "Story."}
+    ).json()
+    assert final["turns"][0]["output"] == "Story." and final["turn_count"] == 1
+    for route in ("/api/session", "/api/sessions", "/api/bootstrap", "/api/transcript"):
+        assert "PRIVATE_PLAN" not in client.get(route, params={"id": name}).text
+
+
+def test_checkup_inspection_projects_only_notes_and_exposed_summaries(chat_service):
+    notes = "PRIVATE_PLAN **emphasis**\n<script>bad()</script>"
+    service = chat_service(
+        {"raw": notes, "reasoning_summaries": ["PUBLIC_SUMMARY"], "private": "OPAQUE_SECRET"},
+        "Visible story.",
+        "Next story.",
+        auto_proxy=True,
+        checkup_every=2,
+    )
+    # A manual first passage lets the second submission exercise both automatic stages.
+    name = create(service)
+    session = service.app.session_path(name)
+    pending = core.submit(session, "Begin.")
+    core.accept(session, pending["request_id"], "First story.")
+    response = service.client.post(
+        "/api/turn",
+        json={"id": name, "text": "Continue.", "expected_version": version(service, name)},
+    )
+    assert response.status_code == 200
+    assert "PRIVATE_PLAN" not in response.text and "PUBLIC_SUMMARY" not in response.text
+    view = service.client.get("/api/session", params={"id": name, "compare": 1}).json()
+    checkup = view["checkups"][0]
+    assert checkup["before_turn"] == 1
+    assert "<strong>emphasis</strong>" in checkup["output_html"]
+    assert "<script>" not in checkup["output_html"]
+    assert "PUBLIC_SUMMARY" in checkup["summary_html"]
+    for forbidden in ("OPAQUE_SECRET", "SECRET_CANON", "CHECKUP_TASK"):
+        assert forbidden not in json.dumps(view)
+    service.client.post(
+        "/api/turn", json={"id": name, "text": "Listen.", "expected_version": view["version"]}
+    ).raise_for_status()
+    assert "PRIVATE_PLAN" in core.render_request(service.model.requests[-1])
+    assert "PUBLIC_SUMMARY" not in str(service.model.requests)
+    assert "OPAQUE_SECRET" not in str(service.model.requests)
+
+
 def test_proxy_chat_publishes_once_and_only_displays_active_story(chat_service):
     service = chat_service()
     client = service.client

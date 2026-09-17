@@ -57,6 +57,16 @@ def inspection_view(session: Path, turn: dict) -> dict:
     return view
 
 
+def checkup_view(session: Path, checkup: dict) -> dict:
+    response = core.read_json(core.attempt_dir(session, checkup["request_id"]) / "response.json")
+    summary = core.response_summary(response)
+    return {
+        "before_turn": checkup["before_turn"],
+        "output_html": format_text(core.response_text(response)),
+        "summary_html": format_text(summary) if summary else None,
+    }
+
+
 class ChatApp:
     def __init__(
         self,
@@ -68,6 +78,7 @@ class ChatApp:
         model: str = "gpt-5.6-terra",
         reasoning: str = "max",
         max_output_tokens: int = 12000,
+        checkup_every: int = 5,
         client_factory: Callable = nullcontext,
         proxy_runner: Callable | None = None,
     ):
@@ -79,6 +90,7 @@ class ChatApp:
             model=model,
             reasoning=reasoning,
             max_output_tokens=max_output_tokens,
+            checkup_every=checkup_every,
         )
         self.client_factory = client_factory
         self.proxy_runner = proxy_runner
@@ -206,6 +218,7 @@ class ChatApp:
                 "request_id": request_id,
                 "handoff_ready": ready,
                 "failed": failure,
+                **({"stage": pending["stage"]} if compare else {}),
             }
         return {
             "id": name,
@@ -214,6 +227,14 @@ class ChatApp:
             "created_at": manifest["created_at"],
             "transport": manifest["transport"],
             "compare": compare,
+            **(
+                {
+                    "checkup_every": manifest["checkup_every"],
+                    "checkups": [checkup_view(session, item) for item in state["checkups"]],
+                }
+                if compare
+                else {}
+            ),
             "turn_count": len(state["turns"]),
             "version": core.state_version(state),
             "turns": [
@@ -293,6 +314,7 @@ class ChatApp:
         return {
             "request_id": pending["request_id"],
             "kind": pending["kind"],
+            "stage": pending["stage"],
             "text": core.render_request(request),
         }
 

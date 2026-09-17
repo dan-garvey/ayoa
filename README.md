@@ -1,7 +1,8 @@
 # Narrative foundation
 
-One model authors the world, narration and every supporting character in one call.
-Its response publishes directly. Characters retain individual interests and
+One model authors the world, narration and every supporting character.
+Its story response publishes directly. Periodic private checkups review adherence
+and plan possible developments before writing the next passage. Characters retain individual interests and
 plausible knowledge boundaries through the writing contract and full biographies.
 
 This work continues on **`codex/covenant-single-llm`**. The old engine and raw
@@ -22,8 +23,9 @@ python3 -m venv .venv
 
 The default chat runs **Terra coding agents automatically**, using your existing
 Codex CLI login. Install a current Codex CLI and run `codex login` first if needed;
-this integration is verified with version 0.154.0. Each turn gets one fresh author
-call at `max` reasoning. The chat shows when a passage is being written.
+this integration is verified with version 0.154.0. Each turn gets a fresh author
+call at `max` reasoning. Every fifth player message first gets a separate checkup
+using the same model and effort. The chat shows when a passage is being written.
 
 Open **http://localhost:8765**. Choose a saved story or select **New story**.
 Choose your protagonist’s name before beginning. To rename them between turns,
@@ -47,6 +49,22 @@ responses and models that return none show an unavailable message.
 The toggle persists in the browser. Inspection makes no model calls. Summaries stay
 in response records; only active passages enter future story history and downloads.
 
+Inspection also shows expandable **Backstage checkup** notes before the passage
+they guide, with their exposed reasoning summaries when available. These notes
+review adherence and suggest conditional plot and character development. They
+remain outside the conversation and transcript download; only the latest notes
+are added privately to subsequent model requests. They are advice, not established
+events or new knowledge for characters, and may contain story spoilers.
+
+Configure the interval for new sessions with `--checkup-every N` on `chat` or
+`init`; use `0` to disable it. The opening counts as one ordinary player message.
+Regeneration, retries and renaming do not advance the counter. The checkup runs
+before the response to the Nth message, so that response receives its guidance.
+Due turns wait for two sequential calls. A failed checkup pauses the response;
+**Continue response** retries it. If only the author fails, its completed checkup
+is reused. Regeneration does not run another checkup or expose discarded prose
+to later checkups.
+
 Write in the multiline composer. **Ctrl+Enter** (or **Cmd+Enter**) sends;
 **Enter** inserts a line break. Unsent text and reading preferences survive reloads
 in the same browser. Accepted turns are saved to the session files. An unfinished
@@ -68,7 +86,8 @@ For direct API responses, start the chat with an API key available to the server
 
 For experiments with manually supplied replies, start with `--manual`.
 **Response handoff** then lets you copy/download the current request and paste or
-load the complete reply. Accept it once to publish the passage. The handoff contains
+load the complete reply. A checkup handoff saves private notes and prepares the
+next handoff; accepting the author handoff publishes the passage. The handoff contains
 story secrets and stays separate from the conversation. Existing CLI proxy commands also work; their
 results appear in the chat automatically.
 
@@ -146,7 +165,9 @@ reasoning effort. Save its complete response to a UTF-8 file, then accept it:
 .venv/bin/python -m narrative accept --session sessions/my-story --request-id REQUEST_ID --output-file response.txt
 ```
 
-Accepting the response publishes and prints the passage. Submit the next player
+Accepting an author response publishes and prints the passage. When a checkup is
+due, first accept its notes, then use the returned author request for the passage.
+Submit the next player
 action with `turn`, or request a replacement with `regenerate`.
 Fresh proxies receive all necessary context; do not give them other trials,
 assessments, discarded historical drafts or additional writing instructions.
@@ -161,8 +182,8 @@ Choose API transport when initializing a separate session:
 ```
 
 Set `OPENAI_API_KEY` in the environment or the explicitly supplied environment
-file. One call executes automatically. `--model`, `--reasoning`
-and `--max-output-tokens` are initialization options; the 12,000-token default is
+file. The due checkup and author calls execute automatically. `--model`, `--reasoning`,
+`--checkup-every` and `--max-output-tokens` are initialization options; the 12,000-token default is
 a per-call output budget including reasoning, not a visible-prose target. Settings
 are frozen for the session. The API adapter is tested offline with the real SDK;
 the foundation's narrative validation uses coding-agent proxies.
@@ -185,7 +206,9 @@ Each session contains frozen sources and settings, `state.json`, a directory per
 attempt with its exact request and raw response/error, and derived
 `transcript.md`/`summary.json` exports. Published turn records identify
 all their successful response versions, with the current version last. The transcript
-contains only original player inputs and active prose. Usage includes unsuccessful
+contains only original player inputs and active prose. Completed checkups reference
+their saved attempts separately and never appear as published turns. Usage counts
+both author and checkup calls and includes unsuccessful
 API responses where reported;
 unavailable proxy usage is shown as null. Sessions are ignored by Git.
 Automatic proxy attempts record CLI exit status and elapsed time separately from
@@ -204,7 +227,7 @@ Create a directory with these three files and pass its name or path to `--story`
 - `direction.md`: the story's genre, tone, portrayal and opening instructions.
 - `player.json`: `{"name": "...", "description": "..."}` for its default protagonist.
 
-Reusable writing instructions and the brief regeneration instruction live in
+Reusable writing instructions, the checkup task and the brief regeneration instruction live in
 `prompts/`. Select another set with `--prompts DIRECTORY` when initializing a new
 session. `--player-file` selects another description; it must remain consistent with the story's premise.
 `--player-name` overrides its default name. Naming preserves the story’s family

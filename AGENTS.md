@@ -6,7 +6,9 @@ Keep work on this branch unless the user explicitly requests integration elsewhe
 
 ## Runtime and prompts
 
-- One author writes world, NPCs and narration in one call. Regeneration is an
+- One author writes world, NPCs and narration. Periodic backstage checkups review
+  adherence and propose development; only the latest notes guide subsequent turns.
+  Notes are advice, never established events or NPC knowledge. Regeneration is an
   explicit player action, not an automatic editing stage. API and proxy execution
   use the same context builder and persisted turn loop.
 - Only active passages and original player inputs enter future history. Preserve

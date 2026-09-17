@@ -182,6 +182,18 @@ function comparison(turn, number, pending = null) {
   return pair;
 }
 
+function checkupNotes(checkup) {
+  const details = node("details", "backstage-checkup");
+  details.append(node("summary", "", `Backstage checkup · before passage ${checkup.before_turn + 1}`));
+  details.append(proseContent(checkup.output_html, "prose checkup-prose"));
+  if (checkup.summary_html) {
+    const reasoning = node("details", "reasoning-summary");
+    reasoning.append(node("summary", "", "Checkup reasoning summary"), proseContent(checkup.summary_html, "prose reasoning-prose"));
+    details.append(reasoning);
+  }
+  return details;
+}
+
 function setComparison(enabled) {
   comparing = enabled;
   storage.set("compare", String(enabled));
@@ -226,7 +238,7 @@ function renderView(view) {
   $("story-title").textContent = view.title;
   $("story-kicker").textContent = `PLAYING AS ${view.player.toLocaleUpperCase()}`;
   document.title = `${view.title} · Ayoa`;
-  const signature = JSON.stringify([view.id, comparing, view.turns, view.pending]);
+  const signature = JSON.stringify([view.id, comparing, view.turns, view.pending, view.checkups, view.checkup_every]);
   if (signature !== rendered) {
     const initial = !rendered;
     const follow = nearBottom() || initial;
@@ -234,6 +246,10 @@ function renderView(view) {
     rendered = signature;
     const conversation = $("conversation");
     conversation.replaceChildren();
+    if (comparing && view.checkup_every !== undefined) {
+      conversation.append(node("p", "checkup-cadence", view.checkup_every ? `Backstage checkups: every ${view.checkup_every} player messages. The opening counts; regenerations do not. Notes guide subsequent responses until the next checkup.` : "Backstage checkups are disabled for this story."));
+    }
+    const checkups = new Map((comparing ? view.checkups || [] : []).map(item => [item.before_turn, item]));
     if (!view.turns.length && !view.pending) {
       const empty = node("div", "start-session");
       empty.append(node("span", "eyebrow", "A FRESH PAGE"), node("h2", "", "Your story is ready."), node("p", "", "Begin with the opening scene, or write your own first turn below."));
@@ -246,10 +262,13 @@ function renderView(view) {
       const player = message("player", turn.input_html, "YOU");
       const regenerating = view.pending?.kind === "regenerate" && turn.number === view.turn_count - 1 ? view.pending : null;
       const story = comparing && (typeof turn.previous === "string" || regenerating) ? comparison(turn, turn.number, regenerating) : passage(turn.output, turn.output_html, turn.number, "story", turn.summary_html);
-      conversation.append(player, story, node("div", "turn-divider"));
+      conversation.append(player);
+      if (checkups.has(turn.number)) conversation.append(checkupNotes(checkups.get(turn.number)));
+      conversation.append(story, node("div", "turn-divider"));
     }
     if (view.pending) {
       conversation.append(message(view.pending.kind === "regenerate" ? "regeneration" : "player", view.pending.input_html, view.pending.kind === "regenerate" ? "REGENERATION INSTRUCTIONS" : "YOU"));
+      if (checkups.has(view.turn_count)) conversation.append(checkupNotes(checkups.get(view.turn_count)));
     }
     if (view.pending && sending.has(view.id)) reader.scrollTop = reader.scrollHeight;
     else if (follow && view.turn_count && (initial || replaced || view.turn_count > previousCount)) goLatest();
@@ -276,7 +295,10 @@ function updateControls() {
   $("resume").hidden = !pending || busy || pending.handoff_ready;
   $("handoff").hidden = !pending?.handoff_ready || busy;
   let status = "Your turn";
-  if (busy) status = pending?.kind === "regenerate" ? "Regenerating the passage…" : "Writing the next passage…";
+  if (busy) {
+    status = pending?.kind === "regenerate" ? "Regenerating the passage…" : "Writing the next passage…";
+    if (comparing && pending?.stage === "checkup") status = "Reviewing adherence and story development…";
+  }
   else if (pending?.failed) status = "The response paused. Your turn is saved.";
   else if (pending?.handoff_ready) status = "Manual response needed. Open the handoff to add it.";
   else if (pending) status = "A response is unfinished. Your turn is saved.";
@@ -436,13 +458,13 @@ async function loadHandoff(id) {
   $("request-text").value = packet.text;
   $("response-text").value = "";
   $("response-file").value = "";
-  $("handoff-stage").textContent = packet.kind === "regenerate" ? "REGENERATION HANDOFF" : "RESPONSE HANDOFF";
+  $("handoff-stage").textContent = packet.stage === "checkup" ? "BACKSTAGE CHECKUP HANDOFF" : packet.kind === "regenerate" ? "REGENERATION HANDOFF" : "RESPONSE HANDOFF";
+  $("handoff-note").textContent = packet.stage === "checkup" ? "Accepting these notes prepares the story response. The notes stay out of the story." : "Accepting the response publishes this passage.";
 }
 async function openHandoff() {
   try {
     await loadHandoff(selected);
     $("handoff-error").hidden = true;
-    $("handoff-note").textContent = "Accepting the response publishes this passage.";
     $("handoff-dialog").showModal();
     $("copy-request").focus();
   } catch (error) { notice(error.message); }
@@ -457,7 +479,7 @@ async function acceptResponse(event) {
     const view = await api("/api/accept", { id: packet.id, request_id: packet.request_id, text: $("response-text").value });
     renderView(view);
     $("handoff-dialog").close();
-    toast("Passage saved");
+    toast(packet.stage === "checkup" ? "Checkup saved. Open the next handoff for the passage." : "Passage saved");
     await refresh();
   } catch (error) {
     $("handoff-error").textContent = `${error.message} Close and reopen the handoff to load its current request.`;

@@ -62,6 +62,7 @@ def setup(tmp_path):
     prompts.mkdir()
     (prompts / "author.txt").write_text("<instructions>Common writing contract.</instructions>\n")
     (prompts / "regenerate.txt").write_text("Replace this passage.\n")
+    (prompts / "checkup.txt").write_text("CHECKUP_TASK: review adherence and plan possibilities.\n")
     story = tmp_path / "story"
     story.mkdir()
     (story / "direction.md").write_text("<direction>Start at dawn.</direction>\n")
@@ -70,9 +71,16 @@ def setup(tmp_path):
         json.dumps({"name": "PLAYER_BINDING", "description": "PERSONA_DETAIL"})
     )
 
-    def create(name="session", transport="proxy", **kwargs):
+    def create(name="session", transport="proxy", checkup_every=0, **kwargs):
         session = tmp_path / name
-        core.init_session(session, story, prompts=prompts, transport=transport, **kwargs)
+        core.init_session(
+            session,
+            story,
+            prompts=prompts,
+            transport=transport,
+            checkup_every=checkup_every,
+            **kwargs,
+        )
         return session
 
     return create, prompts, story
@@ -610,6 +618,171 @@ def test_prompt_hygiene():
     assert paths
     for path in paths:
         assert not banned.search(path.read_text()), path
+
+
+@pytest.mark.parametrize("transport", ["api", "proxy"])
+def test_checkup_cadence_guidance_replacement_and_regeneration(setup, transport):
+    create, _, _ = setup
+    session = create(transport=transport, checkup_every=2)
+    requests = []
+
+    def run(action, text, *replies):
+        client = FakeClient(*(raw_response(reply) for reply in replies))
+        result = action(session, text, client if transport == "api" else None)
+        if transport == "api":
+            requests.extend(client.requests)
+        else:
+            for reply in replies:
+                assert result["status"] == "pending"
+                requests.append(core.read_json(Path(result["request_json"])))
+                result = core.accept(session, result["request_id"], reply)
+        assert result["status"] == "published"
+        return result
+
+    run(core.submit, "OPENING_INPUT", "FIRST_SCENE")
+    run(core.submit, "SECOND_INPUT", "OLD_PRIVATE_PLAN", "REJECTED_SCENE")
+    run(core.regenerate, "DISCARDED_FEEDBACK", "REPLACEMENT_SCENE")
+    run(core.submit, "THIRD_INPUT", "THIRD_SCENE")
+    run(core.submit, "FOURTH_INPUT", "NEW_PRIVATE_PLAN", "FOURTH_SCENE")
+    run(core.submit, "FIFTH_INPUT", "FIFTH_SCENE")
+    assert len(requests) == 8
+    assert "CHECKUP_TASK" in requests[1]["input"][-1]["content"]
+    assert requests[1]["input"][-2]["content"] == "SECOND_INPUT"
+    assert "CHECKUP_TASK" in requests[5]["input"][-1]["content"]
+    assert len({request["instructions"] for request in requests}) == 1
+    for index in (2, 3, 4, 5):
+        assert "OLD_PRIVATE_PLAN" in json.dumps(requests[index]["input"])
+    for index in (6, 7):
+        assert "NEW_PRIVATE_PLAN" in json.dumps(requests[index]["input"])
+        assert "OLD_PRIVATE_PLAN" not in json.dumps(requests[index])
+    for index in (4, 5, 6, 7):
+        assert "REJECTED_SCENE" not in json.dumps(requests[index])
+        assert "DISCARDED_FEEDBACK" not in json.dumps(requests[index])
+        assert "REPLACEMENT_SCENE" in json.dumps(requests[index])
+    assert "REJECTED_SCENE" not in json.dumps(requests[1])
+    for request in requests:
+        assert "PRIVATE_PLAN" not in request["instructions"]
+        assert request["reasoning"] == {"effort": "max", "summary": "detailed"}
+    _, state = core.load_session(session)
+    assert [item["before_turn"] for item in state["checkups"]] == [1, 3]
+    published_ids = {item for turn in state["turns"] for item in turn["responses"]}
+    assert all(item["request_id"] not in published_ids for item in state["checkups"])
+    assert "PRIVATE_PLAN" not in json.dumps(state)
+    assert "PRIVATE_PLAN" not in (session / "transcript.md").read_text()
+    summary = core.export(session)
+    assert summary["published_turns"] == 5
+    assert summary["completed_checkups"] == 2
+    assert summary["requests_prepared"] == 8
+
+
+@pytest.mark.parametrize("after_write", [False, True])
+def test_completed_checkup_survives_crash_without_another_call(setup, monkeypatch, after_write):
+    create, _, _ = setup
+    session = create(transport="api", checkup_every=1)
+    client = FakeClient(raw_response("SAVED_GUIDANCE"), raw_response("Visible passage."))
+    original = core.write_json
+
+    def crash(path, value):
+        if (
+            path.name == "state.json"
+            and value["checkups"]
+            and value["pending"]["request_id"] is None
+        ):
+            if after_write:
+                original(path, value)
+            raise OSError("simulated checkup crash")
+        original(path, value)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(core, "write_json", crash)
+        with pytest.raises(OSError, match="simulated checkup crash"):
+            core.submit(session, "Begin.", client)
+    assert not core.load_session(session)[1]["turns"]
+    assert core.resume(session, client)["output"] == "Visible passage."
+    assert len(client.requests) == 2
+    assert "SAVED_GUIDANCE" in json.dumps(client.requests[1])
+    assert len(core.load_session(session)[1]["checkups"]) == 1
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        raw_response(""),
+        raw_response("partial", status="incomplete"),
+        raw_response(refusal=True),
+        OSError("offline"),
+    ],
+)
+def test_checkup_failure_stops_before_author_and_resume_retries_explicitly(setup, bad):
+    create, _, _ = setup
+    session = create(transport="api", checkup_every=1)
+    client = FakeClient(bad, raw_response("PRIVATE_NOTES"), raw_response("Story."))
+    with pytest.raises(core.NarrativeError):
+        core.submit(session, "Begin.", client)
+    state = core.load_session(session)[1]
+    assert not state["turns"] and not state["checkups"]
+    assert state["pending"]["stage"] == "checkup"
+    assert len(client.requests) == 1
+    failed_id = state["pending"]["request_id"]
+    assert core.resume(session, client)["output"] == "Story."
+    assert len(client.requests) == 3
+    assert client.requests[0] == client.requests[1]
+    assert core.load_session(session)[1]["checkups"][0]["request_id"] != failed_id
+    assert len(list((session / "attempts").iterdir())) == 3
+
+
+def test_author_failure_reuses_checkup_and_failed_regeneration_keeps_it(setup):
+    create, _, _ = setup
+    session = create(transport="api", checkup_every=1)
+    client = FakeClient(
+        raw_response("PRIVATE_NOTES"),
+        OSError("offline"),
+        raw_response("Original."),
+        raw_response("rejected", status="incomplete"),
+        raw_response("Replacement."),
+    )
+    with pytest.raises(core.NarrativeError):
+        core.submit(session, "Begin.", client)
+    state = core.load_session(session)[1]
+    assert state["pending"]["stage"] == "author" and len(state["checkups"]) == 1
+    assert not state["turns"]
+    core.resume(session, client)
+    assert client.requests[1] == client.requests[2]
+    with pytest.raises(core.ResponseError):
+        core.regenerate(session, "Fix it.", client)
+    assert core.load_session(session)[1]["turns"][0]["output"] == "Original."
+    core.resume(session, client)
+    assert client.requests[3] == client.requests[4]
+    assert len(core.load_session(session)[1]["checkups"]) == 1
+    assert "CHECKUP_TASK" not in json.dumps(client.requests[1:])
+
+
+def test_default_checkup_interval_and_disabled_mode(setup, tmp_path):
+    create, prompts, story = setup
+    session = tmp_path / "defaults"
+    assert core.init_session(session, story, prompts=prompts)["checkup_every"] == 5
+    for number in range(1, 6):
+        pending = core.submit(session, f"Player {number}")
+        assert pending["stage"] == ("checkup" if number == 5 else "author")
+        if number == 5:
+            pending = core.accept(session, pending["request_id"], "Private planning.")
+            assert pending["stage"] == "author"
+        core.accept(session, pending["request_id"], f"Passage {number}")
+    disabled = create("disabled", checkup_every=0)
+    for _ in range(7):
+        pending = core.submit(disabled, "Continue.")
+        assert pending["stage"] == "author"
+        core.accept(disabled, pending["request_id"], "Story.")
+    assert core.load_session(disabled)[1]["checkups"] == []
+    assert core.export(disabled)["requests_prepared"] == 7
+
+
+@pytest.mark.parametrize("interval", [-1, 1.5, True, "5"])
+def test_invalid_checkup_interval_does_not_create_session(setup, interval):
+    create, prompts, _ = setup
+    with pytest.raises(ValueError, match="checkup_every"):
+        create(checkup_every=interval)
+    assert not (prompts.parent / "session").exists()
 
 
 def test_automatic_proxy_preserves_line_endings_in_regeneration_and_publication(setup):
