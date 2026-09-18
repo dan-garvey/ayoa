@@ -35,8 +35,9 @@ Keep work on this branch unless the user explicitly requests integration elsewhe
   Do not freeze approved prompt prose with required-wording assertions.
 - Review complete exchanges for narrative quality. A phrase filter is not a
   literary grader. Save every first result and report mixed outcomes honestly.
-- User-authorized narrative playtests use fresh Terra coding-agent proxies at
-  maximum reasoning effort unless the user requests another configuration.
+- User-authorized narrative playtests use Sol coding-agent proxies at maximum
+  reasoning effort unless the user requests another configuration. Reuse the
+  agent conversation when requested; record the actual retained context.
   Keep raw evidence on `archive/covenant-prompt-trials`; link immutable commits
   from the active findings document. Never inspect private model reasoning.
 - Commit verified changes and push the working branch before handing back work.

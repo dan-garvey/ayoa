@@ -20,7 +20,7 @@ def parser() -> argparse.ArgumentParser:
     chat.add_argument("--port", type=int, default=8765)
     chat.add_argument("--lan-address", help="This computer's private IPv4 address for Wi-Fi access")
     chat.add_argument("--transport", choices=("api", "proxy"), default="proxy")
-    chat.add_argument("--model", default="gpt-5.6-terra")
+    chat.add_argument("--model", default=core.DEFAULT_MODEL)
     chat.add_argument("--reasoning", default="max")
     chat.add_argument("--max-output-tokens", type=int, default=12000)
     chat.add_argument(
@@ -37,7 +37,7 @@ def parser() -> argparse.ArgumentParser:
             command.add_argument("--player-file", type=Path)
             command.add_argument("--player-name", help="Choose the protagonist's name")
             command.add_argument("--transport", choices=("api", "proxy"), default="proxy")
-            command.add_argument("--model", default="gpt-5.6-terra")
+            command.add_argument("--model", default=core.DEFAULT_MODEL)
             command.add_argument("--reasoning", default="max")
             command.add_argument("--max-output-tokens", type=int, default=12000)
             command.add_argument(

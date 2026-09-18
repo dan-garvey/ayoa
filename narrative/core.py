@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_MODEL = "gpt-5.6-sol"
 PREFIX_ORDER = ["author.txt", "direction.md", "canon.md"]
 SNAPSHOT_FILES = {*PREFIX_ORDER, "regenerate.txt", "checkup.txt", "player.json"}
 
@@ -124,7 +125,7 @@ def init_session(
     player_file: Path | None = None,
     player_name: str | None = None,
     transport: str = "proxy",
-    model: str = "gpt-5.6-terra",
+    model: str = DEFAULT_MODEL,
     reasoning: str = "max",
     max_output_tokens: int = 12000,
     checkup_every: int = 5,

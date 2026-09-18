@@ -94,7 +94,7 @@ results appear in the chat automatically.
 `--port` changes the local port, and `--sessions DIRECTORY` selects a different
 session directory. Nested existing sessions are listed automatically. Model,
 reasoning and transport options set defaults for **new** sessions; existing ones
-retain their frozen configuration. The defaults remain `gpt-5.6-terra` and `max`.
+retain their frozen configuration. The defaults are `gpt-5.6-sol` and `max`.
 The server binds only to loopback by default; it is a single-user interface.
 
 To use your phone on the same Wi-Fi, start the chat with the computer's private

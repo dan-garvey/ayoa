@@ -75,7 +75,7 @@ class ChatApp:
         stories: Path = core.ROOT / "stories",
         prompts: Path = core.ROOT / "prompts",
         transport: str = "proxy",
-        model: str = "gpt-5.6-terra",
+        model: str = core.DEFAULT_MODEL,
         reasoning: str = "max",
         max_output_tokens: int = 12000,
         checkup_every: int = 5,
