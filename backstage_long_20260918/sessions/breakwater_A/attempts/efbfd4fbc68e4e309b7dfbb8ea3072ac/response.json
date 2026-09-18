@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "By nine, you are at the office door. Nell has cleared one end of her desk and set out a ring binder, a set of pencils, and two labelled keys.\n\n“Morning,” she says. “We’ll start with the system before we start handling anything.”\n\nShe takes the archive-workroom key and leads you upstairs. The room smells faintly of cardboard, dust, and fresh paint. Shelves line two walls; folding tables stand beneath the window. At the far end, a grey metal cupboard is locked.\n\nNell opens the binder on a worktable. “Every group of material gets a record: what it is, how many items, apparent dates, physical condition, where it came from, and its status. We don’t fill gaps with confidence. If something is uncertain, it stays uncertain until there’s evidence.”\n\nShe turns to a page headed *Rights and permissions*.\n\n“This matters as much as the object itself. Trust-owned material is one thing. Loans are another. A lender may allow us to describe an item but not scan it, publish it, or put it in an exhibition. If there’s a restriction, copy it into the record and flag it.”\n\nNell unlocks the cupboard, showing you carefully arranged boxes and a green cloth photograph album.\n\n“That album is Bea’s. You’ll be allowed to inventory it and describe its condition. Nothing beyond that without a further agreement from her. No scanning, no display, no assumptions because someone asks for a picture later.”\n\nShe locks the cupboard again and returns the key to her pocket.\n\n“For today, though, we’ll keep it simple.” She indicates two archive boxes on the nearest shelf. “Trust business papers first: invoices, correspondence, old staff records. Then the programme boxes. I’ll show you the spreadsheet and stay nearby while you make the first entries.”\n\nOutside the workroom window, Harbour Street is brightening beneath a pale coastal sky. Nell pulls out a chair at the table and opens the first box between you.",
+  "reasoning_summaries": [
+    "**Resolving story chronology discrepancy**\n**Narrating induction with sensory details**\n**Detailing archival access and restrictions**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:14:39.607184+00:00",
+  "duration_s": 28.557662014005473
+}

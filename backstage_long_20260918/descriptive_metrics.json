@@ -1,0 +1,64 @@
+{
+  "covenant_A": {
+    "interval": 5,
+    "continuation_turns": 20,
+    "words_mean": 188.7,
+    "words_median": 148.0,
+    "words_total": 3774,
+    "question_ending_passages": 0,
+    "passages_with_question_marks": 6
+  },
+  "covenant_B": {
+    "interval": 0,
+    "continuation_turns": 20,
+    "words_mean": 203.9,
+    "words_median": 153.5,
+    "words_total": 4078,
+    "question_ending_passages": 2,
+    "passages_with_question_marks": 5
+  },
+  "breakwater_A": {
+    "interval": 0,
+    "continuation_turns": 20,
+    "words_mean": 161.2,
+    "words_median": 142.0,
+    "words_total": 3223,
+    "question_ending_passages": 1,
+    "passages_with_question_marks": 6
+  },
+  "breakwater_B": {
+    "interval": 5,
+    "continuation_turns": 20,
+    "words_mean": 169.7,
+    "words_median": 135.0,
+    "words_total": 3394,
+    "question_ending_passages": 2,
+    "passages_with_question_marks": 3
+  },
+  "author": {
+    "count": 88,
+    "proxy_elapsed_s_median_excluding_queue": 20.7,
+    "proxy_elapsed_s_min_excluding_queue": 10.0,
+    "proxy_elapsed_s_max_excluding_queue": 108.4,
+    "call_elapsed_s_median_including_queue": 34.5,
+    "words_median": 150.0,
+    "words_min": 34,
+    "words_max": 593,
+    "summary_nonempty": 88,
+    "summary_characters_min": 82,
+    "summary_characters_max": 1435
+  },
+  "checkup": {
+    "count": 8,
+    "proxy_elapsed_s_median_excluding_queue": 145.5,
+    "proxy_elapsed_s_min_excluding_queue": 48.4,
+    "proxy_elapsed_s_max_excluding_queue": 163.7,
+    "call_elapsed_s_median_including_queue": 145.5,
+    "words_median": 381.0,
+    "words_min": 290,
+    "words_max": 528,
+    "summary_nonempty": 8,
+    "summary_characters_min": 538,
+    "summary_characters_max": 2448
+  }
+}

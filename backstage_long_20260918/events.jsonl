@@ -1,0 +1,280 @@
+{"at": "2026-09-18T13:04:38.871336+00:00", "event": "dispatch", "lane": "covenant_seed", "stage": "author", "turn": 1, "request_id": "c086fc4e8180427e8034214425aca5fb"}
+{"at": "2026-09-18T13:04:38.878859+00:00", "event": "dispatch", "lane": "breakwater_seed", "stage": "author", "turn": 1, "request_id": "b63af1927b054078b765cc6e2795c65f"}
+{"at": "2026-09-18T13:04:55.836746+00:00", "event": "received", "lane": "breakwater_seed", "stage": "author", "turn": 1, "request_id": "b63af1927b054078b765cc6e2795c65f", "status": "completed"}
+{"at": "2026-09-18T13:04:55.864356+00:00", "event": "published", "lane": "breakwater_seed", "turn": 1, "request_id": "b63af1927b054078b765cc6e2795c65f"}
+{"at": "2026-09-18T13:04:55.912140+00:00", "event": "dispatch", "lane": "breakwater_seed", "stage": "author", "turn": 2, "request_id": "6384f3dfb96e4cc180ff50725b2615ba"}
+{"at": "2026-09-18T13:05:01.709233+00:00", "event": "received", "lane": "covenant_seed", "stage": "author", "turn": 1, "request_id": "c086fc4e8180427e8034214425aca5fb", "status": "completed"}
+{"at": "2026-09-18T13:05:01.737817+00:00", "event": "published", "lane": "covenant_seed", "turn": 1, "request_id": "c086fc4e8180427e8034214425aca5fb"}
+{"at": "2026-09-18T13:05:01.787018+00:00", "event": "dispatch", "lane": "covenant_seed", "stage": "author", "turn": 2, "request_id": "bccbe5eae13b487580c73adbcbb735f5"}
+{"at": "2026-09-18T13:05:58.708325+00:00", "event": "received", "lane": "breakwater_seed", "stage": "author", "turn": 2, "request_id": "6384f3dfb96e4cc180ff50725b2615ba", "status": "completed"}
+{"at": "2026-09-18T13:05:58.738223+00:00", "event": "published", "lane": "breakwater_seed", "turn": 2, "request_id": "6384f3dfb96e4cc180ff50725b2615ba"}
+{"at": "2026-09-18T13:05:58.785017+00:00", "event": "dispatch", "lane": "breakwater_seed", "stage": "author", "turn": 3, "request_id": "35f72fc1f521409493b2d418198c8856"}
+{"at": "2026-09-18T13:06:45.500976+00:00", "event": "received", "lane": "covenant_seed", "stage": "author", "turn": 2, "request_id": "bccbe5eae13b487580c73adbcbb735f5", "status": "completed"}
+{"at": "2026-09-18T13:06:45.531251+00:00", "event": "published", "lane": "covenant_seed", "turn": 2, "request_id": "bccbe5eae13b487580c73adbcbb735f5"}
+{"at": "2026-09-18T13:06:45.582231+00:00", "event": "dispatch", "lane": "covenant_seed", "stage": "author", "turn": 3, "request_id": "24bb3befb92d4c83b88a4ce42a96e3e8"}
+{"at": "2026-09-18T13:07:35.811435+00:00", "event": "received", "lane": "breakwater_seed", "stage": "author", "turn": 3, "request_id": "35f72fc1f521409493b2d418198c8856", "status": "completed"}
+{"at": "2026-09-18T13:07:35.841807+00:00", "event": "published", "lane": "breakwater_seed", "turn": 3, "request_id": "35f72fc1f521409493b2d418198c8856"}
+{"at": "2026-09-18T13:07:35.889730+00:00", "event": "dispatch", "lane": "breakwater_seed", "stage": "author", "turn": 4, "request_id": "0b403128be9748d09315377ccdf6a507"}
+{"at": "2026-09-18T13:07:45.968376+00:00", "event": "received", "lane": "covenant_seed", "stage": "author", "turn": 3, "request_id": "24bb3befb92d4c83b88a4ce42a96e3e8", "status": "completed"}
+{"at": "2026-09-18T13:07:45.999064+00:00", "event": "published", "lane": "covenant_seed", "turn": 3, "request_id": "24bb3befb92d4c83b88a4ce42a96e3e8"}
+{"at": "2026-09-18T13:07:46.046997+00:00", "event": "dispatch", "lane": "covenant_seed", "stage": "author", "turn": 4, "request_id": "c30aba99edbe4cd8a952767439ed90f1"}
+{"at": "2026-09-18T13:08:57.887899+00:00", "event": "received", "lane": "covenant_seed", "stage": "author", "turn": 4, "request_id": "c30aba99edbe4cd8a952767439ed90f1", "status": "completed"}
+{"at": "2026-09-18T13:08:57.915939+00:00", "event": "published", "lane": "covenant_seed", "turn": 4, "request_id": "c30aba99edbe4cd8a952767439ed90f1"}
+{"at": "2026-09-18T13:09:11.944661+00:00", "event": "received", "lane": "breakwater_seed", "stage": "author", "turn": 4, "request_id": "0b403128be9748d09315377ccdf6a507", "status": "completed"}
+{"at": "2026-09-18T13:09:11.974167+00:00", "event": "published", "lane": "breakwater_seed", "turn": 4, "request_id": "0b403128be9748d09315377ccdf6a507"}
+{"at": "2026-09-18T13:09:12.144647+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "checkup", "turn": 5, "request_id": "6462403a6d23452b9eed1a3c5f35b241"}
+{"at": "2026-09-18T13:09:12.153631+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 5, "request_id": "bf773dbc0f81445ea947e34a9f614e2b"}
+{"at": "2026-09-18T13:09:12.164211+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 5, "request_id": "899f34ac614c42dc8ee0f6bbe39d0669"}
+{"at": "2026-09-18T13:09:29.324976+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 5, "request_id": "899f34ac614c42dc8ee0f6bbe39d0669", "status": "completed"}
+{"at": "2026-09-18T13:09:29.328738+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "checkup", "turn": 5, "request_id": "ea24c32197b14485810238a2524355de"}
+{"at": "2026-09-18T13:09:29.357281+00:00", "event": "published", "lane": "breakwater_A", "turn": 5, "request_id": "899f34ac614c42dc8ee0f6bbe39d0669"}
+{"at": "2026-09-18T13:09:32.785128+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 5, "request_id": "bf773dbc0f81445ea947e34a9f614e2b", "status": "completed"}
+{"at": "2026-09-18T13:09:32.792387+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 6, "request_id": "8104a204ec4742409ca14e10a0b5cf74"}
+{"at": "2026-09-18T13:09:32.820302+00:00", "event": "published", "lane": "covenant_B", "turn": 5, "request_id": "bf773dbc0f81445ea947e34a9f614e2b"}
+{"at": "2026-09-18T13:10:09.544921+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 6, "request_id": "8104a204ec4742409ca14e10a0b5cf74", "status": "completed"}
+{"at": "2026-09-18T13:10:09.549150+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 6, "request_id": "2c9d620a05ef41c4b6bcece65a86cb64"}
+{"at": "2026-09-18T13:10:09.575354+00:00", "event": "published", "lane": "breakwater_A", "turn": 6, "request_id": "8104a204ec4742409ca14e10a0b5cf74"}
+{"at": "2026-09-18T13:10:24.415403+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 6, "request_id": "2c9d620a05ef41c4b6bcece65a86cb64", "status": "completed"}
+{"at": "2026-09-18T13:10:24.418989+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 7, "request_id": "61c70daeca924529ac3c354413ff8370"}
+{"at": "2026-09-18T13:10:24.445086+00:00", "event": "published", "lane": "covenant_B", "turn": 6, "request_id": "2c9d620a05ef41c4b6bcece65a86cb64"}
+{"at": "2026-09-18T13:10:45.848994+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 7, "request_id": "61c70daeca924529ac3c354413ff8370", "status": "completed"}
+{"at": "2026-09-18T13:10:45.852679+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 7, "request_id": "311057715f3c4fe1aa4543ff4e554c06"}
+{"at": "2026-09-18T13:10:45.884927+00:00", "event": "published", "lane": "breakwater_A", "turn": 7, "request_id": "61c70daeca924529ac3c354413ff8370"}
+{"at": "2026-09-18T13:11:03.476830+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 7, "request_id": "311057715f3c4fe1aa4543ff4e554c06", "status": "completed"}
+{"at": "2026-09-18T13:11:03.480398+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 8, "request_id": "39df26cb82d346e1a9d525c2cc9eef78"}
+{"at": "2026-09-18T13:11:03.509265+00:00", "event": "published", "lane": "covenant_B", "turn": 7, "request_id": "311057715f3c4fe1aa4543ff4e554c06"}
+{"at": "2026-09-18T13:11:28.746707+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 8, "request_id": "39df26cb82d346e1a9d525c2cc9eef78", "status": "completed"}
+{"at": "2026-09-18T13:11:28.750931+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 8, "request_id": "ff4bc26d686d48fda719721ff1c828b0"}
+{"at": "2026-09-18T13:11:28.780384+00:00", "event": "published", "lane": "breakwater_A", "turn": 8, "request_id": "39df26cb82d346e1a9d525c2cc9eef78"}
+{"at": "2026-09-18T13:11:32.560237+00:00", "event": "received", "lane": "covenant_A", "stage": "checkup", "turn": 5, "request_id": "6462403a6d23452b9eed1a3c5f35b241", "status": "completed"}
+{"at": "2026-09-18T13:11:32.565021+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 9, "request_id": "01e780afa4f54956812d13914feb02df"}
+{"at": "2026-09-18T13:12:00.363618+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 9, "request_id": "01e780afa4f54956812d13914feb02df", "status": "completed"}
+{"at": "2026-09-18T13:12:00.368232+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 5, "request_id": "9d0d3826081a41759eac7c2b228324e2"}
+{"at": "2026-09-18T13:12:00.399625+00:00", "event": "published", "lane": "breakwater_A", "turn": 9, "request_id": "01e780afa4f54956812d13914feb02df"}
+{"at": "2026-09-18T13:12:12.646995+00:00", "event": "received", "lane": "breakwater_B", "stage": "checkup", "turn": 5, "request_id": "ea24c32197b14485810238a2524355de", "status": "completed"}
+{"at": "2026-09-18T13:12:12.650761+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 10, "request_id": "0fb5be01735345d0a5cde184b8b1fb6a"}
+{"at": "2026-09-18T13:12:28.533856+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 10, "request_id": "0fb5be01735345d0a5cde184b8b1fb6a", "status": "completed"}
+{"at": "2026-09-18T13:12:28.537782+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 5, "request_id": "57d79c0bbf5749ecb26aff75e90259fc"}
+{"at": "2026-09-18T13:12:28.567955+00:00", "event": "published", "lane": "breakwater_A", "turn": 10, "request_id": "0fb5be01735345d0a5cde184b8b1fb6a"}
+{"at": "2026-09-18T13:12:47.802603+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 5, "request_id": "57d79c0bbf5749ecb26aff75e90259fc", "status": "completed"}
+{"at": "2026-09-18T13:12:47.806284+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 11, "request_id": "d300d6e3e89e42219ed2bc0775252c99"}
+{"at": "2026-09-18T13:12:47.835203+00:00", "event": "published", "lane": "breakwater_B", "turn": 5, "request_id": "57d79c0bbf5749ecb26aff75e90259fc"}
+{"at": "2026-09-18T13:12:53.350397+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 8, "request_id": "ff4bc26d686d48fda719721ff1c828b0", "status": "completed"}
+{"at": "2026-09-18T13:12:53.354815+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 6, "request_id": "6221efd7740f4f708078df07414f32f3"}
+{"at": "2026-09-18T13:12:53.381111+00:00", "event": "published", "lane": "covenant_B", "turn": 8, "request_id": "ff4bc26d686d48fda719721ff1c828b0"}
+{"at": "2026-09-18T13:13:26.396605+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 11, "request_id": "d300d6e3e89e42219ed2bc0775252c99", "status": "completed"}
+{"at": "2026-09-18T13:13:26.400442+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 9, "request_id": "5f50d609807c4289960802e0d3269a6e"}
+{"at": "2026-09-18T13:13:26.430287+00:00", "event": "published", "lane": "breakwater_A", "turn": 11, "request_id": "d300d6e3e89e42219ed2bc0775252c99"}
+{"at": "2026-09-18T13:13:43.356447+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 5, "request_id": "9d0d3826081a41759eac7c2b228324e2", "status": "completed"}
+{"at": "2026-09-18T13:13:43.359990+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 12, "request_id": "4e1793dbdbec4487be25a47aeef6c50b"}
+{"at": "2026-09-18T13:13:43.387262+00:00", "event": "published", "lane": "covenant_A", "turn": 5, "request_id": "9d0d3826081a41759eac7c2b228324e2"}
+{"at": "2026-09-18T13:13:45.057187+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 9, "request_id": "5f50d609807c4289960802e0d3269a6e", "status": "completed"}
+{"at": "2026-09-18T13:13:45.061057+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 6, "request_id": "2046fc46185a4747ac64d262f192c2ba"}
+{"at": "2026-09-18T13:13:45.090236+00:00", "event": "published", "lane": "covenant_B", "turn": 9, "request_id": "5f50d609807c4289960802e0d3269a6e"}
+{"at": "2026-09-18T13:13:48.177875+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 6, "request_id": "6221efd7740f4f708078df07414f32f3", "status": "completed"}
+{"at": "2026-09-18T13:13:48.181907+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 10, "request_id": "3a3952661cb546bea971723b4ed65055"}
+{"at": "2026-09-18T13:13:48.215408+00:00", "event": "published", "lane": "breakwater_B", "turn": 6, "request_id": "6221efd7740f4f708078df07414f32f3"}
+{"at": "2026-09-18T13:13:58.764950+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 12, "request_id": "4e1793dbdbec4487be25a47aeef6c50b", "status": "completed"}
+{"at": "2026-09-18T13:13:58.769201+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 7, "request_id": "7e8974734e3c49838e43f91b62138f6b"}
+{"at": "2026-09-18T13:13:58.798966+00:00", "event": "published", "lane": "breakwater_A", "turn": 12, "request_id": "4e1793dbdbec4487be25a47aeef6c50b"}
+{"at": "2026-09-18T13:13:59.177001+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 6, "request_id": "2046fc46185a4747ac64d262f192c2ba", "status": "completed"}
+{"at": "2026-09-18T13:13:59.181278+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 13, "request_id": "306219e909bf4becb7cd7005a4f2004e"}
+{"at": "2026-09-18T13:13:59.212275+00:00", "event": "published", "lane": "covenant_A", "turn": 6, "request_id": "2046fc46185a4747ac64d262f192c2ba"}
+{"at": "2026-09-18T13:14:03.859248+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 10, "request_id": "3a3952661cb546bea971723b4ed65055", "status": "completed"}
+{"at": "2026-09-18T13:14:03.863086+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 7, "request_id": "d4f325b839f2423bb885dd78a2f11905"}
+{"at": "2026-09-18T13:14:03.896458+00:00", "event": "published", "lane": "covenant_B", "turn": 10, "request_id": "3a3952661cb546bea971723b4ed65055"}
+{"at": "2026-09-18T13:14:10.964469+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 13, "request_id": "306219e909bf4becb7cd7005a4f2004e", "status": "completed"}
+{"at": "2026-09-18T13:14:10.969881+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 11, "request_id": "cd667a79e9a54ff18e476b7c8a650fe3"}
+{"at": "2026-09-18T13:14:10.997999+00:00", "event": "published", "lane": "breakwater_A", "turn": 13, "request_id": "306219e909bf4becb7cd7005a4f2004e"}
+{"at": "2026-09-18T13:14:19.503428+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 7, "request_id": "d4f325b839f2423bb885dd78a2f11905", "status": "completed"}
+{"at": "2026-09-18T13:14:19.507041+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 14, "request_id": "efbfd4fbc68e4e309b7dfbb8ea3072ac"}
+{"at": "2026-09-18T13:14:19.540556+00:00", "event": "published", "lane": "covenant_A", "turn": 7, "request_id": "d4f325b839f2423bb885dd78a2f11905"}
+{"at": "2026-09-18T13:14:26.496920+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 11, "request_id": "cd667a79e9a54ff18e476b7c8a650fe3", "status": "completed"}
+{"at": "2026-09-18T13:14:26.500836+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 8, "request_id": "264e2a17207547c9baa176e26aebc166"}
+{"at": "2026-09-18T13:14:26.531802+00:00", "event": "published", "lane": "covenant_B", "turn": 11, "request_id": "cd667a79e9a54ff18e476b7c8a650fe3"}
+{"at": "2026-09-18T13:14:31.109677+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 7, "request_id": "7e8974734e3c49838e43f91b62138f6b", "status": "completed"}
+{"at": "2026-09-18T13:14:31.113480+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 12, "request_id": "6a33d3dc7c714ea3b4b9e2add57b9126"}
+{"at": "2026-09-18T13:14:31.142748+00:00", "event": "published", "lane": "breakwater_B", "turn": 7, "request_id": "7e8974734e3c49838e43f91b62138f6b"}
+{"at": "2026-09-18T13:14:39.603881+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 14, "request_id": "efbfd4fbc68e4e309b7dfbb8ea3072ac", "status": "completed"}
+{"at": "2026-09-18T13:14:39.607626+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 8, "request_id": "97645992d235431cb1a9d91bc97da53c"}
+{"at": "2026-09-18T13:14:39.641114+00:00", "event": "published", "lane": "breakwater_A", "turn": 14, "request_id": "efbfd4fbc68e4e309b7dfbb8ea3072ac"}
+{"at": "2026-09-18T13:14:46.106732+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 12, "request_id": "6a33d3dc7c714ea3b4b9e2add57b9126", "status": "completed"}
+{"at": "2026-09-18T13:14:46.110668+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 15, "request_id": "b68a3e2411934989adb6188b5566f216"}
+{"at": "2026-09-18T13:14:46.139842+00:00", "event": "published", "lane": "covenant_B", "turn": 12, "request_id": "6a33d3dc7c714ea3b4b9e2add57b9126"}
+{"at": "2026-09-18T13:14:55.863124+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 8, "request_id": "97645992d235431cb1a9d91bc97da53c", "status": "completed"}
+{"at": "2026-09-18T13:14:55.866669+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 13, "request_id": "193f59b62c394b189677a0b58676fa37"}
+{"at": "2026-09-18T13:14:55.893195+00:00", "event": "published", "lane": "breakwater_B", "turn": 8, "request_id": "97645992d235431cb1a9d91bc97da53c"}
+{"at": "2026-09-18T13:15:03.509709+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 15, "request_id": "b68a3e2411934989adb6188b5566f216", "status": "completed"}
+{"at": "2026-09-18T13:15:03.513453+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 9, "request_id": "e4c423e41f3945419ec8f4602271426e"}
+{"at": "2026-09-18T13:15:03.541098+00:00", "event": "published", "lane": "breakwater_A", "turn": 15, "request_id": "b68a3e2411934989adb6188b5566f216"}
+{"at": "2026-09-18T13:15:12.449720+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 13, "request_id": "193f59b62c394b189677a0b58676fa37", "status": "completed"}
+{"at": "2026-09-18T13:15:12.453451+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 16, "request_id": "0b537ed292ba4095901ad205dab745b1"}
+{"at": "2026-09-18T13:15:12.480343+00:00", "event": "published", "lane": "covenant_B", "turn": 13, "request_id": "193f59b62c394b189677a0b58676fa37"}
+{"at": "2026-09-18T13:15:22.281787+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 8, "request_id": "264e2a17207547c9baa176e26aebc166", "status": "completed"}
+{"at": "2026-09-18T13:15:22.285553+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 14, "request_id": "808dc4561dfb49ad90ef987ce45a35ea"}
+{"at": "2026-09-18T13:15:22.312221+00:00", "event": "published", "lane": "covenant_A", "turn": 8, "request_id": "264e2a17207547c9baa176e26aebc166"}
+{"at": "2026-09-18T13:15:27.480604+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 9, "request_id": "e4c423e41f3945419ec8f4602271426e", "status": "completed"}
+{"at": "2026-09-18T13:15:27.487741+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 9, "request_id": "89c17adf207b43a4a83e5842464b1052"}
+{"at": "2026-09-18T13:15:27.515544+00:00", "event": "published", "lane": "breakwater_B", "turn": 9, "request_id": "e4c423e41f3945419ec8f4602271426e"}
+{"at": "2026-09-18T13:15:28.552416+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 16, "request_id": "0b537ed292ba4095901ad205dab745b1", "status": "completed"}
+{"at": "2026-09-18T13:15:28.556472+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "checkup", "turn": 10, "request_id": "1adc0ff6dcee4561a95a82c313f3e965"}
+{"at": "2026-09-18T13:15:28.584428+00:00", "event": "published", "lane": "breakwater_A", "turn": 16, "request_id": "0b537ed292ba4095901ad205dab745b1"}
+{"at": "2026-09-18T13:15:52.625818+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 14, "request_id": "808dc4561dfb49ad90ef987ce45a35ea", "status": "completed"}
+{"at": "2026-09-18T13:15:52.630641+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 17, "request_id": "bb2e77b6a10345b6af27e81093512b1c"}
+{"at": "2026-09-18T13:15:52.658591+00:00", "event": "published", "lane": "covenant_B", "turn": 14, "request_id": "808dc4561dfb49ad90ef987ce45a35ea"}
+{"at": "2026-09-18T13:15:56.226941+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 9, "request_id": "89c17adf207b43a4a83e5842464b1052", "status": "completed"}
+{"at": "2026-09-18T13:15:56.231355+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 15, "request_id": "5ca03a7880e240fbb5b6cfe089f4d2fd"}
+{"at": "2026-09-18T13:15:56.259236+00:00", "event": "published", "lane": "covenant_A", "turn": 9, "request_id": "89c17adf207b43a4a83e5842464b1052"}
+{"at": "2026-09-18T13:16:08.674327+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 17, "request_id": "bb2e77b6a10345b6af27e81093512b1c", "status": "completed"}
+{"at": "2026-09-18T13:16:08.678598+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "checkup", "turn": 10, "request_id": "8e0f52b9dfe944799b19897cbf3f44cf"}
+{"at": "2026-09-18T13:16:08.709501+00:00", "event": "published", "lane": "breakwater_A", "turn": 17, "request_id": "bb2e77b6a10345b6af27e81093512b1c"}
+{"at": "2026-09-18T13:16:53.224612+00:00", "event": "received", "lane": "breakwater_B", "stage": "checkup", "turn": 10, "request_id": "1adc0ff6dcee4561a95a82c313f3e965", "status": "completed"}
+{"at": "2026-09-18T13:16:53.228638+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 18, "request_id": "3eefbdb3b7b34820b2ffe3255d4d5a90"}
+{"at": "2026-09-18T13:16:56.357634+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 15, "request_id": "5ca03a7880e240fbb5b6cfe089f4d2fd", "status": "completed"}
+{"at": "2026-09-18T13:16:56.361433+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 10, "request_id": "08bc1f14b5c748c38fe5352d45f542bd"}
+{"at": "2026-09-18T13:16:56.392539+00:00", "event": "published", "lane": "covenant_B", "turn": 15, "request_id": "5ca03a7880e240fbb5b6cfe089f4d2fd"}
+{"at": "2026-09-18T13:17:06.403814+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 10, "request_id": "08bc1f14b5c748c38fe5352d45f542bd", "status": "completed"}
+{"at": "2026-09-18T13:17:06.407793+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 16, "request_id": "911898255fe2443183acc024331bcd3a"}
+{"at": "2026-09-18T13:17:06.433714+00:00", "event": "published", "lane": "breakwater_B", "turn": 10, "request_id": "08bc1f14b5c748c38fe5352d45f542bd"}
+{"at": "2026-09-18T13:17:08.980310+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 18, "request_id": "3eefbdb3b7b34820b2ffe3255d4d5a90", "status": "completed"}
+{"at": "2026-09-18T13:17:08.984495+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 11, "request_id": "3393bc1b58354f1aa7bd1a36ad5dc01e"}
+{"at": "2026-09-18T13:17:09.011755+00:00", "event": "published", "lane": "breakwater_A", "turn": 18, "request_id": "3eefbdb3b7b34820b2ffe3255d4d5a90"}
+{"at": "2026-09-18T13:17:27.830184+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 16, "request_id": "911898255fe2443183acc024331bcd3a", "status": "completed"}
+{"at": "2026-09-18T13:17:27.834039+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 19, "request_id": "e2942cbc1113442b914d81b4f786bcaf"}
+{"at": "2026-09-18T13:17:27.863173+00:00", "event": "published", "lane": "covenant_B", "turn": 16, "request_id": "911898255fe2443183acc024331bcd3a"}
+{"at": "2026-09-18T13:17:45.261156+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 11, "request_id": "3393bc1b58354f1aa7bd1a36ad5dc01e", "status": "completed"}
+{"at": "2026-09-18T13:17:45.265423+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 17, "request_id": "862d5dd9a27942a8a8adc1adca68ad78"}
+{"at": "2026-09-18T13:17:45.291755+00:00", "event": "published", "lane": "breakwater_B", "turn": 11, "request_id": "3393bc1b58354f1aa7bd1a36ad5dc01e"}
+{"at": "2026-09-18T13:18:06.080051+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 17, "request_id": "862d5dd9a27942a8a8adc1adca68ad78", "status": "completed"}
+{"at": "2026-09-18T13:18:06.084233+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 12, "request_id": "23d6303c6e5f49c1b4cd99a14f3224c9"}
+{"at": "2026-09-18T13:18:06.111302+00:00", "event": "published", "lane": "covenant_B", "turn": 17, "request_id": "862d5dd9a27942a8a8adc1adca68ad78"}
+{"at": "2026-09-18T13:18:28.807228+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 19, "request_id": "e2942cbc1113442b914d81b4f786bcaf", "status": "completed"}
+{"at": "2026-09-18T13:18:28.811126+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 18, "request_id": "104eeda47fbb407da0ecacd32d833f0b"}
+{"at": "2026-09-18T13:18:28.841412+00:00", "event": "published", "lane": "breakwater_A", "turn": 19, "request_id": "e2942cbc1113442b914d81b4f786bcaf"}
+{"at": "2026-09-18T13:18:45.739020+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 18, "request_id": "104eeda47fbb407da0ecacd32d833f0b", "status": "completed"}
+{"at": "2026-09-18T13:18:45.743394+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 20, "request_id": "473023147a4b47b2bee9742481d0e66b"}
+{"at": "2026-09-18T13:18:45.771053+00:00", "event": "published", "lane": "covenant_B", "turn": 18, "request_id": "104eeda47fbb407da0ecacd32d833f0b"}
+{"at": "2026-09-18T13:18:52.112611+00:00", "event": "received", "lane": "covenant_A", "stage": "checkup", "turn": 10, "request_id": "8e0f52b9dfe944799b19897cbf3f44cf", "status": "completed"}
+{"at": "2026-09-18T13:18:52.119699+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 19, "request_id": "b680b2800cee4634bae5cc7799a5c3ca"}
+{"at": "2026-09-18T13:18:57.268492+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 12, "request_id": "23d6303c6e5f49c1b4cd99a14f3224c9", "status": "completed"}
+{"at": "2026-09-18T13:18:57.272699+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 10, "request_id": "b1a1468245574d75b45d90ed1d65ea9d"}
+{"at": "2026-09-18T13:18:57.299266+00:00", "event": "published", "lane": "breakwater_B", "turn": 12, "request_id": "23d6303c6e5f49c1b4cd99a14f3224c9"}
+{"at": "2026-09-18T13:19:01.750930+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 20, "request_id": "473023147a4b47b2bee9742481d0e66b", "status": "completed"}
+{"at": "2026-09-18T13:19:01.754702+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 13, "request_id": "bcd3cb7a2e2c44428e7359a324c5b890"}
+{"at": "2026-09-18T13:19:01.781639+00:00", "event": "published", "lane": "breakwater_A", "turn": 20, "request_id": "473023147a4b47b2bee9742481d0e66b"}
+{"at": "2026-09-18T13:19:12.680715+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 10, "request_id": "b1a1468245574d75b45d90ed1d65ea9d", "status": "completed"}
+{"at": "2026-09-18T13:19:12.684691+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 21, "request_id": "d97b23345e0e48549cebc330064070a5"}
+{"at": "2026-09-18T13:19:12.710315+00:00", "event": "published", "lane": "covenant_A", "turn": 10, "request_id": "b1a1468245574d75b45d90ed1d65ea9d"}
+{"at": "2026-09-18T13:19:17.552374+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 13, "request_id": "bcd3cb7a2e2c44428e7359a324c5b890", "status": "completed"}
+{"at": "2026-09-18T13:19:17.559115+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 11, "request_id": "0f6ab5b20c954075a167477f1645002b"}
+{"at": "2026-09-18T13:19:17.591083+00:00", "event": "published", "lane": "breakwater_B", "turn": 13, "request_id": "bcd3cb7a2e2c44428e7359a324c5b890"}
+{"at": "2026-09-18T13:19:33.392630+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 21, "request_id": "d97b23345e0e48549cebc330064070a5", "status": "completed"}
+{"at": "2026-09-18T13:19:33.396918+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 14, "request_id": "a2249756bb3c4578b7eb586cb5a7fd27"}
+{"at": "2026-09-18T13:19:33.425233+00:00", "event": "published", "lane": "breakwater_A", "turn": 21, "request_id": "d97b23345e0e48549cebc330064070a5"}
+{"at": "2026-09-18T13:19:39.119787+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 19, "request_id": "b680b2800cee4634bae5cc7799a5c3ca", "status": "completed"}
+{"at": "2026-09-18T13:19:39.123739+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 22, "request_id": "7506c6deebfa4761a31326702e51d288"}
+{"at": "2026-09-18T13:19:39.152916+00:00", "event": "published", "lane": "covenant_B", "turn": 19, "request_id": "b680b2800cee4634bae5cc7799a5c3ca"}
+{"at": "2026-09-18T13:19:55.458756+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 22, "request_id": "7506c6deebfa4761a31326702e51d288", "status": "completed"}
+{"at": "2026-09-18T13:19:55.462863+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 20, "request_id": "6e25027e1bf54ca783e5b98c85aa9316"}
+{"at": "2026-09-18T13:19:55.490146+00:00", "event": "published", "lane": "breakwater_A", "turn": 22, "request_id": "7506c6deebfa4761a31326702e51d288"}
+{"at": "2026-09-18T13:20:06.720901+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 11, "request_id": "0f6ab5b20c954075a167477f1645002b", "status": "completed"}
+{"at": "2026-09-18T13:20:06.725058+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 23, "request_id": "1ea5cfd29e424acc8ba708ce08cdf1f4"}
+{"at": "2026-09-18T13:20:06.751465+00:00", "event": "published", "lane": "covenant_A", "turn": 11, "request_id": "0f6ab5b20c954075a167477f1645002b"}
+{"at": "2026-09-18T13:20:12.524568+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 20, "request_id": "6e25027e1bf54ca783e5b98c85aa9316", "status": "completed"}
+{"at": "2026-09-18T13:20:12.528769+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 12, "request_id": "351fcf4fbcd04c419b7545adbe528b50"}
+{"at": "2026-09-18T13:20:12.556299+00:00", "event": "published", "lane": "covenant_B", "turn": 20, "request_id": "6e25027e1bf54ca783e5b98c85aa9316"}
+{"at": "2026-09-18T13:20:23.187936+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 23, "request_id": "1ea5cfd29e424acc8ba708ce08cdf1f4", "status": "completed"}
+{"at": "2026-09-18T13:20:23.191698+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 21, "request_id": "16ab06225cc64971ae764d561edb97a3"}
+{"at": "2026-09-18T13:20:23.220434+00:00", "event": "published", "lane": "breakwater_A", "turn": 23, "request_id": "1ea5cfd29e424acc8ba708ce08cdf1f4"}
+{"at": "2026-09-18T13:20:27.689649+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 12, "request_id": "351fcf4fbcd04c419b7545adbe528b50", "status": "completed"}
+{"at": "2026-09-18T13:20:27.693405+00:00", "event": "dispatch", "lane": "breakwater_A", "stage": "author", "turn": 24, "request_id": "cd4cbcd7051949ab8c0ff897d9cc60b3"}
+{"at": "2026-09-18T13:20:27.723154+00:00", "event": "published", "lane": "covenant_A", "turn": 12, "request_id": "351fcf4fbcd04c419b7545adbe528b50"}
+{"at": "2026-09-18T13:21:03.623439+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 14, "request_id": "a2249756bb3c4578b7eb586cb5a7fd27", "status": "completed"}
+{"at": "2026-09-18T13:21:03.627216+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 13, "request_id": "cc5762eb29704eb895939d3779edf585"}
+{"at": "2026-09-18T13:21:03.654419+00:00", "event": "published", "lane": "breakwater_B", "turn": 14, "request_id": "a2249756bb3c4578b7eb586cb5a7fd27"}
+{"at": "2026-09-18T13:21:04.373806+00:00", "event": "received", "lane": "breakwater_A", "stage": "author", "turn": 24, "request_id": "cd4cbcd7051949ab8c0ff897d9cc60b3", "status": "completed"}
+{"at": "2026-09-18T13:21:04.377727+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "checkup", "turn": 15, "request_id": "a226347f5bc146cbbbbfcfafb356c0de"}
+{"at": "2026-09-18T13:21:04.405402+00:00", "event": "published", "lane": "breakwater_A", "turn": 24, "request_id": "cd4cbcd7051949ab8c0ff897d9cc60b3"}
+{"at": "2026-09-18T13:21:36.314892+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 13, "request_id": "cc5762eb29704eb895939d3779edf585", "status": "completed"}
+{"at": "2026-09-18T13:21:36.344684+00:00", "event": "published", "lane": "covenant_A", "turn": 13, "request_id": "cc5762eb29704eb895939d3779edf585"}
+{"at": "2026-09-18T13:21:36.391952+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 14, "request_id": "c862569d8b244372916c5538d117b9fc"}
+{"at": "2026-09-18T13:21:41.669308+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 21, "request_id": "16ab06225cc64971ae764d561edb97a3", "status": "completed"}
+{"at": "2026-09-18T13:21:41.698375+00:00", "event": "published", "lane": "covenant_B", "turn": 21, "request_id": "16ab06225cc64971ae764d561edb97a3"}
+{"at": "2026-09-18T13:21:41.747723+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 22, "request_id": "51ddf43e45464983a5555a0310f23305"}
+{"at": "2026-09-18T13:22:00.132219+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 22, "request_id": "51ddf43e45464983a5555a0310f23305", "status": "completed"}
+{"at": "2026-09-18T13:22:00.163881+00:00", "event": "published", "lane": "covenant_B", "turn": 22, "request_id": "51ddf43e45464983a5555a0310f23305"}
+{"at": "2026-09-18T13:22:00.210838+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 23, "request_id": "64a1656879e94df996f89fd4fe7efffb"}
+{"at": "2026-09-18T13:22:15.429826+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 23, "request_id": "64a1656879e94df996f89fd4fe7efffb", "status": "completed"}
+{"at": "2026-09-18T13:22:15.459479+00:00", "event": "published", "lane": "covenant_B", "turn": 23, "request_id": "64a1656879e94df996f89fd4fe7efffb"}
+{"at": "2026-09-18T13:22:15.508838+00:00", "event": "dispatch", "lane": "covenant_B", "stage": "author", "turn": 24, "request_id": "e795587aa84f4ee0a286c94048faebeb"}
+{"at": "2026-09-18T13:22:36.320908+00:00", "event": "received", "lane": "covenant_B", "stage": "author", "turn": 24, "request_id": "e795587aa84f4ee0a286c94048faebeb", "status": "completed"}
+{"at": "2026-09-18T13:22:36.349709+00:00", "event": "published", "lane": "covenant_B", "turn": 24, "request_id": "e795587aa84f4ee0a286c94048faebeb"}
+{"at": "2026-09-18T13:23:01.749883+00:00", "event": "received", "lane": "breakwater_B", "stage": "checkup", "turn": 15, "request_id": "a226347f5bc146cbbbbfcfafb356c0de", "status": "completed"}
+{"at": "2026-09-18T13:23:01.799500+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 15, "request_id": "ce11fa9e3c524178a5681b7fe294c7b4"}
+{"at": "2026-09-18T13:23:24.840210+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 14, "request_id": "c862569d8b244372916c5538d117b9fc", "status": "completed"}
+{"at": "2026-09-18T13:23:24.868755+00:00", "event": "published", "lane": "covenant_A", "turn": 14, "request_id": "c862569d8b244372916c5538d117b9fc"}
+{"at": "2026-09-18T13:23:24.915104+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "checkup", "turn": 15, "request_id": "786537a500544420b829774e6c778b70"}
+{"at": "2026-09-18T13:23:49.626764+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 15, "request_id": "ce11fa9e3c524178a5681b7fe294c7b4", "status": "completed"}
+{"at": "2026-09-18T13:23:49.656398+00:00", "event": "published", "lane": "breakwater_B", "turn": 15, "request_id": "ce11fa9e3c524178a5681b7fe294c7b4"}
+{"at": "2026-09-18T13:23:49.703027+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 16, "request_id": "38b1c92d2c61445ea3ce1376786ecf82"}
+{"at": "2026-09-18T13:24:04.321156+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 16, "request_id": "38b1c92d2c61445ea3ce1376786ecf82", "status": "completed"}
+{"at": "2026-09-18T13:24:04.358684+00:00", "event": "published", "lane": "breakwater_B", "turn": 16, "request_id": "38b1c92d2c61445ea3ce1376786ecf82"}
+{"at": "2026-09-18T13:24:04.409652+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 17, "request_id": "d6eb543ba4824e4b993f02035890b516"}
+{"at": "2026-09-18T13:24:46.221872+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 17, "request_id": "d6eb543ba4824e4b993f02035890b516", "status": "completed"}
+{"at": "2026-09-18T13:24:46.254262+00:00", "event": "published", "lane": "breakwater_B", "turn": 17, "request_id": "d6eb543ba4824e4b993f02035890b516"}
+{"at": "2026-09-18T13:24:46.304099+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 18, "request_id": "0df4753fc63949699c988e55c5f10a1b"}
+{"at": "2026-09-18T13:25:01.418947+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 18, "request_id": "0df4753fc63949699c988e55c5f10a1b", "status": "completed"}
+{"at": "2026-09-18T13:25:01.448620+00:00", "event": "published", "lane": "breakwater_B", "turn": 18, "request_id": "0df4753fc63949699c988e55c5f10a1b"}
+{"at": "2026-09-18T13:25:01.513329+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 19, "request_id": "72426444d7154717b52f770b9be35ba0"}
+{"at": "2026-09-18T13:26:08.643157+00:00", "event": "received", "lane": "covenant_A", "stage": "checkup", "turn": 15, "request_id": "786537a500544420b829774e6c778b70", "status": "completed"}
+{"at": "2026-09-18T13:26:08.695691+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 15, "request_id": "f2126490908f4856bcf8455cac0356c9"}
+{"at": "2026-09-18T13:26:09.050995+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 19, "request_id": "72426444d7154717b52f770b9be35ba0", "status": "completed"}
+{"at": "2026-09-18T13:26:09.084589+00:00", "event": "published", "lane": "breakwater_B", "turn": 19, "request_id": "72426444d7154717b52f770b9be35ba0"}
+{"at": "2026-09-18T13:26:09.139774+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "checkup", "turn": 20, "request_id": "e1110e5c6fad48b2b8313a5a419bed45"}
+{"at": "2026-09-18T13:26:57.568710+00:00", "event": "received", "lane": "breakwater_B", "stage": "checkup", "turn": 20, "request_id": "e1110e5c6fad48b2b8313a5a419bed45", "status": "completed"}
+{"at": "2026-09-18T13:26:57.632564+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 20, "request_id": "0392103266c9494a9e4031881d695684"}
+{"at": "2026-09-18T13:27:12.794326+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 20, "request_id": "0392103266c9494a9e4031881d695684", "status": "completed"}
+{"at": "2026-09-18T13:27:12.823815+00:00", "event": "published", "lane": "breakwater_B", "turn": 20, "request_id": "0392103266c9494a9e4031881d695684"}
+{"at": "2026-09-18T13:27:12.873705+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 21, "request_id": "1208432e9e004e4681863e2ccf4433ed"}
+{"at": "2026-09-18T13:27:24.274272+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 15, "request_id": "f2126490908f4856bcf8455cac0356c9", "status": "completed"}
+{"at": "2026-09-18T13:27:24.303469+00:00", "event": "published", "lane": "covenant_A", "turn": 15, "request_id": "f2126490908f4856bcf8455cac0356c9"}
+{"at": "2026-09-18T13:27:24.352158+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 16, "request_id": "b07ce99484604b69a26e1fee0b7c3c5b"}
+{"at": "2026-09-18T13:27:50.277219+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 21, "request_id": "1208432e9e004e4681863e2ccf4433ed", "status": "completed"}
+{"at": "2026-09-18T13:27:50.307085+00:00", "event": "published", "lane": "breakwater_B", "turn": 21, "request_id": "1208432e9e004e4681863e2ccf4433ed"}
+{"at": "2026-09-18T13:27:50.357280+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 22, "request_id": "457617ee49e542fc9167e5a52a269e30"}
+{"at": "2026-09-18T13:28:05.611202+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 22, "request_id": "457617ee49e542fc9167e5a52a269e30", "status": "completed"}
+{"at": "2026-09-18T13:28:05.639738+00:00", "event": "published", "lane": "breakwater_B", "turn": 22, "request_id": "457617ee49e542fc9167e5a52a269e30"}
+{"at": "2026-09-18T13:28:05.692663+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 23, "request_id": "09e40a38fabc4fb7b2ce2a34cd304ce9"}
+{"at": "2026-09-18T13:28:19.410586+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 16, "request_id": "b07ce99484604b69a26e1fee0b7c3c5b", "status": "completed"}
+{"at": "2026-09-18T13:28:19.441045+00:00", "event": "published", "lane": "covenant_A", "turn": 16, "request_id": "b07ce99484604b69a26e1fee0b7c3c5b"}
+{"at": "2026-09-18T13:28:19.484656+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 17, "request_id": "4a16c8b38fb0473780365e890d371701"}
+{"at": "2026-09-18T13:28:20.076771+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 23, "request_id": "09e40a38fabc4fb7b2ce2a34cd304ce9", "status": "completed"}
+{"at": "2026-09-18T13:28:20.108834+00:00", "event": "published", "lane": "breakwater_B", "turn": 23, "request_id": "09e40a38fabc4fb7b2ce2a34cd304ce9"}
+{"at": "2026-09-18T13:28:20.160599+00:00", "event": "dispatch", "lane": "breakwater_B", "stage": "author", "turn": 24, "request_id": "e9cf0f567a724499ac7bd7e5f7135cd0"}
+{"at": "2026-09-18T13:28:35.424446+00:00", "event": "received", "lane": "breakwater_B", "stage": "author", "turn": 24, "request_id": "e9cf0f567a724499ac7bd7e5f7135cd0", "status": "completed"}
+{"at": "2026-09-18T13:28:35.453585+00:00", "event": "published", "lane": "breakwater_B", "turn": 24, "request_id": "e9cf0f567a724499ac7bd7e5f7135cd0"}
+{"at": "2026-09-18T13:30:00.235779+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 17, "request_id": "4a16c8b38fb0473780365e890d371701", "status": "completed"}
+{"at": "2026-09-18T13:30:00.264652+00:00", "event": "published", "lane": "covenant_A", "turn": 17, "request_id": "4a16c8b38fb0473780365e890d371701"}
+{"at": "2026-09-18T13:30:00.312564+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 18, "request_id": "3c09a28ccfd148008ba987cfa2497517"}
+{"at": "2026-09-18T13:30:17.202283+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 18, "request_id": "3c09a28ccfd148008ba987cfa2497517", "status": "completed"}
+{"at": "2026-09-18T13:30:17.231081+00:00", "event": "published", "lane": "covenant_A", "turn": 18, "request_id": "3c09a28ccfd148008ba987cfa2497517"}
+{"at": "2026-09-18T13:30:17.278853+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 19, "request_id": "9fa6ee3da24c44beb8eaa561aeef6895"}
+{"at": "2026-09-18T13:30:34.200159+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 19, "request_id": "9fa6ee3da24c44beb8eaa561aeef6895", "status": "completed"}
+{"at": "2026-09-18T13:30:34.231546+00:00", "event": "published", "lane": "covenant_A", "turn": 19, "request_id": "9fa6ee3da24c44beb8eaa561aeef6895"}
+{"at": "2026-09-18T13:30:34.281618+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "checkup", "turn": 20, "request_id": "7bf7229661a24c8a902026ff43beb4e3"}
+{"at": "2026-09-18T13:33:04.907224+00:00", "event": "received", "lane": "covenant_A", "stage": "checkup", "turn": 20, "request_id": "7bf7229661a24c8a902026ff43beb4e3", "status": "completed"}
+{"at": "2026-09-18T13:33:04.954586+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 20, "request_id": "71c47eee9f6846069e19390267e2d41a"}
+{"at": "2026-09-18T13:33:21.758493+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 20, "request_id": "71c47eee9f6846069e19390267e2d41a", "status": "completed"}
+{"at": "2026-09-18T13:33:21.790339+00:00", "event": "published", "lane": "covenant_A", "turn": 20, "request_id": "71c47eee9f6846069e19390267e2d41a"}
+{"at": "2026-09-18T13:33:21.841881+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 21, "request_id": "46241ac9b6b34514908215e5e9474cba"}
+{"at": "2026-09-18T13:34:32.971960+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 21, "request_id": "46241ac9b6b34514908215e5e9474cba", "status": "completed"}
+{"at": "2026-09-18T13:34:33.001011+00:00", "event": "published", "lane": "covenant_A", "turn": 21, "request_id": "46241ac9b6b34514908215e5e9474cba"}
+{"at": "2026-09-18T13:34:33.051416+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 22, "request_id": "647b39321782401fbf442820bff69bfe"}
+{"at": "2026-09-18T13:34:48.983400+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 22, "request_id": "647b39321782401fbf442820bff69bfe", "status": "completed"}
+{"at": "2026-09-18T13:34:49.014464+00:00", "event": "published", "lane": "covenant_A", "turn": 22, "request_id": "647b39321782401fbf442820bff69bfe"}
+{"at": "2026-09-18T13:34:49.062941+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 23, "request_id": "c0f2189e176a43c198afb08232a51173"}
+{"at": "2026-09-18T13:34:59.785474+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 23, "request_id": "c0f2189e176a43c198afb08232a51173", "status": "completed"}
+{"at": "2026-09-18T13:34:59.820728+00:00", "event": "published", "lane": "covenant_A", "turn": 23, "request_id": "c0f2189e176a43c198afb08232a51173"}
+{"at": "2026-09-18T13:34:59.886232+00:00", "event": "dispatch", "lane": "covenant_A", "stage": "author", "turn": 24, "request_id": "b480e684f7264aa690e4e8f7cf206697"}
+{"at": "2026-09-18T13:35:49.167913+00:00", "event": "received", "lane": "covenant_A", "stage": "author", "turn": 24, "request_id": "b480e684f7264aa690e4e8f7cf206697", "status": "completed"}
+{"at": "2026-09-18T13:35:49.197402+00:00", "event": "published", "lane": "covenant_A", "turn": 24, "request_id": "b480e684f7264aa690e4e8f7cf206697"}

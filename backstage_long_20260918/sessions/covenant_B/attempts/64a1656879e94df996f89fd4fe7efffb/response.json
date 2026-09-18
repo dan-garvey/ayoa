@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "You say your goodnights and leave the table to its conversation.\n\nRashid lifts his cup in farewell. Ashara gives a brief nod without pausing her argument with Ysolde about whether the mountain version of the song counts as the same song at all. Seraphel offers a small wave.\n\n“Good rest to you; may quiet find your door,  \nAnd leave you strength for all tomorrow’s more.”\n\nUpstairs, your room is dark except for stormlight moving across the floorboards. You close the door behind you, and the sounds of Garvey House soften into distance: voices below, a stair creaking, the house settling around its residents.",
+  "reasoning_summaries": [
+    "**Planning character goodnight narration**\n**Constructing polished goodnight scene**\n**Finalizing scene closing narration**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:22:15.433308+00:00",
+  "duration_s": 15.222718164004618
+}

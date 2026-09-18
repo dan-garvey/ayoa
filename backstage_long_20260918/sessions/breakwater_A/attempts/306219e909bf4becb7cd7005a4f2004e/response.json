@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "You leave the foyer as Jo finishes in the kitchen and the side gate settles shut behind Owen and Rosa.\n\nUpstairs, your room is warm from the desk lamp. You close the door behind you and the remaining sounds of the Picture House soften to plumbing, distant footsteps, and the occasional creak of an old building settling around its new occupants.",
+  "reasoning_summaries": [
+    "**Continuing interactive fiction with Rowan going upstairs**\n**Writing Rowan's upstairs routine scene**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:14:10.969514+00:00",
+  "duration_s": 12.118033945007483
+}

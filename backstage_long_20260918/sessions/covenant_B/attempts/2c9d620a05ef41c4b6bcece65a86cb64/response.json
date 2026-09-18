@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Ashara is already beyond the garden doors, her dark figure moving beside Rashid along the pale path. A practice blade knocks sharply against another, then again. You let the thought go unsaid.\n\nThessaly rises from the table and smooths her sleeve.\n\n“They’ll be here shortly,” she says, meaning Dena and the card players. “I’m going to learn the rules before anyone claims I cheated.”\n\nShe heads for the common room, where the fire throws a broad amber glow over the chairs. Outside, Ashara and Rashid’s drills continue: quick footfalls, wood striking wood, Rashid’s brief laugh carried in through the partly open garden door.",
+  "reasoning_summaries": [
+    "**Deciding Ashara departure and scene progression**\n**Finalizing scene transition and narration**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:10:24.418643+00:00",
+  "duration_s": 51.548443712992594
+}

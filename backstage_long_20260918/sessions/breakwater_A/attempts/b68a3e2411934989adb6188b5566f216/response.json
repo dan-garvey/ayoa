@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Nell turns the binder toward you.\n\n“Start with the records, not your instinct. Trust-owned material should be traceable to the 2024 acquisition inventory or a later purchase or donation record. Loans have a lender’s name, a loan record, and usually an agreed return date. If an object is sitting in a box without that trail, don’t decide what it is. Mark it as unconfirmed and bring it to me.”\n\nShe taps the permissions section.\n\n“Before handling a group, check whether there’s a condition note or a lender instruction. Most things here can be inventoried, but that doesn’t mean we can scan, publish, lend, or display them. Bea’s album is the clearest example: description and condition notes are permitted; copying or public use isn’t.”\n\n“And physical handling?” she adds. “Clean, dry hands unless we decide gloves are needed for a particular item. One item at a time, supported properly, no forcing folded paper flat. If it seems fragile, stop and record what you can see without making it worse.”\n\nNell opens the first trust archive box. Inside are labelled folders of invoices and correspondence, their edges yellowed but dry.\n\n“These came with the old business archive, so the ownership is straightforward. We’ll use them to practise the record fields before we get into anything less tidy.”",
+  "reasoning_summaries": [
+    "**Assessing timeline discrepancy in story**\n**Clarifying item handling restrictions**\n**Composing Nell’s detailed induction response**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:15:03.513120+00:00",
+  "duration_s": 23.82325798200327
+}

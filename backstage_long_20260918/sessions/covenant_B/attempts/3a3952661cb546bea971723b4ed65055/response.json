@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "No one reacts to the thought you keep to yourself.\n\nYou turn back to the primer. Its next section explains the Council’s committees: trade, borders, education, reparations, and the smaller arbitration panels where most disputes are meant to end before they become speeches in the full chamber. The language is calm enough to make every old compromise sound inevitable.\n\nAcross the table, Caelindra closes one book and draws another from her stack.\n\n“The primer is least misleading on procedure,” she says without looking at you. “Do not mistake that for neutrality.”\n\nProfessor Stone reshelves a returned volume near the desk. Beyond the library doors, the card game breaks into a burst of laughter, then a groan from Rashid.\n\nThe green-shaded lamp pools steadily over the page as you continue reading.",
+  "reasoning_summaries": [
+    "**Maintaining second-person narrative focus**\n**Planning library scene with NPC interaction**\n**Clarifying narrative cues without adding mystery**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:14:03.862782+00:00",
+  "duration_s": 18.719535070005804
+}

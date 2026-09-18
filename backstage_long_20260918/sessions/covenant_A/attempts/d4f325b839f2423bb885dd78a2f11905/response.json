@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "You leave the unanswered offer where it is and finish the last of the tart while the dining hall empties around you.\n\nThe garden door shuts behind Ashara and Rashid. From the common room, cards crack against the table near the fire; someone gives a brief, dissatisfied groan at a hand gone wrong. A server collects your plate and replaces it with nothing.\n\nSoon the long table is mostly candlelight, cleared silver, and the fading warmth of dinner.",
+  "reasoning_summaries": [
+    "**Narrating meal completion and closure**\n**Finalizing dinner scene with natural closure**\n**Describing common room atmosphere from dining hall**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:14:19.506703+00:00",
+  "duration_s": 20.244666886981577
+}

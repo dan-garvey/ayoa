@@ -1,0 +1,250 @@
+{
+  "manifest_sha256": "c91547afe7ad62ab1e713ffb25c8fab6a17cfcc23c83837b79938743c9632835",
+  "player_names": [
+    "Rowan Garvey"
+  ],
+  "turns": [
+    {
+      "turn": 0,
+      "input": "Begin the story.",
+      "output": "The ink on your right forefinger has dried into a dark crescent beside the Garvey signet. It looks incongruous against the mended cuff of your charcoal coat: an heirloom heavy enough to leave its mark, worn by someone who still has not learned the proper order of forks.\n\nYour room is warm, though rainless lightning keeps whitening the gardens beyond the window. Far below the plateau, the storm turns slowly beneath the Academy’s bridges. A trunk sent by the lawyers stands open near the made bed, half-full of clothes chosen by people who knew your measurements but not, apparently, your taste.\n\nOn the desk, a framed letter leans against a lamp. The handwriting is firm and old-fashioned.\n\n*My dear Tomas,* it begins. *When you come to Garvey House—*\n\nA dinner bell sounds downstairs: three clear notes.\n\nThen, through the floorboards, a woman’s voice says, “If the lamps are meant to be decorative, they are doing a poor job of it.”\n\nAnother voice—male, precise—answers, “They are functional lamps, Caelindra.”\n\n“Then their failure is worse.”\n\nA brief laugh follows, low and unrestrained. Someone else says something too softly to catch.\n\nA knock comes at your door. When you open it, an Academy server in dark blue livery stands waiting with a silver-covered tray balanced on one hand.\n\n“Welcome dinner is served, Mr. Garvey,” she says. “The dining hall is downstairs, through the common room. They’ve begun without you, but only just.”\n\nBeyond her shoulder, the staircase descends toward firelight and the murmur of seven strangers who have inherited, in one fashion or another, the futures of their people.",
+      "responses": [
+        "c086fc4e8180427e8034214425aca5fb"
+      ],
+      "submission_id": "8ed84c3fa47344e0b402732d007c3da2",
+      "published_at": "2026-09-18T13:05:01.720146+00:00"
+    },
+    {
+      "turn": 1,
+      "input": "I go down to dinner, introduce myself as Rowan, and take an available place at the table.",
+      "output": "The common room gives way to the dining hall in a wash of candlelight and polished wood. Silver lids have been lifted from the serving dishes; steam carries pepper, browned butter, and something sharp with citrus along the length of the table.\n\nConversation thins as you enter.\n\n“I’m Rowan Garvey,” you say.\n\nA server pulls back the nearest vacant chair. It stands midway down the table, beside a pale, white-haired woman whose glass is packed with melting ice.\n\n“Ysolde Thornmantle,” she says. “That chair’s leg is loose. Don’t lean back.”\n\nAcross from you, the small woman with blue-black hair and entirely black eyes glances at the place setting. “Thessaly Morrow. It was unclaimed.”\n\nA young man in white and gold rises from farther down the table, exact even in the small courtesy. “Aldric Verantus. Welcome, Rowan.”\n\n“Rashid vel Amara.” The impeccably dressed beastkin gestures toward the bowl a server is bringing your way. “Take the soup while it’s hot. It’s the best thing on the table.”\n\nA laugh comes from the tall horned woman seated beside him. Her tail has hooked neatly around the back leg of her chair. “Ashara vel Kothren. Ignore him; he says that about any food he hasn’t had to cook.”\n\n“I say it about food that deserves defending.”\n\nAt the other end, the silver-haired elf tilts her head toward one of the working lamps. “Caelindra Vaeyn. You’ve arrived in time to see Aldric defend these atrocities.”\n\n“They are lamps,” Aldric says.\n\n“They are an argument against sight.”\n\nThe winged woman beside him smiles, her warm gold light catching along the rim of her cup.\n\n“I’m Seraphel Dawnquill. I hope your journey here was fair.  \nTake the chair beside Ysolde—there’s space enough to spare.”\n\nYou sit. The loose leg gives a small, honest creak beneath you.\n\nA server fills your bowl with thick soup, pale beans and ribbons of roasted greens beneath a crust of peppered oil. Rashid is right about the heat. Ashara reaches past him for a dish of charred red peppers without asking; he shifts the bread basket out of the way before her sleeve can catch it, the motion practiced enough not to interrupt his conversation.\n\nCaelindra has abandoned the lamps for the moment. Her violet eyes settle on the ink at your fingers, then on the mended cuff beneath the heavy Garvey signet.\n\n“You write?” she asks.",
+      "responses": [
+        "bccbe5eae13b487580c73adbcbb735f5"
+      ],
+      "submission_id": "04a57e4e2a4540569bb4d1d93312d84d",
+      "published_at": "2026-09-18T13:06:45.511380+00:00"
+    },
+    {
+      "turn": 2,
+      "input": "I say, \"Most recently I earned my keep copying books. I haven't had much practice at being an heir.\" I help myself to dinner.",
+      "output": "You help yourself from the dishes within reach: roast squash glazed dark at the edges, sliced fowl beneath citrus and herbs, a bowl of sharp green beans. If there are rules for the several forks beside your plate, no one interrupts you to demonstrate them.\n\nCaelindra considers your answer over the rim of her glass.\n\n“Then I asked the wrong question,” she says. “Copying requires attention. Most people who claim to write have very little of it.”\n\nAshara takes a charred pepper from the dish between her and Rashid. “Knowing you haven’t been trained is not the same as being trained. But it’s better than arriving convinced the signet did it for you.”\n\n“Let him have dinner before you begin grading him,” Rashid says.\n\n“I’m not grading him.”\n\n“You have the exact voice you use when grading people.”\n\nAshara looks at him. “You’ve never submitted work to me.”\n\n“I’ve survived enough conversations.”\n\nAldric sets down his cup. “The Conclave exists to prepare its students. No one expects Rowan to have mastered a role he learned about only recently.”\n\n“The Academy has had a very long time to prepare for a human heir,” Ashara says. “It apparently chose not to.”\n\nThessaly cuts a piece of squash with careful attention. “The primer is poorly organized. It explains seating precedence before it explains where to find breakfast.”\n\n“That is a genuine defect,” Ysolde says. She slides the pepper dish a little nearer your place. “Those are hotter than they smell.”\n\nSeraphel’s smile catches the candlelight.\n\n“Let papers, titles, and old blood wait awhile;  \nA first good meal may make the evening mild.”\n\nRashid lifts his spoon toward her in agreement. “A policy I can support.”\n\nCaelindra’s attention returns to you, more direct now than dismissive.\n\n“What sort of books did you copy?”",
+      "responses": [
+        "24bb3befb92d4c83b88a4ce42a96e3e8"
+      ],
+      "submission_id": "b88f341672654875968008a7665e0ce0",
+      "published_at": "2026-09-18T13:07:45.980022+00:00"
+    },
+    {
+      "turn": 3,
+      "input": "I eat and listen to the conversation around me, without trying to take charge of it.",
+      "output": "The question hangs for only a moment before a server reaches across with the potatoes, and the table’s attention drifts on without insisting on an answer.\n\nOne of the lamps over the far paneling flickers twice, then steadies.\n\nCaelindra looks up at it. “There. Proof.”\n\n“It’s still working,” Aldric says.\n\n“It is intermittently producing light. That is not the same thing.”\n\n“The wiring runs near the southern terrace,” Ysolde says. “Storm charge affects it.”\n\nAshara glances at the lamp. “So it’s a cowardly lamp.”\n\nRashid laughs into his cup. Even Caelindra’s mouth moves at one corner before she returns to her dinner.\n\nYou eat while the talk shifts around you: tomorrow’s first seminar, a lecturer Ashara calls intolerably fond of diagrams, the quality of the Academy bread compared with bread in each of their homes. Thessaly says the rolls are better when stolen from the kitchen at midnight; when Aldric asks how she knows, she looks at him steadily.\n\n“I stole one.”\n\n“That isn’t—”\n\n“It was bread, Aldric. It recovered.”\n\nSeraphel covers a smile with her napkin.\n\n“A roll survives a midnight raid with grace;  \nIts murderer leaves crumbs to mark the place.”\n\nRashid points his spoon at Thessaly. “A careless criminal.”\n\n“I wasn’t concealing it.”\n\n“No,” Caelindra says. “That part is becoming clear.”\n\nThe meal lengthens pleasantly despite itself. A server replaces emptied dishes with a tart glazed in dark berries, and the rainless lightning beyond the tall windows makes the silverware flash white.\n\nWhen the last plates are being cleared, Ashara sets down her napkin and looks to Rashid.\n\n“Octagon. Five minutes.”\n\n“For half an hour,” he says.\n\n“That was the arrangement.”\n\n“After that, I’ve cards in the common room. Dena and the others said they’d begin without me.”\n\nAshara’s gold eyes narrow a fraction. “You did not mention cards.”\n\n“I’m mentioning them now.”\n\n“You put two plans in the same half-hour.”\n\n“I put drills in the first half-hour and cards after it.”\n\n“You’ll be late.”\n\n“I know.”\n\nFor a beat, she studies him. Then her tail gives the chair leg one brisk tap.\n\n“Fine. Half an hour. If you complain about your footwork tomorrow, I’ll remind you that cards were apparently urgent.”\n\n“I won’t complain.”\n\n“You always complain.”\n\n“Only when you’re right.”\n\nThat earns him a short laugh from her. They rise almost together, Ashara already turning toward the garden doors that lead out toward the dueling grounds.\n\nYsolde takes the remaining ice from her glass in one quiet swallow. “The weather is clearing above the western bridge,” she says, mostly to herself, and leaves by the opposite door.\n\nAldric gathers his papers with the look of someone who intends to prepare for tomorrow’s seminar before anyone else can make him regret it. Caelindra lingers long enough to inspect the berry tart as if it might have disappointed her personally, then follows him out toward the library. Thessaly remains at the table, turning a silver spoon between two fingers while the servants clear the last settings.\n\nThe formal dinner disperses into the ordinary sounds of Garvey House: chairs shifted back, low voices beyond the dining hall, the crackle of the common-room fire.",
+      "responses": [
+        "c30aba99edbe4cd8a952767439ed90f1"
+      ],
+      "submission_id": "94b4344d20804069b71120c579dd8159",
+      "published_at": "2026-09-18T13:08:57.897437+00:00"
+    },
+    {
+      "turn": 4,
+      "input": "I stay at the table long enough to finish my food and hear what the others are planning for the evening.",
+      "output": "You finish the last of the berry tart while the dining hall empties around you.\n\nSeraphel folds her napkin and rises with a small sigh.\n\n“The chapel’s choir has a hymn to mend;  \nI’ll lend my voice, then find my bed’s warm end.”\n\nAldric pauses with his papers tucked beneath one arm. “You’re singing tonight?”\n\n“For half an hour, if the altos stay in line.  \nThey do not. Still, the fault is partly mine.”\n\n“I’ll walk with you,” he says, too quickly, then adjusts his cuff. “It’s on my way to the library.”\n\nCaelindra, already at the door, glances back. “It is not.”\n\n“The chapel is adjacent.”\n\n“It is in the opposite direction.”\n\nAldric’s expression hardens. “I know the grounds.”\n\n“Then this is worse than I thought.” She goes out, papers tucked against her silver hair.\n\nSeraphel’s smile turns briefly private before she follows Aldric into the common room.\n\nThessaly watches the doorway close behind them. “He has decided walking elsewhere is studying.”\n\n“It may be a religious exercise,” says one of the servers, collecting a wineglass.\n\nThessaly considers that. “Then I hope it works.”\n\nBeyond the garden doors, Ashara and Rashid cross the pale path toward the octagon. Their voices carry only in fragments before the wind takes them: Rashid objecting to something; Ashara’s shorter reply; then the wooden practice blades knocking together in a quick, hard rhythm.\n\nThessaly sets down the spoon she has been turning.\n\n“Dena is coming here with Oren and Mara,” she says. “Cards, apparently. Rashid is meant to join them after drills.” Her gaze passes over the cleared table, not quite settling anywhere. “I may play if there is a fourth seat. I don’t like watching games whose rules I don’t know.”\n\nA little later, the common room’s fire brightens as a servant adds wood. The house divides itself into its evening: song at the chapel, studying in the library, blades at the octagon, cards soon enough by the hearth.",
+      "responses": [
+        "bf773dbc0f81445ea947e34a9f614e2b"
+      ],
+      "submission_id": "01f7e35f37764f96b92d6e8e4f11cb56",
+      "published_at": "2026-09-18T13:09:32.801234+00:00"
+    },
+    {
+      "turn": 5,
+      "input": "If Ashara is still nearby, I ask whether an untrained partner would be any use for practice. If she has already left, I let the opportunity pass.",
+      "output": "Ashara is already beyond the garden doors, her dark figure moving beside Rashid along the pale path. A practice blade knocks sharply against another, then again. You let the thought go unsaid.\n\nThessaly rises from the table and smooths her sleeve.\n\n“They’ll be here shortly,” she says, meaning Dena and the card players. “I’m going to learn the rules before anyone claims I cheated.”\n\nShe heads for the common room, where the fire throws a broad amber glow over the chairs. Outside, Ashara and Rashid’s drills continue: quick footfalls, wood striking wood, Rashid’s brief laugh carried in through the partly open garden door.",
+      "responses": [
+        "2c9d620a05ef41c4b6bcece65a86cb64"
+      ],
+      "submission_id": "eb0929ffc81f4f089d3a71eab3d0ab20",
+      "published_at": "2026-09-18T13:10:24.425322+00:00"
+    },
+    {
+      "turn": 6,
+      "input": "I accept whatever answer she has given and leave her plans alone. I finish my meal rather than following anyone to practice.",
+      "output": "You remain at the table while the servers clear around you. The last bite of tart is sharp with berries and less sweet than it looks.\n\nOutside, the practice blades keep their quick, regular rhythm for several minutes, then stop. You hear no argument afterward—only the garden door opening and closing somewhere beyond the hall.\n\nFrom the common room comes a new cluster of voices. A young woman says, “If anyone mentions my wrist before I’ve had a card in my hand, I’m leaving,” followed by a man’s immediate, “Noted,” and a woman’s laugh.\n\nThessaly answers, “What are the rules?”\n\n“Bad luck and worse judgment,” Dena says. “You’ll learn.”\n\nThe fire pops. Cards begin to shuffle.\n\nAt the dining-hall doorway, a server pauses with the coffee tray. “Would you like some, Mr. Garvey?”",
+      "responses": [
+        "311057715f3c4fe1aa4543ff4e554c06"
+      ],
+      "submission_id": "ce4ffd85204748baaad71c87bd81167d",
+      "published_at": "2026-09-18T13:11:03.486779+00:00"
+    },
+    {
+      "turn": 7,
+      "input": "I go to the house library and look on the open shelves for an introductory book about the Council. If I need help finding one, I ask whoever is working there.",
+      "output": "The common room has settled into its second life by the time you pass through it. Cards snap against the low table by the fire. Dena, her splinted wrist resting carefully on a cushion, studies her hand with theatrical suspicion while Thessaly holds her own cards too upright to conceal anything.\n\n“I understand the rules,” Thessaly says. “I dislike them.”\n\n“You’ve played three hands,” Dena replies.\n\n“That was enough.”\n\nNo one looks up for more than a moment as you continue to the library.\n\nIts air smells of lamp oil, old bindings, and the faint mineral damp that clings to the Academy in storm weather. An iron spiral stair winds up through the center of the room. Open shelves rise on both levels, their sections marked in seven scripts; the nearby volumes concern treaty law, arbitration, Council proceedings, and commentaries dense enough to make the shelf sag.\n\nCaelindra occupies one end of a long reading table beneath a green-shaded lamp. A stack of notes sits precisely squared at her elbow. She does not look up when you enter.\n\nAt the reference desk, an older human man in a dark, ink-marked coat is making notes in a ledger. He notices you studying the shelves and then the signet at your hand.\n\n“You’re Rowan Garvey,” he says. “Gareth Stone. I teach human Covenant history.”\n\nThe organization turns out to be less helpful than it first appears: the Academy considers “introductory” material a subset of constitutional theory, while the most accessible-looking books are actually arguments about centuries-old tariff disputes. After a few minutes, you ask Stone for help.\n\nHe gets up without ceremony and leads you to a lower shelf near the desk. “Start here.”\n\nHe draws out a slim green volume with a worn gilt title: *The Council at Work: A Conclave Primer.*\n\n“It covers the seven seats, committees, votes, arbitration, and the ways a treaty becomes binding. It will tell you what people mean when they use the phrases as if everyone was born knowing them.”\n\nFrom the reading table, Caelindra turns a page.\n\n“It calls the voting arrangement equitable,” she says. “Then puts the exceptions in a footnote forty pages later.”\n\nStone glances toward her. “Forty-one.”\n\n“An improvement, then.”\n\nHe hands you the book. Its first page bears a neat Academy stamp and a list of former Conclave readers, none of the names familiar.\n\n“Read the first three chapters,” Stone says. “After that, you’ll know enough to recognize when someone is explaining the Council to you selectively.”",
+      "responses": [
+        "ff4bc26d686d48fda719721ff1c828b0"
+      ],
+      "submission_id": "df7d8582ffed4df89fb4e371cb207924",
+      "published_at": "2026-09-18T13:12:53.360767+00:00"
+    },
+    {
+      "turn": 8,
+      "input": "Once I have a book, I settle down and read quietly for half an hour.",
+      "output": "The primer is dry, but useful. Over the next half-hour, its diagrams make the Council’s machinery clearer: seven seats, committees that handle disputes before they reach a full vote, arbitration panels, and the treaties that bind each territory to the others. The human seat has remained formally vacant for sixty years, its duties distributed by provisional arrangements that now have to be reconsidered.\n\nThe book gives Article Nineteen a short, bloodless paragraph among the Covenant’s founding restrictions. Enforcement belongs to the Council and local courts; no exception is described.\n\nAt the next table, Caelindra turns pages with swift, impatient precision. Stone works through his ledger until the library clock marks the half hour.\n\nFrom the common room comes the sound of the garden door opening, then Rashid’s voice: “I know I’m late. Deal me in before Thessaly rewrites the rules.”\n\n“I have improved them,” Thessaly replies.\n\nDena laughs. “That’s exactly what I was afraid of.”\n\nStone closes his ledger and looks toward the shelves of Council records. “The primer’s honest enough for a beginning,” he says. “The arguments start after chapter three.”",
+      "responses": [
+        "5f50d609807c4289960802e0d3269a6e"
+      ],
+      "submission_id": "8fa5e2810f5140a591e1bff92ec4f9f4",
+      "published_at": "2026-09-18T13:13:45.069189+00:00"
+    },
+    {
+      "turn": 9,
+      "input": "As I read, I silently wonder whether my aunt once kept a blue glass bird on her desk. I do not say this aloud; it is only a private guess. I return my attention to the page.",
+      "output": "No one reacts to the thought you keep to yourself.\n\nYou turn back to the primer. Its next section explains the Council’s committees: trade, borders, education, reparations, and the smaller arbitration panels where most disputes are meant to end before they become speeches in the full chamber. The language is calm enough to make every old compromise sound inevitable.\n\nAcross the table, Caelindra closes one book and draws another from her stack.\n\n“The primer is least misleading on procedure,” she says without looking at you. “Do not mistake that for neutrality.”\n\nProfessor Stone reshelves a returned volume near the desk. Beyond the library doors, the card game breaks into a burst of laughter, then a groan from Rashid.\n\nThe green-shaded lamp pools steadily over the page as you continue reading.",
+      "responses": [
+        "3a3952661cb546bea971723b4ed65055"
+      ],
+      "submission_id": "53cff3c8068347f481d4ca68865ee4e0",
+      "published_at": "2026-09-18T13:14:03.872999+00:00"
+    },
+    {
+      "turn": 10,
+      "input": "I take a short break in the common room. If Seraphel is there and not occupied in a conversation, I ask, \"What do you like reading for pleasure?\" Otherwise I sit with my book.",
+      "output": "Seraphel has not returned from the chapel. You take a leather chair near the fire and open the primer across your knee.\n\nAt the low table, Dena plays one-handed with practiced irritation, her splinted wrist supported on a cushion. Rashid has been dealt into the game at last; he studies his cards while Thessaly watches Mara’s turn with grave concentration.\n\n“You can’t change the value of a card halfway through,” Dena says.\n\n“I haven’t,” Thessaly replies. “I have clarified its potential.”\n\n“That is changing it.”\n\nRashid’s mouth twitches. “I’m beginning to understand why no one invites fae to tax negotiations.”\n\nThe fire settles with a soft collapse of coals. You read while the game continues around you, occasionally punctuated by Dena’s dry complaints and the shuffle of cards.",
+      "responses": [
+        "cd667a79e9a54ff18e476b7c8a650fe3"
+      ],
+      "submission_id": "0ae5e6eec3994eb3b2e0f43402ca2d92",
+      "published_at": "2026-09-18T13:14:26.509837+00:00"
+    },
+    {
+      "turn": 11,
+      "input": "If we are talking, I ask Seraphel what she likes about her choice. If she has chosen not to talk, I let her be and read.",
+      "output": "Seraphel is still at the chapel, so the question waits.\n\nYou read by the fire while the card game turns increasingly argumentative. Thessaly has not improved the rules, whatever she claims; Dena wins another hand one-handed and accepts the victory with a satisfied, “There. Civilization endures.”\n\nRashid groans and gathers the cards for the next deal. The primer stays open across your knees, its account of committees and provisional human duties steady in the firelight.",
+      "responses": [
+        "6a33d3dc7c714ea3b4b9e2add57b9126"
+      ],
+      "submission_id": "bcf76af9f619444abf5bfe36128f7793",
+      "published_at": "2026-09-18T13:14:46.117260+00:00"
+    },
+    {
+      "turn": 12,
+      "input": "I let the conversation end naturally and return to my book. I stay with it until I finish the chapter.",
+      "output": "The chapter ends with the provisional arrangements made after the human seat fell vacant: other delegates may administer certain duties, but none may vote or speak as the human representative. Your arrival has made several “temporary” practices suddenly subject to review.\n\nAt the card table, Dena wins once more, then gathers her cards with a pleased little exhale.\n\n“That’s enough charity for one evening.”\n\n“It wasn’t charity,” Rashid says.\n\n“It never is when you lose.”\n\nMara and Oren help her to her feet without fuss. Rashid walks them as far as the front hall, promising Dena he will look over the revised practice schedule tomorrow. She gives him a look that suggests she will hold him to it.\n\nThessaly remains by the fire, sorting the cards into unnervingly exact piles. The library waits quietly beyond the open doors, and somewhere upstairs the house settles around its new human heir.",
+      "responses": [
+        "193f59b62c394b189677a0b58676fa37"
+      ],
+      "submission_id": "2f85b9d032574286b3658a21a9e5cbb8",
+      "published_at": "2026-09-18T13:15:12.460271+00:00"
+    },
+    {
+      "turn": 13,
+      "input": "I go to bed when I am done reading. The next morning I wash, dress, and get breakfast in time for the scheduled orientation.",
+      "output": "Morning brings the low blue light of storm clouds and the scent of fresh bread downstairs.\n\nYou wash, dress in the charcoal coat, and make it to breakfast with time to spare. Ashara and Rashid are already at the table, arguing quietly over a point from last night’s drills.\n\n“Your guard opened on the third exchange,” Ashara says.\n\n“It adjusted.”\n\n“It opened.”\n\nRashid looks across the table at you. “Morning, Rowan. The eggs are safe. Avoid the pale sauce unless you enjoy regretting things before noon.”\n\nThessaly has a small stack of cards beside her plate, arranged in rigid suits and ranks. “Dena explained the rules again. They remain inefficient.”\n\n“They’re cards,” Caelindra says from behind a book.\n\n“Then they could be better cards.”\n\nAt the ninth bell, the residents make their way across the quadrangle to the Conclave seminar room. Lightning moves slowly beneath the far bridges, far enough below that the storm seems almost decorative.\n\nInside, fifteen chairs surround the oval table, though only seven are occupied. The framed Accords on the walls carry the Covenant in scripts you cannot read. Aldric chooses a place facing the door; Ysolde takes a seat near an open window where the cold air reaches her. Ashara and Rashid sit apart, still conducting their argument in occasional glances.\n\nProfessor Elara Windwhisper enters precisely on the bell. Her silver hair is braided close to her head, and she carries no notes.\n\n“Welcome to the Conclave,” she says. “For four years, you will study the structure you may someday be asked to preserve, amend, or survive.”\n\nShe looks around the table, including you without lingering on the Garvey signet.\n\n“Today is orientation. We will cover Academy procedure, residence expectations, access privileges, and the first term’s work. Tomorrow, you begin Covenant Law.”\n\nShe takes the remaining chair at the head of the oval table and opens a thin folder.\n\nOutside, another branch of lightning blooms beneath the Nexus.",
+      "responses": [
+        "808dc4561dfb49ad90ef987ce45a35ea"
+      ],
+      "submission_id": "42222caafb19494187f0de8948b2aa44",
+      "published_at": "2026-09-18T13:15:52.637633+00:00"
+    },
+    {
+      "turn": 14,
+      "input": "At orientation, I ask how a student in the human seat is supposed to learn the practical duties of the role.",
+      "output": "Professor Windwhisper looks up from her folder.\n\n“How is a student in the human seat meant to learn its practical duties?” you ask.\n\n“A necessary question, Mr. Garvey.” Her voice is quiet enough that the room stills to hear it. “In an ordinary year, a Conclave heir arrives with tutors, family records, and a predecessor whose work can be observed. You have none of those advantages.”\n\nRashid shifts slightly in his chair.\n\nWindwhisper continues. “You are a Conclave student, not yet a sitting Council delegate. This term will give you Council procedure, treaty interpretation, negotiation exercises, committee memoranda, and supervised study of prior proceedings. Professor Stone will oversee the surviving human historical material available to students.”\n\nCaelindra taps one finger against her notes. “Available is doing a great deal of work there.”\n\n“It usually does,” Windwhisper says. “Restricted histories require the Chancellor’s signature, regardless of the student requesting them.”\n\nShe turns a page.\n\n“The human seat’s former functions have been divided provisionally among existing offices and committees. You will receive a current list of those functions, their holders, and the legal basis for each arrangement by noon. You should learn not only what the seat once did, but what others have done in its absence.”\n\n“Will he receive the reports sent to it?” Rashid asks. “Or only the account prepared after someone decides what he needs to know?”\n\n“Procedural reports relevant to his course work, yes,” says Windwhisper. “Private Council correspondence, no. The same boundary applies to every student here.”\n\n“That seems reasonable,” Ashara says. “He needs to know where authority is actually being exercised, not be handed a ceremonial history and told he is prepared.”\n\nYsolde looks toward the framed Accords. “Some duties can be returned. Others will need to be negotiated again.”\n\nThessaly rests her hands on the table. “And whoever has held them may believe they have terms.”\n\nAldric’s posture grows a little straighter. “The Council has procedures for resolving that.”\n\nRashid glances at him. “Procedures are not the same as willingness.”\n\nBefore the exchange can sharpen, Seraphel speaks softly.\n\n“An office absent still shapes each choice and voice;  \nLearn where its silence borrows someone’s voice.”\n\nWindwhisper inclines her head, accepting the point without comment.\n\n“Precisely. Mr. Garvey, your practical education will include learning where the human seat’s absence has become convenient, necessary, or contested. The Academy can teach you the structure. Judgment will require more than a primer.”\n\nShe closes the folder.\n\n“Now: residence expectations. Garvey House is shared Conclave housing. Its history does not grant any resident authority over another resident’s room, correspondence, or private affairs.”\n\nThe orientation moves on, but the promised list now has a place in the morning ahead of you.",
+      "responses": [
+        "5ca03a7880e240fbb5b6cfe089f4d2fd"
+      ],
+      "submission_id": "928b8a852ffe471aafb1247b441823bf",
+      "published_at": "2026-09-18T13:16:56.368048+00:00"
+    },
+    {
+      "turn": 15,
+      "input": "I listen to the answer and then let the next person speak.",
+      "output": "Rashid speaks next.\n\n“Will the list distinguish treaty obligations from habits that became convenient while the seat was empty?”\n\nProfessor Windwhisper regards him for a moment. “Yes. Each arrangement will include its stated authority, term, and review process. Where an office has exceeded its temporary mandate, the record should make that visible.”\n\n“Should,” Caelindra says.\n\n“It will,” Windwhisper replies.\n\nRashid nods once, satisfied enough to let the matter rest.\n\nThe orientation continues through practical matters: seminar attendance, formal notices, access to the quadrangle after curfew, and the need to register any travel beyond the Nexus bridges. Windwhisper mentions the dueling grounds only to clarify that rankings carry no automatic authority in Conclave proceedings.\n\nAshara leans back slightly at that. “A tragic administrative error.”\n\n“It may be corrected by demonstrating better judgment in committee,” Windwhisper says.\n\nA few seats away, Ysolde studies the printed term schedule. “The border arbitration exercise lasts six weeks.”\n\n“It does.”\n\n“That is short.”\n\n“For an exercise.”\n\nYsolde accepts this with a quiet nod, though not approval.\n\nBy the time the bell marks the end of orientation, a packet awaits at each place: course schedules, Academy maps, residence rules, and—set apart in a sealed grey envelope—a memorandum addressed to Rowan Garvey concerning the current administration of the human seat’s duties.",
+      "responses": [
+        "911898255fe2443183acc024331bcd3a"
+      ],
+      "submission_id": "c6b15dc020654f2aaaa26f3307536dac",
+      "published_at": "2026-09-18T13:17:27.840771+00:00"
+    },
+    {
+      "turn": 16,
+      "input": "After orientation I check the public dueling schedule. If I can watch Ashara's ranked bout, I take a place as a spectator; if it has already finished, I look at the posted result.",
+      "output": "The dueling schedule is posted on a slate board beside the octagon, its white lettering refreshed by a hovering lamp-globe.\n\n**Eleventh bell — Ranked bout, first tier:** Ashara vel Kothren vs. Tovan Rimeclaw.\n\nYou have time.\n\nBy the eleventh bell, a loose crowd has gathered along the low rail around the packed-earth octagon. The storm lies far below the terrace, turning the sky beneath the plateau a bruised silver. Ashara waits inside the ring in padded black practice armor, her tied hair damp at the temples and a blunted sword balanced loosely in one hand.\n\nHer opponent is broad-shouldered and furred along the jaw and forearms, wearing blue wraps over one elbow. He gives Ashara a polite nod before taking his guard.\n\nRashid stands near the rail, arms folded. He notices you arrive but keeps his attention on the ring.\n\nThe signal sounds.\n\nTovan opens hard, trying to drive her backward with his size. Ashara gives him ground for three steps, then changes the angle so abruptly that his next strike meets empty space. Her practice blade raps his ribs. Once. Twice.\n\nThe crowd makes the small approving noise of people who recognize clean work.\n\nTovan adjusts, more cautious now. He catches her next attack, forces her blade low, and nearly lands a touch at her shoulder. Ashara twists away; her tail lashes for balance, and she comes back inside his reach before he can reset. The flat of her blade strikes his wrist. His weapon falls into the dirt.\n\nThe second signal ends it.\n\nTovan retrieves his sword and bows with visible annoyance, though he says something that makes Ashara’s mouth briefly curve. The ranking clerk marks the result beside the slate: **Kothren retains first tier.**\n\nRashid exhales through his nose. “Her third exchange was better than yesterday.”\n\nAshara steps out of the octagon, accepts a towel from an attendant, and catches sight of you among the spectators. Her gaze rests there for a moment before she turns back to the clerk to sign the result.",
+      "responses": [
+        "862d5dd9a27942a8a8adc1adca68ad78"
+      ],
+      "submission_id": "d4e1462dc98543939ca591d0929f9151",
+      "published_at": "2026-09-18T13:18:06.091136+00:00"
+    },
+    {
+      "turn": 17,
+      "input": "Afterward I spend an hour walking in the gardens on my own. I do not seek anyone out.",
+      "output": "The gardens keep their own weather. Pale paths curve between flowering hedges and low stone walls that blunt the wind from the plateau’s edge; beyond them, lightning turns silently beneath the Nexus.\n\nYou walk without choosing a destination. White blossoms close their cups against the cool air, while red climbing flowers have found the warmth of a sun-facing wall. A pair of older students pass at the far end of a path, deep in an argument about trade tariffs, and disappear toward the quadrangle without noticing you.\n\nNear the library wall, an unmarked door sits recessed behind a veil of ivy. It is plainly old, its metal handle dull with neglect. Nothing about it invites interruption, and you continue on.\n\nBy the time a distant bell marks the hour, you have looped back toward Garvey House. The garden doors stand ahead, reflecting the pale afternoon light.",
+      "responses": [
+        "104eeda47fbb407da0ecacd32d833f0b"
+      ],
+      "submission_id": "422e7a07a5fa4f588f2078bcbbe55dba",
+      "published_at": "2026-09-18T13:18:45.750180+00:00"
+    },
+    {
+      "turn": 18,
+      "input": "I return to the common room. If Rashid is there and not busy, I ask how his evening went. Otherwise I leave him to it.",
+      "output": "Rashid is alone near the common-room fire, his practice jacket folded over one arm of the chair and a cup of tea cooling on the table beside him. He looks up when you enter.\n\nYou ask how his evening went.\n\nHe smiles, showing a hint of canine. “Dena won three hands one-handed and acted surprised every time. Thessaly tried to amend the scoring halfway through a deal. Mara threatened to make her play face-up.”\n\nHe takes a sip of tea. “I arrived late, lost what little dignity I had left after drills, and was told it was a lesson in priorities. Dena was in excellent spirits, so I suppose it went well.”\n\nThe fire clicks softly between you.",
+      "responses": [
+        "b680b2800cee4634bae5cc7799a5c3ca"
+      ],
+      "submission_id": "23b42ea8f694499e8c437ed6045d7e1d",
+      "published_at": "2026-09-18T13:19:39.131906+00:00"
+    },
+    {
+      "turn": 19,
+      "input": "I settle down with my book again. I do not volunteer to sort out anyone else's arrangements.",
+      "output": "You settle into a leather chair by the fire and reopen *The Council at Work*.\n\nThe next chapter concerns arbitration: who may request it, who appoints its panels, and how a dispute can spend years being called temporary while everyone involved learns to live around it. The prose is not elegant, but it is clear enough.\n\nRashid lets the silence stand. After finishing his tea, he gathers a small stack of papers from the side table—practice schedules, by the look of them—and checks several names against a notebook before folding the pages together.\n\n“I’ve got correspondence to answer,” he says. “Enjoy the thrilling machinery of civilization.”\n\nHe leaves through the hall with the papers under his arm.\n\nThe fire burns low and steady. Beyond the common room, Garvey House carries on around you: a door shuts upstairs, someone crosses the dining hall, and the stormlight below the windows shifts from white to a muted violet as you read.",
+      "responses": [
+        "6e25027e1bf54ca783e5b98c85aa9316"
+      ],
+      "submission_id": "fa11adbae8c445dd9ba1c7c7b0bb49a7",
+      "published_at": "2026-09-18T13:20:12.535417+00:00"
+    },
+    {
+      "turn": 20,
+      "input": "At the next communal meal I take an available seat. If Seraphel is there, I ask whether she knows a song worth learning; otherwise I listen to the table.",
+      "output": "At supper, the long table is less formal than it was on your first night. A bowl of roasted onions steams beside the bread, and someone has left the salt cellar within Ashara’s reach, which appears to be a considered precaution.\n\nYou take an open chair midway down the table. Seraphel sits across from you, a narrow booklet of choir music tucked beside her plate. She is not in conversation; Aldric is reading a notice beside her with the intense concentration of someone who may be avoiding looking up.\n\nYou ask whether she knows a song worth learning.\n\nSeraphel’s smile appears.\n\n“Try *Lantern Road.* Its chorus isn’t long;  \nIt suits a small room better than a difficult song.  \nI like it because each shore adds something more;  \nNo one sings it quite the way they did before.”\n\n“The mountain version replaces the lamps with stars,” Ysolde says. “It is more accurate.”\n\nCaelindra looks up from her dinner. “It also has a fifth verse no one needs.”\n\nSeraphel inclines her head.\n\n“The fifth verse gets omitted, that much is true;  \nIt has too many verses for a meal with stew.  \nIf you would like, I’ll sing the first verse through,  \nOr lend you a written copy after supper, too?”",
+      "responses": [
+        "16ab06225cc64971ae764d561edb97a3"
+      ],
+      "submission_id": "d017fa8172214e1eae267ad1ada8894c",
+      "published_at": "2026-09-18T13:21:41.679412+00:00"
+    },
+    {
+      "turn": 21,
+      "input": "I listen if someone wants to sing or explain the song, without supplying lyrics or a performance of my own. Otherwise I enjoy the meal.",
+      "output": "Seraphel closes her eyes for a moment, then sings softly across the table.\n\n“Take Lantern Road where harbor lights  \nGo gold against the rain;  \nEach traveler lends a little flame  \nAnd carries one again.”\n\nHer voice is clear but unshowy, meant for a room rather than a chapel. The last note settles beneath the clink of cutlery.\n\n“The mountain version has different weather,” Ysolde says.\n\n“It has different everything,” Caelindra replies.\n\nSeraphel smiles.\n\n“The words may shift from shore to shore;  \nThe road remains the song’s true core.”\n\nYou listen, eat, and let the conversation find its own turns: Ysolde describing a version sung during high passes, Ashara objecting to any song that requires five verses before its chorus, and Rashid insisting that a good chorus is one people can manage after bad wine.",
+      "responses": [
+        "51ddf43e45464983a5555a0310f23305"
+      ],
+      "submission_id": "e24730e1facc418aa211b0e91813a6e6",
+      "published_at": "2026-09-18T13:22:00.141673+00:00"
+    },
+    {
+      "turn": 22,
+      "input": "When the meal is over I say goodnight and go back to my room, leaving everyone else to their plans.",
+      "output": "You say your goodnights and leave the table to its conversation.\n\nRashid lifts his cup in farewell. Ashara gives a brief nod without pausing her argument with Ysolde about whether the mountain version of the song counts as the same song at all. Seraphel offers a small wave.\n\n“Good rest to you; may quiet find your door,  \nAnd leave you strength for all tomorrow’s more.”\n\nUpstairs, your room is dark except for stormlight moving across the floorboards. You close the door behind you, and the sounds of Garvey House soften into distance: voices below, a stair creaking, the house settling around its residents.",
+      "responses": [
+        "64a1656879e94df996f89fd4fe7efffb"
+      ],
+      "submission_id": "d187804f6623425591813ad4e0d4e34e",
+      "published_at": "2026-09-18T13:22:15.440276+00:00"
+    },
+    {
+      "turn": 23,
+      "input": "The following morning I ask in the library which publicly available records describe the human seat's last active years. I would like to look at the original records if they are open to students.",
+      "output": "Morning light falls thinly through the library windows. Professor Stone is at the reference desk, sorting returned volumes into a cart.\n\nWhen you ask which public records cover the human seat’s last active years, he considers the question before answering.\n\n“Open shelves have published Council proceedings, committee reports, and the *Covenant Gazette*. Start with the annual proceedings from the decade before the collapse. They’re incomplete, but they show what reached the public chamber.”\n\nHe leads you to a shelf of thick, uniformly bound volumes and pulls out three: Council sessions, border-arbitration reports, and a slim index of committee appointments.\n\n“The last human seat-holder was Dan Garvey,” he says. “You’ll find his speeches cited in these. Not always printed in full.”\n\nYou ask about original records.\n\nStone’s hand rests briefly on one of the volumes. “Most originals are not open to students: private correspondence, working memoranda, sealed votes, archival drafts. The restricted histories cabinet holds some material, but that requires Chancellor Ashworth’s signature.”\n\nAcross the room, the locked cabinet’s dark glass catches the pale morning light.\n\n“There are a few originals you may request through ordinary library channels,” Stone adds. “Published broadsides, public treaty copies, some old committee notices. But if you want to understand what the human seat was actually doing in its final years, begin with what was officially recorded—and note what the record chooses not to include.”\n\nHe sets the volumes on a nearby table, along with a request ledger for the public archive.",
+      "responses": [
+        "e795587aa84f4ee0a286c94048faebeb"
+      ],
+      "submission_id": "9e88264174804a3dabf9bd0fe3dff942",
+      "published_at": "2026-09-18T13:22:36.330731+00:00"
+    }
+  ],
+  "checkups": [],
+  "pending": null
+}

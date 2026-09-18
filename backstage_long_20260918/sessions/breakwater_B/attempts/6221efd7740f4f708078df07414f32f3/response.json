@@ -1,0 +1,16 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "You finish what is on your plate as Jo begins collecting dishes.\n\n“Leave that,” she says, reaching for your plate. “First evening, you’re exempt from washing up.”\n\nDev rests a hand on his equipment case. “I’ll finish the booth setup and label the receivers. No sound, no auditorium. When Hana sends her availability, I’ll forward it to Nell before we arrange anything.”\n\n“That’s the order of it,” Nell says. She turns her clipboard around and scans the rota notes. “And if anyone has an opening-weekend change I don’t know about, send it tomorrow. I’m finishing the rota on Wednesday.”\n\n“I’ll check mine tonight,” Owen says.\n\nJo carries the stew pot back into the kitchen. “I’ll send over the last menu costs once I’ve checked the supplier invoice. My Friday van route stays where it is.”\n\n“Fine,” Nell says. “That’s enough for now.”\n\nA faint scrape comes through the closed auditorium doors: one of the old boards being shifted away from the side wall. Then the small, sharp click of Rosa’s camera. No test audio follows.\n\nOwen glances at the clock above the counter. “I’ll come back at twenty to eight and help put the boards back.”\n\nMartin’s voice carries only as an indistinct murmur from beyond the doors. Bea listens for a moment, then gathers her mug.\n\nDev lifts his case and heads for the staircase. Nell takes the clipboard into the office, still making notes. Jo runs water in the kitchen sink.\n\nThe foyer settles around you: the smell of onion pie, stacks of unopened crockery, evening light thinning beyond the front doors, and the quiet work of a building preparing to become public again.",
+  "reasoning_summaries": [
+    "**Planning interactive fiction narration**\n**Mapping spatial and temporal staging**\n**Confirming future availability plans**",
+    "**Clarifying NPC dialogue and scene details**\n**Planning natural scene conclusion from Rowan's view**\n**Refining subtle NPC dialogue for natural tension**",
+    "**Clarifying Bea's auditorium presence**\n**Planning board session narration timing**\n**Scheduling natural stopping point at 19:07**",
+    "**Assessing narrative scene details**\n**Refining auditorium scene details**\n**Composing character dialogue and plans**",
+    "**Refining narrative dialogue constraints**\n**Clarifying scene narration and NPC actions**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:13:48.181581+00:00",
+  "duration_s": 60.2974679240142
+}

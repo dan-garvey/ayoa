@@ -1,0 +1,1 @@
+Rewrite the previous passage using these instructions. Return only the replacement passage.

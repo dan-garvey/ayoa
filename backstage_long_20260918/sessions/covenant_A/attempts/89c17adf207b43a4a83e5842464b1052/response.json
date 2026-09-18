@@ -1,0 +1,13 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "You take a table beneath the upper gallery, where the lamp gives enough light to read without catching in the polished surface of the wood.\n\n*The Council in Practice* begins plainly. The Council’s seven seats oversee the Covenant’s shared obligations: disputes between territories, treaty enforcement, joint commissions, trade routes, and the public language of peace. The Academy is not the Council, the book stresses, but its Conclave track supplies the advisers, negotiators, and successors who will shape what reaches it.\n\nA later chapter is less ceremonial. Most decisions, it says, arrive before the full Council already narrowed by committee work, drafted concessions, and arguments over a single verb. Marginal notes crowd the page beside examples of failed negotiations. One former reader has underlined: *Find out who benefits from delay.*\n\nAcross the library, Caelindra occupies a window table with the protocol text open before her. She turns pages briskly, pausing only to make a small note in the margin of her own notebook. Professor Stone works at his desk beneath the spiral stair, blue pencil moving steadily through his ledger.\n\nThe half-hour passes in the low hiss of lamp flames and the occasional muted crack of cards from the common room. By the time you reach the committee chapter, the dark-blue cover has warmed beneath your hand.",
+  "reasoning_summaries": [
+    "**Continuing interactive fiction narration**\n**Clarifying library scene details**\n**Detailing library reading scene**",
+    "**Clarifying Council seat inheritance rules**\n**Outlining Council and Academy roles**\n**Establishing quiet library presence**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:15:56.230945+00:00",
+  "duration_s": 33.86696823401144
+}

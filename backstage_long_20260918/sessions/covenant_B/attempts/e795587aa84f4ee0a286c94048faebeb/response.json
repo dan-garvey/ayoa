@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Morning light falls thinly through the library windows. Professor Stone is at the reference desk, sorting returned volumes into a cart.\n\nWhen you ask which public records cover the human seat’s last active years, he considers the question before answering.\n\n“Open shelves have published Council proceedings, committee reports, and the *Covenant Gazette*. Start with the annual proceedings from the decade before the collapse. They’re incomplete, but they show what reached the public chamber.”\n\nHe leads you to a shelf of thick, uniformly bound volumes and pulls out three: Council sessions, border-arbitration reports, and a slim index of committee appointments.\n\n“The last human seat-holder was Dan Garvey,” he says. “You’ll find his speeches cited in these. Not always printed in full.”\n\nYou ask about original records.\n\nStone’s hand rests briefly on one of the volumes. “Most originals are not open to students: private correspondence, working memoranda, sealed votes, archival drafts. The restricted histories cabinet holds some material, but that requires Chancellor Ashworth’s signature.”\n\nAcross the room, the locked cabinet’s dark glass catches the pale morning light.\n\n“There are a few originals you may request through ordinary library channels,” Stone adds. “Published broadsides, public treaty copies, some old committee notices. But if you want to understand what the human seat was actually doing in its final years, begin with what was officially recorded—and note what the record chooses not to include.”\n\nHe sets the volumes on a nearby table, along with a request ledger for the public archive.",
+  "reasoning_summaries": [
+    "**Planning interactive story dialogue**\n**Outlining library scene with Stone**\n**Detailing Stone's cautious archive explanation**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:22:36.324350+00:00",
+  "duration_s": 20.815865226002643
+}

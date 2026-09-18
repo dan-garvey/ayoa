@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Before taking the next box upstairs, you tell Nell that you are not available for extra front-of-house shifts and intend to keep time outside your archive contract for yourself.\n\n“That’s fine,” she says plainly. “You’re here for the archive work, thirty hours a week. I haven’t put you on the front-of-house rota.”\n\nShe squares the stack of completed sheets on her desk. “If something outside that ever comes up, I’ll ask. I won’t treat your evenings as assumed availability.”\n\nWith that settled, she indicates the programme box upstairs. “Finish that first. Then we’ll look at the business-papers carton.”",
+  "reasoning_summaries": [
+    "**Aligning narrative to Tuesday afternoon**\n**Reconciling timeline for dialogue delivery**\n**Planning Nell’s procedural response**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:28:05.614379+00:00",
+  "duration_s": 15.257358394999756
+}

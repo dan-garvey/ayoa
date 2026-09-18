@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Nell looks up from the rota sheets as you make that clear.\n\n“Of course,” she says. “I wasn’t asking you to cover. Your contract is for archive work, and your time outside it is your own. I should’ve been clearer.”\n\nShe returns to the rota without argument. “I’ll sort front-of-house cover.”\n\nThe second programme box waits open on the table, its late-1988 bundles tied with faded cotton tape. Nell points to the first one.\n\n“Start with that group, and I’ll look over the first few records before I head downstairs.”",
+  "reasoning_summaries": [
+    "**Planning second-person story continuation**\n**Clarifying character dialogue and contract details**\n**Drafting direct dialogue reflecting contract boundaries**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:19:55.462323+00:00",
+  "duration_s": 21.983188910991885
+}

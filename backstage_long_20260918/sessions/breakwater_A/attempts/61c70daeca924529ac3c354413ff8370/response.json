@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Jo slides the stack nearest you across the table. “Those, please. Kitchen counter’s clear.”\n\nYou carry the plates through the doorway. The kitchen is small but orderly: trays drying by the sink, a crate of onions under the prep table, Jo’s labelled tubs stacked along one shelf. She follows with the cutlery jar and sets it beside the basin.\n\n“Leave them there,” she says. “I’ll wash up when the rest comes through. You’re allowed to have arrived five minutes ago without being recruited into the washing-up rota.”\n\nFrom the foyer, Bea calls, “That’s not how Nell runs it.”\n\n“No,” Jo says, raising her voice just enough to carry. “Nell makes a rota. I’m worse.”\n\nThe office door remains shut. Through it comes the indistinct cadence of Owen and Nell speaking, too low to separate into words.\n\nJo rinses the serving spoon and rests it on a tea towel. “Supper was all right?”\n\nBehind the auditorium doors, Rosa’s camera shutter clicks twice in quick succession. Martin says something too muffled to catch; Rosa answers, “Put that in the notes, then.”",
+  "reasoning_summaries": [
+    "**Continuing interactive fiction passage**\n**Developing kitchen plate-carrying scene**\n**Incorporating natural dialogue during shared task**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:10:45.852291+00:00",
+  "duration_s": 36.21041515801335
+}

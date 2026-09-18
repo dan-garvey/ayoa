@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "The primer is dry, but useful. Over the next half-hour, its diagrams make the Council’s machinery clearer: seven seats, committees that handle disputes before they reach a full vote, arbitration panels, and the treaties that bind each territory to the others. The human seat has remained formally vacant for sixty years, its duties distributed by provisional arrangements that now have to be reconsidered.\n\nThe book gives Article Nineteen a short, bloodless paragraph among the Covenant’s founding restrictions. Enforcement belongs to the Council and local courts; no exception is described.\n\nAt the next table, Caelindra turns pages with swift, impatient precision. Stone works through his ledger until the library clock marks the half hour.\n\nFrom the common room comes the sound of the garden door opening, then Rashid’s voice: “I know I’m late. Deal me in before Thessaly rewrites the rules.”\n\n“I have improved them,” Thessaly replies.\n\nDena laughs. “That’s exactly what I was afraid of.”\n\nStone closes his ledger and looks toward the shelves of Council records. “The primer’s honest enough for a beginning,” he says. “The arguments start after chapter three.”",
+  "reasoning_summaries": [
+    "**Planning interactive fiction segment**\n**Developing detailed library scene**\n**Integrating audible NPC activity cues**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:13:45.060562+00:00",
+  "duration_s": 51.628274097980466
+}

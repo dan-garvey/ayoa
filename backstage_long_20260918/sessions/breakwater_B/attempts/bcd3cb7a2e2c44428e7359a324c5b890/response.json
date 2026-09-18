@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "“Thanks,” you say.\n\nOwen nods toward the front doors. “Watch the steps if it’s wet.”\n\nYou leave him at the counter and take the staff staircase upstairs. The projection booth door is shut on the landing; a low mechanical click sounds from within, then quiet.\n\nIn your room, the desk lamp throws a small circle of light across the welcome sheet and your luggage. Downstairs, the Picture House continues with its separate evening work while you close the door for the night.",
+  "reasoning_summaries": [
+    "**Composing next interactive fiction passage**\n**Rendering thanks and going upstairs**\n**Ending scene with quiet evening setting**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:19:17.558785+00:00",
+  "duration_s": 20.2129742759862
+}

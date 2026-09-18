@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Seraphel inclines her head.\n\n“The tune is very short; the pleasure is the chase.  \nEach singer enters late, then finds another’s place.”\n\n“It sounds deliberately inconvenient,” Thessaly says.\n\n“It is,” Seraphel replies. “That’s why it survives a crowded place.”\n\nAldric, farther down the table, looks up from his plate. “Is it difficult?”\n\n“Not difficult,” Seraphel says. “Just easy to spoil.”\n\nThat earns a small laugh from Rashid. Ashara reaches for another carrot, apparently content to let the subject remain harmless.\n\nYou listen, then give your attention back to the meal: peppered vegetables, warm bread, the low traffic of ordinary conversation around the candlelit table.",
+  "reasoning_summaries": [
+    "**Planning interactive dinner narration**\n**Designing rhymed NPC dialogue**\n**Finalizing dinner scene narration**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:34:48.986860+00:00",
+  "duration_s": 15.935723215021426
+}

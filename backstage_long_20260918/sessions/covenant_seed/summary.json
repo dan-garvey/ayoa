@@ -1,0 +1,14 @@
+{
+  "published_turns": 4,
+  "completed_checkups": 0,
+  "pending_kind": null,
+  "requests_prepared": 4,
+  "api_calls_started": 0,
+  "proxy_calls_started": 4,
+  "responses_received": 4,
+  "responses_with_usage": 0,
+  "reported_usage": null,
+  "recorded_api_seconds": null,
+  "recorded_proxy_seconds": 258.795,
+  "visible_words": 1486
+}

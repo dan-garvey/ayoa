@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "The upstairs room has the clean, temporary look of a place made ready for someone whose name was not known until recently: narrow bed, small wardrobe, desk beneath the window. Your luggage waits where it was brought in. Beyond the glass, Harbour Street slopes toward a strip of pale water, fishing boats reduced by distance to dark marks against the evening.\n\nOn the desk, the welcome sheet sits beside the lamp.\n\n**Supper, 18:30 — foyer tables**  \n**Induction, 09:00 tomorrow — office**  \n**Staff staircase beside office**\n\nNell’s mobile number is printed underneath in careful block type.\n\nBelow, crockery touches crockery. A door swings shut, followed by a man’s voice carrying up from the foyer—too indistinct to make out—then a brief burst of laughter. From farther overhead comes a softer mechanical clatter, as if someone is working with a case of tools.\n\nThe coat’s mended cuff catches faintly against the desk edge when you stand near it. Downstairs, someone says, “Not that stack, those are programmes,” and another voice answers, “I know what programmes look like.”\n\nAt the bottom of the stairs, warm light reaches across the landing floorboards.",
+  "reasoning_summaries": [
+    "**Planning interactive narrative opening**\n**Structuring immersive present-tense narrative**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:04:55.840095+00:00",
+  "duration_s": 16.961434941011248
+}

@@ -1,0 +1,8 @@
+{
+  "at": "2026-09-18T13:36:39.560660+00:00",
+  "file": "prose_review.md",
+  "sha256": "a57ec55aafb4b77cdac8d605455740bf4ceddfb148cb49eb98f8eda713c13d57",
+  "all_four_24_turn_prose_runs_read": true,
+  "conditions_and_checkup_outputs_not_yet_opened": true,
+  "partial_blinding_limit": "Generation timing could suggest treatment; reviewer also designed experiment."
+}

@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Owen has already taken Rosa’s camera case by the time you look his way.\n\n“I’ll get the gate,” he tells her, and follows her toward the side corridor. Their voices fade into the service yard, then the gate gives a dull metal click behind them.\n\nYou leave him to it. Bea buttons her coat and heads out through the front doors after a brief goodnight to Jo; Martin lingers only long enough to make sure the boards are secure before following. The foyer settles around you again, with Dev still moving quietly in the booth overhead.",
+  "reasoning_summaries": [
+    "**Determining Owen's availability status**\n**Crafting Owen helping Rosa narrative**\n**Narrating Owen escorting Rosa and others leaving**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:13:58.768740+00:00",
+  "duration_s": 32.29044993000571
+}

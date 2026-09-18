@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "You begin with the first folder of trust-owned business papers while Nell opens the spreadsheet beside you.\n\nThe invoices are dry and orderly, clipped into yearly bundles: electrical work, film-hire charges, café supplies, a repair to the old front-door closer. You record each group by type, apparent date range, quantity, condition, and the acquisition reference Nell points out in the 2024 inventory.\n\n“Don’t make every record a biography,” Nell says, looking over one entry. “Enough that someone can find it, understand what it is, and know why we think it belongs here.”\n\nBy mid-morning, the first box has a usable shape in the spreadsheet. A few folders have no clear date beyond a handwritten year; those go into the uncertainty notes rather than being forced into place.\n\nNell checks the time. “Good start. Finish this bundle, then we’ll look at the programme boxes before lunch.”",
+  "reasoning_summaries": [
+    "**Starting Rowan cataloguing scene**\n**Describing Rowan cataloguing routine**\n**Assigning first archive box contents**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:16:08.677936+00:00",
+  "duration_s": 40.04276264901273
+}

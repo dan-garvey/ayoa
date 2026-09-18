@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "At nine, Nell meets you in the archive workroom with the second programme box already on the table.\n\n“Morning. Same basic work today, but these are less tidy.” She lifts the lid. Inside, weekly programme sheets sit in uneven bundles, some tied with faded cotton tape and others held in old paper folders. “There are local adverts tucked into some of them, and a few batches seem to have been rearranged at some point. Record the programme material first; note inserts separately if they clearly belong with it.”\n\nShe lays a short handwritten list beside the box.\n\n“Practical change: I’ll be in and out this morning finishing the opening-weekend rota. Owen needs Thursday morning off, so I’m sorting cover for his front-of-house shift. It doesn’t affect your hours or the archive work.”\n\nNell checks the first bundle with you: programmes from late 1988, with a pencilled change to a Saturday showing and a damp ripple along one lower corner.\n\n“Keep original order where it tells us something. If you decide it doesn’t, explain the decision in the record. And if you find anything that looks like a loan or doesn’t match the acquisition inventory, stop with that group and come get me.”\n\nShe moves a chair to the other table, gathering her rota sheets and phone.\n\n“Start here. I’ll check your first few entries before I disappear into staffing arithmetic.”",
+  "reasoning_summaries": [
+    "**Clarifying story timeline inconsistencies**\n**Establishing Tuesday morning scene and Nell’s shift change**\n**Detailing Nell’s morning archive briefing**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:19:33.396359+00:00",
+  "duration_s": 31.568103911005892
+}

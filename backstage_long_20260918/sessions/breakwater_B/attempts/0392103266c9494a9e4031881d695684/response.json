@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "You return to the archive workroom and continue through the programme bundles at a steady pace. Each group stays in its existing order; dates come from the printed covers, and condition notes distinguish creases and wear from anything that needs Nell’s attention.\n\nBy the end of your agreed shift, you have added several more completed records. You return the last bundle to the blue box in sequence, leave the sheets together for Nell, and mark where to resume tomorrow. The loan cupboard remains locked and undisturbed.\n\nYour workday at the Picture House is over.",
+  "reasoning_summaries": [
+    "**Planning interactive fiction shift endpoint**\n**Describing archive cataloguing and shift conclusion**\n**Finalizing shift with archive tidying**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:27:12.798068+00:00",
+  "duration_s": 15.165790630009724
+}

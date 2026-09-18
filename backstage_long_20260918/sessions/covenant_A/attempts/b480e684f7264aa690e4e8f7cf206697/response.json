@@ -1,0 +1,15 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Morning light lies pale across the library tables. Professor Stone is at the desk beneath the spiral stair, sorting returned books into a cart.\n\nWhen you ask about the human seat’s last active years, and whether original records are available, he sets aside his blue pencil.\n\n“The public record is uneven, but it exists.” He draws out several volumes. “Start with the *Council Proceedings* for the final sessions with a seated human delegation. They preserve speeches, votes, and adopted resolutions—edited, of course.”\n\nHe adds a thinner register. “This tracks committee referrals and appointments. Less readable, more useful if you want to know what happened to a proposal after it left the chamber.”\n\nA third set of booklets follows: *Annual Reports of the Human Delegation*. “Budgets, petitions received, travel, staff appointments. They become sparse near the end.”\n\nYou ask after originals. Stone’s hand rests briefly on the top booklet.\n\n“Not open to students. The original minute books, correspondence, and private memoranda are restricted Covenant history. Chancellor Ashworth’s signature is required.” He nods toward the locked cabinet along the far wall. “These are contemporary printed records, not later summaries. They’re the closest open starting point.”\n\nHe carries the stack to a reading table beneath a lamp and sets the committee register on top.\n\n“If you identify a specific record you need, bring the request to me before you take it to the Chancellor.”\n\nThe library settles around you again: lamp oil, paper, the faint turn of pages from the upper gallery. Before you lie the public record of a seat that went vacant sixty years ago.",
+  "reasoning_summaries": [
+    "**Planning next story scene**\n**Detailing library scene and records access**\n**Framing librarian's cautious response**",
+    "**Clarifying archival material access**\n**Detailing original record access protocol**\n**Balancing original record accessibility**",
+    "**Summarizing public records availability**\n**Planning interactive fiction library scene**\n**Listing accessible historical records**",
+    "**Assessing public material access process**\n**Clarifying public record references and access limits**\n**Refining narrative voice and dialogue handling**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:35:49.171250+00:00",
+  "duration_s": 49.285415157006355
+}

@@ -1,0 +1,12 @@
+{
+  "executor": "codex",
+  "exit_code": 0,
+  "status": "completed",
+  "raw": "Seraphel is not in the common room. You leave her to the evening she chose and open the Council book again.\n\nAt the card table, Dena wins a trick with a pleased tap of her good hand. Rashid studies his dwindling cards without offering excuses for his late arrival. Thessaly has taken the empty place beside the score sheet and is reading the rules aloud under her breath.\n\nYou return to the chapter on committee procedure as firelight moves across the page.",
+  "reasoning_summaries": [
+    "**Continuing story respecting character silence**\n**Reconciling scene continuity and narrating quiet reading**\n**Narrating Rowan reading and card game dynamics**"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T13:20:27.692948+00:00",
+  "duration_s": 20.89596234099008
+}

@@ -1,0 +1,1776 @@
+{
+  "covenant_seed": {
+    "story": "covenant",
+    "interval": 0,
+    "turns": [
+      {
+        "turn": 1,
+        "words": 266,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 2,
+        "words": 396,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 3,
+        "words": 299,
+        "question_marks": 1,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 4,
+        "words": 525,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      }
+    ],
+    "request_reconstruction": true,
+    "publication_exact": true,
+    "checkups_excluded_from_transcript": true
+  },
+  "breakwater_seed": {
+    "story": "breakwater",
+    "interval": 0,
+    "turns": [
+      {
+        "turn": 1,
+        "words": 187,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 2,
+        "words": 528,
+        "question_marks": 2,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 3,
+        "words": 401,
+        "question_marks": 2,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 4,
+        "words": 593,
+        "question_marks": 2,
+        "ends_with_question": false,
+        "private_marker": false
+      }
+    ],
+    "request_reconstruction": true,
+    "publication_exact": true,
+    "checkups_excluded_from_transcript": true
+  },
+  "covenant_A": {
+    "story": "covenant",
+    "interval": 5,
+    "turns": [
+      {
+        "turn": 1,
+        "words": 266,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 2,
+        "words": 396,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 3,
+        "words": 299,
+        "question_marks": 1,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 4,
+        "words": 525,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 5,
+        "words": 322,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 6,
+        "words": 65,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 7,
+        "words": 78,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 8,
+        "words": 236,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 9,
+        "words": 216,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 10,
+        "words": 146,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 11,
+        "words": 236,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 12,
+        "words": 82,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 13,
+        "words": 114,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 14,
+        "words": 299,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 15,
+        "words": 416,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 16,
+        "words": 201,
+        "question_marks": 2,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 17,
+        "words": 460,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 18,
+        "words": 150,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 19,
+        "words": 91,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 20,
+        "words": 87,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 21,
+        "words": 137,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 22,
+        "words": 104,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 23,
+        "words": 70,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 24,
+        "words": 264,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      }
+    ],
+    "request_reconstruction": true,
+    "publication_exact": true,
+    "checkups_excluded_from_transcript": true
+  },
+  "covenant_B": {
+    "story": "covenant",
+    "interval": 0,
+    "turns": [
+      {
+        "turn": 1,
+        "words": 266,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 2,
+        "words": 396,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 3,
+        "words": 299,
+        "question_marks": 1,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 4,
+        "words": 525,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 5,
+        "words": 326,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 6,
+        "words": 103,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 7,
+        "words": 133,
+        "question_marks": 2,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 8,
+        "words": 417,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 9,
+        "words": 182,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 10,
+        "words": 130,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 11,
+        "words": 128,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 12,
+        "words": 75,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 13,
+        "words": 149,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 14,
+        "words": 323,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 15,
+        "words": 449,
+        "question_marks": 3,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 16,
+        "words": 213,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 17,
+        "words": 337,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 18,
+        "words": 146,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 19,
+        "words": 118,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 20,
+        "words": 158,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 21,
+        "words": 208,
+        "question_marks": 1,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 22,
+        "words": 134,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 23,
+        "words": 103,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 24,
+        "words": 246,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      }
+    ],
+    "request_reconstruction": true,
+    "publication_exact": true,
+    "checkups_excluded_from_transcript": true
+  },
+  "breakwater_A": {
+    "story": "breakwater",
+    "interval": 0,
+    "turns": [
+      {
+        "turn": 1,
+        "words": 187,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 2,
+        "words": 528,
+        "question_marks": 2,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 3,
+        "words": 401,
+        "question_marks": 2,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 4,
+        "words": 593,
+        "question_marks": 2,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 5,
+        "words": 139,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 6,
+        "words": 382,
+        "question_marks": 2,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 7,
+        "words": 179,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 8,
+        "words": 94,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 9,
+        "words": 150,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 10,
+        "words": 73,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": true
+      },
+      {
+        "turn": 11,
+        "words": 223,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 12,
+        "words": 96,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 13,
+        "words": 61,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 14,
+        "words": 321,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 15,
+        "words": 215,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 16,
+        "words": 110,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 17,
+        "words": 145,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 18,
+        "words": 100,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 19,
+        "words": 224,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 20,
+        "words": 165,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 21,
+        "words": 230,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 22,
+        "words": 90,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 23,
+        "words": 94,
+        "question_marks": 1,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 24,
+        "words": 132,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      }
+    ],
+    "request_reconstruction": true,
+    "publication_exact": true,
+    "checkups_excluded_from_transcript": true
+  },
+  "breakwater_B": {
+    "story": "breakwater",
+    "interval": 5,
+    "turns": [
+      {
+        "turn": 1,
+        "words": 187,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 2,
+        "words": 528,
+        "question_marks": 2,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 3,
+        "words": 401,
+        "question_marks": 2,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 4,
+        "words": 593,
+        "question_marks": 2,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 5,
+        "words": 184,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 6,
+        "words": 276,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 7,
+        "words": 154,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 8,
+        "words": 132,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 9,
+        "words": 78,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 10,
+        "words": 34,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": true
+      },
+      {
+        "turn": 11,
+        "words": 138,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 12,
+        "words": 144,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 13,
+        "words": 82,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 14,
+        "words": 409,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 15,
+        "words": 314,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 16,
+        "words": 102,
+        "question_marks": 1,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 17,
+        "words": 226,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 18,
+        "words": 101,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 19,
+        "words": 361,
+        "question_marks": 1,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 20,
+        "words": 94,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 21,
+        "words": 262,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 22,
+        "words": 98,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      },
+      {
+        "turn": 23,
+        "words": 76,
+        "question_marks": 1,
+        "ends_with_question": true,
+        "private_marker": false
+      },
+      {
+        "turn": 24,
+        "words": 129,
+        "question_marks": 0,
+        "ends_with_question": false,
+        "private_marker": false
+      }
+    ],
+    "request_reconstruction": true,
+    "publication_exact": true,
+    "checkups_excluded_from_transcript": true
+  },
+  "validation": {
+    "unique_calls": 96,
+    "checkups": 8,
+    "author_calls": 88,
+    "existing_live_sessions_unchanged": true,
+    "all_requests_exact": true,
+    "all_first_outputs_kept": true,
+    "frozen_runtime_sources_and_inputs_unchanged": true,
+    "frozen_pre_note_review_unchanged": true,
+    "dispatch_receive_publication_log_exact": true,
+    "maximum_concurrent_calls": 3,
+    "conditions": {
+      "covenant_A": {
+        "story": "covenant",
+        "checkup_every": 5
+      },
+      "covenant_B": {
+        "story": "covenant",
+        "checkup_every": 0
+      },
+      "breakwater_A": {
+        "story": "breakwater",
+        "checkup_every": 0
+      },
+      "breakwater_B": {
+        "story": "breakwater",
+        "checkup_every": 5
+      }
+    },
+    "calls": {
+      "c086fc4e8180427e8034214425aca5fb": {
+        "lane": "covenant_seed",
+        "stage": "author",
+        "turn": 1,
+        "duration_s": 22.84151263901731,
+        "words": 266,
+        "summary_characters": 130,
+        "response_sha256": "8e918479c53c5323b225430e3aa5be4a66ca4cc054190974cb6255d78cc1da9b",
+        "proxy_elapsed_s_excluding_queue": 22.837897
+      },
+      "bccbe5eae13b487580c73adbcbb735f5": {
+        "lane": "covenant_seed",
+        "stage": "author",
+        "turn": 2,
+        "duration_s": 103.71791068502353,
+        "words": 396,
+        "summary_characters": 1175,
+        "response_sha256": "44bc84a0b46eefb8ff1f4b4cce9b6141d66ecd7920a3e786e3b1b72f3c5b391e",
+        "proxy_elapsed_s_excluding_queue": 103.713958
+      },
+      "24bb3befb92d4c83b88a4ce42a96e3e8": {
+        "lane": "covenant_seed",
+        "stage": "author",
+        "turn": 3,
+        "duration_s": 60.39126532099908,
+        "words": 299,
+        "summary_characters": 547,
+        "response_sha256": "966ebfe63ed4914234b9ef05646bc0abf67d1412f5f0e609617de7eaa77dcddd",
+        "proxy_elapsed_s_excluding_queue": 60.386145
+      },
+      "c30aba99edbe4cd8a952767439ed90f1": {
+        "lane": "covenant_seed",
+        "stage": "author",
+        "turn": 4,
+        "duration_s": 71.84440572399762,
+        "words": 525,
+        "summary_characters": 757,
+        "response_sha256": "1ab34be92e3ad9ed08e83685d1a4bd8f5f862bb97e44489f8e9ca485ef4ffd04",
+        "proxy_elapsed_s_excluding_queue": 71.840902
+      },
+      "b63af1927b054078b765cc6e2795c65f": {
+        "lane": "breakwater_seed",
+        "stage": "author",
+        "turn": 1,
+        "duration_s": 16.961434941011248,
+        "words": 187,
+        "summary_characters": 92,
+        "response_sha256": "f10a71440caa0d4586d03db5f9e5d2fea34630a3f0e80498ee6f5eaab50fe06f",
+        "proxy_elapsed_s_excluding_queue": 16.957887
+      },
+      "6384f3dfb96e4cc180ff50725b2615ba": {
+        "lane": "breakwater_seed",
+        "stage": "author",
+        "turn": 2,
+        "duration_s": 62.79966313298792,
+        "words": 528,
+        "summary_characters": 607,
+        "response_sha256": "e6300d5e670c7a9a607132c2d35982780a97eda3eeef1be725ab561c8d085391",
+        "proxy_elapsed_s_excluding_queue": 62.796185
+      },
+      "35f72fc1f521409493b2d418198c8856": {
+        "lane": "breakwater_seed",
+        "stage": "author",
+        "turn": 3,
+        "duration_s": 97.02996346901637,
+        "words": 401,
+        "summary_characters": 1190,
+        "response_sha256": "f03bd31d73458292d6359b4c63ad15d31085b8f0f15782e9e36656c2c505618f",
+        "proxy_elapsed_s_excluding_queue": 97.026418
+      },
+      "0b403128be9748d09315377ccdf6a507": {
+        "lane": "breakwater_seed",
+        "stage": "author",
+        "turn": 4,
+        "duration_s": 96.05825656000525,
+        "words": 593,
+        "summary_characters": 842,
+        "response_sha256": "72a800a983203925350fa76928adb698858b6972ec6398708b6075c2f7b90310",
+        "proxy_elapsed_s_excluding_queue": 96.054931
+      },
+      "6462403a6d23452b9eed1a3c5f35b241": {
+        "lane": "covenant_A",
+        "stage": "checkup",
+        "turn": 5,
+        "duration_s": 140.4204664239951,
+        "words": 377,
+        "summary_characters": 1928,
+        "response_sha256": "d904446a53cee51f0a78dd4bfcc7b7e41ce7068ffce7e46e26522ab979f95633",
+        "proxy_elapsed_s_excluding_queue": 140.41559
+      },
+      "9d0d3826081a41759eac7c2b228324e2": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 5,
+        "duration_s": 130.74438305801596,
+        "words": 322,
+        "summary_characters": 1244,
+        "response_sha256": "a323171cbe4e3202c40df169976dd309775ae0de37946ae722fca1e01017a1c8",
+        "proxy_elapsed_s_excluding_queue": 102.988215
+      },
+      "2046fc46185a4747ac64d262f192c2ba": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 6,
+        "duration_s": 15.740550301998155,
+        "words": 65,
+        "summary_characters": 151,
+        "response_sha256": "d98a54fa8c8a5cc5bf5ca8c252da10efd6f6f1c21ef6ee69770aadf7089730b0",
+        "proxy_elapsed_s_excluding_queue": 14.115944
+      },
+      "d4f325b839f2423bb885dd78a2f11905": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 7,
+        "duration_s": 20.244666886981577,
+        "words": 78,
+        "summary_characters": 145,
+        "response_sha256": "6cda7850b1b320d00a177d8a3e60f4cfb6215f422637befe8b05dafb8a3d0379",
+        "proxy_elapsed_s_excluding_queue": 15.640342
+      },
+      "264e2a17207547c9baa176e26aebc166": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 8,
+        "duration_s": 62.69589584102505,
+        "words": 236,
+        "summary_characters": 665,
+        "response_sha256": "53ca21ae427ff117b8acbb7cadde68e52668857ad3ebb265d083b53442928b22",
+        "proxy_elapsed_s_excluding_queue": 55.780951
+      },
+      "89c17adf207b43a4a83e5842464b1052": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 9,
+        "duration_s": 33.86696823401144,
+        "words": 216,
+        "summary_characters": 244,
+        "response_sha256": "a38f117ae5c576f7fd3ef4407b54a1fe4f224fef9572b8c3cfc7a90a5f6c0f6e",
+        "proxy_elapsed_s_excluding_queue": 28.7392
+      },
+      "8e0f52b9dfe944799b19897cbf3f44cf": {
+        "lane": "covenant_A",
+        "stage": "checkup",
+        "turn": 10,
+        "duration_s": 175.8086240949924,
+        "words": 430,
+        "summary_characters": 2375,
+        "response_sha256": "898a608d73ff6ece65d5c3f1b1d9ba44e89764387a078784868eeda6ea2ce6c0",
+        "proxy_elapsed_s_excluding_queue": 163.434013
+      },
+      "b1a1468245574d75b45d90ed1d65ea9d": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 10,
+        "duration_s": 20.51453417399898,
+        "words": 146,
+        "summary_characters": 132,
+        "response_sha256": "4a090a9f4ec3b569449539850f128e96c436586560f77e9696cc653e501211f0",
+        "proxy_elapsed_s_excluding_queue": 15.408016
+      },
+      "0f6ab5b20c954075a167477f1645002b": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 11,
+        "duration_s": 53.96695279298001,
+        "words": 236,
+        "summary_characters": 546,
+        "response_sha256": "05f8b60e3a6eb404bfa6744d7893bdbd9ba5ac4e8804206289dd701ce0c423b1",
+        "proxy_elapsed_s_excluding_queue": 49.161786
+      },
+      "351fcf4fbcd04c419b7545adbe528b50": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 12,
+        "duration_s": 20.89596234099008,
+        "words": 82,
+        "summary_characters": 161,
+        "response_sha256": "fd49f94bc885b8252f7d32049097e5cf452487178bbd19c2fdd14b0ba1a0c9fa",
+        "proxy_elapsed_s_excluding_queue": 15.16088
+      },
+      "cc5762eb29704eb895939d3779edf585": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 13,
+        "duration_s": 68.54746994702145,
+        "words": 114,
+        "summary_characters": 236,
+        "response_sha256": "3b420d0acb3f8aa10f4f7bb899b01f07b5bb76b56d56134afa1dbacc8b5f4c8d",
+        "proxy_elapsed_s_excluding_queue": 32.687676
+      },
+      "c862569d8b244372916c5538d117b9fc": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 14,
+        "duration_s": 108.4521168510255,
+        "words": 299,
+        "summary_characters": 1435,
+        "response_sha256": "a5bd7bb7936247a0d8178e66eb0c26c3ebb21ab9a48fdba12791587d79f8ce7a",
+        "proxy_elapsed_s_excluding_queue": 108.448258
+      },
+      "786537a500544420b829774e6c778b70": {
+        "lane": "covenant_A",
+        "stage": "checkup",
+        "turn": 15,
+        "duration_s": 163.73203099900275,
+        "words": 528,
+        "summary_characters": 2306,
+        "response_sha256": "08ecf94ae0d898aabaab8b8e23d95b18c8db91ef19aeb6b474322a305cf0c631",
+        "proxy_elapsed_s_excluding_queue": 163.728053
+      },
+      "f2126490908f4856bcf8455cac0356c9": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 15,
+        "duration_s": 75.58225303600193,
+        "words": 416,
+        "summary_characters": 931,
+        "response_sha256": "1bc343e1957bd1f445a6054f3c376641963c26f6c728c5be0be684538729a0ce",
+        "proxy_elapsed_s_excluding_queue": 75.578581
+      },
+      "b07ce99484604b69a26e1fee0b7c3c5b": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 16,
+        "duration_s": 55.06196200699196,
+        "words": 201,
+        "summary_characters": 692,
+        "response_sha256": "e9063644b42dd420858fddedef585f5f35f8f01bb6dcfd47ea9cc37b6b3de9c6",
+        "proxy_elapsed_s_excluding_queue": 55.058428
+      },
+      "4a16c8b38fb0473780365e890d371701": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 17,
+        "duration_s": 100.75508822599659,
+        "words": 460,
+        "summary_characters": 1172,
+        "response_sha256": "c380df4b7af58b59e1c3a5fb77e7c68dbb87a2fe3e411079b4301a4e3fb64789",
+        "proxy_elapsed_s_excluding_queue": 100.751123
+      },
+      "3c09a28ccfd148008ba987cfa2497517": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 18,
+        "duration_s": 16.893154953984777,
+        "words": 150,
+        "summary_characters": 117,
+        "response_sha256": "e0030892fd9057e0d27d2186daf63b58a3282f27f3dd807c8eb1c9764b5414d3",
+        "proxy_elapsed_s_excluding_queue": 16.889719
+      },
+      "9fa6ee3da24c44beb8eaa561aeef6895": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 19,
+        "duration_s": 16.924946313985856,
+        "words": 91,
+        "summary_characters": 139,
+        "response_sha256": "f6ed76113a7c4981635ef0e11b6976a37e608abb1e4622d0f176bab81cdf4df5",
+        "proxy_elapsed_s_excluding_queue": 16.921306
+      },
+      "7bf7229661a24c8a902026ff43beb4e3": {
+        "lane": "covenant_A",
+        "stage": "checkup",
+        "turn": 20,
+        "duration_s": 150.62947678999626,
+        "words": 290,
+        "summary_characters": 2173,
+        "response_sha256": "bcd65db92a80a8d7b387ba25d9fa020036bb6cc9fdb9b16e4f4230281fd7b106",
+        "proxy_elapsed_s_excluding_queue": 150.625606
+      },
+      "71c47eee9f6846069e19390267e2d41a": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 20,
+        "duration_s": 16.8074098250072,
+        "words": 87,
+        "summary_characters": 137,
+        "response_sha256": "87c6808b8cb1d0552627c55bf922da63058b82d23352f1ee2e5df66695b7e864",
+        "proxy_elapsed_s_excluding_queue": 16.803907
+      },
+      "46241ac9b6b34514908215e5e9474cba": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 21,
+        "duration_s": 71.13378013399779,
+        "words": 137,
+        "summary_characters": 864,
+        "response_sha256": "fb32d916e6de011c9edc670f188ca01d7351d5152879abded238a298933be72d",
+        "proxy_elapsed_s_excluding_queue": 71.130079
+      },
+      "647b39321782401fbf442820bff69bfe": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 22,
+        "duration_s": 15.935723215021426,
+        "words": 104,
+        "summary_characters": 113,
+        "response_sha256": "54e3c84158055451ef0081439791123d3079b0c69e2519d108cb31371689b5c7",
+        "proxy_elapsed_s_excluding_queue": 15.931984
+      },
+      "c0f2189e176a43c198afb08232a51173": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 23,
+        "duration_s": 10.726473764021648,
+        "words": 70,
+        "summary_characters": 93,
+        "response_sha256": "cef3302d2d1d277b68a7996f3ea964ee446e48d18138bd5274f2fad418a91b58",
+        "proxy_elapsed_s_excluding_queue": 10.722533
+      },
+      "b480e684f7264aa690e4e8f7cf206697": {
+        "lane": "covenant_A",
+        "stage": "author",
+        "turn": 24,
+        "duration_s": 49.285415157006355,
+        "words": 264,
+        "summary_characters": 538,
+        "response_sha256": "52a413009a822126f62065845cfc040ac2d8cf4b2d4bc3f1f6eee27d53367bf8",
+        "proxy_elapsed_s_excluding_queue": 49.281681
+      },
+      "bf773dbc0f81445ea947e34a9f614e2b": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 5,
+        "duration_s": 20.63949200802017,
+        "words": 326,
+        "summary_characters": 122,
+        "response_sha256": "0d72a2cf7cd0f67c06da1da81c3941a973105fea0ddcf45c725c562874b1881d",
+        "proxy_elapsed_s_excluding_queue": 20.631497
+      },
+      "2c9d620a05ef41c4b6bcece65a86cb64": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 6,
+        "duration_s": 51.548443712992594,
+        "words": 103,
+        "summary_characters": 97,
+        "response_sha256": "fb34b2ed74ba754996806cacb706a1f42c9aae9fdaa81dfa4e3740a1af1e363e",
+        "proxy_elapsed_s_excluding_queue": 14.866253
+      },
+      "311057715f3c4fe1aa4543ff4e554c06": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 7,
+        "duration_s": 38.985189789993456,
+        "words": 133,
+        "summary_characters": 108,
+        "response_sha256": "bb93a9bc82a6bfd7c5676e494b355d0ea2304ba25fc091b7d39ef05396bffbb3",
+        "proxy_elapsed_s_excluding_queue": 17.624151
+      },
+      "ff4bc26d686d48fda719721ff1c828b0": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 8,
+        "duration_s": 109.79285758300102,
+        "words": 417,
+        "summary_characters": 1065,
+        "response_sha256": "ba9d9adc2ed1aed26909a6fac33d7e271cd25b210830e8c9c12a882c2c53fef4",
+        "proxy_elapsed_s_excluding_queue": 84.599466
+      },
+      "5f50d609807c4289960802e0d3269a6e": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 9,
+        "duration_s": 51.628274097980466,
+        "words": 182,
+        "summary_characters": 120,
+        "response_sha256": "f74f72bee4aec6870c2c99efc5e8c7d577cd66635354fce7d0faa8e29a5cbfe1",
+        "proxy_elapsed_s_excluding_queue": 18.656745
+      },
+      "3a3952661cb546bea971723b4ed65055": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 10,
+        "duration_s": 18.719535070005804,
+        "words": 130,
+        "summary_characters": 146,
+        "response_sha256": "1c0afa6335324e98aa18f107272c33c9a2dae5fd58a49299e96a368e5dfe3744",
+        "proxy_elapsed_s_excluding_queue": 15.677341
+      },
+      "cd667a79e9a54ff18e476b7c8a650fe3": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 11,
+        "duration_s": 22.549261831998592,
+        "words": 128,
+        "summary_characters": 142,
+        "response_sha256": "9d8c40c9519b58739bd10c0ff46948b870d42e1f93c952b0e0fbf09f4e6c64f0",
+        "proxy_elapsed_s_excluding_queue": 15.527039
+      },
+      "6a33d3dc7c714ea3b4b9e2add57b9126": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 12,
+        "duration_s": 19.532106091995956,
+        "words": 75,
+        "summary_characters": 125,
+        "response_sha256": "c0b324d11be2a0d4c66d0feecb5aebde7771141ef897ca91d6c9a761640deaa6",
+        "proxy_elapsed_s_excluding_queue": 14.993252
+      },
+      "193f59b62c394b189677a0b58676fa37": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 13,
+        "duration_s": 26.264555948000634,
+        "words": 149,
+        "summary_characters": 132,
+        "response_sha256": "7a1791bfb34fc8488b512e3483443cdaf913f9c0090c3f32f868372940731a71",
+        "proxy_elapsed_s_excluding_queue": 16.583051
+      },
+      "808dc4561dfb49ad90ef987ce45a35ea": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 14,
+        "duration_s": 40.08984427398536,
+        "words": 323,
+        "summary_characters": 286,
+        "response_sha256": "0e4d99ea76c66c0eb4cdfaf0521a1593abad3cb148926137b8346fc496825af5",
+        "proxy_elapsed_s_excluding_queue": 30.340265
+      },
+      "5ca03a7880e240fbb5b6cfe089f4d2fd": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 15,
+        "duration_s": 63.64916105699376,
+        "words": 449,
+        "summary_characters": 685,
+        "response_sha256": "1ce5252c23be616bb735b9b0806b74cf836a0c55d99fae5fb9d8afa1a0283a3b",
+        "proxy_elapsed_s_excluding_queue": 60.126279
+      },
+      "911898255fe2443183acc024331bcd3a": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 16,
+        "duration_s": 31.39241776498966,
+        "words": 213,
+        "summary_characters": 121,
+        "response_sha256": "8633820df3e2e12544f6f0bea96250d7ab7ded9b91bd749f4064ebbf8d19b6ba",
+        "proxy_elapsed_s_excluding_queue": 21.422391
+      },
+      "862d5dd9a27942a8a8adc1adca68ad78": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 17,
+        "duration_s": 38.17209099497995,
+        "words": 337,
+        "summary_characters": 134,
+        "response_sha256": "93584e1a43fc2f7e709ab9ae97226d916ed98fdbaa5a796338dc3a4da0806502",
+        "proxy_elapsed_s_excluding_queue": 20.814628
+      },
+      "104eeda47fbb407da0ecacd32d833f0b": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 18,
+        "duration_s": 39.58485129199107,
+        "words": 146,
+        "summary_characters": 126,
+        "response_sha256": "71774e38fdef6efd1a84ba70f32a1ec86e465acf4bac6b121ed3ab3a8d8f6877",
+        "proxy_elapsed_s_excluding_queue": 16.927894
+      },
+      "b680b2800cee4634bae5cc7799a5c3ca": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 19,
+        "duration_s": 53.30266614299035,
+        "words": 118,
+        "summary_characters": 644,
+        "response_sha256": "8101b06aa588e6ffd7f514297bb922b4f8c90552c7ddf84504660001b864667c",
+        "proxy_elapsed_s_excluding_queue": 47.000088
+      },
+      "6e25027e1bf54ca783e5b98c85aa9316": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 20,
+        "duration_s": 33.324373170005856,
+        "words": 158,
+        "summary_characters": 123,
+        "response_sha256": "f08beee3fa17a3e25dc0936a9496ea61ff400c9ac6da3d8eefbd34879df135ec",
+        "proxy_elapsed_s_excluding_queue": 17.061705
+      },
+      "16ab06225cc64971ae764d561edb97a3": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 21,
+        "duration_s": 89.06775652599754,
+        "words": 208,
+        "summary_characters": 988,
+        "response_sha256": "077859bea2e71d204a2b6ae08f02b207cb2b68648e03df8aefbabc343abcbce8",
+        "proxy_elapsed_s_excluding_queue": 78.47761
+      },
+      "51ddf43e45464983a5555a0310f23305": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 22,
+        "duration_s": 18.388133473985363,
+        "words": 134,
+        "summary_characters": 128,
+        "response_sha256": "619c5bb824f129556fb365b5164e869cb02e96e8a76d49c87bd64c2c802e7bd3",
+        "proxy_elapsed_s_excluding_queue": 18.384496
+      },
+      "64a1656879e94df996f89fd4fe7efffb": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 23,
+        "duration_s": 15.222718164004618,
+        "words": 103,
+        "summary_characters": 123,
+        "response_sha256": "f0f2ffe7f96737448a23e43ddd789243e2ef2f697c53fb6bab597423ccc12709",
+        "proxy_elapsed_s_excluding_queue": 15.218988
+      },
+      "e795587aa84f4ee0a286c94048faebeb": {
+        "lane": "covenant_B",
+        "stage": "author",
+        "turn": 24,
+        "duration_s": 20.815865226002643,
+        "words": 246,
+        "summary_characters": 129,
+        "response_sha256": "e8c9f22fea5be0f78a2342448ea54e376f972a0b5853bac3bbf6c30d60c65eac",
+        "proxy_elapsed_s_excluding_queue": 20.81207
+      },
+      "899f34ac614c42dc8ee0f6bbe39d0669": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 5,
+        "duration_s": 17.16431939098402,
+        "words": 139,
+        "summary_characters": 108,
+        "response_sha256": "611b21dfd78b3f9d984cd26bd50ba6b0565b38cb878616b5d2b830b2c58f539d",
+        "proxy_elapsed_s_excluding_queue": 17.160765
+      },
+      "8104a204ec4742409ca14e10a0b5cf74": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 6,
+        "duration_s": 40.14115307299653,
+        "words": 382,
+        "summary_characters": 309,
+        "response_sha256": "11404733435126438fdde2e0f5a4811189887f99de09ab580a43a6fce8c2a8f6",
+        "proxy_elapsed_s_excluding_queue": 36.752534
+      },
+      "61c70daeca924529ac3c354413ff8370": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 7,
+        "duration_s": 36.21041515801335,
+        "words": 179,
+        "summary_characters": 140,
+        "response_sha256": "0e2bc6474467606e59830dc1d0055cc88278a6670ab9317d5a51c8513d857bcc",
+        "proxy_elapsed_s_excluding_queue": 21.430005
+      },
+      "39df26cb82d346e1a9d525c2cc9eef78": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 8,
+        "duration_s": 42.812858958990546,
+        "words": 94,
+        "summary_characters": 244,
+        "response_sha256": "aa553ce1f5597be9e676681b9892061a89d240ba3fbf4d53d0b3df04da27bc5c",
+        "proxy_elapsed_s_excluding_queue": 25.266309
+      },
+      "01e780afa4f54956812d13914feb02df": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 9,
+        "duration_s": 31.534725242003333,
+        "words": 150,
+        "summary_characters": 280,
+        "response_sha256": "f947acb16532dd0651d51adec8b430baeecae7d1db819366ca3d5177315a3620",
+        "proxy_elapsed_s_excluding_queue": 27.798597
+      },
+      "0fb5be01735345d0a5cde184b8b1fb6a": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 10,
+        "duration_s": 28.087477330991533,
+        "words": 73,
+        "summary_characters": 137,
+        "response_sha256": "09765d8814464107c7c62a38fed46413d56ed03ace97742945202a6a08fdeb24",
+        "proxy_elapsed_s_excluding_queue": 15.883095
+      },
+      "d300d6e3e89e42219ed2bc0775252c99": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 11,
+        "duration_s": 57.77816687300219,
+        "words": 223,
+        "summary_characters": 327,
+        "response_sha256": "f5c1b09cf875df7e1cbd04a1ce5f40555a7971b5f94de6ebc28858a60428264e",
+        "proxy_elapsed_s_excluding_queue": 38.590321
+      },
+      "4e1793dbdbec4487be25a47aeef6c50b": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 12,
+        "duration_s": 32.29044993000571,
+        "words": 96,
+        "summary_characters": 136,
+        "response_sha256": "41d2686c1c195f07103069f9214bbddb577afa695897ca2d173ff8d1d10a8bd4",
+        "proxy_elapsed_s_excluding_queue": 15.40496
+      },
+      "306219e909bf4becb7cd7005a4f2004e": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 13,
+        "duration_s": 12.118033945007483,
+        "words": 61,
+        "summary_characters": 103,
+        "response_sha256": "317db133740fb347afc542eaa4cf028ca1084be6cabc19dda087c00e9b0a20e1",
+        "proxy_elapsed_s_excluding_queue": 11.783191
+      },
+      "efbfd4fbc68e4e309b7dfbb8ea3072ac": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 14,
+        "duration_s": 28.557662014005473,
+        "words": 321,
+        "summary_characters": 134,
+        "response_sha256": "982d1ba444fc1f0da577e93e6cbaf811c4b7ef7fb494bced6897f52493e21eee",
+        "proxy_elapsed_s_excluding_queue": 20.09684
+      },
+      "b68a3e2411934989adb6188b5566f216": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 15,
+        "duration_s": 23.82325798200327,
+        "words": 215,
+        "summary_characters": 134,
+        "response_sha256": "d769c83602455cded9b74f0be91dd09bd05e8693679c523d891a90254b4c67b5",
+        "proxy_elapsed_s_excluding_queue": 17.399041
+      },
+      "0b537ed292ba4095901ad205dab745b1": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 16,
+        "duration_s": 24.96744263698929,
+        "words": 110,
+        "summary_characters": 135,
+        "response_sha256": "72d4265b3f77f76ee3e660e1d191ae45eb5025ccf58b5167d01ab9bf9b74b29d",
+        "proxy_elapsed_s_excluding_queue": 16.098965
+      },
+      "bb2e77b6a10345b6af27e81093512b1c": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 17,
+        "duration_s": 40.04276264901273,
+        "words": 145,
+        "summary_characters": 118,
+        "response_sha256": "0ce1023b3a722d30e2fa4f968b4aeeab698c2f084f4300d405f8ac6b519f435d",
+        "proxy_elapsed_s_excluding_queue": 16.043686
+      },
+      "3eefbdb3b7b34820b2ffe3255d4d5a90": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 18,
+        "duration_s": 60.221659247996286,
+        "words": 100,
+        "summary_characters": 135,
+        "response_sha256": "9b35470e39290f089b48d1b9de732000e3ccfe801e7ac153d06827284b169bbf",
+        "proxy_elapsed_s_excluding_queue": 15.751672
+      },
+      "e2942cbc1113442b914d81b4f786bcaf": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 19,
+        "duration_s": 79.74883341198438,
+        "words": 224,
+        "summary_characters": 615,
+        "response_sha256": "c3a03621a4d82785b2b3654eb9d55ff874dc82d292d9e8687d94b28b1673463c",
+        "proxy_elapsed_s_excluding_queue": 60.973189
+      },
+      "473023147a4b47b2bee9742481d0e66b": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 20,
+        "duration_s": 32.866126758017344,
+        "words": 165,
+        "summary_characters": 127,
+        "response_sha256": "f9c1141eb4af6764728ccf0482490836a737e42dc2b91c51f8d6b1dba367d352",
+        "proxy_elapsed_s_excluding_queue": 16.007536
+      },
+      "d97b23345e0e48549cebc330064070a5": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 21,
+        "duration_s": 31.568103911005892,
+        "words": 230,
+        "summary_characters": 154,
+        "response_sha256": "6b49fee1bd91b002a392b47cda7ce3ccd5a350f031956c9a22f77e17c295c4cf",
+        "proxy_elapsed_s_excluding_queue": 20.707939
+      },
+      "7506c6deebfa4761a31326702e51d288": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 22,
+        "duration_s": 21.983188910991885,
+        "words": 90,
+        "summary_characters": 160,
+        "response_sha256": "5f22a81a4cd24785ba00239bae1e75d35f2f0cd840c3f4c73e721febe953c9db",
+        "proxy_elapsed_s_excluding_queue": 16.335017
+      },
+      "1ea5cfd29e424acc8ba708ce08cdf1f4": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 23,
+        "duration_s": 27.653102060983656,
+        "words": 94,
+        "summary_characters": 125,
+        "response_sha256": "277aad8f6264e866eb98ae2288b5369f8ded41f94e846b9bbf64ae6f6fc08c25",
+        "proxy_elapsed_s_excluding_queue": 16.462878
+      },
+      "cd4cbcd7051949ab8c0ff897d9cc60b3": {
+        "lane": "breakwater_A",
+        "stage": "author",
+        "turn": 24,
+        "duration_s": 41.10443334601587,
+        "words": 132,
+        "summary_characters": 414,
+        "response_sha256": "e0897f64518a013471e137f99c0b60dd73f1ca1374f55057a28b61aa0f3207c1",
+        "proxy_elapsed_s_excluding_queue": 36.680401
+      },
+      "ea24c32197b14485810238a2524355de": {
+        "lane": "breakwater_B",
+        "stage": "checkup",
+        "turn": 5,
+        "duration_s": 180.47285004000878,
+        "words": 385,
+        "summary_characters": 2448,
+        "response_sha256": "582a56febae1f8a2fb721bf272dfefac6dfd26c81693c50a8767d7ce94562254",
+        "proxy_elapsed_s_excluding_queue": 163.318257
+      },
+      "57d79c0bbf5749ecb26aff75e90259fc": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 5,
+        "duration_s": 35.10552770199138,
+        "words": 184,
+        "summary_characters": 130,
+        "response_sha256": "4955702ccf4e94b796819505417c3b87990dcb2cbed39422b52588c34bd4d593",
+        "proxy_elapsed_s_excluding_queue": 19.264821
+      },
+      "6221efd7740f4f708078df07414f32f3": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 6,
+        "duration_s": 60.2974679240142,
+        "words": 276,
+        "summary_characters": 625,
+        "response_sha256": "522503aba521697f94ac584d5d00949ced2d2894fd94b857d73024801fe5b312",
+        "proxy_elapsed_s_excluding_queue": 54.82306
+      },
+      "7e8974734e3c49838e43f91b62138f6b": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 7,
+        "duration_s": 42.8474304570118,
+        "words": 154,
+        "summary_characters": 347,
+        "response_sha256": "264599c0c5aa0a97ed212ad3eaa9bbcf64f8e0f0a454606f87727f3bc19ff0fb",
+        "proxy_elapsed_s_excluding_queue": 32.340476
+      },
+      "97645992d235431cb1a9d91bc97da53c": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 8,
+        "duration_s": 24.670818976999726,
+        "words": 132,
+        "summary_characters": 128,
+        "response_sha256": "47edfa4f427eda6af9f03fb790a50de9ddb75017165bb48135fba1cd41d357fe",
+        "proxy_elapsed_s_excluding_queue": 16.255498
+      },
+      "e4c423e41f3945419ec8f4602271426e": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 9,
+        "duration_s": 31.548336978972657,
+        "words": 78,
+        "summary_characters": 224,
+        "response_sha256": "5ed9680febe629cff6a1ef7284933dd0be802b548514c4a070ea63dac6101ec3",
+        "proxy_elapsed_s_excluding_queue": 23.967151
+      },
+      "1adc0ff6dcee4561a95a82c313f3e965": {
+        "lane": "breakwater_B",
+        "stage": "checkup",
+        "turn": 10,
+        "duration_s": 85.66206407698337,
+        "words": 294,
+        "summary_characters": 1213,
+        "response_sha256": "f1cc64b16e763234ef7e4f659a1cb4169a037888411d7f665834deb76a0bc67a",
+        "proxy_elapsed_s_excluding_queue": 84.66814
+      },
+      "08bc1f14b5c748c38fe5352d45f542bd": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 10,
+        "duration_s": 13.134444608993363,
+        "words": 34,
+        "summary_characters": 82,
+        "response_sha256": "78b5d1839bd45f129e4206819b53fc17d3b48da4151f6f134a608b9324ebb98a",
+        "proxy_elapsed_s_excluding_queue": 10.042381
+      },
+      "3393bc1b58354f1aa7bd1a36ad5dc01e": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 11,
+        "duration_s": 38.78491155599477,
+        "words": 138,
+        "summary_characters": 152,
+        "response_sha256": "0d80d75401c301fb22f3a926e17341b705962f64776b41864c411f9d0d2db37e",
+        "proxy_elapsed_s_excluding_queue": 36.276661
+      },
+      "23d6303c6e5f49c1b4cd99a14f3224c9": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 12,
+        "duration_s": 71.93417172500631,
+        "words": 144,
+        "summary_characters": 615,
+        "response_sha256": "d82c24980a2aa0484013ea88351d3785a308e100e142582bb13878491fdb2e85",
+        "proxy_elapsed_s_excluding_queue": 51.184259
+      },
+      "bcd3cb7a2e2c44428e7359a324c5b890": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 13,
+        "duration_s": 20.2129742759862,
+        "words": 82,
+        "summary_characters": 130,
+        "response_sha256": "d71f270f18ff197b671498eec90cc622256beebe65c02b457de4159f2d9a4c20",
+        "proxy_elapsed_s_excluding_queue": 15.797672
+      },
+      "a2249756bb3c4578b7eb586cb5a7fd27": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 14,
+        "duration_s": 105.9885552279884,
+        "words": 409,
+        "summary_characters": 1137,
+        "response_sha256": "14b8142212a332630f8303618344e2d522db5064c1979e6294c1760f4540fe7f",
+        "proxy_elapsed_s_excluding_queue": 90.226521
+      },
+      "a226347f5bc146cbbbbfcfafb356c0de": {
+        "lane": "breakwater_B",
+        "stage": "checkup",
+        "turn": 15,
+        "duration_s": 118.04787591198692,
+        "words": 392,
+        "summary_characters": 1679,
+        "response_sha256": "7155284fb3e37975d1feada5a6f781df0e7b7d249c5793a6f5661d7cc80d1223",
+        "proxy_elapsed_s_excluding_queue": 117.372156
+      },
+      "ce11fa9e3c524178a5681b7fe294c7b4": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 15,
+        "duration_s": 47.83113226300338,
+        "words": 314,
+        "summary_characters": 604,
+        "response_sha256": "23710ccfc761b23ece07e8232ea6c3c0cf39eddc3a783ee851164f7543b3f038",
+        "proxy_elapsed_s_excluding_queue": 47.827264
+      },
+      "38b1c92d2c61445ea3ce1376786ecf82": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 16,
+        "duration_s": 14.621960781980306,
+        "words": 102,
+        "summary_characters": 135,
+        "response_sha256": "dd6f8a7cb181f9165a5e65c5c85bd0d08038279895756ff090cf60092db597d3",
+        "proxy_elapsed_s_excluding_queue": 14.618129
+      },
+      "d6eb543ba4824e4b993f02035890b516": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 17,
+        "duration_s": 41.815933674020926,
+        "words": 226,
+        "summary_characters": 494,
+        "response_sha256": "3287ab0bfb5b88f17acde2813778bbf7a030db01325b2e337b0e241157c02136",
+        "proxy_elapsed_s_excluding_queue": 41.81222
+      },
+      "0df4753fc63949699c988e55c5f10a1b": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 18,
+        "duration_s": 15.118462298007216,
+        "words": 101,
+        "summary_characters": 130,
+        "response_sha256": "bd05034e5c7b33b073664dd6a788cae3ec9c1722fff6eaa3d1c72d47f333a4ef",
+        "proxy_elapsed_s_excluding_queue": 15.114848
+      },
+      "72426444d7154717b52f770b9be35ba0": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 19,
+        "duration_s": 67.54237243099487,
+        "words": 361,
+        "summary_characters": 757,
+        "response_sha256": "0c2bf0131a18135d7f96c036062ae0b79930bd9ac5396a1e0f4cf0c48814a51d",
+        "proxy_elapsed_s_excluding_queue": 67.537666
+      },
+      "e1110e5c6fad48b2b8313a5a419bed45": {
+        "lane": "breakwater_B",
+        "stage": "checkup",
+        "turn": 20,
+        "duration_s": 48.43276359999436,
+        "words": 296,
+        "summary_characters": 538,
+        "response_sha256": "b1449a4ee9977bed387286219ffa5ae44b4d2d2d8839e8cdb5178be3af9173d4",
+        "proxy_elapsed_s_excluding_queue": 48.428936
+      },
+      "0392103266c9494a9e4031881d695684": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 20,
+        "duration_s": 15.165790630009724,
+        "words": 94,
+        "summary_characters": 145,
+        "response_sha256": "118ffb1ff3b375357f8d3b20c646c4ebb6706bfa6ea3a9bfed22c957cddd8475",
+        "proxy_elapsed_s_excluding_queue": 15.161762
+      },
+      "1208432e9e004e4681863e2ccf4433ed": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 21,
+        "duration_s": 37.407116731017595,
+        "words": 262,
+        "summary_characters": 446,
+        "response_sha256": "81569fbbaad70160020b9b525188a572dba8b19aab5446e06da616af403d9f79",
+        "proxy_elapsed_s_excluding_queue": 37.403514
+      },
+      "457617ee49e542fc9167e5a52a269e30": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 22,
+        "duration_s": 15.257358394999756,
+        "words": 98,
+        "summary_characters": 130,
+        "response_sha256": "7fc525b791f275fd54a3301e67835fbbb5a8ec281a77a9a5620c239b15c6f3a0",
+        "proxy_elapsed_s_excluding_queue": 15.253922
+      },
+      "09e40a38fabc4fb7b2ce2a34cd304ce9": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 23,
+        "duration_s": 14.38796659099171,
+        "words": 76,
+        "summary_characters": 131,
+        "response_sha256": "715cb666e41951ef6494a75a086fc4dd4d698bab2138ee54b9496e37793cc2ac",
+        "proxy_elapsed_s_excluding_queue": 14.384108
+      },
+      "e9cf0f567a724499ac7bd7e5f7135cd0": {
+        "lane": "breakwater_B",
+        "stage": "author",
+        "turn": 24,
+        "duration_s": 15.267560948996106,
+        "words": 129,
+        "summary_characters": 129,
+        "response_sha256": "3844269a675522244528a5ae16cd04670283f61bf1030bccd649f3cdb21c35c5",
+        "proxy_elapsed_s_excluding_queue": 15.263847
+      }
+    }
+  }
+}
