@@ -21,7 +21,7 @@ python3 -m venv .venv
 .venv/bin/python -m narrative chat
 ```
 
-The default chat runs **Terra coding agents automatically**, using your existing
+The default chat runs **Sol coding agents automatically**, using your existing
 Codex CLI login. Install a current Codex CLI and run `codex login` first if needed;
 this integration is verified with version 0.154.0. Each turn gets a fresh author
 call at `max` reasoning. Every fifth player message first gets a separate checkup
@@ -158,7 +158,7 @@ context and player input intact. No session conversion is needed. Without
 `--auto`, terminal proxy commands retain the manual workflow below.
 
 The turn command returns a request id and paths to exact JSON and readable text
-requests. Give the complete text request to a fresh Terra coding agent at maximum
+requests. Give the complete text request to a fresh Sol coding agent at maximum
 reasoning effort. Save its complete response to a UTF-8 file, then accept it:
 
 ```bash

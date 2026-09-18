@@ -345,3 +345,70 @@ supplies much of the direction and unusually explicit quiet boundaries. It does
 not establish hundred-turn coherence or an advantage over character-agent systems.
 Further correction-precision work is tracked in `ayoa-7gn7`; natural rhyme remains
 in `ayoa-3gtc`.
+
+## Sol with continued agent conversations
+
+The [Sol rerun](https://github.com/dan-garvey/ayoa/tree/78caed4e7fe50523097452dc95a30d6ed7c82d6a/backstage_sol_20260918)
+repeats the same two 24-turn story pairs with frozen full biographies, prompts and
+player inputs. All 88 unique author outputs and eight checkups use Sol/max with
+detailed exposed summaries. One long-lived Codex app-server process hosts the
+entire experiment. Each branch continues a native agent conversation, using that
+same agent for its checkups and subsequent narration. Each pair forks after four
+common passages; later requests send only the new input/task. All first outputs
+are preserved, with no regenerated samples or editor pass.
+
+The [prose assessment](https://github.com/dan-garvey/ayoa/blob/78caed4e7fe50523097452dc95a30d6ed7c82d6a/backstage_sol_20260918/PROSE_REVIEW.md)
+was hash-frozen before opening the conditions or checkup notes. It preferred the
+author-only branch in both stories: Covenant narrowly, Breakwater more clearly.
+Timing could reveal conditions, so the masking is partial. Both Covenant branches
+deliver coherent, contested duels and complete earlier commitments. The control
+offers more enjoyable shared reading/music, while the checkup branch is quieter
+and provides a good practical curriculum. Breakwater's control gives Owen a more
+visible personal arc, uses his drawing interest, develops Bea's reasons to care
+about reopening, and follows a kitchen dispute through to a funded arrangement.
+The enabled branch also completes independent work and respects privacy, but
+more often becomes a procedural account of obligations.
+
+Quiet endpoints, both private-thought probes, refusal of extra shifts and access
+restrictions generally hold in all arms. Those shared successes cannot establish
+a checkup effect. Quips remain frequent, and narration repeatedly announces that
+nobody is making the protagonist intervene or justify a refusal. All four
+Breakwater checkups identify that editorial narration, yet it persists. Covenant's
+enabled T22 also contains an unattributed prose retort that naturally reads as
+Seraphel speaking; if another speaker was intended, the attribution is unclear.
+The control has strained verse and a renewed invitation, so neither branch is a
+strict improvement in every scene.
+
+The [eight-checkup review](https://github.com/dan-garvey/ayoa/blob/78caed4e7fe50523097452dc95a30d6ed7c82d6a/backstage_sol_20260918/CHECKUP_REVIEW.md)
+finds useful book-location repair, conditional planning and distinctions between
+unconfirmed cooperation and refusal. The earlier mistaken printer-deadline
+correction does not recur. The final Breakwater review explicitly allows a
+compatible new four-o'clock finish, improving on the earlier prohibition against
+inventing it. However, two warnings misclassify compatible additions as faults:
+a visitor bringing another card case and a shared schedule alongside the paper
+diary. An objection to companionable silence also overstates the evidence for
+unearned intimacy. Review accuracy and actual narrative benefit remain separate.
+
+Median dispatch-to-completion time is 60.8 seconds for authors and 78.1 seconds
+for checkups, excluding queue time. Checkup notes span 450–568 words. All 96 calls
+returned exposed summaries. Actual incremental requests total 90,034 characters,
+versus 5,734,762 characters in the canonical full-context projections saved for
+reference. Reported model input is 5,037,104 tokens, including 4,550,656 cached
+tokens (90.34%). Smaller wrapper requests do not establish billed-token savings.
+
+Continuing conversations retain earlier checkup tasks and notes, whereas the
+production fresh-call projection includes only the latest notes. Native assistant
+roles differ too. This rerun changes model and execution setup relative to Terra;
+it is not a clean model-only comparison. Two partially masked pairs and a fixed,
+often passive script do not establish a general quality effect or long-term
+architectural conclusion.
+
+Exact canonical/wire request reconstruction, native fork inheritance, same-thread
+author/checkup execution, all 96 request/response records, frozen-source hashes and
+original live-session byte checks passed. New sessions now default to Sol/max;
+the restarted chat keeps existing stories' frozen configurations. Production
+prompts and checkup cadence are unchanged. The default change passed 94 runtime
+and 20 browser tests; the persistent experiment transport passed two offline
+tests and its helpers passed Ruff. Follow-up `ayoa-9bay` targets intrusive
+compliance narration; correction precision and natural rhyme remain in
+`ayoa-7gn7` and `ayoa-3gtc`.
