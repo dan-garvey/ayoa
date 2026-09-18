@@ -279,7 +279,7 @@ author mention an NPC's reservation without leaking another NPC's private plan.
 Both reviews miss a smaller elapsed-time discrepancy; polished quips remain in
 the prose. The [complete review](https://github.com/dan-garvey/ayoa/blob/26d6da690632c05b7c4f0f6cb7eab2e8940f92c9/backstage_checkups_20260917/review.md)
 records these limitations. A checkup can introduce mistaken advice as well as
-catch drift; longer controlled evaluation remains open in `ayoa-h5s0`.
+catch drift; the longer controlled evaluation below follows up `ayoa-h5s0`.
 
 Every new request was reconstructed from its frozen sources, active history and
 latest notes. All first outputs were retained. All 94 non-browser and 20 Chromium
@@ -292,3 +292,56 @@ up before an explicit format-3 conversion. Their prose, player inputs, identitie
 response versions and raw attempts were preserved. No checkups were backfilled.
 The current 22-passage Covenant story's first due checkup is message 25. The
 restarted chat retains its existing localhost and private-LAN addresses.
+
+## Longer evaluation of repeated checkups
+
+The [96-call evaluation](https://github.com/dan-garvey/ayoa/tree/84de4738e8e71c04e11b7a6a60caf661befac590/backstage_long_20260918)
+ran Covenant and Breakwater to 24 turns each with checkups every five messages
+and disabled. Each pair shares four generated opening passages, then receives
+twenty identical player inputs. Four checkups occur in each enabled arm, before
+T5, T10, T15 and T20. All 88 unique author outputs and eight checkups were retained,
+using fresh Terra/max coding proxies with detailed summaries. Full biographies,
+prompts and runtime `661b41c` remained frozen; there were no retries, editor calls
+or direct API calls.
+
+The [prose assessment](https://github.com/dan-garvey/ayoa/blob/84de4738e8e71c04e11b7a6a60caf661befac590/backstage_long_20260918/prose_review.md)
+was recorded and hash-frozen before opening the condition mapping or private notes.
+It narrowly preferred Covenant with checkups and Breakwater without them, with
+substantial counterexamples. Timing could suggest treatment, so this was only
+partially blinded. All four continuations preserved the deliberately private
+thoughts, access restrictions and explicit quiet/refusal boundaries. Both arms
+already had the newer closure wording; these shared successes cannot be credited
+to checkups.
+
+Covenant's guidance plausibly helped the Dena exchange and explicit adviser/placement.
+Its duel was stronger, but orientation still drew multiple residents into comments
+about the protagonist. In Breakwater, the control developed Owen's private
+conversation into a later cover arrangement. The enabled arm repeatedly mentioned
+that pressure in its notes without visibly progressing it; its Bea lunch was a
+good counterexample with specific personal texture. The
+[full review](https://github.com/dan-garvey/ayoa/blob/84de4738e8e71c04e11b7a6a60caf661befac590/backstage_long_20260918/review.md)
+does not find a reliable overall narrative-quality improvement.
+
+The [eight-checkup audit](https://github.com/dan-garvey/ayoa/blob/84de4738e8e71c04e11b7a6a60caf661befac590/backstage_long_20260918/checkup_review.md)
+finds real catches: weak rhyme, repeated departures, misplaced narration and board
+staging. The earlier Friday/Monday false conflict does not recur. However, three
+successive checkups reject the published printer request for Rosa's Wednesday
+layout even though it is consistent with her canonical plan. Another note forbids
+inventing a compatible shift-ending time. These confuse unspecified history with
+inconsistent history. Only keeping the latest note does not prevent old mistaken
+advice from being renewed. Four rhyme reminders also fail to prevent Seraphel's
+later unpaired prose reply; the control has its own genuine-end-rhyme failure.
+
+Checkup outputs span 290–528 words. Median dispatch-to-receive time was 145.5 seconds
+for checkups and 20.7 seconds for authors, excluding concurrency-queue waiting.
+Due turns wait for the checkup before the author, so this adds a substantial pause
+in the coding-proxy setup. These are not API billing or latency estimates.
+
+Exact request/publication reconstruction, all call events, cadence, frozen-source
+hashes and original live-session byte checks passed. All 96 calls returned exposed
+summaries; evaluation helpers pass Ruff. Production prompts, settings and the live
+server were unchanged. This is two paired trajectories, with a fixed script that
+supplies much of the direction and unusually explicit quiet boundaries. It does
+not establish hundred-turn coherence or an advantage over character-agent systems.
+Further correction-precision work is tracked in `ayoa-7gn7`; natural rhyme remains
+in `ayoa-3gtc`.
