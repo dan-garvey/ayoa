@@ -1,0 +1,39 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You wait until Nell finishes the telephone call.\n\n“Just so it’s clear, I’m not available for additional front-of-house shifts. I want to keep the hours outside my archive contract for myself.”\n\n“Understood,” Nell says. “You’re not on this rota. Your contract is for the archive.”\n\nShe turns back to the front-of-house names on her desk, and you go upstairs to begin the programme box.",
+  "reasoning_summaries": [
+    "**Planning FOH shift boundary response**",
+    "**Drafting clear FOH boundary dialogue**",
+    "**Refining FOH availability response**"
+  ],
+  "thread_id": "01a0b620-8072-7e13-8a39-b5797f1ec22f",
+  "turn_id": "01a0b635-27a4-7763-ba9c-b76a1098e049",
+  "usage": {
+    "total": {
+      "totalTokens": 1229065,
+      "inputTokens": 1166639,
+      "cachedInputTokens": 847488,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 62426,
+      "reasoningOutputTokens": 52341
+    },
+    "last": {
+      "totalTokens": 78229,
+      "inputTokens": 77585,
+      "cachedInputTokens": 73344,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 644,
+      "reasoningOutputTokens": 553
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 16.26346416497836,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

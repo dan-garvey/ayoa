@@ -1,0 +1,55 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, Nell is in the office with the staff rota spread across her desk. The paper diary lies open beside it.\n\nYou ask what she wants you to catalogue next and whether there are any practical changes you need to know about.\n\n“Same hours as yesterday,” she says. “Finish the programme box you started, then take the box labelled **PROGRAMMES — 1987–1990**. Make the box-level record first. If you find letters, invoices or photographs mixed into the programmes, leave them where they are and flag them rather than creating a new arrangement.”\n\nThe unsigned inventory remains unresolved. Nell has checked the office files but has not found the missing attachment.\n\n“Keep its ownership marked unconfirmed. Sam may have another copy with the grant records, but he’s away this week. We wait for evidence.”\n\nShe turns the diary so you can see today’s building note.\n\n“An engineer is testing the fire alarm at eleven. I’ll warn you immediately beforehand, then the sounders should run twice. If the alarm goes on beyond the test or sounds at any other time, come straight out.”\n\nNothing has changed with the archive access: your workroom key remains with you, while the loan-cupboard key stays in the office.\n\n“Dev and Hana completed the receiver test last night,” Nell adds. “They’ve signed off the auditorium coverage, so there’s no follow-up in your workspace.”\n\nShe closes the diary and returns to the rota. Your next programme box is waiting on its marked shelf upstairs.",
+  "reasoning_summaries": [
+    "**Assessing hearing-assistance test outcomes**",
+    "**Confirming archive attachment and schedule**",
+    "**Confirming no practical archive changes**",
+    "**Confirming no room changes**",
+    "**Planning archive box tasks**",
+    "**Clarifying program box provenance**",
+    "**Linking missing attachment to schedule**",
+    "**Clarifying staff availability and access details**",
+    "**Confirming successful system test and adjustments**",
+    "**Clarifying Nell's shift and next tasks**",
+    "**Planning fire alarm test integration**",
+    "**Finalizing alarm test dialogue details**",
+    "**Clarifying narrative flow and timing**",
+    "**Refining character dialogue and task details**",
+    "**Incorporating shift and alarm test details**"
+  ],
+  "thread_id": "01a0b620-889f-7a31-8da7-a4d3f78911c8",
+  "turn_id": "01a0b632-4e47-74d1-a3cd-f2afa015a4e5",
+  "usage": {
+    "total": {
+      "totalTokens": 1152949,
+      "inputTokens": 1090746,
+      "cachedInputTokens": 912640,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 62203,
+      "reasoningOutputTokens": 51968
+    },
+    "last": {
+      "totalTokens": 77710,
+      "inputTokens": 74767,
+      "cachedInputTokens": 71680,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2943,
+      "reasoningOutputTokens": 2629
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 74.69211550895125,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

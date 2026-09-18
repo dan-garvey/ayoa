@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I let the conversation finish and go back to the catalogue. I work until the end of my agreed shift.
+</user>

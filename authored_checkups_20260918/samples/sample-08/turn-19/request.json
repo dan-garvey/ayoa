@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b620-8a35-70f3-b3ca-670d5df6c88e",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\n<backstage_guidance>\nThe induction is finished. Recent passages keep proving that the loan cupboard is locked, permissions are observed, and nobody is imposing on Rowan. Those facts are already secure. Maintain them as background; spend words on them again only when something changes or they affect a present choice. The narrator should describe what happens, without explaining how it respects Rowan's boundaries or what an absent demand means.\n\nWork can remain work. Select details for their particular interest and what they let us experience, rather than recording every safe handling step. A requested time skip should reach its endpoint; a live exchange should leave room for a reply. Do not compensate for a quiet morning by arranging a compulsory encounter or a new problem.\n\nThe early supper gave nearly everyone polished rejoinders; the induction then made Nell an instruction manual. Let speech follow the speaker's immediate purpose and relationship with the listener. Plain answers, unfinished exchanges, particular pleasures and unreturned jokes can carry distinct voices. Do not explain the psychology afterwards. A refusal can be accepted without making its acceptance a speech.\n\nThere is no need to repair compatible invented details or recite these corrections in the fiction. Keep the established knowledge boundaries, ownership of player choices and real consequences.\n</backstage_guidance>\n\nReturn the next passage of fiction.\n\nAt lunch, if Bea is present, I ask what she enjoys about having the cinema open again. If she is not here, I eat with whoever is around.\n</user>\n"
+    }
+  ]
+}

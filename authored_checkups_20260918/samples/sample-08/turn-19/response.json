@@ -1,0 +1,60 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At half past twelve, you go down to the foyer with your lunch. Bea is not there. Nell sits at one of the cafe tables with a sandwich, and Jo has brought over black coffee and a slice of last night’s pie. Supplier price sheets lie folded beside her calculator.\n\nYou join them and eat.\n\n“Hana can do seven tonight,” Nell says. “Dev confirmed before noon, so the auditorium’s booked.”\n\nJo nods. “I won’t be here by then.”\n\nFor a while, the conversation stays with Jo’s menu. She has recalculated the pie twice after a supplier changed the pack size of the cheese.\n\n“Eight portions works,” she says. “Any more and it looks mean. Any fewer and I’d have to charge nearly five pounds.”\n\nNell considers the slice on Jo’s plate. “Eight looks right.”\n\n“That’s what I’ve written.”\n\nThe rain thins against the front windows. Jo watches a pale patch open over the harbour.\n\n“If that clears tonight, I might take the telescope out past the headland. It hasn’t had a proper run since Dev fixed the tracking motor.”\n\n“Fran off?”\n\n“Late shift. I’ll go on my own if I’m still awake.”\n\nShe finishes her coffee before unfolding the supplier sheets again. Nell carries her plate back towards the office, and you finish lunch at the table while brighter light moves slowly across the stacked opening programmes.",
+  "reasoning_summaries": [
+    "**Assessing lunch attendance possibilities**",
+    "**Evaluating lunch attendee scenarios**",
+    "**Deciding against including Bea at lunch**",
+    "**Assessing character routines and settings**",
+    "**Refining lunch scene and character dialogue**",
+    "**Planning lunch dialogue with subtle interaction**",
+    "**Planning lunch scene progression**",
+    "**Refining lunch dialogue and actions**",
+    "**Planning post-lunch scene transition**",
+    "**Confirming Jo's presence in kitchen**",
+    "**Planning interaction and deadline check**",
+    "**Resolving conditional deadline past noon**",
+    "**Incorporating natural lunch conversation**",
+    "**Planning event confirmations and updates**",
+    "**Deciding subtle event timing details**",
+    "**Confirming auditorium booking**",
+    "**Planning dialogue with astronomy detail**",
+    "**Incorporating North Head telescope scene**",
+    "**Planning conversational scene details**"
+  ],
+  "thread_id": "01a0b620-8a35-70f3-b3ca-670d5df6c88e",
+  "turn_id": "01a0b623-b389-77f1-a20d-d69bba320d68",
+  "usage": {
+    "total": {
+      "totalTokens": 999671,
+      "inputTokens": 944421,
+      "cachedInputTokens": 774144,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 55250,
+      "reasoningOutputTokens": 45832
+    },
+    "last": {
+      "totalTokens": 70798,
+      "inputTokens": 67290,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3508,
+      "reasoningOutputTokens": 3217
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 118.65161561802961,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

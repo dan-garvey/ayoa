@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I say I am not available for additional front-of-house shifts; I want to keep the hours outside my archive contract for myself.
+</user>

@@ -1,0 +1,61 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At eleven, you leave the programme box at a stopping point and go downstairs.\n\nOwen is at one of the cafe tables with a mug of tea. A screwdriver and two lengths of metal leaflet rail lie on the counter nearby, but he has put the work aside for his break.\n\nYou take a seat and ask, “How’s your week going?”\n\n“Better than it looked on Monday.” He turns the mug between his hands. “I’ve got an interview tomorrow. Permanent exhibition technician at a museum inland. I replied this morning and Nell’s moved my shift, so I can actually get there.”\n\nHe takes a drink.\n\n“I told Dad earlier. He offered to drive me before I’d finished giving him the address. Then he looked up the museum car park while we were still on the phone.”\n\nOwen sets the mug down. “It’s only an interview. Still, it’s proper work if it gets that far.”\n\nHe glances towards the staff staircase. “How’s the archive going?”",
+  "reasoning_summaries": [
+    "**Planning Owen's Wednesday presence**",
+    "**Scheduling Owen during midday break**",
+    "**Detailing Owen's break conversation**",
+    "**Contemplating interview disclosure strategy**",
+    "**Drafting a nuanced interview update response**",
+    "**Formulating non-disclosing casual reply**",
+    "**Evaluating natural dialogue options**",
+    "**Deciding Owen's Wednesday presence**",
+    "**Staging Owen’s foyer break scene**",
+    "**Observing leaflet rails fitting issue**",
+    "**Evaluating character dialogue plausibility**",
+    "**Confirming interview acceptance timing**",
+    "**Noting narrative confidentiality nuances**",
+    "**Designing nuanced player secrecy choices**",
+    "**Finalizing offscreen disclosure details**",
+    "**Refining character dialogue details**",
+    "**Clarifying Owen's interview update**",
+    "**Adjusting scene details for cafe break**",
+    "**Finalizing conversational details**",
+    "**Assessing Martin's supportive reaction**"
+  ],
+  "thread_id": "01a0b620-8072-7e13-8a39-b5797f1ec22f",
+  "turn_id": "01a0b636-9184-7a91-acfb-2a53f31cff59",
+  "usage": {
+    "total": {
+      "totalTokens": 1310851,
+      "inputTokens": 1244917,
+      "cachedInputTokens": 924928,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 65934,
+      "reasoningOutputTokens": 55641
+    },
+    "last": {
+      "totalTokens": 81786,
+      "inputTokens": 78278,
+      "cachedInputTokens": 77440,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3508,
+      "reasoningOutputTokens": 3300
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 81.6502208369784,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, Nell is on the telephone when you reach the office. The paper rota lies open beside her, crowded with arrows and amended hours.\n\n“No, warm white,” she says into the receiver. “The other seven lamps are warm white. Martin was right about the colour.”\n\nShe listens, writes **10.30** on an envelope and ends the call.\n\nYou ask what she wants you to catalogue next and whether there are any practical changes you need to know about.\n\n“Finish yesterday’s programme box first. After that, start the two booking ledgers on shelf B. They’re listed in the signed transfer schedule, so ownership is clear. Make one record for the pair before you decide whether they need separate descriptions.”\n\nNell takes a copied page from beneath the rota.\n\n“I found the missing annex for two of your yellow-tray notes. This establishes that those files transferred to the trust. The third one stays unconfirmed; leave it exactly where it is for now.”\n\nShe hands you the annex, marked with the corresponding catalogue references.\n\n“The sign contractor is coming at half ten to replace the odd lamp. The front doors will be closed while the ladder is up, so use the side entrance if you go out. It shouldn’t affect the archive power.”\n\nFrom the foyer, the restored sign is visible in reverse through the upper glass. One tube is noticeably whiter than its neighbours even in daylight.\n\n“I’ll be downstairs all morning,” Nell says. “I have to finish the opening-weekend rota by lunch, but bring me anything that can’t wait.”\n\nYou take the annex and go upstairs to begin the day’s assigned work.",
+  "reasoning_summaries": [
+    "**Planning time skip to Wednesday morning**",
+    "**Confirming Tuesday test completion and archive status**",
+    "**Planning next archive cataloging tasks**",
+    "**Confirming no practical changes**",
+    "**Clarifying schedule and access details**",
+    "**Reviewing final conversation details**",
+    "**Confirming sign lamp color difference**",
+    "**Deciding sign and receiver test outcomes**",
+    "**Tracking NPC schedule and interview status**",
+    "**Planning scene with Nell and Owen**",
+    "**Outlining Rowan's tasks with Nell**",
+    "**Assigning archival materials for processing**",
+    "**Noticing brief power outage risk**",
+    "**Clarifying sign repair impact on access**",
+    "**Confirming front door closure and test completion**",
+    "**Deciding test timing and character actions**",
+    "**Planning subtle character interactions**",
+    "**Assigning archival tasks to Nell**",
+    "**Observing shift adjustments and sign coordination**",
+    "**Detailing archival assignment and priorities**",
+    "**Confirming annex ownership and planning next assignment**",
+    "**Finalizing contractor access and scheduling details**",
+    "**Preparing next task dialogue and summary**"
+  ],
+  "thread_id": "01a0b620-8225-7d82-96e7-4fd65487b0f2",
+  "turn_id": "01a0b630-1075-72c1-8ada-5a62fe10ff72",
+  "usage": {
+    "total": {
+      "totalTokens": 1151489,
+      "inputTokens": 1089285,
+      "cachedInputTokens": 780032,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 62204,
+      "reasoningOutputTokens": 51941
+    },
+    "last": {
+      "totalTokens": 77959,
+      "inputTokens": 73564,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4395,
+      "reasoningOutputTokens": 4059
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 102.71139310899889,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

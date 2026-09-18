@@ -1,0 +1,42 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’m not available for additional front-of-house shifts,” you say. “I want to keep the hours outside my archive contract for myself.”\n\nNell’s pencil pauses above the rota.\n\n“Understood. Your name isn’t on this, and I won’t add it. You’re here for thirty hours of archive work.”\n\nShe returns to the staff columns without crossing out or changing anything. The shelf list for your next archive box remains open beside the rota.",
+  "reasoning_summaries": [
+    "**Crafting dialogue for Nell's roster response**",
+    "**Refining Nell and Rowan dialogue on rota limits**",
+    "**Confirming Rowan's exclusion from rota professionally**",
+    "**Drafting nuanced character dialogue**",
+    "**Refining character boundary dialogue**",
+    "**Clarifying contract boundaries in dialogue**"
+  ],
+  "thread_id": "01a0b620-8a35-70f3-b3ca-670d5df6c88e",
+  "turn_id": "01a0b635-e731-7050-b649-17bc3959a605",
+  "usage": {
+    "total": {
+      "totalTokens": 1225863,
+      "inputTokens": 1164610,
+      "cachedInputTokens": 985088,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 61253,
+      "reasoningOutputTokens": 51195
+    },
+    "last": {
+      "totalTokens": 77056,
+      "inputTokens": 75937,
+      "cachedInputTokens": 73088,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1119,
+      "reasoningOutputTokens": 1021
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 26.09836807299871,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

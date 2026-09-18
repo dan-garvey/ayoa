@@ -1,0 +1,53 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, Nell is in the office with the staff rota spread across her desk. Several names have been moved between shifts in pencil.\n\nYou ask what archive work she wants you to take next and whether anything practical has changed.\n\n“Take the programme box marked 1987 to 1990,” she says. “There’s a brown folder wedged down one side. It’s booking correspondence, not part of the programme run, so give it a separate record.”\n\nShe finds the yellow slip you left yesterday.\n\n“I checked for another copy of this inventory. There isn’t one in the office, so leave the ownership unconfirmed. Sam may know whether a signed attachment exists when he’s back, but don’t hold up the rest of the box for it.”\n\nNell sets the slip aside for follow-up.\n\n“Dev and Hana finished the receiver test last night. His report says the coverage is good. Rosa emailed this morning as well; her photographs are usable, so she doesn’t need another auditorium slot.”\n\nShe glances towards the service-yard door.\n\n“Jo has a dry-goods delivery coming through there at ten. The corridor will be crowded for a while, but nothing upstairs has changed.”\n\nThen she turns back to the rota, leaving the shelf list open at the reference for your next box.",
+  "reasoning_summaries": [
+    "**Preparing for Wednesday morning planning**",
+    "**Assessing practical archive changes**",
+    "**Planning next archive assignment**",
+    "**Assessing archive contents for attribution**",
+    "**Confirming assignment progress and deadlines**",
+    "**Clarifying staff scheduling and communication**",
+    "**Planning scene setting for dialogue**",
+    "**Confirming practical environment updates**",
+    "**Deciding to emphasize no changes needed**",
+    "**Clarifying dialogue flow and user interaction**",
+    "**Summarizing completed tests and photo status**",
+    "**Detailing Nell's instructions on program boxes**",
+    "**Confirming event details and test status**",
+    "**Planning archive handoff and timing details**"
+  ],
+  "thread_id": "01a0b620-8a35-70f3-b3ca-670d5df6c88e",
+  "turn_id": "01a0b632-cc72-7d90-8deb-0ec3a757a297",
+  "usage": {
+    "total": {
+      "totalTokens": 1148807,
+      "inputTokens": 1088673,
+      "cachedInputTokens": 912000,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 60134,
+      "reasoningOutputTokens": 50174
+    },
+    "last": {
+      "totalTokens": 75892,
+      "inputTokens": 73285,
+      "cachedInputTokens": 70784,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2607,
+      "reasoningOutputTokens": 2339
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 62.338810571003705,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

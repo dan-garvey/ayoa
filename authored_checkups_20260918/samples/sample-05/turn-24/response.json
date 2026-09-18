@@ -1,0 +1,43 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’ll see you tomorrow,” you tell Owen.\n\n“Friday,” he says. “I moved the whole Thursday shift for the interview.”\n\nHe picks up his tape measure again, and you leave him with the display rail.\n\nOutside, Harbour Street is still wet from the previous day’s rain. You walk downhill to the inner harbour, where the tide lifts the fishing boats almost level with the quay. A crew in orange waterproofs stacks empty fish boxes beside a blue-hulled trawler. Diesel hangs beneath the sharper smells of salt, rope and seaweed.\n\nYou follow the quay past shuttered visitor kiosks and a chandlery with nets piled outside. From the boatyard comes the regular strike of metal on metal. Nobody addresses you. A cyclist passes with a delivery bag, and two gulls quarrel over something among the mooring chains.\n\nAt the harbour entrance, the water beyond the walls is darker and rougher. Wind presses ripples across the sheltered basin and pulls at the hem of your charcoal coat.\n\nYou turn back before the end of your break. When you reach Harbour Street again, Owen is visible through the cinema glazing, measuring the display rail against the wall. He does not look away from the level as you go inside.",
+  "reasoning_summaries": [
+    "**Clarifying timeline for Owen and Rowan**",
+    "**Detailing harbor walk setting and timing**",
+    "**Planning out-and-back harbor walk route**",
+    "**Planning scene setting and dialogue limits**",
+    "**Finalizing dialogue and walk sequence**",
+    "**Composing atmospheric walk description**"
+  ],
+  "thread_id": "01a0b62a-8b76-7fc1-b48f-804a3b6630db",
+  "turn_id": "01a0b63a-c39f-7652-91e0-c93bf4f6bdd8",
+  "usage": {
+    "total": {
+      "totalTokens": 1393344,
+      "inputTokens": 1327750,
+      "cachedInputTokens": 1087872,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 65594,
+      "reasoningOutputTokens": 55063
+    },
+    "last": {
+      "totalTokens": 81721,
+      "inputTokens": 80398,
+      "cachedInputTokens": 78720,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1323,
+      "reasoningOutputTokens": 1066
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 33.26592298102332,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

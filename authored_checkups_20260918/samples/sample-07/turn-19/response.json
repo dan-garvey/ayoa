@@ -1,0 +1,67 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "When you come downstairs at half past twelve, Bea is at one of the cafe tables with a calculator, a ledger and a stack of invoices. She has come in to reconcile the trust’s recent payments with Nell. Jo is behind the counter, checking supplier prices and reheating the last of the chickpea stew.\n\nThere is enough for four bowls. You join them at the table, and when the account papers have been pushed safely aside, you ask Bea what she enjoys about having the cinema open again.\n\n“We’re not quite open yet,” she says. “Ask me again after the twenty-sixth, when somebody has complained about the seats.”\n\nShe tears bread into her stew before continuing.\n\n“But I like that it’s being used. When we first took the lease, coming in meant buckets under the roof and meetings with surveyors. Last week I arrived and Jo had onions cooking, Owen was looking for a screwdriver, and there were children outside reading the opening poster. It sounded like a workplace again.”\n\nJo glances up from her bowl. “The onions were for stock, not atmosphere.”\n\n“They did both.”\n\nBea looks towards the front windows.\n\n“I’m glad we restored the sign. It cost more than I wanted it to cost, which is an awkward thing for the treasurer to admit. My mother cleaned here, and when I was an usher I could see that sign from the top of Harbour Street on my way to an evening shift. I want to see it lit again.”\n\nNell says, “You argued for it at the vote.”\n\n“I also recorded my objection to the final invoice. Both things can be true.”\n\nShe takes another piece of bread.\n\n“And I’m pleased there are paid jobs in the building. Not enough of them, perhaps, but real ones. People say ‘community project’ when they mean several different things. Sometimes they mean they care about a place. Sometimes they mean they expect somebody else to work for nothing.”\n\nJo gives a brief nod at that and returns to her supplier sheet. Bea’s answer ends there, with the four of you eating while rain freckles the foyer windows.",
+  "reasoning_summaries": [
+    "**Assessing who is present at lunch**",
+    "**Establishing lunch attendees and food details**",
+    "**Planning natural lunch conversation**",
+    "**Planning lunch scene dialogue**",
+    "**Detailing lunch scene work dynamics**",
+    "**Confirming developer slot status**",
+    "**Confirming attendance and photo approval**",
+    "**Planning lunch scene with stew offering**",
+    "**Noting clean supplier records**",
+    "**Developing character dialogue and plot details**",
+    "**Planning character interactions and scene timing**",
+    "**Evaluating plausible arrival for Bea**",
+    "**Planning Bea’s narrative arrival**",
+    "**Establishing Bea’s lunch presence and motives**",
+    "**Crafting Bea’s specific anecdote**",
+    "**Refining character dialogue and setting details**",
+    "**Planning character interaction and dialogue timing**",
+    "**Composing Bea’s heartfelt cinema reflection**",
+    "**Clarifying lunch possession phrasing**",
+    "**Planning lunch reheating and office scene**",
+    "**Drafting narrative about Bea's visit**",
+    "**Exploring funding and volunteer dynamics**",
+    "**Drafting poignant sign lighting remark**",
+    "**Naming build state as open again**"
+  ],
+  "thread_id": "01a0b620-889f-7a31-8da7-a4d3f78911c8",
+  "turn_id": "01a0b623-3467-7213-8f16-4f43a824005b",
+  "usage": {
+    "total": {
+      "totalTokens": 1000513,
+      "inputTokens": 944170,
+      "cachedInputTokens": 774144,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 56343,
+      "reasoningOutputTokens": 46785
+    },
+    "last": {
+      "totalTokens": 71640,
+      "inputTokens": 67039,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4601,
+      "reasoningOutputTokens": 4170
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 149.443605441018,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

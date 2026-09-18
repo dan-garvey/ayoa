@@ -1,0 +1,59 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "During your midmorning break, the front doors are taped off while the sign contractor works from a ladder outside. Martin stands on the pavement below, comparing the replacement lamp with the others.\n\nOwen is inside at one of the cafe tables. A cordless drill and a closed tool case sit beside a newly fitted programme rack, but he has put the work down and is drinking from a mug.\n\nYou ask, “How’s your week going?”\n\n“Uneven.” He looks across at the rack. “That’s level now, at least. The wall isn’t, but I’ve stopped taking it personally.”\n\nHe turns the mug between his hands.\n\n“I’ve got an interview tomorrow. Permanent exhibition-technician job at a museum inland, eleven o’clock. The email came on Monday, and I replied last night. Nell’s moved my Thursday shift to Friday.”\n\nHis gaze goes briefly towards the glass doors, where Martin is still occupied with the sign.\n\n“It’s only an interview. Nobody’s offered me a job, and I haven’t decided anything that can actually be decided yet.” He takes another drink. “I do want to see what they’re offering. I like working here more than I expected, which hasn’t made the timing simpler.”",
+  "reasoning_summaries": [
+    "**Deciding Owen's Wednesday presence**",
+    "**Assessing Owen's communication about interview**",
+    "**Scheduling Owen for Wednesday foyer tasks**",
+    "**Clarifying NPC dialogue roles**",
+    "**Detailing character response timing**",
+    "**Refining character secrecy level**",
+    "**Scheduling Wednesday contractor visit**",
+    "**Clarifying Owen's interview details**",
+    "**Revealing Owen's interview secrecy**",
+    "**Assessing Martin and Owen's locations**",
+    "**Clarifying Owen’s disclosure and motives**",
+    "**Designing dialogue flow with player response**",
+    "**Detailing midmorning break scene**",
+    "**Developing Owen's break dialogue and subtext**",
+    "**Refining Owen's reflective closing line**",
+    "**Assessing confidentiality implications**",
+    "**Planning authentic character disclosure**",
+    "**Maintaining selective character knowledge**"
+  ],
+  "thread_id": "01a0b620-83bd-7e31-bca3-a82f612cf59a",
+  "turn_id": "01a0b637-ca1a-7a73-a501-f1970784b86a",
+  "usage": {
+    "total": {
+      "totalTokens": 1306982,
+      "inputTokens": 1242025,
+      "cachedInputTokens": 1061120,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 64957,
+      "reasoningOutputTokens": 54373
+    },
+    "last": {
+      "totalTokens": 80558,
+      "inputTokens": 77181,
+      "cachedInputTokens": 76160,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3377,
+      "reasoningOutputTokens": 3122
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 66.12973612704081,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

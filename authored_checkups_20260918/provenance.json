@@ -1,0 +1,26 @@
+{
+  "prepared_at": "2026-09-18T20:06:13.293123+00:00",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "concurrency": 3,
+  "source_sha256": {
+    "PROTOCOL.md": "ace6c8501f89c1f580195b612e29e1231d2af7fc952a6a7b263e40fd8867615a",
+    "checkpoint.json": "517f86e1ad14e4e52ec52e215f336716216407ff62e8f76b949f3f35ffb52cdc",
+    "conditions.json": "7b018d335c74ba8f291fda8f34ad5e97437cfec8e0faa446d09a5b613c16f247",
+    "inputs.json": "8edb965d89f0fb2fa3c779c76769330c081ed833e9c262914b54254b90bc376c",
+    "notes/combined.txt": "237e7c5213576ac3f40f34a24b857364b0cd016e7160c69d4ec8ae2b128ea54b",
+    "notes/control.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notes/correction.txt": "c19f47924a10f140ca8dd7cf450c396c0e01bc533ea7a1763efc648ea5721887",
+    "notes/development.txt": "946ab279a455634f7a81afafee9af6a22fdd7a2f0eeb5c0bed81f4e85c960c48",
+    "notes/reframe.txt": "60cb73acccd6cd27b6b9d1241851b83b3edf7f9883a8f2e25be3ac6c90b981d0",
+    "rpc.py": "4e8317ac84c9be412781f76561da365afba7dc95159f2c6e89a514b364b8d8dd",
+    "run.py": "ea85586852b3c69434fbd7590c5bff4e0996eb2119e644abdfe9891e3f9b0155",
+    "sources/breakwater/canon.md": "c53ce4057f1278fd76ba9e233f39ecf33760cb302fde44317ca122b152b5c5ee",
+    "sources/breakwater/direction.md": "36811c0cb35a5d0c731c9a87d63ae87f3aa9aa4ed11031aafdd63af541a86ff1",
+    "sources/breakwater/player.json": "25fde4634adb1e0b67ed60df5e25b1c02b0a53583e4e25354af19fe436cb6312",
+    "sources/prompts/author.txt": "ac9c09118c5cd81970cdba895c99312e305bedcae2da557cc210c7443b9c0879",
+    "sources/prompts/checkup.txt": "ad0659f6ce93c3d5b3857ccf8f69d8f418c1c27305d6b616d2d4ea44c5da35e9",
+    "sources/prompts/regenerate.txt": "89c22049ab93f27bde775deb9b8c4a0fe8389746b1d2e347000311f49ae1f869"
+  }
+}

@@ -1,0 +1,22 @@
+{"at": "2026-09-18T20:14:17.024853+00:00", "event": "server_started", "pid": 154521, "command": ["codex", "--strict-config", "app-server", "--stdio", "--config", "project_doc_max_bytes=0", "--config", "web_search=\"disabled\"", "--config", "model_reasoning_effort=\"max\"", "--config", "model_reasoning_summary=\"detailed\"", "--enable", "skip_host_skill_discovery", "--disable", "shell_tool", "--disable", "view_image", "--disable", "image_generation", "--disable", "browser_use", "--disable", "browser_use_external", "--disable", "in_app_browser", "--disable", "computer_use", "--disable", "apps", "--disable", "plugins", "--disable", "multi_agent", "--disable", "memories", "--disable", "goals", "--disable", "hooks", "--disable", "skill_search", "--disable", "workspace_dependencies"]}
+{"at": "2026-09-18T20:14:21.632868+00:00", "event": "server_stopped"}
+Traceback (most recent call last):
+  File "/home/dan/ayoa-worktrees/covenant-prompt-archive/authored_checkups_20260918/resume.py", line 88, in <module>
+    main()
+  File "/home/dan/ayoa-worktrees/covenant-prompt-archive/authored_checkups_20260918/resume.py", line 84, in main
+    run.run()
+  File "/home/dan/ayoa-worktrees/covenant-prompt-archive/authored_checkups_20260918/run.py", line 301, in run
+    future.result()
+  File "/usr/lib/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/usr/lib/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/usr/lib/python3.10/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/dan/ayoa-worktrees/covenant-prompt-archive/authored_checkups_20260918/resume.py", line 73, in retry
+    recover(server, label, binding, path)
+  File "/home/dan/ayoa-worktrees/covenant-prompt-archive/authored_checkups_20260918/resume.py", line 49, in recover
+    after = server.rpc(
+  File "/home/dan/ayoa-worktrees/covenant-prompt-archive/authored_checkups_20260918/rpc.py", line 166, in rpc
+    raise RuntimeError(
+RuntimeError: App-server request failed: thread/rollback: {'code': -32600, 'message': 'paginated threads do not support thread/rollback'}

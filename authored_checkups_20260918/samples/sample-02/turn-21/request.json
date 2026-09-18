@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b620-8072-7e13-8a39-b5797f1ec22f",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nThe following morning I check with Nell for my next archive assignment and any practical changes I need to know about.\n</user>\n"
+    }
+  ]
+}

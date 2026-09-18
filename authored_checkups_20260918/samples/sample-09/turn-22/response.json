@@ -1,0 +1,41 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Before leaving the office, you say, “I’m not available for additional front-of-house shifts. I want to keep the hours outside my archive contract for myself.”\n\nNell looks up from the rota. “Understood. You’re not included on this. Your contracted hours are for the archive.”\n\nShe returns to the availability sheet without asking you to justify it.\n\nOwen moves aside as you pass through the doorway. Once you reach the staff stairs, he goes into the office and closes the door behind him. Whatever he has come to discuss remains downstairs as you return to the archive workroom.",
+  "reasoning_summaries": [
+    "**Planning boundary statement delivery**",
+    "**Crafting clear contract boundary statement**",
+    "**Refining dialogue and actions sequence**",
+    "**Reviewing archive contract hours**",
+    "**Planning scene transitions and narrative flow**"
+  ],
+  "thread_id": "01a0b620-8bc6-72a2-95f2-b2a9b0b4c382",
+  "turn_id": "01a0b635-fd85-7d83-a9d8-626522abed0a",
+  "usage": {
+    "total": {
+      "totalTokens": 1242222,
+      "inputTokens": 1176051,
+      "cachedInputTokens": 917888,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 66171,
+      "reasoningOutputTokens": 55837
+    },
+    "last": {
+      "totalTokens": 82331,
+      "inputTokens": 81453,
+      "cachedInputTokens": 76288,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 878,
+      "reasoningOutputTokens": 752
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 21.08425462502055,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

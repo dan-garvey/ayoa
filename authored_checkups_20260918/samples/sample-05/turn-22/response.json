@@ -1,0 +1,41 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’m not available for additional front-of-house shifts,” you say. “I want to keep the hours outside my archive contract for myself.”\n\nNell nods. “That’s fine. You’re not on the front-of-house rota, and I won’t add you.”\n\nShe sets the location list beside the archive folder.\n\n“My October leave wasn’t a request for cover. I’ll arrange that separately. Your contract stays at thirty archive hours.”\n\nThen she turns back to her computer, leaving the programme assignment unchanged.",
+  "reasoning_summaries": [
+    "**Drafting Nell's boundary response**",
+    "**Refining concise boundary dialogue**",
+    "**Finalizing clear shift boundary dialogue**",
+    "**Clarifying coverage expectations**",
+    "**Finalizing concise coverage dialogue**"
+  ],
+  "thread_id": "01a0b62a-8b76-7fc1-b48f-804a3b6630db",
+  "turn_id": "01a0b635-905e-7120-b4bb-9fed6a055c47",
+  "usage": {
+    "total": {
+      "totalTokens": 1231271,
+      "inputTokens": 1168513,
+      "cachedInputTokens": 931456,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 62758,
+      "reasoningOutputTokens": 52626
+    },
+    "last": {
+      "totalTokens": 78790,
+      "inputTokens": 77842,
+      "cachedInputTokens": 73984,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 948,
+      "reasoningOutputTokens": 839
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 22.226088950992562,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

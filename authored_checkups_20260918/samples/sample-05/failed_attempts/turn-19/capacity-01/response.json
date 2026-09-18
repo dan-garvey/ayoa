@@ -1,0 +1,32 @@
+{
+  "executor": "codex-app-server",
+  "status": "failed",
+  "exit_code": 1,
+  "raw": "",
+  "reasoning_summaries": [],
+  "thread_id": "01a0b620-8548-7f72-bf50-b8c7a2e72ea8",
+  "turn_id": "01a0b622-0623-73d2-b8ad-5a296e7f89e8",
+  "usage": {
+    "total": {
+      "totalTokens": 928873,
+      "inputTokens": 877131,
+      "cachedInputTokens": 774144,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 51742,
+      "reasoningOutputTokens": 42615
+    },
+    "last": {
+      "totalTokens": 66856,
+      "inputTokens": 65344,
+      "cachedInputTokens": 62848,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1512,
+      "reasoningOutputTokens": 1222
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 1.6825207429938018,
+  "item_types": [
+    "userMessage"
+  ]
+}

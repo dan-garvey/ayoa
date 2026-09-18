@@ -1,0 +1,50 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Bea screws the lid onto her jar, gathers the signed payment forms’ carbon copies and returns to the boatyard. The conversation ends there.\n\nYou go back upstairs and resume with the programme box.\n\nThe afternoon’s papers give a more particular picture of the old cinema than the transfer schedules do. Weekly listings share space with adverts for fish suppers, carpet cleaning and coach trips. Several show times have been changed by hand. One children’s matinee is marked **FULL** in blue pencil.\n\nBetween two programmes from 1987, you find a folded duty sheet. Bea Finch is assigned to the front doors and interval checks; Martin Vale is listed in the projection booth. The remaining notes concern a temperamental kettle, a missing torch and who must sweep row F after the late show.\n\nYou record the duty sheet separately, including where it was found, then return it to the same position among the programmes. The names come from the document itself; no recollection is needed to establish them.\n\nThe rest of the shift passes in the same steady work: identifying date runs, recording gaps and distinguishing printed programmes from handwritten enclosures. At the agreed finishing time, you complete the entry already open, save the catalogue and return the programme box to its shelf.\n\nThe afternoon leaves a completed box-level record, several item descriptions and a short list of dates missing from the surviving run. You sign out at the end of your shift.",
+  "reasoning_summaries": [
+    "**Clarifying agreed shift hours**",
+    "**Finalizing shift end time phrasing**",
+    "**Incorporating local ad details**",
+    "**Connecting laundrette detail to story**",
+    "**Identifying potential archival staff rota**",
+    "**Planning end-of-shift handoff**",
+    "**Planning Owen's next-day thread**",
+    "**Clarifying non-compulsory Owen encounter**",
+    "**Incorporating laundrette ad and duty slip details**",
+    "**Deciding between duty sheet and laundrette ad**",
+    "**Planning cataloging of duty sheet as separate item**",
+    "**Outlining archive return and scene closure**"
+  ],
+  "thread_id": "01a0b62a-8b76-7fc1-b48f-804a3b6630db",
+  "turn_id": "01a0b62c-eac3-76c3-89f7-3b4178be03c8",
+  "usage": {
+    "total": {
+      "totalTokens": 1074684,
+      "inputTokens": 1016523,
+      "cachedInputTokens": 785920,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 58161,
+      "reasoningOutputTokens": 48401
+    },
+    "last": {
+      "totalTokens": 74107,
+      "inputTokens": 71747,
+      "cachedInputTokens": 5888,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2360,
+      "reasoningOutputTokens": 2069
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 59.313794346002396,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At half past twelve, Bea is at one of the cafe tables with Nell, a bank statement and a folder of cinema invoices spread between them. Jo occupies the end nearest the counter, working through supplier prices beside a mug of black coffee.\n\nYou bring your lunch over and take the empty chair. The accounts papers are put aside while people eat.\n\n“What do you enjoy about having the cinema open again?” you ask Bea.\n\nShe considers this while unwrapping the other half of her sandwich.\n\n“We aren’t open yet, so I may be tempting fate. But I want to see the sign lit. I approved more money for that restoration than a treasurer ought to admit over lunch.”\n\nNell continues eating without rescuing her from the admission.\n\n“I used to see it from the top deck of the bus after an evening shift,” Bea says. “Then for years it was just a dark shape over an empty building.”\n\nShe folds the sandwich paper into a smaller square.\n\n“Mostly, I’m looking forward to somebody coming in who hasn’t attended a fundraiser and doesn’t know any of the trustees. They’ll buy a ticket, choose a seat and perhaps complain that the trailers are too loud. My mother cleaned here and I worked the aisles. It was never important every minute of the day. It was just somewhere people used.”\n\nAfter a sip of water, she adds, “My granddaughter is coming in October. We send each other appalling films on old discs, so we’ve agreed to choose whatever looks most ill-advised on the programme. She’s forbidden me from giving her a historical tour while we watch it.”",
+  "reasoning_summaries": [
+    "**Assessing staff presence for Tuesday midday**",
+    "**Evaluating plausible staff schedules for Tuesday**",
+    "**Balancing character presence for plausible interaction**",
+    "**Evaluating NPC presence for conversation**",
+    "**Assessing NPC availability for lunch scene**",
+    "**Planning lunch meal details and dialogue**",
+    "**Clarifying character presence and interactions**",
+    "**Establishing Bea's Tuesday presence and interests**",
+    "**Refining Bea's authentic cinema appreciation**",
+    "**Planning community theater improvements**",
+    "**Refining authentic character dialogue**",
+    "**Assessing Bea's lunch break constraints**",
+    "**Designing detailed lunch scene**",
+    "**Planning natural lunch dialogue flow**",
+    "**Refining dialogue ending for player response**",
+    "**Composing detailed, natural character dialogue**",
+    "**Clarifying timeline and sign lighting details**",
+    "**Clarifying meeting attendees and timing**",
+    "**Planning lunch-time narration**"
+  ],
+  "thread_id": "01a0b620-8072-7e13-8a39-b5797f1ec22f",
+  "turn_id": "01a0b620-8ec9-7ec1-abd9-9302640ebb66",
+  "usage": {
+    "total": {
+      "totalTokens": 999770,
+      "inputTokens": 944419,
+      "cachedInputTokens": 774144,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 55351,
+      "reasoningOutputTokens": 45892
+    },
+    "last": {
+      "totalTokens": 70897,
+      "inputTokens": 67288,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3609,
+      "reasoningOutputTokens": 3277
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 92.15908470097929,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

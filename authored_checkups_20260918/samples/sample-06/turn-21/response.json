@@ -1,0 +1,60 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, you find Nell in the office with the paper diary, a mug of tea and Dev’s test sheet spread across the desk.\n\n“What should I take next,” you ask, “and are there any practical changes I need to know about?”\n\n“The hearing receivers passed last night. Hana found one weak patch at the back left, but Dev adjusted the transmitter and the second test was clear. They don’t need the auditorium again today.”\n\nNell turns over the test sheet.\n\n“The sign was less cooperative. Bea made Martin switch it off and on twice so she could watch it properly. On the third attempt, one lamp stayed dark. Martin’s coming at eleven to look at the fitting, and Owen will help him with the access panel. They’ll be working at the front of the building. No power interruption upstairs, but you may hear drilling.”\n\nShe gives you a shelf slip marked with two programme-box references.\n\n“Take these next. They cover 1987 to 1991, though the dates overlap and neither run is complete. Make a box-level record first, then give separate condition notes only where an item needs one. When those are finished, stop there. Don’t start the photograph cartons until we’ve looked at their existing labels together.”\n\nThe archive-room key is already on your ring. Nell returns to the receiver report while you take the shelf slip upstairs.",
+  "reasoning_summaries": [
+    "**Planning skipped activity handling**",
+    "**Deciding test outcomes and practical changes**",
+    "**Planning Owen's arrival and interview reply**",
+    "**Planning shift disclosure and archive focus**",
+    "**Confirming next archive assignment with Nell**",
+    "**Scheduling sign circuit isolation and archive tasks**",
+    "**Reviewing office access and schedules**",
+    "**Detailing sign test results and repair plans**",
+    "**Assigning program box and ledgers for review**",
+    "**Planning inventory for archive boxes**",
+    "**Planning natural scene transitions**",
+    "**Detailing Owen’s independent actions**",
+    "**Summarizing character scene setup**",
+    "**Clarifying sign repair details and schedule**",
+    "**Crafting warm sign repair dialogue**",
+    "**Confirming visitor timing and activities**",
+    "**Clarifying test results and assignment details**",
+    "**Defining programme box sorting method**",
+    "**Confirming noise and personnel details**"
+  ],
+  "thread_id": "01a0b620-86f7-7cc3-b380-f7b161e65545",
+  "turn_id": "01a0b631-a1ae-76d1-86aa-f1dbf608fea9",
+  "usage": {
+    "total": {
+      "totalTokens": 1150208,
+      "inputTokens": 1088948,
+      "cachedInputTokens": 912000,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 61260,
+      "reasoningOutputTokens": 51193
+    },
+    "last": {
+      "totalTokens": 77015,
+      "inputTokens": 73504,
+      "cachedInputTokens": 70784,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3511,
+      "reasoningOutputTokens": 3228
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 76.4823971640435,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

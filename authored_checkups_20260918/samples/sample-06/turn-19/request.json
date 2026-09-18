@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b620-86f7-7cc3-b380-f7b161e65545",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\n<backstage_guidance>\nGive this stretch the feel of a quiet ensemble story about people rebuilding a cinema while trying to have lives worth living. The archive rules are settled background. The interesting question now is what this place offers, costs, or means to the people in it, expressed through what they do together rather than speeches about their principles.\n\nChoose what deserves a scene. Let a meal contain actual enjoyment, awkwardness or disagreement particular to its company. Let routine work pass at the pace Rowan requests. Put narrative attention on a person's present appetite, task or decision; when a beat has landed, leave it there. The reader can recognize restraint without being told that nobody intrudes or demands anything.\n\nOwen's Wednesday reply deadline gives the coming day a natural direction: he must act on his own opportunity and decide what to tell his father. Jo's wish for time with Fran and Bea's pleasure in films are lives, not material to recite. Let such interests shape the people Rowan happens to meet, with warmth, reserve and humor earned by the actual exchange. Private developments become visible only by a plausible route. Plans remain possibilities; Rowan remains free to work, talk, decline, or walk away.\n</backstage_guidance>\n\nReturn the next passage of fiction.\n\nAt lunch, if Bea is present, I ask what she enjoys about having the cinema open again. If she is not here, I eat with whoever is around.\n</user>\n"
+    }
+  ]
+}

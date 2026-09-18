@@ -1,0 +1,63 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At half past twelve, Bea is at one of the foyer tables with a sandwich tin and a small jar of pickled walnuts. Her boatyard lanyard hangs from the back of her chair; two payment forms lie signed beside Nell’s diary.\n\nNell has changed Dev’s pencilled auditorium hold to an ink booking.\n\n“Dev confirmed at eleven fifty,” she says. “Hana can do seven until half seven.”\n\nShe takes the signed forms into the office, leaving you and Bea with your lunches.\n\nYou ask Bea what she enjoys about having the cinema open again.\n\n“The sign, for one,” she says. “Which is a poor answer from the treasurer. I know exactly what that restoration cost.”\n\nShe adds a pickled walnut to her sandwich and considers the rest.\n\n“Mostly, I want it to stop being a project. My mother cleaned here, and I worked usher shifts. People remember the premieres and the packed shows, but plenty of evenings were just wet Tuesdays with thirty people in and sweets ground into row F.”\n\nShe closes the sandwich.\n\n“I want those evenings back too. Children making too much noise at a matinee. Somebody coming in alone after work. People choosing a film because they fancy it, not because we need them in a photograph for a grant report.”\n\nBea turns the little jar between her hands.\n\n“My granddaughter and I send each other terrible films on secondhand discs. She finds things with covers that look actively hostile. I’d like her to come here, pick something from the programme, and spend the journey home explaining why my choice was worse.”\n\nShe smiles slightly. “Not the opening photographs, really. The ordinary week after.”",
+  "reasoning_summaries": [
+    "**Determining lunch attendees for Tuesday**",
+    "**Evaluating Bea’s possible lunch presence**",
+    "**Confirming Bea’s natural lunch presence scenario**",
+    "**Planning character interaction timing**",
+    "**Designing Tuesday lunchtime scene**",
+    "**Arranging foyer lunch seating and props**",
+    "**Clarifying Bea's presence details**",
+    "**Refining Bea's cinema enjoyment response**",
+    "**Developing Bea's cinema nostalgia and family bond**",
+    "**Refining authentic dialogue lines**",
+    "**Developing natural family interactions**",
+    "**Integrating Owen's independent actions**",
+    "**Planning shift request handling**",
+    "**Confirming schedule update details**",
+    "**Evaluating schedule conflicts and preferences**",
+    "**Planning dialogue pacing with Bea**",
+    "**Designing natural lunch dialogue**",
+    "**Highlighting authentic cinema moments**",
+    "**Confirming event timing and character presence**",
+    "**Clarifying lunch scene details and dialogue**",
+    "**Planning natural dialogue exchange**"
+  ],
+  "thread_id": "01a0b62a-8b76-7fc1-b48f-804a3b6630db",
+  "turn_id": "01a0b62a-8ce3-7ec1-b19e-984ff52d25e9",
+  "usage": {
+    "total": {
+      "totalTokens": 1000577,
+      "inputTokens": 944776,
+      "cachedInputTokens": 780032,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 55801,
+      "reasoningOutputTokens": 46332
+    },
+    "last": {
+      "totalTokens": 71704,
+      "inputTokens": 67645,
+      "cachedInputTokens": 5888,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4059,
+      "reasoningOutputTokens": 3717
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 107.21090413600905,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

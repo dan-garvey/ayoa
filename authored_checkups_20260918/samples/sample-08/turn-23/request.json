@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b620-8a35-70f3-b3ca-670d5df6c88e",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nIf Owen is around during a break, I ask how his week is going. If he is not, I take my break without looking for him.\n</user>\n"
+    }
+  ]
+}

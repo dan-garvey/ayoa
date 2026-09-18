@@ -1,0 +1,41 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "With Nell’s front-of-house rota open on the desk, you make your position clear.\n\n“I’m not available for additional front-of-house shifts. I want to keep the hours outside my archive contract for myself.”\n\n“That’s fine,” Nell says. “Your contract is thirty hours of archive work. The room doesn’t put you on call, and I’m not adding you to the public rota.”\n\nShe closes the rota folder.\n\n“If anyone asks you directly to cover the foyer or help with an event, send them to me. You can decide about a separate offer if one is ever made, but it won’t be treated as part of this job.”\n\nNell returns to her paperwork without trying to negotiate an exception. Your assignment remains the two programme boxes upstairs; nothing has been added to it.",
+  "reasoning_summaries": [
+    "**Drafting response to clarify Rowan's unavailability**",
+    "**Finalizing clear contract boundaries dialogue**",
+    "**Establishing explicit role boundary wording**",
+    "**Clarifying staffing communication**",
+    "**Preparing concise conversation summary**"
+  ],
+  "thread_id": "01a0b620-83bd-7e31-bca3-a82f612cf59a",
+  "turn_id": "01a0b635-672d-7ef0-804a-7fc72a1bee7e",
+  "usage": {
+    "total": {
+      "totalTokens": 1226424,
+      "inputTokens": 1164844,
+      "cachedInputTokens": 984960,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 61580,
+      "reasoningOutputTokens": 51251
+    },
+    "last": {
+      "totalTokens": 77132,
+      "inputTokens": 76284,
+      "cachedInputTokens": 72960,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 848,
+      "reasoningOutputTokens": 683
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 17.18657116900431,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "The lunch conversation tapers off on its own. Bea checks her watch, signs the two supplier payments and returns the invoices to Nell.\n\n“If I’m late back, payroll will assume I’ve defected,” she says, gathering her paper bag.\n\nShe leaves for the boatyard, and Nell carries the bowls into the kitchen. You return upstairs to the archive.\n\nThe afternoon passes through the programme box. You record its date span, duplicates and gaps without rearranging the sheets to create an order they did not have. Handwritten changes to show times go into the descriptions; rusted staples and softened folds go into the condition notes. Where a programme has no printed year, you leave the date qualified rather than using the surrounding papers as proof.\n\nBy mid-afternoon, measured knocks begin below. Through the workroom floor comes the scrape of something shifted across the foyer. Owen has arrived for his shift and is fitting a programme stand near the entrance, while Nell works in the office.\n\nYour agreed finish is half past three. You complete the record already open, return every programme to its place and put the box back on the marked shelf. The catalogue is saved and closed; the unresolved ownership notes remain together in the yellow tray. You enter the day’s hours on the sheet downstairs.\n\nIn the foyer, Owen holds a spirit level against the side of the programme stand while Nell watches from several feet back.\n\n“My Thursday change went through?” he asks.\n\n“Yes,” Nell says. “Friday, ten until four instead. It’s on the rota.”\n\n“Thanks.”\n\nHe returns to aligning the stand. Whatever has taken him inland on Thursday remains his to explain.",
+  "reasoning_summaries": [
+    "**Defining agreed shift hours**",
+    "**Establishing shift end and work routine**",
+    "**Seeding Owen's presence near shift end**",
+    "**Planning staff shift interactions**",
+    "**Detailing shift tasks and timing**",
+    "**Clarifying payment signing interaction**",
+    "**Clarifying work schedule and break details**",
+    "**Detailing shift end procedures and scene timing**",
+    "**Confirming interaction timing with Owen**",
+    "**Confirming Owen's shift change details**",
+    "**Planning to specify agreed shift time**"
+  ],
+  "thread_id": "01a0b620-8225-7d82-96e7-4fd65487b0f2",
+  "turn_id": "01a0b62c-2fb6-7dc0-a409-b121fb7472cc",
+  "usage": {
+    "total": {
+      "totalTokens": 1073530,
+      "inputTokens": 1015721,
+      "cachedInputTokens": 780032,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 57809,
+      "reasoningOutputTokens": 47882
+    },
+    "last": {
+      "totalTokens": 73523,
+      "inputTokens": 71305,
+      "cachedInputTokens": 5888,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2218,
+      "reasoningOutputTokens": 1882
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 47.88436600501882,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

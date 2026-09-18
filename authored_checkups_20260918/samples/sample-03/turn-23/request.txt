@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+If Owen is around during a break, I ask how his week is going. If he is not, I take my break without looking for him.
+</user>

@@ -1,0 +1,45 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "During your mid-morning break, Owen is at one of the cafe tables with a mug beside him and the folded stepladder against the wall. Martin has gone into the office to test the sign switch with Nell, leaving Owen temporarily free.\n\n“How’s your week going?” you ask.\n\n“Fast.” He turns the mug between his hands. “Yesterday I moved a shift, accepted an interview and told Dad why. This morning he arrived having worked out the whole drive inland.”\n\nHis attention goes briefly to the office door.\n\n“He said he’d got ahead of himself, talking as if I’d be here after this contract. That’s about as close as he gets to saying he made an assumption. Then he offered me a lift.”\n\nOwen takes a drink.\n\n“I do want the interview. Permanent work, a proper workshop, exhibitions that stay up longer than a trade show. That doesn’t mean I’ve decided what I’d do if they offered me anything.”\n\nAbove the front doors, the replacement lamp comes on. Its light now matches the others.\n\n“I like working here too,” Owen says. “I just don’t want six weeks turned into a decision I haven’t made.”\n\nThe office door opens. Martin looks up at the illuminated sign, checks each lamp and gives a satisfied nod. Owen finishes his drink and stands, bringing the break to its natural end.",
+  "reasoning_summaries": [
+    "**Planning conversation with Owen**",
+    "**Detailing NPC break setting**",
+    "**Finalizing Owen's break status and reply**",
+    "**Preparing interview talking points**",
+    "**Clarifying job interest nuances**",
+    "**Drafting interview week dialogue**",
+    "**Planning casual shift in dialogue**",
+    "**Finalizing scene setting and timing**"
+  ],
+  "thread_id": "01a0b620-8d52-77f1-aee5-1d0b78464f3f",
+  "turn_id": "01a0b639-21e2-7852-ab5e-96aa887b75c2",
+  "usage": {
+    "total": {
+      "totalTokens": 1331067,
+      "inputTokens": 1261925,
+      "cachedInputTokens": 1074816,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 69142,
+      "reasoningOutputTokens": 58354
+    },
+    "last": {
+      "totalTokens": 85112,
+      "inputTokens": 83371,
+      "cachedInputTokens": 82176,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1741,
+      "reasoningOutputTokens": 1461
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 40.32472766301362,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

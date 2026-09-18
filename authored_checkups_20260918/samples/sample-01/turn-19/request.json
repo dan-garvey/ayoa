@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b620-7ee2-7183-b42a-b5b9c5f203a2",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\n<backstage_guidance>\nChoose Owen's interview as the main developing personal thread for the next day. He wants this opportunity and intends to accept before Wednesday noon. His Thursday-to-Friday swap is approved in principle; the written request and Nell's confirmation still need to happen. Let him take those steps himself. His difficulty is telling Martin what the opportunity means when Martin has begun imagining a settled future together at the cinema. Give that relationship room to change through something Owen or Martin actually does. Do not assume an interview result or a decision to leave town.\n\nThis is direction for future action, not a report that these things have happened. Rowan and Nell know only about an inland appointment; Jo knows the interview, and Martin has not been told. A disclosure must come from someone who can make it. If Rowan meets Owen, Owen can decide what he wants to share; do not make the encounter or a confession compulsory. Offstage decisions can become visible later through their consequences, without a report of every private conversation.\n\nLet the reopening also mean a life people want to have. Jo wants time with Fran and misses Ines; Nell wants the booked walking weekend with Gina. Their immediate business can reveal a preference or decision serving those lives, rather than only another duty. If Bea is naturally at lunch, her answer can draw on the films, possessions and people she cares about. They need not all appear, and Rowan need not help. Use the full histories to choose what matters to the people who are actually present.\n\nResolve the existing practical clock: Dev's Tuesday evening hold required confirmation by noon today. Establish the outcome consistently if it becomes relevant; Rosa's completed photographs and her evening with Beth do not need to be disrupted. These are opportunities for independent progress, not errands for Rowan or a required sequence of scenes.\n</backstage_guidance>\n\nReturn the next passage of fiction.\n\nAt lunch, if Bea is present, I ask what she enjoys about having the cinema open again. If she is not here, I eat with whoever is around.\n</user>\n"
+    }
+  ]
+}

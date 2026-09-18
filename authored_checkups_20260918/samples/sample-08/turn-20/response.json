@@ -1,0 +1,50 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You return upstairs when lunch is over and reopen the programme box.\n\nThe afternoon’s sheets are more varied than their box label suggests. One week has been printed in blue ink, the next in purple. A children’s matinee gains an extra showing in somebody’s pencil, while a late film has its title cramped into the margin after the rest of the programme was typeset. Small advertisements run along the bottoms: a fishmonger, a driving instructor, a shop offering television repairs.\n\nSeveral weeks are missing. You record the gaps without filling them by inference. Annotated programmes receive their own entries; unmarked duplicates stay grouped together.\n\nLater, you return to the transfer correspondence. It includes a terse exchange about shelving measurements and a collection-day list marked with muddy fingerprints. The unsigned inventory remains unresolved in the yellow tray, while the signed papers provide clear provenance for the programme box you have been working through.\n\nThe rain stops during the afternoon. Sunlight reaches the workroom in brief reflections from the wet roofs across Harbour Street, then shifts away again.\n\nWhen the agreed end of your shift arrives, you finish the record already open rather than beginning another. The transfer files are complete, and the first programme box now has a box-level description with separate entries for its annotated sheets. You save the catalogue and leave the remaining work ready for tomorrow.",
+  "reasoning_summaries": [
+    "**Clarifying shift end assumptions**",
+    "**Outlining afternoon catalog tasks**",
+    "**Confirming shift focus and output**",
+    "**Estimating cataloguing workload and priorities**",
+    "**Identifying local historical details in programmes**",
+    "**Planning archival session closure routine**",
+    "**Clarifying agreed shift timing**",
+    "**Settling on 9-to-4 shift assumption**",
+    "**Noting workplace time change markings**",
+    "**Drafting detailed historical program description**",
+    "**Clarifying archival item handling and closing narrative**",
+    "**Finalizing narrative closure and setting**"
+  ],
+  "thread_id": "01a0b620-8a35-70f3-b3ca-670d5df6c88e",
+  "turn_id": "01a0b62e-33f2-7c32-9763-a74a762e4d0d",
+  "usage": {
+    "total": {
+      "totalTokens": 1072915,
+      "inputTokens": 1015388,
+      "cachedInputTokens": 841216,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 57527,
+      "reasoningOutputTokens": 47835
+    },
+    "last": {
+      "totalTokens": 73244,
+      "inputTokens": 70967,
+      "cachedInputTokens": 67072,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2277,
+      "reasoningOutputTokens": 2003
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 61.3029019140522,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+If we have been talking, I tell Owen I will see him tomorrow. Then I take a walk along the harbour on my own.
+</user>

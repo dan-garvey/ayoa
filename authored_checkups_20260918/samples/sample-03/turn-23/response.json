@@ -1,0 +1,61 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At eleven, you stop at the end of a catalogue entry and come downstairs for a break.\n\nThe sign contractor has gone. A folded ladder lies ready to be collected beside the front doors, and the replacement lamp sits indistinguishably among the others above the glass. Owen is at the cafe counter with a mug of tea and half an apple. His tape measure and drill are on the programme stand, but he is not using them.\n\nYou ask how his week is going.\n\n“More complicated than it was yesterday.” He turns his phone over beside the mug. “I accepted an interview this morning. Permanent exhibition-technician job at a museum inland. Eleven tomorrow.”\n\nHe takes another bite of the apple.\n\n“It’s only an interview. There isn’t a job to decide about unless they offer it. Nell knows now, and Jo knew when the email arrived.”\n\nOwen looks towards the front doors rather than the office.\n\n“My dad doesn’t. Martin, I mean. I need to tell him myself.”",
+  "reasoning_summaries": [
+    "**Confirming Owen's Wednesday availability**",
+    "**Planning Owen's evasive response**",
+    "**Weighing plausibility of Owen confiding Rowan**",
+    "**Planning subtle character hints**",
+    "**Refining eavesdropping scene details**",
+    "**Evaluating character disclosure limits**",
+    "**Observing sign contractor interactions**",
+    "**Confirming sign lamp replacement success**",
+    "**Adding detail to Owen's cinema update**",
+    "**Assessing interview disclosure timing**",
+    "**Planning gradual interview disclosure**",
+    "**Deciding delayed Martin disclosure**",
+    "**Evaluating character disclosure choices**",
+    "**Planning break scene with Owen and Rowan**",
+    "**Refining Owen's interview disclosure dialogue**",
+    "**Naming fictional inland museum**",
+    "**Clarifying family relationships and knowledge**",
+    "**Scheduling interview and informing father**",
+    "**Setting scene before break**",
+    "**Planning Owen dialogue and scene details**"
+  ],
+  "thread_id": "01a0b620-8225-7d82-96e7-4fd65487b0f2",
+  "turn_id": "01a0b636-9184-7a91-acfb-2a480bd3a19b",
+  "usage": {
+    "total": {
+      "totalTokens": 1313445,
+      "inputTokens": 1248489,
+      "cachedInputTokens": 932352,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 64956,
+      "reasoningOutputTokens": 54320
+    },
+    "last": {
+      "totalTokens": 82877,
+      "inputTokens": 81200,
+      "cachedInputTokens": 78976,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1677,
+      "reasoningOutputTokens": 1469
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 96.0295199980028,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

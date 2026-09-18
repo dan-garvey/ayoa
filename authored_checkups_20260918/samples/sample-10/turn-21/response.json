@@ -1,0 +1,67 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, Martin and Owen are beside the front doors with a short stepladder and a boxed replacement lamp. Owen steadies the ladder while Martin checks the fitting against the instructions.\n\n“I looked up the route after you told me last night,” Martin says. “I can drive you to the museum tomorrow. We’ll leave at nine.”\n\n“I can get there myself.”\n\n“I know. It’s an offer.”\n\nOwen considers the ladder brace, then tightens it. “All right. A lift would help. You don’t need to wait for me.”\n\n“I wasn’t planning to sit in the car park for an hour.”\n\nA pause follows.\n\n“I’d got ahead of myself,” Martin says. “Talking as if you were staying here after this contract.”\n\n“A bit.”\n\n“We’ll talk after the interview, when there’s something definite to discuss.”\n\nOwen nods. Martin returns to the lamp fitting.\n\nYou find Nell in the office, working on the opening-weekend rota. You ask for your next archive assignment and any practical changes affecting today.\n\n“Your hours are the same as yesterday,” she says. “Finish the programme box first. After that, start the box of booking and advertising correspondence from 1986 to 1990. Box-level inventory before individual records. Some letters include home addresses, so flag those for access review.”\n\nShe checks a note beside the paper diary.\n\n“Dev and Hana completed the receiver test last night. Auditorium coverage passed; one receiver wouldn’t hold its charge, and Dev has taken it back. Rosa’s photographs were usable, so she doesn’t need a retake.”\n\nNell indicates Martin’s ladder through the office window.\n\n“The front entrance will be closed from ten until Martin finishes replacing that mismatched lamp. Use the side entrance if you go out. Nothing else changes for the archive, and the loan cupboard arrangements stay as they were yesterday.”\n\nShe gives you the reference number of the correspondence box and returns to the rota while you head upstairs.",
+  "reasoning_summaries": [
+    "**Confirming Tuesday test outcome**",
+    "**Detailing test results and photo confirmation**",
+    "**Clarifying Owen's schedule updates**",
+    "**Planning archive task assignment**",
+    "**Prioritizing programme box cataloguing**",
+    "**Setting archive task boundaries**",
+    "**Confirming sign test results**",
+    "**Planning sign maintenance and access updates**",
+    "**Summarizing test results and building updates**",
+    "**Planning dialogue revealing interview knowledge**",
+    "**Developing practical support dialogue**",
+    "**Clarifying disclosure timing through dialogue**",
+    "**Refining Martin and Owen dialogue**",
+    "**Establishing lift offer and Nell assignment**",
+    "**Starting box-level inventory with privacy checks**",
+    "**Confirming sign replacement and access logistics**",
+    "**Confirming receiver test completion and auditorium status**",
+    "**Clarifying character knowledge timelines**",
+    "**Confirming travel details and dialogue nuances**",
+    "**Evaluating transport options for interview**",
+    "**Analyzing character interaction nuance**",
+    "**Planning archive box processing**",
+    "**Confirming practical shift schedule**",
+    "**Confirming photo approvals and auditorium status**"
+  ],
+  "thread_id": "01a0b620-8d52-77f1-aee5-1d0b78464f3f",
+  "turn_id": "01a0b633-720c-7ef2-948b-aff8ca25e2ad",
+  "usage": {
+    "total": {
+      "totalTokens": 1162633,
+      "inputTokens": 1096145,
+      "cachedInputTokens": 915328,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 66488,
+      "reasoningOutputTokens": 56134
+    },
+    "last": {
+      "totalTokens": 82364,
+      "inputTokens": 77443,
+      "cachedInputTokens": 73984,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4921,
+      "reasoningOutputTokens": 4515
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 112.01746372797061,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, Nell is in the office with the opening-weekend rota spread across her desk. The paper diary lies beside it, yesterday’s provisional auditorium hold overwritten in ink and marked **COMPLETED**.\n\nYou ask what she wants you to catalogue next and whether there are any practical changes you need to know about.\n\n“Continue with the programme boxes,” she says. “The two marked P-three and P-four. Their ownership is covered by the transfer schedule. Record each programme, keep duplicates together and flag annotations or damage. Don’t rearrange them by date yet.”\n\nShe checks the shelf list and adds a note beside the box numbers.\n\n“If you finish both, go back to the next transfer-paper folder. Leave the old payroll bundle where it is. The trust owns it, but it contains personal information, and I want to set an access rule before it enters the catalogue.”\n\nNell closes that file.\n\n“No loans today, so the cupboard stays locked. I’ll be downstairs all morning finishing the rota. If you find another ownership problem, use the yellow tray.”\n\nShe then gives you the updates from the previous evening. Dev and Hana completed the auditorium test within their booked half hour. Reception worked throughout the seating area, although one receiver failed its charging check and has been tagged for return to the supplier. Rosa emailed early this morning to confirm that Monday’s photographs are usable, so she does not need a retake or another room booking.\n\n“The archive room is yours for the day,” Nell says. “Nothing else has changed.”\n\nShe hands you the updated shelf list, leaving the next assignment clearly marked.",
+  "reasoning_summaries": [
+    "**Confirming hearing-assistance test completion**",
+    "**Summarizing test outcomes and layout status**",
+    "**Planning Owen-Martin interaction timing**",
+    "**Planning schedule mentions for Jo and Nell**",
+    "**Assigning archive programme box tasks**",
+    "**Noting archive locking and key procedures**",
+    "**Confirming staff rota completion**",
+    "**Drafting morning check-in dialogue**",
+    "**Reviewing archive box retrieval plans**",
+    "**Assigning program boxes P3/P4**",
+    "**Planning inventory of programme boxes**",
+    "**Noting Martin finishing trim alone**",
+    "**Analyzing character interaction implications**",
+    "**Planning clear exposition of knowledge transfer**",
+    "**Designing natural dialogue for task update**",
+    "**Planning subtle Owen introduction**",
+    "**Confirming photo usability and print status**",
+    "**Defining inventory task details**",
+    "**Confirming Wednesday morning schedule**",
+    "**Deciding against contacting former owner**"
+  ],
+  "thread_id": "01a0b620-7ee2-7183-b42a-b5b9c5f203a2",
+  "turn_id": "01a0b630-1075-72c1-8ada-5a56c75845fe",
+  "usage": {
+    "total": {
+      "totalTokens": 1166177,
+      "inputTokens": 1098641,
+      "cachedInputTokens": 848256,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 67536,
+      "reasoningOutputTokens": 57023
+    },
+    "last": {
+      "totalTokens": 83412,
+      "inputTokens": 79802,
+      "cachedInputTokens": 74112,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3610,
+      "reasoningOutputTokens": 3280
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 87.84434416802833,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

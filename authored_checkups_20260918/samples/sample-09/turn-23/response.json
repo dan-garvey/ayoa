@@ -1,0 +1,53 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "By quarter to eleven, the handwritten work list has its own catalogue entry and the first maintenance file is under way. You leave it at a natural break and go downstairs.\n\nOwen is at one of the cafe tables with a mug of tea. A half-assembled programme stand lies beside him, along with a screwdriver and a little heap of wood shavings. He has stopped working long enough for the tea to remain hot.\n\n“How’s your week going?” you ask.\n\n“All right. Complicated, maybe.” He turns the mug once between his hands. “I’ve got an interview tomorrow. Permanent exhibition-technician post at a museum inland.”\n\nHe corrects himself. “An interview for the post. There’s no job offer. I replied this morning and said I’d come.”\n\nThe Thursday-to-Friday shift change now has its explanation.\n\n“I told Nell when you went upstairs. Jo already knew.” Owen looks towards the foyer, though Martin is nowhere in it. “My dad—Martin—doesn’t know I applied. He’s started talking as if I’ll still be working here after October.”\n\nHe takes a drink of tea.\n\n“I want to tell him myself. I just haven’t done it yet.”",
+  "reasoning_summaries": [
+    "**Planning Owen's interview reveal**",
+    "**Characterizing Owen's cautious sharing**",
+    "**Adding subtle family tension hint**",
+    "**Planning character break timing**",
+    "**Clarifying Owen’s interview status**",
+    "**Refining Owen’s confidential disclosure**",
+    "**Refining Owen's interview dialogue**",
+    "**Planning natural interview conversation flow**",
+    "**Visualizing Owen's interview reveal scene**",
+    "**Assessing narrative disclosure dynamics**",
+    "**Refining character dialogue for revelation**",
+    "**Establishing setting and character activities**",
+    "**Confirming shift swap and communication status**",
+    "**Refining natural interview dialogue**"
+  ],
+  "thread_id": "01a0b620-8bc6-72a2-95f2-b2a9b0b4c382",
+  "turn_id": "01a0b639-1bc1-7653-b87a-bb94dca9a11c",
+  "usage": {
+    "total": {
+      "totalTokens": 1327261,
+      "inputTokens": 1258431,
+      "cachedInputTokens": 999168,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 68830,
+      "reasoningOutputTokens": 58247
+    },
+    "last": {
+      "totalTokens": 85039,
+      "inputTokens": 82380,
+      "cachedInputTokens": 81280,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2659,
+      "reasoningOutputTokens": 2410
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 65.67058295599418,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

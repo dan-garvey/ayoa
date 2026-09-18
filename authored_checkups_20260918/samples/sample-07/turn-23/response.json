@@ -1,0 +1,50 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You spend the first part of the morning finishing the earlier programme box and beginning the box marked **1987–1990**. Shortly before eleven, Nell calls up the stairs to warn you that the alarm test is about to begin.\n\nThe sounders run twice, each burst loud enough to vibrate through the metal shelving. After the engineer confirms the system has reset, you take your morning break.\n\nOwen is in the foyer. He has been fitting a wooden display rail beneath the opening programmes; his tools are closed in their case while he sits at the cafe table with a mug. With the work paused, you ask how his week is going.\n\n“Busy,” he says. He turns the mug slowly between his hands. “I confirmed an interview this morning. Permanent exhibition-technician job at a museum inland. It’s tomorrow at eleven.”\n\nHe keeps his voice low, though the foyer is otherwise empty.\n\n“Nell knows now. She’s moved my Thursday shift to Friday. Jo knew already—I told her when we were unloading on Monday.”\n\nOwen glances towards the auditorium doors.\n\n“My dad doesn’t know yet. I want to tell him myself.” He pauses. “And it’s only an interview. Nobody’s offered me a job.”\n\nHis tool case remains shut beside the chair. For the moment, he has nothing else demanding his attention.",
+  "reasoning_summaries": [
+    "**Assessing Owen's Wednesday availability**",
+    "**Establishing Owen's morning schedule and dialogue options**",
+    "**Planning Owen's reserved interview disclosure**",
+    "**Planning character disclosure sequence**",
+    "**Outlining character disclosure motivations**",
+    "**Scheduling character interactions during break**",
+    "**Confirming interview acceptance details**",
+    "**Clarifying interview communication and schedule**",
+    "**Emphasizing interview status and controlling information**",
+    "**Defining character actions and setting**",
+    "**Planning alarm test scene and cataloguing details**",
+    "**Adding subtle character detail with phone behavior**"
+  ],
+  "thread_id": "01a0b620-889f-7a31-8da7-a4d3f78911c8",
+  "turn_id": "01a0b638-5d24-7af2-add2-ae8f12227f24",
+  "usage": {
+    "total": {
+      "totalTokens": 1313031,
+      "inputTokens": 1247430,
+      "cachedInputTokens": 1064832,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 65601,
+      "reasoningOutputTokens": 54937
+    },
+    "last": {
+      "totalTokens": 81202,
+      "inputTokens": 78929,
+      "cachedInputTokens": 77568,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2273,
+      "reasoningOutputTokens": 1995
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 48.79571609897539,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

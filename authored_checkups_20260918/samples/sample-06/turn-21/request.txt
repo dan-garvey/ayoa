@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+The following morning I check with Nell for my next archive assignment and any practical changes I need to know about.
+</user>

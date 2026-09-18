@@ -1,0 +1,42 @@
+{
+  "sample-01": {
+    "condition": "development",
+    "replicate": 1
+  },
+  "sample-02": {
+    "condition": "correction",
+    "replicate": 1
+  },
+  "sample-03": {
+    "condition": "reframe",
+    "replicate": 1
+  },
+  "sample-04": {
+    "condition": "control",
+    "replicate": 1
+  },
+  "sample-05": {
+    "condition": "combined",
+    "replicate": 1
+  },
+  "sample-06": {
+    "condition": "reframe",
+    "replicate": 2
+  },
+  "sample-07": {
+    "condition": "control",
+    "replicate": 2
+  },
+  "sample-08": {
+    "condition": "correction",
+    "replicate": 2
+  },
+  "sample-09": {
+    "condition": "combined",
+    "replicate": 2
+  },
+  "sample-10": {
+    "condition": "development",
+    "replicate": 2
+  }
+}

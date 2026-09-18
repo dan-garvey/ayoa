@@ -1,0 +1,111 @@
+{"at": "2026-09-18T20:17:12.083426+00:00", "event": "server_started", "pid": 155175, "command": ["codex", "--strict-config", "app-server", "--stdio", "--config", "project_doc_max_bytes=0", "--config", "web_search=\"disabled\"", "--config", "model_reasoning_effort=\"max\"", "--config", "model_reasoning_summary=\"detailed\"", "--enable", "skip_host_skill_discovery", "--disable", "shell_tool", "--disable", "view_image", "--disable", "image_generation", "--disable", "browser_use", "--disable", "browser_use_external", "--disable", "in_app_browser", "--disable", "computer_use", "--disable", "apps", "--disable", "plugins", "--disable", "multi_agent", "--disable", "memories", "--disable", "goals", "--disable", "hooks", "--disable", "skill_search", "--disable", "workspace_dependencies"]}
+{"at": "2026-09-18T20:17:17.026065+00:00", "event": "capacity_recovered", "sample": "sample-05", "passage": 19, "failed_turn": "01a0b622-0623-73d2-b8ad-5a296e7f89e8", "evidence": "samples/sample-05/failed_attempts/turn-19/capacity-01"}
+{"at": "2026-09-18T20:17:17.026755+00:00", "event": "started", "sample": "sample-05", "passage": 19}
+{"at": "2026-09-18T20:19:04.238046+00:00", "event": "completed", "sample": "sample-05", "passage": 19, "turn_id": "01a0b62a-8ce3-7ec1-b19e-984ff52d25e9", "words": 277}
+{"at": "2026-09-18T20:19:04.238219+00:00", "event": "round_completed", "passage": 19}
+{"at": "2026-09-18T20:19:04.244522+00:00", "event": "started", "sample": "sample-01", "passage": 20}
+{"at": "2026-09-18T20:19:04.244779+00:00", "event": "started", "sample": "sample-03", "passage": 20}
+{"at": "2026-09-18T20:19:04.244834+00:00", "event": "started", "sample": "sample-02", "passage": 20}
+{"at": "2026-09-18T20:19:51.764510+00:00", "event": "completed", "sample": "sample-02", "passage": 20, "turn_id": "01a0b62c-2fb6-7dc0-a409-b1332bc00039", "words": 251}
+{"at": "2026-09-18T20:19:51.765380+00:00", "event": "started", "sample": "sample-04", "passage": 20}
+{"at": "2026-09-18T20:19:52.130348+00:00", "event": "completed", "sample": "sample-03", "passage": 20, "turn_id": "01a0b62c-2fb6-7dc0-a409-b121fb7472cc", "words": 275}
+{"at": "2026-09-18T20:19:52.131316+00:00", "event": "started", "sample": "sample-05", "passage": 20}
+{"at": "2026-09-18T20:20:27.835060+00:00", "event": "completed", "sample": "sample-04", "passage": 20, "turn_id": "01a0b62c-e956-7321-9891-ff64b9ab4080", "words": 303}
+{"at": "2026-09-18T20:20:27.835908+00:00", "event": "started", "sample": "sample-06", "passage": 20}
+{"at": "2026-09-18T20:20:51.445455+00:00", "event": "completed", "sample": "sample-05", "passage": 20, "turn_id": "01a0b62c-eac3-76c3-89f7-3b4178be03c8", "words": 241}
+{"at": "2026-09-18T20:20:51.446493+00:00", "event": "started", "sample": "sample-07", "passage": 20}
+{"at": "2026-09-18T20:21:16.400893+00:00", "event": "completed", "sample": "sample-06", "passage": 20, "turn_id": "01a0b62d-763c-7223-b994-824380a75b2d", "words": 216}
+{"at": "2026-09-18T20:21:16.401825+00:00", "event": "started", "sample": "sample-08", "passage": 20}
+{"at": "2026-09-18T20:21:20.454993+00:00", "event": "completed", "sample": "sample-01", "passage": 20, "turn_id": "01a0b62c-2fb5-70a2-8196-3407abe23043", "words": 379}
+{"at": "2026-09-18T20:21:20.455862+00:00", "event": "started", "sample": "sample-09", "passage": 20}
+{"at": "2026-09-18T20:22:04.829729+00:00", "event": "completed", "sample": "sample-07", "passage": 20, "turn_id": "01a0b62d-d277-73d0-9999-fdbd95445b6d", "words": 281}
+{"at": "2026-09-18T20:22:04.830831+00:00", "event": "started", "sample": "sample-10", "passage": 20}
+{"at": "2026-09-18T20:22:17.705079+00:00", "event": "completed", "sample": "sample-08", "passage": 20, "turn_id": "01a0b62e-33f2-7c32-9763-a74a762e4d0d", "words": 228}
+{"at": "2026-09-18T20:22:40.359607+00:00", "event": "completed", "sample": "sample-09", "passage": 20, "turn_id": "01a0b62e-43c8-7cc1-929c-2b4b9807039b", "words": 263}
+{"at": "2026-09-18T20:23:18.380961+00:00", "event": "completed", "sample": "sample-10", "passage": 20, "turn_id": "01a0b62e-f11f-7570-87cd-bb24a9f55749", "words": 325}
+{"at": "2026-09-18T20:23:18.381109+00:00", "event": "round_completed", "passage": 20}
+{"at": "2026-09-18T20:23:18.387295+00:00", "event": "started", "sample": "sample-01", "passage": 21}
+{"at": "2026-09-18T20:23:18.388406+00:00", "event": "started", "sample": "sample-02", "passage": 21}
+{"at": "2026-09-18T20:23:18.388501+00:00", "event": "started", "sample": "sample-03", "passage": 21}
+{"at": "2026-09-18T20:24:46.232990+00:00", "event": "completed", "sample": "sample-01", "passage": 21, "turn_id": "01a0b630-1075-72c1-8ada-5a56c75845fe", "words": 269}
+{"at": "2026-09-18T20:24:46.233850+00:00", "event": "started", "sample": "sample-04", "passage": 21}
+{"at": "2026-09-18T20:24:52.777442+00:00", "event": "completed", "sample": "sample-02", "passage": 21, "turn_id": "01a0b630-1075-72c1-8ada-5a41d9da2dba", "words": 178}
+{"at": "2026-09-18T20:24:52.778461+00:00", "event": "started", "sample": "sample-05", "passage": 21}
+{"at": "2026-09-18T20:25:01.101088+00:00", "event": "completed", "sample": "sample-03", "passage": 21, "turn_id": "01a0b630-1075-72c1-8ada-5a62fe10ff72", "words": 272}
+{"at": "2026-09-18T20:25:01.101943+00:00", "event": "started", "sample": "sample-06", "passage": 21}
+{"at": "2026-09-18T20:25:45.285768+00:00", "event": "completed", "sample": "sample-04", "passage": 21, "turn_id": "01a0b631-679a-7f31-91d6-b475dfa2380f", "words": 237}
+{"at": "2026-09-18T20:25:45.286663+00:00", "event": "started", "sample": "sample-07", "passage": 21}
+{"at": "2026-09-18T20:26:17.584737+00:00", "event": "completed", "sample": "sample-06", "passage": 21, "turn_id": "01a0b631-a1ae-76d1-86aa-f1dbf608fea9", "words": 230}
+{"at": "2026-09-18T20:26:17.585661+00:00", "event": "started", "sample": "sample-08", "passage": 21}
+{"at": "2026-09-18T20:26:25.245917+00:00", "event": "completed", "sample": "sample-05", "passage": 21, "turn_id": "01a0b631-812b-7d81-85cd-28b783029f82", "words": 205}
+{"at": "2026-09-18T20:26:25.246845+00:00", "event": "started", "sample": "sample-09", "passage": 21}
+{"at": "2026-09-18T20:26:59.979176+00:00", "event": "completed", "sample": "sample-07", "passage": 21, "turn_id": "01a0b632-4e47-74d1-a3cd-f2afa015a4e5", "words": 248}
+{"at": "2026-09-18T20:26:59.980050+00:00", "event": "started", "sample": "sample-10", "passage": 21}
+{"at": "2026-09-18T20:27:19.924804+00:00", "event": "completed", "sample": "sample-08", "passage": 21, "turn_id": "01a0b632-cc72-7d90-8deb-0ec3a757a297", "words": 212}
+{"at": "2026-09-18T20:28:23.029588+00:00", "event": "completed", "sample": "sample-09", "passage": 21, "turn_id": "01a0b632-ea5f-7620-bf49-78998ea2c133", "words": 252}
+{"at": "2026-09-18T20:28:51.997865+00:00", "event": "completed", "sample": "sample-10", "passage": 21, "turn_id": "01a0b633-720c-7ef2-948b-aff8ca25e2ad", "words": 317}
+{"at": "2026-09-18T20:28:51.998085+00:00", "event": "round_completed", "passage": 21}
+{"at": "2026-09-18T20:28:52.003372+00:00", "event": "started", "sample": "sample-02", "passage": 22}
+{"at": "2026-09-18T20:28:52.003586+00:00", "event": "started", "sample": "sample-01", "passage": 22}
+{"at": "2026-09-18T20:28:52.004486+00:00", "event": "started", "sample": "sample-03", "passage": 22}
+{"at": "2026-09-18T20:29:08.267701+00:00", "event": "completed", "sample": "sample-02", "passage": 22, "turn_id": "01a0b635-27a4-7763-ba9c-b76a1098e049", "words": 64}
+{"at": "2026-09-18T20:29:08.268639+00:00", "event": "started", "sample": "sample-04", "passage": 22}
+{"at": "2026-09-18T20:29:18.812631+00:00", "event": "completed", "sample": "sample-03", "passage": 22, "turn_id": "01a0b635-27a6-7b32-897e-3d02c3bd38ae", "words": 127}
+{"at": "2026-09-18T20:29:18.813500+00:00", "event": "started", "sample": "sample-05", "passage": 22}
+{"at": "2026-09-18T20:29:25.455530+00:00", "event": "completed", "sample": "sample-04", "passage": 22, "turn_id": "01a0b635-672d-7ef0-804a-7fc72a1bee7e", "words": 130}
+{"at": "2026-09-18T20:29:25.456586+00:00", "event": "started", "sample": "sample-06", "passage": 22}
+{"at": "2026-09-18T20:29:37.100020+00:00", "event": "completed", "sample": "sample-01", "passage": 22, "turn_id": "01a0b635-27a5-76e2-b240-9b53c7f59262", "words": 148}
+{"at": "2026-09-18T20:29:37.100962+00:00", "event": "started", "sample": "sample-07", "passage": 22}
+{"at": "2026-09-18T20:29:41.039912+00:00", "event": "completed", "sample": "sample-05", "passage": 22, "turn_id": "01a0b635-905e-7120-b4bb-9fed6a055c47", "words": 76}
+{"at": "2026-09-18T20:29:41.040786+00:00", "event": "started", "sample": "sample-08", "passage": 22}
+{"at": "2026-09-18T20:29:46.755795+00:00", "event": "completed", "sample": "sample-06", "passage": 22, "turn_id": "01a0b635-aa51-7d42-a900-1ca01b8f234c", "words": 93}
+{"at": "2026-09-18T20:29:46.756663+00:00", "event": "started", "sample": "sample-09", "passage": 22}
+{"at": "2026-09-18T20:30:04.705478+00:00", "event": "completed", "sample": "sample-07", "passage": 22, "turn_id": "01a0b635-d7cd-7b71-ae9a-c31ca01f1254", "words": 119}
+{"at": "2026-09-18T20:30:04.706382+00:00", "event": "started", "sample": "sample-10", "passage": 22}
+{"at": "2026-09-18T20:30:07.139481+00:00", "event": "completed", "sample": "sample-08", "passage": 22, "turn_id": "01a0b635-e731-7050-b649-17bc3959a605", "words": 71}
+{"at": "2026-09-18T20:30:07.841236+00:00", "event": "completed", "sample": "sample-09", "passage": 22, "turn_id": "01a0b635-fd85-7d83-a9d8-626522abed0a", "words": 97}
+{"at": "2026-09-18T20:30:24.635210+00:00", "event": "completed", "sample": "sample-10", "passage": 22, "turn_id": "01a0b636-43a3-7c01-bf4d-bdc88676fc2c", "words": 112}
+{"at": "2026-09-18T20:30:24.635364+00:00", "event": "round_completed", "passage": 22}
+{"at": "2026-09-18T20:30:24.642071+00:00", "event": "started", "sample": "sample-01", "passage": 23}
+{"at": "2026-09-18T20:30:24.643243+00:00", "event": "started", "sample": "sample-03", "passage": 23}
+{"at": "2026-09-18T20:30:24.643380+00:00", "event": "started", "sample": "sample-02", "passage": 23}
+{"at": "2026-09-18T20:31:44.665268+00:00", "event": "completed", "sample": "sample-01", "passage": 23, "turn_id": "01a0b636-9184-7a91-acfb-2a3367e09c9a", "words": 245}
+{"at": "2026-09-18T20:31:44.666210+00:00", "event": "started", "sample": "sample-04", "passage": 23}
+{"at": "2026-09-18T20:31:46.294656+00:00", "event": "completed", "sample": "sample-02", "passage": 23, "turn_id": "01a0b636-9184-7a91-acfb-2a53f31cff59", "words": 164}
+{"at": "2026-09-18T20:31:46.295583+00:00", "event": "started", "sample": "sample-05", "passage": 23}
+{"at": "2026-09-18T20:32:00.673646+00:00", "event": "completed", "sample": "sample-03", "passage": 23, "turn_id": "01a0b636-9184-7a91-acfb-2a480bd3a19b", "words": 167}
+{"at": "2026-09-18T20:32:00.674573+00:00", "event": "started", "sample": "sample-06", "passage": 23}
+{"at": "2026-09-18T20:32:22.306635+00:00", "event": "completed", "sample": "sample-05", "passage": 23, "turn_id": "01a0b637-d078-7ef3-8df0-bcf878561002", "words": 104}
+{"at": "2026-09-18T20:32:22.307494+00:00", "event": "started", "sample": "sample-07", "passage": 23}
+{"at": "2026-09-18T20:32:50.796305+00:00", "event": "completed", "sample": "sample-04", "passage": 23, "turn_id": "01a0b637-ca1a-7a73-a501-f1970784b86a", "words": 196}
+{"at": "2026-09-18T20:32:50.797158+00:00", "event": "started", "sample": "sample-08", "passage": 23}
+{"at": "2026-09-18T20:33:11.103593+00:00", "event": "completed", "sample": "sample-07", "passage": 23, "turn_id": "01a0b638-5d24-7af2-add2-ae8f12227f24", "words": 217}
+{"at": "2026-09-18T20:33:11.104654+00:00", "event": "started", "sample": "sample-09", "passage": 23}
+{"at": "2026-09-18T20:33:12.673399+00:00", "event": "completed", "sample": "sample-06", "passage": 23, "turn_id": "01a0b638-08a3-7692-b8fa-221cddddfa87", "words": 281}
+{"at": "2026-09-18T20:33:12.674339+00:00", "event": "started", "sample": "sample-10", "passage": 23}
+{"at": "2026-09-18T20:33:52.999515+00:00", "event": "completed", "sample": "sample-10", "passage": 23, "turn_id": "01a0b639-21e2-7852-ab5e-96aa887b75c2", "words": 224}
+{"at": "2026-09-18T20:33:55.177170+00:00", "event": "completed", "sample": "sample-08", "passage": 23, "turn_id": "01a0b638-cc6d-7a43-a345-7eaba9fa1b29", "words": 172}
+{"at": "2026-09-18T20:34:16.775568+00:00", "event": "completed", "sample": "sample-09", "passage": 23, "turn_id": "01a0b639-1bc1-7653-b87a-bb94dca9a11c", "words": 188}
+{"at": "2026-09-18T20:34:16.775765+00:00", "event": "round_completed", "passage": 23}
+{"at": "2026-09-18T20:34:16.782464+00:00", "event": "started", "sample": "sample-01", "passage": 24}
+{"at": "2026-09-18T20:34:16.782764+00:00", "event": "started", "sample": "sample-03", "passage": 24}
+{"at": "2026-09-18T20:34:16.783006+00:00", "event": "started", "sample": "sample-02", "passage": 24}
+{"at": "2026-09-18T20:34:53.870421+00:00", "event": "completed", "sample": "sample-03", "passage": 24, "turn_id": "01a0b63a-1c50-7f90-8be4-01a7012934b7", "words": 232}
+{"at": "2026-09-18T20:34:53.871437+00:00", "event": "started", "sample": "sample-04", "passage": 24}
+{"at": "2026-09-18T20:34:59.613647+00:00", "event": "completed", "sample": "sample-02", "passage": 24, "turn_id": "01a0b63a-1c50-7f90-8be4-01bf48f2c819", "words": 219}
+{"at": "2026-09-18T20:34:59.614923+00:00", "event": "started", "sample": "sample-05", "passage": 24}
+{"at": "2026-09-18T20:35:04.977463+00:00", "event": "completed", "sample": "sample-01", "passage": 24, "turn_id": "01a0b63a-1c4f-7273-832d-d032cc1037e2", "words": 238}
+{"at": "2026-09-18T20:35:04.978424+00:00", "event": "started", "sample": "sample-06", "passage": 24}
+{"at": "2026-09-18T20:35:24.619416+00:00", "event": "completed", "sample": "sample-04", "passage": 24, "turn_id": "01a0b63a-ad30-76c3-9b4c-d5b4aade0328", "words": 235}
+{"at": "2026-09-18T20:35:24.620663+00:00", "event": "started", "sample": "sample-07", "passage": 24}
+{"at": "2026-09-18T20:35:32.519991+00:00", "event": "completed", "sample": "sample-06", "passage": 24, "turn_id": "01a0b63a-d893-70b1-aacf-7fc79b28ab17", "words": 206}
+{"at": "2026-09-18T20:35:32.521006+00:00", "event": "started", "sample": "sample-08", "passage": 24}
+{"at": "2026-09-18T20:35:32.881479+00:00", "event": "completed", "sample": "sample-05", "passage": 24, "turn_id": "01a0b63a-c39f-7652-91e0-c93bf4f6bdd8", "words": 204}
+{"at": "2026-09-18T20:35:32.882404+00:00", "event": "started", "sample": "sample-09", "passage": 24}
+{"at": "2026-09-18T20:35:58.780567+00:00", "event": "completed", "sample": "sample-07", "passage": 24, "turn_id": "01a0b63b-254d-7352-9644-fa3f70e5eefa", "words": 243}
+{"at": "2026-09-18T20:35:58.781541+00:00", "event": "started", "sample": "sample-10", "passage": 24}
+{"at": "2026-09-18T20:36:00.469464+00:00", "event": "completed", "sample": "sample-08", "passage": 24, "turn_id": "01a0b63b-4429-7071-9bb0-16bd381f51bc", "words": 194}
+{"at": "2026-09-18T20:36:09.682570+00:00", "event": "completed", "sample": "sample-09", "passage": 24, "turn_id": "01a0b63b-4593-7e91-8a11-943d6270dd5a", "words": 218}
+{"at": "2026-09-18T20:36:33.413887+00:00", "event": "completed", "sample": "sample-10", "passage": 24, "turn_id": "01a0b63b-aabe-7181-bf57-488c3d1b6b8b", "words": 212}
+{"at": "2026-09-18T20:36:33.414096+00:00", "event": "round_completed", "passage": 24}
+{"at": "2026-09-18T20:36:33.549632+00:00", "event": "server_stopped"}

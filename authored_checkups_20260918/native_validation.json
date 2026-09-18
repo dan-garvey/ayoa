@@ -1,0 +1,56 @@
+{
+  "all_prefixes_inputs_outputs_match": true,
+  "samples": [
+    {
+      "sample": "sample-01",
+      "thread_id": "01a0b620-7ee2-7183-b42a-b5b9c5f203a2",
+      "native_turns": 27
+    },
+    {
+      "sample": "sample-02",
+      "thread_id": "01a0b620-8072-7e13-8a39-b5797f1ec22f",
+      "native_turns": 27
+    },
+    {
+      "sample": "sample-03",
+      "thread_id": "01a0b620-8225-7d82-96e7-4fd65487b0f2",
+      "native_turns": 27
+    },
+    {
+      "sample": "sample-04",
+      "thread_id": "01a0b620-83bd-7e31-bca3-a82f612cf59a",
+      "native_turns": 27
+    },
+    {
+      "sample": "sample-05",
+      "thread_id": "01a0b62a-8b76-7fc1-b48f-804a3b6630db",
+      "native_turns": 27
+    },
+    {
+      "sample": "sample-06",
+      "thread_id": "01a0b620-86f7-7cc3-b380-f7b161e65545",
+      "native_turns": 27
+    },
+    {
+      "sample": "sample-07",
+      "thread_id": "01a0b620-889f-7a31-8da7-a4d3f78911c8",
+      "native_turns": 27
+    },
+    {
+      "sample": "sample-08",
+      "thread_id": "01a0b620-8a35-70f3-b3ca-670d5df6c88e",
+      "native_turns": 27
+    },
+    {
+      "sample": "sample-09",
+      "thread_id": "01a0b620-8bc6-72a2-95f2-b2a9b0b4c382",
+      "native_turns": 27
+    },
+    {
+      "sample": "sample-10",
+      "thread_id": "01a0b620-8d52-77f1-aee5-1d0b78464f3f",
+      "native_turns": 27
+    }
+  ],
+  "generations_during_verification": 0
+}

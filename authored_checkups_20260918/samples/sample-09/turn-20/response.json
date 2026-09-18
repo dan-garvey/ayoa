@@ -1,0 +1,57 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Lunch winds down without another subject taking hold. Bea caps her jar of walnuts, Jo returns to her menu figures, and Owen carries his plate to the kitchen. Nell takes the amended rota back into the office.\n\nYou return upstairs and continue with the programme box.\n\nThe afternoon’s sheets are small, folded listings printed in one or two colours. Several carry advertisements for Harbour Street shops that no longer occupy their addresses. Matinee times have been corrected in pencil; one programme has a coffee ring obscuring half the ticket prices.\n\nBetween two programmes from October 1986, you find a narrow scrap of paper used as a work list:\n\n**BEA — LATE DOOR**  \n**MARTIN — LAMP 2**  \n**JUNE — FRONT BOARD**\n\nIt has no date or signature. Its position suggests a connection with the surrounding programmes but does not prove one. You record the wording and where the scrap was found without assigning it a date or identifying the writer.\n\nThe rest of the box takes you through children’s matinees, short-notice programme changes and several weeks represented only by duplicate sheets. By half past three, today’s agreed finishing time, the transfer file is catalogued and the programme box has a complete preliminary description.\n\nYou save the records and go downstairs to enter your hours.\n\nNell is in the office updating the paper diary. “Dev confirmed before noon,” she says. “Hana can make seven tonight, so you may hear speech and test tones from the auditorium for half an hour.”\n\nShe inks over the provisional booking: **19.00–19.30 — DEV / HANA — HEARING ASSISTANCE TEST**.",
+  "reasoning_summaries": [
+    "**Assuming 16:00 shift end**",
+    "**Planning shift end narration and catalog task**",
+    "**Discovering historical programmes and connections**",
+    "**Examining staff notes in programmes**",
+    "**Cataloging 1986 staff rota evidence**",
+    "**Identifying handwritten programme annotations**",
+    "**Organizing dated programme records**",
+    "**Planning shift end communication**",
+    "**Confirming afternoon schedule and notifications**",
+    "**Confirming 9-to-3:30 work schedule**",
+    "**Cataloging archival program annotations**",
+    "**Linking staff roles to annotations**",
+    "**Documenting archival scrap details**",
+    "**Clarifying scene actions and dialogue**",
+    "**Recording shift details and confirmations**",
+    "**Planning shift end summary**",
+    "**Confirming content boundaries**"
+  ],
+  "thread_id": "01a0b620-8bc6-72a2-95f2-b2a9b0b4c382",
+  "turn_id": "01a0b62e-43c8-7cc1-929c-2b4b9807039b",
+  "usage": {
+    "total": {
+      "totalTokens": 1078483,
+      "inputTokens": 1018121,
+      "cachedInputTokens": 841600,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 60362,
+      "reasoningOutputTokens": 50474
+    },
+    "last": {
+      "totalTokens": 76436,
+      "inputTokens": 73343,
+      "cachedInputTokens": 67456,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3093,
+      "reasoningOutputTokens": 2752
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 79.90339981898433,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}
