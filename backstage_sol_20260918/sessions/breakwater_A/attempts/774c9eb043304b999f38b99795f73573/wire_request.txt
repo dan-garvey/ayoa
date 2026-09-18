@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I offer to carry the empty plates back to the kitchen, without offering to take over anybody's work.
+</user>

@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+At orientation, I ask how a student in the human seat is supposed to learn the practical duties of the role.
+</user>

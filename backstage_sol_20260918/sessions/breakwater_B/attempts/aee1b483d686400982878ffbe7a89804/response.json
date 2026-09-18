@@ -1,0 +1,45 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Owen has one hand on the side door when you thank him.\n\n“Thanks for the map.”\n\nHe glances back. “Check the tide board by the harbour office before you take the marsh path. Otherwise, you’ll be fine.”\n\nHe leaves without extending the conversation. You place your empty glass beside the sink, pick up the cardboard route and head for the staff stairs.\n\n“Induction at nine,” Nell reminds you from the office doorway.\n\nJo lifts a hand from behind the counter. Neither keeps you downstairs.\n\nOn the first-floor landing, the projection booth is dark and the archive workroom remains locked. You return to your room, set Owen’s map beside the welcome sheet and close the door.\n\nBelow, the last tasks of the evening continue without you. A crate moves through the side entrance; Jo’s van starts in the yard and pulls away. Nell’s footsteps make one final circuit through the foyer and office. Lights click off in sequence, followed by the side door closing and its lock catching.\n\nYou are left as the only person inside the Picture House. Your reading waits on the desk beneath the lamp, and the harbour lights shine beyond the darkened window.",
+  "reasoning_summaries": [
+    "**Confirming dialogue boundaries**",
+    "**Detailing routine parting actions**",
+    "**Completing NPC departure routines**",
+    "**Planning nighttime departure sequence**",
+    "**Designing closing scene details**",
+    "**Refining final lighting description**"
+  ],
+  "thread_id": "01a0b588-d7a8-7f73-acd7-e1d4d0a54185",
+  "turn_id": "01a0b594-0413-77d0-8d6b-ec69010a1d0a",
+  "usage": {
+    "total": {
+      "totalTokens": 403215,
+      "inputTokens": 372814,
+      "cachedInputTokens": 293760,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 30401,
+      "reasoningOutputTokens": 24318
+    },
+    "last": {
+      "totalTokens": 44056,
+      "inputTokens": 42801,
+      "cachedInputTokens": 40192,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1255,
+      "reasoningOutputTokens": 1013
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 31.191529500996694,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:33:22.803003+00:00",
+  "duration_s": 48.207794280024245
+}

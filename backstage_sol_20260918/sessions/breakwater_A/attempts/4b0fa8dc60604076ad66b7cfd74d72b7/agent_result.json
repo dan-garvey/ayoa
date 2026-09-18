@@ -1,0 +1,40 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Owen has already left with Jo, and the service yard is quiet beyond the side corridor. You don’t go looking for him or try to interrupt whatever he has planned for the rest of the evening.\n\nYou return the empty glass to the kitchen and leave it on the draining rack. The tap gives a final drip into the sink.\n\nBack in the foyer, the locked doors hold the street at a distance. There is nobody left to ask, and no reason to manufacture company from an empty building.",
+  "reasoning_summaries": [
+    "**Confirming Owen's absence**",
+    "**Narrating Owen's departure and quiet aftermath**",
+    "**Describing routine clearing and Owen's absence**",
+    "**Confirming character departure continuity**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b594-7e0e-7503-9442-085caa7559cf",
+  "usage": {
+    "total": {
+      "totalTokens": 502364,
+      "inputTokens": 464666,
+      "cachedInputTokens": 376960,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 37698,
+      "reasoningOutputTokens": 31381
+    },
+    "last": {
+      "totalTokens": 52117,
+      "inputTokens": 51417,
+      "cachedInputTokens": 49664,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 700,
+      "reasoningOutputTokens": 594
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 18.206842195999343,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

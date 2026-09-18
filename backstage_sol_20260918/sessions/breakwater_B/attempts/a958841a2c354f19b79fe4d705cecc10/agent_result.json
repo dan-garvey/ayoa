@@ -1,0 +1,42 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Before leaving the office, you say, “I’m not available for additional front-of-house shifts. I want to keep the hours outside my archive contract for myself.”\n\nNell sets down her pen.\n\n“Understood. Your contract is for thirty hours of archive work. I haven’t included you on the front-of-house rota, and I won’t treat you as spare cover.”\n\nShe glances towards the staff staircase.\n\n“The room is part of your archive contract. Living in the building doesn’t make you available outside your hours, and it doesn’t put you on call when somebody else cancels. Any different work would require a separate paid agreement, but you’ve said you don’t want one, so I won’t offer it.”\n\nNell draws a short line beneath your name on her staffing sheet and writes **ARCHIVE ONLY**.\n\n“If anyone asks you informally, you can refuse them directly or send them to me.”\n\nShe returns to the reopening rota without bargaining or asking you to justify the boundary. Your programme box remains the only work assigned to you that morning.",
+  "reasoning_summaries": [
+    "**Drafting professional boundary response**",
+    "**Finalizing clear FOH boundary statement**",
+    "**Establishing clear labor boundaries**",
+    "**Clarifying front-of-house staffing details**",
+    "**Confirming cataloguer contract limits**",
+    "**Finalizing rota clarification dialogue**"
+  ],
+  "thread_id": "01a0b588-d7a8-7f73-acd7-e1d4d0a54185",
+  "turn_id": "01a0b59e-b715-7b40-abbf-3d80dd76dadf",
+  "usage": {
+    "total": {
+      "totalTokens": 896663,
+      "inputTokens": 848346,
+      "cachedInputTokens": 749184,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 48317,
+      "reasoningOutputTokens": 38235
+    },
+    "last": {
+      "totalTokens": 62396,
+      "inputTokens": 61239,
+      "cachedInputTokens": 58240,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1157,
+      "reasoningOutputTokens": 936
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 30.49506032501813,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

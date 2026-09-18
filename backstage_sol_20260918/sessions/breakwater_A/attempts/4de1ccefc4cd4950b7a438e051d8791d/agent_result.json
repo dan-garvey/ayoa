@@ -1,0 +1,61 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "### Private canon\n\n- Rowan privately considers **“The Red Umbrella”** only as a possible title for a future short story. No plot, characters, prose, manuscript or written note exists, and nobody else knows about it.\n- Do not infer that his current reading inspired the title, elaborate its meaning, or create a coincidental red umbrella. He carries on reading without writing anything.\n\n### Continuity\n\n- It is roughly 20:00 on Monday 14 September. Rowan is upstairs; Nell remains in the office, while the other staff have left.\n- Rosa completed photographs and recorded recollections for all six boards. Two attributions remain unverified; no retake has been established.\n- Nell pencilled a provisional auditorium hold for Dev on Tuesday, 19:00–19:30. It becomes a booking only if Hana is available and Dev confirms by noon Tuesday.\n- Nell approved Owen’s Thursday-to-Friday shift swap in principle, but Owen still needs to send the request and Nell will confirm it in Tuesday’s rota. Martin did not hear this and still knows nothing about the interview.\n- Rowan has not unpacked his luggage or removed his coat on-page. Avoid silently relocating possessions or clothing if they become relevant.\n\n### Adherence and adjustment\n\n- Player ownership, limited viewpoint and technical character knowledge remain strong. Dev answered plainly without recruiting Rowan; the auditorium dispute was resolved by the responsible characters.\n- The last room-booking passage again ended with editorial commentary about Rowan not receiving authority. Future passages should demonstrate that boundary through events rather than explain it.\n- The dispute plausibly used Martin’s helpful overreach and Rosa’s protected time, but it is now complete. Do not revive it or manufacture another conflict merely because the player supplied a conditional response.\n- Dialogue has become less uniformly quippy. Continue giving Martin credible expertise as well as mistaken memories, and broaden Jo beyond enforcing boundaries when she next appears.\n- Supper has reached closure after several player-chosen listening turns. Quiet reading and an undisturbed end to the evening can stand; no knock, invitation or personal question is required.\n\n### Conditional developments\n\n- If time advances to Tuesday morning, Nell’s 09:00 induction is the natural anchor: archive keys, loan agreements, business papers and programme boxes. Rowan remains a cataloguer, not an exhibition assistant or manager.\n- Dev may confirm or lose the provisional slot depending on Hana’s actual availability; this can resolve independently.\n- Rosa may find the photographs adequate. If a retake is genuinely needed, she must arrange it around work and her evening with Beth rather than having Martin volunteer her.\n- Owen may send the shift request and accept the interview invitation before Wednesday noon. He should tell Nell or Martin himself if he chooses; Jo keeps his confidence.",
+  "reasoning_summaries": [
+    "**Auditing narrative consistency**",
+    "**Verifying timeline and details coherence**",
+    "**Tracking provisional scheduling details**",
+    "**Refining room assignment phrasing**",
+    "**Validating scene continuity and dialogue**",
+    "**Confirming timeline and narrative consistency**",
+    "**Finalizing character dialogue refinement**",
+    "**Clarifying shift change status and narration**",
+    "**Tracking provisional shift approval and pending confirmation**",
+    "**Noting provisional short-story title**",
+    "**Planning narrative timing and logistics**",
+    "**Managing character relationship boundaries**",
+    "**Tracking upcoming staff and supplier deadlines**",
+    "**Clarifying character dynamics and event pacing**",
+    "**Planning concise summary with reading limits**",
+    "**Tracking character clothing continuity**",
+    "**Verifying environmental and narrative consistency**",
+    "**Clarifying audio device details and narrative tone**",
+    "**Reconciling managerial approvals and confirmations**",
+    "**Establishing editorial and narrative guidelines**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b591-cccb-72c3-a00b-cd5304edefdf",
+  "usage": {
+    "total": {
+      "totalTokens": 349087,
+      "inputTokens": 314238,
+      "cachedInputTokens": 233216,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 34849,
+      "reasoningOutputTokens": 29025
+    },
+    "last": {
+      "totalTokens": 49123,
+      "inputTokens": 45181,
+      "cachedInputTokens": 42880,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3942,
+      "reasoningOutputTokens": 3375
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 89.8277986869798,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You cross the empty foyer and climb the staff stairs. The projection booth is dark, and the archive workroom remains locked for tomorrow’s induction.\n\nInside your room, you close the door. Your luggage is still where you left it, and the welcome sheet lies beneath the desk lamp with **9.00 — INDUCTION** written across the bottom.\n\nOutside, the harbour lights shift beyond the rooftops. No footsteps follow you upstairs, and nobody knocks. When the desk lamp goes out, the Picture House remains quiet around you.",
+  "reasoning_summaries": [
+    "**Planning nighttime return narration**",
+    "**Refining nighttime scene details**",
+    "**Confirming routine nighttime actions**",
+    "**Advancing time through night transition**",
+    "**Finalizing nighttime scene description**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b595-5349-7522-a5b3-55747671866a",
+  "usage": {
+    "total": {
+      "totalTokens": 555513,
+      "inputTokens": 516828,
+      "cachedInputTokens": 428160,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 38685,
+      "reasoningOutputTokens": 32256
+    },
+    "last": {
+      "totalTokens": 53149,
+      "inputTokens": 52162,
+      "cachedInputTokens": 51200,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 987,
+      "reasoningOutputTokens": 875
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 25.703941709012724,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:34:43.134496+00:00",
+  "duration_s": 61.97762889700243
+}

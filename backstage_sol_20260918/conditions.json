@@ -1,0 +1,18 @@
+{
+  "covenant_A": {
+    "story": "covenant",
+    "checkup_every": 0
+  },
+  "covenant_B": {
+    "story": "covenant",
+    "checkup_every": 5
+  },
+  "breakwater_A": {
+    "story": "breakwater",
+    "checkup_every": 5
+  },
+  "breakwater_B": {
+    "story": "breakwater",
+    "checkup_every": 0
+  }
+}

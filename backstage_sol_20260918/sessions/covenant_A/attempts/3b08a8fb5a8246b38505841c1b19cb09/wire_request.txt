@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+When the meal is over I say goodnight and go back to my room, leaving everyone else to their plans.
+</user>

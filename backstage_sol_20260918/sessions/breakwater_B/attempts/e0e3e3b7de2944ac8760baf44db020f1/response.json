@@ -1,0 +1,48 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Dev is halfway up the staff staircase when you call after him.\n\n“What are you working on up there this evening?”\n\nHe stops and turns, one hand resting on the equipment case.\n\n“Commissioning, mostly. The projector works, but working once isn’t the same as being ready for staff to use.” He comes down two steps so he doesn’t have to speak over the noise from the kitchen. “I’m saving the regular screening settings, labelling the sound inputs and writing down what to restart when something freezes. The aim is that Nell can ring me because there’s an actual fault, not because nobody knows which switch matters.”\n\nHe taps the case with his thumb.\n\n“These are hearing-assistance receivers. They pick up a separate feed from the film sound, either through headphones or a neck loop. I can pair them with the transmitter and log the serial numbers tonight, but the useful test has to happen in the auditorium. Front row, back row, behind the aisle walls—anywhere the signal might drop out. That’s what Hana was coming to help with.”\n\nFrom behind the auditorium doors comes a faint scrape, then Rosa saying, “Hold it there. The reflection’s gone.”\n\n“So the walking-around part waits,” Dev continues. “Upstairs I can still finish the paperwork and check the booth end of the system without sending test noise through their recording.”\n\nNell looks up from her envelope. “And document where you’ve saved the settings.”\n\n“That was included in ‘paperwork.’”\n\n“I’m pleased to hear it.”\n\nDev gives her a look without real heat, then nods towards the landing above. Blue equipment light shows through the narrow window in the booth door.\n\n“Do you want to see the booth before I close everything up?”",
+  "reasoning_summaries": [
+    "**Planning to ask Dev upstairs**",
+    "**Detailing Dev’s projection booth work**",
+    "**Clarifying Dev’s current tasks and dialogue**",
+    "**Planning dialogue and assistant options**",
+    "**Designing controlled character interaction**",
+    "**Outlining focused dialogue scene**",
+    "**Clarifying Dev's booth activities**",
+    "**Detailing booth setup and NPC actions**"
+  ],
+  "thread_id": "01a0b588-d7a8-7f73-acd7-e1d4d0a54185",
+  "turn_id": "01a0b588-d8a7-7b41-9353-8a9f42f65856",
+  "usage": {
+    "total": {
+      "totalTokens": 104729,
+      "inputTokens": 91545,
+      "cachedInputTokens": 32000,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 13184,
+      "reasoningOutputTokens": 10194
+    },
+    "last": {
+      "totalTokens": 26489,
+      "inputTokens": 24782,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1707,
+      "reasoningOutputTokens": 1349
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 50.44291668199003,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:21:30.042711+00:00",
+  "duration_s": 50.47776153200539
+}

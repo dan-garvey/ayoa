@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+If the conversation turns into an argument about who gets to use a room, I listen without deciding for them. I finish clearing away my own things.
+</user>

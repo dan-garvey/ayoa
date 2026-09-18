@@ -1,0 +1,56 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "The night passes without interruption. By morning, pale sunlight lies across the bedroom floor and delivery vans are moving along Harbour Street.\n\nYou wash, have breakfast downstairs under the temporary kitchen arrangement, and clear what you use. At two minutes to nine, you arrive outside the office.\n\nNell is already there with a mug, two folders and a key on a blue plastic tag.\n\n“Morning. We’ll begin with boundaries, then the room, then one box done properly.”\n\nShe shows you the timesheet kept beside the paper diary and explains where to record your thirty contracted hours. Business records containing personal information are not to be left open in the workroom overnight. Nothing is discarded, repaired, scanned or moved into exhibition use simply because it appears unimportant or useful.\n\n“Your job is to describe what’s here,” she says. “Ownership, condition, provenance and permissions. If evidence conflicts, record the conflict. You don’t have to settle it by instinct.”\n\nThe thinner folder contains loan agreements. Nell opens it to a record signed by Bea and the trust the previous Friday.\n\n“This is the green photograph album mentioned last night. It stays until the thirtieth of October. We may inventory it and make written condition notes. We may not scan, publish or display any image without a further agreement from Bea.”\n\nThe restrictions are printed plainly beneath the album’s description.\n\n“The same principle applies to every loan, but the terms differ. Read the individual record before handling the object. The loan cupboard key remains here in the office; we sign it out when we need it.”\n\nNell takes the folders and leads you upstairs. The archive workroom smells of cardboard, paper and recent plaster. Metal shelves line two walls. Some boxes carry old handwritten labels—**PROGRAMMES**, **ACCOUNTS**, **PUBLICITY**—while newer ones have temporary numbered tags. Two folding tables stand beneath the window. A grey steel cupboard occupies the far corner, its lock bright from recent use.\n\nShe hands you the blue-tagged key.\n\n“This opens the workroom, not the loan cupboard. No food or drink in here. If you find damp, mould, insects or anything sharp, stop and close the box.”\n\nFrom a lower shelf she selects a plain archive box marked **OFFICE PAPERS—UNSORTED** and places it on the table.\n\nInside are invoices, typed letters, carbon copies and several folded sheets held by rusting staples. Nell chooses a single electricity invoice and lays it on clean paper.\n\n“First record,” she says. “One sheet. Dated February 2007. Trust property, because it came with the former business archive. Light surface dirt, fold across the lower third, rust staining at the staple.”\n\nShe enters each fact into the catalogue template, keeping description separate from condition and ownership. Then she assigns the item a temporary reference number and writes it in pencil on a slip placed beside the document, not on the document itself.\n\n“That’s the pattern. Slow enough that somebody else can understand what you did after your contract ends.”\n\nShe draws the next paper from the box and begins again.",
+  "reasoning_summaries": [
+    "**Planning induction sequence setup**",
+    "**Outlining Nell’s induction start**",
+    "**Establishing morning breakfast routine**",
+    "**Planning scene timing and dialogue**",
+    "**Outlining detailed induction steps**",
+    "**Clarifying archive key distribution**",
+    "**Planning key and cupboard access details**",
+    "**Drafting orientation and workday protocol**",
+    "**Outlining work rules and archive room**",
+    "**Designing archive box labels**",
+    "**Starting archive cataloguing narration**",
+    "**Drafting morning scene details**",
+    "**Documenting key access and loan conditions**",
+    "**Planning archival record demonstration**"
+  ],
+  "thread_id": "01a0b588-d7a8-7f73-acd7-e1d4d0a54185",
+  "turn_id": "01a0b594-8628-7881-8c05-e2bd81fadd03",
+  "usage": {
+    "total": {
+      "totalTokens": 450325,
+      "inputTokens": 416911,
+      "cachedInputTokens": 336384,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 33414,
+      "reasoningOutputTokens": 26700
+    },
+    "last": {
+      "totalTokens": 47110,
+      "inputTokens": 44097,
+      "cachedInputTokens": 42624,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3013,
+      "reasoningOutputTokens": 2382
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 78.87934281595517,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:34:43.791736+00:00",
+  "duration_s": 80.89432521397248
+}

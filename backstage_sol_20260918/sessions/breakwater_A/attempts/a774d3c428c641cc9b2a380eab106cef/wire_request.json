@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nDuring the induction I ask how to tell what the cinema owns from what is on loan, and what restrictions I need to check before handling an item.\n</user>\n"
+    }
+  ]
+}

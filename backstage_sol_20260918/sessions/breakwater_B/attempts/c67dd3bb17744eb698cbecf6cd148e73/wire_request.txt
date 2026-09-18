@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I go downstairs for a glass of water and linger in the foyer for a few minutes.
+</user>

@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I sleep, have breakfast, and arrive for the nine o'clock induction on time. I let Nell begin.
+</user>

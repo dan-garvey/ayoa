@@ -1,0 +1,41 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Seraphel remains in the library gallery, occupied with her choir pages. There is no conversation between you to continue, so you leave her to the work and open the blue volume again.\n\nFirelight warms one edge of the pages as you read the section on speaking order. The book calls the order ceremonial, but places the beastkin delegation last in most general debates because it joined the Covenant later. Earlier speakers can define the terms of a motion before that seat is recognized.\n\nThe following pages describe the human delegation’s former administrative duties. Humans frequently chaired translation and arbitration panels, while magical disputes were sent to mixed committees under their supervision. After the human collapse, those duties were reassigned through a series of temporary orders. The vote itself remained dormant rather than passing to another seat.\n\nAt the card table, Thessaly wins another hand. Dena gathers the cards to deal again, and Rashid accepts the loss without trying to revise the rules.\n\nNo one interrupts your reading. Seraphel’s pencil continues faintly beyond the library door.",
+  "reasoning_summaries": [
+    "**Continuing narrative with Rowan reading silently**",
+    "**Detailing council speaking order and inequalities**",
+    "**Highlighting human role in council committees**",
+    "**Refining narrative phrasing and atmosphere**",
+    "**Clarifying delegation authority and scene resolution**"
+  ],
+  "thread_id": "01a0b588-d669-7d71-8883-d132de260245",
+  "turn_id": "01a0b594-639c-7e41-a1eb-ed99fa0fc818",
+  "usage": {
+    "total": {
+      "totalTokens": 558014,
+      "inputTokens": 517439,
+      "cachedInputTokens": 344320,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 40575,
+      "reasoningOutputTokens": 34158
+    },
+    "last": {
+      "totalTokens": 55520,
+      "inputTokens": 54386,
+      "cachedInputTokens": 52224,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1134,
+      "reasoningOutputTokens": 920
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 22.579088392027188,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

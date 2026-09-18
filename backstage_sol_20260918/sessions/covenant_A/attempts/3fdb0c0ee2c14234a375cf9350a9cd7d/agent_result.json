@@ -1,0 +1,53 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You return to Garvey House through the garden door.\n\nThe common room is quiet in the afternoon. Rashid sits alone at the card table, fitting last night’s deck back into its wooden case. His coat is immaculate except for one missing brass collar stud. When the lid clicks shut, he sets the case aside.\n\n“How did your evening go?” you ask.\n\n“Dena took my collar stud and three silver marks. Thessaly cheated in a manner she insists was fully disclosed. We played until second bell.”\n\nHe turns the plain replacement pin at his collar.\n\n“I’d decided they only needed a fourth player. Dena wanted me to keep the time I’d promised her. Those aren’t the same thing.” His amber eyes move briefly toward the practice blades by the stairs. “Then Ashara collected her half-hour at sixth bell. You saw the result.”\n\nA small smile exposes one canine.\n\n“Dena says I’m allowed back next week if I arrive without an agenda. I agreed. It was a good evening once I stopped trying to manage it.”\n\nHe studies you for a moment.\n\n“I saw Stone’s old Council manual with you. Did he recommend it, or did you choose the driest object in the library yourself?”",
+  "reasoning_summaries": [
+    "**Preparing to ask about evening**",
+    "**Drafting Rashid’s evening response**",
+    "**Refining post-evening dialogue flow**",
+    "**Assessing character activity and availability**",
+    "**Detailing Rashid's demeanor and dialogue**",
+    "**Clarifying conversation details with Rowan**",
+    "**Formulating follow-up questions about Garvey House experience**",
+    "**Crafting Rashid's nuanced evening response**",
+    "**Planning Rashid's anecdotal evening reply**",
+    "**Refining humorous conclusion and dialogue transition**",
+    "**Drafting Rashid dialogue and room setting**",
+    "**Finalizing Rashid’s reflective dialogue and question**",
+    "**Confirming Rowan dialogue parameters**",
+    "**Defining Rashid interaction details**"
+  ],
+  "thread_id": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "turn_id": "01a0b59c-88ab-7b53-83ba-a17101408add",
+  "usage": {
+    "total": {
+      "totalTokens": 896963,
+      "inputTokens": 836962,
+      "cachedInputTokens": 724352,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 60001,
+      "reasoningOutputTokens": 50532
+    },
+    "last": {
+      "totalTokens": 74443,
+      "inputTokens": 71896,
+      "cachedInputTokens": 69888,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2547,
+      "reasoningOutputTokens": 2293
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 62.40952292102156,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

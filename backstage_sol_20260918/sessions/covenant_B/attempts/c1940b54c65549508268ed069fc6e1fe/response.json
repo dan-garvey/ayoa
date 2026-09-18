@@ -1,0 +1,43 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "For a moment, a private question crosses the printed lines: whether your aunt once kept a blue glass bird on her desk.\n\nIt remains only a guess. You give it no voice, and nothing in the library changes. Caelindra turns a page. Professor Stone closes another catalogue drawer. Seraphel’s pencil continues across the gallery above.\n\nYou return your attention to the book.\n\nThe committee chapter explains that most Council business is shaped before any public vote. Committees decide which petitions receive hearings, which require further translation, and which are returned without debate. Their chairs officially rotate among the seated delegations, though temporary extensions can last for years.\n\nA dense table of offices and procedural limits fills the next page. You follow it line by line beneath the steady green lamp.",
+  "reasoning_summaries": [
+    "**Planning brief fictional thought narrative**",
+    "**Drafting committee descriptions with insight**",
+    "**Finalizing silent guess passage draft**",
+    "**Distinguishing visible vote clarification**"
+  ],
+  "thread_id": "01a0b588-d669-7d71-8883-d132de260245",
+  "turn_id": "01a0b593-2bd3-7093-ba20-4f3701fc9763",
+  "usage": {
+    "total": {
+      "totalTokens": 448159,
+      "inputTokens": 410647,
+      "cachedInputTokens": 240640,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 37512,
+      "reasoningOutputTokens": 31647
+    },
+    "last": {
+      "totalTokens": 52345,
+      "inputTokens": 51628,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 717,
+      "reasoningOutputTokens": 556
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 14.478931287012529,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:32:10.730417+00:00",
+  "duration_s": 41.29293209197931
+}

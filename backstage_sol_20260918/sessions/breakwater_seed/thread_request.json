@@ -1,0 +1,9 @@
+{
+  "method": "thread/start",
+  "params": {
+    "model": "gpt-5.6-sol",
+    "cwd": "/tmp/ayoa-sol-eval-ohk2oa_b",
+    "approvalPolicy": "never",
+    "sandbox": "read-only"
+  }
+}

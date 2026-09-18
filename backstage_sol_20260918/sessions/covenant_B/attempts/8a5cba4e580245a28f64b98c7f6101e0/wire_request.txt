@@ -1,0 +1,37 @@
+<user>
+I stay at the table long enough to finish my food and hear what the others are planning for the evening.
+</user>
+
+<user>
+<checkup>
+Pause the fiction for a backstage checkup. Return concise, actionable notes for
+the next few turns, covering adherence and possible story and character development.
+
+Check the recent writing against the story's directions, full character histories
+and writing rules. Identify consequential drift with brief evidence and a specific
+adjustment: player ownership, plausible character knowledge, continuity, distinct
+motives and voices, character-specific dialogue rules, and pacing. Notice habitual
+aphorisms, forced invitations or personal questions, and exchanges that leave too
+much for the player to answer. Preserve what is working; do not invent faults to
+fill a checklist or restate the source material. Verify suspected contradictions
+against the exact statements and their timing, distinguishing when an arrangement
+was made from when it takes effect. Mark uncertain readings as uncertain rather
+than directing changes to established facts.
+
+Consider unresolved situations and what the characters want independently of the
+protagonist. Suggest developments that could change a relationship, obligation,
+belief or practical situation through plausible action. Tie possibilities to
+existing interests and circumstances, including relationships among other people.
+Distinguish established facts from inferences and new possibilities. Consistent
+new history is welcome; contradictions require correction, not retroactive excuses.
+
+Keep plans conditional on what the player does and what characters can actually
+learn. Adapt initiative to the player's chosen activity and appetite for interaction.
+Quiet, closure and declined invitations can stand. Do not prescribe player speech,
+feelings or decisions, force encounters, or treat proposed developments as events
+that have happened. Drop earlier suggestions that no longer fit. Give useful
+direction without a fixed sequence of scenes or sample character dialogue.
+
+Return only the backstage notes, not a rewritten passage or the next scene.
+</checkup>
+</user>

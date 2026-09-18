@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nIf the loaned photograph album is among the items explained to me, I ask whether one of its photographs could be displayed for the reopening. I do not copy, scan, or publish anything. Otherwise I ask about the permissions on whichever loaned item we are discussing.\n</user>\n"
+    }
+  ]
+}

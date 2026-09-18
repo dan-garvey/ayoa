@@ -1,0 +1,67 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You leave Dev to his serial numbers and return to the foyer. Your plate is where you left it. The stew has cooled slightly, and the underside of the pie crust has softened into the sauce.\n\nThe auditorium doors are closed. Behind them, Martin’s recorded voice carries faintly between the clicks of Rosa’s camera.\n\nNell has unfolded her envelope. A short list now runs down one side.\n\n“I’ll find Dev another auditorium slot in the diary tomorrow,” she says. “Jo, when will you have the opening menu ready for print?”\n\n“When I’ve checked the final supplier prices. Tomorrow afternoon, if nobody changes the cheese again.” Jo covers the remaining pie. “And I’m keeping the lunch van’s Friday route through October. I won’t be available here before three on Fridays.”\n\n“You set your own cafe hours,” Nell says. “I only need them written down so I don’t promise access to a delivery driver when the kitchen’s locked.”\n\n“You’ll have them tomorrow.”\n\nOwen has been gathering cutlery into a plastic tub. He sets it down, then glances towards the closed auditorium doors.\n\n“I need to move my shift this Thursday,” he says. “If that’s still possible.”\n\nNell turns the envelope over and finds the rota notes. “Ten until four?”\n\n“Yes. I can do the same hours Friday instead.”\n\n“I can use you Friday.” She uncaps her pen. “Is it only this week?”\n\n“Only this week. I need to be inland Thursday morning.”\n\nJo keeps her attention on folding foil around the pie. Nell makes the alteration without asking what the appointment is.\n\n“Send it to me tonight,” she says. “I’ll confirm the change when I finish the rota tomorrow.”\n\n“Thanks.”\n\nOwen picks up the cutlery tub and carries it into the kitchen. The shift change is settled before Martin comes out of the auditorium to hear about it.\n\nYou finish the last of your supper while Nell adds two more items to her list: **Dev—auditorium** and **Rowan—9.00, keys/loans**. From behind the double doors, Rosa asks Martin to repeat a painter’s surname, more slowly this time.",
+  "reasoning_summaries": [
+    "**Assessing Owen's shift change request timing**",
+    "**Evaluating Owen's timing for shift request**",
+    "**Planning staff schedule conversation**",
+    "**Reviewing Owen's schedule conflict**",
+    "**Planning Owen's shift change discreetly**",
+    "**Evaluating timing for shift adjustment**",
+    "**Confirming provisional shift changes**",
+    "**Clarifying scheduling and availability details**",
+    "**Detailing post-dinner scene actions**",
+    "**Clarifying scheduling and priorities**",
+    "**Establishing work boundaries and communication nuances**",
+    "**Updating staff scheduling and interview status**",
+    "**Noting scheduling conflicts and plan details**",
+    "**Weighing dialogue exposure and timing constraints**",
+    "**Confirming schedule changes and task assignments**",
+    "**Clarifying Wednesday rota deadline**",
+    "**Drafting fiction dialogue on access and scheduling**",
+    "**Detailing end-of-day routine and door locking**",
+    "**Clarifying character knowledge and scene details**",
+    "**Developing shift change dialogue and character cues**",
+    "**Outlining end-of-scene actions and next-day plans**",
+    "**Planning dialogue revision**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b58b-d43b-71c3-8b48-5bebbad8309b",
+  "usage": {
+    "total": {
+      "totalTokens": 174353,
+      "inputTokens": 152543,
+      "cachedInputTokens": 86016,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 21810,
+      "reasoningOutputTokens": 17656
+    },
+    "last": {
+      "totalTokens": 35539,
+      "inputTokens": 31443,
+      "cachedInputTokens": 29056,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4096,
+      "reasoningOutputTokens": 3647
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 98.54211653099628,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:25:33.619208+00:00",
+  "duration_s": 107.42345234396635
+}

@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+If Owen is around and not busy, I ask whether he recommends any walks for a day off. Otherwise I leave him to his evening.
+</user>

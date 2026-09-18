@@ -1,0 +1,57 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You spoon chickpea stew onto your plate, add a wedge of pie and take a piece of bread from the board Owen passes back. The stew is thick with tomato and cumin; the pie crust flakes beneath your fork, exposing soft onion and sharp cheese.\n\nDev’s phone vibrates against the table.\n\n“She hasn’t left yet,” he says after reading the message. “I’ll rearrange with her.”\n\n“Tell me when, and I’ll put it in the diary,” Nell says.\n\n“I’ll check the diary first.”\n\nThe tightness around the table eases. Rosa reaches beneath her chair for a notebook but leaves the camera case where it is.\n\n“Which board do you want to discuss first?” Martin asks her.\n\n“The yellow one. On Thursday you said June Mercer painted the lettering.”\n\n“She did the border. I painted the title.”\n\nBea looks up. “I remember June doing the title in the back corridor.”\n\n“That was another one.”\n\n“It was yellow.”\n\n“We owned a lot of yellow paint.”\n\nRosa opens the notebook. “I’ll record both versions. There may be a dated photograph somewhere.”\n\n“There might be one in your mum’s album,” Martin says to Bea. “June used to turn up in the background of everything.”\n\nBea lays down her fork. “Possibly. But the album is here for cataloguing, not for the exhibition.”\n\n“I didn’t say we should exhibit it.”\n\n“I know. I’m making the limit clear.”\n\nRosa answers before the pause can lengthen. “I’m not asking to use it. Tonight is the six boards, nothing else.”\n\nNell nods. “The album’s loan agreement permits inventory and condition notes. No scanning or display. Rowan and I will go through that agreement tomorrow with the others.”\n\nBea rubs a crumb from the edge of her plate. “Once I’ve spoken to the people in the photographs, I might change that. Some of them are family pictures. They weren’t taken for an audience.”\n\n“Fair enough,” Martin says. “The board may identify itself without help.”\n\n“It won’t,” Rosa says. “But I’ll enjoy watching you try.”\n\nOwen passes Martin the salad. “Could check the paint layers.”\n\nMartin brightens. “Exactly.”\n\n“You are not scraping Rosa’s board,” Bea says.\n\n“I said check.”\n\n“With your eyes,” Rosa adds.\n\nConversation moves on to the restored sign above the entrance. Martin believes one of its lamps is a different colour from the rest; Nell says they will test it after dark tomorrow. Her hand strays towards the overturned envelope beside her plate.\n\nJo places two fingers on it without looking up. “Still supper.”\n\nNell withdraws her hand. “I wasn’t writing.”\n\n“You were preparing to write.”\n\nAt five to seven, Rosa closes her notebook and lifts the camera case. Martin takes the last piece of bread before rising. Bea follows them towards the auditorium, carrying her mug.\n\nDev remains seated long enough to finish his pie, then picks up the equipment case. “I can log the receiver numbers tonight, at least.”\n\n“Come down before you leave,” Nell says. “I want to know where we stand with the system.”\n\nHe nods and goes upstairs.\n\nBehind the auditorium doors, Rosa’s voice begins organizing the work.\n\n“Let’s start with the yellow board. Martin, give me the painter’s name as you remember it, and say when you first saw it.”\n\nA moment later, Martin answers, more formally than he has spoken all evening.\n\nAt the table, Jo stacks two empty plates. Owen gathers the cutlery, and Nell finally turns her envelope back over.",
+  "reasoning_summaries": [
+    "**Planning supper conversation dynamics**",
+    "**Developing natural supper dialogue with subtle conflict**",
+    "**Introducing interview tension through dialogue**",
+    "**Planning rota discussions and boundaries**",
+    "**Planning social conversation timing and NPC activities**",
+    "**Detailing supper scene and board discussion**",
+    "**Assessing historical title lettering accuracy**",
+    "**Clarifying photo album access for attribution**",
+    "**Coordinating exhibition setup timing**",
+    "**Reconciling conflicting painting accounts**",
+    "**Confirming album usage restrictions**",
+    "**Observing appointment preparations**",
+    "**Clarifying evening staff routines**",
+    "**Planning auditorium audio scene ending**"
+  ],
+  "thread_id": "01a0b581-bbbb-7ae0-aad1-ba272792682c",
+  "turn_id": "01a0b585-8df7-7a50-8ffe-d04622c475a8",
+  "usage": {
+    "total": {
+      "totalTokens": 78240,
+      "inputTokens": 66763,
+      "cachedInputTokens": 32000,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 11477,
+      "reasoningOutputTokens": 8845
+    },
+    "last": {
+      "totalTokens": 24746,
+      "inputTokens": 21227,
+      "cachedInputTokens": 17536,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3519,
+      "reasoningOutputTokens": 2777
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 109.55318915599491,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:18:53.430700+00:00",
+  "duration_s": 109.58171787997708
+}

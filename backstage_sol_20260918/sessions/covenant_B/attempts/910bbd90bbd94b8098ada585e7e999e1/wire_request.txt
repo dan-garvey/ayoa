@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I accept whatever answer she has given and leave her plans alone. I finish my meal rather than following anyone to practice.
+</user>

@@ -1,0 +1,52 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You listen without adding anything further. The red-tabbed programme remains open before you as the pause passes to someone else.\n\nYsolde speaks next.\n\n“The rules cover the bridges. They do not mention the air.”\n\nAshworth turns to a different page. “Departure by wing, transformation, or magically assisted flight requires Academy authorization and a route filed through the storm wards.”\n\n“That is not the same permission.”\n\n“No. It is an additional one.”\n\n“How far does Academy airspace extend?”\n\n“Three hundred yards beyond the plateau’s edge and two hundred feet below it. Full transformation is prohibited within those limits.”\n\nYsolde’s grey eyes remain on the map printed in her folder. “So there is nowhere on the Nexus to fly in my natural form.”\n\n“That is correct.”\n\nShe gives one short nod. “Understood.”\n\nRashid raises his hand after her. “Are rejected travel requests recorded with their reasons.”\n\n“They are. A student may appeal to the Dean of Conclave, and all denials are reviewed at the end of each term.”\n\nRashid writes that down.\n\nThessaly traces one line of the permission form with a green-tinted fingertip. “An invitation from the far side of a bridge does not replace Academy permission.”\n\n“Correct.”\n\n“And receiving permission does not oblige the student to travel.”\n\n“Also correct.”\n\n“Good.”\n\nAshworth continues through the practical boundaries. The gardens, chapel, dueling grounds, residential houses, and public storm terraces require no special leave. The six bridges may be used as far as their Nexus gates, but crossing into the surrounding territories requires approval from both the Academy and the receiving authority.\n\nNo one redirects the discussion toward you. Caelindra asks about research travel, Aldric clarifies chapel access before dawn, and Ashara begins taking notes only when Ashworth reaches the rules for ranked bouts and unsanctioned duels.\n\nThe orientation moves on around the oval table, each student finding a different regulation worth contesting.",
+  "reasoning_summaries": [
+    "**Planning next speaker and topic**",
+    "**Clarifying flight restriction questions**",
+    "**Selecting Ysolde for next question**",
+    "**Summarizing travel and flight restrictions**",
+    "**Clarifying permission vs invitation distinction**",
+    "**Exploring exceptions to bridge permissions**",
+    "**Confirming flight authorization limits**",
+    "**Reviewing orientation session details**",
+    "**Planning to continue orientation dialogue**",
+    "**Refining dialogue pacing and cues**",
+    "**Clarifying permission rules and appeal process**"
+  ],
+  "thread_id": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "turn_id": "01a0b598-5075-7f90-9885-157bcb48cdac",
+  "usage": {
+    "total": {
+      "totalTokens": 680619,
+      "inputTokens": 629427,
+      "cachedInputTokens": 525952,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 51192,
+      "reasoningOutputTokens": 43437
+    },
+    "last": {
+      "totalTokens": 65485,
+      "inputTokens": 63237,
+      "cachedInputTokens": 59392,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2248,
+      "reasoningOutputTokens": 1842
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 59.19320908503141,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:38:32.502357+00:00",
+  "duration_s": 73.00733346695779
+}

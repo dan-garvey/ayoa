@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+If Ashara is still nearby, I ask whether an untrained partner would be any use for practice. If she has already left, I let the opportunity pass.
+</user>

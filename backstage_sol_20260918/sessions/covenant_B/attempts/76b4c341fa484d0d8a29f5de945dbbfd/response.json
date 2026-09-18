@@ -1,0 +1,44 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "When the last pudding bowls are cleared, the table’s conversation separates into smaller strands. Rashid and Ashara compare tomorrow’s schedules. Caelindra continues objecting to the ferryman song’s missing cook, while Seraphel taps its chorus against the table.\n\nYou rise and say, “Goodnight.”\n\n“Goodnight, Garvey,” Rashid answers.\n\nYsolde and Thessaly return the farewell. Aldric wishes you a restful night. Ashara lifts her cup, and Seraphel gives you a small wave rather than forcing a rhyme into the moment.\n\nYou cross the common room and climb the stairs. Behind you, the song dispute resumes without requiring your presence.\n\nYour room is dark except for silent lightning beyond the window. It briefly illuminates the made bed, the desk, and the framed Garvey letter on the wall before fading back into the storm.\n\nYou close the door, leaving the rest of the house to its evening.",
+  "reasoning_summaries": [
+    "**Planning Seraphel's goodnight rhyme**",
+    "**Designing goodnight scene and NPC farewells**",
+    "**Adding NPC table conversation after departure**",
+    "**Planning elegant dialogue passage**",
+    "**Detailing scene atmosphere and exits**"
+  ],
+  "thread_id": "01a0b588-d669-7d71-8883-d132de260245",
+  "turn_id": "01a0b5a3-e4a4-7af1-a50c-e6ec91351b55",
+  "usage": {
+    "total": {
+      "totalTokens": 1539624,
+      "inputTokens": 1466150,
+      "cachedInputTokens": 1256320,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 73474,
+      "reasoningOutputTokens": 61487
+    },
+    "last": {
+      "totalTokens": 89703,
+      "inputTokens": 88719,
+      "cachedInputTokens": 86272,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 984,
+      "reasoningOutputTokens": 787
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 25.348109252983704,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:50:37.489784+00:00",
+  "duration_s": 25.38624563603662
+}

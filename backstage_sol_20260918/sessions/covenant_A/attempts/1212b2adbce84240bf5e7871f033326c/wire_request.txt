@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I take a short break in the common room. If Seraphel is there and not occupied in a conversation, I ask, "What do you like reading for pleasure?" Otherwise I sit with my book.
+</user>

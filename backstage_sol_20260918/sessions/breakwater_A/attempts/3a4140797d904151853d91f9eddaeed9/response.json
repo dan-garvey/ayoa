@@ -1,0 +1,60 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, Nell is in the office with availability sheets spread across her desk and the paper diary open beside them. The provisional auditorium hold from Tuesday has been crossed through in ink and marked **COMPLETED**.\n\nYou ask what she wants you to work on next and whether there are any practical changes you need to know about.\n\n“Your hours are unchanged,” she says. “I’m finishing the public-weekend rota this morning, so I’ll be down here if you need me.”\n\nDev confirmed Hana’s availability shortly before noon yesterday. They completed the receiver test at seven, and he sent Nell the results that evening. Rosa has also reported that the board photographs are usable, so she does not need a retake.\n\n“The auditorium is clear again,” Nell says. “None of that changes your work upstairs.”\n\nShe checks the archive list.\n\n“Take the next programme box. Start with a box-level record, then separate out any distinct runs, annotated copies or items with significant damage. Preserve the order you find. Don’t try to flatten old folds.”\n\nThe box is labelled **WEEKLY PROGRAMMES — 1987–1989**. Nell gives you its shelf reference and places a fresh set of condition slips beside it.\n\n“No loans today, so the cupboard stays locked. Anything uncertain can go through the same yellow-tray process as yesterday.”\n\nWith the assignment settled, Nell turns back to the staff rota and begins matching the supplied availability against the first public weekend.",
+  "reasoning_summaries": [
+    "**Planning time skip to Wednesday morning**",
+    "**Confirming Tuesday test status and assignments**",
+    "**Evaluating archive workspace practical changes**",
+    "**Confirming delivery and access logistics**",
+    "**Clarifying schedule and task priorities**",
+    "**Noting maintenance and test updates**",
+    "**Clarifying schedule and test timing**",
+    "**Deciding test timing and outcome narrative**",
+    "**Confirming test completion and summary**",
+    "**Confirming auditorium test completion**",
+    "**Planning programme box cataloging**",
+    "**Clarifying rota staff exclusions**",
+    "**Finalizing public-weekend rota**",
+    "**Clarifying test timing and archive labeling**",
+    "**Refining schedule and arrival phrasing**",
+    "**Drafting shift start narrative**",
+    "**Clarifying rota and assignment details**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b59f-812e-7871-b9c2-e16bbcfc78c7",
+  "usage": {
+    "total": {
+      "totalTokens": 1230184,
+      "inputTokens": 1166220,
+      "cachedInputTokens": 1051264,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 63964,
+      "reasoningOutputTokens": 53106
+    },
+    "last": {
+      "totalTokens": 79609,
+      "inputTokens": 76463,
+      "cachedInputTokens": 74496,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3146,
+      "reasoningOutputTokens": 2843
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 76.81049724895274,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:46:41.344846+00:00",
+  "duration_s": 77.83274496701779
+}

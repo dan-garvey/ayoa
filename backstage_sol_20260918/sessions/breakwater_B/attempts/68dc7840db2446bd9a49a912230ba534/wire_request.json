@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b588-d7a8-7f73-acd7-e1d4d0a54185",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nI work quietly through the rest of the morning, putting any loaned material away securely when I stop.\n</user>\n"
+    }
+  ]
+}

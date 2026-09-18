@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nI take a short break in the common room. If Seraphel is there and not occupied in a conversation, I ask, \"What do you like reading for pleasure?\" Otherwise I sit with my book.\n</user>\n"
+    }
+  ]
+}

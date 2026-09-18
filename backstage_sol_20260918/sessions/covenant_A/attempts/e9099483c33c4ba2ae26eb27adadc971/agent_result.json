@@ -1,0 +1,53 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Ashara does not return. The quadrangle door stays closed, and the last trace of heat fades from her abandoned chair. Whatever answer she might have given remains unasked; you leave her evening to her.\n\nIn the common room, a round of Knives ends amid accusation.\n\nRashid looks through the dining-hall doorway. “Rowan, there’s a spare chair if—”\n\n“Don’t make it sound like a civic appointment,” Dena says.\n\n“I was inviting him to play cards.”\n\n“You were drafting him. There’s a difference.”\n\nThessaly gathers the cards she won through disputed means. “He should know the rules before agreeing.”\n\nDena begins shuffling one-handed against the table. “He should know there are rules. Learning them during play is traditional.”\n\n“That is how you conceal their inconsistency.”\n\n“That is how we keep you interested.”\n\nOne of Dena’s friends shifts over, leaving an open place near the fire. Dena nods toward it.\n\n“If you want in, the next hand hasn’t been dealt. No speeches, no practice business, and no obligation to stay after you lose your money.”\n\nRashid adds, “We aren’t playing for money.”\n\n“We are now,” Dena says.",
+  "reasoning_summaries": [
+    "**Clarifying Ashara's unanswered response**",
+    "**Advancing story after meal completion**",
+    "**Planning Rashid's invitation to game**",
+    "**Interpreting conditional dialogue absence**",
+    "**Designing NPC card game invitation**",
+    "**Refining NPC invitation dialogue**",
+    "**Refining character dialogue flow**",
+    "**Adjusting meal timeline and scene transitions**",
+    "**Finalizing invitation dialogue exchange**",
+    "**Considering delayed character response**",
+    "**Planning scene closure with subtle cues**",
+    "**Finalizing dining scene draft**",
+    "**Refining NPC dialogue transition**",
+    "**Simplifying invitation dialogue**"
+  ],
+  "thread_id": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "turn_id": "01a0b58c-b31a-7233-b188-663e126c92d8",
+  "usage": {
+    "total": {
+      "totalTokens": 199984,
+      "inputTokens": 175569,
+      "cachedInputTokens": 100992,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 24415,
+      "reasoningOutputTokens": 20420
+    },
+    "last": {
+      "totalTokens": 38284,
+      "inputTokens": 35717,
+      "cachedInputTokens": 32768,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2567,
+      "reasoningOutputTokens": 2309
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 59.77273075899575,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

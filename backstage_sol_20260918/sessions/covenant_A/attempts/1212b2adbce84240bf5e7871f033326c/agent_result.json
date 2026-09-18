@@ -1,0 +1,53 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You mark your place and carry the blue volume into the common room.\n\nThe card game has spread across most of the low table. Coins, sugared nuts, and a brass collar stud now form the stakes. Dena is winning. Rashid has removed his immaculate coat and draped it safely beyond the reach of spilled wine, while Thessaly studies every card as though preparing an appeal.\n\nSeraphel sits apart from them in a leather chair near the fireplace. Caelindra has gone upstairs, and no one is speaking to her. Firelight passes through the edges of her small white wings.\n\nYou take the neighboring chair and set the Council book across your knees.\n\n“What do you like reading for pleasure?”\n\nSeraphel looks from the dry blue volume to you.\n\n“Bad travel accounts, full of weather and cost;  \nThe best are the ones where the writer gets lost.\n\n“And poems read out, so their rhythms are known;  \nWhat do you read when the choice is your own?”",
+  "reasoning_summaries": [
+    "**Determining character locations and actions**",
+    "**Designing Seraphel’s rhymed dialogue**",
+    "**Setting common room scene with characters**",
+    "**Clarifying book and character details**",
+    "**Refining character interaction and poetry**",
+    "**Polishing Seraphel's rhymed response**",
+    "**Refining poetic phrasing and rhythm**",
+    "**Polishing rhymed dialogue for natural flow**",
+    "**Evaluating couplet phrasing for clarity**",
+    "**Refining poetic rhyme and imagery**",
+    "**Polishing poetic lines and scene details**",
+    "**Refining witty poetic phrasing**",
+    "**Refining poem lines and structure**",
+    "**Planning dialogue rhyme and question placement**"
+  ],
+  "thread_id": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "turn_id": "01a0b591-d636-7281-808d-4b188499308b",
+  "usage": {
+    "total": {
+      "totalTokens": 385316,
+      "inputTokens": 349025,
+      "cachedInputTokens": 261632,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 36291,
+      "reasoningOutputTokens": 30654
+    },
+    "last": {
+      "totalTokens": 50371,
+      "inputTokens": 47870,
+      "cachedInputTokens": 45056,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2501,
+      "reasoningOutputTokens": 2295
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 60.46828919800464,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

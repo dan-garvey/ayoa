@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+Once I have a book, I settle down and read quietly for half an hour.
+</user>

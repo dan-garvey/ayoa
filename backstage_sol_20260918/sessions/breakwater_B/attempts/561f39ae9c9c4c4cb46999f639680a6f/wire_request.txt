@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I go back to my room and read for twenty minutes, leaving the staff to their own projects.
+</user>

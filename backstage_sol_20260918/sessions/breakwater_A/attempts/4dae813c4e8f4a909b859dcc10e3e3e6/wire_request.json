@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nI ask the person who has been working upstairs what they are working on this evening.\n</user>\n\n<user>\n<checkup>\nPause the fiction for a backstage checkup. Return concise, actionable notes for\nthe next few turns, covering adherence and possible story and character development.\n\nCheck the recent writing against the story's directions, full character histories\nand writing rules. Identify consequential drift with brief evidence and a specific\nadjustment: player ownership, plausible character knowledge, continuity, distinct\nmotives and voices, character-specific dialogue rules, and pacing. Notice habitual\naphorisms, forced invitations or personal questions, and exchanges that leave too\nmuch for the player to answer. Preserve what is working; do not invent faults to\nfill a checklist or restate the source material. Verify suspected contradictions\nagainst the exact statements and their timing, distinguishing when an arrangement\nwas made from when it takes effect. Mark uncertain readings as uncertain rather\nthan directing changes to established facts.\n\nConsider unresolved situations and what the characters want independently of the\nprotagonist. Suggest developments that could change a relationship, obligation,\nbelief or practical situation through plausible action. Tie possibilities to\nexisting interests and circumstances, including relationships among other people.\nDistinguish established facts from inferences and new possibilities. Consistent\nnew history is welcome; contradictions require correction, not retroactive excuses.\n\nKeep plans conditional on what the player does and what characters can actually\nlearn. Adapt initiative to the player's chosen activity and appetite for interaction.\nQuiet, closure and declined invitations can stand. Do not prescribe player speech,\nfeelings or decisions, force encounters, or treat proposed developments as events\nthat have happened. Drop earlier suggestions that no longer fit. Give useful\ndirection without a fixed sequence of scenes or sample character dialogue.\n\nReturn only the backstage notes, not a rewritten passage or the next scene.\n</checkup>\n</user>\n"
+    }
+  ]
+}

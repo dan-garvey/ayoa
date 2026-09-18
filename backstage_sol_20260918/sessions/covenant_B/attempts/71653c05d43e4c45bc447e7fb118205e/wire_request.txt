@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I listen if someone wants to sing or explain the song, without supplying lyrics or a performance of my own. Otherwise I enjoy the meal.
+</user>

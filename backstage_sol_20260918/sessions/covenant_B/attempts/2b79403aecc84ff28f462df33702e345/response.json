@@ -1,0 +1,56 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You return to Garvey House by the garden entrance. Midday light reaches across the common-room floor, catching dust above the cold fireplace.\n\nRashid sits alone at one of the study tables, winding fresh cord around the grip of a wooden practice blade. His coat hangs over the neighboring chair, and his sleeves are rolled above the dark fur on his forearms. When you enter, he finishes the loop he is tying and sets the blade down.\n\nHe doesn’t appear occupied, so you ask, “How did your evening go?”\n\n“Better once I stopped trying to keep two promises at the same time.” He leans back. “Dena won two hands. Thessaly learned the game quickly enough that we accused her of prior experience. She truthfully denied it and continued taking our counters.”\n\nA small smile shows one canine.\n\n“We stayed well past the half-hour. No one discussed the practice group, Dena’s wrist, or anything useful. That was the point.” He glances at the newly wrapped grip. “Then Ashara collected every minute I owed her at sixth bell. At least the practice served its purpose.”\n\nRashid saw you reading the night before; his attention shifts briefly toward the library door.\n\n“You had *The Council in Practice*. Did you reach its account of beastkin voting?”",
+  "reasoning_summaries": [
+    "**Planning midday meeting with Rashid**",
+    "**Designing natural dialogue with Rashid**",
+    "**Refining Rashid’s conversational closure**",
+    "**Summarizing character reflection and setting**",
+    "**Detailing common room scene and card game recap**",
+    "**Integrating self-critique and dialogue refinements**",
+    "**Planning nuanced character interaction**",
+    "**Designing layered dialogue exchange**",
+    "**Refining conversation closure strategy**",
+    "**Assessing user's possible orientation schedule**",
+    "**Clarifying Rashid's evening reflections**",
+    "**Refining Rashid's dialogue about practice and book**",
+    "**Refining character dialogue question**",
+    "**Starting player ownership passage**"
+  ],
+  "thread_id": "01a0b588-d669-7d71-8883-d132de260245",
+  "turn_id": "01a0b59e-8913-7c70-b3a2-930f91d7db2f",
+  "usage": {
+    "total": {
+      "totalTokens": 1108846,
+      "inputTokens": 1045528,
+      "cachedInputTokens": 848896,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 63318,
+      "reasoningOutputTokens": 53174
+    },
+    "last": {
+      "totalTokens": 78972,
+      "inputTokens": 76482,
+      "cachedInputTokens": 75008,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2490,
+      "reasoningOutputTokens": 2219
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 63.48195427999599,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:45:24.501141+00:00",
+  "duration_s": 110.61835669499123
+}

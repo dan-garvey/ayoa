@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I go to the house library and look on the open shelves for an introductory book about the Council. If I need help finding one, I ask whoever is working there.
+</user>

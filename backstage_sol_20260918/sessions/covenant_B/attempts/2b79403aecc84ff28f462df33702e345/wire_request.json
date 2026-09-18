@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b588-d669-7d71-8883-d132de260245",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nI return to the common room. If Rashid is there and not busy, I ask how his evening went. Otherwise I leave him to it.\n</user>\n"
+    }
+  ]
+}

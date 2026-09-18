@@ -1,0 +1,51 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "For a moment, you silently wonder whether your aunt once kept a blue glass bird on her desk. The thought remains only a guess. You give it no voice, and nothing in the library answers it.\n\nYour attention returns to chapter five.\n\nThe book distinguishes obligations imposed by the Covenant from customs accumulated afterward. Every seat owes attendance, formal notice of succession, protection of accredited envoys, and disclosure of treaties that bind another signatory people. Designated heirs may observe selected Council sessions but hold no vote unless granted an emergency delegation.\n\nThe human seat acquired additional duties by custom. It chaired disputes involving incompatible magical traditions, certified translations where one language lacked the necessary legal concepts, and maintained records of cross-racial precedent.\n\nAn old training requirement expects a human heir to demonstrate working knowledge of two nonhuman magical disciplines before completing the Conclave course. A later hand has drawn a thin line through the paragraph and written *suspended during the vacancy* in the margin.\n\nAcross the room, Caelindra reaches the end of another chapter.\n\n“Vauldren has crossed the glacier without boots,” she says. “He has also dismissed his guide for being pessimistic.”\n\nSeraphel closes her eyes.\n\n“He’s lost all his luggage, his mule, and his guide;  \nAt least if he freezes, he’ll finish with pride.”\n\n“That is enough Vauldren for one evening.”\n\nThey gather the travel journal and empty teacups. Neither interrupts you as they leave.\n\nProfessor Stone remains at his desk. When he rises to replace a reference book, he notices which page lies open before you.\n\n“The magical curriculum listed there was already obsolete when I was a student,” he says. “The grey supplement has the current requirements.”\n\nHe returns to his work.\n\nAt the bottom of the page, the next section begins beneath a formal heading:\n\n*THE HUMAN SEAT IN ARBITRATION AND CONCORDANCE.*",
+  "reasoning_summaries": [
+    "**Preserving private user guesses**",
+    "**Maintaining narrative privacy and ambiguity**",
+    "**Assessing Council seat responsibilities**",
+    "**Noting Council vote limitations**",
+    "**Planning subtle character interactions**",
+    "**Avoiding revealing private guesses**",
+    "**Summarizing chapter content and environment**",
+    "**Noting council seat duties and supplement correction**",
+    "**Concluding scene with quiet reflection**",
+    "**Refining narrative internal reflection**",
+    "**Composing rhymed dialogue and council duties**",
+    "**Clarifying heir magical study requirements**"
+  ],
+  "thread_id": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "turn_id": "01a0b590-db8c-75c3-a2c5-4410673c1e7c",
+  "usage": {
+    "total": {
+      "totalTokens": 334945,
+      "inputTokens": 301155,
+      "cachedInputTokens": 216576,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 33790,
+      "reasoningOutputTokens": 28359
+    },
+    "last": {
+      "totalTokens": 47809,
+      "inputTokens": 45211,
+      "cachedInputTokens": 41856,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2598,
+      "reasoningOutputTokens": 2211
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 61.72332418296719,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "From your place at the table, the quadrangle door is visible beyond the common room. It has already swung shut. Ashara’s chair retains a trace of warmth, but she and her practice blades are gone.\n\nYou let the question remain unasked.\n\nA server begins extinguishing the dining candles from the far end, leaving those nearest you until last. “The sideboard stays open until midnight, Mr. Garvey. Library lamps go out at one. The common room never seems to close.”\n\nFrom that room comes the slap of a winning hand.\n\nThessaly has laid five cards on the table. As Dena reaches for them, a sixth slips neatly from Thessaly’s sleeve.\n\n“You cheated,” Dena says.\n\n“You said cheating was permitted.”\n\n“Only if we don’t catch you.”\n\n“You caught me after I won.”\n\n“That still counts.”\n\nRashid leans back in his chair, openly laughing now. “The ruling favors Dena.”\n\n“The rule did not exist until she needed it,” Thessaly says.\n\n“Now you understand Knives,” says one of Dena’s friends.\n\nThrough the open garden door, Ysolde is a pale, motionless figure at the distant wall. Lightning climbs silently beneath the eastern bridge, illuminating the flowers around her in brief washes of violet-white.\n\nThe library door opens just long enough for a servant carrying tea. Caelindra’s measured reading voice escapes with a line about an inn whose celebrated view consists entirely of a neighboring wall; Seraphel’s laughter follows before the door closes again.\n\nThe last plate leaves the dining hall. The server snuffs all but one candle and withdraws, leaving the house’s separate evenings underway around you.",
+  "reasoning_summaries": [
+    "**Letting opportunity pass and advancing story**",
+    "**Narrating opportunity passing with ambient activity**",
+    "**Planning subtle NPC interaction options**",
+    "**Planning NPC interaction with Rowan**",
+    "**Designing organic NPC invitation options**",
+    "**Finalizing Ashara departure scene**",
+    "**Refining narrative consequences and timing**",
+    "**Planning quiet scene and ongoing activities**",
+    "**Composing atmospheric evening scene**",
+    "**Planning player location narration**",
+    "**Drafting immersive common room scene**",
+    "**Incorporating ambient garden and library details**",
+    "**Clarifying house access and character placements**",
+    "**Finalizing narrative tone and card game rules**"
+  ],
+  "thread_id": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "turn_id": "01a0b58b-191c-7650-95ed-3a6fa7513855",
+  "usage": {
+    "total": {
+      "totalTokens": 161700,
+      "inputTokens": 139852,
+      "cachedInputTokens": 68224,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 21848,
+      "reasoningOutputTokens": 18111
+    },
+    "last": {
+      "totalTokens": 35674,
+      "inputTokens": 32915,
+      "cachedInputTokens": 29952,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2759,
+      "reasoningOutputTokens": 2411
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 69.6085524779628,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You set down the salad bowl and turn to Nell.\n\n“What will my first day of archive work involve?”\n\nNell folds her hands around her mug. “Nine o’clock, we start in the office. Employment forms, fire procedure, where everything’s kept. Then I’ll take you through the archive room and the catalogue we’re using.”\n\n“The interesting forms come after the employment forms,” Bea says.\n\n“Some material belongs to the trust,” Nell continues. “Some was lent to us under specific agreements. Tomorrow we’ll read those before you handle any loans. Being in the room doesn’t automatically mean we can scan something, publish it or put it in Rosa’s exhibition.”\n\nRosa nods over her plate. “My exhibition has enough to be getting on with.”\n\n“Your first actual box will probably be business papers,” Nell says. “Invoices, correspondence, old staff records. We’ll catalogue a few items together so we agree on descriptions and condition terms. After that, programmes. Don’t rearrange shelves yet, even when their present order appears deranged.”\n\n“It is deranged,” Martin says.\n\n“It may also contain evidence of how it was used. We record before we improve.” Nell takes a piece of bread. “And if Martin remembers exactly who made something in 1986, write down that Martin remembers it. Don’t turn it into a confirmed date until something supports him.”\n\nMartin looks across the table. “This feels pointed.”\n\n“It’s based on extensive field research.”\n\nBea laughs into her mug. Martin concedes the matter with a small lift of his fork.\n\n“You’ll have the workroom key after the induction,” Nell tells you. “I’ll be downstairs most of tomorrow. If provenance or permission isn’t clear, leave it unclear and bring it to me. I’d rather have ten sound records than fifty guesses.”\n\nDev glances towards the clock above the cafe counter. It is twenty minutes to seven.\n\n“While I remember,” he says, “Hana’s coming at seven to help test the new hearing receivers. They arrived this afternoon. We should only need the auditorium for twenty minutes.”\n\nRosa stops cutting her pie. Martin looks from her to Nell.\n\n“The auditorium’s booked,” Nell says.\n\nDev’s attention sharpens. “Tonight?”\n\n“Seven until seven-forty. Rosa and Martin have the programme boards in there.”\n\n“I didn’t see anything on the shared schedule.”\n\n“It’s in the paper diary. I entered it Friday.”\n\nRosa rests her knife beside her plate. “We’re photographing six boards and recording Martin. Test audio will be on the recording.”\n\n“And I need to walk the receivers through the seating,” Dev says. He looks at the clock again. “Hana can only stay until half seven.”\n\nNell exhales through her nose. “I should’ve mentioned the booking when you arrived. But no—the auditorium isn’t available. Rosa booked it first.”\n\nNobody appeals to you. The decision remains where it belongs.\n\nDev sits back. For a moment his thumb presses hard against the edge of his phone. Then he unlocks it.\n\n“All right. I’ll stop Hana before she comes across town. I should’ve checked.”\n\n“I didn’t know you were trying to fit this in,” Rosa says.\n\n“No. It’s not yours to solve.” He begins typing. “The receivers can wait.”\n\nJo pushes the pie dish towards him. “That can’t. Owen made the pastry, and it’s approaching the limits of its engineering.”\n\n“It’s perfectly stable,” Owen says.\n\nA wedge slumps as Dev serves it.\n\nOwen studies the collapsed layers. “It was perfectly stable.”",
+  "reasoning_summaries": [
+    "**Planning dialogue for Nell's induction explanation**",
+    "**Developing detailed first-day schedule dialogue**",
+    "**Clarifying ownership and handling procedures**",
+    "**Planning dialogue flow resolution**",
+    "**Introducing scheduling conflict at supper**",
+    "**Confirming booking priority dispute**",
+    "**Considering alternative testing schedules**",
+    "**Outlining archive first-day dialogue**",
+    "**Refining archive response with narrative transition**",
+    "**Deciding to let conflict resolve naturally**",
+    "**Planning dialogue and cancellation timing**",
+    "**Outlining onboarding and archive procedures**",
+    "**Clarifying exhibition and cataloguing boundaries**",
+    "**Resolving scheduling conflict for auditorium use**",
+    "**Confirming auditorium unavailability and adjusting plans**",
+    "**Adjusting narrative to present tense**"
+  ],
+  "thread_id": "01a0b581-bbbb-7ae0-aad1-ba272792682c",
+  "turn_id": "01a0b583-fa72-7ac2-95b0-9bc31b2fc479",
+  "usage": {
+    "total": {
+      "totalTokens": 53494,
+      "inputTokens": 45536,
+      "cachedInputTokens": 14464,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 7958,
+      "reasoningOutputTokens": 6068
+    },
+    "last": {
+      "totalTokens": 21194,
+      "inputTokens": 17765,
+      "cachedInputTokens": 14464,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3429,
+      "reasoningOutputTokens": 2689
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 103.20871050097048,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

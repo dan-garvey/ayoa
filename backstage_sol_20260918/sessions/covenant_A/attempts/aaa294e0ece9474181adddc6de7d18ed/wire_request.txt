@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+If we are talking, I ask Seraphel what she likes about her choice. If she has chosen not to talk, I let her be and read.
+</user>

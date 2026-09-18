@@ -1,0 +1,45 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You go downstairs. The projection booth is dark now, and the staff staircase opens onto a foyer lit only by the wall lights and the green glow above the exits.\n\nIn the kitchen, the supper plates stand drying beside the sink. You take a clean tumbler from the draining rack, fill it with cold water and carry it back into the foyer.\n\nThe two supper tables remain joined, though the chairs have been pushed in. Nell’s envelope is gone. A faint smell of tomato and pastry lingers beneath the sharper scent of fresh paint.\n\nYou stand near the locked front doors for a few minutes. At night, the glazing gives you the foyer laid over Harbour Street: your charcoal coat reflected across the pavement, cartons of crockery floating against dark shopfronts, the lights behind the cafe counter suspended above the road.\n\nA bus passes towards the harbour with three passengers visible upstairs. Farther down the street, somebody rolls a metal shutter over a shop entrance. The sound travels between the buildings, followed by the rattle of rigging from the moored boats.\n\nBy the time the glass is empty, Harbour Street is quiet again. The folded opening programmes wait in their neat stacks under the foyer lights.",
+  "reasoning_summaries": [
+    "**Planning realistic kitchen access and setting**",
+    "**Clarifying kitchen use and building atmosphere**",
+    "**Enhancing exterior atmosphere with subtle details**",
+    "**Clarifying lingering actions before endpoint**",
+    "**Detailing foyer setting and subtle foreshadowing**",
+    "**Composing atmospheric foyer scene**",
+    "**Confirming dishwashing completion evidence**",
+    "**Noting auditorium exit sign reflections**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b593-c161-7d91-88ce-b63d3cfc505c",
+  "usage": {
+    "total": {
+      "totalTokens": 450247,
+      "inputTokens": 413249,
+      "cachedInputTokens": 327296,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 36998,
+      "reasoningOutputTokens": 30787
+    },
+    "last": {
+      "totalTokens": 51370,
+      "inputTokens": 49827,
+      "cachedInputTokens": 49024,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1543,
+      "reasoningOutputTokens": 1296
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 41.495751289010514,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

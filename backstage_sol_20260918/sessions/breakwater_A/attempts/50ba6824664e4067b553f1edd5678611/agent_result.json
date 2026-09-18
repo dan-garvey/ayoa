@@ -1,0 +1,60 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Bea is not in the building at lunchtime. Nell brings a wrapped sandwich out from the office, while Jo occupies one end of the joined tables with a bowl of reheated chickpea stew, black coffee and a spread of supplier invoices.\n\nYou sit with your lunch at the clear end.\n\nJo has weighted the papers with a sugar jar. Several prices are circled in pencil.\n\n“The cheese quote came in,” she tells Nell. “I can keep the pie on the opening menu, but the price per slice needs to go up twenty pence.”\n\n“If that’s what it costs, charge it.”\n\n“That’s what it costs today. I’m ringing them again at two before I print anything.”\n\nNell takes another bite of her sandwich. “Send me the final version when you’re satisfied. I’ll update the website from that.”\n\nJo makes a note beside the circled figure. “Tea can stay where it is. Coffee too. I’m not changing three prices because one supplier’s having a difficult month.”\n\nThey move on to delivery times and the limited refrigerator space behind the counter. Jo knows exactly how many pie dishes will fit without blocking the shelf she needs for milk. Nell records only the agreed delivery window, leaving the quantities to her.\n\nFor several minutes, the three of you eat without conversation. Rainwater trails down the front glazing, blurring the buildings opposite.\n\nWhen Jo finishes, she gathers her invoices for the supplier call. Nell folds her sandwich wrapper and stands.\n\n“I’ll look through the items you flagged in the yellow tray after lunch,” she says. “Take the rest of your break before you start again.”\n\nJo returns to the kitchen, and Nell goes back into the office. Neither turns the meal into another task for you.",
+  "reasoning_summaries": [
+    "**Assessing Tuesday midday attendance**",
+    "**Evaluating Bea and Jo’s Tuesday availability**",
+    "**Confirming Nell’s lunchtime presence**",
+    "**Clarifying Owen's schedule and breaks**",
+    "**Detailing lunch setting and potential interactions**",
+    "**Planning natural lunch dialogue with Jo and Nell**",
+    "**Tracing lunch menu pricing discussion**",
+    "**Confirming lunch arrangements and space details**",
+    "**Integrating menu and shift update details**",
+    "**Tracking deadline and scheduling updates**",
+    "**Assessing scheduling flexibility and social dynamics**",
+    "**Developing realistic lunch conversation**",
+    "**Including Jo as plausible companion**",
+    "**Planning dialogue on menu pricing**",
+    "**Clarifying menu and printing responsibilities**",
+    "**Evaluating lunch scene plausibility**",
+    "**Planning realistic lunch details**",
+    "**Clarifying pricing and menu discussions**",
+    "**Confirming concession schedule stability**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b59b-ec71-7fd1-8f3b-b65e497b90a3",
+  "usage": {
+    "total": {
+      "totalTokens": 999457,
+      "inputTokens": 944039,
+      "cachedInputTokens": 839296,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 55418,
+      "reasoningOutputTokens": 45934
+    },
+    "last": {
+      "totalTokens": 70584,
+      "inputTokens": 66908,
+      "cachedInputTokens": 65152,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3676,
+      "reasoningOutputTokens": 3319
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 89.258603238035,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

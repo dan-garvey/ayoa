@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+During the induction I ask how to tell what the cinema owns from what is on loan, and what restrictions I need to check before handling an item.
+</user>

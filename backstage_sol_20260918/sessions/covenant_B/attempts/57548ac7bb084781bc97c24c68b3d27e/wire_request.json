@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b588-d669-7d71-8883-d132de260245",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nI go to the house library and look on the open shelves for an introductory book about the Council. If I need help finding one, I ask whoever is working there.\n</user>\n"
+    }
+  ]
+}

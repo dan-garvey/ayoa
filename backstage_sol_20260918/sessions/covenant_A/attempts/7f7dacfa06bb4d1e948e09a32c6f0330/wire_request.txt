@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I say, "Most recently I earned my keep copying books. I haven't had much practice at being an heir." I help myself to dinner.
+</user>

@@ -1,0 +1,78 @@
+{
+  "covenant_A": {
+    "interval": 0,
+    "continuation_turns": 20,
+    "words_mean": 320,
+    "words_median": 308.0,
+    "words_total": 6400,
+    "question_ending_passages": 3,
+    "passages_with_question_marks": 7
+  },
+  "covenant_B": {
+    "interval": 5,
+    "continuation_turns": 20,
+    "words_mean": 278.1,
+    "words_median": 271.0,
+    "words_total": 5562,
+    "question_ending_passages": 1,
+    "passages_with_question_marks": 5
+  },
+  "breakwater_A": {
+    "interval": 5,
+    "continuation_turns": 20,
+    "words_mean": 252.8,
+    "words_median": 243.0,
+    "words_total": 5056,
+    "question_ending_passages": 0,
+    "passages_with_question_marks": 5
+  },
+  "breakwater_B": {
+    "interval": 0,
+    "continuation_turns": 20,
+    "words_mean": 323.1,
+    "words_median": 311.5,
+    "words_total": 6463,
+    "question_ending_passages": 3,
+    "passages_with_question_marks": 9
+  },
+  "author": {
+    "usage_records": 88,
+    "reported_input_tokens": 4619606,
+    "reported_cached_input_tokens": 4209152,
+    "reported_output_tokens": 211049,
+    "reported_reasoning_output_tokens": 175852,
+    "wire_characters": 72675,
+    "canonical_projection_characters": 5255544,
+    "count": 88,
+    "proxy_elapsed_s_median_excluding_queue": 60.8,
+    "proxy_elapsed_s_min_excluding_queue": 14.5,
+    "proxy_elapsed_s_max_excluding_queue": 153.5,
+    "call_elapsed_s_median_including_queue": 77.8,
+    "words_median": 295.0,
+    "words_min": 85,
+    "words_max": 808,
+    "summary_nonempty": 88,
+    "summary_characters_min": 122,
+    "summary_characters_max": 1291
+  },
+  "checkup": {
+    "usage_records": 8,
+    "reported_input_tokens": 417498,
+    "reported_cached_input_tokens": 341504,
+    "reported_output_tokens": 29250,
+    "reported_reasoning_output_tokens": 24211,
+    "wire_characters": 17359,
+    "canonical_projection_characters": 479218,
+    "count": 8,
+    "proxy_elapsed_s_median_excluding_queue": 78.1,
+    "proxy_elapsed_s_min_excluding_queue": 59.3,
+    "proxy_elapsed_s_max_excluding_queue": 147.6,
+    "call_elapsed_s_median_including_queue": 98.5,
+    "words_median": 501.0,
+    "words_min": 450,
+    "words_max": 568,
+    "summary_nonempty": 8,
+    "summary_characters_min": 625,
+    "summary_characters_max": 1432
+  }
+}

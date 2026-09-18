@@ -1,0 +1,57 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You step onto the landing just as the projection-booth door opens. A man in a dark work shirt comes out carrying a shallow equipment case, its foam lining crowded with small black receivers.\n\n“You must be Rowan. Dev.” He shifts the case under one arm. “I do projection and sound, when either agrees to be done.”\n\nHe heads downstairs with you. The foyer opens below: restored glass doors onto Harbour Street, folded programmes stacked on one table, cartons occupying two more. At the joined supper tables, seven places are already claimed by cutlery, mugs or elbows. The eighth chair stands empty between a broad-shouldered younger man cutting bread and a woman in green-framed glasses.\n\nNell emerges from the office as you reach the bottom stair.\n\n“There he is. Everyone, this is Rowan.”\n\n“I’m Rowan,” you say.\n\nNames come back in a loose circuit. Jo is the short woman setting a steaming casserole on a cork mat, with a tea towel over one shoulder. Owen, beside the empty chair, lifts the bread knife in greeting. Bea smiles and moves her mug to give you more room. Across from her, Rosa has tucked a camera case beneath her seat. Martin, silver-haired and paint-marked at one thumbnail, says, “Welcome to the unfinished masterpiece.” Dev places his equipment case safely against the wall before sitting beside Nell.\n\n“Don’t let Martin describe the wiring,” Jo says. “Not while we’re eating.”\n\n“I wasn’t going to.”\n\n“You did it over sandwiches on Friday.”\n\n“Sandwiches aren’t a proper meal.”\n\nYou take the available place. Your mended coat brushes the back of the chair as Owen passes you the breadboard.\n\nJo removes the lid from the casserole. Tomato, garlic and chickpeas steam into the foyer’s cooler air. Beside it waits a deep cheese-and-onion pie, its crust browned unevenly at the edges, along with a wooden bowl of salad.\n\n“Help yourselves,” she says. “Rowan, you’re my guest tonight. After this, you enter the ruthless world of ingredient contributions.”\n\n“Three pounds fifty,” Martin tells you solemnly.\n\n“Three pounds,” Jo corrects. “He keeps trying to fund pudding by misinformation.”\n\nPlates begin travelling around the table. The conversation resumes in overlapping pieces: a missing box of teaspoons, whether the front-door mat has been ordered, and a strip of blue paint Owen found beneath one of the foyer panels. Nell eats while making a note on the back of an envelope, until Jo reaches across and turns the envelope face down.\n\n“No minutes,” Jo says. “This isn’t a meeting.”\n\n“It was one word.”\n\n“It was becoming a list. I know the early signs.”\n\nNell leaves the envelope where it is.\n\nBea serves herself a small piece of pie, then glances at your ink-stained fingers as you receive the salad bowl.\n\n“Did you come to this through old cinemas,” she asks, “or through archive work?”",
+  "reasoning_summaries": [
+    "**Planning character introductions and timing**",
+    "**Developing natural dinner conversation and seating**",
+    "**Resolving auditorium booking conflict**",
+    "**Clarifying character dialogue prompts**",
+    "**Assigning character seating and introductions**",
+    "**Refining character interactions during supper**",
+    "**Coordinating recording and testing schedule**",
+    "**Assessing schedule conflicts and booking priorities**",
+    "**Confirming rescheduling with Hana**",
+    "**Planning initial NPC interaction**",
+    "**Designing NPC introductions and scene setup**",
+    "**Finalizing room entry and seating details**",
+    "**Designing character dialogue with engaging questions**",
+    "**Refining character introductions with natural dialogue**",
+    "**Detailing character placements and props**"
+  ],
+  "thread_id": "01a0b581-bbbb-7ae0-aad1-ba272792682c",
+  "turn_id": "01a0b582-7da0-73d1-8132-c6da06ad6c4a",
+  "usage": {
+    "total": {
+      "totalTokens": 32300,
+      "inputTokens": 27771,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4529,
+      "reasoningOutputTokens": 3379
+    },
+    "last": {
+      "totalTokens": 17733,
+      "inputTokens": 14607,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3126,
+      "reasoningOutputTokens": 2516
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 97.39136292599142,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:15:20.472212+00:00",
+  "duration_s": 97.41543891298352
+}

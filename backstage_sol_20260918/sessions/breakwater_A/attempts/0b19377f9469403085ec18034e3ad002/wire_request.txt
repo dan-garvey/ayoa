@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I finish my supper and listen while the others make their plans.
+</user>

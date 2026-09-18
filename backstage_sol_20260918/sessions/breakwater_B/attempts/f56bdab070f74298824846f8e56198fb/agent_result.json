@@ -1,0 +1,46 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "As Nell reaches the third document, you ask, “How do I tell what the cinema owns from what’s on loan, and what restrictions do I check before I handle something?”\n\nShe stops entering the record.\n\n“Legally, the trust owns things, though we all say ‘the cinema.’ Start with paperwork, never location. Something isn’t ours merely because it has spent forty years in this building.”\n\nShe takes three folders from a shelf beside the catalogue station.\n\n“The 2024 acquisition schedule lists the archive and equipment transferred from the former business. Signed gift records cover later donations. Signed loan records cover material that must go back to its lender. Those are our three reliable routes.”\n\nEach document or group should match a description, source and date in one of those records. Nell shows you the catalogue’s **LEGAL STATUS** field: **TRUST-OWNED**, **LOAN**, or **UNCONFIRMED**.\n\n“If the match is doubtful, use ‘unconfirmed’ and add a query. Don’t promote it to trust property because the handwriting looks familiar. Loose things migrate between boxes.”\n\nShe turns back to Bea’s agreement.\n\n“Before handling a loan, check that the agreement is current and that the object in front of you actually matches it. Then check permitted activity. ‘Inventory’ means you may examine it closely enough to identify and describe it. It does not automatically mean remove photographs, undo fastenings, flatten folds or make copies.”\n\nBeside the catalogue, she places a printed checklist:\n\n- legal status and supporting record\n- permitted handling\n- physical condition or hazard\n- access and privacy restrictions\n- photography, scanning and reproduction rights\n- display or publication rights\n- return date and storage requirements\n\n“For Bea’s album, inventory and written condition reporting are permitted. Scanning, publication and display are not. It remains in the locked cupboard when you’re not working on it.”\n\nShe taps the acquisition folder.\n\n“Owned material can still be restricted. Staff records may contain addresses, wages or disciplinary information. And owning a photograph or letter doesn’t necessarily mean the trust owns its copyright. Physical ownership, access, copying and public use are separate catalogue fields.”\n\nNell writes **QUERY—STATUS** on a slip and places it beside the box.\n\n“If there’s no supporting record, or the agreement is ambiguous, use one of these and bring it to me. Leave the uncertainty visible. Never expand somebody’s permission because the wider use would be convenient.”\n\nShe returns the three folders to their shelf, leaving the checklist beside the keyboard.\n\n“This invoice is trust-owned because it matches the transferred business archive. The green album is a loan because it has a signed return agreement. Anything that matches neither stays unconfirmed until we establish where it came from.”\n\nThen she draws the next paper towards her and resumes the demonstration.",
+  "reasoning_summaries": [
+    "**Clarifying ownership verification criteria**",
+    "**Defining handling and access restrictions**",
+    "**Establishing provenance documentation routes**",
+    "**Planning loan verification process**",
+    "**Defining handling versus usage permissions**",
+    "**Planning induction checklist and sample review**",
+    "**Clarifying legal ownership language**",
+    "**Outlining archival handling checklist**",
+    "**Mapping ownership to documentation**"
+  ],
+  "thread_id": "01a0b588-d7a8-7f73-acd7-e1d4d0a54185",
+  "turn_id": "01a0b596-69fd-7da2-9b00-92c45e2b2de3",
+  "usage": {
+    "total": {
+      "totalTokens": 499607,
+      "inputTokens": 464070,
+      "cachedInputTokens": 380288,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 35537,
+      "reasoningOutputTokens": 28248
+    },
+    "last": {
+      "totalTokens": 49282,
+      "inputTokens": 47159,
+      "cachedInputTokens": 43904,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2123,
+      "reasoningOutputTokens": 1548
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 56.09610884502763,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

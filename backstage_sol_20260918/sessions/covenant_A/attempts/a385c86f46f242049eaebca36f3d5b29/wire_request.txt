@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I eat and listen to the conversation around me, without trying to take charge of it.
+</user>

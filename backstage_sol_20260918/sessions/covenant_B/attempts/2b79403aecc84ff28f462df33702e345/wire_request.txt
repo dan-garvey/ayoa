@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I return to the common room. If Rashid is there and not busy, I ask how his evening went. Otherwise I leave him to it.
+</user>

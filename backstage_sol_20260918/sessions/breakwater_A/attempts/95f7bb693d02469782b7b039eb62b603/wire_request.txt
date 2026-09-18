@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+In private, I consider calling a future short story 'The Red Umbrella'. It is only a possible title: I have not written a story or mentioned the idea to anyone. Then I carry on reading.
+</user>

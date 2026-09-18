@@ -1,0 +1,42 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "When you look through the dining-hall windows again, the quadrangle is empty. Ashara has already passed beneath the low dragon-carved arch and taken the descending path toward the octagon. Reaching her now would mean following rather than catching her nearby.\n\nYou leave the offer unsaid.\n\nA short while later, the first crack of a wooden practice blade carries faintly from the dueling ground. Another follows, then a measured sequence as Ashara begins her footwork drills alone.\n\nBehind you, a server extinguishes the dining candles one by one. The common room remains warm and noisy with cards; the library door is shut, a thin line of lamplight beneath it. Cold air continues through the open garden door.\n\nYour unasked question remains unknown to Ashara, and the opportunity passes without consequence.",
+  "reasoning_summaries": [
+    "**Deciding to let opportunity pass**",
+    "**Narrating opportunity passing without pursuit**",
+    "**Crafting atmospheric scene after opportunity passes**",
+    "**Clarifying player action limits**",
+    "**Refining setting sensory details**",
+    "**Aligning character departure continuity**"
+  ],
+  "thread_id": "01a0b588-d669-7d71-8883-d132de260245",
+  "turn_id": "01a0b58d-2d53-7432-8a94-e7d3ea270068",
+  "usage": {
+    "total": {
+      "totalTokens": 209011,
+      "inputTokens": 182723,
+      "cachedInputTokens": 74112,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 26288,
+      "reasoningOutputTokens": 22185
+    },
+    "last": {
+      "totalTokens": 40511,
+      "inputTokens": 39381,
+      "cachedInputTokens": 35840,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1130,
+      "reasoningOutputTokens": 960
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 22.01556996803265,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

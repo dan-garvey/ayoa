@@ -1,0 +1,63 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "When Ashworth pauses between residence rules and the morning schedule, you speak.\n\n“How is a student in the human seat supposed to learn the practical duties of the role?”\n\nThe chancellor closes the folder in front of him.\n\n“First, a distinction. You occupy the human place in this Conclave cohort. The Council seat itself remains vacant. Your verified inheritance gives you standing to train and, in time, seek formal recognition. It does not yet grant you a vote.”\n\nHe draws out a red-tabbed folder marked *Provisional Human Programme*.\n\n“The common curriculum covers Covenant law, negotiation, finance, security, and public rhetoric. Professor Stone will supervise your study of human precedent. Professor Windwhisper will handle the seat’s legal obligations. Beginning next term, you’ll observe the Council secretariat and assist with supervised arbitration.”\n\nAshworth taps the folder once.\n\n“What we cannot provide is instruction from a living predecessor. The human practicum was suspended during the vacancy, and portions of it are being reconstructed from Academy records. Your magical assessment this week will determine which parts of the old concordance curriculum can be attempted safely. We will not assume that you possess an ability merely because previous Garveys did.”\n\nAshara’s chair shifts against the floor. “So the programme was designed after he was admitted.”\n\n“Yes.”\n\n“Convenience isn’t competence.”\n\n“No,” Ashworth says. “That is why admission and graduation are separate decisions.”\n\nLysara taps her pencil against the words *Exceptional Observer* on her name card. “I recommend being administratively inconvenient. They spell your name correctly in every memorandum.”\n\nSeveral people laugh. Ashworth gives her a patient look.\n\n“Miss Vane’s programme is also provisional.”\n\n“Hence my expertise.”\n\nAshworth opens the red-tabbed folder and slides it across the oval table to you. Inside are faculty assignments, observation requirements, and an assessment schedule extending through the term.\n\n“Your inheritance opened a course of study, Mr. Garvey. The practical duties are how you will be judged within it.”\n\nHe returns to the orientation agenda.\n\n“Now, bridge permissions. These rules become considerably less abstract when someone strands themselves in another territory after dusk.”",
+  "reasoning_summaries": [
+    "**Planning orientation question response**",
+    "**Detailing human practicum suspension and plans**",
+    "**Adding objections to inheritance and training**",
+    "**Outlining human-specific training rotation**",
+    "**Clarifying training and seat distinction**",
+    "**Detailing magical aptitude assessment and faculty roles**",
+    "**Planning advisor introduction scenario**",
+    "**Designing mentor roles and student interactions**",
+    "**Refining orientation dialogue flow**",
+    "**Clarifying human seat vs Council seat**",
+    "**Detailing Council succession and curriculum**",
+    "**Revealing Academy's hastily rebuilt practicum**",
+    "**Deciding character dialogue tone**",
+    "**Refining character interaction dynamics**",
+    "**Clarifying faculty roles and assignments**",
+    "**Planning character reaction interaction**",
+    "**Clarifying magical aptitude assessment details**",
+    "**Adding character dialogue revealing tensions**",
+    "**Refining student seat wording**"
+  ],
+  "thread_id": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "turn_id": "01a0b596-bb04-7c80-a151-9b4dfed1ee6d",
+  "usage": {
+    "total": {
+      "totalTokens": 615134,
+      "inputTokens": 566190,
+      "cachedInputTokens": 466560,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 48944,
+      "reasoningOutputTokens": 41595
+    },
+    "last": {
+      "totalTokens": 63205,
+      "inputTokens": 59515,
+      "cachedInputTokens": 54656,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3690,
+      "reasoningOutputTokens": 3245
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 89.88052632601466,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:37:19.400713+00:00",
+  "duration_s": 110.56871163996402
+}

@@ -1,0 +1,45 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You leave the octagon with the dispersing spectators, then turn through the arched garden gate alone.\n\nPale walls break the plateau wind without shutting out the sky. Warm beds along the demon-stone foundations hold ember lilies and black-veined herbs; farther in, shaded pools keep frost flowers open beneath a skin of ice. Living elven arches bend over the path, their new leaves growing among others that have not fallen in decades.\n\nThe route loops gradually toward the plateau’s edge. There, a public terrace looks down on the perpetual storm. Slow lightning branches beneath your feet without thunder, illuminating the underside of one hard-light bridge as it reaches toward a distant territory.\n\nYou continue through narrower paths sheltered by high hedges. Water moves through dragon-carved channels cut low into the stone. Small brass plaques identify plants, their preferred climates, and several severe penalties for picking them.\n\nClasses are still in session, and the paths remain largely empty. No one calls to you or alters your course. You walk until the next bell marks the hour, returning at last to the central garden gate with the circuit complete.",
+  "reasoning_summaries": [
+    "**Designing solitary garden walk narrative**",
+    "**Planning detailed sensory garden walk**",
+    "**Integrating distant garden life sounds**",
+    "**Describing enchanted garden path**",
+    "**Planning solitary garden walk after bout**",
+    "**Detailing garden features and walk pacing**"
+  ],
+  "thread_id": "01a0b588-d669-7d71-8883-d132de260245",
+  "turn_id": "01a0b59d-4954-76b1-9c5c-aa784dc98bdf",
+  "usage": {
+    "total": {
+      "totalTokens": 1029874,
+      "inputTokens": 969046,
+      "cachedInputTokens": 773888,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 60828,
+      "reasoningOutputTokens": 50955
+    },
+    "last": {
+      "totalTokens": 76433,
+      "inputTokens": 75170,
+      "cachedInputTokens": 70400,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1263,
+      "reasoningOutputTokens": 1034
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 34.630621168995276,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:43:33.794950+00:00",
+  "duration_s": 73.0584333629813
+}

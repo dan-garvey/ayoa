@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I accept the answer about permissions and work within it. I begin the cataloguing tasks I have actually been assigned.
+</user>

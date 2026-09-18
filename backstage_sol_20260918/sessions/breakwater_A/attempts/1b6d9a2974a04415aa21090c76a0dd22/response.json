@@ -1,0 +1,48 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You leave the foyer and climb the staff stairs. Dev has closed the projection-booth door; only a thin line of blue light shows beneath it.\n\nIn your room, you switch on the desk lamp and sit down to read. Outside the window, the remaining daylight drains from Harbour Street. Lamps appear along the inner harbour, their reflections broken whenever a boat shifts against its mooring.\n\nThe building gradually empties beneath you. Rosa’s voice carries briefly from the foyer as she confirms that she’ll check the photographs tonight. The front doors open, admitting a wash of street noise, then close again. Martin and Bea continue talking as their footsteps fade along the pavement.\n\nA few minutes later, Dev’s equipment case knocks lightly against the stair rail on his way down. He speaks with Nell too quietly for the words to reach you. Another door closes, followed by the firm turn of the front lock.\n\nYou keep reading. Somewhere below, an office drawer opens and shuts; Nell has not left yet. Pipes tick behind the wall, and the projection booth’s fans wind down until the faintest sound in the room is the movement of a page.\n\nTwenty minutes pass without anyone disturbing you.",
+  "reasoning_summaries": [
+    "**Clarifying reading item and time skip**",
+    "**Detailing NPC departures and ambient sounds**",
+    "**Refining reading posture and timing details**",
+    "**Refining scene exit details**",
+    "**Confirming office occupancy timing**",
+    "**Detailing reading duration and movement**",
+    "**Finalizing NPC activity timeline**",
+    "**Planning ambient scene and dialogue**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b590-fb9f-78c0-8a4a-5d04a6a97ed0",
+  "usage": {
+    "total": {
+      "totalTokens": 299964,
+      "inputTokens": 269057,
+      "cachedInputTokens": 190336,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 30907,
+      "reasoningOutputTokens": 25650
+    },
+    "last": {
+      "totalTokens": 44764,
+      "inputTokens": 43113,
+      "cachedInputTokens": 37632,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1651,
+      "reasoningOutputTokens": 1408
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 45.19659452600172,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:30:18.035619+00:00",
+  "duration_s": 53.355591016996186
+}

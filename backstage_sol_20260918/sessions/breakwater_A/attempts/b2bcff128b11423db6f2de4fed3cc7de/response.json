@@ -1,0 +1,59 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "The night passes without interruption. In the morning, you have breakfast and come downstairs a few minutes before nine. Rain has darkened Harbour Street, and the foyer windows hold a dull reflection of the lights inside.\n\nNell is already in the office. At nine precisely, she looks up from a folder.\n\n“Morning. We’ll start here.”\n\nShe takes you through the practical arrangements first: fire procedure, accident book, contact numbers and the sheet where you record your hours.\n\n“You’re contracted for thirty hours a week,” she says. “Write down the hours you actually work. If something needs longer, tell me. Don’t quietly donate an evening because a box turned out to be interesting.”\n\nShe gives you a small brass key tagged **ARCHIVE**.\n\n“This is for the workroom door. The loan-cupboard key stays here in the office; take it when you need it and return it when you finish. Nothing from the archive goes into your room, and food and drink stay outside the workroom.”\n\nNext she opens the archive-permissions folder. Each loan has its own signed record, with dates and restrictions marked near the front.\n\n“People may recognize something or want it for the exhibition. That doesn’t establish ownership, and it doesn’t grant permission. Check the paperwork before agreeing to photography, publication or display. If the record isn’t clear, leave the decision with me.”\n\nThe agreement for Bea’s green album is near the top. Nell turns it so you can read the relevant lines: inventory and written condition descriptions are permitted; scanning, publication and public display are not.\n\n“You heard some of this last night,” she says. “These written terms are what we follow.”\n\nUpstairs, she unlocks the workroom. Metal shelving covers two walls, holding programme boxes, document cases and several objects wrapped in tissue. Two folding tables stand beneath bright ceiling lights. The green cloth album is visible through the open loan cupboard, lying flat in its own shallow box. Nell locks the cupboard again once she has shown you its location.\n\nA laptop on the nearer table holds the catalogue template. Nell opens a blank entry. The fields cover reference number, creator, date, description, physical condition, provenance, permissions and shelf location.\n\n“For uncertain dates, say they’re uncertain. If Martin identifies somebody in a photograph, record that he identified them and when. Memory is evidence, but it isn’t the same thing as a printed date.”\n\nShe brings down a grey archive box labelled **TRUST TRANSFER PAPERS — 2024**. Inside are equipment lists, correspondence and schedules made when the trust acquired the old cinema’s property.\n\n“This is where we begin. These papers help establish what the trust actually owns. We’ll catalogue the first file together, then you can take the next one yourself.”\n\nNell places the first folder beside the laptop and begins explaining its existing reference marks.",
+  "reasoning_summaries": [
+    "**Planning morning routine and breakfast scene**",
+    "**Outlining induction arrival and key handoff**",
+    "**Deciding key distribution during induction**",
+    "**Planning key custody and cataloging system**",
+    "**Designing induction and handling protocols**",
+    "**Detailing arrival and office setup**",
+    "**Assessing building fire exits and procedures**",
+    "**Defining work hours and archive details**",
+    "**Cataloging trust and archive business papers**",
+    "**Cataloguing 2024 trust transfer records**",
+    "**Detailing archival handling procedures**",
+    "**Establishing induction office setting**",
+    "**Clarifying workplace procedures and overtime limits**",
+    "**Establishing access and handling protocols**",
+    "**Reviewing induction with transfer schedule**",
+    "**Refining timeline and dialogue details**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b595-ba68-7343-9bbd-379d5bc9a17e",
+  "usage": {
+    "total": {
+      "totalTokens": 612005,
+      "inputTokens": 570018,
+      "cachedInputTokens": 480128,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 41987,
+      "reasoningOutputTokens": 34971
+    },
+    "last": {
+      "totalTokens": 56492,
+      "inputTokens": 53190,
+      "cachedInputTokens": 51968,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3302,
+      "reasoningOutputTokens": 2715
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 83.11549377499614,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:36:06.943502+00:00",
+  "duration_s": 83.70906670298427
+}

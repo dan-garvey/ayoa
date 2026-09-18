@@ -1,0 +1,49 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You take the blue volume to the empty table and settle beneath the green lamp.\n\nThe book has been copied by several hands. The first is broad and careful; later chapters grow smaller and more crowded where a second copyist tried to preserve the original page count. Its opening diagram shows seven seats around a circular chamber. The human seat is shaded grey and labeled *dormant*, the terminology current before your inheritance was verified.\n\nThe first chapter separates titles that ordinary speech treats as interchangeable. A Council representative may vote and bind their government. A designated heir may observe, advise when recognized, and act under expressly delegated authority. A Conclave student possesses access and standing, but no independent power to commit anyone—not even their own house.\n\nThe procedural sections are dry but clear. Petitions enter through individual seats. Treaty disputes go first to arbitration panels drawn from uninvolved delegations. Certain motions require support across several races before they can even be debated. Empty seats retain their legal existence; their authority cannot simply be divided among those remaining.\n\nStone’s warning becomes evident in the chapter on voting. The book describes restrictions on the beastkin seat as “transitional safeguards,” though the accompanying dates show that the transition has lasted generations. Angel-sponsored precedents appear as foundational examples. Demon objections are generally confined to footnotes.\n\nThe human vacancy receives two pages. According to the official account, demographic collapse made a functioning delegation impossible. The Council therefore placed human privileges in abeyance while leaving its treaties and obligations intact. The book offers no procedure for what happens when a verified heir reappears after sixty years. It directs such “unlikely contingencies” to the Covenant’s general succession provisions in a later volume.\n\nAround you, the library remains quiet. Caelindra turns pages in the west alcove. Above, Seraphel marks corrections on her choir sheets without speaking. Professor Stone’s catalogue drawers open and close with soft wooden clicks.\n\nHalf an hour passes. When the library clock advances, you have reached the beginning of the chapter on committees, with a strip of paper resting between the pages to keep your place.",
+  "reasoning_summaries": [
+    "**Outlining public history reading content**",
+    "**Defining Council seating and voting mechanics**",
+    "**Planning silent reading scene progression**",
+    "**Clarifying Council seat roles and voting rules**",
+    "**Detailing seat succession and voting limitations**",
+    "**Planning in-world half-hour time passage**",
+    "**Planning engaging story passage**",
+    "**Refining book description details**",
+    "**Clarifying Conclave membership hierarchy**",
+    "**Planning conclave seat mechanics**",
+    "**Clarifying Covenant signatory seat history**"
+  ],
+  "thread_id": "01a0b588-d669-7d71-8883-d132de260245",
+  "turn_id": "01a0b590-110d-7d12-8c3a-bb6902f94128",
+  "usage": {
+    "total": {
+      "totalTokens": 344247,
+      "inputTokens": 310708,
+      "cachedInputTokens": 195200,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 33539,
+      "reasoningOutputTokens": 28399
+    },
+    "last": {
+      "totalTokens": 47894,
+      "inputTokens": 45630,
+      "cachedInputTokens": 41600,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2264,
+      "reasoningOutputTokens": 1836
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 60.011105266050436,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

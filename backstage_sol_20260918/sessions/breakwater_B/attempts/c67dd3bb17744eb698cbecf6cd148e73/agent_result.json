@@ -1,0 +1,48 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You leave your reading upstairs and descend. The projection booth is dark now, its window reflecting the landing light.\n\nOnly three people remain in the foyer. Nell is visible through the open office door, working at her computer. Owen wipes the joined supper tables while Jo checks containers against a handwritten list behind the cafe counter.\n\nJo sees you approach the kitchen. “Clean glasses are under the left side. Tap water’s fine.”\n\nYou take a tumbler, fill it and return to the foyer. At night, the broad front windows have become mirrors laid over Harbour Street. Headlamps pass through the reflections of stacked programmes and empty chairs.\n\nYou drink and linger near the end of the counter.\n\nOwen gathers crumbs into his cloth. Jo fits a lid onto the last container.\n\n“You let Martin leave,” she says.\n\n“He was with Bea and Rosa.”\n\n“You told me you wanted to tell him yourself.”\n\n“I do. Not with an audience.”\n\nJo looks at him across the counter. “Then ring him tomorrow.”\n\n“I’m going to.”\n\n“Before he starts making plans that include you.”\n\nOwen folds the cloth once, then again. “That’s the difficulty.”\n\nJo does not answer immediately. She puts the container into a crate and slides it beneath the counter.\n\n“I haven’t accepted anything,” Owen says. “I haven’t even replied to the interview.”\n\n“No. But you applied.”\n\n“I know.”\n\nNell comes out of the office carrying a ring of keys. Whatever she heard from inside, she does not join the exchange.\n\n“I’m locking the front,” she says. “Side door from now on.”\n\nShe turns the two locks and tests each glass door. The foyer’s lights sharpen in the panes, leaving the street beyond almost invisible.\n\nOwen takes the cleaning cloth back to the kitchen. Jo returns to her stock list without pursuing the subject. For the remaining minutes you stand there, the three of them continue with separate closing tasks, and no one asks you to settle what Owen should tell his father.",
+  "reasoning_summaries": [
+    "**Determining remaining characters after departures**",
+    "**Planning character interactions during foyer linger**",
+    "**Developing dialogue and setting user interaction**",
+    "**Planning staff relationship scene**",
+    "**Detailing social drama dynamics**",
+    "**Establishing nighttime cafe atmosphere**",
+    "**Clarifying character interactions and key access**",
+    "**Finalizing scene with door locking and lingering options**",
+    "**Refining character interactions and dialogue**",
+    "**Clarifying character departure and locking details**"
+  ],
+  "thread_id": "01a0b588-d7a8-7f73-acd7-e1d4d0a54185",
+  "turn_id": "01a0b590-d8b2-7b72-98fd-33b7462f9b9f",
+  "usage": {
+    "total": {
+      "totalTokens": 316403,
+      "inputTokens": 289626,
+      "cachedInputTokens": 215808,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 26777,
+      "reasoningOutputTokens": 21342
+    },
+    "last": {
+      "totalTokens": 40340,
+      "inputTokens": 38001,
+      "cachedInputTokens": 36096,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2339,
+      "reasoningOutputTokens": 1929
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 64.86411542602582,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

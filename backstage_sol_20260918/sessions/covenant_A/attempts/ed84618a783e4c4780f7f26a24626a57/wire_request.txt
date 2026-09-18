@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I go to bed when I am done reading. The next morning I wash, dress, and get breakfast in time for the scheduled orientation.
+</user>

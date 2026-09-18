@@ -1,0 +1,45 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At half past one, you return to the archive workroom and reopen the catalogue.\n\nNell comes upstairs soon afterward with the yellow tray. She has checked each flagged reference against the signed transfer schedule.\n\n“The unsigned inventory belongs with the transfer file,” she says. “It shows what somebody expected to collect, but we can’t use it by itself to establish ownership. Your note can stay as it is.”\n\nA receipt proves that the trust paid for storage cartons, not that it owned everything placed inside them. Nell adds a brief cross-reference to the relevant correspondence and leaves the ownership field unresolved where the documents do not support an answer.\n\nOnce she returns downstairs, you continue with the programme box. You record its date span, the gaps in the weekly sequence and the number of duplicates. Pencilled changes to show times remain part of the documents; folded corners, rust stains and small edge tears go into the condition notes.\n\nAround two, Jo’s supplier call is faintly audible through the floor. She repeats a price, waits, then repeats it more slowly. A while later, the kitchen door closes and the building becomes quiet again.\n\nYou finish the box-level record and complete several entries for the programme groups inside it. Nothing in the work requires opening the loan cupboard. The only material on your table belongs to the trust under the signed 2024 transfer schedule.\n\nAt four—the finish time shown on today’s hours sheet—you complete the entry already underway and do not begin another. The programmes return to their original order. You close the box, place it on its marked shelf and save the catalogue before shutting down the laptop.\n\nDownstairs, you enter your finish time on the hours sheet. Nell checks the line and initials it.\n\n“That’s you done for today,” she says. “Leave the next box where it is. We’ll pick it up tomorrow.”",
+  "reasoning_summaries": [
+    "**Finalizing workday schedule details**",
+    "**Detailing character actions and inventory management**",
+    "**Confirming end-of-shift routines and logging**",
+    "**Confirming end-of-day wrap-up**",
+    "**Detailing schedule and archive annotations**",
+    "**Clarifying storage receipt ownership status**",
+    "**Clarifying timesheet lunch break details**",
+    "**Finalizing timeline for break and work hours**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b59e-d5be-7e62-95c0-8e9e1e1a6e93",
+  "usage": {
+    "total": {
+      "totalTokens": 1150575,
+      "inputTokens": 1089757,
+      "cachedInputTokens": 976768,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 60818,
+      "reasoningOutputTokens": 50263
+    },
+    "last": {
+      "totalTokens": 76422,
+      "inputTokens": 74737,
+      "cachedInputTokens": 70784,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1685,
+      "reasoningOutputTokens": 1307
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 42.7746030910057,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

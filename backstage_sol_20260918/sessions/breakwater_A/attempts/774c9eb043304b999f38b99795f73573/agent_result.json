@@ -1,0 +1,49 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You set down your fork.\n\n“I can carry the empty plates through.”\n\nJo looks over the table. “Thank you. Put them on the counter left of the sink. Leave the pans where they are.”\n\nNell lifts her envelope out of the way while you gather the first stack. Martin and Rosa have left their plates side by side; Dev’s has a fallen piece of crust near the rim. The crockery is heavier than it looks, thick white cafe ware from one of the opened cartons.\n\nThe kitchen is narrow and warmer than the foyer. Shelves hold labelled jars and sealed tubs of dry goods. Owen stands beside the deep sink, sorting the cutlery into a grey tray.\n\n“Here’s clear,” he says, moving the tray aside.\n\nYou put down the plates and return for the rest. Jo carries the covered pie herself and sets it beside the remaining stew.\n\n“I’m labelling this, then I’m done for tonight,” she says. “Owen, rubbish can go out through the yard.”\n\n“I’ll take it.”\n\nNell checks the foyer clock. “I’ll stay until Rosa and Martin finish at seven-forty. Dev’s coming down before he leaves, and I’ll lock the front after that.”\n\nJo nods. “I’ll be out before then.”\n\nOn your second trip, Owen has begun filling the sink. You set the last plates on the counter without touching the pans or the cutlery tray.\n\n“That’s everything,” Jo says. “Thanks, Rowan.”\n\nBehind the auditorium doors, Martin starts the same account for a third time. This version begins with a different year. Rosa lets him finish before asking him to spell June Mercer’s surname.",
+  "reasoning_summaries": [
+    "**Planning limited task offer to Jo**",
+    "**Detailing supper cleanup routine**",
+    "**Setting supper scene timing and dialogue**",
+    "**Planning kitchen scene details**",
+    "**Defining end-of-shift actions and dialogue**",
+    "**Considering scene continuation options**",
+    "**Clarifying plate handling actions**",
+    "**Mapping character movements and interactions**",
+    "**Refining subtle dialogue hints**",
+    "**Confirming kitchen task boundaries**",
+    "**Clarifying task completion and handoff**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b58d-8377-7f70-a0e3-294de111cc94",
+  "usage": {
+    "total": {
+      "totalTokens": 212126,
+      "inputTokens": 188122,
+      "cachedInputTokens": 117248,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 24004,
+      "reasoningOutputTokens": 19505
+    },
+    "last": {
+      "totalTokens": 37773,
+      "inputTokens": 35579,
+      "cachedInputTokens": 31232,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2194,
+      "reasoningOutputTokens": 1849
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 62.12475804903079,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

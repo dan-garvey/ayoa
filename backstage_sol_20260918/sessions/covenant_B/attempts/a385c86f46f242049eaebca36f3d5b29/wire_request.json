@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b581-bb42-7b80-ba65-37c407718de2",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nI eat and listen to the conversation around me, without trying to take charge of it.\n</user>\n"
+    }
+  ]
+}

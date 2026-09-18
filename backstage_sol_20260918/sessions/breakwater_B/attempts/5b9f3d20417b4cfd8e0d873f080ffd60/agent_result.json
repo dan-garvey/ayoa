@@ -1,0 +1,41 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At a quarter past six, the room still carries the dry, shut-up smell of somewhere that hasn’t had a regular occupant in years.\n\nYour luggage stands where Nell left you with it. The single bed is made with white linen and a faded blue blanket; opposite, a narrow wardrobe tilts slightly towards the wall. On the desk, beneath the switched-off lamp, the welcome sheet gives you four pieces of information in Nell’s tidy print:\n\n**SUPPER — 6.30, FOYER**  \n**STAFF STAIRS STRAIGHT DOWN**  \n**INDUCTION — 9.00 TOMORROW**  \nand her mobile number.\n\nBeyond the window, Harbour Street slopes towards a strip of grey-green water between buildings. Masts shift behind the roofs. A gull stamps along the opposite chimney pots with something pale and unidentifiable in its beak. The September light remains clear enough to show the repairs in the cinema’s frontage below: clean glazing set into older stone, new paint beside places where old screw holes have been filled.\n\nYour charcoal coat is still on your shoulders. Its careful mending shows plainly in this light. Ink marks the sides of your fingers around the brass bedroom key.\n\nThe building carries sound in unexpected ways. Crockery knocks together downstairs. A chair scrapes across the foyer floor, followed by a burst of laughter from a woman you haven’t met. Somewhere close on this floor, machinery gives a brief electronic chirp.\n\n“Don’t put those there,” another woman says below. “Those are tomorrow’s cups.”\n\n“They look remarkably like tonight’s cups.”\n\n“They’re in a sealed box, Owen.”\n\n“Temporary distinction.”\n\nA door opens off the landing. Footsteps cross to the top of the stairs, pause, then go down quickly.\n\n“Six-thirty means food on the table at six-thirty,” someone calls from the direction of the kitchen. “It doesn’t mean begin discussing the table at six-thirty.”\n\n“That’s Jo,” Nell’s voice answers from below. “You’ll learn to fear precision.”\n\n“I heard that.”\n\nThe smell reaches the room a moment later: cooked tomatoes, onion, warm pastry. Beneath it lingers the cinema’s older mixture of carpet, plaster and dust disturbed by recent work.\n\nYour door stands ajar. Across the landing, a narrow pane in the projection-booth door shows a moving figure against bluish equipment lights. Down the stairwell, the foyer glows gold, and several conversations overlap among people who already know where the plates are kept and which chairs wobble.\n\nThen Nell calls up, “Rowan, supper’s ready when you are.”",
+  "reasoning_summaries": [
+    "**Designing immersive fiction setting**",
+    "**Planning character introduction scene**",
+    "**Composing detailed room introduction**",
+    "**Identifying voices and scene details**",
+    "**Defining door state and setting scene**"
+  ],
+  "thread_id": "01a0b581-bbbb-7ae0-aad1-ba272792682c",
+  "turn_id": "01a0b581-bc5d-7b83-b7b9-a9990d45d702",
+  "usage": {
+    "total": {
+      "totalTokens": 14567,
+      "inputTokens": 13164,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1403,
+      "reasoningOutputTokens": 863
+    },
+    "last": {
+      "totalTokens": 14567,
+      "inputTokens": 13164,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1403,
+      "reasoningOutputTokens": 863
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 49.37572569795884,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

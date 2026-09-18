@@ -1,0 +1,52 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You remain at the table as the room empties by degrees, finishing the last of the bread and onions while a server clears the unused settings. He leaves your plate until you set down your fork, neither hovering nor hurrying you.\n\nIn the common room, Rashid finds the missing corkscrew in less than a minute. Dena receives it with her splinted hand held pointedly out of the task.\n\n“No practice-group business tonight,” she says.\n\n“Understood.”\n\n“No schedules, petitions, recruitment plans, or speeches about restoring confidence.”\n\n“I had prepared none of those.”\n\n“You’re offended that I think you might have.”\n\n“I’m offended you listed schedules separately from plans.”\n\nOne of Dena’s friends laughs. Cards slap onto the low table.\n\nThessaly pauses beside them with her unfinished pastry. “Which game.”\n\n“Knives,” Dena says.\n\n“I know eight games called Knives.”\n\n“This one permits cheating.”\n\n“Then it has no rules.”\n\n“It has rules governing the cheating.”\n\nThessaly considers that. “Deal me in.”\n\nA chair scrapes back for her. Rashid begins explaining the scoring until Dena throws a cork at him.\n\nAt the dining table, Caelindra tucks her book beneath one arm. “I’m going to the library for the Vauldren travel journals. The complete edition, if this house possesses anything more substantial than excerpts.”\n\nSeraphel rises with her.\n\n“That chapter with innkeepers, mules, and bad ale—  \nRead it aloud, and I’ll listen to the tale.”\n\n“You only like the part where his luggage is stolen.”\n\n“The maps are all useless, his mule runs away;  \nYour voice makes disaster improve in display.”\n\n“One chapter,” Caelindra says. “And no laughing over the footnotes.”\n\nThey leave together through the library door. Seraphel’s warm glow lingers briefly on its dark wood after it closes.\n\nAldric has already crossed the common room toward the front entrance. Caelindra’s mention of the library brings him to a pause.\n\n“I haven’t taken the annotated Covenant commentary,” he says. “I’ll be in the chapel until second bell.”\n\nNo one has accused him of taking it, but he waits a moment before continuing out.\n\nYsolde stands beside the open garden door. Cold night air gathers around her, carrying the scent of wet stone and year-round flowers.\n\n“The lightning is climbing the eastern side of the storm,” she says. “It should reach the bridge within the hour.”\n\nShe steps into the garden and leaves the door ajar behind her.\n\nAshara is already on her way to the octagon, practice blades over one shoulder, to drill alone.\n\nBy the time you finish, the dining hall has gone quiet. Beyond one doorway come cards, complaints, and Dena accusing Rashid of counting discarded suits. Beyond another, a library lamp clicks on. Wind stirs the garden flowers outside.\n\nThe server takes your empty plate. For the moment, only you and the seventeen guttering candles remain at the long table.",
+  "reasoning_summaries": [
+    "**Planning NPC dispersal and activities**",
+    "**Refining NPC dialogue and departure details**",
+    "**Adding card game interaction and departures**",
+    "**Planning natural dialogue snippets**",
+    "**Composing character dialogue rhymes**",
+    "**Introducing character plans in dialogue**",
+    "**Confirming NPC conversation details**",
+    "**Refining NPC rhymed dialogue and scene flow**",
+    "**Planning dinner scene ambiance and spatial cues**",
+    "**Adding character evening plans narration**",
+    "**Designing natural NPC dialogue exchanges**",
+    "**Incorporating card table banter scene**",
+    "**Finalizing scene details**"
+  ],
+  "thread_id": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "turn_id": "01a0b589-9dd5-7d13-8bdb-93b4612ab640",
+  "usage": {
+    "total": {
+      "totalTokens": 126026,
+      "inputTokens": 106937,
+      "cachedInputTokens": 38272,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 19089,
+      "reasoningOutputTokens": 15700
+    },
+    "last": {
+      "totalTokens": 32863,
+      "inputTokens": 30079,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2784,
+      "reasoningOutputTokens": 2159
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 74.9278928170097,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

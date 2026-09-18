@@ -1,0 +1,71 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You accompany Seraphel down the main stair. It curves through the common room, where firelight shines on the varnished faces of dead Garveys. A lacquered deck of cards and four empty glasses wait on one low table; books, practice gloves, and an abandoned teacup occupy another. The house already bears the disorder of people living in it.\n\nThe dining-hall conversation thins when you enter.\n\nAll seventeen places have been set, though only seven are occupied. Candles double themselves in the polished table, and an arrangement of silver-leafed thornvine leans noticeably toward the heat of a tall, ember-skinned woman midway down the table. Beside her sits a brown-skinned man in an immaculate coat, fine dark fur visible across the backs of his hands.\n\nHe rises first.\n\n“Rashid vel Amara. Welcome to Garvey House.” His amber eyes briefly take in the signet. “The name on the door doesn’t make you responsible for finding anything. None of us knows where they keep the salt.”\n\n“Top cabinet beside the serving hatch,” says the horned woman.\n\nRashid looks at her. “You knew this entire time.”\n\n“I looked.”\n\nA corner of her mouth lifts. Her long tail has been tucked around the legs of her chair to keep it clear of the servers.\n\nYou introduce yourself simply. “I’m Rowan.”\n\n“Everyone suspected,” says a pale-gold woman with elaborately arranged silver hair. One pointed ear angles toward you. “Caelindra Vaeyn.”\n\nThe snow-pale woman beside her sets down a goblet beaded with condensation. The water inside has begun to film with ice. “Ysolde Thornmantle.”\n\n“Ashara vel Kothren,” says the horned woman.\n\nAt the far side of the table, a golden-haired man in formal white inclines his head. “Aldric Verantus. The return of a Garvey to the Conclave is an event of great significance.”\n\n“It’s also dinner,” Ashara says.\n\nAldric’s expression tightens. “Those statements aren’t in conflict.”\n\n“No, but only one is getting cold.”\n\nThe nearest open place is beside a slight woman whose skin carries a pale green cast. Her entirely black eyes follow the movement of the chair as you draw it back, and her blue-black hair drifts against her shoulders despite the still air.\n\n“Thessaly Morrow,” she says. She moves a bread plate clear of your sleeve. “That place is free. The napkin belongs to the Academy, apparently. They count them.”\n\nSeraphel takes the chair on your other side.\n\n“Eight names at once tend to vanish through the floor;  \nBy pudding you’ll know five of us, and breakfast may bring more.”\n\nA server places bowls of dark onion broth around the table. The thornvine bends farther toward Ashara and hooks one silver barb into Rashid’s cuff.\n\nCaelindra watches it happen. “It has attacked a Conclave heir within six minutes. I maintain that it is an unsuitable centerpiece.”\n\n“It only caught the cloth,” Rashid says, carefully freeing the fabric. “Its political judgment may be sound.”\n\nAshara laughs outright. Ysolde reaches across, pours a little water into the centerpiece’s dry basin, and turns it away from the demon’s heat. The vine slowly relaxes.\n\n“It was thirsty,” she says.\n\nFor several minutes, the room settles into the practical sounds of dinner: spoons against porcelain, servers replacing bread, the low hiss of a lamp being adjusted. No one bows to you. No one asks you to claim the empty head of the table beneath the largest Garvey portrait.\n\nCaelindra’s gaze pauses on the ink along your fingers. Rashid notices the carefully repaired seam at your cuff. Ashara looks from both to your inherited ring.\n\n“The verification notice says you inherited a name,” she says. “It says very little about the life you had before it. What did you do?”",
+  "reasoning_summaries": [
+    "**Planning scene introduction and dinner start**",
+    "**Establishing dinner seating and introductions**",
+    "**Composing detailed dinner scene with introductions**",
+    "**Deciding seating arrangement between Seraphel and Thessaly**",
+    "**Introducing characters with social nuances**",
+    "**Confirming seating near Thessaly and Caelindra**",
+    "**Planning natural dinner conversation**",
+    "**Designing dinner interactions and tensions**",
+    "**Refining character questions for dinner**",
+    "**Planning narrative scene setup**",
+    "**Designing character seating arrangement**",
+    "**Planning organic character introductions**",
+    "**Organizing character introductions**",
+    "**Planning dinner scene interactions**",
+    "**Incorporating character interactions with drink**",
+    "**Planning narrative tension during dinner**",
+    "**Designing seating dynamics and dialogue**",
+    "**Adding card table setup detail**",
+    "**Summarizing vivid character traits**",
+    "**Refining character introductions and social cues**",
+    "**Refining character dialogue tone**",
+    "**Planning final dialogue structure**",
+    "**Detailing dinner scene setup**",
+    "**Planning NPC interaction tone**",
+    "**Outlining final narrative length**"
+  ],
+  "thread_id": "01a0b581-bb42-7b80-ba65-37c407718de2",
+  "turn_id": "01a0b583-22fe-7462-9831-8390c161eeb1",
+  "usage": {
+    "total": {
+      "totalTokens": 38469,
+      "inputTokens": 30237,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 8232,
+      "reasoningOutputTokens": 7017
+    },
+    "last": {
+      "totalTokens": 21880,
+      "inputTokens": 16630,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 5250,
+      "reasoningOutputTokens": 4429
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 153.5001796539873,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:16:58.916749+00:00",
+  "duration_s": 153.52707463799743
+}

@@ -1,0 +1,52 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“What do you like about them?” you ask.\n\nSeraphel considers the fire before answering.\n\n“Vauldren means always to sound in command,  \nThen argues with rain as though rain had been planned.\n\n“His careful account shows his temper at last;  \nThe man becomes clearer each time he’s aghast.\n\n“With poems, I like when the reader takes time;  \nThe breath between phrases belongs to the rhyme.\n\n“Caelindra reads insults especially fine;  \nShe claims it’s the author, but chooses the line.”\n\nFrom the card table comes Rashid’s muted complaint as Dena takes another trick. Seraphel settles farther into her chair, leaving the conversation room to continue without pressing you to answer the question she asked before.",
+  "reasoning_summaries": [
+    "**Analyzing preferences for travel accounts and poetry**",
+    "**Refining poetic rhymes and dialogue flow**",
+    "**Noting conversational speech naturalness**",
+    "**Clarifying question focus on choices**",
+    "**Composing refined rhymed couplets**",
+    "**Finalizing rhymed explanation speech**",
+    "**Analyzing poetic rhythm and rhyme**",
+    "**Refining poem phrasing and character reading**",
+    "**Finalizing poem lines highlighting reader preferences**",
+    "**Refining dialogue pacing and details**",
+    "**Finalizing player dialogue phrasing**"
+  ],
+  "thread_id": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "turn_id": "01a0b592-c31b-7060-a198-69273183440e",
+  "usage": {
+    "total": {
+      "totalTokens": 437682,
+      "inputTokens": 399447,
+      "cachedInputTokens": 309376,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 38235,
+      "reasoningOutputTokens": 32442
+    },
+    "last": {
+      "totalTokens": 52366,
+      "inputTokens": 50422,
+      "cachedInputTokens": 47744,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1944,
+      "reasoningOutputTokens": 1788
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 46.009532647032756,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:32:15.452646+00:00",
+  "duration_s": 46.0427689049975
+}

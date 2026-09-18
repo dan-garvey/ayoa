@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I let the conversation end naturally and return to my book. I stay with it until I finish the chapter.
+</user>

@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I work quietly through the rest of the morning, putting any loaned material away securely when I stop.
+</user>

@@ -1,0 +1,44 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You leave Rashid’s question unanswered. He waits a moment, then picks up the practice blade and resumes winding its grip without repeating himself.\n\nThe blue Council volume is back on its shelf in the adjoining library. You retrieve it, return to the common room, and settle into the leather chair near the cold fireplace.\n\nThe next chapter begins by separating inheritance from office. A family may designate or produce an heir according to its own laws, but that alone does not confer a Council vote. The Council verifies the claim, recognizes the successor’s standing, and eventually performs a formal investiture. Until then, an heir may study, observe, and exercise only authority specifically delegated in writing.\n\nAnother section states that a seat belongs to its signatory people rather than to whichever house currently supplies the representative. Family titles, property, and political office may pass together under ordinary circumstances, but the Covenant treats them as distinct grants of authority.\n\nThe examples are less useful. Every disputed succession described in the book involves a functioning government, an incumbent delegation, or rival houses able to submit competing claims. Its “extraordinary vacancies” last months or a few years, not generations.\n\nThe human seat appears only in a footnote:\n\n*Current conditions remain subject to provisional recognition and Council review.*\n\nNo further procedure follows.\n\nAcross the room, Rashid finishes the new grip, tests it once against his palm, and leaves with the practice blade under one arm. He does not mention Dena, Ashara, or the unanswered question again.\n\nYou continue reading in the quiet he leaves behind.",
+  "reasoning_summaries": [
+    "**Confirming silent library reading plan**",
+    "**Detailing succession process from book**",
+    "**Noting gap in human seat succession**",
+    "**Analyzing Rashid's actions and timeframe**",
+    "**Refining narration and book content details**",
+    "**Clarifying legal precedent on dormant seats**",
+    "**Clarifying Council verification process**"
+  ],
+  "thread_id": "01a0b588-d669-7d71-8883-d132de260245",
+  "turn_id": "01a0b5a1-712f-7301-b86a-bf4d79e9b6e2",
+  "usage": {
+    "total": {
+      "totalTokens": 1274808,
+      "inputTokens": 1207155,
+      "cachedInputTokens": 1004416,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 67653,
+      "reasoningOutputTokens": 56578
+    },
+    "last": {
+      "totalTokens": 83739,
+      "inputTokens": 82261,
+      "cachedInputTokens": 79232,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1478,
+      "reasoningOutputTokens": 1160
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 35.280331084970385,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

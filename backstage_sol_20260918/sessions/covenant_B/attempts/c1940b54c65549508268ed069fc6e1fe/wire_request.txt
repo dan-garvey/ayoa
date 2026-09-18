@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+As I read, I silently wonder whether my aunt once kept a blue glass bird on her desk. I do not say this aloud; it is only a private guess. I return my attention to the page.
+</user>

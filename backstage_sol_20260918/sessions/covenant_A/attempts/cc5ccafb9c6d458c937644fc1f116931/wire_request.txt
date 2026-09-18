@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+Afterward I spend an hour walking in the gardens on my own. I do not seek anyone out.
+</user>

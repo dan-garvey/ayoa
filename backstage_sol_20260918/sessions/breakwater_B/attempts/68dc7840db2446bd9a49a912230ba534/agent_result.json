@@ -1,0 +1,42 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You continue without conversation. Nell works downstairs, her telephone voice occasionally carrying up the stairwell, but she leaves the archive door undisturbed.\n\nThe next folder contains correspondence with film distributors, printer’s proofs for weekly listings and a bundle of invoices held together by a perished elastic band. You preserve the bundle’s order, describe the failed fastening and place it in a temporary paper wrapper rather than trying to replace the elastic yourself.\n\nA handwritten note refers to an enclosed photograph that is no longer present. You record the absence without attempting to explain it. Two letters disagree about the date of a cancelled screening; both dates go into the catalogue, each attributed to its source.\n\nBy late morning, you have completed a small run of file-level records and updated their shelf locations. The work proceeds in pencil, clean slips and measured descriptions. Nothing is scanned. Nothing is selected for display.\n\nAt half past twelve, Nell appears in the doorway.\n\n“That’s a sensible stopping point. Save what you’ve entered and take lunch.”\n\nYou finish the active record, return every document to its original group and replace the folders in the archive box. The restricted staff rotas go into the designated closed folder for Nell’s review. You fit the lid, update the location field and return the box to its marked shelf.\n\nNo loaned material has been opened or handled during the morning. The grey loan cupboard remains locked, with Bea’s album secured inside.\n\nYou close the catalogue, leave the table clear and lock the archive workroom behind you when you step onto the landing.",
+  "reasoning_summaries": [
+    "**Planning secure work stoppage and checks**",
+    "**Confirming no loan material handled this morning**",
+    "**Scheduling quiet work with minimal interruptions**",
+    "**Outlining document record handling**",
+    "**Narrating secure material return and stop procedures**",
+    "**Planning loan material status narration**"
+  ],
+  "thread_id": "01a0b588-d7a8-7f73-acd7-e1d4d0a54185",
+  "turn_id": "01a0b59a-be68-7413-80c9-aaf0176ee17e",
+  "usage": {
+    "total": {
+      "totalTokens": 658109,
+      "inputTokens": 617483,
+      "cachedInputTokens": 527104,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 40626,
+      "reasoningOutputTokens": 32149
+    },
+    "last": {
+      "totalTokens": 54526,
+      "inputTokens": 53179,
+      "cachedInputTokens": 50688,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1347,
+      "reasoningOutputTokens": 1031
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 34.51048884104239,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

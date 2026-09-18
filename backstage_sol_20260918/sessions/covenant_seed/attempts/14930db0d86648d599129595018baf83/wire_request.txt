@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I go down to dinner, introduce myself as Rowan, and take an available place at the table.
+</user>

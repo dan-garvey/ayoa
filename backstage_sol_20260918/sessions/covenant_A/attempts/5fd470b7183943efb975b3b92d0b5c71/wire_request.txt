@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+At the next communal meal I take an available seat. If Seraphel is there, I ask whether she knows a song worth learning; otherwise I listen to the table.
+</user>

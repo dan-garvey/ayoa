@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nAfter orientation I check the public dueling schedule. If I can watch Ashara's ranked bout, I take a place as a spectator; if it has already finished, I look at the posted result.\n</user>\n"
+    }
+  ]
+}

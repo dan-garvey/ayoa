@@ -1,0 +1,50 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At the midmorning break, you find Owen in the foyer with a mug of tea. A toolbox sits closed beneath his chair, and the counter fittings he has been adjusting are laid out unattended. He is plainly on a break rather than in the middle of a task.\n\nYou sit at the next table.\n\n“How’s your week going?”\n\n“More complicated than it was on Monday.” He turns the mug between his hands. “I replied to the museum this morning. The interview’s confirmed for eleven tomorrow, and Nell has taken me off the shift.”\n\nHe drinks before continuing.\n\n“I told Dad last night. He said a permanent job was good, then immediately said the cinema would probably need permanent staff after October. Neither place has offered me anything.”\n\nThrough the front windows, a delivery van slows to check the cinema’s number and then continues along Harbour Street.\n\n“After that, Dad found three possible routes to the museum, offered to drive me and asked what sort of workshop machines they have. This morning he came by the hardware shop with printed train times and a packet of boiled sweets.”\n\nOwen takes a folded timetable from his pocket. Two connections have been circled in blue pen.\n\n“So he knows. We haven’t discussed what happens if I’m actually offered the job, but that can wait until there’s an offer to discuss.”\n\nA timer sounds softly on his phone, though he does not stand immediately. He has another sip of tea.\n\n“How’s the archive treating you?”",
+  "reasoning_summaries": [
+    "**Assessing Owen's availability and communication**",
+    "**Detailing Owen's week and Martin's reaction**",
+    "**Setting Owen's midmorning break scene**",
+    "**Assessing Owen's museum travel options**",
+    "**Confirming travel plans and interview timing**",
+    "**Noting Owen's interview acceptance and next steps**",
+    "**Designing low-pressure player check-in**",
+    "**Establishing character interactions and timeline**",
+    "**Refining dialogue to reveal character dynamics**",
+    "**Developing NPC's private thoughts and modest dialogue**",
+    "**Planning naturalistic break conversation flow**",
+    "**Finalizing dialogue ending with open question**"
+  ],
+  "thread_id": "01a0b588-d7a8-7f73-acd7-e1d4d0a54185",
+  "turn_id": "01a0b59f-7cf2-72b2-b9a9-832d92861007",
+  "usage": {
+    "total": {
+      "totalTokens": 961474,
+      "inputTokens": 910791,
+      "cachedInputTokens": 810240,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 50683,
+      "reasoningOutputTokens": 40298
+    },
+    "last": {
+      "totalTokens": 64811,
+      "inputTokens": 62445,
+      "cachedInputTokens": 61056,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2366,
+      "reasoningOutputTokens": 2063
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 62.10755765502108,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "The Academy primer devotes eleven pages to precedence and exactly one sentence to tonight:\n\n*The first-year welcome table observes the custom of its residence.*\n\nOn the desk, the sentence looks almost smug beneath the lamp.\n\nGarvey House offers no clarification. Voices rise through the floorboards—chairs shifting, silverware being counted, someone objecting that the centerpiece is “an armed shrub.” Warm air carries rosemary, baked pears, and woodsmoke up the central stair.\n\nYour carefully mended coat is the only garment in the room that wasn’t selected by the Garvey lawyers. The inherited signet catches the light on your hand. Across from the bed, a framed old letter promises some long-dead woman’s great-nephew that his room will be ready when he visits. He evidently never did.\n\nBeyond the window, the Academy gardens descend in pale terraces toward the plateau’s edge. One of the six bridges burns across the dark as a narrow road of hard white light. Far below it, lightning spreads soundlessly through the perpetual storm.\n\nA brass chime rings downstairs.\n\nYour door, which has been drifting open on an unreliable latch, admits a wedge of brighter hallway light. Footsteps approach and stop short of the threshold.\n\nA young woman stands there in white and gold. Warm light rests beneath her skin, gentler than the lamps, and two small white wings sit folded behind her shoulders. Her blue eyes flick from the signet to the open primer.\n\n“You must be Rowan Garvey. The signet makes that clear.  \nI’m Seraphel Dawnquill; the dining hall is near.\n\n“If you’re waiting for a rule that tells you when to go,  \nThe bell downstairs is all the rule I know.”\n\nShe remains in the hall, giving your room its boundary.\n\n“Would you like some company when you walk through the door?  \nThey may stare a little less if they’ve seen me before.”",
+  "reasoning_summaries": [
+    "**Outlining opening fiction parameters**",
+    "**Planning immersive scene setup**",
+    "**Staging ambient dinner preparation sounds**",
+    "**Designing dining hall opening scene**",
+    "**Clarifying room details and dialogue cues**",
+    "**Planning character interaction timing**",
+    "**Refining rhyme scheme and character intro**",
+    "**Finalizing rhyme and room entry setup**",
+    "**Planning rhymed invitation with player choice**",
+    "**Planning narrative setting and character introduction**",
+    "**Drafting detailed scene description**",
+    "**Developing dining hall dialogue and atmosphere**",
+    "**Analyzing Garvey House stair layout details**",
+    "**Refining dialogue tone and narration approach**"
+  ],
+  "thread_id": "01a0b581-bb42-7b80-ba65-37c407718de2",
+  "turn_id": "01a0b581-bc58-7c52-89f9-4dda6cd7c4b9",
+  "usage": {
+    "total": {
+      "totalTokens": 16589,
+      "inputTokens": 13607,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2982,
+      "reasoningOutputTokens": 2588
+    },
+    "last": {
+      "totalTokens": 16589,
+      "inputTokens": 13607,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2982,
+      "reasoningOutputTokens": 2588
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 91.71566918096505,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

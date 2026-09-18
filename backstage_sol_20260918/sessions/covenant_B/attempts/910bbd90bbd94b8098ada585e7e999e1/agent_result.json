@@ -1,0 +1,43 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "No answer comes; the question never reaches Ashara. You leave her to the drills she has already begun.\n\nYour plate is empty, and the last serving dishes have been carried away. A server snuffs the candles nearest the vacant head of the table.\n\n“Breakfast begins at seventh bell, Mr. Garvey. The common room remains open through the night.”\n\nHe withdraws with the final tray.\n\nFrom beyond the wall comes Dena’s delighted accusation that Thessaly has learned the game suspiciously quickly. In the distance, Ashara’s practice blade continues its steady cadence, already too far away for conversation.\n\nThe dining hall settles into darkness behind you, its welcome dinner concluded.",
+  "reasoning_summaries": [
+    "**Resolving narrative continuity issue**",
+    "**Clarifying meal completion narrative**",
+    "**Introducing dining room closure prompt**",
+    "**Drafting concise narrative response**",
+    "**Refining narrative continuity and silence acceptance**",
+    "**Aligning narrative timeline and environment details**"
+  ],
+  "thread_id": "01a0b588-d669-7d71-8883-d132de260245",
+  "turn_id": "01a0b58d-9cbc-71d1-a6d0-fa6229aeb194",
+  "usage": {
+    "total": {
+      "totalTokens": 250759,
+      "inputTokens": 223277,
+      "cachedInputTokens": 113280,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 27482,
+      "reasoningOutputTokens": 23237
+    },
+    "last": {
+      "totalTokens": 41748,
+      "inputTokens": 40554,
+      "cachedInputTokens": 39168,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1194,
+      "reasoningOutputTokens": 1052
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 25.332519221003167,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

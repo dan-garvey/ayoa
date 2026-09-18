@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I ask the person who has been working upstairs what they are working on this evening.
+</user>

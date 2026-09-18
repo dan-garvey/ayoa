@@ -1,0 +1,52 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You follow Dev upstairs. The projection-booth door stands open, blue equipment lights showing across the landing. Inside, a black digital projector faces the auditorium through a square port. A low rack of amplifiers and processors gives off a steady fan hum.\n\nDev sits at a workbench with the new receivers arranged in two straight rows. A spreadsheet is open on his laptop, beside a roll of numbered labels and a battery tester.\n\n“What are you working on this evening?” you ask.\n\n“Commissioning the projection and sound system, mostly. Making sure every part does what it’s supposed to, then leaving a record of it.”\n\nHe picks up one of the receivers.\n\n“These arrived today. Each one needs matching to a charger bay, logging by serial number and checking with headphones and a hearing-aid loop. I can confirm they’re receiving a signal in here, but that doesn’t tell me whether reception drops out in row twelve.”\n\nThrough the booth window, Rosa positions a lamp beside the yellow programme board. Martin stands out of its light while Bea holds Rosa’s notebook.\n\n“Hana and I were going to walk these through the auditorium while I ran speech and test tones,” Dev says. “Different seats, different angles. It’s dull, but somebody has to move around. Otherwise you test one perfect spot and discover the dead patch when there’s an audience in.”\n\nHe sets the receiver back in its numbered place.\n\n“I won’t run anything while they’re recording. Tonight I can finish the serial list, check the sound presets and update the fault sheet. The coverage test stays marked as outstanding until we actually do it.”\n\nOn the desk, a printed diagram traces the system from projector server to sound processor, amplifiers and auditorium speakers. Several corrections have been made in Dev’s handwriting. A second copy sits in a folder labelled **BOOTH — OPERATING NOTES**.\n\n“Nell gets one copy downstairs,” he says. “This one stays here. By opening weekend, whoever’s on duty should be able to find a fault without starting with my phone number.”\n\nBelow, Martin begins giving his account of the yellow board. Dev lowers the blind over the projection port enough to keep the booth light out of Rosa’s photographs, then returns to the next receiver and enters its number.",
+  "reasoning_summaries": [
+    "**Planning dialogue with Dev in projection booth**",
+    "**Detailing projection booth equipment setup**",
+    "**Logging receiver serials and testing transmitter**",
+    "**Clarifying character dialogue timing**",
+    "**Describing projection booth details and Dev's work**",
+    "**Refining Dev's note-taking dialogue**",
+    "**Clarifying event timing and scene details**",
+    "**Detailing hearing-assistance device setup**",
+    "**Introducing commissioning dialogue and device checks**",
+    "**Planning sound and movement setup**",
+    "**Evaluating auditorium audio setup**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b58a-c2a9-7231-a2fa-845a9273b8b3",
+  "usage": {
+    "total": {
+      "totalTokens": 138814,
+      "inputTokens": 121100,
+      "cachedInputTokens": 56960,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 17714,
+      "reasoningOutputTokens": 14009
+    },
+    "last": {
+      "totalTokens": 31411,
+      "inputTokens": 29199,
+      "cachedInputTokens": 24960,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2212,
+      "reasoningOutputTokens": 1751
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 61.06131507700775,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:23:46.102215+00:00",
+  "duration_s": 87.49958978401264
+}

@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+If the loaned photograph album is among the items explained to me, I ask whether one of its photographs could be displayed for the reopening. I do not copy, scan, or publish anything. Otherwise I ask about the permissions on whichever loaned item we are discussing.
+</user>

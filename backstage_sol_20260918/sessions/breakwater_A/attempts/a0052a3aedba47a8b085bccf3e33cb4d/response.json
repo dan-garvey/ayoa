@@ -1,0 +1,61 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "### Pending work passage\n\n- Lunch conversation is finished. Rowan returns to the catalogue and works until the established end of his shift; do not add another lunch question or ask him to stay late.\n- The exact end time has not appeared on-page. The user now establishes that an agreed time exists. Either avoid naming it or establish it cleanly; 16:00 after a one-hour lunch would produce six paid hours, consistent with a thirty-hour week, but remains a new detail.\n- Summarize the afternoon through concrete work: programme-box records, preservation of existing order, factual condition notes, and Nell’s review of the yellow-tray uncertainties. Do not invent expressive catalogue prose beyond the delegated task.\n- At shift end, Rowan should save the catalogue, return material to its recorded locations and leave the loan cupboard locked. Stop before choosing his evening activity.\n\n### Adherence and adjustments\n\n- Player ownership remains intact. Rowan’s private title is still unwritten and unknown to everyone; no manuscript exists.\n- The permissions exchange correctly treated the display question as hypothetical. No request has been made to Bea, and she does not know Rowan asked Nell about it.\n- Bea’s absence at lunch was handled without inventing her whereabouts. Jo’s presence had an independent purpose—checking supplier costs—and her control over cafe pricing was preserved.\n- Nell’s procedural guidance is specific and credible. Keep some records incomplete or ambiguous so her competence does not make the archive unrealistically tidy.\n- Editorial boundary commentary recurred in “Neither turns the meal into another task for you.” End future scenes on observable conduct rather than explaining that Rowan was not burdened or granted authority.\n- Dialogue is now less uniformly witty and no personal questions are awaiting Rowan. Preserve the quieter working pace the player has chosen.\n\n### Exact continuity\n\n- It is Tuesday 15 September, shortly after the 12:30 lunch break.\n- The first transfer box has been catalogued in part; one unsigned or overly broad inventory remains flagged in the yellow tray. Nell intends to review it after lunch.\n- The programme box currently being inventoried contains mid-1980s weekly sheets, duplicates, gaps, rust marks, softened folds and pencilled show-time alterations.\n- Bea’s album remains locked and untouched after the demonstration. Its display prohibition remains in force.\n- Jo’s proposed twenty-pence pie-price increase is not final until her 14:00 supplier call.\n- Dev’s provisional auditorium hold required confirmation by noon. That deadline has now passed, but the story has not established whether Hana was available. Resolve that independently before referring to the slot as confirmed or expired.\n- Owen’s shift swap was approved in principle, subject to his written request and Nell’s Tuesday confirmation. Rowan still does not know about the interview, and Martin knows nothing about either the interview or the shift request.\n\n### Conditional developments\n\n- Nell may conclude that the broad inventory proves only that papers were collected, not that every unidentified item is trust-owned. An unresolved status is a valid afternoon result.\n- Jo can complete her supplier call and menu work without drawing Rowan into it.\n- Owen may send his shift request and accept the museum interview privately; Jo continues to keep his confidence.\n- Rosa may find the photographs adequate and avoid another booking dispute. If evidence in the programme boxes later bears on a board attribution, let Rowan encounter it through normal cataloguing rather than coincidence engineered around the exhibition.",
+  "reasoning_summaries": [
+    "**Clarifying agreed shift end time**",
+    "**Establishing plausible shift schedule**",
+    "**Confirming 16:00 shift end detail**",
+    "**Auditing recent narrative consistency**",
+    "**Verifying narrative detail consistency**",
+    "**Planning Nell’s feedback on inventory**",
+    "**Planning end-of-shift tasks**",
+    "**Confirming end-of-shift routine and scheduling options**",
+    "**Resolving Hana's Tuesday availability status**",
+    "**Clarifying rota completion date**",
+    "**Planning interview and schedule updates**",
+    "**Verifying inclusion of sign test dialogue**",
+    "**Confirming no sign test scheduled**",
+    "**Refining narrative style and shift endpoint**",
+    "**Finalizing inventory conclusions and shift end**",
+    "**Marking inferred shift end details**",
+    "**Clarifying character knowledge and pending decisions**",
+    "**Preparing notes on character status and updates**"
+  ],
+  "thread_id": "01a0b588-d706-79a2-a10c-cc2299537e44",
+  "turn_id": "01a0b59d-6b16-7351-8560-51adef8dec5b",
+  "usage": {
+    "total": {
+      "totalTokens": 1074153,
+      "inputTokens": 1015020,
+      "cachedInputTokens": 905984,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 59133,
+      "reasoningOutputTokens": 48956
+    },
+    "last": {
+      "totalTokens": 74696,
+      "inputTokens": 70981,
+      "cachedInputTokens": 66688,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3715,
+      "reasoningOutputTokens": 3022
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 84.95563343900722,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:44:32.762263+00:00",
+  "duration_s": 93.53418522502761
+}

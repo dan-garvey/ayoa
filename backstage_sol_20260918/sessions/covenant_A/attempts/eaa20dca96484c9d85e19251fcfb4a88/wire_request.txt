@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+I stay at the table long enough to finish my food and hear what the others are planning for the evening.
+</user>

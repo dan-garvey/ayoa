@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+After orientation I check the public dueling schedule. If I can watch Ashara's ranked bout, I take a place as a spectator; if it has already finished, I look at the posted result.
+</user>

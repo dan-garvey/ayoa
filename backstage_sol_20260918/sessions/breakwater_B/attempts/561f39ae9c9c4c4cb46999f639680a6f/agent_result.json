@@ -1,0 +1,41 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You leave Jo and Owen to the washing-up. Nell returns to the office with her folded envelope, while the recorded conversation in the auditorium continues behind closed doors.\n\nUpstairs, Dev is visible through the booth window, seated before a bank of controls with a receiver, a sheet of labels and an open notebook arranged beside him. He raises one hand in acknowledgement but does not stop you.\n\nYou go into your room and close the door. The staff sounds become part of the building: a camera shutter below, Martin disputing a name, water moving through old pipes, the faint fan of the booth equipment across the landing.\n\nYou take out your reading and sit at the small desk. The lamp casts a close circle over the pages. Beyond it, evening gathers above Harbour Street. A bus passes towards the seafront; its upper windows slide briefly through the reflection in your glass. Farther down the hill, harbour lights appear one by one among the masts.\n\nFor twenty minutes, you read without interruption. Crockery ceases below. The auditorium doors open once, admitting several clearer voices to the foyer, but nobody comes upstairs.\n\nBy the end of the twenty minutes, the sky beyond the window has deepened to blue-grey. The cinema is quieter, though Dev’s equipment still hums across the landing and people remain at work below.",
+  "reasoning_summaries": [
+    "**Clarifying reading context for room**",
+    "**Detailing room reading scene timeline**",
+    "**Planning uninterrupted twenty-minute reading**",
+    "**Assessing routine room actions**",
+    "**Designing detailed reading scene**"
+  ],
+  "thread_id": "01a0b588-d7a8-7f73-acd7-e1d4d0a54185",
+  "turn_id": "01a0b58e-764b-7c13-8636-d336406d02cb",
+  "usage": {
+    "total": {
+      "totalTokens": 238099,
+      "inputTokens": 215303,
+      "cachedInputTokens": 144768,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 22796,
+      "reasoningOutputTokens": 18004
+    },
+    "last": {
+      "totalTokens": 36261,
+      "inputTokens": 35070,
+      "cachedInputTokens": 32128,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1191,
+      "reasoningOutputTokens": 916
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 32.14261187199736,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

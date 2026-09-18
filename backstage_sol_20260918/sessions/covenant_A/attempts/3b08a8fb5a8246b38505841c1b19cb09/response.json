@@ -1,0 +1,44 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "When the last dishes are cleared, the table begins to divide into smaller plans. Thessaly wants another game of Knives. Caelindra intends to reclaim the library before someone mis-shelves the travel journals. Aldric gathers his white-and-gold robes for evening prayer, while Ashara and Rashid resume disputing the final exchange of her bout.\n\nYou stand. “Goodnight.”\n\nRashid answers in kind. Ysolde inclines her head, and Ashara lifts her cup in acknowledgment. Seraphel gives you a small wave from across the table.\n\nNo one tries to keep you.\n\nYou cross the common room and climb the familiar central stair. Behind you, the card case opens, the library door closes, and the front entrance admits a brief gust as Aldric leaves for the chapel.\n\nYour room is cool and orderly. The blue Council manual and red-tabbed programme wait on the desk beneath the framed old letter. Beyond the window, the hard-light bridges shine over the silent storm.\n\nYou close the door on the household’s separate evening.",
+  "reasoning_summaries": [
+    "**Composing rhymed Seraphel goodnight**",
+    "**Refining Seraphel's rhymed farewell**",
+    "**Detailing user room setting**",
+    "**Drafting peaceful goodnight scene**",
+    "**Refining scene details and perspective**"
+  ],
+  "thread_id": "01a0b588-d5c5-7780-bd91-52c44992f51b",
+  "turn_id": "01a0b5a1-aa11-74a3-b734-996d35335027",
+  "usage": {
+    "total": {
+      "totalTokens": 1222626,
+      "inputTokens": 1155289,
+      "cachedInputTokens": 1032832,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 67337,
+      "reasoningOutputTokens": 56708
+    },
+    "last": {
+      "totalTokens": 84550,
+      "inputTokens": 83501,
+      "cachedInputTokens": 80384,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1049,
+      "reasoningOutputTokens": 829
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 26.726423451968003,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ],
+  "transport": "proxy",
+  "received_at": "2026-09-18T17:48:12.799947+00:00",
+  "duration_s": 26.749917674984317
+}

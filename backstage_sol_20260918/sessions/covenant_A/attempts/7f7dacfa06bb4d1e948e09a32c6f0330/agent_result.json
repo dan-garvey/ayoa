@@ -1,0 +1,52 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“Most recently I earned my keep copying books,” you say. “I haven’t had much practice at being an heir.”\n\nYou help yourself from the dishes within reach: hot brown bread, roast onions glazed with honey, and slices of herb-crusted bird. The serving fork is dragon-made, heavy enough to be a minor weapon.\n\nAshara looks from your ink-stained fingers to the signet.\n\n“Most heirs practice in private for years before they’re allowed to make mistakes in public,” she says. “You’ll be doing both at once.”\n\n“What she means,” Rashid says, “is that no one arrives prepared.”\n\n“I meant what I said.”\n\n“Yes. That’s generally the difficulty.”\n\nAshara gives him a level look, then returns to her meal. Her tail nudges his chair leg once beneath the table. Rashid moves the chair half an inch without looking down.\n\nAldric folds his hands beside his bowl. “The Conclave track is designed to supply what prior circumstances could not. Law, diplomacy, history, moral formation.”\n\n“Duelling,” Ashara adds.\n\n“Duelling is not moral formation.”\n\n“That depends on the instructor.”\n\nThe dark bread has a crisp salt crust. The onions carry enough pepper to make the air above Ashara’s plate shimmer more strongly when she exhales. Beside you, Thessaly disassembles a pastry into exact layers, eating the sugared fruit and leaving the crust arranged in a neat spiral.\n\nCaelindra has not resumed eating. Her gaze rests on the ink worked into the creases of your fingertips.\n\n“A competent copyist is more useful than an incompetent heir,” she says. “Though the pay is usually reversed.”\n\nRashid lifts his glass slightly in agreement. “Accurate books are one of the few things everyone claims to value and no one budgets for.”\n\n“They budget for decoration,” Caelindra says. “I once received a botanical compendium with eighty-seven hand-painted borders and the same poisonous mushroom labeled as edible on four separate pages.”\n\nYsolde cuts a thin piece from the chilled, nearly raw meat on her plate. “Was anyone harmed.”\n\n“No. My mother sent it to an aunt.”\n\nA brief silence follows.\n\nCaelindra’s pointed ears shift backward. “The error was found before she used it.”\n\nAshara covers a laugh with her cup. Even Aldric’s mouth twitches.\n\nSeraphel breaks her bread and says,\n\n“A murderous mushroom makes scholarship exciting;  \nThough less for the reader who trusts what you’re writing.”\n\n“That is precisely why copying matters,” Caelindra says. She turns her violet eyes back to your stained fingers rather than the inherited ring. “What sort of books did people pay you to copy?”",
+  "reasoning_summaries": [
+    "**Planning NPC dinner conversation flow**",
+    "**Developing layered NPC dialogue and dinner menu**",
+    "**Implementing user-directed dining actions**",
+    "**Planning dinner social scene**",
+    "**Maintaining ongoing dinner narrative**",
+    "**Adding book-related NPC question**",
+    "**Refining dialogue nuances**",
+    "**Developing character dinner dialogue**",
+    "**Highlighting scribes' craft details**",
+    "**Planning formal dinner details**",
+    "**Drafting character dialogue exchange**",
+    "**Refining final character question**",
+    "**Finalizing NPC eating scene narrative**"
+  ],
+  "thread_id": "01a0b581-bb42-7b80-ba65-37c407718de2",
+  "turn_id": "01a0b585-7afa-7f41-ad26-0e6f54677036",
+  "usage": {
+    "total": {
+      "totalTokens": 63125,
+      "inputTokens": 52165,
+      "cachedInputTokens": 16512,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 10960,
+      "reasoningOutputTokens": 9187
+    },
+    "last": {
+      "totalTokens": 24656,
+      "inputTokens": 21928,
+      "cachedInputTokens": 16512,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2728,
+      "reasoningOutputTokens": 2170
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 77.79605069203535,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}
