@@ -412,3 +412,56 @@ and 20 browser tests; the persistent experiment transport passed two offline
 tests and its helpers passed Ruff. Follow-up `ayoa-9bay` targets intrusive
 compliance narration; correction precision and natural rhyme remain in
 `ayoa-7gn7` and `ayoa-3gtc`.
+
+## Authored interventions at a difficult checkpoint
+
+The [60-passage experiment](https://github.com/dan-garvey/ayoa/tree/7e324168435acbf852c42f1702ac7ce3d803431b/authored_checkups_20260918)
+forks Breakwater's checkup-enabled Sol conversation after passage 18. Three
+checkups had already identified intrusive compliance narration without removing
+it; the prolonged archive induction also left room for personal development
+around Owen's approaching interview deadline. The root wrote four private notes:
+focused correction (208 words), selected character plans (313), their exact
+combination (521), and a creative reframe (201). Each received two continued
+Sol/max branches of six identical player inputs, alongside two controls. Full
+biographies and the 21 native turns were inherited unchanged. Each note appeared
+once; there were no new self-checkups or editor calls.
+
+Focused correction produced the most consistent improvement in prose and room
+for conversation. Both readers preferred its first replication; in the second,
+the root preferred its restraint while the independent reader preferred the
+creative reframe's enacted drama. The correction note treats established
+restrictions as background: "Those facts are already secure. Maintain them as
+background; spend words on them again only when something changes or they affect
+a present choice." This was tested within the
+[whole note](https://github.com/dan-garvey/ayoa/blob/7e324168435acbf852c42f1702ac7ce3d803431b/authored_checkups_20260918/notes/correction.txt),
+not as an isolated sentence. Its continuations make archive work specific through
+a cancelled matinee and portable heaters, give Jo an independent telescope plan,
+and let Nell accept a refusal without a speech about boundaries.
+
+The reframe's strongest sample grounds Owen's disclosure to Martin in a lamp
+repair already bringing them together; their assumption, disagreement and backup
+lift offer produce visible relationship change without recruiting Rowan.
+Its other replication retains more quips and procedural narration. Planning
+alone advances more events but often explains or recaps psychology; one sample
+inserts another work period before the player's submitted walk. Combining
+correction and plans did not simply combine their best effects. The readers
+disagreed about how much to value development-only sample 01's causal movement;
+their [frozen assessments and adjudication](https://github.com/dan-garvey/ayoa/blob/7e324168435acbf852c42f1702ac7ce3d803431b/authored_checkups_20260918/README.md)
+preserve those differences and distinguish uncertain continuity concerns from
+proven contradictions.
+
+All ten eventually allow the solitary walk, preserve the changed shift and
+protect private information, but still narrate at least some assurances of quiet
+or closure. No strategy eliminates the habit. These results suggest testing
+self-generated checkups that prioritize one current writing problem and a
+concrete adjustment of attention, adding a plot decision when needed. That
+reviewer change remains untested; production prompts are unchanged.
+
+All first completed outputs were retained. One empty capacity failure required
+a documented transport restart and clean fork of that branch; every inherited
+public item was verified, and no completed prose was regenerated. Exact requests,
+raw outputs, all ten final native histories, exposed summaries and unchanged live
+session bytes passed validation. Five offline tests and Ruff passed. Both prose
+assessments were frozen before revealing the conditions. One selected checkpoint,
+two replications and six turns cannot establish transfer to other stories,
+self-generated guidance or lasting improvement. Follow-up remains in `ayoa-9bay`.
