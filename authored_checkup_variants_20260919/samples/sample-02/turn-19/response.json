@@ -1,0 +1,70 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Downstairs, Bea is at the cafe table with a blue accounts folder, a calculator and an open lunch box. A cheese sandwich sits beside two pickled walnuts. Nell is in the office speaking on the telephone.\n\nYou bring your lunch to the table and sit opposite Bea.\n\n“What do you enjoy about having the cinema open again?”\n\nBea considers this while closing the calculator cover.\n\n“I like that we’re buying cups now instead of roof felt. For two years, most of the money went on things people will only notice if they fail.”\n\nShe looks towards the front windows.\n\n“I wanted the sign restored. It cost more than I’d planned to approve, and I still wanted it. Martin’s testing the timer tonight.”\n\nShe takes another bite of her sandwich.\n\n“And I like Rosa putting names beside the old programme boards. They were always described as if the cinema painted them by itself.”\n\nBea pushes the accounts folder a little farther from her lunch.\n\n“My granddaughter is coming for one of the opening-weekend screenings. We send each other dreadful films on secondhand DVDs, so she’s disappointed that our first programme looks respectable. I bought two seats in the middle row.”\n\nHer finger rests on the closed calculator.\n\n“I’m watching that film with her. Somebody else can count the box-office money.”",
+  "reasoning_summaries": [
+    "**Assessing lunch presence possibilities**",
+    "**Deciding lunch attendees and dynamics**",
+    "**Planning natural lunch conversation**",
+    "**Clarifying café schedule conflicts and staff availability**",
+    "**Confirming café menu and staff day-off priorities**",
+    "**Finalizing opening menu and confirming rota dates**",
+    "**Assessing character scheduling dynamics**",
+    "**Planning natural character interaction**",
+    "**Refining character dialogue closure**",
+    "**Planning reopening rationale and sign expense**",
+    "**Refining reopening narrative with personal touches**",
+    "**Developing cautious treasurer character details**",
+    "**Noticing Bea's lunchtime presence**",
+    "**Establishing Bea's workplace dialogue**",
+    "**Clarifying cinema sign testing schedule**",
+    "**Refining dialogue ending with punchline**",
+    "**Developing natural rehearsal dialogue**",
+    "**Refining natural dialogue flow**",
+    "**Planning natural lunch scene details**",
+    "**Confirming character presence and timing**",
+    "**Drafting natural character dialogue**",
+    "**Planning granddaughter's visit dialogue**",
+    "**Refining character motivation and ticket details**",
+    "**Polishing dialogue with sentimental punchline**",
+    "**Adding character detail with pickled walnuts**",
+    "**Confirming scene structure boundaries**"
+  ],
+  "thread_id": "01a0b72b-155e-74e3-b3df-f8720a1d558c",
+  "turn_id": "01a0b72b-2355-71b1-b45f-c3844b99acbd",
+  "usage": {
+    "total": {
+      "totalTokens": 1001506,
+      "inputTokens": 944781,
+      "cachedInputTokens": 774144,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 56725,
+      "reasoningOutputTokens": 47333
+    },
+    "last": {
+      "totalTokens": 72633,
+      "inputTokens": 67650,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4983,
+      "reasoningOutputTokens": 4718
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 121.99812603701139,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You work through the second programme box until the next complete group is catalogued, then close it before taking your break.\n\nOwen is in the foyer with his tools laid aside. He sits at one of the cafe tables drinking from a metal flask. The timetable Martin printed protrudes from the open pocket of his tool bag.\n\n“How’s your week going?” you ask.\n\n“Busy, but more sorted than it was.” He looks towards the newly fixed display rail. “Nell confirmed Friday, so tomorrow’s clear for the interview. I told Dad last night.”\n\nHe turns the flask cup once between his hands.\n\n“He didn’t say much about the museum. This morning he checked the trains and told me an interview isn’t an offer. That’s about where we are.”\n\nOwen takes another drink. “The rail’s finally straight, though.”\n\nAfter a moment, he looks across at you. “How’s the archive work going?”",
+  "reasoning_summaries": [
+    "**Planning natural Owen reply**",
+    "**Drafting detailed Owen status update**",
+    "**Clarifying permissible scene reporting**",
+    "**Drafting concise character dialogue**",
+    "**Planning natural character interaction**",
+    "**Refining Owen’s update on interview plans**",
+    "**Preparing dialogue with train details**",
+    "**Outlining archive work and break scene**"
+  ],
+  "thread_id": "01a0b72b-1874-78e3-ab34-6606f0f4dd82",
+  "turn_id": "01a0b73f-1a24-70e0-b5ce-3cb439861308",
+  "usage": {
+    "total": {
+      "totalTokens": 1322076,
+      "inputTokens": 1254828,
+      "cachedInputTokens": 1057024,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 67248,
+      "reasoningOutputTokens": 56592
+    },
+    "last": {
+      "totalTokens": 83091,
+      "inputTokens": 81295,
+      "cachedInputTokens": 67200,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1796,
+      "reasoningOutputTokens": 1602
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 51.28876752697397,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

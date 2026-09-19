@@ -1,0 +1,26 @@
+{
+  "correction": {
+    "original_words": 208,
+    "variant_words": 202,
+    "original_sha256": "c19f47924a10f140ca8dd7cf450c396c0e01bc533ea7a1763efc648ea5721887",
+    "variant_sha256": "c91b3520b543bd0577eba0abab5533286e80bfb1d9693f3e706a8c925bdaa60b"
+  },
+  "development": {
+    "original_words": 313,
+    "variant_words": 306,
+    "original_sha256": "946ab279a455634f7a81afafee9af6a22fdd7a2f0eeb5c0bed81f4e85c960c48",
+    "variant_sha256": "a03231cae51e066d481c6b7f8c2b96189c9eca04478b64d7dde9e1ffca5d3d90"
+  },
+  "combined": {
+    "original_words": 521,
+    "variant_words": 508,
+    "original_sha256": "237e7c5213576ac3f40f34a24b857364b0cd016e7160c69d4ec8ae2b128ea54b",
+    "variant_sha256": "e106a38c7eb1b10369c5fd275c0b3adb6a1bda8470ea598a23492e7cc61a8694"
+  },
+  "reframe": {
+    "original_words": 201,
+    "variant_words": 195,
+    "original_sha256": "60cb73acccd6cd27b6b9d1241851b83b3edf7f9883a8f2e25be3ac6c90b981d0",
+    "variant_sha256": "7b781b435f0f7862a009bc4291b63e7fd0dc5ce4f2adb6af494c0f64a4e04adb"
+  }
+}

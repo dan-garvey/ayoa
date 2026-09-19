@@ -1,0 +1,46 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Lunch winds down over the remaining sandwiches. Bea reopens her accounts folder, finishes one calculation and carries the papers into Nell’s office.\n\nYou return upstairs to the programme box.\n\nThe afternoon’s work is a near-complete run of weekly sheets from 1985. Two weeks are missing. Several others survive in duplicate, with one copy kept clean and the other altered at the box office: show times crossed through, ticket prices changed, and one children’s matinee marked **SOLD OUT** in thick blue pencil.\n\nA tea ring obscures part of a local printer’s address. Another sheet has been folded around a smaller notice announcing a cancelled performance after a boiler failure. You describe the notice separately while preserving its place inside the programme.\n\nNell reviews the queries in the yellow tray during the afternoon. The unsigned collection list remains part of the transfer documentation, but the signed schedule is cited as the evidence of ownership. She initials the query slip and leaves you to update the entry.\n\nBy the agreed end of your shift, the transfer box has a completed file-level record and the programme box has its first dated sequence entered in the catalogue. You save the work, return the box to its shelf and record your finishing time downstairs.",
+  "reasoning_summaries": [
+    "**Clarifying agreed shift endpoint**",
+    "**Planning afternoon cataloguing tasks**",
+    "**Finalizing delegated activities**",
+    "**Delaying character interaction adjustments**",
+    "**Finalizing cataloging approach**",
+    "**Completing shift closure actions**",
+    "**Clarifying shift and dialogue details**",
+    "**Documenting collection notes and catalog details**",
+    "**Finalizing shift with saved records**"
+  ],
+  "thread_id": "01a0b72b-155e-74e3-b3df-f8720a1d558c",
+  "turn_id": "01a0b732-4fde-7fd1-924c-0db4024b5c6e",
+  "usage": {
+    "total": {
+      "totalTokens": 1075984,
+      "inputTokens": 1017455,
+      "cachedInputTokens": 841600,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 58529,
+      "reasoningOutputTokens": 48885
+    },
+    "last": {
+      "totalTokens": 74478,
+      "inputTokens": 72674,
+      "cachedInputTokens": 67456,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1804,
+      "reasoningOutputTokens": 1552
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 45.83672199799912,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

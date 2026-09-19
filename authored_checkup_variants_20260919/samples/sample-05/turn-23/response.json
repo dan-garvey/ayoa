@@ -1,0 +1,65 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At quarter past ten, you come downstairs for a break. Owen is alone at one of the cafe tables with a mug of tea and the cinema’s new card reader in front of him. Its instruction leaflet is spread open, but he has put the machine aside.\n\nYou ask how his week is going.\n\n“Busy. Better than Monday, though.” He turns the mug between his hands. “I’ve got an interview tomorrow for a permanent exhibition-technician job at a museum inland. I accepted it this morning.”\n\nHe glances towards the office, where Nell is still working.\n\n“I told Dad last night. He asked how far away it was, then whether I’d checked the car before the drive. We haven’t discussed what happens if they offer me anything. They haven’t offered me anything, so that can wait.”\n\nHe takes a drink of tea.\n\n“How’s the archive going?”",
+  "reasoning_summaries": [
+    "**Planning Wednesday shift coverage**",
+    "**Establishing Owen's break scenario**",
+    "**Refining Owen's interview disclosure**",
+    "**Refining character dialogue pacing**",
+    "**Structuring character backstory details**",
+    "**Developing character's selective disclosure**",
+    "**Planning disclosure boundaries**",
+    "**Deciding NPC absence for realism**",
+    "**Confirming break scene details**",
+    "**Planning break scene with Jo**",
+    "**Establishing break scene with technician and staff**",
+    "**Concluding break and returning upstairs**",
+    "**Assessing Owen's scheduling possibilities**",
+    "**Planning Owen's casual break scene**",
+    "**Drafting Owen's shift and volunteer plans**",
+    "**Deciding character's interview secrecy**",
+    "**Establishing offstage interview reveal**",
+    "**Refining natural interview conversation**",
+    "**Assessing shift swap communication and reactions**",
+    "**Planning natural interview dialogue and setting**",
+    "**Detailing Owen’s workshop tasks during break**",
+    "**Planning café scene dialogue**",
+    "**Adjusting café scene timing and character placement**"
+  ],
+  "thread_id": "01a0b72b-19ff-71d2-85b1-5b6ece11aae7",
+  "turn_id": "01a0b73f-2b7b-7570-99e7-f930bade56a0",
+  "usage": {
+    "total": {
+      "totalTokens": 1301142,
+      "inputTokens": 1236740,
+      "cachedInputTokens": 1057024,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 64402,
+      "reasoningOutputTokens": 54283
+    },
+    "last": {
+      "totalTokens": 80128,
+      "inputTokens": 75974,
+      "cachedInputTokens": 74496,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4154,
+      "reasoningOutputTokens": 3970
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 77.67188757401891,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At quarter past eleven, you finish the catalogue entry in front of you and go downstairs for your break.\n\nNell’s office door is closed. In the foyer, Owen sits at a cafe table with a mug of tea and a redrawn plan of the auditorium. His tools are packed beneath the chair, and the numbered seat labels are stacked to one side. He is on break as well.\n\nYou ask how his week is going.\n\n“Not bad. I’ve spent most of this morning checking seat numbers against three different plans. None of them agrees with the actual seats.”\n\nHis new drawing is precise, with each row measured and numbered in small block figures.\n\n“Thursday’s shift has been moved, so that’s sorted. Mostly I’m trying to get through the reopening without Dad volunteering me for every job that involves wood or a screwdriver.”\n\nHe takes a drink of tea.\n\n“I do like working here. More than I expected, probably. That doesn’t mean I’ve decided what I’m doing after the temporary job ends, but Dad’s already talking as if I have.”\n\nOwen turns his pencil between his fingers, then looks towards the staff staircase.\n\n“How’s the archive going?”",
+  "reasoning_summaries": [
+    "**Verifying Owen's schedule availability**",
+    "**Assessing Owen's potential interview disclosure**",
+    "**Planning Owen's natural conversation topics**",
+    "**Detailing character job interactions**",
+    "**Planning character dialogue timing**",
+    "**Mapping character schedule events**",
+    "**Noting contract lengths and character tension**",
+    "**Developing Owen's break scene and dialogue**",
+    "**Highlighting family perspective on contract**",
+    "**Planning interactive scene ending**",
+    "**Finalizing Owen's dialogue details**",
+    "**Considering humorous dialogue option**",
+    "**Refining dialogue for clarity**",
+    "**Planning scene with technical drawing detail**"
+  ],
+  "thread_id": "01a0b72b-13ba-7ce2-9432-b00e6a93aaac",
+  "turn_id": "01a0b73e-1efd-76d3-9f6d-49f163e0ac8f",
+  "usage": {
+    "total": {
+      "totalTokens": 1309327,
+      "inputTokens": 1245762,
+      "cachedInputTokens": 1057024,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 63565,
+      "reasoningOutputTokens": 52910
+    },
+    "last": {
+      "totalTokens": 80592,
+      "inputTokens": 77982,
+      "cachedInputTokens": 76672,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2610,
+      "reasoningOutputTokens": 2367
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 64.29339736397378,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

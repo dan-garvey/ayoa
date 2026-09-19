@@ -1,0 +1,68 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At half past twelve, Bea isn’t in the cinema. Nell and Jo are at one of the cafe tables, and you take the remaining chair with your lunch.\n\nJo has supplier sheets spread beside her plate. Figures have been written and crossed out along the margins. A small tub of rice pudding waits near her elbow under a thick layer of brown sugar.\n\n“The cheese has gone up again,” she says.\n\nNell looks across at the figures. “Are you keeping the toastie?”\n\n“For the first month. I’ll see what actually sells before I change it.”\n\nJo turns to another sheet, then caps her pen.\n\n“I’m leaving at two. Fran’s late shift was cancelled, so we’ve got the afternoon together. I’ll finish the drinks prices tomorrow morning.”\n\n“You said I’d have them today.”\n\n“I know. The food prices are done. You can have the rest by ten tomorrow.”\n\nNell checks the page Jo has completed. “Ten is fine.”\n\n“If the cloud lifts, we’re taking the telescope beyond the west breakwater. It’s been sitting in the van for weeks.”\n\nThe rain has weakened to a mist against the foyer glass. Jo eats her rice pudding while Nell finishes a sandwich, and the three of you remain at the table until lunch is over. Then Jo gathers her supplier sheets and carries them back behind the counter. Nell takes her mug into the office.",
+  "reasoning_summaries": [
+    "**Assessing staff presence for Tuesday lunch**",
+    "**Planning cinema lunch scene details**",
+    "**Confirming lunch attendees and setting scene**",
+    "**Planning Owen's Tuesday presence**",
+    "**Developing Tuesday lunch scene dynamics**",
+    "**Adding Jo's lunch and menu details**",
+    "**Detailing lunch planning and menu decisions**",
+    "**Defining lunch scene conclusion and character boundaries**",
+    "**Setting shared lunch scene and character interactions**",
+    "**Refining natural dialogue details**",
+    "**Detailing natural character interactions**",
+    "**Finalizing menu cost timing agreement**",
+    "**Clarifying menu printing coordination**",
+    "**Outlining interview schedule visibility**",
+    "**Planning offstage interview acceptance timing**",
+    "**Planning timing for Owen’s disclosure**",
+    "**Assessing Bea’s plausible presence**",
+    "**Evaluating Nell’s potential disclosure to Jo**",
+    "**Drafting dialogue scene**",
+    "**Refining character lunch dialogue**",
+    "**Confirming scene ending without further dialogue**",
+    "**Establishing Bea's absence during lunch scene**",
+    "**Adding mild conflict and telescope detail**",
+    "**Refining character interaction details**",
+    "**Detailing lunch scenes and character touches**"
+  ],
+  "thread_id": "01a0b72b-1ec4-7e20-9dec-df0f58fc1c37",
+  "turn_id": "01a0b72e-e813-7c63-a9fb-aecadecc439d",
+  "usage": {
+    "total": {
+      "totalTokens": 1001238,
+      "inputTokens": 946335,
+      "cachedInputTokens": 841600,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 54903,
+      "reasoningOutputTokens": 45491
+    },
+    "last": {
+      "totalTokens": 72365,
+      "inputTokens": 69204,
+      "cachedInputTokens": 67456,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3161,
+      "reasoningOutputTokens": 2876
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 153.5143268519896,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

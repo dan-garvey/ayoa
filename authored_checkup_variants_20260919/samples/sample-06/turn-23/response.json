@@ -1,0 +1,57 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "During the morning break, the sign contractor’s tower stands outside the closed front doors. Martin is on the pavement with him, looking up at the unlit section while they compare two lamps.\n\nOwen is inside at one of the cafe tables, his work gloves beside a mug. He has been unpacking fittings for the foyer shelves, but for the moment he is looking at his phone.\n\n“How’s your week going?” you ask.\n\nHe turns the phone face down. “The work here’s fine. Tomorrow’s more complicated.”\n\nAfter a pause, he says, “I’ve got an interview at a museum inland. Permanent exhibition technician. They build their displays in-house, so it’s close to what I used to do on trade shows, only without living out of a bag.”\n\nThrough the glass, Martin points towards the cinema sign. Owen watches him for a moment.\n\n“I moved my shift to Friday. Nell doesn’t know why yet, and Dad doesn’t know I applied.” He looks back at the phone. “I have to accept the interview by noon. It’s only an interview, but I do want to go.”",
+  "reasoning_summaries": [
+    "**Deciding to omit unanswered question response**",
+    "**Narrating silence and advancing time**",
+    "**Planning Owen conversation during break**",
+    "**Confirming Owen’s break availability**",
+    "**Planning Owen’s interview disclosure**",
+    "**Drafting Owen’s candid break reply**",
+    "**Evaluating character disclosure consistency**",
+    "**Planning nuanced character dialogue and setting**",
+    "**Assessing realistic break location and character positioning**",
+    "**Establishing Wednesday shift and narrative pause**",
+    "**Developing break-time dialogue and character motives**",
+    "**Adding interview decision and closing dialogue**",
+    "**Refining character dialogue details**",
+    "**Clarifying character's interview hesitation**",
+    "**Specifying setting and character actions**",
+    "**Noting contractor presence and tension**",
+    "**Clarifying conversation boundaries with Nell**"
+  ],
+  "thread_id": "01a0b72b-1b93-7170-9de9-11697fbaa38f",
+  "turn_id": "01a0b73f-5657-7500-a91f-ae4ff1b3d87f",
+  "usage": {
+    "total": {
+      "totalTokens": 1307090,
+      "inputTokens": 1242489,
+      "cachedInputTokens": 1067392,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 64601,
+      "reasoningOutputTokens": 54294
+    },
+    "last": {
+      "totalTokens": 80327,
+      "inputTokens": 77190,
+      "cachedInputTokens": 76416,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3137,
+      "reasoningOutputTokens": 2904
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 79.06650525401346,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

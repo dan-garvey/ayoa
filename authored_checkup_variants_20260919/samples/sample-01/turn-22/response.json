@@ -1,0 +1,39 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Before leaving the office, you say, “I’m not available for additional front-of-house shifts. I want to keep the hours outside my archive contract for myself.”\n\nNell looks from you to the rota.\n\n“Understood. This rota isn’t for you—I mentioned it because it’s taking up my morning, not because I expected you to fill a gap.”\n\nShe moves the staff sheet to the other side of the desk.\n\n“Your thirty hours are for the archive contract. The room doesn’t make you available outside them, either. If there’s a fire or a leak, tell me. Otherwise, once you finish for the day, your time is your own.”\n\nAny request for work beyond the catalogue would have to come through her, be agreed in advance and count as paid time. Nell makes a brief note on your work schedule, then returns to the opening-weekend rota.\n\nYou take the assigned box references upstairs. No front-of-house shift is added to your day.",
+  "reasoning_summaries": [
+    "**Clarifying FOH shift boundaries**",
+    "**Drafting shift boundary dialogue**",
+    "**Establishing no-shift misunderstanding**"
+  ],
+  "thread_id": "01a0b72b-13ba-7ce2-9432-b00e6a93aaac",
+  "turn_id": "01a0b73c-d825-7500-a989-5f3daf1bbd8e",
+  "usage": {
+    "total": {
+      "totalTokens": 1228735,
+      "inputTokens": 1167780,
+      "cachedInputTokens": 980352,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 60955,
+      "reasoningOutputTokens": 50543
+    },
+    "last": {
+      "totalTokens": 77933,
+      "inputTokens": 76854,
+      "cachedInputTokens": 68352,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1079,
+      "reasoningOutputTokens": 876
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 27.806919644994196,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At half past twelve, Bea is in the foyer, still wearing a navy boatyard fleece and her payroll lanyard. A packed lunch sits beside two invoices and a calculator. She has come over during her break to approve a payment for the restored sign.\n\nNell collects the signed pages.\n\n“The VAT is on the second sheet,” Bea tells her. “Don’t pay the first total.”\n\n“I saw it.”\n\n“You saw it after I circled it.”\n\nNell takes the invoices into the office. You bring your lunch to Bea’s table and begin eating.\n\n“What do you enjoy about having the cinema open again?” you ask.\n\n“We haven’t opened yet, not properly.” Bea folds the wrapper away from her sandwich. “But I like coming in and finding people already using the place. Yesterday Owen was fitting a shelf behind the counter, and Jo made him move it because her biggest stockpot wouldn’t clear the end. That felt more real than another trustee meeting.”\n\nShe glances towards the auditorium.\n\n“I like what Rosa’s doing with the boards too. We used to talk as if ‘the cinema’ painted them. Somebody stayed late to do each one. Sometimes Martin, sometimes June Mercer, sometimes people I’ve forgotten. Rosa keeps asking for names.”\n\nBea turns the calculator over so its keys don’t collect crumbs.\n\n“And I want to see the sign lit. I approved more money for it than I’d planned. My mother used to clean here and complain about the moths beating themselves against those lights, so she’d probably think we were ridiculous for restoring them.”\n\nShe takes another bite, then looks across the table at you.\n\n“What did you expect to find here when you applied?”",
+  "reasoning_summaries": [
+    "**Assessing Bea's possible presence**",
+    "**Planning Bea's lunchtime visit scenario**",
+    "**Confirming Bea's plausible visit motive**",
+    "**Planning dialogue pacing and questions**",
+    "**Refining Bea's cinema response**",
+    "**Composing authentic Bea dialogue**",
+    "**Clarifying exhibit sharing restrictions**",
+    "**Clarifying cinema reopening status**",
+    "**Detailing lunch scene participants**",
+    "**Clarifying Bea and Nell's lunch arrangement**",
+    "**Refining lunch and workday timeline**",
+    "**Capturing nostalgic cinema reflections**",
+    "**Refining natural dialogue style**",
+    "**Crafting realistic character dialogue**",
+    "**Planning natural dialogue pacing**",
+    "**Clarifying scene setting with characters**",
+    "**Detailing workplace dialogue and timeline**",
+    "**Establishing sign test timing and stakes**",
+    "**Planning character backstory details**",
+    "**Refining dialogue timing and focus**"
+  ],
+  "thread_id": "01a0b72b-1b93-7170-9de9-11697fbaa38f",
+  "turn_id": "01a0b72d-d94f-7342-b967-a5e0d60b715c",
+  "usage": {
+    "total": {
+      "totalTokens": 999836,
+      "inputTokens": 944423,
+      "cachedInputTokens": 780032,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 55413,
+      "reasoningOutputTokens": 45939
+    },
+    "last": {
+      "totalTokens": 70963,
+      "inputTokens": 67292,
+      "cachedInputTokens": 5888,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3671,
+      "reasoningOutputTokens": 3324
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 85.51397170999553,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

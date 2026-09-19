@@ -1,0 +1,53 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "When Bea leaves for the boatyard, Nell returns the payment papers to the office. You go back upstairs and reopen the programme box.\n\nThe afternoon’s work is steady. You complete the box-level record, then describe several distinct runs within it. An undated sheet remains undated rather than being assigned a year from its neighbours. Duplicate programmes are counted, pencilled alterations are noted, and a badly softened fold is recorded without attempting a repair.\n\nNell comes up once to review the notes in the yellow tray. One broad entry in the transfer papers still cannot be matched securely to material on the shelves.\n\n“Leave its ownership unconfirmed,” she says. “I’ll check the other acquisition file downstairs. If there’s no matching schedule, the uncertainty stays in the catalogue.”\n\nShe takes the note with her and leaves you to continue.\n\nBy the end of the afternoon, the grey transfer box has file-level records and the first programme box has a usable description of its contents, gaps and condition. You finish the entry already open when the clock reaches half past three, the end time recorded for today’s shift.\n\nEverything returns to its labelled shelf. The laptop is saved and closed, the worktable is clear, and the loan cupboard remains locked.\n\nDownstairs, you enter your finish time on the hours sheet. In the paper diary beside it, Dev’s provisional pencil hold has been replaced by an inked booking:\n\n**19.00–19.30 — DEV / HANA — RECEIVER TEST**\n\nNell checks your hours and closes the sheet.\n\n“That’s you finished for today. Nine again tomorrow.”",
+  "reasoning_summaries": [
+    "**Establishing agreed shift end time**",
+    "**Confirming today’s shift timing**",
+    "**Evaluating programme provenance evidence**",
+    "**Clarifying ownership versus evidentiary value**",
+    "**Planning end-of-day tasks and shift confirmation**",
+    "**Deciding on confirming Hana booking offscreen**",
+    "**Planning NPC activity timeline**",
+    "**Establishing diary clue for confirmation**",
+    "**Deciding rota update visibility**",
+    "**Outlining player catalogue tasks**",
+    "**Detailing undated record handling**",
+    "**Confirming work schedule and testing note**",
+    "**Refining timeline and dialogue flow**",
+    "**Clarifying archival search details and schedule**"
+  ],
+  "thread_id": "01a0b72b-13ba-7ce2-9432-b00e6a93aaac",
+  "turn_id": "01a0b732-4fdf-7831-b4d6-cc298c31822b",
+  "usage": {
+    "total": {
+      "totalTokens": 1073993,
+      "inputTokens": 1016933,
+      "cachedInputTokens": 840960,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 57060,
+      "reasoningOutputTokens": 47166
+    },
+    "last": {
+      "totalTokens": 73952,
+      "inputTokens": 71209,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2743,
+      "reasoningOutputTokens": 2415
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 68.24772898899391,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b72b-2057-71a1-93db-24e077ea02f0",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\n<backstage_guidance>\nWrite this stretch as an ensemble story whose people would still have a day if Rowan went home. The cinema matters because they want things from it, enjoy things in it, and disagree about what it costs them. Give that life a physical and social presence. Stop letting responsible administration occupy the foreground merely because it is easy to account for.\n\nAt lunch, attend to the company and what someone actually cares to say. At work, find the particular interest of the material, then let the requested time pass. In conversation, allow an unfinished answer, a mismatch of interests, affection with limits, or a joke that does not become an exchange of clever closing lines. Leave their meaning for the reader to infer.\n\nOwen's Wednesday deadline should make him choose; his father's assumptions give that choice personal weight. Jo's life with Fran and Bea's pleasures can shape ordinary conduct without becoming explanations or invitations. Select what is alive in the present encounter. Do not assemble a meeting to service the plot. Keep knowledge tied to its source and leave Rowan's decisions to Rowan. When Rowan leaves, follow the departure without justifying the freedom to leave.\n</backstage_guidance>\n\nReturn the next passage of fiction.\n\nAt lunch, if Bea is present, I ask what she enjoys about having the cinema open again. If she is not here, I eat with whoever is around.\n</user>\n"
+    }
+  ]
+}

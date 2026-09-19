@@ -1,0 +1,56 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "During your morning break, you lock the archive room and go downstairs. Jo’s delivery has been unloaded, and the side door is shut again. Boxes of dry goods stand inside the kitchen with supplier labels still attached.\n\nOwen is at a cafe table with a mug of tea. A screwdriver and several clear programme holders lie beside him, but he has set the work aside while he drinks.\n\nYou ask, “How’s your week going?”\n\n“It’s changed a bit since Monday.” He turns the mug between his hands. “I’ve got an interview tomorrow for a permanent exhibition-technician job at a museum inland.”\n\nHe says *interview* carefully, without treating it as an offer.\n\n“I replied this morning. Nell’s confirmed that I’ll work Friday instead of Thursday. I told my dad on the phone last night, too.”\n\nOwen takes another drink.\n\n“He didn’t say much at the time. Ten minutes later he sent me the train times. This morning I got a link to the museum car park.”\n\nJo passes through the foyer carrying an invoice. She hears this but leaves the conversation to him.\n\n“So that’s tomorrow,” Owen says. “The rest of the week is mostly getting these holders level before anyone puts programmes in them.” He nods towards the clear stands, then looks across at you. “How’s the archive going?”",
+  "reasoning_summaries": [
+    "**Planning Owen's Wednesday presence**",
+    "**Evaluating Owen's possible interview disclosure**",
+    "**Timing Owen's interview disclosure**",
+    "**Planning character dialogue dynamics**",
+    "**Designing natural conversation flow**",
+    "**Scheduling Owen's break plausibly**",
+    "**Finalizing Owen's schedule and side door access**",
+    "**Clarifying Owen's interview disclosure timeline**",
+    "**Evaluating Owen’s disclosure to Martin timing**",
+    "**Analyzing character interaction nuances**",
+    "**Refining Owen’s dialogue and timeline**",
+    "**Staging Owen’s interview reveal dialogue**",
+    "**Deciding on reciprocal break question**",
+    "**Detailing break scene and dialogue**",
+    "**Clarifying character knowledge and timeline**",
+    "**Confirming Owen's Thursday shift details**"
+  ],
+  "thread_id": "01a0b72b-21e6-7553-92b0-25a67c8be89d",
+  "turn_id": "01a0b741-54bf-7143-98e8-243c83ef5ec4",
+  "usage": {
+    "total": {
+      "totalTokens": 1303607,
+      "inputTokens": 1239305,
+      "cachedInputTokens": 1058944,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 64302,
+      "reasoningOutputTokens": 53701
+    },
+    "last": {
+      "totalTokens": 79775,
+      "inputTokens": 76540,
+      "cachedInputTokens": 75264,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3235,
+      "reasoningOutputTokens": 2958
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 65.19040312501602,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

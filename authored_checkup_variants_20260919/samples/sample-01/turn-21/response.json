@@ -1,0 +1,54 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, Nell is in the office before nine with the opening-weekend rota spread across her desk. Several shifts have been marked in pencil, and her phone lies beside a list of staff availability.\n\nYou check what archive work she wants you to take next and whether anything practical has changed.\n\n“Finish the programme box you started yesterday,” she says. “Then move to the next one on the same shelf. Establish its date range and existing order first. You don’t need a separate entry for every duplicate.”\n\nShe has checked the other acquisition papers downstairs. No additional schedule clarifies the broad transfer entry you flagged.\n\n“Leave that ownership unconfirmed. Your note explains what we checked, so nobody has to repeat the search later.”\n\nThe loan cupboard will stay closed today; none of your assigned work requires it. Rosa has confirmed that Monday’s photographs are usable, so she does not need another auditorium slot. Dev and Hana completed the receiver test last night and left their test record in the booth.\n\n“No changes that affect the archive room,” Nell says. “I’ll be finishing this rota until noon, and I may keep the office door shut while I make calls. If you find something physically unsafe, stop handling it. Everything else can go in the yellow tray until I come upstairs.”\n\nShe gives you the shelf references for the next programme box and a box of the trust’s early correspondence to begin if the programmes are finished before the end of your shift.\n\nThen she turns back to the rota, and you take the morning’s assignments upstairs.",
+  "reasoning_summaries": [
+    "**Planning time skip to Wed morning**",
+    "**Assessing Nell’s archive findings and tasks**",
+    "**Assigning next archive programme box task**",
+    "**Noting auditorium transmitter adjustments**",
+    "**Confirming projection booth access and photo updates**",
+    "**Clarifying cataloguing task scope**",
+    "**Planning archive cataloging and follow-up tasks**",
+    "**Confirming receiver test completion and results**",
+    "**Summarizing receiver test with minor fault**",
+    "**Confirming archive access and scheduling notes**",
+    "**Outlining staff rota completion task**",
+    "**Confirming rota finalization and archive instructions**",
+    "**Confirming photo adequacy and assignment steps**",
+    "**Summarizing test completion and photo confirmation**",
+    "**Clarifying event timing for report**"
+  ],
+  "thread_id": "01a0b72b-13ba-7ce2-9432-b00e6a93aaac",
+  "turn_id": "01a0b737-83e3-7c12-84be-4a301d3e4ca9",
+  "usage": {
+    "total": {
+      "totalTokens": 1150802,
+      "inputTokens": 1090926,
+      "cachedInputTokens": 912000,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 59876,
+      "reasoningOutputTokens": 49667
+    },
+    "last": {
+      "totalTokens": 76809,
+      "inputTokens": 73993,
+      "cachedInputTokens": 71040,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2816,
+      "reasoningOutputTokens": 2501
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 73.37235824996606,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

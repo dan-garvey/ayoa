@@ -1,0 +1,45 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You pause at the office door.\n\n“I’m not available for additional front-of-house shifts. I want to keep the hours outside my archive contract for myself.”\n\nNell sets down her pen.\n\n“Understood. I haven’t put you on the front-of-house rota, and I won’t. Your thirty hours are for the archive.”\n\nShe glances towards the staff staircase.\n\n“The room is included with the contract. It doesn’t make you resident cover.”\n\nThere is no attempt to bargain for opening weekend or turn the answer into a discussion. Nell returns to the papers on her desk while you take the archive key upstairs and begin the work she has assigned.",
+  "reasoning_summaries": [
+    "**Drafting proactive boundary dialogue**",
+    "**Clarifying FOH shift boundaries with Nell**",
+    "**Finalizing archive hours clarification dialogue**",
+    "**Clarifying FOH availability status**",
+    "**Refining dialogue to affirm boundaries**",
+    "**Establishing clear work boundaries in dialogue**",
+    "**Refining scene transition details**",
+    "**Clarifying dialogue about shift assignments**"
+  ],
+  "thread_id": "01a0b72b-16ea-72b1-bd0d-13811be101e6",
+  "turn_id": "01a0b73c-d827-73f0-a5e5-afc5808888e0",
+  "usage": {
+    "total": {
+      "totalTokens": 1251484,
+      "inputTokens": 1187521,
+      "cachedInputTokens": 1066880,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 63963,
+      "reasoningOutputTokens": 53249
+    },
+    "last": {
+      "totalTokens": 85323,
+      "inputTokens": 83971,
+      "cachedInputTokens": 78592,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1352,
+      "reasoningOutputTokens": 1215
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 32.76776327803964,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’m not available for additional front-of-house shifts,” you say. “I want to keep the hours outside my archive contract for myself.”\n\nNell stops writing and looks up from the rota.\n\n“All right. You’re not on this anyway; the front-of-house posts are separate. Your thirty hours are for the archive.”\n\nShe draws a short line beside the staffing notes.\n\n“I’ll make sure living upstairs isn’t treated as being on call.”",
+  "reasoning_summaries": [
+    "**Clarifying Rowan’s FOH shift status**",
+    "**Drafting natural boundary acknowledgment**",
+    "**Confirming archive-only shift status**",
+    "**Planning natural character interaction**",
+    "**Evaluating manager's question necessity**",
+    "**Deciding to avoid manager question**",
+    "**Finalizing archive contract dialogue**",
+    "**Preparing dialogue without roster mention**"
+  ],
+  "thread_id": "01a0b72b-19ff-71d2-85b1-5b6ece11aae7",
+  "turn_id": "01a0b73d-44c5-7381-ab79-4583f9ed33e0",
+  "usage": {
+    "total": {
+      "totalTokens": 1221014,
+      "inputTokens": 1160766,
+      "cachedInputTokens": 982528,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 60248,
+      "reasoningOutputTokens": 50313
+    },
+    "last": {
+      "totalTokens": 75925,
+      "inputTokens": 74642,
+      "cachedInputTokens": 71552,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1283,
+      "reasoningOutputTokens": 1188
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 25.740672889980488,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

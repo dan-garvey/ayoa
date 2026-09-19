@@ -1,0 +1,38 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’m not available for additional front-of-house shifts,” you say. “I want to keep the hours outside my archive contract for myself.”\n\nNell’s pen stops above the diary.\n\n“That’s fine. You’re not on the front-of-house rota; I’ve only scheduled your archive hours.” She looks up. “Has somebody asked you to cover?”",
+  "reasoning_summaries": [
+    "**Drafting Nell's FOH shift response**",
+    "**Designing Nell's clarifying question**",
+    "**Refining Nell's concise FOH inquiry**"
+  ],
+  "thread_id": "01a0b72b-1b93-7170-9de9-11697fbaa38f",
+  "turn_id": "01a0b73d-5828-7933-90bf-6d1ff3ecb386",
+  "usage": {
+    "total": {
+      "totalTokens": 1226763,
+      "inputTokens": 1165299,
+      "cachedInputTokens": 990976,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 61464,
+      "reasoningOutputTokens": 51390
+    },
+    "last": {
+      "totalTokens": 77141,
+      "inputTokens": 76548,
+      "cachedInputTokens": 73088,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 593,
+      "reasoningOutputTokens": 516
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 15.216413871967234,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "agentMessage"
+  ]
+}

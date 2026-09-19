@@ -1,0 +1,44 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’ll see you tomorrow,” you tell Owen.\n\n“Friday,” he says. “I’m not here tomorrow.”\n\nYou leave by the side door while Martin and Owen return to the display frame.\n\nHarbour Street slopes towards the inner harbour. The rain has passed, leaving the paving dark and the gutters running. You walk beside the quay on your own, past coils of green rope, stacked fish crates and a row of boats tugging against their lines.\n\nTwo crewmen rinse the deck of a trawler with a hose. Farther along, a forklift carries shrink-wrapped pallets towards the packing depot. Diesel hangs in the air beneath the cleaner smell of salt and wet stone.\n\nThe route curves around the harbour office. Beyond the wall, the sea is iron-grey, with white water breaking against the outer rocks. You follow the railings as far as the end of the inner quay, then turn back.\n\nThe walk takes the rest of your break. As you return through the cinema’s service yard, the drilling begins again inside.",
+  "reasoning_summaries": [
+    "**Clarifying timing miscommunication**",
+    "**Planning midbreak solo walk narration**",
+    "**Designing detailed solo harbor walk**",
+    "**Planning narrated harbour walk route**",
+    "**Refining conversation and walk details**",
+    "**Detailing Rowan’s departure route**",
+    "**Inventing harbour office setting**"
+  ],
+  "thread_id": "01a0b72b-155e-74e3-b3df-f8720a1d558c",
+  "turn_id": "01a0b742-536b-7592-90ce-e1f5aaef3ba2",
+  "usage": {
+    "total": {
+      "totalTokens": 1403658,
+      "inputTokens": 1334987,
+      "cachedInputTokens": 1147520,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 68671,
+      "reasoningOutputTokens": 58281
+    },
+    "last": {
+      "totalTokens": 84801,
+      "inputTokens": 83484,
+      "cachedInputTokens": 80000,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1317,
+      "reasoningOutputTokens": 1103
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 34.05332394596189,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

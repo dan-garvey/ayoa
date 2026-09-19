@@ -1,0 +1,46 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’ll see you tomorrow,” you tell Owen.\n\n“I won’t be here tomorrow,” he says. “That’s the shift I moved. Friday.”\n\nHe turns his phone face up again as you leave him at the table.\n\nWith the tower blocking the front entrance, you go out through the side door and follow the lane down to the inner harbour. The rain has passed, leaving the paving dark and the iron rings along the quay slick with water.\n\nFishing boats sit below street level on the falling tide. Their hulls knock softly against rubber fenders while gulls wait on the warehouse roofs. Farther around the basin, work carries from the boatyard: a power saw starting, metal struck twice, then the intermittent whine of a drill.\n\nYou walk past stacked lobster pots and a shuttered excursion kiosk. A delivery van idles outside the food-packing depot, its rear doors open while two workers move insulated crates onto a trolley. Nobody pays you particular attention.\n\nNear the harbour mouth, a weathered fingerpost marks the coast path towards the eastern cliffs. You follow the quay as far as the first section of sea wall, where the water beyond the breakwater is darker and rougher than the sheltered basin, then turn back along the moorings.\n\nYour circuit brings you to Harbour Street again, with the cinema one road behind the water.",
+  "reasoning_summaries": [
+    "**Refining dialogue for natural scene exit**",
+    "**Clarifying solo walk timing and route**",
+    "**Detailing town and character setting**",
+    "**Planning harbor walk route and endpoint**",
+    "**Deciding natural walk endpoint before return**",
+    "**Noticing harbor environment and timing**",
+    "**Planning coastal walk details and route**",
+    "**Deciding circuit route and timing**"
+  ],
+  "thread_id": "01a0b72b-1b93-7170-9de9-11697fbaa38f",
+  "turn_id": "01a0b743-3a9f-7b61-9e6d-48665bcc2d30",
+  "usage": {
+    "total": {
+      "totalTokens": 1389399,
+      "inputTokens": 1322862,
+      "cachedInputTokens": 1144448,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 66537,
+      "reasoningOutputTokens": 55952
+    },
+    "last": {
+      "totalTokens": 82309,
+      "inputTokens": 80373,
+      "cachedInputTokens": 77056,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1936,
+      "reasoningOutputTokens": 1658
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 49.59736341203097,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

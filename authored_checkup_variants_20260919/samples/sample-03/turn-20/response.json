@@ -1,0 +1,62 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "Martin turns the crumpled sandwich paper over in his hands.\n\n“The email came yesterday?” he asks.\n\n“Yes.”\n\n“And the interview’s definite?”\n\n“Thursday at eleven. I accepted it this morning.”\n\nMartin glances towards Jo, but she is carrying her bowl into the kitchen and does not answer for Owen.\n\n“Are you planning to take the job?”\n\n“There isn’t a job to take yet,” Owen says. “I’m going to the interview.”\n\nMartin looks down at the tools beside the unfinished rail. “I’d have liked you to tell me.”\n\n“I just did.”\n\nA pause follows. Martin presses the sandwich paper flat against his knee, though it no longer needs folding.\n\n“Pass me the smaller level,” he says.\n\nOwen picks it out of the tool bag and places it in his hand. They return to the rail without settling anything beyond the fact of Thursday.\n\nYou go back upstairs.\n\nDuring the afternoon, the programme box becomes more particular than its label suggests. One weekly sheet from 1987 has been folded into quarters and used for a lunch order. Four first names are written across its reverse—Bea, Martin, June and Mick—with sandwiches beside them. The printing remains legible beneath a round tea stain. You describe the programme, its annotations and its condition without guessing who wrote them, then return it to its exact place.\n\nOther sheets carry altered show times, small arithmetic in the margins and thumb marks in old poster paint. The marks remain part of the records rather than damage to be cleaned away.\n\nBelow, the fitting work resumes. The drill runs in short bursts. Martin asks for a screw; Owen tells him the one in his hand is too long. A few minutes later the wooden rail takes their combined weight without moving.\n\nYou continue until half past three, the agreed end of today’s shift. The last programme returns behind its original divider. You save the catalogue, mark the stopping place and put the box back on its shelf. No loaned material has been taken out, and the loan cupboard remains locked when you leave the workroom.",
+  "reasoning_summaries": [
+    "**Determining agreed shift schedule**",
+    "**Establishing detailed shift timing**",
+    "**Finalizing shift end time**",
+    "**Planning shift deadline handling**",
+    "**Identifying unique historical programme artifacts**",
+    "**Cataloging staff notes with historical context**",
+    "**Identifying unique document insertions**",
+    "**Selecting cinema-related artefact for focus**",
+    "**Cataloguing annotated 1986 programme**",
+    "**Developing NPC dialogue exchange**",
+    "**Refining NPC conversation flow**",
+    "**Detailing scene closure and props**",
+    "**Linking food order to character history**",
+    "**Establishing shift end time as 3:30 PM**",
+    "**Confirming six working hours recorded daily**",
+    "**Planning ambient afternoon soundscapes**",
+    "**Developing nuanced lunch conversation scene**",
+    "**Documenting archival programme details**",
+    "**Analyzing staff sandwich preferences and annotation protocols**",
+    "**Confirming secured loan materials and narrative details**",
+    "**Planning Owen dialogue continuation**"
+  ],
+  "thread_id": "01a0b72b-16ea-72b1-bd0d-13811be101e6",
+  "turn_id": "01a0b732-4fdf-7831-b4d6-cc3d5d5c6ac7",
+  "usage": {
+    "total": {
+      "totalTokens": 1082235,
+      "inputTokens": 1024805,
+      "cachedInputTokens": 913792,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 57430,
+      "reasoningOutputTokens": 47187
+    },
+    "last": {
+      "totalTokens": 78704,
+      "inputTokens": 74699,
+      "cachedInputTokens": 72832,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4005,
+      "reasoningOutputTokens": 3581
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 114.14313669799594,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

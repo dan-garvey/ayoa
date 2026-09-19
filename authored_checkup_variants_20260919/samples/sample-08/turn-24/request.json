@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b72b-1ec4-7e20-9dec-df0f58fc1c37",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\nReturn the next passage of fiction.\n\nIf we have been talking, I tell Owen I will see him tomorrow. Then I take a walk along the harbour on my own.\n</user>\n"
+    }
+  ]
+}

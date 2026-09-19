@@ -1,0 +1,82 @@
+{
+  "packet-01": {
+    "experiment": "authored_checkup_variants_20260919",
+    "sample": "sample-01"
+  },
+  "packet-02": {
+    "experiment": "authored_checkup_variants_20260919",
+    "sample": "sample-10"
+  },
+  "packet-03": {
+    "experiment": "authored_checkups_20260918",
+    "sample": "sample-07"
+  },
+  "packet-04": {
+    "experiment": "authored_checkup_variants_20260919",
+    "sample": "sample-02"
+  },
+  "packet-05": {
+    "experiment": "authored_checkup_variants_20260919",
+    "sample": "sample-05"
+  },
+  "packet-06": {
+    "experiment": "authored_checkup_variants_20260919",
+    "sample": "sample-08"
+  },
+  "packet-07": {
+    "experiment": "authored_checkups_20260918",
+    "sample": "sample-08"
+  },
+  "packet-08": {
+    "experiment": "authored_checkup_variants_20260919",
+    "sample": "sample-03"
+  },
+  "packet-09": {
+    "experiment": "authored_checkup_variants_20260919",
+    "sample": "sample-09"
+  },
+  "packet-10": {
+    "experiment": "authored_checkups_20260918",
+    "sample": "sample-01"
+  },
+  "packet-11": {
+    "experiment": "authored_checkups_20260918",
+    "sample": "sample-04"
+  },
+  "packet-12": {
+    "experiment": "authored_checkups_20260918",
+    "sample": "sample-06"
+  },
+  "packet-13": {
+    "experiment": "authored_checkup_variants_20260919",
+    "sample": "sample-04"
+  },
+  "packet-14": {
+    "experiment": "authored_checkups_20260918",
+    "sample": "sample-03"
+  },
+  "packet-15": {
+    "experiment": "authored_checkups_20260918",
+    "sample": "sample-09"
+  },
+  "packet-16": {
+    "experiment": "authored_checkup_variants_20260919",
+    "sample": "sample-06"
+  },
+  "packet-17": {
+    "experiment": "authored_checkup_variants_20260919",
+    "sample": "sample-07"
+  },
+  "packet-18": {
+    "experiment": "authored_checkups_20260918",
+    "sample": "sample-02"
+  },
+  "packet-19": {
+    "experiment": "authored_checkups_20260918",
+    "sample": "sample-10"
+  },
+  "packet-20": {
+    "experiment": "authored_checkups_20260918",
+    "sample": "sample-05"
+  }
+}

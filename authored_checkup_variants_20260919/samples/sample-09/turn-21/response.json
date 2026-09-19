@@ -1,0 +1,68 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, the foyer is already in use. Jo has a supplier’s crates open along the cafe counter and is checking jars against an invoice. Owen works alone beneath the programme display, filling yesterday’s screw holes before fixing the rail again.\n\nNell is in the office with damp hair and a mesh swimming bag tucked beneath her desk. You ask what she wants you to catalogue next and whether anything practical has changed.\n\n“Same hours as yesterday,” she says. “Finish the programme box you started. After that, take C-seven from the second shelf. It’s booking and programming correspondence from 1985 to 1989.”\n\nShe hands back the note you placed in the yellow tray. Beneath your reference, she has written that the unsigned collection list should remain with the transfer file but cannot itself establish ownership.\n\n“C-seven is trust-owned under the transfer schedule. Catalogue it at file level. Keep incoming letters with any reply copies you find. There are requests from local clubs and societies mixed in with the distributor correspondence; don’t separate them just because they came from outside the business.”\n\nNell glances towards the open front doors, where the supplier is bringing in another crate.\n\n“Jo’s delivery will keep the foyer open until about ten. Lock the archive whenever you come downstairs. The loan cupboard arrangements haven’t changed, and you don’t need anything from it today.”\n\nShe adds that Dev and Hana completed the auditorium receiver test the previous evening. No technical work is scheduled upstairs today.\n\n“That’s everything that affects you.”\n\nBehind you, Jo removes a jar from the latest crate and holds it beside the invoice. The label does not match what she ordered. Owen keeps filling the old holes while she goes to find the driver.\n\nYou take the archive stairs with a clear assignment: finish the programme run, then begin the correspondence in box C-seven.",
+  "reasoning_summaries": [
+    "**Planning timeline and follow-up actions**",
+    "**Clarifying Tuesday test outcomes and reporting**",
+    "**Outlining archive assignment priorities**",
+    "**Planning archive review assignment**",
+    "**Assigning programme box and workroom updates**",
+    "**Considering character details for Nell**",
+    "**Clarifying archival cataloguing instructions**",
+    "**Planning archive access protocols**",
+    "**Scheduling archive work for Wednesday morning**",
+    "**Clarifying character departure timing**",
+    "**Confirming archive task sequence with Nell**",
+    "**Planning programming correspondence archive**",
+    "**Cataloging audience requests without separating**",
+    "**Confirming hearing receiver test completion**",
+    "**Confirming photo layout sent to printer**",
+    "**Confirming archive status and scheduling updates**",
+    "**Capturing detailed scene setting and character activities**",
+    "**Refining dialogue and task handoff approach**",
+    "**Planning archival box completion and privacy flagging**",
+    "**Outlining next archival tasks and delivery logistics**",
+    "**Confirming receiver test completion status**",
+    "**Confirming no practical changes**",
+    "**Summarizing stable schedule and access details**",
+    "**Drafting natural administrative update**",
+    "**Noting logistical details for scene setup**"
+  ],
+  "thread_id": "01a0b72b-2057-71a1-93db-24e077ea02f0",
+  "turn_id": "01a0b73a-f4d4-7612-aa37-3168fa27b245",
+  "usage": {
+    "total": {
+      "totalTokens": 1170897,
+      "inputTokens": 1104692,
+      "cachedInputTokens": 933376,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 66205,
+      "reasoningOutputTokens": 55554
+    },
+    "last": {
+      "totalTokens": 85966,
+      "inputTokens": 81385,
+      "cachedInputTokens": 78720,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4581,
+      "reasoningOutputTokens": 4203
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 118.8681929060258,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,5 @@
+<user>
+Return the next passage of fiction.
+
+At lunch, if Bea is present, I ask what she enjoys about having the cinema open again. If she is not here, I eat with whoever is around.
+</user>

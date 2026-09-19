@@ -1,0 +1,41 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’m not available for additional front-of-house shifts,” you say. “I want to keep the hours outside my archive contract for myself.”\n\nNell nods once. “Understood. Your contract is for thirty hours of cataloguing. I won’t add you to the front-of-house rota or treat living upstairs as being on call.”\n\nShe taps the October dates on the calendar.\n\n“And this wasn’t a request for you to cover me. I’ll arrange a trustee to hold the cupboard key, or restricted-loan work will pause while I’m away.”\n\nNothing is added to your rota. Nell returns the calendar to its place, and you take the programme-box references upstairs to continue the assignment she has given you.",
+  "reasoning_summaries": [
+    "**Drafting Nell's FOH shift response**",
+    "**Composing firm boundary dialogue for FOH shifts**",
+    "**Clarifying archive-only scheduling with Nell**",
+    "**Finalizing dialogue wording**",
+    "**Refining character role dialogue**"
+  ],
+  "thread_id": "01a0b72b-1d26-7143-8f20-9960a038fd89",
+  "turn_id": "01a0b73d-9291-7ac3-9576-98a06d12c6af",
+  "usage": {
+    "total": {
+      "totalTokens": 1240444,
+      "inputTokens": 1174541,
+      "cachedInputTokens": 990208,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 65903,
+      "reasoningOutputTokens": 55462
+    },
+    "last": {
+      "totalTokens": 81697,
+      "inputTokens": 80755,
+      "cachedInputTokens": 75520,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 942,
+      "reasoningOutputTokens": 792
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 23.061513646971434,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

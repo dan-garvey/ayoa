@@ -1,0 +1,48 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“See you tomorrow,” you tell Owen.\n\n“I’m not in tomorrow,” he says. “Friday.”\n\nHe returns to the auditorium plan without explaining what he will be doing instead. You leave him to his break and step out onto Harbour Street.\n\nThe morning rain has stopped, but the pavement remains dark and shining. You walk downhill towards the inner harbour alone. Fishing boats pull against their mooring ropes below the quay, their decks crowded with tubs, coiled lines and orange floats. Across the water, metalwork rings from the boatyard in short, irregular bursts.\n\nThe tide is high enough to lift the smaller boats level with the harbour wall. A crew unloads covered crates from a blue-hulled trawler while gulls wait on the roof of the fish shed. Farther along, the harbour opens towards a strip of restless grey sea.\n\nYou follow the quay past the chandlery and the locked excursion kiosk, then turn back before the road reaches the outer wall. Nobody stops you. By the time you return to the cinema, Owen has cleared his mug and taken the seat plan with him.\n\nNell’s office door remains shut for her rota calls. You go back upstairs before the end of your break.",
+  "reasoning_summaries": [
+    "**Noting social abruptness and break timing**",
+    "**Clarifying break walk and setting weather**",
+    "**Detailing solitary harbor walk sensory**",
+    "**Planning walk duration and endpoints**",
+    "**Adjusting Owen’s greeting for schedule accuracy**",
+    "**Preserving user speech while noting schedule conflict**",
+    "**Verifying character timeline and continuity**",
+    "**Planning character’s exit and scenery details**",
+    "**Confirming route and break return details**",
+    "**Finalizing farewell dialogue**"
+  ],
+  "thread_id": "01a0b72b-13ba-7ce2-9432-b00e6a93aaac",
+  "turn_id": "01a0b742-536b-7592-90ce-e1ec9db86f27",
+  "usage": {
+    "total": {
+      "totalTokens": 1391917,
+      "inputTokens": 1326400,
+      "cachedInputTokens": 1134848,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 65517,
+      "reasoningOutputTokens": 54610
+    },
+    "last": {
+      "totalTokens": 82590,
+      "inputTokens": 80638,
+      "cachedInputTokens": 77824,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1952,
+      "reasoningOutputTokens": 1700
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 42.533979394997004,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

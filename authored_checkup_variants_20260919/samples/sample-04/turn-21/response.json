@@ -1,0 +1,69 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, Owen is tightening the display rail he fitted beside the front doors. Martin kneels nearby, adjusting the door closer with a spanner. Neither has been brought in merely to talk; their tools and open fittings occupy opposite ends of the foyer.\n\n“I’ve been thinking about what you said last night,” Martin says. “An interview isn’t an offer.”\n\n“I know.”\n\n“You might get there and hate the place.”\n\n“I know that too.”\n\nMartin folds a printed rail timetable into quarters. “The eight-twelve gets you there with forty minutes to spare.”\n\n“I’ve booked the eight-twelve.”\n\n“Right.” Martin puts the timetable on Owen’s tool bag anyway. Owen leaves it there and returns to the rail.\n\nAt nine, you find Nell in the office and ask what archive work you should begin with and whether anything practical has changed.\n\n“Second programme box first,” she says. “If you finish that, return to the transfer correspondence. No loaned material today.”\n\nShe has reviewed yesterday’s yellow tray. One collection list can be matched to a numbered attachment in the signed transfer schedule. The broad, unsigned inventory cannot, so its catalogue record will retain **ownership unconfirmed**.\n\n“Keep the note with it,” Nell says. “We may find supporting paperwork later.”\n\nShe gives you the immediate building updates. Dev confirmed the auditorium before Tuesday’s noon deadline, and he and Hana completed the receiver test last night. Jo is taking today off with Fran, so the cafe is closed; the kitchen sink and kettle remain available, but Jo’s labelled stock and equipment do not.\n\n“One future date as well,” Nell says. “I’ll be away from the ninth to the eleventh of October. Gina and I have a walking weekend booked, and I’m taking it. That falls inside your contract, so I’ll arrange archive cover and cupboard-key access before I go. Until then, the current system stays the same.”\n\nShe returns the reviewed notes to the transfer box and leaves the second programme box ready for you on the archive table.",
+  "reasoning_summaries": [
+    "**Planning time skip and offstage events**",
+    "**Integrating background character interactions**",
+    "**Developing realistic character interactions**",
+    "**Planning practical interview scene**",
+    "**Refining character interactions and timeline**",
+    "**Deciding practical update mentions**",
+    "**Planning Bea album assessment**",
+    "**Starting second programme box**",
+    "**Clarifying kitchen and café access**",
+    "**Incorporating October leave scheduling**",
+    "**Planning October leave impact on rota**",
+    "**Configuring cast focus on Owen and Martin**",
+    "**Clarifying Owen's Wednesday schedule**",
+    "**Revealing nuanced family dynamics**",
+    "**Confirming task delegation with Nell**",
+    "**Confirming receiver test completion**",
+    "**Establishing test confirmation and leave arrangements**",
+    "**Drafting future leave notification**",
+    "**Cataloguing transfer correspondence**",
+    "**Clarifying daily start and updates**",
+    "**Confirming nuanced dialogue dynamics**",
+    "**Clarifying timelines and locations**",
+    "**Confirming dialogue and timeline details**",
+    "**Detailing Nell and Jo schedules**",
+    "**Clarifying office key access during leave**",
+    "**Noting end-of-interaction routine**"
+  ],
+  "thread_id": "01a0b72b-1874-78e3-ab34-6606f0f4dd82",
+  "turn_id": "01a0b738-a281-7543-bb17-52a3af24926f",
+  "usage": {
+    "total": {
+      "totalTokens": 1157739,
+      "inputTokens": 1093338,
+      "cachedInputTokens": 914560,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 64401,
+      "reasoningOutputTokens": 54102
+    },
+    "last": {
+      "totalTokens": 80150,
+      "inputTokens": 75417,
+      "cachedInputTokens": 73216,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4733,
+      "reasoningOutputTokens": 4315
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 114.57753982202848,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

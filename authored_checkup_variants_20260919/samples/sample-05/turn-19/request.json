@@ -1,0 +1,12 @@
+{
+  "threadId": "01a0b72b-19ff-71d2-85b1-5b6ece11aae7",
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "input": [
+    {
+      "type": "text",
+      "text": "<user>\n<backstage_guidance>\nThe induction is over. Stop narrating proof that permissions, boundaries and privacy are being respected. Keep respecting them. Mention a settled restriction again only if something happens that makes it relevant. Remove sentences whose sole contribution is that nobody intrudes, no demand follows, an item remains safely untouched, or Rowan is allowed to leave. The reader does not need reassurance from the narrator.\n\nGive routine work a few telling particulars, then advance to the endpoint Rowan requested. During an actual conversation, stop while a reply could still matter. Never close an exchange and assign Rowan a further activity merely to finish the scene neatly.\n\nStrip the dialogue of rehearsed wisdom and dependable punchlines. Each person is trying to do something with these particular words, to this particular listener. Let their priorities, selective attention and willingness to answer distinguish them. Ordinary phrasing is welcome; flattening everybody into terse replies is not. If an action or line already carries the feeling, cut its explanatory afterword. Accepting a refusal needs no lesson about consent or employment.\n\nDo not fill the space recovered from these cuts with a new interruption. Keep interesting particulars, real disagreement and compatible invented history. Let an unremarkable departure end without commentary.\n</backstage_guidance>\n\nReturn the next passage of fiction.\n\nAt lunch, if Bea is present, I ask what she enjoys about having the cinema open again. If she is not here, I eat with whoever is around.\n</user>\n"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "When you come downstairs, Bea is at one of the cafe tables with a packed lunch and a folder of trust receipts. Nell sits opposite her, drinking tea while checking figures against a bank statement.\n\nYou bring your lunch to the table and ask Bea, “What do you enjoy about having the cinema open again?”\n\n“We’re not properly open until the twenty-sixth,” she says. “But I know what you mean.”\n\nShe looks across the foyer towards the front doors.\n\n“I’m not most excited about the speeches or the opening photographs. I’m waiting for the first wet afternoon when a dozen people come in because they’ve nowhere better to be. Jo sells them tea, somebody drops popcorn, and the heating works without Martin having to hit anything.”\n\n“I don’t hit heating systems,” Martin’s absent reputation is defended by Nell. “He does occasionally threaten them.”\n\nBea smiles. “It was shut for years, and every conversation was about what the building used to be or what it might become. Now people are worrying about cups, rotas and whether the sound reaches row twelve. Those are useful problems.”\n\nShe closes the receipt folder.\n\n“I like Rosa putting names beside the old boards, too. My mother cleaned here. I tore tickets. Martin painted lettering. The cinema didn’t run itself, even if that’s how people remember it.”\n\nAfter a moment, she adds, “And I wanted the sign restored. More than was financially sensible.”\n\n“It stayed inside the approved budget,” Nell says.\n\n“Only because I approved the budget.”\n\nThe office phone call you heard earlier was from Dev. Nell tells Bea that Hana has confirmed the auditorium test for seven that evening, so the provisional booking is now firm. Martin plans to test the restored sign at eight.\n\n“I’ll come back for that,” Bea says. No invitation is attached; she simply notes the time and resumes her lunch.",
+  "reasoning_summaries": [
+    "**Assessing staff presence for Tuesday lunch**",
+    "**Planning Bea's plausible Tuesday presence**",
+    "**Crafting natural speech for Bea's cinema view**",
+    "**Planning cinema sign restoration and heritage recognition**",
+    "**Planning character interactions for lunch scene**",
+    "**Refining Bea and Nell lunch scene details**",
+    "**Planning lunchtime character interactions**",
+    "**Developing Bea’s dialogue about reopening**",
+    "**Refining Bea and Nell lunchtime exchange**",
+    "**Planning natural dialogue snippets**",
+    "**Developing sign test dialogue**",
+    "**Confirming participant exclusion**",
+    "**Planning sign testing schedule**",
+    "**Confirming test availability and timing**",
+    "**Linking phone ring to confirmation**",
+    "**Clarifying Bea's attendance and sign timing**",
+    "**Drafting Bea's detailed response about reopening**",
+    "**Refining Bea's natural closing statement**"
+  ],
+  "thread_id": "01a0b72b-21e6-7553-92b0-25a67c8be89d",
+  "turn_id": "01a0b730-5124-72d3-ba18-991cda6e9903",
+  "usage": {
+    "total": {
+      "totalTokens": 999587,
+      "inputTokens": 944170,
+      "cachedInputTokens": 774144,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 55417,
+      "reasoningOutputTokens": 45907
+    },
+    "last": {
+      "totalTokens": 70714,
+      "inputTokens": 67039,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3675,
+      "reasoningOutputTokens": 3292
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 78.95557783299591,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

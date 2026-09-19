@@ -1,0 +1,69 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "On Wednesday morning, you find Nell in the office with the paper diary and staff rota open beside her. Owen’s Thursday shift has been moved to Friday and initialled by Nell. Dev’s provisional auditorium booking from Tuesday evening is marked **COMPLETED**.\n\nYou ask Nell for your next archive assignment and whether anything practical has changed.\n\n“Carry on with the programme boxes today. Take P-three next—the label says 1986 to 1988, but check the actual range before you use it. Start with a box-level record, then separate out any clear dated runs.”\n\nShe turns the staff rota towards herself.\n\n“Martin and Owen are fitting the foyer display frames this morning. They’ll have tools and packing across the front entrance, so use the side door until lunch. There’ll be some drilling below you.”\n\nNell marks the programme box on the archive list.\n\n“Dev and Hana finished the receiver test last night, so the auditorium is free. Owen’s shift change is confirmed. Nothing there alters your hours.”\n\nShe gives you the box reference slip.\n\n“If P-three contains anything that doesn’t look like a programme or related insert, keep it in place and add it to the query tray. I’ll check the tray before the end of the day.”",
+  "reasoning_summaries": [
+    "**Planning Wednesday morning schedule**",
+    "**Confirming rota visibility for Rowan**",
+    "**Avoiding privacy breach in shift updates**",
+    "**Noting rota change and confirmation**",
+    "**Confirming auditorium test completion**",
+    "**Clarifying auditorium test details**",
+    "**Planning archive box assignment**",
+    "**Confirming archive work schedule and assignments**",
+    "**Planning archive assignment with duplicates flagging**",
+    "**Planning archival document sorting**",
+    "**Updating on onsite activities and interactions**",
+    "**Confirming Owen's shift swap and interaction timing**",
+    "**Planning visible rota implementation**",
+    "**Confirming rota swap without interview reveal**",
+    "**Noting completed hearing test and schedule updates**",
+    "**Planning archive sorting and site access**",
+    "**Clarifying staff roles and foyer setup**",
+    "**Confirming foyer tasks and entrance status**",
+    "**Analyzing message clarity and availability note**",
+    "**Clarifying archive instructions and test confirmations**",
+    "**Planning Owen’s interview acceptance timing**",
+    "**Planning confidential actual disclosure**",
+    "**Designing offstage acceptance and consequences**",
+    "**Preparing detailed office dialogue and instructions**",
+    "**Refining narrative transition and dialogue**",
+    "**Finalizing dialogue closure and timeline**"
+  ],
+  "thread_id": "01a0b72b-155e-74e3-b3df-f8720a1d558c",
+  "turn_id": "01a0b737-83e4-7320-a999-782aaa74059d",
+  "usage": {
+    "total": {
+      "totalTokens": 1155264,
+      "inputTokens": 1091974,
+      "cachedInputTokens": 914048,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 63290,
+      "reasoningOutputTokens": 53387
+    },
+    "last": {
+      "totalTokens": 79280,
+      "inputTokens": 74519,
+      "cachedInputTokens": 72448,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 4761,
+      "reasoningOutputTokens": 4502
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 119.80744797602529,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

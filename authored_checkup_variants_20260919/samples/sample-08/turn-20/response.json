@@ -1,0 +1,49 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "You return upstairs and continue with the programme box.\n\nThe afternoon’s run begins in January 1985. Most weeks have a single folded sheet, but Easter has three near-identical versions with different matinee times. One programme has been folded around an old bus timetable; another carries a thumbprint in blue paint beside a pencilled change from 7.15 to 7.30. You record the gaps and duplicates without trying to reconstruct the missing weeks.\n\nAt two, the side door closes below as Jo leaves. The rain clears soon afterwards, and pale light reaches across the worktable.\n\nYou complete the box-level record, then begin a second group covering late 1985 into 1986. Its paper band says **AUTUMN — INCOMPLETE**, which proves accurate: November stops midway through the month and resumes with a Christmas programme advertising two children’s matinees.\n\nAt four, the end of your agreed shift, you finish the entry already open. The programmes go back in their existing order, and you save the afternoon’s records before returning the boxes to the shelves.",
+  "reasoning_summaries": [
+    "**Estimating agreed shift end time**",
+    "**Settling on 4 PM shift end**",
+    "**Reviewing program box records**",
+    "**Identifying potential staff references**",
+    "**Cataloguing detailed programme variations**",
+    "**Planning Owen shift swap confirmation**",
+    "**Avoiding engineered character encounters**",
+    "**Finalizing shift-end routine and timeline**",
+    "**Cataloguing vintage program details**",
+    "**Assessing archival labeling and naming conventions**",
+    "**Finalizing shift timeline and narrative details**"
+  ],
+  "thread_id": "01a0b72b-1ec4-7e20-9dec-df0f58fc1c37",
+  "turn_id": "01a0b734-0dc0-78d3-836d-6065ced1364c",
+  "usage": {
+    "total": {
+      "totalTokens": 1075795,
+      "inputTokens": 1018741,
+      "cachedInputTokens": 910592,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 57054,
+      "reasoningOutputTokens": 47418
+    },
+    "last": {
+      "totalTokens": 74557,
+      "inputTokens": 72406,
+      "cachedInputTokens": 68992,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 2151,
+      "reasoningOutputTokens": 1927
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 55.58956014900468,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’ll see you tomorrow,” you tell Owen.\n\n“Friday,” he corrects. “I’m off tomorrow for the interview. I’ll be back here Friday morning.”\n\nHe returns the cup to his flask, and you leave him to his break.\n\nOutside, you walk down Harbour Street towards the inner harbour. The earlier rain has stopped, leaving the paving stones dark and the gutters running. A cold wind comes between the buildings with the smell of salt, diesel and wet rope.\n\nFishing boats lie against the quay wall, rising and settling on their lines. Two crew members unload grey crates without looking up from their work. Across the water, a grinder starts at the boatyard, its pitch carrying over the engines and the slap of water against stone.\n\nYou follow the harbour edge alone. September visitors are sparse at this hour; most of the people moving along the quay are working, making deliveries or carrying tools between boats. Gulls cluster around a stack of blue fish boxes and scatter when a small forklift approaches.\n\nAt the end of the inner quay, you turn back. The walk takes just under fifteen minutes. Nobody stops you, and you return to the Picture House before the end of your break.",
+  "reasoning_summaries": [
+    "**Clarifying character meeting schedule**",
+    "**Planning solo harbor break walk**",
+    "**Confirming access for harbor walk**",
+    "**Detailing building entrance and coastal setting**",
+    "**Refining harbor walk route and setting details**",
+    "**Clarifying character’s schedule and dialogue**"
+  ],
+  "thread_id": "01a0b72b-1874-78e3-ab34-6606f0f4dd82",
+  "turn_id": "01a0b742-d872-7b80-8775-19c6008cc1ed",
+  "usage": {
+    "total": {
+      "totalTokens": 1406487,
+      "inputTokens": 1337965,
+      "cachedInputTokens": 1138176,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 68522,
+      "reasoningOutputTokens": 57620
+    },
+    "last": {
+      "totalTokens": 84411,
+      "inputTokens": 83137,
+      "cachedInputTokens": 81152,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1274,
+      "reasoningOutputTokens": 1028
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 30.348732786020264,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

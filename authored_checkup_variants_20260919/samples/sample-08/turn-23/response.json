@@ -1,0 +1,57 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "By midmorning, you have reached a run of 1987 programmes with new ticket prices pasted over the printed ones. You finish the sheet in hand and go downstairs for a break.\n\nOwen is at one of the cafe tables with a mug of tea. A spirit level and a packet of wall fixings lie closed beside him; two clear programme holders have been mounted near the entrance, and a third waits against the wall. He isn’t working while he drinks.\n\n“How’s your week going?” you ask.\n\n“All right. Thursday’s sorted now.” He turns his mug between his palms. “I’m here until four today, then I’ve got a ticket for a band at the Harbour Rooms. I bought it months ago and only remembered yesterday.”\n\nHe glances towards the finished programme holders.\n\n“I need to get the last one up before Martin arrives. We’ve got different ideas about whether the old screw holes are useful.”\n\nOwen takes another drink. “How’s the archive going?”",
+  "reasoning_summaries": [
+    "**Assessing Owen's Wednesday availability**",
+    "**Planning natural Owen-Rowan conversation**",
+    "**Refining Owen's dialogue and revealing interview**",
+    "**Planning conversation timing and breaks**",
+    "**Defining Owen’s break activities**",
+    "**Rejecting specific prop details for Owen**",
+    "**Planning character break details**",
+    "**Refining character dialogue content**",
+    "**Developing character social plans**",
+    "**Refining dialogue ambiguity**",
+    "**Drafting Owen's interview disclosure**",
+    "**Choosing subtle Owen response**",
+    "**Planning character interaction timing**",
+    "**Drafting detailed Owen scene**",
+    "**Incorporating family context subtly**",
+    "**Confirming appointment acceptance**",
+    "**Refining dialogue boundaries and scene setup**"
+  ],
+  "thread_id": "01a0b72b-1ec4-7e20-9dec-df0f58fc1c37",
+  "turn_id": "01a0b740-5ae4-7791-afaf-5b56a41d4559",
+  "usage": {
+    "total": {
+      "totalTokens": 1316936,
+      "inputTokens": 1251887,
+      "cachedInputTokens": 1135872,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 65049,
+      "reasoningOutputTokens": 54931
+    },
+    "last": {
+      "totalTokens": 82687,
+      "inputTokens": 79621,
+      "cachedInputTokens": 78720,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3066,
+      "reasoningOutputTokens": 2860
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 75.24003935401561,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

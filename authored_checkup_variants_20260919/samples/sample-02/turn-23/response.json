@@ -1,0 +1,57 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "At midmorning, the drilling stops. You come downstairs for your break and find Owen at one of the cafe tables with a mug of tea and a spirit level beside it. Two black poster frames lean against the foyer wall. Martin is in the service yard cutting narrow wooden packing strips.\n\n“How’s your week going?” you ask.\n\n“Busy. Tomorrow’s appointment is on, and Nell’s moved my shift to Friday. That part’s sorted.”\n\nOwen glances towards the nearest frame.\n\n“The wall bows out in the middle. Dad wants to pack the bottom corner; I think the top fixing needs moving. We’re trying both before either of us puts another hole in the plaster.”\n\nHe drinks some tea.\n\n“I’ve told Nell I still finish at four on Friday. There’s a band playing that night and I’ve already got the ticket.”\n\nHe sets down the mug. “How’s it going upstairs?”",
+  "reasoning_summaries": [
+    "**Planning casual check-in with Owen**",
+    "**Considering Owen's tentative interview disclosure**",
+    "**Staging Owen's interview disclosure to Martin**",
+    "**Refining dialogue tension setup**",
+    "**Planning natural NPC conversation pause**",
+    "**Assessing character interaction plausibility**",
+    "**Revising disclosure timing and plausibility**",
+    "**Planning scene geography and timing**",
+    "**Planning natural dialogue flow**",
+    "**Designing subtle scene interactions**",
+    "**Refining Owen's casual responses**",
+    "**Clarifying appointment acceptance implication**",
+    "**Confirming appointment acceptance phrasing**",
+    "**Detailing scene setting and character actions**",
+    "**Clarifying framing adjustment options**",
+    "**Solidifying Friday gig and shift details**",
+    "**Preparing midmorning break dialogue**"
+  ],
+  "thread_id": "01a0b72b-155e-74e3-b3df-f8720a1d558c",
+  "turn_id": "01a0b73e-1efc-7771-9810-c611e3d6627c",
+  "usage": {
+    "total": {
+      "totalTokens": 1318857,
+      "inputTokens": 1251503,
+      "cachedInputTokens": 1067520,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 67354,
+      "reasoningOutputTokens": 57178
+    },
+    "last": {
+      "totalTokens": 83438,
+      "inputTokens": 80204,
+      "cachedInputTokens": 79104,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 3234,
+      "reasoningOutputTokens": 3045
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 79.70614839199698,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

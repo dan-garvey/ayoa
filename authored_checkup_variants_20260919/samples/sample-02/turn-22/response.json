@@ -1,0 +1,41 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’m not available for additional front-of-house shifts,” you say. “I want to keep the hours outside my archive contract for myself.”\n\nNell looks up from the rota.\n\n“All right. You’re here for the archive, and that’s where your thirty hours stay. I won’t add you to front of house.”\n\nShe closes the rota and leaves the programme-box reference beside you.",
+  "reasoning_summaries": [
+    "**Planning natural character dialogue**",
+    "**Refining dialogue to clarify boundaries**",
+    "**Finalizing boundary acknowledgment dialogue**",
+    "**Finalizing rota closure dialogue**",
+    "**Clarifying wage funding details**"
+  ],
+  "thread_id": "01a0b72b-155e-74e3-b3df-f8720a1d558c",
+  "turn_id": "01a0b73c-d826-76a0-9426-595388341c67",
+  "usage": {
+    "total": {
+      "totalTokens": 1235419,
+      "inputTokens": 1171299,
+      "cachedInputTokens": 988416,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 64120,
+      "reasoningOutputTokens": 54133
+    },
+    "last": {
+      "totalTokens": 80155,
+      "inputTokens": 79325,
+      "cachedInputTokens": 74368,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 830,
+      "reasoningOutputTokens": 746
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 20.7872323319898,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

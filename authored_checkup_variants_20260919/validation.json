@@ -1,0 +1,58 @@
+{
+  "complete": true,
+  "samples": [
+    {
+      "sample": "sample-01",
+      "passages": 6
+    },
+    {
+      "sample": "sample-02",
+      "passages": 6
+    },
+    {
+      "sample": "sample-03",
+      "passages": 6
+    },
+    {
+      "sample": "sample-04",
+      "passages": 6
+    },
+    {
+      "sample": "sample-05",
+      "passages": 6
+    },
+    {
+      "sample": "sample-06",
+      "passages": 6
+    },
+    {
+      "sample": "sample-07",
+      "passages": 6
+    },
+    {
+      "sample": "sample-08",
+      "passages": 6
+    },
+    {
+      "sample": "sample-09",
+      "passages": 6
+    },
+    {
+      "sample": "sample-10",
+      "passages": 6
+    }
+  ],
+  "responses": 60,
+  "source_hashes_match": true,
+  "support_code_frozen_before_generation": true,
+  "fork_prefixes_match": true,
+  "wire_requests_match": true,
+  "native_conversations_continued": true,
+  "all_first_outputs_preserved": true,
+  "live_session_bytes_unchanged": true,
+  "public_summary_present": 60,
+  "model": "gpt-5.6-sol",
+  "effort": "max",
+  "summary": "detailed",
+  "preserved_capacity_failures": 0
+}

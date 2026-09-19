@@ -1,0 +1,39 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’m not available for additional front-of-house shifts,” you say. “I want to keep the hours outside my archive contract for myself.”\n\nNell looks up from the rota.\n\n“Understood. I wasn’t asking you to cover Owen. His shift has moved rather than opened up, and your hours are archive hours.”\n\nShe sets the rota aside.",
+  "reasoning_summaries": [
+    "**Clarifying FOH shift misunderstanding**",
+    "**Formulating Nell's shift clarification reply**",
+    "**Drafting concise Nell boundary statement**"
+  ],
+  "thread_id": "01a0b72b-1ec4-7e20-9dec-df0f58fc1c37",
+  "turn_id": "01a0b73d-9399-73c3-b025-c47365a88859",
+  "usage": {
+    "total": {
+      "totalTokens": 1234249,
+      "inputTokens": 1172266,
+      "cachedInputTokens": 1057152,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 61983,
+      "reasoningOutputTokens": 52071
+    },
+    "last": {
+      "totalTokens": 79572,
+      "inputTokens": 78927,
+      "cachedInputTokens": 74368,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 645,
+      "reasoningOutputTokens": 568
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 15.460595726966858,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

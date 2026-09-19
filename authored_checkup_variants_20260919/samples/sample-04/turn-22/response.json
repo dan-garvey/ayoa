@@ -1,0 +1,41 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’m not available for additional front-of-house shifts,” you tell Nell. “I want to keep the hours outside my archive contract for myself.”\n\n“Understood.” She sets down her pen. “Your contract is for thirty hours of archive work. I haven’t put you on the front-of-house rota, and I won’t use the fact that you live upstairs as emergency availability.”\n\nShe indicates the October dates she has just mentioned.\n\n“My leave affects who can authorize archive access while I’m away. It doesn’t make you responsible for covering the cinema.”\n\nNell adds **ARCHIVE CONTRACT ONLY** beside your name in her staffing notes, then closes the rota.\n\n“That’s clear now.”\n\nThe second programme box remains on the workroom table, ready for the morning’s assigned work.",
+  "reasoning_summaries": [
+    "**Drafting response for FOH shift boundary**",
+    "**Clarifying archive-only status and shift boundaries**",
+    "**Finalizing dialogue to confirm shift boundaries**",
+    "**Refining dialogue and action transitions**",
+    "**Clarifying character dialogue and boundaries**"
+  ],
+  "thread_id": "01a0b72b-1874-78e3-ab34-6606f0f4dd82",
+  "turn_id": "01a0b73d-295b-70d0-8ef3-a648c1feeaf6",
+  "usage": {
+    "total": {
+      "totalTokens": 1238985,
+      "inputTokens": 1173533,
+      "cachedInputTokens": 989824,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 65452,
+      "reasoningOutputTokens": 54990
+    },
+    "last": {
+      "totalTokens": 81246,
+      "inputTokens": 80195,
+      "cachedInputTokens": 75264,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1051,
+      "reasoningOutputTokens": 888
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 26.932782888005022,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "executor": "codex-app-server",
+  "status": "completed",
+  "exit_code": 0,
+  "raw": "“I’ll see you tomorrow,” you tell Owen.\n\n“Maybe. I’m not on shift, though—I moved it to Friday for the interview.”\n\nHe draws the card reader back towards him as you leave the table.\n\nOutside, the rain has stopped. You go down Harbour Street and turn along the inner harbour, where the pavement runs beside a stone quay darkened by the morning weather. Fishing boats lie against their fenders below, decks crowded with stacked pots, blue rope and covered tubs. Diesel hangs in the air with salt and wet timber.\n\nThe tide is high enough to slap against the harbour steps. Across the basin, somebody hoses down a deck while two others sort a net over a waist-high rail. Farther inland, a refrigerated lorry reverses towards the food-packing depot, its warning signal carrying over the roofs.\n\nYou follow the quay as far as the view opens towards the breakwater. Beyond it, the sea is a flat grey under a brighter strip of sky. Wind presses at your charcoal coat and shakes water from the railings.\n\nThe circuit brings you back towards Harbour Street before eleven. A service van has stopped outside the Picture House, and a technician is unloading a case of fire-alarm testing equipment.",
+  "reasoning_summaries": [
+    "**Clarifying Owen's schedule mismatch**",
+    "**Finalizing Owen dialogue and harbor walk**",
+    "**Planning timed solo harbor walk**",
+    "**Planning harbor walk endpoint**",
+    "**Detailing harbor walk environment**",
+    "**Finalizing harbor walk route and timing**",
+    "**Finalizing dialogue closure**",
+    "**Confirming natural conversation ending**"
+  ],
+  "thread_id": "01a0b72b-19ff-71d2-85b1-5b6ece11aae7",
+  "turn_id": "01a0b742-f992-7350-bbe4-a304785c646c",
+  "usage": {
+    "total": {
+      "totalTokens": 1382861,
+      "inputTokens": 1316914,
+      "cachedInputTokens": 1132800,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 65947,
+      "reasoningOutputTokens": 55575
+    },
+    "last": {
+      "totalTokens": 81719,
+      "inputTokens": 80174,
+      "cachedInputTokens": 75776,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 1545,
+      "reasoningOutputTokens": 1292
+    },
+    "modelContextWindow": 258400
+  },
+  "proxy_elapsed_s": 32.96703170496039,
+  "item_types": [
+    "userMessage",
+    "reasoning",
+    "reasoning",
+    "reasoning",
+    "agentMessage"
+  ]
+}
