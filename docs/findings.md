@@ -465,3 +465,60 @@ session bytes passed validation. Five offline tests and Ruff passed. Both prose
 assessments were frozen before revealing the conditions. One selected checkpoint,
 two replications and six turns cannot establish transfer to other stories,
 self-generated guidance or lasting improvement. Follow-up remains in `ayoa-9bay`.
+
+## Concise wording variants of the four authored interventions
+
+The [next 60-passage experiment](https://github.com/dan-garvey/ayoa/tree/7d3140114eb4acd58fe5ee12dff1fbffbf697e18/authored_checkup_variants_20260919)
+rewrites all four notes with stronger or different wording at the identical
+Breakwater checkpoint. Correction changes from 208 to 202 words, development
+313 to 306, their exact combination 521 to 508, and the creative reframe 201 to
+195. These are word counts, not token counts. Each new note and a no-new-note
+control receive two continued Sol/max runs of the same six inputs. Full canon,
+biographies, 18 passages and three earlier checkups remain unchanged.
+
+The root preferred the stronger combined note in both new replications. One run
+gives Bea a film with her granddaughter and Owen a gig ticket; the other lets Jo
+negotiate a real deadline to protect unexpected time with Fran. Both end the
+requested solitary walk without the recurring assurances that nobody interferes.
+The correction component starts, "Stop narrating proof that permissions,
+boundaries and privacy are being respected. Keep respecting them." The whole
+note was tested, not that sentence alone. Combining it with selected development
+produced the root's preferred new balance. The older combined sample 09 retains
+a stronger archive-to-attribution connection.
+
+Stronger correction alone remains good without clearly surpassing the original.
+Stronger development produces independent choices and caring gestures but still
+explains or recaps their meaning; one narrator even says, "Neither has been
+brought in merely to talk." The creative reframe produces vivid father–son
+scenes in both new runs, yet both end the break and impose catalogue work until
+15:30 before honoring the immediately requested walk. Eventual solitude is not
+enough: the player did not choose that intervening activity. One development run
+also requires a smaller rewind after the model closes the break prematurely.
+
+The [frozen reviews and adjudication](https://github.com/dan-garvey/ayoa/blob/7d3140114eb4acd58fe5ee12dff1fbffbf697e18/authored_checkup_variants_20260919/README.md)
+show substantial disagreement. A fresh Sol/max reader reviewed all twenty
+randomly labeled original/new trajectories, unaware of batch or condition. It
+preferred original development sample 10 overall, followed by original reframe
+06, original development 01 and new development 04. It called new combined 08
+the best quiet continuation, but its comparison of combined notes was mixed.
+The root values conversational room and unobtrusive narration more strongly.
+The independent reader also treated two delayed walks as pacing costs; the root
+counts the unchosen work as player-action displacement even when chronology is
+possible. A small cross-packet rail-detail error and an unsupported "minutes
+before noon" inference are documented rather than copied into prompt rules.
+Compatible invented history remains valid.
+
+Both final reviews were hash-frozen before labels were revealed. The root knew
+its own notes and remembered earlier prose, so its masking was partial. All 60
+first outputs completed without failures, retries, recovery or regeneration in
+one app-server, with the same native conversation continued for each branch.
+Exact requests, exposed summaries, output events, all ten final 27-turn histories
+and unchanged live-session bytes passed verification. Five offline tests and
+Ruff passed. Production prompts and the live chat are unchanged.
+
+This is two replications at one selected checkpoint. The older results were
+reused rather than regenerated alongside the new batch, and the fixed script
+skips questions an adaptive player might answer. The stronger combined note is
+a candidate for further testing, not a demonstrated universal improvement or a
+tested automatic-reviewer policy. Follow-up `ayoa-9bay` retains the comparison;
+`ayoa-5x2i` isolates premature scene closure and displaced player actions.
